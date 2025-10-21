@@ -949,7 +949,9 @@ class Api:
         if not username:
             return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
         password = self._load_config(username)
+        # 修复Issue 2: _load_config已经设置了self.device_ua，确保返回
         ua = self.device_ua or ""
+        logging.debug(f"on_user_selected: username={username}, ua={ua}, password={'***' if password else 'empty'}")
         info = {"name": self.user_data.name, "student_id": self.user_data.student_id}
         return {"password": password or "", "ua": ua, "params": self.params, "userInfo": info}
 
@@ -1050,6 +1052,10 @@ class Api:
         # --- 新增：将获取到的半径附加到返回信息中 ---
         user_info_dict['server_attendance_radius_m'] = self.server_attendance_radius_m
 
+        # 修复Issue 5: 设置登录状态标志用于会话持久化
+        self.login_success = True
+        self.user_info = user_info_dict
+
         return {"success": True, "userInfo": user_info_dict, "ua": self.device_ua}
 
 
@@ -1067,6 +1073,11 @@ class Api:
             self.auto_refresh_thread = None
         except Exception as e:
             logging.warning(f"Failed to stop auto-refresh thread: {e}")
+        
+        # 修复Issue 5: 清除登录状态标志
+        self.login_success = False
+        self.user_info = None
+        
         self._init_state_variables()
         self._load_global_config()
         self.api_client.session.cookies.clear()
@@ -1442,8 +1453,9 @@ class Api:
         run_data = self.all_run_data[self.current_run_idx]
         total_points = len(run_data.run_coords) if run_data.run_coords else 0
         
-        # 计算已处理的点数（基于target_sequence）
-        processed_points = min(run_data.target_sequence, total_points)
+        # 修复Issue 1: 使用current_point_index追踪实际进度
+        processed_points = getattr(run_data, 'current_point_index', 0)
+        processed_points = min(processed_points, total_points)
         
         # 获取当前位置（如果有的话）
         current_position = None
@@ -1599,6 +1611,7 @@ class Api:
             last_point_gps = run_data.run_coords[0]
             submission_successful = True
 
+            point_index = 0  # 修复Issue 1: 追踪当前处理的点索引
             for i in range(0, len(run_data.run_coords), 40):
                 if stop_flag.is_set():
                     log_func("任务已中止。")
@@ -1614,6 +1627,8 @@ class Api:
                     
                     run_data.distance_covered_m += self._calculate_distance_m(last_point_gps[0], last_point_gps[1], lon, lat)
                     last_point_gps = (lon, lat, dur_ms)
+                    point_index += 1  # 修复Issue 1: 更新点索引
+                    run_data.current_point_index = point_index  # 修复Issue 1: 保存到run_data
                     self.check_target_reached_during_run(run_data, lon, lat)
                     
                     if self.window and self.current_run_idx == task_index:
