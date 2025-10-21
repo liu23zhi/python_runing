@@ -2,56 +2,49 @@
 
 ## 30秒快速启动
 
-### Web模式（推荐）
+### 安装和启动
 
 ```bash
 # 1. 安装依赖
-pip install Flask flask-cors requests openpyxl xlrd xlwt chardet
+pip install Flask flask-cors requests openpyxl xlrd xlwt chardet playwright
 
-# 2. 启动服务器
-python main.py --web
+# 2. 安装Chromium浏览器
+python -m playwright install chromium
 
-# 3. 打开浏览器访问
+# 3. 启动服务器
+python main.py
+
+# 4. 打开浏览器访问
 # http://localhost:5000/
 ```
 
 就这么简单！浏览器会自动跳转到带UUID的地址。
 
-### 桌面模式（原有功能）
-
-```bash
-# 1. 安装额外依赖
-pip install pywebview[qt]
-
-# 2. 启动应用
-python main.py
-```
+**注意**: 本程序已完全采用Web模式，弃用了桌面模式和tkinter。所有JS计算在服务器端Chrome中执行。
 
 ## 常用命令
 
 | 命令 | 说明 |
 |------|------|
-| `python main.py --web` | 启动Web模式（默认端口5000） |
-| `python main.py --web --port 8080` | 指定端口 |
-| `python main.py --web --host 0.0.0.0` | 允许外网访问 |
-| `python main.py` | 启动桌面模式 |
-| `python main.py --autologin 学号 密码` | 桌面模式自动登录 |
+| `python main.py` | 启动服务器（默认端口5000） |
+| `python main.py --port 8080` | 指定端口 |
+| `python main.py --host 0.0.0.0` | 允许外网访问 |
+| `python main.py --headless False` | 使用可见Chrome窗口（调试用） |
 
 ## 首次使用流程
 
-### Web模式
-
 1. **启动服务器**
    ```bash
-   python main.py --web
+   python main.py
    ```
    
 2. **看到提示**
    ```
    ============================================================
-     跑步助手 Web 模式已启动
+     跑步助手 Web 模式已启动（服务器端Chrome渲染）
      访问地址: http://127.0.0.1:5000
      首次访问将自动分配UUID并重定向
+     JS计算在服务器端Chrome中执行，提升安全性
    ============================================================
    ```
 
@@ -65,19 +58,8 @@ python main.py
 
 5. **开始使用**
    - 登录账号
-   - 使用所有功能（与桌面版相同）
-
-### 桌面模式
-
-1. **启动应用**
-   ```bash
-   python main.py
-   ```
-
-2. **等待窗口打开**
-   - 自动打开应用窗口
-   - 选择账号或输入新账号
-   - 登录使用
+   - 所有JS计算在服务器端Chrome中执行
+   - 客户端浏览器仅用于显示和交互
 
 ## 疑难解答
 
@@ -107,11 +89,11 @@ ModuleNotFoundError: No module named 'xxx'
 
 **解决方法:**
 ```bash
-# Web模式
-pip install Flask flask-cors requests openpyxl xlrd xlwt chardet
+# 安装所有依赖
+pip install Flask flask-cors requests openpyxl xlrd xlwt chardet playwright
 
-# 桌面模式（额外需要）
-pip install pywebview[qt]
+# 安装Chromium浏览器
+python -m playwright install chromium
 ```
 
 ### 问题3: 无法访问
@@ -143,4 +125,7 @@ curl http://localhost:5000/health
 
 ---
 
-**提示:** 首次启动建议使用Web模式，更轻量且无需安装GUI相关依赖。
+**重要提示:** 
+- 本程序已完全弃用桌面模式和tkinter
+- 所有JS计算在服务器端Chrome中执行，提升安全性
+- 用户浏览器仅作为显示界面，无需任何客户端依赖

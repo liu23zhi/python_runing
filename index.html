@@ -1011,6 +1011,37 @@ async function callPythonAPI(method, ...args) {
   }
 }
 
+// 在服务器端Chrome中执行JavaScript（Web模式专用）
+async function executeServerJS(script, ...args) {
+  if (!isWebMode) {
+    // 非Web模式，直接在本地执行
+    return eval(script);
+  }
+  
+  // Web模式：发送到服务器端Chrome执行
+  const response = await fetch('/execute_js', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      script: script,
+      args: args
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error(`服务器端JS执行失败: ${response.statusText}`);
+  }
+  
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.message || 'JS执行失败');
+  }
+  
+  return data.result;
+}
+
 // 单账号模式：GPS点进度计数
 let singleProcessedPoints = 0;       // 已处理/已上报的点数
 let singleTotalPoints = 0;           // 当前任务总点数（run_coords长度）

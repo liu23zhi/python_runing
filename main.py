@@ -24,18 +24,16 @@ import secrets
 from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify
 from flask_cors import CORS
 
-# tkinter只在桌面模式需要
+# Playwright用于在服务器端运行Chrome进行JS计算
 try:
-    import tkinter
-    from tkinter import filedialog, messagebox
+    from playwright.sync_api import sync_playwright
+    playwright_available = True
 except ImportError:
-    tkinter = None
-    filedialog = None
-    messagebox = None
+    playwright_available = False
 
-# webview只在桌面模式需要
+# webview仅用于桌面模式（已弃用tkinter）
 try:
-    import webview   # 嵌入式浏览器
+    import webview   # 嵌入式浏览器（桌面模式）
 except ImportError:
     webview = None
 
@@ -51,18 +49,9 @@ except ImportError as e:
     error_msg = (
         "运行本程序需要 'requests', 'openpyxl', 'chardet', 'xlrd' 和 'xlwt' 库。\n"
         "请先在终端运行:\n"
-        "pip install requests openpyxl xlrd xlwt chardet Flask flask-cors\n"
+        "pip install requests openpyxl xlrd xlwt chardet Flask flask-cors playwright\n"
         f"详细错误: {e}"
     )
-    
-    # 如果在桌面模式且tkinter可用，弹出对话框
-    if tkinter and messagebox:
-        try:
-            root = tkinter.Tk()
-            root.withdraw()
-            messagebox.showerror("依赖错误", error_msg)
-        except:
-            pass
     
     # 打印到控制台
     print(f"\n{'='*60}\n错误: {error_msg}\n{'='*60}\n", file=sys.stderr)
@@ -4362,79 +4351,134 @@ except Exception as e:
 
 
 def main():
-    """主函数，负责解析参数、创建窗口和启动应用"""
+    """主函数，启动Web服务器模式（已弃用桌面模式）"""
     
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--autologin", nargs=2, metavar=('USERNAME','PASSWORD'), help="自动登录")
-    parser.add_argument("--web", action="store_true", help="启动Web服务器模式")
+    parser = argparse.ArgumentParser(description='跑步助手 - Web服务器模式')
     parser.add_argument("--port", type=int, default=5000, help="Web服务器端口（默认5000）")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Web服务器地址（默认127.0.0.1）")
+    parser.add_argument("--headless", action="store_true", default=True, help="使用无头Chrome模式（默认启用）")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)])
     
-    # --- 定义并应用日志过滤器 ---
-    class PywebviewErrorFilter(logging.Filter):
-        def filter(self, record):
-            # 定义要屏蔽的特定错误信息片段
-            suppress_messages = [
-                "Error while processing window.native.AccessibleRole",
-                "Error while processing window.native.AccessibilityObject.Bounds",
-                "Error while processing window.native.ActiveControl",
-                "Error while processing window.native.ControlCollection",
-                "Error while processing window.native.DockPaddingEdgesConverter"
-            ]
-                
-            message = record.getMessage()
-            # 如果日志信息不包含任何一个片段，则通过，否则屏蔽
-            return not any(msg in message for msg in suppress_messages)
-
-    # 获取 pywebview 库的日志记录器
-    pywebview_logger = logging.getLogger('pywebview')
-    # 为该记录器添加我们自定义的过滤器
-    pywebview_logger.addFilter(PywebviewErrorFilter())
-
-
-    # 检查是否启用Web模式
-    if args.web:
-        # Web服务器模式
-        logging.info("启动Web服务器模式...")
-        start_web_server(args)
-    else:
-        # 桌面应用模式（原有逻辑）
-        if not webview:
-            print("\n错误: 桌面模式需要 pywebview 库")
-            print("请运行: pip install pywebview[qt]")
-            print("或使用 --web 参数启动Web模式\n")
-            sys.exit(1)
-        
-        api = Api(args)
-        
-        window = webview.create_window(
-            "跑步助手",
-            html=html_content,
-            js_api=api,
-            width=1440,
-            height=1000,
-            resizable=True
-        )
-        
-        api.set_window(window)
-        
-        webview.start(debug=True)
+    # 检查Playwright是否可用
+    if not playwright_available:
+        print("\n" + "="*60)
+        print("错误: 需要安装 Playwright 以在服务器端运行Chrome")
+        print("请运行以下命令:")
+        print("  pip install playwright")
+        print("  python -m playwright install chromium")
+        print("="*60 + "\n")
+        sys.exit(1)
+    
+    # 启动Web服务器模式
+    logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
+    start_web_server(args)
 
 
 # ==============================================================================
 # 5. Web服务器模式
 #    支持通过浏览器访问，使用UUID进行会话管理
+#    使用Playwright在服务器端运行Chrome进行JS计算
 # ==============================================================================
 
 # 全局会话存储：{session_id: Api实例}
 web_sessions = {}
 web_sessions_lock = threading.Lock()
 
+# Playwright浏览器池管理
+class ChromeBrowserPool:
+    """管理服务器端Chrome浏览器实例，用于执行JS计算"""
+    
+    def __init__(self, headless=True, max_instances=5):
+        self.headless = headless
+        self.max_instances = max_instances
+        self.playwright = None
+        self.browser = None
+        self.contexts = {}  # {session_id: browser_context}
+        self.lock = threading.Lock()
+        self._initialize()
+    
+    def _initialize(self):
+        """初始化Playwright和浏览器"""
+        try:
+            self.playwright = sync_playwright().start()
+            self.browser = self.playwright.chromium.launch(
+                headless=self.headless,
+                args=['--no-sandbox', '--disable-setuid-sandbox']
+            )
+            logging.info(f"Chrome浏览器已启动 (headless={self.headless})")
+        except Exception as e:
+            logging.error(f"启动Chrome失败: {e}")
+            raise
+    
+    def get_context(self, session_id):
+        """获取或创建指定会话的浏览器上下文"""
+        with self.lock:
+            if session_id not in self.contexts:
+                # 创建新的浏览器上下文
+                context = self.browser.new_context(
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                )
+                page = context.new_page()
+                self.contexts[session_id] = {'context': context, 'page': page}
+                logging.info(f"为会话 {session_id} 创建Chrome上下文")
+            return self.contexts[session_id]
+    
+    def execute_js(self, session_id, script, *args):
+        """在指定会话的Chrome中执行JavaScript代码"""
+        try:
+            ctx = self.get_context(session_id)
+            page = ctx['page']
+            result = page.evaluate(script, *args)
+            return result
+        except Exception as e:
+            logging.error(f"执行JS失败 (session={session_id}): {e}")
+            return None
+    
+    def close_context(self, session_id):
+        """关闭指定会话的浏览器上下文"""
+        with self.lock:
+            if session_id in self.contexts:
+                try:
+                    ctx = self.contexts[session_id]
+                    ctx['context'].close()
+                    del self.contexts[session_id]
+                    logging.info(f"关闭会话 {session_id} 的Chrome上下文")
+                except Exception as e:
+                    logging.error(f"关闭上下文失败: {e}")
+    
+    def cleanup(self):
+        """清理所有资源"""
+        with self.lock:
+            for session_id in list(self.contexts.keys()):
+                try:
+                    self.contexts[session_id]['context'].close()
+                except:
+                    pass
+            self.contexts.clear()
+            
+            if self.browser:
+                self.browser.close()
+            if self.playwright:
+                self.playwright.stop()
+
+# 全局Chrome浏览器池
+chrome_pool = None
+
 def start_web_server(args):
-    """启动Flask Web服务器"""
+    """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
+    global chrome_pool
+    
+    # 初始化Chrome浏览器池
+    try:
+        chrome_pool = ChromeBrowserPool(headless=getattr(args, 'headless', True))
+        logging.info("Chrome浏览器池初始化成功")
+    except Exception as e:
+        logging.error(f"无法初始化Chrome浏览器池: {e}")
+        sys.exit(1)
+    
     app = Flask(__name__)
     app.secret_key = secrets.token_hex(32)  # 生成安全的密钥
     CORS(app)  # 允许跨域请求
@@ -4522,10 +4566,35 @@ def start_web_server(args):
             # 不暴露详细错误信息给前端，只记录到日志
             return jsonify({"success": False, "message": "服务器内部错误"}), 500
     
+    @app.route('/execute_js', methods=['POST'])
+    def execute_js():
+        """在服务器端Chrome中执行JavaScript代码"""
+        if 'session_id' not in session:
+            return jsonify({"success": False, "message": "无效的会话"}), 401
+        
+        session_id = session['session_id']
+        data = request.get_json() or {}
+        script = data.get('script', '')
+        args_list = data.get('args', [])
+        
+        if not script:
+            return jsonify({"success": False, "message": "缺少script参数"}), 400
+        
+        try:
+            result = chrome_pool.execute_js(session_id, script, *args_list)
+            return jsonify({"success": True, "result": result})
+        except Exception as e:
+            logging.error(f"执行JS失败: {e}")
+            return jsonify({"success": False, "message": "JS执行失败"}), 500
+    
     @app.route('/health')
     def health():
         """健康检查端点"""
-        return jsonify({"status": "ok", "sessions": len(web_sessions)})
+        return jsonify({
+            "status": "ok", 
+            "sessions": len(web_sessions),
+            "chrome_contexts": len(chrome_pool.contexts) if chrome_pool else 0
+        })
     
     # 定期清理过期会话（可选）
     def cleanup_sessions():
@@ -4534,7 +4603,11 @@ def start_web_server(args):
             time.sleep(3600)  # 每小时检查一次
             with web_sessions_lock:
                 # 这里可以添加更复杂的会话过期逻辑
-                pass
+                # 清理Chrome上下文
+                if chrome_pool:
+                    for session_id in list(web_sessions.keys()):
+                        # 可以添加超时检查逻辑
+                        pass
     
     cleanup_thread = threading.Thread(target=cleanup_sessions, daemon=True)
     cleanup_thread.start()
@@ -4542,12 +4615,19 @@ def start_web_server(args):
     # 启动服务器
     logging.info(f"Web服务器启动于 http://{args.host}:{args.port}")
     print(f"\n{'='*60}")
-    print(f"  跑步助手 Web 模式已启动")
+    print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染）")
     print(f"  访问地址: http://{args.host}:{args.port}")
     print(f"  首次访问将自动分配UUID并重定向")
+    print(f"  JS计算在服务器端Chrome中执行，提升安全性")
     print(f"{'='*60}\n")
     
-    app.run(host=args.host, port=args.port, debug=False, threaded=True)
+    try:
+        app.run(host=args.host, port=args.port, debug=False, threaded=True)
+    finally:
+        # 清理Chrome资源
+        if chrome_pool:
+            logging.info("正在清理Chrome浏览器资源...")
+            chrome_pool.cleanup()
 
 
 if __name__ == "__main__":

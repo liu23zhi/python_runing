@@ -2,10 +2,11 @@
 
 ## 概述
 
-本程序现在支持两种运行模式：
+本程序采用纯Web模式架构（已弃用桌面模式和tkinter）：
 
-1. **桌面模式**（原有功能）- 使用PyWebView创建桌面应用
-2. **Web模式**（新增功能）- 使用Flask创建Web服务器，支持多用户浏览器访问
+- **Web模式** - 使用Flask创建Web服务器，支持多用户浏览器访问
+- **服务器端渲染** - 使用Playwright在服务器端运行Chrome处理JS计算
+- **零客户端依赖** - 用户只需浏览器，无需安装任何额外软件
 
 ## Web模式特性
 
@@ -13,7 +14,8 @@
 
 - **自动UUID分配**: 首次访问根URL时自动生成唯一会话ID
 - **会话持久化**: 关闭浏览器后重新访问同一UUID链接，会话状态保持不变
-- **本地计算**: 所有计算在Python后端执行，提高安全性
+- **服务器端JS执行**: 所有JS计算在服务器端Chrome中执行，客户端浏览器仅作为显示界面
+- **增强安全性**: 用户浏览器无法访问或篡改JS计算逻辑
 - **防浏览器卡顿**: 会话独立于浏览器进程，浏览器崩溃不影响后台任务
 
 ### 访问流程示例
@@ -25,54 +27,46 @@
 
 ## 安装依赖
 
-### Web模式必需依赖
+### 必需依赖
 ```bash
-pip install Flask flask-cors requests openpyxl xlrd xlwt chardet
-```
+# 安装Python依赖
+pip install Flask flask-cors requests openpyxl xlrd xlwt chardet playwright
 
-### 桌面模式额外依赖
-```bash
-pip install pywebview[qt]
+# 安装Playwright的Chromium浏览器
+python -m playwright install chromium
 ```
 
 ## 使用方法
 
-### 启动Web模式
+### 启动服务器
 
 基本启动（本地访问，默认端口5000）:
-```bash
-python main.py --web
-```
-
-指定端口:
-```bash
-python main.py --web --port 8080
-```
-
-允许外网访问:
-```bash
-python main.py --web --host 0.0.0.0 --port 5000
-```
-
-### 启动桌面模式（原有功能）
-
 ```bash
 python main.py
 ```
 
-带自动登录:
+指定端口:
 ```bash
-python main.py --autologin 用户名 密码
+python main.py --port 8080
+```
+
+允许外网访问:
+```bash
+python main.py --host 0.0.0.0 --port 5000
+```
+
+使用可见的Chrome窗口（调试用）:
+```bash
+python main.py --headless=False
 ```
 
 ## 命令行参数
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `--web` | 启动Web服务器模式 | False（桌面模式） |
 | `--port` | Web服务器端口 | 5000 |
 | `--host` | Web服务器地址 | 127.0.0.1 |
-| `--autologin` | 自动登录（仅桌面模式）| 无 |
+| `--headless` | 使用无头Chrome模式 | True |
 
 ## 安全建议
 
@@ -92,23 +86,27 @@ python main.py --autologin 用户名 密码
 
 ## 架构说明
 
-### 桌面模式
+### 新架构（纯Web模式）
 ```
-用户 → PyWebView窗口 → Python后端
-```
-
-### Web模式
-```
-用户 → 浏览器 → Flask服务器 → Python后端
-                    ↓
-              会话管理（UUID）
+用户浏览器（仅显示） → Flask服务器 → Python后端
+                          ↓
+                    会话管理（UUID）
+                          ↓
+                  服务器端Chrome（JS执行）
 ```
 
-### API调用统一
+### 关键特性
 
-前端使用统一的 `callPythonAPI()` 函数:
-- **桌面模式**: 直接调用 `window.pywebview.api.*`
-- **Web模式**: 通过HTTP POST调用 `/api/*` 端点
+- **客户端浏览器**: 仅负责UI显示和用户交互
+- **Flask服务器**: 处理HTTP请求，管理会话
+- **Python后端**: 执行所有业务逻辑
+- **服务器端Chrome**: 使用Playwright控制，执行所有JS计算
+
+### API调用
+
+前端调用流程:
+1. `callPythonAPI()` - 调用Python后端API
+2. `executeServerJS()` - 在服务器端Chrome中执行JS代码
 
 ## 故障排除
 
