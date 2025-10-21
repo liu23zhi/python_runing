@@ -1688,12 +1688,27 @@ class Api:
                 if stop_flag.is_set(): break
                 
                 is_final_chunk = (i + 40 >= len(run_data.run_coords))
-                if not self._submit_chunk(run_data, chunk, start_time_ms, is_final_chunk, i, client, user_data):
+                # 尝试提交，失败时最多重试 3 次再放弃
+                max_attempts = 3
+                attempt = 1
+                chunk_submitted = False
+                while attempt <= max_attempts:
+                    if self._submit_chunk(run_data, chunk, start_time_ms, is_final_chunk, i, client, user_data):
+                        chunk_submitted = True
+                        break
+                    # 提交失败
                     submission_successful = False
                     if self.is_offline_mode:
-                        logging.error("[离线测试模式] 模拟提交失败（不应该发生），任务中止")
+                        logging.error(f"[离线测试模式] 模拟提交失败（不应该发生），尝试 {attempt}/{max_attempts}")
+                        # 离线模式下不做额外等待
                     else:
-                        logging.warning("Chunk submission failed, aborting task.")
+                        logging.warning(f"数据提交失败，重试 {attempt}/{max_attempts}")
+                        # 短暂等待后重试
+                        time.sleep(1)
+                    attempt += 1
+
+                if not chunk_submitted:
+                    logging.error(f"数据提交在 {max_attempts} 次尝试后仍然失败，任务中止")
                     break
             
             if not stop_flag.is_set() and submission_successful:
