@@ -21,8 +21,14 @@ import csv
 import queue as _queue
 import uuid
 import secrets
+import pickle
 from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify
 from flask_cors import CORS
+
+# 会话存储目录
+SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
+if not os.path.exists(SESSION_STORAGE_DIR):
+    os.makedirs(SESSION_STORAGE_DIR)
 
 # 配置UTF-8编码（用于日志和控制台输出）
 if sys.platform.startswith('win'):
@@ -1510,6 +1516,14 @@ class Api:
     def _submit_chunk(self, run_data: RunData, chunk, start_time, is_finish, chunk_start_index, client: ApiClient, user: UserData):
         """将一小块轨迹数据提交到服务器"""
         log_func = client.app.log if hasattr(client.app, 'log') else client.app.api_bridge.log
+        
+        # 修复离线测试模式：检查是否为离线模式
+        if self.is_offline_mode:
+            log_func(f"[离线测试模式] 模拟提交 {len(chunk)} 个GPS点...")
+            logging.info(f"[离线测试模式] 模拟提交 chunk: start_index={chunk_start_index}, size={len(chunk)}, is_finish={is_finish}")
+            time.sleep(0.1)  # 模拟网络延迟
+            return True  # 离线模式总是返回成功
+        
         log_func(f"正在提交数据...")
         logging.debug(f"Submitting chunk: start_index={chunk_start_index}, size={len(chunk)}, is_finish={is_finish}")
         
@@ -1673,7 +1687,10 @@ class Api:
                 is_final_chunk = (i + 40 >= len(run_data.run_coords))
                 if not self._submit_chunk(run_data, chunk, start_time_ms, is_final_chunk, i, client, user_data):
                     submission_successful = False
-                    logging.warning("Chunk submission failed, aborting task.")
+                    if self.is_offline_mode:
+                        logging.error("[离线测试模式] 模拟提交失败（不应该发生），任务中止")
+                    else:
+                        logging.warning("Chunk submission failed, aborting task.")
                     break
             
             if not stop_flag.is_set() and submission_successful:
@@ -4534,6 +4551,71 @@ def main():
 web_sessions = {}
 web_sessions_lock = threading.Lock()
 
+# 会话持久化函数
+def save_session_state(session_id, api_instance):
+    """将会话状态保存到文件"""
+    try:
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_id}.json")
+        state = {
+            'session_id': session_id,
+            'login_success': getattr(api_instance, 'login_success', False),
+            'user_info': getattr(api_instance, 'user_info', None),
+            'created_at': getattr(api_instance, '_session_created_at', time.time()),
+            'last_accessed': time.time()
+        }
+        with open(session_file, 'w', encoding='utf-8') as f:
+            json.dump(state, f, indent=2, ensure_ascii=False)
+        logging.debug(f"会话状态已保存: {session_id[:32]}...")
+    except Exception as e:
+        logging.error(f"保存会话状态失败: {e}")
+
+def load_session_state(session_id):
+    """从文件加载会话状态"""
+    try:
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_id}.json")
+        if os.path.exists(session_file):
+            with open(session_file, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+            logging.info(f"从文件加载会话: {session_id[:32]}... (登录状态: {state.get('login_success')})")
+            return state
+    except Exception as e:
+        logging.error(f"加载会话状态失败: {e}")
+    return None
+
+def load_all_sessions(args):
+    """启动时加载所有持久化会话"""
+    if not os.path.exists(SESSION_STORAGE_DIR):
+        return
+    
+    loaded_count = 0
+    for filename in os.listdir(SESSION_STORAGE_DIR):
+        if filename.endswith('.json'):
+            session_id = filename[:-5]  # 移除.json后缀
+            state = load_session_state(session_id)
+            if state:
+                # 检查会话是否过期（7天）
+                last_accessed = state.get('last_accessed', 0)
+                if time.time() - last_accessed > 7 * 24 * 3600:
+                    logging.info(f"清理过期会话: {session_id[:32]}...")
+                    try:
+                        os.remove(os.path.join(SESSION_STORAGE_DIR, filename))
+                    except:
+                        pass
+                    continue
+                
+                # 重建Api实例
+                api_instance = Api(args)
+                api_instance._session_created_at = state.get('created_at', time.time())
+                if state.get('login_success'):
+                    api_instance.login_success = True
+                    api_instance.user_info = state.get('user_info')
+                    logging.info(f"恢复已登录会话: {session_id[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')})")
+                web_sessions[session_id] = api_instance
+                loaded_count += 1
+    
+    if loaded_count > 0:
+        logging.info(f"共加载 {loaded_count} 个持久化会话")
+
 # Playwright浏览器池管理
 class ChromeBrowserPool:
     """管理服务器端Chrome浏览器实例，用于执行JS计算"""
@@ -4638,14 +4720,17 @@ def start_web_server(args):
     @app.route('/')
     def index():
         """首页：自动分配UUID并重定向"""
-        # 生成512位UUID（128个十六进制字符）
-        session_id = secrets.token_hex(64)  # 64字节 = 512位 = 128个十六进制字符
+        # 生成2048位UUID（512个十六进制字符）
+        session_id = secrets.token_hex(256)  # 256字节 = 2048位 = 512个十六进制字符
         
-        # 创建新的Api实例
+        # 创建新的Api实例并保存到文件
         with web_sessions_lock:
             if session_id not in web_sessions:
-                web_sessions[session_id] = Api(args)
-                logging.info(f"创建新会话 (512位UUID): {session_id}")
+                api_instance = Api(args)
+                api_instance._session_created_at = time.time()
+                web_sessions[session_id] = api_instance
+                save_session_state(session_id, api_instance)
+                logging.info(f"创建新会话 (2048位UUID): {session_id[:32]}...")
         
         # 重定向到带UUID的URL（不依赖Flask session）
         return redirect(url_for('session_view', uuid=session_id))
@@ -4653,18 +4738,32 @@ def start_web_server(args):
     @app.route('/uuid=<uuid>')
     def session_view(uuid):
         """会话页面：显示应用界面"""
-        # 验证UUID格式（512位 = 128个十六进制字符）
-        if not uuid or len(uuid) != 128:
-            logging.warning(f"无效的UUID格式: {uuid} (长度: {len(uuid) if uuid else 0}, 期望: 128)")
+        # 验证UUID格式（2048位 = 512个十六进制字符）
+        if not uuid or len(uuid) != 512:
+            logging.warning(f"无效的UUID格式: {uuid[:32] if uuid else 'None'}... (长度: {len(uuid) if uuid else 0}, 期望: 512)")
             return redirect(url_for('index'))
         
-        # 确保Api实例存在（从URL恢复会话，不依赖Flask session）
+        # 确保Api实例存在（从URL或文件恢复会话，不依赖Flask session）
         with web_sessions_lock:
             if uuid not in web_sessions:
-                web_sessions[uuid] = Api(args)
-                logging.info(f"恢复会话 (512位UUID): {uuid}")
+                # 尝试从文件加载会话状态
+                state = load_session_state(uuid)
+                api_instance = Api(args)
+                api_instance._session_created_at = time.time()
+                
+                if state and state.get('login_success'):
+                    # 恢复登录状态
+                    api_instance.login_success = True
+                    api_instance.user_info = state.get('user_info')
+                    api_instance._session_created_at = state.get('created_at', time.time())
+                    logging.info(f"从文件恢复已登录会话 (2048位UUID): {uuid[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')})")
+                else:
+                    logging.info(f"创建新会话 (2048位UUID): {uuid[:32]}...")
+                
+                web_sessions[uuid] = api_instance
+                save_session_state(uuid, api_instance)
             else:
-                logging.debug(f"使用现有会话: {uuid}")
+                logging.debug(f"使用现有会话: {uuid[:32]}...")
         
         # 返回HTML内容
         return render_template_string(html_content)
@@ -4698,6 +4797,12 @@ def start_web_server(args):
                     result = func(**params) if isinstance(params, dict) else func(*params)
                 else:
                     result = func()
+                
+                # 对于会改变会话状态的API调用，保存会话状态
+                if method in ['login', 'logout']:
+                    save_session_state(session_id, api_instance)
+                    logging.debug(f"API '{method}' 调用后保存会话状态")
+                
                 return jsonify(result if result is not None else {"success": True})
             else:
                 return jsonify({"success": False, "message": f"未知的API方法: {method}"}), 404
@@ -4753,11 +4858,16 @@ def start_web_server(args):
     cleanup_thread = threading.Thread(target=cleanup_sessions, daemon=True)
     cleanup_thread.start()
     
+    # 加载持久化会话
+    logging.info("正在加载持久化会话...")
+    load_all_sessions(args)
+    
     # 启动服务器
     print(f"\n{'='*60}")
-    print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染）")
+    print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染，2048位UUID）")
     print(f"  访问地址: http://{args.host}:{args.port}")
-    print(f"  首次访问将自动分配UUID并重定向")
+    print(f"  首次访问将自动分配2048位UUID并重定向")
+    print(f"  会话持久化已启用（服务器重启后保留登录状态）")
     print(f"  JS计算在服务器端Chrome中执行，提升安全性")
     print(f"{'='*60}\n")
     
