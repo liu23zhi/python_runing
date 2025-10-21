@@ -30,6 +30,9 @@ SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
 if not os.path.exists(SESSION_STORAGE_DIR):
     os.makedirs(SESSION_STORAGE_DIR)
 
+# 会话索引文件：存储SHA256哈希和完整UUID的对应关系
+SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
+
 # 配置UTF-8编码（用于日志和控制台输出）
 if sys.platform.startswith('win'):
     # Windows系统特殊处理
@@ -4552,6 +4555,24 @@ web_sessions = {}
 web_sessions_lock = threading.Lock()
 
 # 会话持久化函数
+def _load_session_index():
+    """加载会话索引文件"""
+    try:
+        if os.path.exists(SESSION_INDEX_FILE):
+            with open(SESSION_INDEX_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        logging.warning(f"加载会话索引失败: {e}")
+    return {}
+
+def _save_session_index(index):
+    """保存会话索引文件"""
+    try:
+        with open(SESSION_INDEX_FILE, 'w', encoding='utf-8') as f:
+            json.dump(index, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logging.error(f"保存会话索引失败: {e}")
+
 def save_session_state(session_id, api_instance):
     """将会话状态保存到文件"""
     try:
@@ -4570,6 +4591,12 @@ def save_session_state(session_id, api_instance):
         }
         with open(session_file, 'w', encoding='utf-8') as f:
             json.dump(state, f, indent=2, ensure_ascii=False)
+        
+        # 更新索引文件：存储完整UUID到SHA256哈希的映射
+        index = _load_session_index()
+        index[session_id] = session_hash
+        _save_session_index(index)
+        
         logging.debug(f"会话状态已保存: {session_id[:32]}... (文件: {session_hash[:16]}...)")
     except Exception as e:
         logging.error(f"保存会话状态失败: {e}")
@@ -4577,9 +4604,19 @@ def save_session_state(session_id, api_instance):
 def load_session_state(session_id):
     """从文件加载会话状态"""
     try:
-        # 修复Windows路径长度限制：使用SHA256哈希作为文件名
+        # 优化：首先从索引文件查找哈希，避免每次都计算
         import hashlib
-        session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+        index = _load_session_index()
+        
+        # 如果索引中存在，直接使用索引中的哈希值
+        if session_id in index:
+            session_hash = index[session_id]
+            logging.debug(f"从索引找到会话哈希: {session_id[:32]}... -> {session_hash[:16]}...")
+        else:
+            # 索引中不存在，计算哈希值（兼容旧文件或索引损坏情况）
+            session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+            logging.debug(f"索引中未找到，计算会话哈希: {session_id[:32]}... -> {session_hash[:16]}...")
+        
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         
         if os.path.exists(session_file):
@@ -4600,8 +4637,16 @@ def load_all_sessions(args):
     if not os.path.exists(SESSION_STORAGE_DIR):
         return
     
+    # 加载或重建索引文件
+    index = _load_session_index()
+    new_index = {}
+    
     loaded_count = 0
     for filename in os.listdir(SESSION_STORAGE_DIR):
+        # 跳过索引文件本身
+        if filename == '_index.json':
+            continue
+            
         if filename.endswith('.json'):
             # 从文件中读取完整的session_id，而不是从文件名
             try:
@@ -4624,6 +4669,10 @@ def load_all_sessions(args):
                         pass
                     continue
                 
+                # 将会话添加到新索引（重建索引）
+                session_hash = filename[:-5]  # 移除.json后缀
+                new_index[session_id] = session_hash
+                
                 # 重建Api实例
                 api_instance = Api(args)
                 api_instance._session_created_at = state.get('created_at', time.time())
@@ -4636,6 +4685,11 @@ def load_all_sessions(args):
             except Exception as e:
                 logging.error(f"加载会话文件 {filename} 失败: {e}")
                 continue
+    
+    # 保存重建的索引（清理过期条目）
+    if new_index:
+        _save_session_index(new_index)
+        logging.debug(f"会话索引已更新，包含 {len(new_index)} 个有效会话")
     
     if loaded_count > 0:
         logging.info(f"共加载 {loaded_count} 个持久化会话")
