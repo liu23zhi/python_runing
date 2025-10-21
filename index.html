@@ -1380,6 +1380,21 @@ async function initializeApp() {
   createParamInputs($('params-container'), 'param', onParamChange);
   if (initialData.lastUser) userCombo.value = initialData.lastUser;
   await onUserChange();
+  
+  // 修复Issue 5: 检查是否已经登录（会话持久化）
+  if (initialData.isLoggedIn && initialData.userInfo) {
+    // 用户已登录，直接显示主界面
+    currentUserData = initialData.userInfo;
+    showMainApp();
+    const name = currentUserData.name || '';
+    $('user-name-label').textContent = `姓名: ${name}`;
+    $('user-id-label').textContent = `学号: ${currentUserData.student_id}`;
+    updateDashboard();
+    await refreshTasks();
+    await fetchNotifications();
+    const base = pythonParams.theme_base_color || '#7dd3fc'; 
+    setBaseColor(base, base);
+  }
 
   if (pythonParams.theme_style) {
     setThemeStyle(pythonParams.theme_style);
@@ -1877,10 +1892,18 @@ $('username-entry').addEventListener('input', async (e) => {
   const userCombo = $('user-combo');
   const exists = [...userCombo.options].some(o => o.value === username);
   userCombo.value = exists ? username : "";
-  if (!username) { $('ua-label').textContent = '(新用户将在登录时自动生成)'; return; }
+  if (!username) { 
+    $('ua-label').textContent = '(新用户将在登录时自动生成)'; 
+    return; 
+  }
   const data = await callPythonAPI('on_user_selected', username);
   if (data && data.password) $('password-entry').value = data.password;
-  $('ua-label').textContent = data && data.ua ? data.ua : '(新用户将在登录时自动生成)';
+  // 修复Issue 1: 确保UA标签正确更新
+  if (data && data.ua) {
+    $('ua-label').textContent = data.ua;
+  } else {
+    $('ua-label').textContent = '(新用户将在登录时自动生成)';
+  }
   pythonParams = (data && data.params) ? data.params : pythonParams;
   updateParamInputs($('params-container'), 'param', pythonParams);
   const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
@@ -3243,6 +3266,42 @@ async function toggleAllRuns() {
     if(!result.success) showModalAlert(result.message);
   } else await callPythonAPI('stop_run');
 }
+// 修复Issue 2: 添加实时状态轮询
+let statusPollInterval = null;
+
+async function pollRunStatus() {
+  try {
+    const status = await callPythonAPI('get_run_status');
+    if (status && status.running) {
+      // 更新位置和进度
+      if (status.current_position) {
+        updateRunnerPosition(
+          status.current_position.lon,
+          status.current_position.lat,
+          status.distance_covered || 0,
+          status.target_sequence || 0,
+          status.duration || 0,
+          false // 不自动居中，避免干扰用户操作
+        );
+      }
+      // 更新进度
+      if (status.processed_points !== undefined && status.total_points !== undefined) {
+        singleProcessedPoints = status.processed_points;
+        singleTotalPoints = status.total_points;
+        const pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+        updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
+      }
+    } else if (status && !status.running && statusPollInterval) {
+      // 任务完成，停止轮询
+      clearInterval(statusPollInterval);
+      statusPollInterval = null;
+      onRunStopped();
+    }
+  } catch (e) {
+    console.error('轮询状态失败:', e);
+  }
+}
+
 function onRunStarted() {
   $('start-run-button').textContent = '停止';
   $('start-run-button').classList.remove('btn-primary');
@@ -3258,6 +3317,10 @@ function onRunStarted() {
   singleProcessedPoints = 0;
   singleTotalPoints = (currentRunData.run_coords?.length || 0);
   updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+
+  // 修复Issue 2: 启动状态轮询（每2秒）
+  if (statusPollInterval) clearInterval(statusPollInterval);
+  statusPollInterval = setInterval(pollRunStatus, 2000);
 
 }
 function onRunStopped() {
@@ -3279,6 +3342,12 @@ function onRunStopped() {
     singleProcessedPoints = 0;
     singleTotalPoints = (currentRunData.run_coords?.length || 0);
     updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+
+    // 修复Issue 2: 停止状态轮询
+    if (statusPollInterval) {
+      clearInterval(statusPollInterval);
+      statusPollInterval = null;
+    }
 
 }
 
@@ -3835,7 +3904,7 @@ async function refreshNotificationsUI() {
       refreshBtn.textContent = '刷新中...';
   }
   if (markReadBtn) markReadBtn.disabled = true;
-  content.innerHTML = '<p class="text-slate-400 text-center py-10">正在刷新...</p>';
+  content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载...</p>';
 
   try {
     const result = await fetchNotifications();
@@ -3843,8 +3912,8 @@ async function refreshNotificationsUI() {
       // fetchNotifications 会更新全局的 window.currentNotifications
       await fetchNotifications(); 
       
-      // 3. 渲染数据 (这部分逻辑从原 showNotifications 复制而来)
-      content.innerHTML = ''; // 清空 "正在刷新..."
+      // 3. 修复Issue 3: 使用流式渲染，逐条显示通知而不是等待全部完成
+      content.innerHTML = ''; // 清空 "正在加载..."
       const notices = window.currentNotifications || [];
 
       if (notices.length === 0) {
@@ -3852,7 +3921,16 @@ async function refreshNotificationsUI() {
           if (markReadBtn) markReadBtn.disabled = true;
       } else {
           let hasUnread = false;
-          notices.forEach(n => {
+          // 使用requestAnimationFrame和分批渲染来优化用户体验
+          let batchIndex = 0;
+          const batchSize = 5; // 每批渲染5条
+          
+          const renderBatch = () => {
+            const start = batchIndex * batchSize;
+            const end = Math.min(start + batchSize, notices.length);
+            
+            for (let i = start; i < end; i++) {
+              const n = notices[i];
               const item = document.createElement('div');
               item.className = 'p-3 border-b border-slate-200';
               
@@ -3959,9 +4037,22 @@ async function refreshNotificationsUI() {
                 <p class="text-sm text-slate-600 mt-1 ${isReadClass}">${n.content}</p>
               `;
               content.appendChild(item);
-          });
+              
+              if (!isEffectivelyRead) hasUnread = true;
+            }
+            
+            batchIndex++;
+            if (end < notices.length) {
+              // 还有更多通知，继续渲染下一批
+              requestAnimationFrame(renderBatch);
+            } else {
+              // 渲染完成
+              if (markReadBtn) markReadBtn.disabled = !hasUnread;
+            }
+          };
           
-          if (markReadBtn) markReadBtn.disabled = !hasUnread;
+          // 开始第一批渲染
+          renderBatch();
       }
       // 4. 显式调用 onNotificationsUpdated 来刷新“签到”Tab
       //    因为它包含渲染 attendance-list 的逻辑
@@ -4166,6 +4257,12 @@ async function handleManualAttendance(event, rollCallId, targetCoords) {
   event.stopPropagation();
   // 关键修复：传入 'true'，告诉 toggleNotifications 在关闭后保持地图禁用
   toggleNotifications(false, true); 
+  
+  // 修复Issue 4: 清空当前任务选择以清除地图遮挡物
+  selectedTaskIndex = -1;
+  renderTaskList();
+  drawOnMap();
+  
   logMessage("请在地图上单击选择签到点...");
 
   // --- 1. 清理可能残留的旧标记 ---
@@ -4324,6 +4421,12 @@ async function handleManualMakeupAttendance(event, rollCallId, targetCoords) {
   event.stopPropagation();
   // 关键修复：传入 'true'，告诉 toggleNotifications 在关闭后保持地图禁用
   toggleNotifications(false, true); 
+  
+  // 修复Issue 4: 清空当前任务选择以清除地图遮挡物
+  selectedTaskIndex = -1;
+  renderTaskList();
+  drawOnMap();
+  
   logMessage("请在地图上单击选择 [补签] 点...");
 
   // --- 1. 清理可能残留的旧标记 ---

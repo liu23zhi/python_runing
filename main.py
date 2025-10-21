@@ -907,8 +907,20 @@ class Api:
         # 在返回数据前，先加载一次全局配置
         self._load_global_config()
 
-        logging.debug(f"Initial users={users}, last user={last_user}")
-        return {"users": users, "lastUser": last_user, "amap_key": self.global_params.get('amap_js_key', '')}
+        # 修复Issue 5: 检查是否已登录（会话持久化）
+        is_logged_in = hasattr(self, 'login_success') and self.login_success
+        user_info = None
+        if is_logged_in and hasattr(self, 'user_info'):
+            user_info = self.user_info
+
+        logging.debug(f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
+        return {
+            "users": users, 
+            "lastUser": last_user, 
+            "amap_key": self.global_params.get('amap_js_key', ''),
+            "isLoggedIn": is_logged_in,
+            "userInfo": user_info
+        }
 
     def save_amap_key(self, api_key: str):
         """由JS调用，保存高德地图API Key到主配置文件"""
@@ -1418,6 +1430,39 @@ class Api:
         logging.info("Stop run signal received.")
         self.stop_run_flag.set()
         return {"success": True}
+    
+    def get_run_status(self):
+        """获取当前运行状态（用于前端轮询）"""
+        # 检查是否有任务在运行
+        is_running = not self.stop_run_flag.is_set()
+        
+        if not is_running or self.current_run_idx == -1:
+            return {"running": False}
+        
+        run_data = self.all_run_data[self.current_run_idx]
+        total_points = len(run_data.run_coords) if run_data.run_coords else 0
+        
+        # 计算已处理的点数（基于target_sequence）
+        processed_points = min(run_data.target_sequence, total_points)
+        
+        # 获取当前位置（如果有的话）
+        current_position = None
+        if processed_points > 0 and processed_points <= total_points:
+            coord = run_data.run_coords[processed_points - 1]
+            current_position = {
+                "lon": coord[0],
+                "lat": coord[1]
+            }
+        
+        return {
+            "running": True,
+            "processed_points": processed_points,
+            "total_points": total_points,
+            "distance_covered": run_data.distance_covered_m,
+            "target_sequence": run_data.target_sequence,
+            "duration": sum(p[2] for p in run_data.run_coords[:processed_points]) if processed_points > 0 else 0,
+            "current_position": current_position
+        }
 
     # 修正: 添加 acc_session 或 api_client 参数
     def _submit_chunk(self, run_data: RunData, chunk, start_time, is_finish, chunk_start_index, client: ApiClient, user: UserData):
