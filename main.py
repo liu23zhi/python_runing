@@ -4338,20 +4338,18 @@ except Exception as e:
 
 
 def main():
-    """主函数，负责解析参数、创建窗口和启动应用（支持 app/web 两种模式）"""
-
+    """主函数，负责解析参数、创建窗口和启动应用"""
+    
     parser = argparse.ArgumentParser()
     parser.add_argument("--autologin", nargs=2, metavar=('USERNAME','PASSWORD'), help="自动登录")
-    parser.add_argument("--mode", choices=["app", "web"], default="app", help="运行模式：app=桌面应用(默认)，web=Flask Web 模式")
-    parser.add_argument("--web-host", default="127.0.0.1", help="Web 模式监听地址")
-    parser.add_argument("--web-port", type=int, default=5000, help="Web 模式端口")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)])
-
+    
     # --- 定义并应用日志过滤器 ---
     class PywebviewErrorFilter(logging.Filter):
         def filter(self, record):
+            # 定义要屏蔽的特定错误信息片段
             suppress_messages = [
                 "Error while processing window.native.AccessibleRole",
                 "Error while processing window.native.AccessibilityObject.Bounds",
@@ -4359,54 +4357,31 @@ def main():
                 "Error while processing window.native.ControlCollection",
                 "Error while processing window.native.DockPaddingEdgesConverter"
             ]
+                
             message = record.getMessage()
+            # 如果日志信息不包含任何一个片段，则通过，否则屏蔽
             return not any(msg in message for msg in suppress_messages)
 
+    # 获取 pywebview 库的日志记录器
     pywebview_logger = logging.getLogger('pywebview')
+    # 为该记录器添加我们自定义的过滤器
     pywebview_logger.addFilter(PywebviewErrorFilter())
 
-    api = Api(args)
 
-    # 创建 pywebview 窗口；在 web 模式下隐藏窗口，仅作为 JS 计算引擎
+    api = Api(args)
+    
     window = webview.create_window(
         "跑步助手",
         html=html_content,
         js_api=api,
-        width=1200 if args.mode == "web" else 1440,
-        height=800 if args.mode == "web" else 1000,
-        resizable=True,
-        hidden=(args.mode == "web")
+        width=1440,
+        height=1000,
+        resizable=True
     )
+    
     api.set_window(window)
-
-    if args.mode == "app":
-        # 桌面模式：直接启动 GUI 事件循环
-        webview.start(debug=True)
-    else:
-        # Web 模式：启动 Flask 服务器（后台线程），同时启动隐藏的 pywebview 以执行 JS
-        import threading
-        from web_mode import create_app
-
-        webview_ready = threading.Event()
-
-        def on_webview_loaded():
-            try:
-                # 窗口已加载（即 JS 引擎可用）
-                webview_ready.set()
-            except Exception:
-                pass
-
-        # 启动 Flask（后台线程，避免阻塞 GUI 主循环）
-        def run_flask():
-            app = create_app(api, webview_ready)
-            # 关闭 reloader，避免多进程导致的对象复制问题
-            app.run(host=args.web_host, port=args.web_port, debug=False, use_reloader=False, threaded=True)
-
-        flask_thread = threading.Thread(target=run_flask, name="FlaskServer", daemon=True)
-        flask_thread.start()
-
-        # 启动 pywebview 主循环（阻塞当前线程）
-        webview.start(func=on_webview_loaded, debug=False)
+    
+    webview.start(debug=True)
 
 if __name__ == "__main__":
     main()
