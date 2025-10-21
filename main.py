@@ -4555,9 +4555,14 @@ web_sessions_lock = threading.Lock()
 def save_session_state(session_id, api_instance):
     """将会话状态保存到文件"""
     try:
-        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_id}.json")
+        # 修复Windows路径长度限制：使用SHA256哈希作为文件名
+        # 2048位UUID(512字符)会导致Windows文件名过长错误
+        import hashlib
+        session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+        
         state = {
-            'session_id': session_id,
+            'session_id': session_id,  # 在文件内容中保存完整的UUID
             'login_success': getattr(api_instance, 'login_success', False),
             'user_info': getattr(api_instance, 'user_info', None),
             'created_at': getattr(api_instance, '_session_created_at', time.time()),
@@ -4565,19 +4570,27 @@ def save_session_state(session_id, api_instance):
         }
         with open(session_file, 'w', encoding='utf-8') as f:
             json.dump(state, f, indent=2, ensure_ascii=False)
-        logging.debug(f"会话状态已保存: {session_id[:32]}...")
+        logging.debug(f"会话状态已保存: {session_id[:32]}... (文件: {session_hash[:16]}...)")
     except Exception as e:
         logging.error(f"保存会话状态失败: {e}")
 
 def load_session_state(session_id):
     """从文件加载会话状态"""
     try:
-        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_id}.json")
+        # 修复Windows路径长度限制：使用SHA256哈希作为文件名
+        import hashlib
+        session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+        
         if os.path.exists(session_file):
             with open(session_file, 'r', encoding='utf-8') as f:
                 state = json.load(f)
-            logging.info(f"从文件加载会话: {session_id[:32]}... (登录状态: {state.get('login_success')})")
-            return state
+            # 验证加载的UUID是否匹配
+            if state.get('session_id') == session_id:
+                logging.info(f"从文件加载会话: {session_id[:32]}... (登录状态: {state.get('login_success')})")
+                return state
+            else:
+                logging.warning(f"会话文件UUID不匹配，忽略")
     except Exception as e:
         logging.error(f"加载会话状态失败: {e}")
     return None
@@ -4590,15 +4603,23 @@ def load_all_sessions(args):
     loaded_count = 0
     for filename in os.listdir(SESSION_STORAGE_DIR):
         if filename.endswith('.json'):
-            session_id = filename[:-5]  # 移除.json后缀
-            state = load_session_state(session_id)
-            if state:
+            # 从文件中读取完整的session_id，而不是从文件名
+            try:
+                session_file = os.path.join(SESSION_STORAGE_DIR, filename)
+                with open(session_file, 'r', encoding='utf-8') as f:
+                    state = json.load(f)
+                
+                session_id = state.get('session_id')
+                if not session_id:
+                    logging.warning(f"会话文件 {filename} 缺少session_id，跳过")
+                    continue
+                
                 # 检查会话是否过期（7天）
                 last_accessed = state.get('last_accessed', 0)
                 if time.time() - last_accessed > 7 * 24 * 3600:
                     logging.info(f"清理过期会话: {session_id[:32]}...")
                     try:
-                        os.remove(os.path.join(SESSION_STORAGE_DIR, filename))
+                        os.remove(session_file)
                     except:
                         pass
                     continue
@@ -4612,6 +4633,9 @@ def load_all_sessions(args):
                     logging.info(f"恢复已登录会话: {session_id[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')})")
                 web_sessions[session_id] = api_instance
                 loaded_count += 1
+            except Exception as e:
+                logging.error(f"加载会话文件 {filename} 失败: {e}")
+                continue
     
     if loaded_count > 0:
         logging.info(f"共加载 {loaded_count} 个持久化会话")
