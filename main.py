@@ -465,7 +465,15 @@ class Api:
         self.current_run_idx = -1
         self.stop_run_flag = threading.Event()
         self.stop_run_flag.set()
-        self.target_range_m = 0.0
+        # 修复打卡点检测：设置合理的打卡半径（米）
+        # 如果未来服务器返回此值，应从任务详情中更新
+        self.target_range_m = 30.0  # 默认30米打卡范围
+        
+        # 修复会话持久化：初始化登录状态标志（不清除已存在的）
+        if not hasattr(self, 'login_success'):
+            self.login_success = False
+        if not hasattr(self, 'user_info'):
+            self.user_info = None
         # 全局登录并发控制（多账号模式下串行登录）
         # 固定并发为 1；若已有实例，则保持现状（防止模式切换时重复创建）
         if not hasattr(self, 'multi_login_lock') or self.multi_login_lock is None:
@@ -1412,19 +1420,28 @@ class Api:
         
     def check_target_reached_during_run(self, run_data: RunData, current_lon: float, current_lat: float):
         """在模拟运行时，检查是否到达了打卡点"""
-        if not (0 < run_data.target_sequence <= len(run_data.target_points)): return
+        if not (0 < run_data.target_sequence <= len(run_data.target_points)): 
+            logging.debug(f"打卡点检查跳过: target_sequence={run_data.target_sequence}, total_points={len(run_data.target_points)}")
+            return
 
         tar_lon, tar_lat = run_data.target_points[run_data.target_sequence - 1]
         dist = self._calculate_distance_m(current_lon, current_lat, tar_lon, tar_lat)
         is_in_zone = (dist < self.target_range_m)
+        
+        logging.debug(f"打卡点检查: 当前位置=({current_lon:.6f}, {current_lat:.6f}), "
+                     f"目标点{run_data.target_sequence}=({tar_lon:.6f}, {tar_lat:.6f}), "
+                     f"距离={dist:.2f}米, 范围={self.target_range_m:.2f}米, "
+                     f"在范围内={is_in_zone}, 已在区域内={run_data.is_in_target_zone}")
 
         if is_in_zone and not run_data.is_in_target_zone:
             run_data.is_in_target_zone = True
+            logging.info(f"✓ 到达打卡点 {run_data.target_sequence}/{len(run_data.target_points)}")
             if run_data.target_sequence < len(run_data.target_points):
                 run_data.target_sequence += 1
                 next_lon, next_lat = run_data.target_points[run_data.target_sequence - 1]
                 if self._calculate_distance_m(current_lon, current_lat, next_lon, next_lat) >= self.target_range_m:
                     run_data.is_in_target_zone = False
+                    logging.debug(f"移动到下一个打卡点 {run_data.target_sequence}，已离开区域")
         elif not is_in_zone:
             run_data.is_in_target_zone = False
 
