@@ -1,0 +1,4412 @@
+# 跑步助手
+
+import tkinter
+from tkinter import filedialog, messagebox
+import os
+import sys
+import configparser
+import threading
+import time
+import random
+import math
+import json
+import urllib
+import datetime
+import collections
+import argparse
+import bisect
+import traceback
+import logging
+import copy
+import warnings
+import csv
+import queue as _queue
+import uuid
+import math
+import random
+
+try:
+    import webview   # 嵌入式浏览器
+    import requests  # HTTP请求
+    import openpyxl  # xlsx 读写
+    import xlrd      # xls 读取
+    import xlwt      # xls 写入
+    import chardet   # 编码修正
+except ImportError:
+    # 如果导入失败，弹出Tkinter消息框提示用户安装依赖
+    root = tkinter.Tk()
+    root.withdraw()
+    messagebox.showerror(  # <--- 修改这里，去掉 'tkinter.'
+        "依赖错误",
+        "运行本程序需要 'pywebview', 'requests', 'openpyxl', 'chardet', 'xlrd' 和 'xlwt' 库。\n"
+        "请先在终端运行:\n"
+        "pip install \"pywebview[qt]\" requests openpyxl xlrd xlwt chardet"
+    )
+    sys.exit(1)
+
+
+
+class UserData:
+    """存储用户相关信息的类"""
+    def __init__(self):
+        self.name: str = ""
+        self.phone: str = ""
+        self.student_id: str = ""
+        self.id: str = ""
+        self.registration_time: str = ""
+        self.first_login_time: str = ""
+        self.id_card: str = ""
+        self.last_login_time: str = ""
+        self.current_login_time: str = ""
+        self.username: str = ""
+        self.gender: str = ""
+        self.school_name: str = ""
+        self.attribute_type: str = ""
+        self.avatar_url: str = ""
+
+class RunData:
+    """存储单个跑步任务相关数据的类"""
+    def __init__(self):
+        # 路径数据
+        self.draft_coords: list[tuple[float, float, int]] = []      # (经度, 纬度, 是否关键点) - 用户绘制的草稿路径
+        self.run_coords: list[tuple[float, float, int]] = []        # (经度, 纬度, 与上一点的时间间隔ms) - 处理后用于模拟的最终路径
+        self.recommended_coords: list[tuple[float, float]] = []     # (经度, 纬度) - 服务器返回的推荐路线, (0,0)用于分段
+        self.target_points: list[tuple[float, float]] = []          # (经度, 纬度) - 任务必须经过的打卡点
+
+        # 任务基本信息
+        self.target_point_names: str = ""   # 打卡点名称，用'|'分隔
+        self.upload_time: str = ""          # 完成时间
+        self.start_time: str = ""           # 任务开始时间
+        self.end_time: str = ""             # 任务结束时间
+        self.run_name: str = ""             # 任务名称
+        self.errand_id: str = ""            # 任务ID
+        self.errand_schedule: str = ""      # 任务计划ID
+        self.status: int = 0                # 任务状态 (0: 未完成, 1: 已完成)
+
+        # 运行时状态
+        self.target_sequence: int = 0       # 当前目标打卡点序号
+        self.is_in_target_zone: bool = False # 是否在当前打卡点范围内
+        self.trid: str = ""                 # 本次跑步的唯一轨迹ID
+        self.details_fetched: bool = False  # 任务详情是否已加载
+        self.total_run_time_s: float = 0.0  # 模拟总时长(秒)
+        self.total_run_distance_m: float = 0.0 # 模拟总距离(米)
+        self.distance_covered_m: float = 0.0 # 实时已跑距离(米)
+
+
+
+class AccountSession:
+    """封装单个账号的所有运行时数据、状态和操作"""
+    def __init__(self, username, password, api_bridge):
+        self.username: str = username
+        self.password: str = password
+        self.api_bridge = api_bridge # Api 类的实例引用
+        self.window = api_bridge.window
+        
+        # 每个账号拥有独立的ApiClient和requests.Session，确保Cookie隔离
+        self.api_client = ApiClient(self) 
+        self.user_data = UserData()
+        self.all_run_data: list[RunData] = []
+        
+        # 从全局参数深拷贝一份独立的参数配置
+        self.params = copy.deepcopy(api_bridge.global_params)
+        self.device_ua: str = "" # 将在登录时生成或加载
+        
+        # --- 账号独立的签到半径缓存 ---
+        self.server_attendance_radius_m = 0.0
+        self.last_radius_fetch_time = 0
+
+        self.status_text: str = "待命" # UI上显示的状态
+        self.summary = {"total": 0, "completed": 0, "pending": 0, "executable": 0, "expired": 0, "not_started": 0}
+        
+        self.worker_thread: threading.Thread | None = None
+        self.stop_event = threading.Event()
+
+    def log(self, message: str):
+        """为日志自动添加账号前缀"""
+        # 使用主 Api 实例的 log 方法来确保日志发送到UI
+        self.api_bridge.log(f"[{self.username}] {message}")
+
+
+class ApiClient:
+    """处理与后端服务器网络请求的类"""
+    BASE_URL = "https://zslf.zsc.edu.cn"
+    API_VERSION = 66
+
+    def __init__(self, owner_instance):
+        self.session = requests.Session()
+        self.app = owner_instance
+        logging.debug("ApiClient initialized with new requests.Session.")
+
+    def _get_headers(self) -> dict:
+        """构建请求头，包含认证信息和设备信息"""
+        headers = {
+            'Connection': 'keep-alive',
+            'Accept': 'application/json, text/plain, */*',
+            # 'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'com.zx.slm',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+            'User-Agent': self.app.device_ua
+        }
+        # 仅当存在登录后返回的 shiroCookie 时才携带 Authorization
+        auth_token = self.session.cookies.get('shiroCookie')
+        if auth_token:
+            logging.debug(f"Using shiroCookie for Authorization: {auth_token}")
+            headers['Authorization'] = auth_token
+        else:
+            logging.debug("No shiroCookie found; Authorization header will not be set.")
+        return headers
+
+
+    def _request(self, method: str, url: str, data: dict = None, params: dict = None, is_post_str=False, force_content_type: str = None) -> requests.Response | None:
+        """统一的网络请求方法（增强：支持取消）"""
+        # 在多账号模式下，app 可能是 AccountSession 实例
+        log_func = self.app.log if hasattr(self.app, 'log') else self.app.api_bridge.log
+        is_offline = self.app.is_offline_mode if hasattr(self.app, 'is_offline_mode') else self.app.api_bridge.is_offline_mode
+
+        # 全局/局部取消检查
+        cancel_requested = False
+        # try:
+        #     # 单账号线程停止
+        #     if hasattr(self.app, 'stop_event') and isinstance(self.app.stop_event, threading.Event):
+        #         cancel_requested = cancel_requested or self.app.stop_event.is_set()
+        #     # 多账号全局停止
+        #     if hasattr(self.app, 'api_bridge') and hasattr(self.app.api_bridge, 'multi_run_stop_flag'):
+        #         cancel_requested = cancel_requested or self.app.api_bridge.multi_run_stop_flag.is_set()
+        #     # 单账号模式下的 stop_run_flag
+        #     if hasattr(self.app, 'api_bridge') and hasattr(self.app.api_bridge, 'stop_run_flag'):
+        #         cancel_requested = cancel_requested or self.app.api_bridge.stop_run_flag.is_set()
+        # except Exception:
+        #     pass
+
+        if cancel_requested:
+            log_func("操作已取消，跳过网络请求。")
+            logging.debug(f"Canceled request --> {method.upper()} {url}")
+            return None
+
+        if is_offline:
+            log_func("离线模式：网络请求已被禁用。")
+            logging.debug(f"Blocked request to {url} (offline mode)")
+            return None
+
+        retries = 3
+        log_data = data
+        if is_post_str and isinstance(data, str) and len(data) > 500:
+            log_data = data[:500] + '... (truncated)'
+
+        logging.debug(f"Request --> {method.upper()} {url}\nData: {log_data}")
+
+        for attempt in range(retries):
+            try:
+                # 再次检查取消（避免刚发起时被取消）
+                # try:
+                #     if hasattr(self.app, 'stop_event') and self.app.stop_event.is_set(): 
+                #         log_func("操作已取消。")
+                #         return None
+                #     if hasattr(self.app, 'api_bridge') and self.app.api_bridge.multi_run_stop_flag.is_set():
+                #         log_func("操作已取消。")
+                #         return None
+                #     if hasattr(self.app, 'api_bridge') and self.app.api_bridge.stop_run_flag.is_set():
+                #         log_func("操作已取消。")
+                #         return None
+                # except Exception:
+                #     pass
+
+                # 获取基础 headers
+                headers = self._get_headers()
+
+                if method.upper() == 'POST':
+                    post_data_bytes = b""
+                    
+                    # 1. 确定 Content-Type
+                    if force_content_type:
+                        headers['Content-Type'] = force_content_type
+                    elif is_post_str:
+                        # 默认为 form-urlencoded (用于 submit_run_track)
+                        # 如果data是JSON字符串，调用者应使用 force_content_type
+                        headers['Content-Type'] = 'application/x-www-form-urlencoded'
+                    else:
+                        # 默认: form-urlencoded (用于 login)
+                        headers['Content-Type'] = 'application/x-www-form-urlencoded'
+                    
+                    # 2. 准备 Body
+                    if is_post_str:
+                        post_data_bytes = (data or "").encode('utf-8')
+                    else:
+                        # 默认: form-urlencoded
+                        post_data_bytes = urllib.parse.urlencode(data or {}).encode('utf-8')
+                    
+                    resp = self.session.post(url, data=post_data_bytes, params=params, headers=headers, timeout=10)
+                else:
+                    # GET 请求 (data 被用作 params)
+                    resp = self.session.get(url, params=data, headers=headers, timeout=10)
+
+                logging.debug(f"Response <-- {resp.status_code} {resp.reason} from {url}")
+
+
+
+                resp.raise_for_status()
+                return resp
+            except requests.exceptions.RequestException as e:
+                log_func(f"网络请求失败 (第{attempt+1}次)...")
+                error_response_text = ""
+                if e.response is not None:
+                    error_response_text = e.response.text
+                logging.error(f"Request failed on attempt {attempt+1}/{retries} for {method} {url}.\nError: {e}\nResponse Body: {error_response_text}")
+                if attempt + 1 == retries:
+                    log_func(f"网络请求最终失败: {e}")
+                    return None
+                time.sleep(1.5)
+        return None
+
+
+
+
+    def _json(self, resp: requests.Response | None) -> dict | None:
+        """安全地将Response对象解析为JSON字典"""
+        log_func = self.app.log if hasattr(self.app, 'log') else self.app.api_bridge.log
+        if resp:
+            try:
+                return resp.json()
+            except json.JSONDecodeError:
+                log_func("服务器响应解析失败。")
+                logging.error(f"JSON decode error. Response status: {resp.status_code}. Response text: {resp.text}")
+                return None
+        return None
+
+    def login(self, username, password):
+        return self._json(self._request('POST', f"{self.BASE_URL}/app/login", {"username": username, "password": password, "appVersion": self.API_VERSION}))
+
+    def get_run_list(self, user_id, offset=0):
+        return self._json(self._request('GET', f"{self.BASE_URL}:9097/run/errand/getErrandList", {"userId": user_id, "offset": offset, "limit": 10, "appVersion": self.API_VERSION}))
+
+    def get_run_details(self, errand_id, user_id, errand_schedule_id):
+        return self._json(self._request('GET', f"{self.BASE_URL}:9097/run/errand/getErrandDetail", {"errandId": errand_id, "userId": user_id, "errandScheduleId": errand_schedule_id, "appVersion": self.API_VERSION}))
+
+    def get_run_history_list(self, user_id, errand_schedule_id):
+        return self._json(self._request('GET', f"{self.BASE_URL}:9097/run/errand/getUserErrandTrackRecord", {"errandScheduleId": errand_schedule_id, "userId": user_id, "offset": 0, "limit": 20, "appVersion": self.API_VERSION}))
+
+    def get_history_track_by_trid(self, trid):
+        return self._json(self._request('GET', f"{self.BASE_URL}:9097/run/errand/getTrackByTrid", {"trid": trid, "appVersion": self.API_VERSION}))
+
+    def submit_run_track(self, payload_str):
+        return self._json(self._request('POST', f"{self.BASE_URL}:9097/run/errand/addErrandTrack", payload_str, is_post_str=True))
+
+    def get_run_info_by_trid(self, trid):
+        return self._json(self._request('GET', f"{self.BASE_URL}:9097/run/errand/getTrackRecordByTrid", {"trid": trid, "appVersion": self.API_VERSION}))
+
+
+    def get_unread_notice_count(self):
+        """获取未读通知数量 (POST, 空body, application/json)"""
+        # 该API需要POST一个空 body 并且 Content-Type 为 application/json
+        return self._json(self._request(
+            'POST', 
+            f"{self.BASE_URL}/app/appNotice/unreadNumber", 
+            data="", # 发送空字符串
+            is_post_str=True,
+            force_content_type='application/json;charset=UTF-8' # 强制指定类型
+        ))
+
+    def get_notice_list(self, offset=0, limit=10, type_id=0):
+        """获取通知列表 (POST, 空body, 带URL参数)"""
+        params = {"offset": offset, "limit": limit, "typeId": type_id}
+        return self._json(self._request(
+            'POST', 
+            f"{self.BASE_URL}/app/appNotice/noticeListByType", 
+            data="", # 发送空字符串
+            params=params, 
+            is_post_str=True,
+            force_content_type='application/json;charset=UTF-8' # 强制指定类型
+        ))
+
+    def mark_notice_as_read(self, notice_id):
+        """将单个通知设为已读 (POST, 空body, 带URL参数)"""
+        params = {"noticeId": notice_id}
+        return self._json(self._request(
+            'POST',
+            f"{self.BASE_URL}/app/appNotice/updateNoticeIsRead",
+            data="", # 发送空字符串
+            params=params,
+            is_post_str=True,
+            force_content_type='application/json;charset=UTF-8' # 强制指定类型
+        ))
+
+
+    
+
+
+
+    @staticmethod
+    def generate_random_ua():
+        """生成一个随机的、模拟安卓设备的User-Agent字符串"""
+        build_texts = ["TD1A.221105.001.A1", "TP1A.221005.003", "SQ3A.220705.004", "SP2A.220505.008", "SQ1D.220205.004", "RP1A.201005.004"]
+        phone_models = ["Xiaomi 12", "Xiaomi 13 Pro", "Redmi K60", "vivo X90", "iQOO 11", "OPPO Find X6 Pro", "Realme GT Neo5", "HONOR Magic5 Pro", "OnePlus 11"]
+        android_version_map = {'T': 13, 'S': 12, 'R': 11, 'Q': 10, 'P': 9}
+        random_build = random.choice(build_texts)
+        build_letter = random_build.split('.')[0][0]
+        android_version = android_version_map.get(build_letter, 13)
+        chrome_version = f"Chrome/{random.randint(100, 120)}.0.{random.randint(4000, 6000)}.{random.randint(100, 200)}"
+        return f"Mozilla/5.0 (Linux; Android {android_version}; {random.choice(phone_models)} Build/{random_build}; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 {chrome_version} Mobile Safari/537.36"
+
+    
+
+
+    def get_roll_call_info(self, roll_call_id, user_id):
+        """获取指定签到活动的信息"""
+        params = {"id": roll_call_id, "userId": user_id, "appVersion": self.API_VERSION}
+        # 注意：原始请求是 POST 但参数在 URL 中，且 Body 为空
+        # 这里模拟这种行为，将参数放在 params 里，data 设为空字符串
+        return self._json(self._request(
+            'POST',
+            f"{self.BASE_URL}:9097/run/attendanceRecord/getAttendanceByRollCallId",
+            data="", # 发送空字符串
+            params=params,
+            is_post_str=True, # 告诉 _request data 是字符串
+            force_content_type='application/json;charset=UTF-8' # 强制类型以发送空 body
+        ))
+    
+    def submit_attendance(self, payload: dict):
+        """提交签到记录"""
+        # 假设签到提交使用 form-urlencoded 格式
+        # payload 应包含: rollCallId, userId, coordinate, distance, status, signCode 等
+        payload["appVersion"] = self.API_VERSION
+        return self._json(self._request(
+            'POST',
+            f"{self.BASE_URL}:9097/run/attendanceRecord/addAttendance",
+            data=payload,
+            is_post_str=False # 使用默认的 form-urlencoded
+        ))
+    def get_attendance_radius(self):
+        """获取服务器设定的签到半径"""
+        # POST, 空body, application/json, 带URL参数
+        params = {"code": "attendanceRadius", "num": 1}
+        logging.debug("Requesting attendance radius from server...")
+        return self._json(self._request(
+            'POST',
+            f"{self.BASE_URL}/app/appFind/getDictTips",
+            data="", # 发送空字符串
+            params=params,
+            is_post_str=True,
+            force_content_type='application/json;charset=UTF-8'
+        ))
+
+# ==============================================================================
+# 3. 后端主逻辑 (Backend API Bridge)
+#    作为Python后端和WebView前端之间的桥梁，处理所有业务逻辑。
+# ==============================================================================
+
+class Api:
+    """此类的方法会暴露给WebView前端的JavaScript调用"""
+    def __init__(self, args):
+        self.args = args
+        self.window = None
+        self.path_gen_callbacks = {}
+
+        # --- 路径和配置部分保持不变 ---
+        self.run_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        self.user_dir = os.path.join(self.run_dir, "user")
+        os.makedirs(self.user_dir, exist_ok=True)
+        self.config_path = os.path.join(self.run_dir, "config.ini")
+        self.user_config_path = self.config_path
+
+        # --- 为单用户模式保留一个api_client实例 ---
+        self.api_client = ApiClient(self)
+
+        # --- 初始化状态变量 ---
+        self._init_state_variables()
+
+        # --- 全局“数据提交”串行队列：同一时间只允许提交一个数据包 ---
+        # 说明：
+        # - 任何 addErrandTrack 的提交都会被封装为任务入队；
+        # - 后台仅有一个工作线程串行处理，保证“同时只提交一个数据包”；
+        # - 调用方在入队后阻塞等待本次提交的结果（带超时）。
+        self._submission_queue: _queue.Queue | None = getattr(self, '_submission_queue', None)
+        self._submission_worker_thread: threading.Thread | None = getattr(self, '_submission_worker_thread', None)
+        self._submission_worker_stop: threading.Event | None = getattr(self, '_submission_worker_stop', None)
+        if self._submission_queue is None:
+            self._submission_queue = _queue.Queue()
+        if self._submission_worker_stop is None:
+            self._submission_worker_stop = threading.Event()
+        if (self._submission_worker_thread is None) or (not self._submission_worker_thread.is_alive()):
+            self._submission_worker_thread = threading.Thread(target=self._submission_worker_loop, name="SubmitWorker", daemon=True)
+            self._submission_worker_thread.start()
+
+    def _init_state_variables(self):
+        """初始化或重置应用的所有状态变量"""
+        # --- 单用户模式变量 (大部分保留) ---
+        self.device_ua = ""
+        self.is_offline_mode = False
+        self.user_data = UserData()
+        self.all_run_data: list[RunData] = []
+        self.current_run_idx = -1
+        self.stop_run_flag = threading.Event()
+        self.stop_run_flag.set()
+        self.target_range_m = 0.0
+        # 全局登录并发控制（多账号模式下串行登录）
+        # 固定并发为 1；若已有实例，则保持现状（防止模式切换时重复创建）
+        if not hasattr(self, 'multi_login_lock') or self.multi_login_lock is None:
+            self.multi_login_lock = threading.Semaphore(1)
+
+        # --- 将原params作为全局参数的模板 ---
+        self.global_params = {
+            "interval_ms": 3000, "interval_random_ms": 500,
+            "speed_mps": 1.5, "speed_random_mps": 0.5,
+            "location_random_m": 1.5, "task_gap_min_s": 600,
+            "task_gap_max_s": 3600, "api_fallback_line": False,
+            "api_retries": 2, "api_retry_delay_s": 0.5,
+            "ignore_task_time": True,  # 新增：忽略任务起止时间，仅对比日期
+            "theme_base_color": "#7dd3fc",
+            "theme_style": "default",  # 新增：主题风格参数，默认为 'default'
+            # 多账号模式下的路径规划参数
+            "min_time_m": 20, "max_time_m": 30, "min_dist_m": 2000,
+            
+            # --- 自动签到参数 ---
+            "auto_attendance_enabled": False, # 是否开启自动签到
+            "auto_attendance_refresh_s": 30, # 自动刷新间隔（秒）
+            "attendance_user_radius_m": 40,   # 用户期望的随机半径（默认40m）
+
+
+            # 高德地图JS API Key
+            "amap_js_key": ""
+        }
+
+        # --- 签到半径的全局缓存 ---
+        self.server_attendance_radius_m = 0.0 # 服务器返回的最大半径，0表示精确签到
+        self.last_radius_fetch_time = 0 # 上次获取半径的时间
+
+        # --- 单账号自动刷新线程 ---
+        self.auto_refresh_thread: threading.Thread | None = None
+        self.stop_auto_refresh = threading.Event()
+        self.stop_auto_refresh.set() # 默认停止
+
+        # --- 多账号自动签到线程 ---
+        self.multi_auto_refresh_thread: threading.Thread | None = None
+        self.stop_multi_auto_refresh = threading.Event()
+        self.stop_multi_auto_refresh.set() # 默认停止
+
+        # self.params 将在单用户模式下使用，是 global_params 的一个副本
+        self.params = self.global_params.copy()
+
+        self._first_center_done = False
+
+        # --- 新增多账号模式变量 ---
+        self.is_multi_account_mode = False
+        # 停止并清理所有账号会话
+        if hasattr(self, 'accounts'):
+            for acc in self.accounts.values():
+                if acc.worker_thread and acc.worker_thread.is_alive():
+                    acc.stop_event.set()
+        self.accounts: dict[str, AccountSession] = {} # {username: AccountSession}
+        self.multi_run_stop_flag = threading.Event()
+        self.multi_run_stop_flag.set()
+
+        self._load_tasks_lock = threading.RLock()
+        self._load_tasks_inflight = False
+        self.multi_run_only_incomplete = True
+
+
+
+    def set_multi_run_only_incomplete(self, flag: bool):
+        """
+        设置多账号模式下“仅执行未完成”的全局开关，并立即刷新全局按钮。
+        """
+        try:
+            self.multi_run_only_incomplete = bool(flag)
+            # 轻量刷新一次全局按钮状态（不阻塞）
+            self._update_multi_global_buttons()
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "message": str(e)}
+
+
+
+
+    def set_window(self, window):
+        """由主程序调用，设置WebView窗口对象的引用"""
+        logging.info("Python backend: set_window called.")
+        self.window = window
+        if self.args.autologin:
+            user, passwd = self.args.autologin
+            self.log("收到自动登录指令。")
+            logging.debug(f"Autologin requested for user={user}")
+            threading.Timer(2.0, lambda: self.window.evaluate_js(f'autoLogin("{user}", "{passwd}")')).start()
+
+    def log(self, message):
+            """将日志消息发送到前端界面显示"""
+            if self.window:
+                escaped_message = json.dumps(message)
+                self.window.evaluate_js(f'logMessage({escaped_message})')
+
+    def js_log(self, level, message):
+        """接收并记录来自JavaScript的日志"""
+        level = level.upper()
+        if level == 'INFO': logging.info(f"{message}")
+        elif level == 'DEBUG': logging.debug(f"{message}")
+        elif level == 'WARNING': logging.warning(f"{message}")
+        elif level == 'ERROR': logging.error(f"{message}")
+        else: logging.info(f"[JS-{level}] {message}")
+  
+    @staticmethod
+    def _robust_decode(raw: bytes) -> str:
+        """尽可能兼容所有编码的解码函数"""
+        # 1. 自动检测
+        if chardet:
+            det = chardet.detect(raw) or {}
+            enc = det.get("encoding")
+            if enc:
+                try:
+                    return raw.decode(enc)
+                except UnicodeDecodeError:
+                    pass
+
+        # 2. 常见编码回退
+        for enc in ("utf-8", "gbk", "big5", "shift_jis", "latin-1"):
+            try:
+                return raw.decode(enc)
+            except UnicodeDecodeError:
+                continue
+
+        # 3. 最终兜底：强制替换非法字符
+        return raw.decode("utf-8", errors="replace")
+
+    def normalize_chinese_config_to_english(self, path: str) -> None:
+            """
+            将可能包含中文分区/键名的 INI 配置文件，转换为标准英文分区与键名，并统一写回 UTF-8。
+            - [增强] 只保留当前程序定义的有效参数，抛弃所有未知或已弃用的参数。
+            - 若文件已是英文分区（Config/System），不做任何改写（避免清空原配置）。
+            - 若不存在中文分区时，保留原文（以 UTF-8 重写），避免写入空配置。
+            - 写回前创建 .bak 备份。
+            """
+            if not os.path.exists(path):
+                return
+
+            # 原始字节与文本
+            with open(path, "rb") as f:
+                raw = f.read()
+            text = self._robust_decode(raw)
+
+            # 先用标准解析器尝试读取（判断是否已是英文分区）
+            cfg_existing = configparser.ConfigParser(
+                delimiters=("=", ":"),
+                comment_prefixes=("#"),
+                strict=False,
+                interpolation=None
+            )
+            try:
+                cfg_existing.read_string(text)
+            except Exception:
+                # 原文有异常时，直接以 UTF-8 重写原文并返回
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+                return
+
+            # 如果已存在英文分区（Config 或 System），直接保留，不转换不写回
+            if cfg_existing.has_section("Config") or cfg_existing.has_section("System"):
+                # 已是英文结构，尊重现有内容
+                return
+
+            # 继续尝试中文分区读取
+            cfg_cn = configparser.ConfigParser(
+                delimiters=("=", ":"),
+                comment_prefixes=("#"),
+                strict=False,
+                interpolation=None
+            )
+            try:
+                cfg_cn.read_string(text)
+            except Exception:
+                # 解析失败则以 UTF-8 重写原文并返回（不清空）
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+                return
+
+            # 若没有中文分区（“配置”/“系统”均不存在），保留原文，不写空文件
+            if not (cfg_cn.has_section("配置") or cfg_cn.has_section("系统")):
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+                return
+
+            # 分区与键映射
+            config_key_map = {
+                "间隔时间": "interval_ms",
+                "间隔时间随机": "interval_random_ms",
+                "速度": "speed_mps",
+                "速度随机": "speed_random_mps",
+                "定位随机": "location_random_m",
+                "任务间速度": "task_interval_speed",
+                "用户名": "Username",
+                "密码": "Password",
+                "有效": "Enabled",
+                "未完成次数": "PendingCount",
+                "未完成次数上次检查时间": "LastPendingCheckTs",
+                "下次最早开始时间": "NextEarliestStartTs",
+            }
+            system_key_map = {
+                "cookie": "AuthorizationCookie",
+                "UA": "UA",
+            }
+
+            # 构建英文配置
+            cfg_en = configparser.ConfigParser(
+                delimiters=("=", ":"),
+                comment_prefixes=("#"),
+                strict=False,
+                interpolation=None
+            )
+            cfg_en.add_section("Config")
+            cfg_en.add_section("System")
+
+            # --- BUG修复：只保留当前有效的配置项 ---
+            # 1. 定义所有当前有效的Config参数键（白名单）
+            valid_config_keys = set(self.global_params.keys())
+            valid_config_keys.add("Username")
+            valid_config_keys.add("Password")
+
+            # 2. 遍历旧配置，只写入白名单中的键
+            if cfg_cn.has_section("配置"):
+                for k, v in cfg_cn.items("配置"):
+                    # 转换中文键为英文键
+                    k_en = config_key_map.get(k, k)
+                    # 只有当转换后的键是有效参数时，才将其保留
+                    if k_en in valid_config_keys:
+                        cfg_en.set("Config", k_en, v)
+
+            if cfg_cn.has_section("系统"):
+                for k, v in cfg_cn.items("系统"):
+                    k_en = system_key_map.get(k, k)
+                    if k_en == "UA" and isinstance(v, str) and v.lower().startswith("user-agent:"):
+                        v = v.split(":", 1)[1].strip()
+                    # 系统区的参数也做白名单校验
+                    if k_en in ["AuthorizationCookie", "UA"]:
+                        cfg_en.set("System", k_en, v)
+
+            # 写回前做备份
+            try:
+                backup_path = f"{path}.bak"
+                with open(backup_path, "wb") as bf:
+                    bf.write(raw)
+            except Exception:
+                # 备份失败不阻止写回
+                pass
+
+            # 写回 UTF-8（仅当确有中文分区内容需要转换）
+            with open(path, "w", encoding="utf-8") as f:
+                cfg_en.write(f)
+
+    def _save_config(self, username, password=None):
+        """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码。同时更新主 config.ini 的 LastUser 和 AmapJsKey。"""
+        logging.debug(f"Saving config: username={username!r}, password provided: {password is not None}")
+
+        # --- 1. 处理用户独立的 .ini 文件 ---
+        user_ini_path = os.path.join(self.user_dir, f"{username}.ini")
+        
+        # 将旧配置文件（可能是中文各种编码）规范化为英文UTF-8 (这一步保持不变)
+        self.normalize_chinese_config_to_english(user_ini_path)
+
+        # 读取旧密码（仅当需要保留时）
+        # --- 1. 创建或读取现有配置 ---
+        cfg_to_save = configparser.ConfigParser()
+        if os.path.exists(user_ini_path):
+            try:
+                cfg_to_save.read(user_ini_path, encoding='utf-8')
+            except Exception as e:
+                logging.warning(f"读取旧配置文件 {user_ini_path} 失败: {e}, 将创建新的。")
+
+        # --- 2. 确保分区存在 ---
+        if not cfg_to_save.has_section('Config'):
+            cfg_to_save.add_section('Config')
+        if not cfg_to_save.has_section('System'):
+            cfg_to_save.add_section('System')
+
+        # --- 3. 设置 Username ---
+        cfg_to_save.set('Config', 'Username', username)
+
+        # --- 4. 智能处理密码 ---
+        # 仅当 *提供了新的* password (非 None) 时，才覆盖密码
+        if password is not None:
+            # 场景: 提供了新密码 (来自 login, multi_add_account)
+            cfg_to_save.set('Config', 'Password', password)
+        # 场景: 未提供新密码 (来自 update_param)
+        # 则 *不* 触碰 Password 键，从而保留 cfg_to_save 中已加载的旧密码(或它的缺失状态)。
+
+        # --- 5. UA：从当前实例状态获取 ---
+        ua_to_save = self.device_ua
+        if self.is_multi_account_mode and username in self.accounts:
+            ua_to_save = self.accounts[username].device_ua
+        cfg_to_save.set('System', 'UA', ua_to_save or "")
+
+        # --- 6. 参数：从当前实例状态获取 ---
+        params_to_save = self.params
+        if self.is_multi_account_mode and username in self.accounts:
+            params_to_save = self.accounts[username].params
+        for k, v in params_to_save.items():
+            # 仅保存当前全局参数模板中存在的键
+            if k in self.global_params:
+                cfg_to_save.set('Config', k, str(v))
+
+        # --- 7. 安全写入用户 .ini 文件 ---
+        try:
+            with open(user_ini_path, 'w', encoding='utf-8') as f:
+                cfg_to_save.write(f)
+            logging.debug(f"Saved user config for {username} -> {user_ini_path}")
+        except Exception as e:
+            logging.error(f"写入用户配置文件 {user_ini_path} 失败: {e}", exc_info=True)
+            # 可以选择在这里向上抛出异常或返回错误状态
+
+        # --- 2. 处理主 config.ini 文件 ---
+        main_cfg = configparser.ConfigParser()
+        if os.path.exists(self.config_path):
+            try:
+                main_cfg.read(self.config_path, encoding='utf-8')
+            except Exception as e:
+                logging.warning(f"读取主配置文件 {self.config_path} 失败: {e}, 将创建新的。")
+
+        # 确保 [Config] 分区存在并更新 LastUser
+        if not main_cfg.has_section('Config'):
+            main_cfg.add_section('Config')
+        main_cfg.set('Config', 'LastUser', username)
+
+        # 确保 [System] 分区存在并更新 AmapJsKey
+        if not main_cfg.has_section('System'):
+            main_cfg.add_section('System')
+        # 从内存中的全局参数获取最新的 Key
+        amap_key_in_memory = self.global_params.get('amap_js_key', '')
+        main_cfg.set('System', 'AmapJsKey', amap_key_in_memory)
+
+        # 安全写入主 config.ini 文件
+        try:
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                main_cfg.write(f)
+            logging.debug(f"Updated main config {self.config_path} with LastUser and AmapJsKey")
+        except Exception as e:
+            logging.error(f"写入主配置文件 {self.config_path} 失败: {e}", exc_info=True)
+
+
+    def _load_global_config(self):
+        """从主 config.ini 加载全局配置"""
+        if not os.path.exists(self.config_path):
+            return
+        cfg = configparser.ConfigParser()
+        try: # 添加try-except块增加鲁棒性
+            cfg.read(self.config_path, encoding='utf-8')
+            # 读取系统区的 Key，如果不存在则默认为空字符串
+            # 确保使用 .get() 并提供 fallback，防止 Section 或 Option 不存在时出错
+            self.global_params['amap_js_key'] = cfg.get('System', 'AmapJsKey', fallback="")
+            logging.info(f"Loaded global Amap JS Key: {'*' * len(self.global_params.get('amap_js_key', ''))}") # 使用 .get() 安全访问
+        except Exception as e:
+            logging.error(f"加载全局配置文件 {self.config_path} 失败: {e}", exc_info=True)
+
+
+
+
+    def _load_config(self, username):
+        
+
+        """从.ini文件加载指定用户的配置"""
+        self.user_config_path = os.path.join(self.user_dir, f"{username}.ini")
+        if not os.path.exists(self.user_config_path):
+            return None
+        
+        # 先将旧配置文件（可能是中文+各种编码）规范化为英文+UTF-8
+        self.normalize_chinese_config_to_english(self.user_config_path)
+            
+        cfg = configparser.ConfigParser()
+        cfg.read(self.user_config_path, encoding='utf-8')
+        password = cfg.get('Config', 'Password', fallback='')
+        if not password:
+                    # 如果密码为空，尝试从原始文件中扫描 "Password=" 或 "密码="，以兼容规范化失败的情况
+                    try:
+                        with open(self.user_config_path, "r", encoding="utf-8", errors="ignore") as rf:
+                            for line in rf:
+                                clean_line = line.strip()
+                                # 兼容英文键（不区分大小写）和中文键
+                                temp_line_for_check = clean_line.lower().replace(" ", "")
+                                if temp_line_for_check.startswith("password=") or temp_line_for_check.startswith("密码="):
+                                    # 从第一个 "=" 处分割，避免密码中包含 "=" 导致的问题
+                                    parts = clean_line.split("=", 1)
+                                    if len(parts) == 2:
+                                        password = parts[1].strip()
+                                        # 只要成功获取到密码，就立即跳出循环
+                                        if password:
+                                            break
+                    except Exception:
+                        pass
+        
+        # 加载的配置应该应用到正确的对象上
+        target_params = self.params
+        if self.is_multi_account_mode and username in self.accounts:
+            target_params = self.accounts[username].params
+
+        ua = cfg.get('System', 'UA', fallback="")
+        if self.is_multi_account_mode and username in self.accounts:
+             self.accounts[username].device_ua = ua
+        else:
+             self.device_ua = ua
+
+        for k in self.global_params: # 迭代全局模板以确保所有键都存在
+            if k in target_params:
+                try:
+                    if cfg.has_option('Config', k):
+                        val_str = cfg.get('Config', k)
+                        original_type = type(target_params[k])
+                        if original_type is bool:
+                            target_params[k] = val_str.lower() in ('true', '1', 't', 'yes')
+                        else:
+                            target_params[k] = original_type(val_str)
+                except ValueError:
+                    logging.warning(f"Could not parse config value for '{k}' for user {username}. Using default.")
+                    pass
+        logging.debug(f"Loaded config for {username}")
+        return password
+
+
+    def _get_full_user_info_dict(self):
+        """获取当前用户所有信息的字典"""
+        return {k: v for k, v in self.user_data.__dict__.items() if not k.startswith('_')}
+
+    def get_initial_data(self):
+        """应用启动时由前端调用，获取初始用户列表和最后登录用户"""
+        logging.info("API CALL: get_initial_data")
+
+        # 获取当前已有的用户配置文件列表
+        users = sorted([os.path.splitext(f)[0] for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+
+        # 读取全局配置
+        cfg = configparser.ConfigParser()
+        cfg.read(self.config_path, encoding='utf-8')
+
+        # 确保有 Config 分段
+        if not cfg.has_section('Config'):
+            cfg.add_section('Config')
+
+        last_user = cfg.get('Config', 'LastUser', fallback="").strip()
+
+        # 如果 last_user 不为空但对应的 .ini 不存在，则清空并写回
+        if last_user and last_user not in users:
+            logging.warning(f"LastUser '{last_user}' 不存在对应的 .ini，自动清空。")
+            cfg.set('Config', 'LastUser', '')
+            try:
+                with open(self.config_path, 'w', encoding='utf-8') as f:
+                    cfg.write(f)
+            except Exception as e:
+                logging.error(f"写回 config.ini 失败：{e}", exc_info=True)
+            last_user = ""
+
+        # 在返回数据前，先加载一次全局配置
+        self._load_global_config()
+
+        logging.debug(f"Initial users={users}, last user={last_user}")
+        return {"users": users, "lastUser": last_user, "amap_key": self.global_params.get('amap_js_key', '')}
+
+    def save_amap_key(self, api_key: str):
+        """由JS调用，保存高德地图API Key到主配置文件"""
+        try:
+            self.global_params['amap_js_key'] = api_key
+            cfg = configparser.ConfigParser()
+            if os.path.exists(self.config_path):
+                cfg.read(self.config_path, encoding='utf-8')
+            if not cfg.has_section('System'):
+                cfg.add_section('System')
+            cfg.set('System', 'AmapJsKey', api_key)
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                cfg.write(f)
+            self.log("高德地图API Key已保存。")
+            logging.info("Saved new Amap JS Key.")
+            return {"success": True}
+        except Exception as e:
+            self.log(f"API Key保存失败: {e}")
+            logging.error(f"Failed to save Amap JS Key: {e}", exc_info=True)
+            return {"success": False, "message": str(e)}
+
+
+    def on_user_selected(self, username):
+        """当用户在登录界面选择一个已有用户时调用"""
+        logging.info(f"API CALL: on_user_selected with username: '{username}'")
+        if not username:
+            return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
+        password = self._load_config(username)
+        ua = self.device_ua or ""
+        info = {"name": self.user_data.name, "student_id": self.user_data.student_id}
+        return {"password": password or "", "ua": ua, "params": self.params, "userInfo": info}
+
+    def generate_new_ua(self):
+        """生成一个新的UA并保存"""
+        logging.info("API CALL: generate_new_ua")
+        self.device_ua = ApiClient.generate_random_ua()
+        cfg = configparser.ConfigParser()
+        if os.path.exists(self.user_config_path):
+            cfg.read(self.user_config_path, encoding='utf-8')
+            if not cfg.has_section('System'):
+                cfg.add_section('System')
+            cfg.set('System', 'UA', self.device_ua)
+            with open(self.user_config_path, 'w', encoding='utf-8') as f:
+                cfg.write(f)
+        logging.info(f"New UA generated: {self.device_ua}")
+        return self.device_ua
+
+    def login(self, username, password):
+        logging.info(f"API CALL: login for user '{username}'")
+        if not username or not password:
+            return {"success": False, "message": "用户名和密码不能为空！"}
+        
+        self.log("正在登录...")
+        logging.debug(f"Attempting login for username={username}")
+        self.user_data = UserData()
+        # 记录“登录时输入的账号”，作为兜底
+        input_username = username
+        # UA 如未生成则生成
+        if not self.device_ua:
+            self.device_ua = ApiClient.generate_random_ua()
+        
+        resp = self.api_client.login(input_username, password)
+        if not resp or not resp.get('success'):
+            msg = resp.get('message', '未知错误') if resp else '网络连接失败'
+            self.log(f"登录失败：{msg}")
+            logging.warning(f"Login failed: {msg}")
+            return {"success": False, "message": msg}
+
+        # 先解析用户信息，再决定用哪个“主键”保存
+        self.log("登录成功，正在解析用户信息...")
+        data = resp.get('data', {})
+        user_info = data.get('userInfo', {})
+        dept_info = data.get('deptInfo', {})
+        ud = self.user_data
+
+        ud.name = user_info.get('name', '')
+        ud.phone = user_info.get('phone', '')
+        ud.student_id = user_info.get('account', '')  # 学号/账号（后端唯一标识）
+        ud.id = user_info.get('id', '')
+        # 这里把 username 统一设成“学号”，而不是 nickname
+        # 若后端未返回学号，则回退到输入的 username
+        ud.username = ud.student_id or input_username
+
+        ud.registration_time = user_info.get('createtime', '')
+        ud.first_login_time = user_info.get('firstlogin', '')
+        ud.id_card = user_info.get('iDcard', '')
+        ud.current_login_time = user_info.get('logintime', '')
+        ud.last_login_time = dept_info.get('logintime', '')
+        ud.gender = dept_info.get('sexValue', '')
+        ud.school_name = dept_info.get('schoolName', '')
+        ud.attribute_type = dept_info.get('typeValue', '')
+
+        # 至此，ud.username 已经是“用于保存配置的主键”（学号优先）
+        # 现在再保存配置（文件名与 LastUser 都用 ud.username）
+        self._save_config(ud.username, password)
+
+
+        # --- 新增：登录成功后，立即获取并缓存签到半径 ---
+        try:
+            # None 表示这是在单账号模式下调用
+            self._fetch_server_attendance_radius_if_needed(self.api_client, None)
+        except Exception as e:
+            self.log(f"获取签到半径失败: {e}")
+            logging.warning(f"Failed to fetch attendance radius post-login: {e}")
+        # --- 结束新增 ---
+
+
+        self._first_center_done = False
+        logging.info(f"Login successful: uid={ud.id}, name={ud.name}, sid={ud.student_id}")
+        # 双保险：后端主动提示前端刷新任务列表
+        if self.window:
+            try:
+                self.window.evaluate_js('refreshTasks()')
+            except Exception:
+                logging.debug("Attempt to trigger front-end refreshTasks failed (non-fatal).")
+        # --- 启动自动刷新线程 ---
+        try:
+            self.stop_auto_refresh.clear()
+            if self.auto_refresh_thread is None or not self.auto_refresh_thread.is_alive():
+                self.auto_refresh_thread = threading.Thread(target=self._auto_refresh_worker, daemon=True)
+                self.auto_refresh_thread.start()
+        except Exception as e:
+            self.log(f"启动自动刷新线程失败: {e}")
+
+        # 构造要返回给前端的 userInfo 字典
+        user_info_dict = self._get_full_user_info_dict()
+        # --- 新增：将获取到的半径附加到返回信息中 ---
+        user_info_dict['server_attendance_radius_m'] = self.server_attendance_radius_m
+
+        return {"success": True, "userInfo": user_info_dict, "ua": self.device_ua}
+
+
+
+    def logout(self):
+        """处理注销逻辑"""
+        logging.info("API CALL: logout")
+        self.log("已注销。")
+        logging.info("User logged out, clearing session and state.")
+        # --- 停止自动刷新线程 ---
+        try:
+            self.stop_auto_refresh.set()
+            if self.auto_refresh_thread and self.auto_refresh_thread.is_alive():
+                self.auto_refresh_thread.join(timeout=1.0)
+            self.auto_refresh_thread = None
+        except Exception as e:
+            logging.warning(f"Failed to stop auto-refresh thread: {e}")
+        self._init_state_variables()
+        self._load_global_config()
+        self.api_client.session.cookies.clear()
+        return {"success": True}
+
+    def load_tasks(self):
+        """加载任务列表（增强：稳健去重 + 并发保护）"""
+        logging.info("API CALL: load_tasks")
+
+        if not self.user_data.id:
+            return {"success": False, "message": "用户未登录"}
+
+        # 并发保护：避免多次快速点击导致并发刷新交错
+        if not hasattr(self, "_load_tasks_lock"):
+            self._load_tasks_lock = threading.RLock()
+        if not hasattr(self, "_load_tasks_inflight"):
+            self._load_tasks_inflight = False
+
+        with self._load_tasks_lock:
+            if self._load_tasks_inflight:
+                logging.debug("load_tasks skipped: another refresh is in-flight.")
+                # 返回当前缓存（避免空白）——即使并发点击，也不会重复追加
+                tasks_for_js = []
+                for run in self.all_run_data:
+                    task_dict = run.__dict__.copy()
+                    task_dict['info_text'] = self._get_task_info_text(run)
+                    tasks_for_js.append(task_dict)
+                return {"success": True, "tasks": tasks_for_js}
+
+            self._load_tasks_inflight = True
+            try:
+                self.log("正在获取任务列表...")
+                logging.debug("Fetching run list from server.")
+
+                # 重置缓存
+                self.all_run_data = []
+                # 复合去重：优先 errandId；若为空或重复，则落到 schedule+时间 的复合 key
+                seen_keys: set[str] = set()
+                offset = 0
+                dup_count = 0
+
+                while True:
+                    resp = self.api_client.get_run_list(self.user_data.id, offset)
+                    if not resp or not resp.get('success'):
+                        self.log("获取任务列表失败。")
+                        logging.warning("Failed to fetch task list.")
+                        break
+
+                    tasks = resp.get('data', {}).get('errandList', [])
+                    if not tasks:
+                        break
+
+                    for td in tasks:
+                        eid = td.get('errandId') or ""
+                        es = td.get('errandSchedule') or ""
+                        st = td.get('startTime') or ""
+                        et = td.get('endTime') or ""
+
+                        # 构造稳健唯一键（兼容 errandId 缺失 / 重复）
+                        # 优先 errandId；若为空，则用 "SCHEDULE|START|END" 兜底；若 errandId 存在也加入 schedule 时间以提高稳健性
+                        unique_key = f"{eid}|{es}|{st}|{et}"
+
+                        if unique_key in seen_keys:
+                            dup_count += 1
+                            continue
+                        seen_keys.add(unique_key)
+
+                        run = RunData()
+                        run.run_name = td.get('eName')
+
+                        # 统一将 isExecute 规范为整型 0/1，防止字符串导致后续比较失败
+                        try:
+                            run.status = int(td.get('isExecute') or 0)
+                        except (TypeError, ValueError):
+                            run.status = 1 if str(td.get('isExecute')).strip() == '1' else 0
+
+                        run.errand_id = td.get('errandId')
+                        run.errand_schedule = td.get('errandSchedule')
+                        run.start_time = td.get('startTime')
+                        run.end_time = td.get('endTime')
+                        run.upload_time = td.get('updateTime')
+                        self.all_run_data.append(run)
+
+                    offset += len(tasks)
+                    if len(tasks) < 10:
+                        break
+
+                # 日志与前端数据整理
+                self.log(f"任务列表加载完毕，共 {len(self.all_run_data)} 项。")
+                if dup_count > 0:
+                    logging.info(f"Task de-dup completed: {dup_count} duplicates skipped (robust key).")
+
+                tasks_for_js = []
+                for run in self.all_run_data:
+                    task_dict = run.__dict__.copy()
+                    task_dict['info_text'] = self._get_task_info_text(run)
+                    tasks_for_js.append(task_dict)
+                return {"success": True, "tasks": tasks_for_js}
+            finally:
+                self._load_tasks_inflight = False
+
+
+
+    def _get_task_info_text(self, run: RunData) -> str:
+        """根据任务状态生成一个简短的信息文本（增强：多格式时间解析、稳健回退）"""
+        if run.status == 1:
+            return "已完成"
+
+        now = datetime.datetime.now()
+        ignore_time = self.params.get("ignore_task_time", True)
+
+        def try_parse_dt(s):
+            """尝试将不同格式的时间字符串解析为 datetime，支持多种常见格式和值类型。失败返回 None。"""
+            if not s:
+                return None
+            # 若为数字字符串或数字（可能是时间戳毫秒/秒）
+            try:
+                if isinstance(s, (int, float)):
+                    # 判断是秒还是毫秒（如果大于 10^12 认为是毫秒）
+                    ts = int(s)
+                    if ts > 1e12:
+                        return datetime.datetime.fromtimestamp(ts / 1000.0)
+                    if ts > 1e9:
+                        return datetime.datetime.fromtimestamp(ts / 1000.0)
+                    return datetime.datetime.fromtimestamp(ts)
+                if s.isdigit():
+                    ts = int(s)
+                    if ts > 1e12:
+                        return datetime.datetime.fromtimestamp(ts / 1000.0)
+                    if ts > 1e9:
+                        return datetime.datetime.fromtimestamp(ts / 1000.0)
+                    return datetime.datetime.fromtimestamp(ts)
+            except Exception:
+                pass
+
+            # 尝试多种常见格式
+            fmts = [
+                "%Y-%m-%d %H:%M:%S",
+                "%Y/%m/%d %H:%M:%S",
+                "%Y-%m-%d",
+                "%Y/%m/%d",
+                "%Y-%m-%dT%H:%M:%S",
+                "%Y-%m-%dT%H:%M:%S.%f",
+                "%Y-%m-%d %H:%M"
+            ]
+            for f in fmts:
+                try:
+                    return datetime.datetime.strptime(s, f)
+                except Exception:
+                    continue
+            # 尝试 ISO 解析的简易回退（去掉时区 Z）
+            try:
+                txt = s.rstrip('Z').split('+')[0]
+                return datetime.datetime.fromisoformat(txt)
+            except Exception:
+                pass
+            return None
+
+        # 检查是否已过期
+        if run.end_time:
+            end_dt = try_parse_dt(run.end_time)
+            if end_dt:
+                if (ignore_time and end_dt.date() < now.date()) or (not ignore_time and end_dt < now):
+                    return "已过期"
+
+        # 检查是否未开始
+        if run.start_time:
+            start_dt = try_parse_dt(run.start_time)
+            if start_dt:
+                if (ignore_time and now.date() < start_dt.date()) or (not ignore_time and now < start_dt):
+                    # 返回更简洁的未开始标记，便于前端直接判断显示“未开始”
+                    return f"开始于: {start_dt.strftime('%Y-%m-%d')}"
+            else:
+                # 若解析失败但字符串明显为仅有日期（例如 '2025-09-30'）且长度合适，尝试按日期对比
+                try:
+                    s = str(run.start_time).strip()
+                    if len(s) == 10 and s[4] == '-' and s[7] == '-':
+                        sd = datetime.datetime.strptime(s, "%Y-%m-%d")
+                        if (ignore_time and now.date() < sd.date()) or (not ignore_time and now < sd):
+                            return f"开始于: {sd.strftime('%Y-%m-%d')}"
+                except Exception:
+                    pass
+
+        # 进行中或带截止日期的显示
+        if run.end_time:
+            try:
+                # 优先以可解析的 end_time 的日期部分显示
+                end_dt = try_parse_dt(run.end_time)
+                if end_dt:
+                    return f"截止: {end_dt.strftime('%Y-%m-%d')}"
+            except Exception:
+                pass
+
+        return "进行中"
+
+
+    def get_task_details(self, index):
+        """获取指定任务的详细信息"""
+        logging.info(f"API CALL: get_task_details for index {index}")
+        if not (0 <= index < len(self.all_run_data)):
+            return {"success": False, "message": "无效的任务索引"}
+        
+        self.current_run_idx = index
+        run_data = self.all_run_data[index]
+
+        if run_data.details_fetched:
+            task_dict = run_data.__dict__.copy()
+            task_dict['target_range_m'] = self.target_range_m
+            return {"success": True, "details": task_dict}
+
+        self.log(f"正在加载任务详情...")
+        logging.debug(f"Fetching details for task idx={index}, name={run_data.run_name}")
+        resp = self.api_client.get_run_details(run_data.errand_id, self.user_data.id, run_data.errand_schedule)
+
+        if resp and resp.get('success'):
+            details = resp.get('data', {}).get('errandDetail', {})
+            run_data.target_points = [(float(p['lon']), float(p['lat'])) for p in details.get('geoCoorList', []) if p.get('lon') is not None and p.get('lat') is not None]
+            run_data.target_point_names = "|".join([p.get('name', '') for p in details.get('geoCoorList', [])])
+            
+            temp_coords = []
+            walk_paths = details.get('walkPaths', [])
+            if walk_paths:
+                for i, seg in enumerate(walk_paths):
+                    for pt in seg:
+                        if isinstance(pt, list) and len(pt) == 2 and pt[0] is not None and pt[1] is not None:
+                            try:
+                                temp_coords.append((float(pt[0]), float(pt[1])))
+                            except (TypeError, ValueError):
+                                logging.warning(f"Invalid coordinate in recommended path: {pt}")
+                    if i < len(walk_paths) - 1:
+                        temp_coords.append((0.0, 0.0))
+            run_data.recommended_coords = temp_coords
+            run_data.details_fetched = True
+            self.log("任务详情加载成功。")
+            logging.debug(f"Details fetched: targets={len(run_data.target_points)}, recommended points count={len(run_data.recommended_coords)}")
+            task_dict = run_data.__dict__.copy()
+            task_dict['target_range_m'] = self.target_range_m
+            return {"success": True, "details": task_dict}
+        else:
+            self.log("获取任务详情失败。")
+            logging.warning("Failed to fetch task details.")
+            return {"success": False, "message": "获取任务详情失败"}
+
+    def set_draft_path(self, coords):
+        """接收前端手动绘制的草稿路径"""
+        logging.info(f"API CALL: set_draft_path with {len(coords)} points")
+        if self.current_run_idx == -1: return {"success": False, "message": "未选择任务"}
+        run = self.all_run_data[self.current_run_idx]
+        run.draft_coords = [(c['lng'], c['lat'], c.get('isKey', 0)) for c in coords]
+        logging.debug(f"Set draft path with {len(coords)} points.")
+        return {"success": True}
+
+    def _calculate_distance_m(self, lon1, lat1, lon2, lat2):
+        """估算两经纬度点之间的直线距离（米）"""
+        return math.sqrt(((lon1 - lon2) * 102834.74) ** 2 + ((lat1 - lat2) * 111712.69) ** 2)
+
+    def _gps_random_offset(self, lon, lat, params):
+        """对GPS坐标添加一个小的随机偏移"""
+        m = params['location_random_m']
+        return lon + random.uniform(-m, m) / 102834.74, lat + random.uniform(-m, m) / 111712.69
+
+    def process_path(self):
+        """处理草稿路径，生成带有时间戳的模拟路径"""
+        logging.info("API CALL: process_path")
+        if self.current_run_idx == -1: return {"success": False, "message": "未选择任务"}
+        run = self.all_run_data[self.current_run_idx]
+        if not run.draft_coords or len(run.draft_coords) < 2:
+            return {"success": False, "message": "没有可处理的路径"}
+        
+        self.log("正在处理路径...")
+        logging.debug(f"Processing {len(run.draft_coords)} draft points into run coordinates.")
+        
+        draft = run.draft_coords
+        run.run_coords = []
+            
+        start_lon, start_lat = draft[0][0], draft[0][1]
+        lon, lat = (start_lon, start_lat) if draft[0][2] == 1 else self._gps_random_offset(start_lon, start_lat, self.params)
+        run.run_coords.append((lon, lat, 0))
+
+        total_dist, total_time = 0.0, 0.0
+        current_gps_pos, draft_idx = (draft[0][0], draft[0][1]), 0
+        p = self.params
+
+        while draft_idx < len(draft) - 1:
+            interval_t = max(0.2, random.uniform(p['interval_ms'] - p['interval_random_ms'], p['interval_ms'] + p['interval_random_ms']) / 1000.0)
+            speed = max(0.2, random.uniform(p['speed_mps'] - p['speed_random_mps'], p['speed_mps'] + p['speed_random_mps']))
+            dist_to_go = speed * interval_t
+
+            final_pos, temp_draft_idx = current_gps_pos, draft_idx
+            while dist_to_go > 0 and temp_draft_idx < len(draft) - 1:
+                seg_start_gps, seg_end_gps = final_pos, (draft[temp_draft_idx + 1][0], draft[temp_draft_idx + 1][1])
+                seg_dist = self._calculate_distance_m(seg_start_gps[0], seg_start_gps[1], seg_end_gps[0], seg_end_gps[1])
+                
+                if seg_dist >= dist_to_go:
+                    ratio = dist_to_go / seg_dist if seg_dist > 0 else 0
+                    final_pos = (seg_start_gps[0] + ratio * (seg_end_gps[0] - seg_start_gps[0]), seg_start_gps[1] + ratio * (seg_end_gps[1] - seg_start_gps[1]))
+                    dist_to_go, draft_idx = 0, temp_draft_idx
+                else:
+                    dist_to_go -= seg_dist
+                    final_pos = seg_end_gps
+                    temp_draft_idx += 1
+                    if draft[temp_draft_idx][2] == 1:
+                        dist_to_go = 0
+
+            if dist_to_go > 0: final_pos = (draft[-1][0], draft[-1][1])
+            draft_idx, current_gps_pos = temp_draft_idx, final_pos
+
+            is_key_point = any(d[0] == final_pos[0] and d[1] == final_pos[1] and d[2] == 1 for d in draft)
+            lon, lat = (final_pos[0], final_pos[1]) if is_key_point else self._gps_random_offset(final_pos[0], final_pos[1], self.params)
+            run.run_coords.append((lon, lat, int(interval_t * 1000)))
+            total_time += interval_t
+
+        for i in range(len(run.run_coords) - 1):
+            total_dist += self._calculate_distance_m(run.run_coords[i][0], run.run_coords[i][1], run.run_coords[i + 1][0], run.run_coords[i + 1][1])
+        
+        run.total_run_time_s, run.total_run_distance_m = total_time, total_dist
+        self.log(f"处理完成。")
+        logging.info(f"Path processed: points={len(run.run_coords)}, dist={total_dist:.1f}m, time={total_time:.1f}s")
+        return {"success": True, "run_coords": run.run_coords, "total_dist": total_dist, "total_time": total_time}
+        
+    def check_target_reached_during_run(self, run_data: RunData, current_lon: float, current_lat: float):
+        """在模拟运行时，检查是否到达了打卡点"""
+        if not (0 < run_data.target_sequence <= len(run_data.target_points)): return
+
+        tar_lon, tar_lat = run_data.target_points[run_data.target_sequence - 1]
+        dist = self._calculate_distance_m(current_lon, current_lat, tar_lon, tar_lat)
+        is_in_zone = (dist < self.target_range_m)
+
+        if is_in_zone and not run_data.is_in_target_zone:
+            run_data.is_in_target_zone = True
+            if run_data.target_sequence < len(run_data.target_points):
+                run_data.target_sequence += 1
+                next_lon, next_lat = run_data.target_points[run_data.target_sequence - 1]
+                if self._calculate_distance_m(current_lon, current_lat, next_lon, next_lat) >= self.target_range_m:
+                    run_data.is_in_target_zone = False
+        elif not is_in_zone:
+            run_data.is_in_target_zone = False
+
+    def start_single_run(self):
+        """开始执行单个任务"""
+        logging.info("API CALL: start_single_run")
+        if not self.stop_run_flag.is_set(): return {"success": False, "message": "已有任务在运行"}
+        if self.current_run_idx == -1 or not self.all_run_data[self.current_run_idx].run_coords:
+            return {"success": False, "message": "请选择任务并生成路线"}
+        
+        self.stop_run_flag.clear()
+        run_data = self.all_run_data[self.current_run_idx]
+        run_data.target_sequence = 1
+        run_data.is_in_target_zone = False
+        self._first_center_done = False
+        
+        logging.info(f"Starting single run for task: {run_data.run_name}")
+        # 修正: 为单用户模式传递 self.api_client
+        threading.Thread(target=self._run_submission_thread, args=(run_data, self.current_run_idx, self.api_client, False), daemon=True).start()
+        return {"success": True}
+
+    def stop_run(self):
+        """停止当前所有正在执行的任务"""
+        logging.info("API CALL: stop_run")
+        self.log("正在停止任务...")
+        logging.info("Stop run signal received.")
+        self.stop_run_flag.set()
+        return {"success": True}
+
+    # 修正: 添加 acc_session 或 api_client 参数
+    def _submit_chunk(self, run_data: RunData, chunk, start_time, is_finish, chunk_start_index, client: ApiClient, user: UserData):
+        """将一小块轨迹数据提交到服务器"""
+        log_func = client.app.log if hasattr(client.app, 'log') else client.app.api_bridge.log
+        log_func(f"正在提交数据...")
+        logging.debug(f"Submitting chunk: start_index={chunk_start_index}, size={len(chunk)}, is_finish={is_finish}")
+        
+        last_point_gps = chunk[0] if chunk_start_index == 0 else run_data.run_coords[chunk_start_index - 1]
+        time_elapsed_before_chunk_ms = sum(p[2] for p in run_data.run_coords[:chunk_start_index])
+        coords_list, chunk_total_dist, chunk_total_dur = [], 0.0, 0
+
+        for lon, lat, dur_ms in chunk:
+            distance = self._calculate_distance_m(last_point_gps[0], last_point_gps[1], lon, lat)
+            time_elapsed_before_chunk_ms += dur_ms
+            coords_list.append({
+                "location": f"{lon},{lat}",
+                "locatetime": str(int(time.time() * 1000)),
+                "dis": f"{distance:.1f}",
+                "count": str(int(time_elapsed_before_chunk_ms / 1000))
+            })
+            last_point_gps = (lon, lat, dur_ms)
+            chunk_total_dist += distance
+            chunk_total_dur += dur_ms
+        
+        payload = {
+            "scheduleId": run_data.errand_schedule, "userId": user.id,
+            "userName": user.name or "", "runLength": str(int(chunk_total_dist)),
+            "runTime": str(chunk_total_dur), "startPoint": "", "endPoint": "",
+            "startTime": start_time, "endTime": str(int(time.time() * 1000)),
+            "trid": run_data.trid, "sid": "", "tid": "",
+            "speed": f"{(run_data.total_run_distance_m / run_data.total_run_time_s):.2f}" if run_data.total_run_time_s > 0 else "",
+            "finishType": "1" if is_finish else "0",
+            "coordinate": json.dumps(coords_list, separators=(',', ':')),
+            "appVersion": ApiClient.API_VERSION
+        }
+        payload_str = urllib.parse.urlencode(payload)
+        
+        # 通过全局串行队列进行提交，保证同一时间只提交一个数据包
+        resp = self._enqueue_submission(client, payload_str, wait_timeout=60.0)
+        success = bool(resp and resp.get('success'))
+        log_func(f"数据提交{'成功' if success else '失败'}。")
+        logging.debug(f"Chunk submission result: success={success}, msg={resp.get('message') if resp else 'network error'}")
+        return success
+
+    # ===================== 提交队列：串行化所有数据包提交 =====================
+    def _submission_worker_loop(self):
+        """后台工作线程：从队列取出提交任务并串行执行。"""
+        while not getattr(self, '_submission_worker_stop', threading.Event()).is_set():
+            try:
+                task = self._submission_queue.get(timeout=0.5)
+            except Exception:
+                continue
+            try:
+                client: ApiClient = task.get('client')
+                payload_str: str = task.get('payload')
+                # 实际网络提交（内部已带重试）
+                resp = client.submit_run_track(payload_str)
+                task['response'] = resp
+            except Exception as e:
+                logging.error(f"提交任务执行异常: {e}", exc_info=True)
+                task['response'] = None
+            finally:
+                try:
+                    task['event'].set()
+                except Exception:
+                    pass
+                try:
+                    self._submission_queue.task_done()
+                except Exception:
+                    pass
+
+    def _enqueue_submission(self, client: ApiClient, payload_str: str, wait_timeout: float = 30.0):
+        """将一次提交加入全局队列，并等待结果返回。
+        返回值：与 ApiClient.submit_run_track 一致的响应字典，或 None（失败/超时）。
+        """
+        # 入队任务包
+        task = {
+            'client': client,
+            'payload': payload_str,
+            'event': threading.Event(),
+            'response': None
+        }
+        # 简要日志：提示入队长度，帮助定位排队情况
+        try:
+            qsize = self._submission_queue.qsize()
+            logging.debug(f"Enqueue submit task. Queue size before push: {qsize}")
+        except Exception:
+            pass
+        self._submission_queue.put(task)
+        # 同步等待结果
+        signaled = task['event'].wait(timeout=wait_timeout)
+        if not signaled:
+            logging.warning("提交队列等待超时。")
+            return None
+        return task.get('response')
+
+    # 修正: 添加 client 参数
+    def _finalize_run(self, run_data: RunData, task_index: int, client: ApiClient):
+        """在所有数据提交后，查询服务器确认任务是否已标记为完成"""
+        log_func = client.app.log if hasattr(client.app, 'log') else client.app.api_bridge.log
+        log_func("正在确认任务状态...")
+        logging.debug(f"Finalizing run with trid={run_data.trid}")
+        for _ in range(3):
+            resp = client.get_run_info_by_trid(run_data.trid)
+            if resp and resp.get('success'):
+                record_map = resp.get('data', {}).get('recordMap', {})
+                if record_map and record_map.get('status') == 1:
+                    run_data.status = 1
+                    log_func("任务已确认完成。")
+                    logging.info(f"Task completed successfully: {run_data.run_name}")
+                    # task_index为-1表示在多账号模式下，不需要更新单用户UI
+                    if self.window and task_index != -1:
+                        self.window.evaluate_js(f"onTaskCompleted({task_index})")
+                    return
+            time.sleep(1)
+        log_func("暂未确认完成，请稍后刷新。")
+        logging.warning(f"Finalization check failed for task: {run_data.run_name}")
+
+    # 修正: 添加 client 参数
+    def _run_submission_thread(self, run_data: RunData, task_index: int, client: ApiClient, is_all: bool, finished_event: threading.Event | None = None):
+        """模拟跑步和提交数据的主线程函数"""
+        log_func = client.app.log if hasattr(client.app, 'log') else client.app.api_bridge.log
+        user_data = client.app.user_data if hasattr(client.app, 'user_data') else self.user_data
+        stop_flag = client.app.stop_event if hasattr(client.app, 'stop_event') else self.stop_run_flag
+        
+        try:
+            log_func("开始执行任务。")
+            logging.info(f"Submission thread started for task: {run_data.run_name}")
+            
+            run_data.trid = f"{user_data.student_id}{int(time.time() * 1000)}"
+            start_time_ms = str(int(time.time() * 1000))
+            run_data.distance_covered_m = 0.0
+            last_point_gps = run_data.run_coords[0]
+            submission_successful = True
+
+            for i in range(0, len(run_data.run_coords), 40):
+                if stop_flag.is_set():
+                    log_func("任务已中止。")
+                    logging.info("Stop flag detected, aborting run.")
+                    break
+                
+                chunk = run_data.run_coords[i:i + 40]
+                
+                for lon, lat, dur_ms in chunk:
+                    if stop_flag.wait(timeout=dur_ms / 1000.0):
+                        logging.debug("Wait for next point interrupted by stop signal.")
+                        break
+                    
+                    run_data.distance_covered_m += self._calculate_distance_m(last_point_gps[0], last_point_gps[1], lon, lat)
+                    last_point_gps = (lon, lat, dur_ms)
+                    self.check_target_reached_during_run(run_data, lon, lat)
+                    
+                    if self.window and self.current_run_idx == task_index:
+                        center_now = False
+                        if not self._first_center_done:
+                            center_now = True
+                            self._first_center_done = True
+                        self.window.evaluate_js(f'updateRunnerPosition({lon}, {lat}, {run_data.distance_covered_m}, {run_data.target_sequence}, {dur_ms}, {str(center_now).lower()})')
+                
+                if stop_flag.is_set(): break
+                
+                is_final_chunk = (i + 40 >= len(run_data.run_coords))
+                if not self._submit_chunk(run_data, chunk, start_time_ms, is_final_chunk, i, client, user_data):
+                    submission_successful = False
+                    logging.warning("Chunk submission failed, aborting task.")
+                    break
+            
+            if not stop_flag.is_set() and submission_successful:
+                log_func("任务执行完毕，等待确认...")
+                logging.info("Run execution finished, awaiting finalization.")
+                time.sleep(3)
+                self._finalize_run(run_data, task_index, client)
+        finally:
+            if not is_all:
+                self.stop_run_flag.set()
+                if self.window: self.window.evaluate_js('onRunStopped()')
+            if finished_event: finished_event.set()
+            logging.info(f"Submission thread finished for task: {run_data.run_name}")
+
+    def _get_path_for_distance(self, path, cumulative_distances, target_dist):
+        """如果路径总长不足，则通过来回走的方式凑足目标距离"""
+        total_len = cumulative_distances[-1]
+        final_path = list(path)
+        if 0 < total_len < target_dist:
+            rem = target_dist - total_len
+            rev = path[::-1]
+            acc = 0.0
+            for i in range(len(rev) - 1):
+                seg = self._calculate_distance_m(rev[i][0], rev[i][1], rev[i + 1][0], rev[i + 1][1])
+                if acc + seg < rem:
+                    final_path.append(rev[i + 1])
+                    acc += seg
+                else:
+                    ratio = (rem - acc) / seg if seg > 0 else 0
+                    s, e = rev[i], rev[i + 1]
+                    final_path.append((s[0] + (e[0] - s[0]) * ratio, s[1] + (e[1] - s[1]) * ratio))
+                    break
+        return final_path
+
+    def _get_point_at_distance(self, path, cumulative_distances, dist):
+        """在一条路径上，根据距离找到精确的坐标点"""
+        idx = bisect.bisect_left(cumulative_distances, dist)
+        if idx == 0: return path[0]
+        if idx >= len(cumulative_distances): return path[-1]
+        
+        d0, d1 = cumulative_distances[idx - 1], cumulative_distances[idx]
+        seg_len = d1 - d0
+        ratio = (dist - d0) / seg_len if seg_len > 0 else 0
+        s, e = path[idx - 1], path[idx]
+        return (s[0] + (e[0] - s[0]) * ratio, s[1] + (e[1] - s[1]) * ratio)
+
+    def auto_generate_path_with_api(self, api_path_coords, min_t_m, max_t_m, min_d_m):
+        """接收由前端JS API规划好的路径点，并生成模拟数据"""
+        logging.info(f"API CALL: auto_generate_path_with_api with {len(api_path_coords)} points")
+        if self.current_run_idx == -1: return {"success": False, "message": "请先选择任务"}
+        run = self.all_run_data[self.current_run_idx]
+
+        self.log("收到JS API路径，正在生成模拟数据...")
+        logging.info(f"Auto-generating path from {len(api_path_coords)} Amap API points.")
+        if not api_path_coords or len(api_path_coords) < 2:
+            return {"success": False, "message": "高德API未能返回有效路径"}
+        
+        final_path_dedup = []
+        last_coord = None
+        for p in api_path_coords:
+            # 修正BUG：同时兼容 'lng' 和 'lon' 两种经度键名
+            longitude = p.get('lng', p.get('lon'))
+            if longitude is None: continue # 如果经度不存在，则跳过这个点
+            coord = (longitude, p['lat'])
+            if coord != last_coord:
+                final_path_dedup.append(coord)
+                last_coord = coord
+
+        target_time_s = random.uniform(min_t_m * 60, max_t_m * 60)
+        target_dist_m = random.uniform(min_d_m, min_d_m * 1.15)
+        
+        cumulative = [0.0]
+        for i in range(len(final_path_dedup) - 1):
+            cumulative.append(cumulative[-1] + self._calculate_distance_m(final_path_dedup[i][0], final_path_dedup[i][1], final_path_dedup[i + 1][0], final_path_dedup[i + 1][1]))
+        
+        final_geo_path = self._get_path_for_distance(final_path_dedup, cumulative, target_dist_m)
+        
+        final_cumulative = [0.0]
+        for i in range(len(final_geo_path) - 1):
+            final_cumulative.append(final_cumulative[-1] + self._calculate_distance_m(final_geo_path[i][0], final_geo_path[i][1], final_geo_path[i + 1][0], final_geo_path[i + 1][1]))
+        
+        actual_total_dist = final_cumulative[-1] if final_cumulative else 0.0
+        if actual_total_dist == 0: return {"success": False, "message": "路径计算距离为0"}
+        
+        avg_speed = actual_total_dist / target_time_s
+        run_coords = []
+        if not final_geo_path: return {"success": False, "message": "无法生成地理路径"}
+
+        start = final_geo_path[0]
+        run_coords.append((self._gps_random_offset(start[0], start[1], self.params) + (0,)))
+        t_elapsed, d_covered = 0.0, 0.0
+
+        while t_elapsed < target_time_s:
+            interval = min(random.uniform(self.params['interval_ms'] * .9, self.params['interval_ms'] * 1.1) / 1000.0, target_time_s - t_elapsed)
+            if interval <= 0.1: break
+            
+            d_covered = min(d_covered + random.uniform(avg_speed * .9, avg_speed * 1.1) * interval, actual_total_dist)
+            lon, lat = self._get_point_at_distance(final_geo_path, final_cumulative, d_covered)
+            lon_o, lat_o = self._gps_random_offset(lon, lat, self.params)
+            run_coords.append((lon_o, lat_o, int(interval * 1000)))
+            t_elapsed += interval
+            if d_covered >= actual_total_dist: break
+
+        run.run_coords = run_coords
+        run.total_run_time_s = t_elapsed
+        run.total_run_distance_m = d_covered
+
+        self.log("自动生成完成。")
+        logging.info(f"Auto-generated path: points={len(run.run_coords)}, dist={d_covered:.1f}, time={t_elapsed:.1f}")
+        return {"success": True, "run_coords": run.run_coords, "total_dist": d_covered, "total_time": t_elapsed}
+
+    def start_all_runs(self, ignore_completed, auto_generate):
+        """开始执行所有符合条件的任务"""
+        logging.info(f"API CALL: start_all_runs (ignore_completed={ignore_completed}, auto_generate={auto_generate})")
+        if not self.stop_run_flag.is_set(): return {"success": False, "message": "已有任务在运行"}
+        
+        tasks_to_run = []
+        for i, d in enumerate(self.all_run_data):
+            # 修正BUG：如果任务已完成，并且没有勾选“忽略已完成”，则跳过
+            if d.status == 1 and not ignore_completed:
+                continue
+
+
+            is_expired = False
+            is_not_started = False
+            now = datetime.datetime.now()
+            ignore_time = self.params.get("ignore_task_time", True)
+
+            try:
+                if d.end_time:
+                    end_dt = datetime.datetime.strptime(d.end_time, '%Y-%m-%d %H:%M:%S')
+                    if ignore_time:
+                        is_expired = end_dt.date() < now.date()
+                    else:
+                        is_expired = end_dt < now
+            except (ValueError, TypeError):
+                is_expired = False
+
+            try:
+                if d.start_time:
+                    start_dt = datetime.datetime.strptime(d.start_time, '%Y-%m-%d %H:%M:%S')
+                    if ignore_time:
+                        is_not_started = now.date() < start_dt.date()
+                    else:
+                        is_not_started = now < start_dt
+            except (ValueError, TypeError):
+                is_not_started = False
+
+            if is_expired or is_not_started:
+                continue
+
+
+
+
+
+            # 只有当需要自动生成，或者任务本身已有路径时，才加入队列
+            if auto_generate or d.run_coords:
+                tasks_to_run.append(i)
+
+        if not tasks_to_run:
+            msg = "没有符合条件的可执行任务。"
+            if not auto_generate: msg += " (提示: 勾选'全部自动生成'可以为没有路线的任务自动规划)"
+            return {"success": False, "message": msg}
+        
+        queue = collections.deque(tasks_to_run)
+        self.stop_run_flag.clear()
+        logging.info(f"Starting 'run all' process. Queue={list(queue)}, auto-generate={auto_generate}")
+        threading.Thread(target=self._run_all_tasks_manager, args=(queue, auto_generate), daemon=True).start()
+        return {"success": True}
+
+    def _run_all_tasks_manager(self, queue: collections.deque, auto_gen_enabled: bool):
+        """管理“执行所有”任务队列的线程函数"""
+        self.log("开始执行所有任务。")
+        if self.window: self.window.evaluate_js('onAllRunsToggled(true)')
+        is_first_task = True
+        
+        while queue:
+            if self.stop_run_flag.is_set(): break
+            
+            idx = queue.popleft()
+            run_data = self.all_run_data[idx]
+            self.current_run_idx = idx
+            
+            if self.window: self.window.evaluate_js(f'selectTaskFromBackend({idx})')
+            time.sleep(1.2)
+
+            if not run_data.run_coords and auto_gen_enabled:
+                self.log(f"正在为任务 '{run_data.run_name}' 自动生成路线...")
+                logging.info(f"Auto-generating path for task in 'run all' mode: {run_data.run_name}")
+
+                # 1) 确保已加载任务详情，拿到打卡点
+                if not run_data.details_fetched:
+                    details_resp = self.get_task_details(idx)
+                    if not details_resp.get("success"):
+                        self.log("获取详情失败，跳过。")
+                        logging.warning(f"Skipping task {run_data.run_name}: failed to get details.")
+                        continue
+                    run_data = self.all_run_data[idx]
+
+                if not run_data.target_points:
+                    self.log(f"任务 '{run_data.run_name}' 无打卡点，无法自动生成，跳过。")
+                    logging.warning(f"Skipping task {run_data.run_name}: no target points for auto-generation.")
+                    continue
+
+                # 2) 触发前端JS路径规划，使用与多账号相同的回调机制
+                try:
+                    self.log("调用高德API进行路径规划...")
+                    # 准备回调通道
+                    callback_key = f"single_{idx}_{int(time.time() * 1000)}"
+                    path_result: dict = {}
+                    completion_event = threading.Event()
+                    self.path_gen_callbacks[callback_key] = (path_result, completion_event)
+
+                    # 将打卡点传给前端；JS会调用 getWalkingPath 并通过 multi_path_generation_callback 回传
+                    waypoints = run_data.target_points  # 形如 [(lon, lat), ...]，AMap.Walking.search 支持 [lng, lat] 数组
+                    if self.window:
+                        self.window.evaluate_js(
+                            f'triggerPathGenerationForPy("{callback_key}", {json.dumps(waypoints)})'
+                        )
+
+                    # 等待JS完成路径规划
+                    path_received = completion_event.wait(timeout=120)
+                    if 'path' not in path_result:
+                        error_msg = path_result.get('error', '超时或未知错误')
+                        self.log(f"路径规划失败或超时：{error_msg}，跳过此任务。")
+                        logging.warning(f"Path planning failed for task {run_data.run_name}: {error_msg}")
+                        if callback_key in self.path_gen_callbacks:
+                            self.path_gen_callbacks.pop(callback_key, None)
+                        continue
+
+                    api_path_coords = path_result['path']  # 形如 [{lng,lat}, ...]
+                    self.log(f"路径规划成功，共 {len(api_path_coords)} 个点，正在生成模拟数据...")
+
+                    # 3) 使用后端生成 run_coords（复用已有逻辑与参数）
+                    p = self.params
+                    gen_resp = self.auto_generate_path_with_api(
+                        api_path_coords,
+                        p.get("min_time_m", 20),
+                        p.get("max_time_m", 30),
+                        p.get("min_dist_m", 2000)
+                    )
+                    if not gen_resp.get("success"):
+                        self.log(f"自动生成失败：{gen_resp.get('message', '未知错误')}，跳过。")
+                        logging.warning(f"Auto-generation failed for task {run_data.run_name}: {gen_resp}")
+                        continue
+
+                    # 将生成结果回填到当前任务
+                    run_data.run_coords = gen_resp["run_coords"]
+                    run_data.total_run_distance_m = gen_resp["total_dist"]
+                    run_data.total_run_time_s = gen_resp["total_time"]
+
+                except Exception as e:
+                    self.log(f"自动生成失败，跳过：{e}")
+                    logging.error(f"Auto-generation failed for {run_data.run_name}: {e}", exc_info=True)
+                    continue
+
+                # 路径生成成功后，通知前端刷新UI以显示新路径和数据
+                self.log("路径已生成，正在更新界面...")
+                if self.window:
+                    self.window.evaluate_js(f'forceRefreshTaskUI({idx})')
+                time.sleep(1.0) # 短暂延时，让用户能看到UI更新
+
+
+            if not run_data.run_coords:
+                self.log(f"任务 '{run_data.run_name}' 无可用路线，跳过。")
+                logging.warning(f"Skipping task {run_data.run_name}: no route available.")
+                continue
+
+            if not is_first_task:
+                wait_time = random.uniform(self.params['task_gap_min_s'], self.params['task_gap_max_s'])
+                self.log(f"任务间等待中...")
+                logging.info(f"Waiting for {wait_time:.1f}s before next task.")
+                if self.stop_run_flag.wait(timeout=wait_time): break
+            is_first_task = False
+            
+            run_data.target_sequence, run_data.is_in_target_zone = 1, False
+            self._first_center_done = False
+            task_finished_event = threading.Event()
+            self._run_submission_thread(run_data, idx, self.api_client, True, task_finished_event)
+            task_finished_event.wait()
+
+        self.log("所有任务执行结束。")
+        self.stop_run_flag.set()
+        if self.window: self.window.evaluate_js('onAllRunsToggled(false)')
+
+    def get_task_history(self, index):
+        """获取任务的历史跑步记录"""
+        logging.info(f"API CALL: get_task_history for index {index}")
+        if not (0 <= index < len(self.all_run_data)): return {"success": False, "message": "任务索引无效"}
+        run_data = self.all_run_data[index]
+        self.log("正在获取历史记录...")
+        logging.debug(f"Getting history for task: {run_data.run_name}")
+        resp = self.api_client.get_run_history_list(self.user_data.id, run_data.errand_schedule)
+
+        if resp and resp.get('success'):
+            records = resp.get('data', {}).get('userErrandTrackRecord', [])
+            history_list = []
+            for rec in records:
+                run_time_s = rec.get('runTime', 0) / 1000
+                length_m = rec.get('runLength', 0)
+                km = length_m / 1000 if length_m else 0
+                speed_s_per_km = (run_time_s / km) if km > 0 else 0
+                s_min, s_sec = divmod(speed_s_per_km, 60)
+                history_list.append({
+                    "time": rec.get('createTime', 'NULL'),
+                    "len": f"{length_m}m",
+                    "speed": f"{int(s_min)}'{int(s_sec):02d}\"" if km > 0 else "NULL",
+                    "trid": rec.get('trid')
+                })
+            self.log(f"历史记录已加载。")
+            logging.debug(f"Loaded {len(records)} history records.")
+            return {"success": True, "history": history_list}
+        return {"success": False, "message": "获取历史记录失败"}
+
+    def get_historical_track(self, trid):
+        """根据轨迹ID获取历史轨迹坐标点"""
+        logging.info(f"API CALL: get_historical_track for trid {trid}")
+        self.log("正在加载历史轨迹...")
+        logging.debug(f"Loading historical track for trid={trid}")
+        resp = self.api_client.get_history_track_by_trid(trid)
+        if resp and resp.get('success'):
+            coords = []
+            for track_point_list in resp.get('data', {}).get('trackPointList', []):
+                try:
+                    coords_list = json.loads(track_point_list.get('coordinate', '[]'))
+                    for item in coords_list:
+                        lon, lat = map(float, item.get('location', '0,0').split(','))
+                        coords.append((lon, lat))
+                except (json.JSONDecodeError, ValueError):
+                    continue
+            self.log("历史轨迹加载成功。")
+            logging.debug(f"Historical track loaded with {len(coords)} points.")
+            return {"success": True, "coords": coords}
+        self.log("加载历史轨迹失败。")
+        logging.warning("Failed to load historical track.")
+        return {"success": False, "message": "加载历史轨迹失败"}
+
+    def open_file_dialog(self, dialog_type, options):
+            """打开系统文件对话框"""
+            logging.info(f"API CALL: open_file_dialog (type={dialog_type})")
+            root = tkinter.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)
+            filepath = ""
+            try:
+                if dialog_type == 'save':
+                    filepath = filedialog.asksaveasfilename(**options) # <--- 修改这里
+                elif dialog_type == 'open':
+                    filepath = filedialog.askopenfilename(**options) # <--- 修改这里
+            finally:
+                root.destroy()
+            return filepath
+
+    def show_confirm_dialog(self, title, message):
+            """(已修复) 由JS调用，显示一个基于HTML的确认对话框(是/否)"""
+            logging.info(f"API CALL: show_confirm_dialog (title={title})")
+            
+            if not self.window:
+                logging.error("Window object is not set. Cannot show confirm dialog.")
+                return False # 无法显示，默认返回 "否"
+
+            try:
+                # 调用JS函数 (jsShowConfirm)，并等待其返回的 Promise
+                # JS中的 jsShowConfirm 必须返回一个 Promise<boolean>
+                js_code = f'jsShowConfirm({json.dumps(title)}, {json.dumps(message)})'
+                
+                # evaluate_js 会阻塞Python线程，直到JS的Promise解析
+                result = self.window.evaluate_js(js_code)
+                
+                # 确保返回的是布尔值
+                return bool(result)
+            
+            except Exception as e:
+                # 如果JS函数不存在、JS执行出错或返回了非预期值
+                logging.error(f"Error showing/getting confirm dialog from JS: {e}", exc_info=True)
+                
+                # --- 回退到 Tkinter (作为保险) ---
+                logging.warning("Falling back to Tkinter confirm dialog.")
+                try:
+                    root = tkinter.Tk()
+                    root.withdraw()
+                    root.attributes('-topmost', True)
+                    result_tk = messagebox.askyesno(title, message)
+                    root.destroy()
+                    return result_tk
+                except Exception as tk_e:
+                    logging.fatal(f"Tkinter fallback also failed: {tk_e}", exc_info=True)
+                    return False # 终极回退
+
+
+    def update_param(self, key, value):
+        """更新并保存单个参数"""
+        logging.info(f"API CALL: update_param (key={key}, value={value})")
+        
+        # 决定要更新哪个参数字典
+        username_to_update = None
+        if self.is_multi_account_mode:
+            # 在多账号模式下，这被视为更新全局参数
+            target_params = self.global_params
+        else:
+            target_params = self.params
+            username_to_update = self.user_data.username
+
+        if key in target_params:
+            try:
+                original_type = type(target_params[key])
+                if original_type is bool:
+                    target_params[key] = bool(value) if isinstance(value, bool) else str(value).lower() in ('true', '1', 't', 'yes')
+                else:
+                    target_params[key] = original_type(value)
+                
+                # 如果是多账号模式, 更新所有已加载账号的对应参数
+                if self.is_multi_account_mode:
+                  for acc in self.accounts.values():
+                      if key in acc.params:
+                          acc.params[key] = target_params[key]
+                          # 仅当该账号已有 .ini 时才写回，避免无用文件生成
+                          ini_path = os.path.join(self.user_dir, f"{acc.username}.ini")
+                          if os.path.exists(ini_path):
+                              self._save_config(acc.username)
+                
+                # 获取最后登录的用户名以保存配置
+                if not username_to_update:
+                    cfg = configparser.ConfigParser()
+                    cfg.read(self.config_path, encoding='utf-8')
+                    username_to_update = cfg.get('Config', 'LastUser', fallback=None)
+
+                if username_to_update and not self.is_multi_account_mode:
+                    self._save_config(username_to_update)
+
+                logging.debug(f"Parameter updated: {key}={target_params[key]}")
+
+                # --- 响应自动签到参数变化 ---
+                if key in ("auto_attendance_enabled", "auto_attendance_refresh_s") and not self.is_multi_account_mode:
+                    self.stop_auto_refresh.set() # 停止旧的
+                    if self.auto_refresh_thread and self.auto_refresh_thread.is_alive():
+                        self.auto_refresh_thread.join(timeout=1.0)
+                    
+                    if self.params.get("auto_attendance_enabled", False):
+                        # 如果是启用，则重启
+                        self.stop_auto_refresh.clear()
+                        self.auto_refresh_thread = threading.Thread(target=self._auto_refresh_worker, daemon=True)
+                        self.auto_refresh_thread.start()
+                        self.log("自动刷新设置已更新并重启。")
+
+
+                return {"success": True}
+            except (ValueError, TypeError) as e:
+                return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Unknown parameter"}
+
+    def export_task_data(self):
+        """导出当前任务数据为JSON文件"""
+        logging.info("API CALL: export_task_data")
+        if self.current_run_idx == -1: return {"success": False, "message": "请先选择一个任务。"}
+        run_data = self.all_run_data[self.current_run_idx]
+        if not run_data.draft_coords and not run_data.run_coords and not run_data.recommended_coords:
+            return {"success": False, "message": "当前任务没有可导出的路径数据。"}
+
+        export_data = {
+            "task_name": run_data.run_name, "errand_id": run_data.errand_id,
+            "errand_schedule": run_data.errand_schedule, "target_points": run_data.target_points,
+            "target_point_names": run_data.target_point_names, "recommended_coords": run_data.recommended_coords,
+            "draft_coords (gps)": run_data.draft_coords, "run_coords (gps)": run_data.run_coords
+        }
+        try:
+            filepath = self.open_file_dialog('save', {
+                'initialfile': f"task_{run_data.errand_schedule or 'debug'}_{int(time.time())}.json",
+                'filetypes': [('JSON 文件 (*.json)', '*.json'), ('所有文件 (*.*)', '*.*')],
+                'defaultextension': ".json"
+            })
+            if not filepath:
+                self.log("已取消导出。")
+                return {"success": False, "message": "用户取消操作"}
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, indent=4, ensure_ascii=False)
+            self.log("导出成功。")
+            logging.info(f"Task data exported to {filepath}")
+            return {"success": True, "message": f"成功导出到 {os.path.basename(filepath)}"}
+        except Exception as e:
+            self.log("导出失败。")
+            logging.error(f"Export failed: {e}", exc_info=True)
+            return {"success": False, "message": f"导出失败: {e}"}
+
+    def import_task_data(self, *args, **kwargs):
+            """导入JSON任务数据，进入离线调试模式（UA=Null，保留用户信息）"""
+            logging.info("API CALL: import_task_data")
+            try:
+                filepath = self.open_file_dialog('open', {'filetypes': [('JSON 文件 (*.json)', '*.json'), ('所有文件 (*.*)', '*.*')]})
+                if not filepath:
+                    self.log("已取消导入。")
+                    return {"success": False, "message": "用户取消操作"}
+                
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                # --- 软重置：保留用户信息，但 UA 强制置空 ---
+                prev_user = copy.deepcopy(getattr(self, 'user_data', UserData()))
+
+                self.is_offline_mode = True
+                # 停止任何运行中的单账号任务
+                try:
+                    if hasattr(self, 'stop_run_flag') and isinstance(self.stop_run_flag, threading.Event):
+                        self.stop_run_flag.set()
+                except Exception:
+                    pass
+                # 清空运行态
+                self.all_run_data = []
+                self.current_run_idx = -1
+                self._first_center_done = False
+
+                # 恢复用户信息
+                self.user_data = prev_user if prev_user else UserData()
+                if not (self.user_data.name or "").strip():
+                    self.user_data.name = "离线调试"
+                if not (self.user_data.student_id or "").strip():
+                    self.user_data.student_id = "NULL"
+
+                # 离线模式下 UA 必须为 NULL
+                self.device_ua = None
+
+                # 组装离线任务
+                debug_run = RunData()
+                debug_run.run_name = data.get("task_name", "调试任务 (离线)")
+                debug_run.errand_id = data.get("errand_id", "debug_id")
+                debug_run.errand_schedule = data.get("errand_schedule", "debug_schedule")
+                debug_run.target_points = data.get("target_points", [])
+                if "target_point_names" in data and data["target_point_names"]:
+                    debug_run.target_point_names = data["target_point_names"]
+                else:
+                    num_points = len(debug_run.target_points)
+                    if num_points > 0:
+                        debug_run.target_point_names = "|".join([f"打卡点 {i + 1}" for i in range(num_points)])
+
+                debug_run.recommended_coords = data.get("recommended_coords", [])
+                debug_run.draft_coords = data.get("draft_coords (gps)", [])
+                debug_run.run_coords = data.get("run_coords (gps)", [])
+
+                if debug_run.run_coords and len(debug_run.run_coords) > 1:
+                    total_dist_m = 0.0
+                    for i in range(len(debug_run.run_coords) - 1):
+                        p1 = debug_run.run_coords[i]
+                        p2 = debug_run.run_coords[i + 1]
+                        total_dist_m += self._calculate_distance_m(p1[0], p1[1], p2[0], p2[1])
+                    total_time_s = sum(p[2] for p in debug_run.run_coords) / 1000.0
+                    debug_run.total_run_distance_m = total_dist_m
+                    debug_run.total_run_time_s = total_time_s
+                    logging.info(f"Imported path stats calculated: Distance={total_dist_m:.1f}m, Time={total_time_s:.1f}s")
+
+                debug_run.details_fetched = True
+                self.all_run_data = [debug_run]
+                self.current_run_idx = 0  
+
+                filename = os.path.basename(filepath)
+                self.log("离线数据已导入。")
+                logging.info(f"Imported offline data from {filename}")
+
+                tasks_for_js = [r.__dict__.copy() for r in self.all_run_data]
+                tasks_for_js[0]['info_text'] = "离线"
+                tasks_for_js[0]['target_range_m'] = self.target_range_m
+
+                return {
+                    "success": True,
+                    "tasks": tasks_for_js,
+                    "userInfo": self._get_full_user_info_dict()
+                }
+            except Exception as e:
+                self.log("导入失败。")
+                logging.error(f"Import failed: {e}", exc_info=True)
+                return {"success": False, "message": f"导入失败: {e}"}
+
+
+    
+    def clear_current_task_draft(self):
+        """清除当前任务的草稿路径和已生成路径"""
+        logging.info("API CALL: clear_current_task_draft")
+        if self.current_run_idx == -1 or not (0 <= self.current_run_idx < len(self.all_run_data)):
+            return {"success": False, "message": "未选择任务"}
+        run = self.all_run_data[self.current_run_idx]
+        run.draft_coords = []
+        run.run_coords = []
+        run.total_run_distance_m = 0
+        run.total_run_time_s = 0
+        logging.info(f"Cleared draft and run data for task: {run.run_name}")
+        return {"success": True}
+
+
+    def enter_multi_account_mode(self):
+        """切换到多账号模式（增强：先打断单账号运行）"""
+        # 先停止单账号任何运行中的任务/线程
+        try:
+            if hasattr(self, 'stop_run_flag') and isinstance(self.stop_run_flag, threading.Event):
+                self.stop_run_flag.set()
+            # 清空路径规划回调，避免误回传
+            for key, (path_result, completion_event) in list(self.path_gen_callbacks.items()):
+                path_result['error'] = '模式切换（进入多账号）已取消'
+                try:
+                    completion_event.set()
+                except Exception:
+                    pass
+            self.path_gen_callbacks.clear()
+            # 通知前端停止单账号UI（可选）
+            if self.window:
+                try:
+                    self.window.evaluate_js('onRunStopped()')
+                except Exception:
+                    pass
+        except Exception:
+            logging.debug("enter_multi_account_mode pre-stop single failed (non-fatal).")
+
+        self.log("进入多账号模式。")
+        self.is_multi_account_mode = True
+        self._update_multi_global_buttons()
+
+        try:
+            self.stop_multi_auto_refresh.clear()
+            if self.multi_auto_refresh_thread is None or not self.multi_auto_refresh_thread.is_alive():
+                self.multi_auto_refresh_thread = threading.Thread(
+                    target=self._multi_auto_attendance_worker, 
+                    daemon=True
+                )
+                self.multi_auto_refresh_thread.start()
+        except Exception as e:
+            self.log(f"启动多账号自动刷新线程失败: {e}")
+
+
+        return {"success": True, "params": self.global_params}
+
+
+    def exit_multi_account_mode(self):
+        """退出多账号模式，返回单用户登录页（增强：彻底停止所有执行）"""
+        # 发送全局停止并终止所有账号线程
+        try:
+            self.multi_stop_all_accounts()
+            # 等待线程尽量退出
+            for acc in list(self.accounts.values()):
+                try:
+                    if acc.worker_thread and acc.worker_thread.is_alive():
+                        acc.stop_event.set()
+                        acc.worker_thread.join(timeout=1.0)
+                except Exception:
+                    pass
+        except Exception:
+            logging.debug("exit_multi_account_mode: stop all accounts failed (non-fatal).")
+
+        # 清空路径规划回调，避免延迟回传
+        for key, (path_result, completion_event) in list(self.path_gen_callbacks.items()):
+            path_result['error'] = '模式切换（退出多账号）已取消'
+            try:
+                
+                completion_event.set()
+            except Exception:
+                pass
+        self.path_gen_callbacks.clear()
+
+
+        try:
+            self.stop_multi_auto_refresh.set()
+            if self.multi_auto_refresh_thread and self.multi_auto_refresh_thread.is_alive():
+                self.multi_auto_refresh_thread.join(timeout=1.0)
+            self.multi_auto_refresh_thread = None
+        except Exception as e:
+            logging.warning(f"Failed to stop multi-auto-refresh thread: {e}")
+
+        # 重置所有状态（包含 accounts 清理）
+        self._init_state_variables()
+        self._load_global_config()
+        self.log("已退出多账号模式。")
+        return {"success": True}
+
+
+
+    def enter_single_account_mode(self):
+        """进入单账号模式（增强：先停止多账号运行）"""
+        # 如果有多账号线程，先全停
+        try:
+            self.multi_stop_all_accounts()
+            # 等待线程尽量退出
+            for acc in list(getattr(self, 'accounts', {}).values()):
+                try:
+                    if acc.worker_thread and acc.worker_thread.is_alive():
+                        acc.stop_event.set()
+                        acc.worker_thread.join(timeout=1.0)
+                except Exception:
+                    pass
+        except Exception:
+            logging.debug("enter_single_account_mode: stop multi failed (non-fatal).")
+
+        # 清空路径规划回调
+        for key, (path_result, completion_event) in list(self.path_gen_callbacks.items()):
+            path_result['error'] = '模式切换（进入单账号）已取消'
+            try:
+                completion_event.set()
+            except Exception:
+                pass
+        self.path_gen_callbacks.clear()
+
+        self.is_multi_account_mode = False
+        self.log("进入单账号模式。")
+        return {"success": True}
+
+
+
+
+    def multi_get_all_config_users(self):
+        """获取所有存在配置文件的用户列表，用于前端便捷添加"""
+        users = sorted([os.path.splitext(f)[0] for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+        return {"users": users}
+
+    def multi_load_accounts_from_config(self):
+        """模式一：从所有.ini配置文件加载账号"""
+        self.log("正在从配置文件加载账号列表...")
+        users = sorted([os.path.splitext(f)[0] for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+        loaded_count = 0
+        for username in users:
+            if username not in self.accounts:
+                self.multi_add_account(username, "")
+                loaded_count += 1
+        self.log(f"已加载 {loaded_count} 个账号。")
+        self._update_multi_global_buttons()
+
+        # # 批量加载后立即触发一次“刷新全部”，便于自动拉取状态与汇总
+        # try:
+        #     self.multi_refresh_all_statuses()
+        # except Exception:
+        #     logging.error(f"触发刷新全部失败: {traceback.format_exc()}")
+
+        return self.multi_get_all_accounts_status()
+
+
+    def multi_add_account(self, username, password):
+        """模式二：手动或选择性添加账号"""
+        if username in self.accounts:
+            # 如果账号已存在，智能处理密码更新或从文件刷新
+            acc = self.accounts[username]
+            
+            # 场景1: 提供了新的、非空的密码 (来自导入或手动输入)。
+            # 则更新内存和文件中的密码。
+            if password and acc.password != password:
+                acc.password = password
+                self._save_config(username, password)
+                self.log(f"已更新账号 [{username}] 的密码。")
+            # 场景2: 未提供密码 (来自下拉框重复添加)。
+            # 此时从.ini文件实时重新加载密码，确保使用的是最新的（例如刚刚导入的）。
+            else:
+                self.log(f"账号 [{username}] 已存在，正在从配置文件刷新...")
+                reloaded_password = self._load_config(username)
+                if reloaded_password:
+                    acc.password = reloaded_password
+
+            # 统一执行后续的强制刷新逻辑，以新密码或从文件加载的最新密码来重新验证
+            try:
+                # UI反馈为“刷新中…”
+                self._update_account_status_js(acc, status_text="刷新中...")
+                # 清理会话与登录态，强制走登录分支
+                try:
+                    acc.api_client.session.cookies.clear()
+                except Exception:
+                    pass
+                acc.user_data.id = ""  # 标记为未登录，从而在刷新线程中执行登录流程
+                # 启动刷新线程
+                threading.Thread(
+                    target=self._multi_refresh_worker,
+                    args=(acc,),
+                    daemon=True
+                ).start()
+            except Exception:
+                logging.error(f"更新账号后触发刷新失败: {traceback.format_exc()}")
+            # 刷新全局按钮状态并返回最新账号状态列表
+            self._update_multi_global_buttons()
+            return self.multi_get_all_accounts_status()
+
+        # 创建账号会话（注意：若稍后判定密码为空，将撤销）
+        self.accounts[username] = AccountSession(username, password, self)
+
+        # 尝试从 .ini 加载 UA/参数/密码（如果存在）
+        loaded_password = self._load_config(username)
+
+        # 如果加载不到UA，则生成一个新的
+        if not self.accounts[username].device_ua:
+            self.accounts[username].device_ua = ApiClient.generate_random_ua()
+
+        # 最终确定密码：优先使用传入的新密码；否则使用 .ini 中的密码；否则空
+        final_password = password or (loaded_password or "")
+        self.accounts[username].password = final_password
+
+        # 若最终密码仍为空，则弹出前端模态框让用户补充密码，并撤销本次添加
+        if not final_password:
+            # 撤销创建的会话，避免半添加状态
+            try:
+                del self.accounts[username]
+            except Exception:
+                pass
+            self.log(f"账号 {username} 缺少密码，已弹出输入框以完善密码。")
+            if self.window:
+                # 复用已有的“新用户”模态框，预填用户名
+                js = (
+                    f'openNewUserModal();'
+                    f'document.getElementById("newUsername").value = {json.dumps(username)};'
+                    f'document.getElementById("newPassword").value = "";'
+                )
+                try:
+                    self.window.evaluate_js(js)
+                except Exception:
+                    logging.debug("Open NewUserModal failed (non-fatal).")
+            # 返回当前状态列表（不新增该账号）
+            self._update_multi_global_buttons()
+            return self.multi_get_all_accounts_status()
+
+        # 若密码已确定，保存到 .ini（避免刷新后丢失）
+        ini_path = os.path.join(self.user_dir, f"{username}.ini")
+        try:
+            # 创建 .ini 或更新现有 .ini，保存 UA 与参数与密码
+            self._save_config(username, self.accounts[username].password)
+        except Exception:
+            logging.warning(f"保存 {ini_path} 失败（将继续运行）：{traceback.format_exc()}")
+
+        self.log(f"已添加账号: {username}")
+        # 添加账号后立即刷新“全部开始/全部停止”按钮状态
+        self._update_multi_global_buttons()
+        try:
+            if self.window:
+                current_accounts = self.multi_get_all_accounts_status().get("accounts", [])
+                self.window.evaluate_js(
+                    f'onAccountsUpdated({json.dumps(current_accounts)})'
+                )
+        except Exception:
+            logging.debug("Push accounts update to front-end failed (non-fatal).")
+
+        # 为“刚添加的账号”立即启动刷新线程（自动登录 + 拉摘要）
+        try:
+            threading.Thread(
+                target=self._multi_refresh_worker,
+                args=(self.accounts[username],),
+                daemon=True
+            ).start()
+        except Exception:
+            logging.error(f"启动刷新线程失败: {traceback.format_exc()}")
+
+        return self.multi_get_all_accounts_status()
+
+
+
+
+
+    def multi_remove_account(self, username):
+        """移除一个账号"""
+        if username in self.accounts:
+            # 如果该账号正在运行，先停止它
+            if self.accounts[username].worker_thread and self.accounts[username].worker_thread.is_alive():
+                self.accounts[username].stop_event.set()
+            del self.accounts[username]
+            self.log(f"已移除账号: {username}")
+        # 统一刷新多账号全局按钮状态
+        self._update_multi_global_buttons()
+        return self.multi_get_all_accounts_status()
+    
+
+
+    def multi_refresh_all_statuses(self):
+        """(多线程)刷新所有账号的任务状态和统计信息"""
+        if not self.accounts:
+            self.log("账号列表为空，无需刷新。")
+            return {"success": True}
+
+        self.log("正在刷新所有账号状态...")
+        for acc in self.accounts.values():
+            is_running = bool(acc.worker_thread and acc.worker_thread.is_alive())
+            # 仅当账号未在运行时才提示“刷新中...”
+            if not is_running:
+                self._update_account_status_js(acc, status_text="刷新中...")
+            # 运行中的账号走保留状态模式
+            threading.Thread(target=self._multi_refresh_worker, args=(acc, True if is_running else False), daemon=True).start()
+
+        self._update_multi_global_buttons()
+        return {"success": True}
+
+
+    def multi_refresh_single_status(self, username: str):
+        """刷新指定账号的状态与摘要（单账号）"""
+        if username not in self.accounts:
+            return {"success": False, "message": "账号不存在"}
+        acc = self.accounts[username]
+
+        # 若账号正在运行任务，仍允许运行刷新线程，只要刷新线程自身不调用执行逻辑
+        try:
+            # 立刻标记UI状态
+            self._update_account_status_js(acc, status_text="刷新中...")
+            # 启动单独刷新线程（复用已有的 _multi_refresh_worker）
+            threading.Thread(
+                target=self._multi_refresh_worker,
+                args=(acc,),
+                daemon=True
+            ).start()
+            return {"success": True}
+        except Exception as e:
+            logging.error(f"启动单账号刷新失败: {e}", exc_info=True)
+            self._update_account_status_js(acc, status_text="刷新出错")
+            return {"success": False, "message": "启动刷新失败"}
+
+
+
+    def _multi_refresh_worker(self, acc: AccountSession, preserve_status: bool = False):
+        """用于刷新的单个账号工作线程
+        - preserve_status=True 时：若账号正在运行，不改写 status_text，只更新 name 与 summary
+        """
+        try:
+            # 动态判断是否需要保留状态（仅当账号当前正在运行且调用方要求保留时）
+            preserve_now = preserve_status and bool(acc.worker_thread and acc.worker_thread.is_alive())
+
+            # 1) 登录（或确保已登录）
+            if not acc.user_data.id:
+                if not acc.device_ua:
+                    acc.device_ua = ApiClient.generate_random_ua()
+                login_resp = self._queued_login(acc, respect_global_stop=False)
+                if not login_resp or not login_resp.get('success'):
+                    # 登录失败：仅在不保留状态时才更新状态文案
+                    if not preserve_now:
+                        self._update_account_status_js(acc, status_text="刷新失败(登录错误)")
+                    return
+
+                data = login_resp.get('data', {})
+                user_info = data.get('userInfo', {})
+                acc.user_data.name = user_info.get('name', '')
+                acc.user_data.id = user_info.get('id', '')
+                acc.user_data.student_id = user_info.get('account', '')
+
+                # 写回 UA/参数（如有）
+                ini_path = os.path.join(self.user_dir, f"{acc.username}.ini")
+                if os.path.exists(ini_path):
+                    self._save_config(acc.username)
+
+                # 更新名字（允许）
+                self._update_account_status_js(acc, name=acc.user_data.name)
+
+            # 2) 拉取任务并汇总
+            self._multi_fetch_and_summarize_tasks(acc)
+
+            # 2.5) 拉取签到统计
+            if not preserve_now: # 仅在非保留状态（即主动刷新）时才获取签到
+                self._multi_fetch_attendance_stats(acc)
+
+            # 3) 决定最终状态文本（仅当不保留状态时才改 status_text）
+            if not preserve_now:
+                exe_cnt = acc.summary.get("executable", 0)
+                not_started_cnt = acc.summary.get("not_started", 0)
+
+                if exe_cnt > 0:
+                    final_status = "待命"
+                    acc.has_pending_tasks = True
+                elif not_started_cnt > 0:
+                    final_status = "无任务可执行"
+                    acc.has_pending_tasks = False
+                else:
+                    final_status = "无任务可执行"
+                    acc.has_pending_tasks = False
+
+                # 如果当前是错误态，则保留，不覆盖
+                if self._should_preserve_status(acc.status_text, new_status=final_status):
+                    self._update_account_status_js(acc, summary=acc.summary)
+                else:
+                    self._update_account_status_js(acc, status_text=final_status, summary=acc.summary)
+
+
+
+            acc.log("状态刷新完成。")
+
+        except Exception as e:
+            logging.error(f"Error refreshing {acc.username}: {traceback.format_exc()}")
+            # 仅当不保留状态时才显示出错文案
+            if not preserve_status:
+                self._update_account_status_js(acc, status_text="刷新出错")
+
+
+
+
+
+
+    def multi_remove_selected_accounts(self, usernames: list[str]):
+        """根据用户名列表移除多个账号"""
+        if not usernames:
+            return self.multi_get_all_accounts_status()
+            
+        removed_count = 0
+        for username in usernames:
+            if username in self.accounts:
+                # 如果账号正在运行，先停止它
+                if self.accounts[username].worker_thread and self.accounts[username].worker_thread.is_alive():
+                    self.accounts[username].stop_event.set()
+                del self.accounts[username]
+                removed_count += 1
+        
+        self.log(f"移除了 {removed_count} 个选定账号。")
+        self._update_multi_global_buttons()
+        return self.multi_get_all_accounts_status()
+
+    def multi_remove_all_accounts(self):
+        """一键移除所有账号"""
+        if not self.accounts:
+            return self.multi_get_all_accounts_status()
+
+        # 停止所有正在运行的线程
+        self.multi_stop_all_accounts()
+        
+        count = len(self.accounts)
+        self.accounts.clear()
+        self.log(f"已移除全部 {count} 个账号。")
+        self._update_multi_global_buttons()
+        return self.multi_get_all_accounts_status()
+
+    def multi_get_all_accounts_status(self):
+        """获取所有账号的当前状态，用于刷新前端UI"""
+        status_list = []
+        for acc in self.accounts.values():
+            status_list.append({
+                "username": acc.username,
+                "name": acc.user_data.name or "---",
+                "status_text": acc.status_text,
+                "summary": acc.summary,
+            })
+        return {"accounts": status_list}
+
+    def multi_download_import_template(self):
+        """下载导入模板（账号、密码），支持 xlsx/xls/csv"""
+        # 选择保存位置与格式
+        filepath = self.open_file_dialog('save', {
+            'initialfile': f"账号导入模板_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx",
+            'filetypes': [
+                ('Excel 模板 (*.xlsx)', '*.xlsx'),
+                ('Excel 97-2003 模板 (*.xls)', '*.xls'),
+                ('CSV 模板 (*.csv)', '*.csv'),
+                ('所有文件 (*.*)', '*.*')
+            ],
+            'defaultextension': ".xlsx"
+        })
+        if not filepath:
+            return {"success": False, "message": "用户取消操作"}
+
+        try:
+            ext = os.path.splitext(filepath)[1].lower()
+            headers = ["账号", "密码"]
+
+            if ext == ".xlsx":
+                wb = openpyxl.Workbook()
+                sh = wb.active
+                sh.title = "模板"
+                sh.append(headers)
+
+                wb.save(filepath)
+            elif ext == ".xls":
+                wb = xlwt.Workbook()
+                sh = wb.add_sheet("模板")
+                for col, val in enumerate(headers):
+                    sh.write(0, col, val)
+
+                wb.save(filepath)
+            elif ext == ".csv":
+                import csv
+                with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(headers)
+
+            else:
+                return {"success": False, "message": f"不支持的模板格式: {ext}"}
+
+            self.log(f"模板已生成：{os.path.basename(filepath)}")
+            return {"success": True}
+        except Exception as e:
+            self.log(f"模板生成失败：{e}")
+            logging.error(f"Template generation failed: {traceback.format_exc()}")
+            return {"success": False, "message": f"生成失败: {e}"}
+
+    def safe_load_workbook(self, filepath, **kwargs):
+        if not filepath:
+            raise ValueError("未提供有效的文件路径，可能是用户取消了文件选择。")
+        if not isinstance(filepath, (str, bytes, os.PathLike)):
+            raise TypeError(f"文件路径类型错误: 期望 str/Path，实际 {type(filepath)}")
+        try:
+            wb = openpyxl.load_workbook(
+                filepath,
+                data_only=True,
+                read_only=True,
+                **kwargs
+            )
+            return wb
+        except Exception as e:
+            # 增强提示：可能是办公软件兼容性问题
+            warnings.warn(
+                f"Excel 打开失败，已尝试只读模式: {e}\n"
+                f"提示: 请确认已安装兼容的办公软件 (如 Microsoft Office 或新版 WPS)，"
+                f"并确保文件未被其他程序占用。"
+            )
+            return openpyxl.load_workbook(
+                filepath,
+                data_only=True,
+                read_only=True
+            )
+
+
+    def multi_import_accounts(self):
+        """从文件导入账号密码，支持 .xlsx/.xls/.csv"""
+        filepath = self.open_file_dialog('open', {
+            'filetypes': [
+                ('Excel 文件 (*.xlsx;*.xls)', '*.xlsx;*.xls'),
+                ('CSV 文件 (*.csv)', '*.csv'),
+                ('所有文件 (*.*)', '*.*')
+            ]
+        })
+        if not filepath:
+            return {"success": False, "message": "用户取消操作"}
+
+        try:
+            imported = 0
+            ext = os.path.splitext(filepath)[1].lower()
+            seen_usernames: set[str] = set()  # 本次导入会话内去重，避免同一文件重复账号多次导入
+
+            if ext == ".xlsx":
+                # 使用只读模式安全加载工作簿
+                try:
+                    wb = self.safe_load_workbook(filepath, keep_links=False)
+                except TypeError as e:
+                    # 针对个别环境样式解析异常的兜底
+                    warnings.warn(f"样式解析失败，已忽略样式: {e}")
+                    wb = self.safe_load_workbook(filepath, keep_links=False, keep_vba=False)
+
+                sh = wb.active
+                skipped_no_password = []  # 收集无密码且 .ini 无密码的账号
+                # 从第2行开始，默认第1行为表头，避免重复处理与表头导入
+                for row in sh.iter_rows(min_row=2, values_only=True):
+                    if not row or len(row) < 1:
+                        continue
+                    username = str(row[0] or '').strip()
+                    password = str(row[1] or '').strip() if len(row) > 1 else ''
+                    if not username:
+                        continue
+                    # 本次导入内去重
+                    if username in seen_usernames:
+                        continue
+                    seen_usernames.add(username)
+
+                    # 1. 尝试从 .ini 兜底密码
+                    loaded_password = self._load_config(username)
+                    # 2. 确定最终密码
+                    final_password = password or (loaded_password or "")
+                    
+                    if not final_password:
+                        # 3. 只有当导入文件和.ini都没有密码时，才跳过
+                        skipped_no_password.append(username)
+                        continue  # 跳过本账号，留给用户手动补密码
+                    
+                    # 4. 使用 final_password 添加
+                    self.multi_add_account(username, final_password)
+                    imported += 1
+
+
+            elif ext == ".xls":
+                book = xlrd.open_workbook(filepath)
+                sh = book.sheet_by_index(0)
+                skipped_no_password = []
+                for r in range(1, sh.nrows):
+                    username = str(sh.cell_value(r, 0) or '').strip()
+                    password = ""
+                    if sh.ncols >= 2:
+                        password = str(sh.cell_value(r, 1) or '').strip()
+                    if username:
+                        if username in seen_usernames:
+                            continue
+                        seen_usernames.add(username)
+                        
+                        loaded_password = self._load_config(username)
+                        final_password = password or (loaded_password or "")
+                        if not final_password:
+                            skipped_no_password.append(username)
+                            continue
+                        
+                        self.multi_add_account(username, final_password)
+                        imported += 1
+
+            elif ext == ".csv":
+                skipped_no_password = []
+                with open(filepath, "r", encoding="utf-8-sig", newline="") as f:
+                    reader = csv.reader(f)
+                    first_row = True
+                    for row in reader:
+                        if not row or len(row) < 1:
+                            continue
+                        # 跳过可能的表头
+                        if first_row and str(row[0]).strip() in ("账号", "用户名", "username", "user"):
+                            first_row = False
+                            continue
+                        first_row = False
+                        username = (row[0] or '').strip()
+                        password = (row[1] or '').strip() if len(row) > 1 else ''
+                        if username:
+                            if username in seen_usernames:
+                                continue
+                            seen_usernames.add(username)
+
+                            loaded_password = self._load_config(username)
+                            final_password = password or (loaded_password or "")
+                            if not final_password:
+                                skipped_no_password.append(username)
+                                continue
+                            
+                            self.multi_add_account(username, final_password)
+                            imported += 1
+
+            else:
+                return {"success": False, "message": f"不支持的导入格式: {ext}"}
+
+            # 导入汇总日志
+            self.log(f"成功导入 {imported} 个账号。")
+            if skipped_no_password:
+                # 前端弹窗提醒需要手动补密码
+                msg = "以下账号缺少密码，已跳过导入。请在多账号控制台手动添加并输入密码：\n" + "\n".join(skipped_no_password[:20])
+                # 提示过长时仅显示前 20 条，避免 UI 过载
+                try:
+                    if self.window:
+                        self.window.evaluate_js(f'alert({json.dumps(msg)})')
+                except Exception:
+                    logging.debug("Alert skipped_no_password failed (non-fatal).")
+                self.log(f"缺少密码的账号（共 {len(skipped_no_password)}）：{', '.join(skipped_no_password)}")
+
+            return self.multi_get_all_accounts_status()
+
+        except Exception as e:
+            self.log(f"导入失败: {e}")
+            logging.error(f"Import accounts failed: {traceback.format_exc()}")
+            return {"success": False, "message": f"导入失败: {e}"}
+
+    def multi_export_accounts_summary(self):
+        """导出多账号汇总，支持 .xlsx/.xls/.csv"""
+        filepath = self.open_file_dialog('save', {
+            'initialfile': f"跑步任务汇总_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx",
+            'filetypes': [
+                ('Excel 文件 (*.xlsx)', '*.xlsx'),
+                ('Excel 97-2003 文件 (*.xls)', '*.xls'),
+                ('CSV 文件 (*.csv)', '*.csv'),
+                ('所有文件 (*.*)', '*.*')
+            ],
+            'defaultextension': ".xlsx"
+        })
+        if not filepath:
+            return {"success": False, "message": "用户取消操作"}
+
+        try:
+            
+
+            headers = ["账号", "姓名", "状态", "总任务数", "已完成完成", "未开始任务数", "可执行任务数", "已过期任务数"]
+            
+            rows = []
+            for acc in sorted(self.accounts.values(), key=lambda x: x.username):
+                s = acc.summary
+                rows.append([
+                    acc.username,
+                    acc.user_data.name or "---",
+                    acc.status_text,
+                    s.get('total', 0),
+                    s.get('completed', 0),
+                    s.get('not_started', 0),  # <- 使用 not_started
+                    s.get('executable', 0),
+                    s.get('expired', 0)
+                ])
+
+
+
+
+
+            ext = os.path.splitext(filepath)[1].lower()
+
+            if ext == ".xlsx":
+                wb = openpyxl.Workbook()
+                sh = wb.active
+                sh.title = "任务汇总"
+                sh.append(headers)
+                for r in rows:
+                    sh.append(r)
+                # 自动列宽
+                for col in sh.columns:
+                    max_len = 0
+                    col_letter = col[0].column_letter
+                    for cell in col:
+                        v = '' if cell.value is None else str(cell.value)
+                        max_len = max(max_len, len(v))
+                    sh.column_dimensions[col_letter].width = max_len + 2
+                wb.save(filepath)
+
+            elif ext == ".xls":
+                wb = xlwt.Workbook()
+                sh = wb.add_sheet("任务汇总")
+                # 写表头
+                for c, v in enumerate(headers):
+                    sh.write(0, c, v)
+                # 写数据
+                for r_idx, r in enumerate(rows, start=1):
+                    for c_idx, v in enumerate(r):
+                        sh.write(r_idx, c_idx, v)
+                wb.save(filepath)
+
+            elif ext == ".csv":
+                import csv
+                with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(headers)
+                    writer.writerows(rows)
+
+            else:
+                return {"success": False, "message": f"不支持的导出格式: {ext}"}
+
+            self.log(f"汇总信息已导出到 {os.path.basename(filepath)}")
+            return {"success": True}
+        except Exception as e:
+            self.log(f"导出失败: {e}")
+            logging.error(f"Export accounts summary failed: {traceback.format_exc()}")
+            return {"success": False, "message": f"导出失败: {e}"}
+
+    def multi_get_account_params(self, username):
+        if username in self.accounts:
+            return {"success": True, "params": self.accounts[username].params}
+        return {"success": False, "message": "账号不存在"}
+
+    def multi_update_account_param(self, username, key, value):
+        if username not in self.accounts:
+            return {"success": False, "message": "账号不存在"}
+        
+        acc = self.accounts[username]
+        target_params = acc.params
+        if key in target_params:
+            try:
+                original_type = type(target_params[key])
+                if original_type is bool:
+                    target_params[key] = bool(value) if isinstance(value, bool) else str(value).lower() in ('true', '1', 't', 'yes')
+                else:
+                    target_params[key] = original_type(value)
+                
+                self._save_config(username, self.accounts[username].password) # 保存此账号的配置
+                self.log(f"已更新账号 [{username}] 的参数 {key}。")
+                return {"success": True}
+            except (ValueError, TypeError) as e:
+                return {"success": False, "message": str(e)}
+        return {"success": False, "message": "Unknown parameter"}
+
+    def multi_start_single_account(self, username, run_only_incomplete: bool = True):
+        if username not in self.accounts:
+            return {"success": False, "message": "账号不存在"}
+        acc = self.accounts[username]
+        if acc.worker_thread and acc.worker_thread.is_alive():
+            self.log(f"账号 {username} 已在运行中。")
+            return {"success": False, "message": "该账号已在运行"}
+        
+        acc.stop_event.clear()
+        # 进入运行态
+        if self.multi_run_stop_flag.is_set():
+            self.multi_run_stop_flag.clear()
+        # 使用传入的 run_only_incomplete 复选框状态
+        acc.worker_thread = threading.Thread(
+            target=self._multi_account_worker,
+            args=(acc, 0, bool(run_only_incomplete)),
+            daemon=True
+        )
+        acc.worker_thread.start()
+        self.log(f"已启动账号: {username}")
+        self._update_account_status_js(acc, status_text="已启动")
+        self._update_multi_global_buttons()
+        return {"success": True}
+
+
+    def multi_stop_single_account(self, username):
+        acc = self.accounts.get(username)
+        if not acc:
+            return {"success": False, "message": f"账号 {username} 不存在"}
+
+        if acc.worker_thread and acc.worker_thread.is_alive():
+            acc.stop_event.set()
+            self.log(f"已向账号 {username} 发送停止信号。")
+            self._update_account_status_js(acc, status_text="正在停止...")
+            self._update_multi_global_buttons()
+
+            # 监视该账号的工作线程退出，退出后立即刷新UI与按钮状态
+            def _watch_stop():
+                try:
+                    while acc.worker_thread and acc.worker_thread.is_alive():
+                        time.sleep(0.2)
+                    # 线程已退出，清理句柄并刷新状态
+                    acc.worker_thread = None
+                    # 若用户主动停止，统一回到“待命”
+                    self._update_account_status_js(acc, status_text="待命")
+                    self._update_multi_global_buttons()
+                except Exception:
+                    logging.debug("Stop watcher encountered a non-fatal error.", exc_info=True)
+            threading.Thread(target=_watch_stop, daemon=True).start()
+
+            return {"success": True}
+        else:
+            self._update_account_status_js(acc, status_text="待命")
+            self._update_multi_global_buttons()
+            return {"success": False, "message": "该账号未在运行"}
+
+    def multi_start_all_accounts(self, min_delay, max_delay, use_delay, run_only_incomplete):
+        """一键启动所有账号的任务"""
+        # 账号为空：直接失败
+        if not self.accounts:
+            self.log("账号列表为空，无法开始。请先添加账号。")
+            return {"success": False, "message": "账号列表为空，无法开始。请先添加账号。"}
+
+        # 仅当“所有账号都在运行中”才阻止
+        total_accounts = len(self.accounts)
+        running_count = sum(
+            1 for acc in self.accounts.values()
+            if acc.worker_thread and acc.worker_thread.is_alive()
+        )
+        if total_accounts > 0 and running_count == total_accounts:
+            return {"success": False, "message": "任务已在运行中"}
+
+        # 允许为未运行账号继续启动（不再用全局停止标志作为唯一门槛）
+        self.log("开始执行所有账号...")
+        self._update_multi_global_buttons()
+        # 若之前已在运行（multi_run_stop_flag 已清除），无需重复清除；否则清除以表明进入“运行态”
+        if self.multi_run_stop_flag.is_set():
+            self.multi_run_stop_flag.clear()
+
+        account_list = list(self.accounts.values())
+        num_accounts = len(account_list)
+        delays = [0] * num_accounts
+
+        if use_delay and num_accounts > 0 and max_delay >= min_delay:
+            try:
+                delays = [random.uniform(min_delay, max_delay) for _ in range(num_accounts)]
+            except ValueError:
+                delays = [random.uniform(min_delay, max_delay) for _ in range(num_accounts)]
+
+        random.shuffle(account_list)
+
+        started_threads = 0
+        for i, acc in enumerate(account_list):
+            # 已在运行的账号跳过，仅启动未运行账号
+            if acc.worker_thread and acc.worker_thread.is_alive():
+                acc.log("已在运行，本次'全部开始'将跳过此账号。")
+                continue
+
+            delay = delays[i] if use_delay else 0
+            acc.stop_event.clear()
+            acc.worker_thread = threading.Thread(
+                target=self._multi_account_worker,
+                args=(acc, delay, run_only_incomplete),
+                daemon=True
+            )
+            acc.worker_thread.start()
+            started_threads += 1
+
+        # 如果这次没有任何账号被启动（所有账号已在运行或无可执行任务）
+        if started_threads == 0:
+            # 保持标志位为“运行中”或“停止”的合理状态：
+            # - 若此前有运行中的账号，则 multi_run_stop_flag 可能已清除，无需更改；
+            # - 若此前标志为停止，则维持停止态，给出用户提示。
+            self.log("当前没有可启动的账号任务。")
+            return {"success": False, "message": "当前没有可启动的账号任务。"}
+
+        self._update_multi_global_buttons()
+        return {"success": True}
+
+
+
+    def multi_stop_all_accounts(self):
+        """停止所有账号的运行"""
+        logging.info("API CALL: multi_stop_all_accounts")
+        # 账号为空的情况，直接提示，无需切状态
+        if not self.accounts:
+            self.log("当前无账号，无需停止。")
+            # 保持一致性：确保全局停止标志为“已停止”
+            self.multi_run_stop_flag.set()
+            return {"success": False, "message": "当前无账号，无需停止。"}
+
+        if self.multi_run_stop_flag.is_set():
+            return {"success": True}
+
+        self.log("正在发送停止信号...")
+        self.multi_run_stop_flag.set()
+        for acc in self.accounts.values():
+            acc.stop_event.set()
+        self._update_multi_global_buttons()
+        self.log("所有任务将在当前步骤完成后停止。")
+        self._update_multi_global_buttons()
+
+        time.sleep(1)
+
+
+
+        self._update_multi_global_buttons()
+        return {"success": True}
+
+
+    def _update_account_status_js(self, acc: AccountSession, status_text: str = None, summary: dict = None, name: str = None,
+                               progress_pct: int | None = None, progress_text: str | None = None, progress_extra: str | None = None):
+        """一个辅助函数，用于向前端发送状态更新"""
+        if not self.window: return
+        update_data = {}
+        if status_text is not None:
+            acc.status_text = status_text
+            update_data['status_text'] = status_text
+        if summary is not None:
+            acc.summary = summary
+            update_data['summary'] = summary
+        if name is not None:
+            update_data['name'] = name
+
+        # 进度条更新
+        if progress_pct is not None:
+            update_data['progress_pct'] = int(progress_pct)
+        if progress_text is not None:
+            update_data['progress_text'] = progress_text
+        if progress_extra is not None:
+            update_data['progress_extra'] = progress_extra
+
+        if update_data:
+            self.window.evaluate_js(f'multi_updateAccountStatus("{acc.username}", {json.dumps(update_data)})')
+        self._update_multi_global_buttons()
+
+    def _update_multi_global_buttons(self):
+        """根据当前多账号状态刷新“全部开始/全部停止/返回登录页”按钮的可用性"""
+        if not self.window:
+            return
+
+        # 仅统计仍有任务可执行的账号（active）
+        active_accounts = []
+        for acc in self.accounts.values():
+            total = acc.summary.get("total", 0)
+            expired = acc.summary.get("expired", 0)
+            not_started = acc.summary.get("not_started", 0)
+            executable = acc.summary.get("executable", 0)
+            # 候选任务：已开始且未截止（无论是否已完成）
+            candidates = max(0, total - expired - not_started)
+            has_tasks = (executable > 0) if self.multi_run_only_incomplete else (candidates > 0)
+            if has_tasks:
+                active_accounts.append(acc)
+
+        total_active = len(active_accounts)
+        running_count = sum(
+            1 for acc in active_accounts
+            if acc.worker_thread and acc.worker_thread.is_alive()
+        )
+
+        # 四种状态规则：
+        # 1) 无账号 或 无active账号：start=禁用, stop=禁用, exit=启用
+        # 2) 有active且不是全部在运行：start=启用, stop=启用, exit=禁用
+        # 3) 全部active都在运行：start=禁用, stop=启用, exit=禁用
+        if total_active == 0:
+            # 无账号或无可执行任务
+            start_disabled = True
+            stop_disabled = True
+            exit_disabled = False
+        elif running_count == 0:
+            # 有账号但没有任何账号在执行任务
+            start_disabled = False
+            stop_disabled = True
+            exit_disabled = False
+        elif running_count == total_active:
+            # 全部 active 账号都在运行
+            start_disabled = True
+            stop_disabled = False
+            exit_disabled = True
+        else:
+            # 部分账号在运行
+            start_disabled = False
+            stop_disabled = False
+            exit_disabled = True
+
+        # 推送到前端
+        self.window.evaluate_js(
+            f'updateMultiGlobalButtons({str(start_disabled).lower()}, {str(stop_disabled).lower()})'
+        )
+        self.window.evaluate_js(
+            f'document.getElementById("exit-multi-mode-btn").disabled = {str(exit_disabled).lower()}'
+        )
+
+
+
+    def _queued_login(self, acc: AccountSession, respect_global_stop: bool = True) -> dict | None:
+        """
+        多账号模式下的“排队登录”（参数化是否尊重全局停止标志）：
+        - 使用全局信号量 multi_login_lock 将登录并发固定为 1
+        - 在排队等待期间，若收到停止信号（可选尊重 multi_run_stop_flag），立即退出
+        - 进入队列前给出UI提示“排队登录...”
+        """
+        try:
+            self._update_account_status_js(acc, status_text="排队登录...")
+        except Exception:
+            pass
+
+        # 循环尝试获取登录槽位，期间尊重停止事件
+        while True:
+            # 刷新线程登录不受全局停止影响；任务执行阶段登录继续尊重全局停止
+            if acc.stop_event.is_set() or (respect_global_stop and self.multi_run_stop_flag.is_set()):
+                return None
+            # 尝试以短超时获取锁，便于及时响应停止
+            acquired = self.multi_login_lock.acquire(timeout=0.5)
+            if acquired:
+                break
+        try:
+            # 二次检查停止（同样按参数决定是否尊重全局停止）
+            if acc.stop_event.is_set() or (respect_global_stop and self.multi_run_stop_flag.is_set()):
+                return None
+            # 执行实际登录请求
+            return acc.api_client.login(acc.username, acc.password)
+        finally:
+            try:
+                self.multi_login_lock.release()
+            except Exception:
+                pass
+
+
+
+    def _multi_fetch_and_summarize_tasks(self, acc: AccountSession):
+        """(辅助函数) 为单个账号获取任务列表并计算统计信息（按任务ID去重）"""
+        acc.all_run_data = []
+        seen_keys: set[str] = set()  # 记录已见过的 errandId（与其他处保持一致）
+        offset = 0
+        dup_count = 0  # 可选：统计重复条数
+
+
+        while True:
+            if acc.stop_event.is_set():
+                return
+            resp = acc.api_client.get_run_list(acc.user_data.id, offset)
+            if not resp or not resp.get('success'):
+                acc.log("获取任务列表失败。")
+                break
+
+            tasks = resp.get('data', {}).get('errandList', [])
+            if not tasks:
+                break
+
+            for td in tasks:
+                # 构造稳健唯一键（兼容 errandId 缺失 / 同一 errandId 不同 schedule 或时间）
+                eid = td.get('errandId') or ""
+                es = td.get('errandSchedule') or ""
+                st = td.get('startTime') or ""
+                et = td.get('endTime') or ""
+                unique_key = f"{eid}|{es}|{st}|{et}"
+
+                if unique_key in seen_keys:
+                    dup_count += 1
+                    continue
+                seen_keys.add(unique_key)
+
+                run = RunData()
+                run.run_name = td.get('eName')
+
+                # 规范化 status（防止字符串/布尔等造成后续比较错误）
+                try:
+                    run.status = int(td.get('isExecute') or 0)
+                except (TypeError, ValueError):
+                    run.status = 1 if str(td.get('isExecute')).strip().lower() in ('1', 'true', 'yes') else 0
+
+                run.errand_id = eid
+                run.errand_schedule = es
+                run.start_time = st
+                run.end_time = et
+                acc.all_run_data.append(run)
+
+
+                # 临时调试日志（上线后可删除）
+                logging.info(f"[{acc.username}] Parsed task {eid!r}: raw_isExecute={td.get('isExecute')!r} -> status={run.status}")
+
+
+            offset += len(tasks)
+            if len(tasks) < 10:
+                break
+
+        if dup_count > 0:
+            logging.info(f"[{acc.username}] Task de-dup: {dup_count} duplicates skipped (by errandId).")
+
+
+
+
+
+
+
+        # --- 任务分类统计重构 ---
+        total = len(acc.all_run_data)
+        completed = 0
+        expired = 0
+        executable = 0
+        not_started = 0
+
+        now = datetime.datetime.now()
+        ignore_time = acc.params.get("ignore_task_time", True)
+
+        for r in acc.all_run_data:
+            # 1. 首先处理已完成的任务
+            if r.status == 1:
+                completed += 1
+                continue  # 已完成的任务无需再进行后续分类
+
+            # 2. 对未完成的任务 (status != 1) 进行分类
+            start_dt, end_dt = None, None
+            try:
+                if r.start_time:
+                    start_dt = datetime.datetime.strptime(r.start_time, '%Y-%m-%d %H:%M:%S')
+            except (ValueError, TypeError):
+                start_dt = None
+            try:
+                if r.end_time:
+                    end_dt = datetime.datetime.strptime(r.end_time, '%Y-%m-%d %H:%M:%S')
+            except (ValueError, TypeError):
+                end_dt = None
+            
+            # 检查是否过期
+            if end_dt:
+                is_expired = end_dt.date() < now.date() if ignore_time else end_dt < now
+                if is_expired:
+                    expired += 1
+                    continue
+            
+            # 检查是否未开始
+            if start_dt:
+                is_not_started = now.date() < start_dt.date() if ignore_time else now < start_dt
+                if is_not_started:
+                    not_started += 1
+                    continue
+            
+            # 剩余的未完成任务即为可执行
+            executable += 1
+            
+        acc.summary.update({
+            "total": total,
+            "completed": completed,
+            "pending": total - completed,
+            "not_started": not_started,
+            "executable": executable,
+            "expired": expired
+        })
+
+
+
+
+
+        # 未开始任务仅在摘要中展示，不应影响“全部开始/停止”按钮或地图标记逻辑
+        acc.has_pending_tasks = (executable > 0)
+
+
+    def _multi_fetch_attendance_stats(self, acc: AccountSession):
+        """(多账号) 获取单个账号的签到统计"""
+        if not acc.user_data.id:
+            return # 尚未登录
+
+        try:
+            list_resp = acc.api_client.get_notice_list(offset=0, limit=20, type_id=0)
+            if not (list_resp and list_resp.get('success')):
+                acc.log("获取通知列表失败 (用于签到统计)")
+                return
+            
+            notices = list_resp.get('data', {}).get('noticeList', [])
+            att_pending = 0
+            att_completed = 0
+            att_expired = 0
+
+            for notice in notices:
+                is_attendance = notice.get('image') == 'attendance' or '签到' in notice.get('title', '')
+                if is_attendance and notice.get('id'):
+                    roll_call_id = notice['id']
+                    info_resp = acc.api_client.get_roll_call_info(roll_call_id, acc.user_data.id)
+                    
+                    status = -2
+                    finished = 0
+                    if info_resp and info_resp.get('success'):
+                        data = info_resp.get('data', {})
+                        roll_call_info = data.get('rollCallInfo', {})
+                        status = roll_call_info.get('status')
+                        finished = data.get('attendFinish')
+
+                    # --- 应用新逻辑 ---
+                    if status == -1:
+                        att_expired += 1
+                    elif status != -1 and (finished == 1 or finished is True):
+                        att_completed += 1
+                    else: # status != -1 and finished == 0
+                        att_pending += 1
+            
+            # 更新到账号的 summary
+            acc.summary.update({
+                "att_pending": att_pending,
+                "att_completed": att_completed,
+                "att_expired": att_expired
+            })
+            logging.debug(f"[{acc.username}] 签到统计: 待签{att_pending}, 完成{att_completed}, 过期{att_expired}")
+
+        except Exception as e:
+            acc.log(f"刷新签到统计时出错: {e}")
+            logging.error(f"[{acc.username}] Failed to fetch attendance stats: {e}", exc_info=True)
+
+
+
+
+    def multi_path_generation_callback(self, username: str, success: bool, data: any):
+        """接收来自JS的路径规划结果并唤醒对应线程"""
+        if username in self.path_gen_callbacks:
+            path_result, completion_event = self.path_gen_callbacks.pop(username)
+            if success:
+                path_result['path'] = data
+            else:
+                path_result['error'] = data
+            completion_event.set()
+
+
+    def _multi_account_worker(self, acc: AccountSession, delay: float, run_only_incomplete: bool):
+        try:
+            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                self._update_account_status_js(acc, status_text="已取消")
+                return
+
+            self._update_account_status_js(acc, status_text="登录中...")
+            if not acc.device_ua:
+                acc.device_ua = ApiClient.generate_random_ua()
+
+          # 登录前再次检查是否已被停止
+            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                self._update_account_status_js(acc, status_text="已中止")
+                self._update_multi_global_buttons()
+                return
+            
+            login_resp = self._queued_login(acc)
+
+
+            # 登录返回后立即检查是否已被停止（避免继续向下流程）
+            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                self._update_account_status_js(acc, status_text="已中止")
+                self._update_multi_global_buttons()
+                return
+            
+            if not login_resp or not login_resp.get('success'):
+                msg = login_resp.get('message', '未知错误') if login_resp else '网络错误'
+                self._update_account_status_js(acc, status_text=f"登录失败: {msg}")
+                return
+
+            data = login_resp.get('data', {})
+            user_info = data.get('userInfo', {})
+            acc.user_data.name = user_info.get('name', '')
+            acc.user_data.id = user_info.get('id', '')
+            acc.user_data.student_id = user_info.get('account', '')
+            acc.log("登录成功。")
+            self._update_account_status_js(acc, status_text="分析任务", name=acc.user_data.name)
+
+             
+            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                self._update_account_status_js(acc, status_text="已中止")
+                return
+
+            self._multi_fetch_and_summarize_tasks(acc)
+            self._update_account_status_js(acc, summary=acc.summary)
+            
+
+
+
+
+
+            tasks_to_run_candidates = []
+            now = datetime.datetime.now()
+            ignore_time = acc.params.get("ignore_task_time", True)
+            for r in acc.all_run_data:
+                # 解析时间
+                start_dt = None
+                end_dt = None
+                try:
+                    if r.start_time:
+                        start_dt = datetime.datetime.strptime(r.start_time, '%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError):
+                    start_dt = None
+                try:
+                    if r.end_time:
+                        end_dt = datetime.datetime.strptime(r.end_time, '%Y-%m-%d %H:%M:%S')
+                except (ValueError, TypeError):
+                    end_dt = None
+
+                # 排除过期
+                if end_dt:
+                    is_expired = end_dt.date() < now.date() if ignore_time else end_dt < now
+                    if is_expired:
+                        continue
+                
+                # 排除未开始
+                if start_dt:
+                    is_not_started = now.date() < start_dt.date() if ignore_time else now < start_dt
+                    if is_not_started:
+                        continue
+
+                tasks_to_run_candidates.append(r)
+
+
+
+
+
+
+            tasks_to_run = [t for t in tasks_to_run_candidates if t.status == 0] if run_only_incomplete else tasks_to_run_candidates
+
+
+
+
+
+
+
+            if not tasks_to_run:
+                self._update_account_status_js(acc, status_text="无任务可执行")
+                self._update_multi_global_buttons()
+                return
+            else:
+                acc.has_pending_tasks = True  # 有任务可执行
+            
+            if delay > 0:
+                end_time = time.time() + delay
+                while time.time() < end_time:
+                    if acc.stop_event.is_set() or self.multi_run_stop_flag.is_set():
+                        self._update_account_status_js(acc, status_text="已中止")
+                        self._update_multi_global_buttons()
+                        return
+                    remaining = end_time - time.time()
+                    self._update_account_status_js(acc, status_text=f"延迟 {remaining:.0f}s")
+                    time.sleep(1)
+
+            for i, run_data in enumerate(tasks_to_run):
+                if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                    self._update_account_status_js(acc, status_text="已中止")
+                    self._update_multi_global_buttons()
+                    break
+
+                task_name_short = run_data.run_name[:10] + '...' if len(run_data.run_name) > 10 else run_data.run_name
+
+
+
+                # 任务开始：显示初始进度 0%
+                self._update_account_status_js(
+                    acc,
+                    status_text=f"运行 {i+1}/{len(tasks_to_run)}: {task_name_short}",
+                    progress_pct=0,
+                    progress_text=f"运行 {i+1}/{len(tasks_to_run)}: {task_name_short} · 0%",
+                    progress_extra=""
+                )
+
+                acc.log(f"开始执行任务: {run_data.run_name}")
+
+
+                # 获取详情前检查停止
+                if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                    self._update_account_status_js(acc, status_text="已中止")
+                    break
+
+                details_resp = acc.api_client.get_run_details(run_data.errand_id, acc.user_data.id, run_data.errand_schedule)
+                if not (details_resp and details_resp.get('success')):
+                    acc.log(f"获取任务详情失败，跳过。")
+                    continue
+                
+                details = details_resp.get('data', {}).get('errandDetail', {})
+                waypoints = [(float(p['lon']), float(p['lat'])) for p in details.get('geoCoorList', []) if p.get('lon') is not None]
+                if not waypoints:
+                    acc.log(f"任务无打卡点，无法自动规划，跳过。")
+                    continue
+                run_data.target_points = waypoints
+
+                path_result = {}
+                completion_event = threading.Event()
+                self.path_gen_callbacks[acc.username] = (path_result, completion_event)
+                self.window.evaluate_js(f'triggerPathGenerationForPy("{acc.username}", {json.dumps(waypoints)})')
+                
+                acc.log("等待前端JS规划路径...")
+                # path_received = completion_event.wait(timeout=120)
+
+                # 等待期间若被停止，立即返回
+                while not completion_event.wait(timeout=120):
+                    if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                        # 回调通道清理
+                        if acc.username in self.path_gen_callbacks:
+                            self.path_gen_callbacks.pop(acc.username, None)
+                        self._update_account_status_js(acc, status_text="已中止")
+                        return
+
+                if 'path' not in path_result:
+                    error_msg = path_result.get('error', '超时')
+                    acc.log(f"路径规划失败或超时: {error_msg}")
+                    if acc.username in self.path_gen_callbacks: del self.path_gen_callbacks[acc.username]
+                    continue
+                
+                api_path_coords = path_result['path']
+                acc.log(f"路径规划成功，共 {len(api_path_coords)} 点。")
+                
+                min_t_m, max_t_m, min_d_m = acc.params.get("min_time_m", 20), acc.params.get("max_time_m", 30), acc.params.get("min_dist_m", 2000)
+                
+                final_path_dedup = []
+                last_coord = None
+                for p in api_path_coords:
+                    # 修正BUG：同时兼容 'lng' 和 'lon' 两种经度键名
+                    longitude = p.get('lng', p.get('lon'))
+                    if longitude is None: continue # 如果经度不存在，则跳过这个点
+                    coord = (longitude, p['lat'])
+                    if coord != last_coord: final_path_dedup.append(coord); last_coord = coord
+                
+                if not final_path_dedup:
+                    acc.log("路径处理失败：无有效坐标点。"); continue
+                
+                target_time_s = random.uniform(min_t_m * 60, max_t_m * 60)
+                target_dist_m = random.uniform(min_d_m, min_d_m * 1.15)
+                cumulative = [0.0]
+                for idx_c in range(len(final_path_dedup) - 1):
+                    cumulative.append(cumulative[-1] + self._calculate_distance_m(final_path_dedup[idx_c][0], final_path_dedup[idx_c][1], final_path_dedup[idx_c + 1][0], final_path_dedup[idx_c + 1][1]))
+                
+                final_geo_path = self._get_path_for_distance(final_path_dedup, cumulative, target_dist_m)
+                final_cumulative = [0.0]
+                for idx_c in range(len(final_geo_path) - 1):
+                    final_cumulative.append(final_cumulative[-1] + self._calculate_distance_m(final_geo_path[idx_c][0], final_geo_path[idx_c][1], final_geo_path[idx_c + 1][0], final_geo_path[idx_c + 1][1]))
+                
+                actual_total_dist = final_cumulative[-1] if final_cumulative else 0.0
+                if actual_total_dist == 0: acc.log("路径计算距离为0，跳过。"); continue
+                
+                avg_speed = actual_total_dist / target_time_s
+                new_run_coords = []
+                start = final_geo_path[0]
+                new_run_coords.append(self._gps_random_offset(start[0], start[1], acc.params) + (0,))
+                t_elapsed, d_covered = 0.0, 0.0
+
+                while t_elapsed < target_time_s:
+                    interval = min(random.uniform(acc.params['interval_ms'] * .9, acc.params['interval_ms'] * 1.1) / 1000.0, target_time_s - t_elapsed)
+                    if interval <= 0.1: break
+                    
+                    d_covered = min(d_covered + random.uniform(avg_speed * .9, avg_speed * 1.1) * interval, actual_total_dist)
+                    lon, lat = self._get_point_at_distance(final_geo_path, final_cumulative, d_covered)
+                    lon_o, lat_o = self._gps_random_offset(lon, lat, acc.params)
+                    new_run_coords.append((lon_o, lat_o, int(interval * 1000)))
+                    t_elapsed += interval
+                    if d_covered >= actual_total_dist: break
+                
+                run_data.run_coords = new_run_coords
+                run_data.total_run_distance_m = d_covered
+                run_data.total_run_time_s = t_elapsed
+                
+                run_data.trid = f"{acc.user_data.student_id}{int(time.time() * 1000)}"
+                start_time_ms = str(int(time.time() * 1000))
+                submission_successful = True
+                # 总点数用于进度计算（更高频率的进度更新）
+                total_points = max(1, len(run_data.run_coords))
+
+                for chunk_idx in range(0, len(run_data.run_coords), 40):
+                    if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set(): submission_successful = False; break
+                    
+                    chunk = run_data.run_coords[chunk_idx : chunk_idx + 40]
+                    processed_points = chunk_idx  # 从当前分块起始已处理的点数
+                    for lon, lat, dur_ms in chunk:
+                        if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                            submission_successful = False
+                            break
+
+                        # 位置与前端地图更新（保持原有逻辑）
+                        if self.window:
+                            self.window.evaluate_js(
+                                f'multi_updateRunnerPosition("{acc.username}", {lon}, {lat}, "{acc.user_data.name}")'
+                            )
+
+                        # 等待当前点的“上报时长”（保持原有逻辑）
+                        if acc.stop_event.wait(timeout=dur_ms / 1000.0):
+                            submission_successful = False
+                            break
+
+                        # 每个点完成后实时推进进度（仅更新进度相关字段，避免频繁改写状态文本）
+                        processed_points += 1
+                        try:
+                            pct = int(processed_points * 100 / total_points)
+                            self._update_account_status_js(
+                                acc,
+                                progress_pct=pct,
+                                progress_text=f"运行 {i+1}/{len(tasks_to_run)}: {task_name_short} · {pct}%",
+                                progress_extra=f"{processed_points}/{total_points} 点"
+                            )
+                        except Exception:
+                            pass
+
+                    if not submission_successful: break
+
+                    # # 按已处理点数推送进度百分比
+                    # try:
+                    #     total_points = max(1, len(run_data.run_coords))
+                    #     processed_points = min(total_points, chunk_idx + len(chunk))
+                    #     pct = int(processed_points * 100 / total_points)
+                    #     self._update_account_status_js(
+                    #         acc,
+                    #         status_text=f"运行 {i+1}/{len(tasks_to_run)}: {task_name_short}",
+                    #         progress_pct=pct,
+                    #         progress_text=f"运行 {i+1}/{len(tasks_to_run)}: {task_name_short} · {pct}%",
+                    #         progress_extra=f"{processed_points}/{total_points} 点"
+                    #     )
+                    # except Exception:
+                    #     pass
+                    
+                    is_final_chunk = (chunk_idx + 40 >= len(run_data.run_coords))
+                    if not self._submit_chunk(run_data, chunk, start_time_ms, is_final_chunk, chunk_idx, acc.api_client, acc.user_data):
+                        submission_successful = False; break
+                
+                if submission_successful:
+                    acc.log(f"任务 {run_data.run_name} 数据提交完毕，等待服务器确认...")
+                    time.sleep(3)
+                    self._finalize_run(run_data, -1, acc.api_client)
+                    run_data.status = 1
+                    self._multi_fetch_and_summarize_tasks(acc)
+                    self._update_account_status_js(acc, summary=acc.summary)
+                    acc.log(f"任务 {run_data.run_name} 执行流程完成。")
+                    # 任务完成后置为 100%
+                    self._update_account_status_js(
+                        acc,
+                        status_text="任务已完成",
+                        progress_pct=100,
+                        progress_text=f"运行 {i+1}/{len(tasks_to_run)}: {task_name_short} · 100%",
+                        progress_extra=""
+                    )
+                else:
+                    acc.log(f"任务 {run_data.run_name} 执行被中止。")
+                    # 中止时维持当前进度文本（不强制 100）
+                    self._update_account_status_js(
+                        acc,
+                        status_text="已中止"
+                    )
+
+                if i < len(tasks_to_run) - 1:
+                    wait_time = random.uniform(acc.params['task_gap_min_s'], acc.params['task_gap_max_s'])
+                    should_break_worker = False
+                    end_time = time.time() + wait_time
+                    while time.time() < end_time:
+                        if acc.stop_event.is_set() or self.multi_run_stop_flag.is_set():
+                            should_break_worker = True
+                            break
+                        remaining = end_time - time.time()
+                        self._update_account_status_js(acc, status_text=f"等待 {remaining:.0f}s")
+                        time.sleep(1)
+                    if should_break_worker:
+                        self._update_account_status_js(acc, status_text="已中止")
+                        break
+            
+            if not acc.stop_event.is_set():
+                self._update_account_status_js(acc, status_text="全部完成")
+
+        except Exception:
+            logging.error(f"Error in worker for {acc.username}: {traceback.format_exc()}")
+            self._update_account_status_js(acc, status_text="执行出错")
+        finally:
+            try:
+                acc.worker_thread = None
+                if acc.stop_event.is_set():
+                    self._update_account_status_js(acc, status_text="已停止")
+                else:
+                    # 保留错误/中止/网络错误等状态，不回落为“待命”
+                    if not self._should_preserve_status(acc.status_text, new_status="待命"):
+                        # 仅当当前状态是临时运行态或空状态时才回落为“待命”
+                        if acc.status_text in ("登录中...", "排队登录...", "已启动", "分析任务", "运行", "等待") or not acc.status_text:
+                            self._update_account_status_js(acc, status_text="待命")
+
+            except Exception:
+                logging.debug("Finalize worker status update failed (non-fatal).", exc_info=True)
+            finally:
+                self._update_multi_global_buttons()
+
+
+    def _get_device_sign_code(self, username):
+        """生成或获取设备标识码 (signCode)"""
+        # 方案1：使用固定的 UUID (每次运行可能不同，但同一用户会话内可能一致)
+        # return str(uuid.uuid4())
+        # 方案2：尝试更稳定的标识 (可能需要额外库或权限)
+        # try:
+        #     # mac 地址 (可能需要 pip install getmac)
+        #     import getmac
+        #     mac = getmac.get_mac_address()
+        #     if mac: return mac
+        # except ImportError:
+        #     pass
+        # 方案3：基于用户名和固定字符串生成 UUID (同一用户始终一致)
+        # return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"zslf_runner_{username}"))
+        # 方案4：简单模拟 trid 格式 (不保证唯一性)
+        # return f"{username}_dev_{int(time.time() * 100)}"
+        # 方案5：直接使用随机 UUID
+        return str(uuid.uuid4())
+
+
+    def _fetch_server_attendance_radius_if_needed(self, client: ApiClient, acc: AccountSession | None = None):
+        """
+        (辅助函数) 检查并获取服务器签到半径。
+        - 单账号模式: 缓存到 self.server_attendance_radius_m
+        - 多账号模式: 缓存到 acc.server_attendance_radius_m
+        """
+        log_func = acc.log if acc else self.log
+        cache_duration_s = 3600 # 缓存1小时
+
+        # 确定使用哪个缓存
+        if acc:
+            last_fetch_time = acc.last_radius_fetch_time
+            current_radius = acc.server_attendance_radius_m
+        else:
+            last_fetch_time = self.last_radius_fetch_time
+            current_radius = self.server_attendance_radius_m
+
+        # 检查缓存是否有效
+        if time.time() - last_fetch_time < cache_duration_s and current_radius > 0:
+            logging.debug(f"Using cached server radius: {current_radius}m")
+            return current_radius
+
+        log_func("正在获取服务器签到半径...")
+        new_radius = 0.0
+        try:
+            resp = client.get_attendance_radius()
+            if resp and resp.get('success'):
+                info_list = resp.get('data', {}).get('info', [])
+                if info_list and isinstance(info_list, list) and len(info_list) > 0:
+                    radius_str = info_list[0].get('code')
+                    new_radius = float(radius_str)
+                    if new_radius <= 0:
+                        log_func("服务器返回半径为0，启用精确签到。")
+                        new_radius = 0.0
+                    else:
+                        log_func(f"服务器签到半径更新为: {new_radius} 米")
+                else:
+                    log_func("服务器未返回半径信息，默认为精确签到。")
+            else:
+                log_func("获取半径API失败，默认为精确签到。")
+        except Exception as e:
+            log_func(f"获取半径时出错: {e}，默认为精确签到。")
+            logging.error(f"Failed to fetch attendance radius: {e}", exc_info=True)
+        
+        # 更新缓存
+        if acc:
+            acc.server_attendance_radius_m = new_radius
+            acc.last_radius_fetch_time = time.time()
+        else:
+            self.server_attendance_radius_m = new_radius
+            self.last_radius_fetch_time = time.time()
+            
+        return new_radius
+
+
+    def trigger_attendance(self, roll_call_id: str, target_coords: tuple[float, float], location_choice: str = 'random', specific_coords: tuple[float, float] | None = None, is_makeup: bool = False, acc: AccountSession | None = None):
+        """
+        (已重构) 触发签到流程。
+        - acc: (可选) 在多账号模式下传入 AccountSession。
+
+        Args:
+            roll_call_id: 签到活动的 ID.
+            target_coords: 签到目标的坐标 (经度, 纬度).
+            location_choice: 'random' (在目标点范围内随机) 或 'specific' (使用 specific_coords).
+            specific_coords: 当 location_choice 为 'specific' 时使用的具体坐标 (经度, 纬度).
+            is_makeup: 是否为补签。
+            acc: (可选) 在多账号模式下传入 AccountSession。
+        """
+        
+        # 确定上下文 (单账号 vs 多账号)
+        if acc:
+            client = acc.api_client
+            log_func = acc.log
+            user = acc.user_data
+            params = acc.params
+        elif not self.is_multi_account_mode:
+            client = self.api_client
+            log_func = self.log
+            user = self.user_data
+            params = self.params
+        else:
+            self.log("trigger_attendance 在多账号模式下被错误调用（未传入acc）")
+            return {"success": False, "message": "多账号模式内部错误"}
+
+        if not user.id:
+            log_func("用户未登录，无法签到。")
+            return {"success": False, "message": "用户未登录"}
+
+        log_func(f"正在处理签到: {roll_call_id}")
+
+        # 1. 获取服务器最大半径 (使用新函数，带缓存)
+        server_radius_m = self._fetch_server_attendance_radius_if_needed(client, acc)
+        is_precise_checkin = (server_radius_m <= 0)
+
+        # 2. 检查当前签到状态 (使用你的新逻辑)
+        try:
+            info_resp = client.get_roll_call_info(roll_call_id, user.id)
+            if info_resp and info_resp.get('success'):
+                data = info_resp.get('data', {})
+                roll_call_info = data.get('rollCallInfo', {})
+                
+                status = roll_call_info.get('status')      # 关键字段1: -1=过期, 0=进行中
+                finished = data.get('attendFinish') # 关键字段2: 1=已签, 0=未签
+
+                # 逻辑: 只要 status == -1，就是已过期且未签到
+            if status == -1:
+                if not is_makeup:
+                    # 如果不是补签，则按原逻辑阻止
+                    log_func("此签到任务已过期（status=-1）。")
+                    return {"success": False, "message": "任务已过期"}
+                else:
+                    # 如果是补签，则记录日志并继续
+                    log_func(f"任务 {roll_call_id} 已过期，正在尝试[补签]...")
+
+                # 逻辑: 只有 status != -1 且 finished == 1 才算完成
+                if status != -1 and (finished == 1 or finished is True):
+                    log_func("你已经签到过了 (status!=-1 and attendFinish=1)。")
+                    return {"success": True, "message": "已签到"}
+
+                # (其他情况，如 status=0 and finished=0，都视为 "待签到"，流程继续)
+                log_func("任务状态：待签到。")
+
+            else:
+                log_func("获取签到信息失败，将继续尝试签到...")
+        except Exception as e:
+            log_func(f"检查签到状态时出错: {e}，将继续尝试...")
+            logging.error(f"Error checking roll call status: {e}", exc_info=True)
+
+
+        # 3. 确定签到坐标
+        final_lon, final_lat = 0.0, 0.0
+        target_lon, target_lat = target_coords
+        
+        if location_choice == 'specific' and specific_coords:
+            final_lon, final_lat = specific_coords
+            log_func(f"使用指定坐标签到: ({final_lon:.6f}, {final_lat:.6f})")
+        
+        elif location_choice == 'random':
+            # 默认为精确签到
+            radius_for_random = 0.0 
+            
+            if not is_precise_checkin:
+                # 仅在服务器允许范围签到时，才计算随机半径
+                user_radius_m = params.get("attendance_user_radius_m", 40)
+                # 随机半径不能超过服务器的半径
+                radius_for_random = max(0.0, min(user_radius_m, server_radius_m))
+            
+            if radius_for_random <= 0:
+                # 精确签到
+                final_lon, final_lat = target_lon, target_lat
+                log_func(f"精确签到模式：使用目标点坐标签到: ({final_lon:.6f}, {final_lat:.6f})")
+            else:
+                # 范围随机签到
+                angle = random.uniform(0, 2 * math.pi)
+                # 在 0 到 1 倍的 *有效半径* 内随机
+                radius_ratio = random.uniform(0, 1.0) 
+                radius_m = radius_for_random * radius_ratio
+
+                offset_lon = (radius_m * math.cos(angle)) / 102834.74
+                offset_lat = (radius_m * math.sin(angle)) / 111712.69
+
+                final_lon = target_lon + offset_lon
+                final_lat = target_lat + offset_lat
+                log_func(f"在 {radius_for_random:.1f} 米范围内随机生成坐标签到: ({final_lon:.6f}, {final_lat:.6f})")
+        
+        else:
+             log_func("无效的位置选择，无法签到。")
+             return {"success": False, "message": "无效的位置选择"}
+
+        # 4. 计算实际距离
+        actual_distance = self._calculate_distance_m(final_lon, final_lat, target_lon, target_lat)
+        log_func(f"签到点距离目标点 {actual_distance:.2f} 米。")
+
+        # 5. 获取设备标识码
+        sign_code = self._get_device_sign_code(user.username)
+
+        # 6. 准备提交负载
+        if is_makeup:
+            # 补签负载
+            payload = {
+                "rollCallId": roll_call_id,
+                "userId": user.id,
+                "coordinate": f"{final_lon},{final_lat}",
+                "distance": int(actual_distance), # 转为整数
+                "status": 2, # 1=正常, 2=补签 (如果补签状态码不是2，请修改这里)
+                "signCode": sign_code,
+                "reason": "补签" # 补签时填写原因
+            }
+            log_func("使用[补签]负载提交...")
+        else:
+            # 正常签到负载
+            payload = {
+                "rollCallId": roll_call_id,
+                "userId": user.id,
+                "coordinate": f"{final_lon},{final_lat}",
+                "distance": int(actual_distance), # 转为整数
+                "status": 1, # 1 表示成功签到
+                "signCode": sign_code,
+                "reason": "" # 签到时为空
+            }
+            log_func("使用[正常签到]负载提交...")
+
+        # 7. 提交签到
+        try:
+            log_func("正在提交签到...")
+            submit_resp = client.submit_attendance(payload)
+            if submit_resp and submit_resp.get('success'):
+                log_func("签到成功！")
+                logging.info(f"Attendance submitted successfully for {roll_call_id}")
+                return {"success": True, "message": "签到成功"}
+            else:
+                msg = submit_resp.get('message', '未知错误') if submit_resp else '网络错误'
+                log_func(f"签到失败: {msg}")
+                logging.warning(f"Attendance submission failed for {roll_call_id}: {msg}")
+                return {"success": False, "message": f"签到失败: {msg}"}
+        except Exception as e:
+            log_func(f"提交签到时出错: {e}")
+            logging.error(f"Error submitting attendance: {e}", exc_info=True)
+            return {"success": False, "message": f"提交签到时出错: {e}"}
+        
+
+    # --- 获取通知功能 ---
+    def get_notifications(self, is_auto_refresh: bool = False):
+        """
+        (已重构) 获取未读通知数量和通知列表。
+        - 附加基于新逻辑的签到状态。
+        - (自动签到逻辑已移至 _check_and_trigger_auto_attendance)
+        """
+        logging.info("API CALL: get_notifications")
+        if not self.user_data.id or self.is_multi_account_mode:
+            return {"success": False, "message": "仅单账号登录模式可用"}
+
+        try:
+            # 1. 获取未读数量
+            count_resp = self.api_client.get_unread_notice_count()
+            unread_count = 0
+            if count_resp and count_resp.get('success'):
+                unread_count = count_resp.get('data', {}).get('unreadNumber', 0)
+            
+            # 2. 【重构】获取所有通知
+            all_notices = []
+            offset = 0
+            limit = 10
+            while True:
+                list_resp = self.api_client.get_notice_list(offset=offset, limit=limit, type_id=0)
+                if list_resp and list_resp.get('success'):
+                    current_notices = list_resp.get('data', {}).get('noticeList', [])
+                    if not current_notices:
+                        # 没有更多通知了，退出循环
+                        break
+                    all_notices.extend(current_notices)
+                    offset += limit
+                    # 如果返回的通知数小于请求的 limit，说明是最后一页
+                    if len(current_notices) < limit:
+                        break
+                else:
+                    self.log("获取通知列表时失败。")
+                    # 发生错误时中断，避免无限循环
+                    break
+            
+            notices = all_notices
+
+            # 3. 【重构】遍历通知，仅为签到任务附加状态
+            if notices:
+                logging.debug(f"正在为 {len(notices)} 条通知附加签到状态...")
+                for notice in notices:
+                    try:
+                        is_attendance = notice.get('image') == 'attendance' or '签到' in notice.get('title', '')
+                        if is_attendance and notice.get('id'):
+                            roll_call_id = notice['id']
+                            
+                            info_resp = self.api_client.get_roll_call_info(roll_call_id, self.user_data.id)
+                            
+                            status = -2 # 默认为未知
+                            finished = 0
+
+                            if info_resp and info_resp.get('success'):
+                                data = info_resp.get('data', {})
+                                roll_call_info = data.get('rollCallInfo', {})
+                                status = roll_call_info.get('status') # -1=过期, 0=进行中
+                                finished = data.get('attendFinish') # 1=已签, 0=未签
+                            
+                            # 附加新字段到 notice 对象
+                            notice['attendance_finished'] = finished
+                            notice['attendance_status_code'] = status
+
+                            if status == -1:
+                                notice['attendance_code'] = -1 # 已过期
+                            elif status != -1 and (finished == 1 or finished is True):
+                                notice['attendance_code'] = 1  # 已签到
+                            else:
+                                notice['attendance_code'] = 0  # 待签到
+                        
+                    except Exception as e:
+                        logging.warning(f"附加签到状态失败 (ID: {notice.get('id')}): {e}")
+
+            if not is_auto_refresh:
+                self.log(f"获取到 {unread_count} 条未读通知，共有 {len(notices)} 条通知。")
+            
+            return {
+                "success": True, 
+                "unreadCount": unread_count, 
+                "notices": notices
+            }
+        except Exception as e:
+            self.log(f"获取通知失败: {e}")
+            logging.error(f"get_notifications failed: {e}", exc_info=True)
+            return {"success": False, "message": str(e)}
+
+    def mark_notification_read(self, notice_id):
+        """(单账号) 将指定ID的通知设为已读"""
+        logging.info(f"API CALL: mark_notification_read (id={notice_id})")
+        if not self.user_data.id or self.is_multi_account_mode:
+            return {"success": False, "message": "仅单账号登录模式可用"}
+        
+        resp = self.api_client.mark_notice_as_read(notice_id)
+        if resp and resp.get('success'):
+            return {"success": True}
+        else:
+            return {"success": False, "message": resp.get('message', '标记已读失败')}
+
+    def _auto_refresh_worker(self):
+        """(单账号) 后台自动刷新通知的线程"""
+        while not self.stop_auto_refresh.wait(timeout=1.0): # 1秒检查一次停止信号
+            try:
+                is_enabled = self.params.get("auto_attendance_enabled", False)
+                
+                if (not self.user_data.id or self.is_multi_account_mode):
+                    # 如果未登录或在多账号模式，则休眠
+                    time.sleep(5)
+                    continue
+
+                # --- 修复 Bug 2: 检查功能是否启用 ---
+                if not is_enabled:
+                    # 如果未启用自动签到，则本线程进入长休眠状态 (300秒)
+                    # 它会等待，直到用户在UI上重新勾选 "auto_attendance_enabled"
+                    # (届时 update_param 会停止并重启此线程)
+                    # 或者等待300秒后再次检查 is_enabled 状态。
+                    if self.stop_auto_refresh.wait(timeout=300):
+                        break # 收到停止信号
+                    continue # 继续循环，重新检查 is_enabled
+
+                # --- 如果代码执行到这里，说明 is_enabled == True ---
+
+                # 读取刷新间隔
+                refresh_interval_s = self.params.get("auto_attendance_refresh_s")
+
+                self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
+                if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
+                    break 
+                
+                if (self.is_multi_account_mode or not self.user_data.id):
+                    continue
+
+                
+                # 1. 执行自动签到 (不再需要 if is_enabled 检查，因为上面已保证)
+                self._check_and_trigger_auto_attendance(self)
+                
+                # 2. 获取通知并推送到UI
+                self.log("正在自动刷新通知 (后台)...")
+                result = self.get_notifications(is_auto_refresh=False)
+                
+                if result.get('success') and self.window:
+                    self.window.evaluate_js(f'onNotificationsUpdated({json.dumps(result)})')
+                
+            except Exception as e:
+                self.log(f"自动刷新线程出错: {e}")
+                logging.error(f"Auto-refresh worker error: {e}", exc_info=True)
+                time.sleep(60)
+
+        logging.info("Auto-refresh worker stopped.")
+
+
+
+    def _check_and_trigger_auto_attendance(self, context: 'Api | AccountSession'):
+        """
+        (辅助函数) 检查并执行单个上下文(Api或AccountSession)的自动签到。
+        """
+        # 1. 确定上下文
+        if isinstance(context, AccountSession):
+            client = context.api_client
+            log_func = context.log
+            user = context.user_data
+            params = context.params
+            # 多账号模式下，使用账号自己的参数来判断是否启用
+            if not params.get("auto_attendance_enabled", False):
+                return
+        else: # context is Api (self)
+            client = self.api_client
+            log_func = self.log
+            user = self.user_data
+            params = self.params
+            # 单账号模式下，也使用自己的参数判断
+            if not params.get("auto_attendance_enabled", False):
+                return
+        
+        if not user.id:
+            log_func("用户未登录，跳过自动签到。")
+            return
+
+        log_func("(后台) 正在检查自动签到任务...")
+        
+        try:
+            list_resp = client.get_notice_list(offset=0, limit=20, type_id=0)
+            if not (list_resp and list_resp.get('success')):
+                log_func("获取通知列表失败，跳过自动签到。")
+                return
+
+            notices = list_resp.get('data', {}).get('noticeList', [])
+            if not notices:
+                log_func("(后台) 通知列表为空。")
+                return
+
+            triggered_count = 0
+            for notice in notices:
+                is_attendance = notice.get('image') == 'attendance' or '签到' in notice.get('title', '')
+                if not (is_attendance and notice.get('id')):
+                    continue
+
+                roll_call_id = notice['id']
+                info_resp = client.get_roll_call_info(roll_call_id, user.id)
+                
+                status = -2
+                finished = 0
+                if info_resp and info_resp.get('success'):
+                    data = info_resp.get('data', {})
+                    roll_call_info = data.get('rollCallInfo', {})
+                    status = roll_call_info.get('status') # -1=过期, 0=进行中
+                    finished = data.get('attendFinish') # 1=已签, 0=未签
+
+                # 检查是否为 "待签到" (进行中 且 未完成)
+                if status != -1 and not (finished == 1 or finished is True):
+                    log_func(f"检测到待签到任务 '{notice.get('title')}'，正在自动签到...")
+                    coords_str = notice.get('updateBy', '').split(',')
+                    if len(coords_str) == 2:
+                        try:
+                            target_lat, target_lon = float(coords_str[0]), float(coords_str[1])
+                            target_coords = (target_lon, target_lat)
+                            
+                            # 关键：调用 trigger_attendance
+                            auto_result = self.trigger_attendance(
+                                roll_call_id, 
+                                target_coords, 
+                                'random', 
+                                
+                                specific_coords=None,
+                                is_makeup=False, # 自动签到总是尝试正常签到
+                                acc=context if isinstance(context, AccountSession) else None
+                            )
+                            
+                            if auto_result.get('success'):
+                                log_func(f"自动签到 '{notice.get('title')}' 成功。")
+                                triggered_count += 1
+                            else:
+                                log_func(f"自动签到 '{notice.get('title')}' 失败: {auto_result.get('message', '')}")
+                        except Exception as e:
+                            log_func(f"签到坐标解析或执行失败: {e}")
+                    else:
+                        log_func("签到通知坐标格式错误，跳过。")
+            
+            if triggered_count == 0:
+                log_func("(后台) 未发现待处理的签到任务。")
+
+        except Exception as e:
+            log_func(f"自动签到检查时出错: {e}")
+            logging.error(f"[_check_and_trigger_auto_attendance] Error: {e}", exc_info=True)
+
+    def _multi_auto_attendance_worker(self):
+        """(多账号) 后台自动刷新和签到所有账号的线程"""
+        while not self.stop_multi_auto_refresh.wait(timeout=1.0):
+            try:
+                if (not self.is_multi_account_mode or 
+                    not self.global_params.get("auto_attendance_enabled", False) or
+                    not self.accounts):
+                    # 如果未启用、或不在多账号模式、或没账号，则休眠
+                    time.sleep(5)
+                    continue
+                
+                # 读取刷新间隔
+                refresh_interval_s =  self.global_params.get("auto_attendance_refresh_s")
+                
+                self.log(f"(多账号) 自动签到: 等待 {refresh_interval_s} 秒...")
+                if self.stop_multi_auto_refresh.wait(timeout=refresh_interval_s):
+                    break # 收到停止信号
+                
+                if (not self.is_multi_account_mode or 
+                    not self.global_params.get("auto_attendance_enabled", False)):
+                    continue
+
+                self.log("(多账号) 正在为所有账号执行后台签到检查...")
+                
+                # 迭代当前账号列表的快照
+                accounts_to_check = list(self.accounts.values())
+                
+                for acc in accounts_to_check:
+                    if self.stop_multi_auto_refresh.is_set():
+                        break # 检查过程中被停止
+                    
+                    # 检查该账号是否也启用了自动签到 (从它自己的参数里读)
+                    if acc.params.get("auto_attendance_enabled", False):
+                        if acc.user_data.id:
+                            self._check_and_trigger_auto_attendance(acc)
+                            # 刷新该账号的签到统计 (这会更新UI)
+                            self._multi_fetch_attendance_stats(acc)
+                            self._update_account_status_js(acc, summary=acc.summary)
+                            # 简单延迟，避免API风暴
+                            time.sleep(random.uniform(1.0, 3.0))
+                        else:
+                            
+                            acc.log("(后台) 尚未登录，跳过自动签到检查。")
+                    else:
+                        
+                        acc.log("(后台) 自动签到未在此账号上启用，跳过。")
+                    
+            except Exception as e:
+                self.log(f"(多账号) 自动签到线程出错: {e}")
+                logging.error(f"Multi-auto-attendance worker error: {e}", exc_info=True)
+                time.sleep(60)
+        
+        logging.info("Multi-auto-attendance worker stopped.")
+
+
+
+    def _normalize_status_flag(self, v) -> int:
+        """将后端返回的各种 isExecute 表达式规范为 0 或 1"""
+        try:
+            if v is None:
+                return 0
+            if isinstance(v, bool):
+                return 1 if v else 0
+            s = str(v).strip()
+            if s == '':
+                return 0
+            # 纯数字字符串
+            if s.isdigit():
+                return 1 if int(s) == 1 else 0
+            # 常见布尔文本
+            if s.lower() in ('true', 'yes', 'y', '1'):
+                return 1
+            return 0
+        except Exception:
+            return 0
+    def _should_preserve_status(self, status: str, new_status: str = None) -> bool:
+        """
+        判断当前状态是否应保留。
+        - 如果当前是错误/中止态，则保留，除非新状态明确表示成功或完成。
+        """
+        if not status:
+            return False
+        s = str(status).strip()
+        error_keywords = ("登录失败", "刷新失败", "执行出错", "网络错误", "已中止", "已停止")
+
+        # 如果当前是错误态
+        if any(k in s for k in error_keywords):
+            # 只有当新状态是“登录成功”“全部完成”“无任务可执行”等明确的成功/完成态时，才允许覆盖
+            if new_status and new_status in ("登录成功", "全部完成", "无任务可执行", "待命"):
+                return False
+            return True
+        return False
+
+
+
+# ==============================================================================
+# 4. 前端界面 (HTML/CSS/JS)
+# ==============================================================================
+
+def resource_path(relative_path):
+    """获取资源文件的绝对路径，兼容 PyInstaller 打包和开发环境"""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+
+html_content = ""
+
+try:
+    html_path = resource_path("index.html")
+    with open(html_path, 'r', encoding='utf-8') as file:
+        html_content = file.read()
+    logging.info("成功读取 index.html 文件！")
+
+except FileNotFoundError:
+    logging.error("错误: 未在资源路径中找到 'index.html' 文件。")
+    sys.exit(1)
+except Exception as e:
+    logging.error(f"读取文件时发生错误: {e}")
+    sys.exit(1)
+
+
+def main():
+    """主函数，负责解析参数、创建窗口和启动应用（支持 app/web 两种模式）"""
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--autologin", nargs=2, metavar=('USERNAME','PASSWORD'), help="自动登录")
+    parser.add_argument("--mode", choices=["app", "web"], default="app", help="运行模式：app=桌面应用(默认)，web=Flask Web 模式")
+    parser.add_argument("--web-host", default="127.0.0.1", help="Web 模式监听地址")
+    parser.add_argument("--web-port", type=int, default=5000, help="Web 模式端口")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)])
+
+    # --- 定义并应用日志过滤器 ---
+    class PywebviewErrorFilter(logging.Filter):
+        def filter(self, record):
+            suppress_messages = [
+                "Error while processing window.native.AccessibleRole",
+                "Error while processing window.native.AccessibilityObject.Bounds",
+                "Error while processing window.native.ActiveControl",
+                "Error while processing window.native.ControlCollection",
+                "Error while processing window.native.DockPaddingEdgesConverter"
+            ]
+            message = record.getMessage()
+            return not any(msg in message for msg in suppress_messages)
+
+    pywebview_logger = logging.getLogger('pywebview')
+    pywebview_logger.addFilter(PywebviewErrorFilter())
+
+    api = Api(args)
+
+    # 创建 pywebview 窗口；在 web 模式下隐藏窗口，仅作为 JS 计算引擎
+    window = webview.create_window(
+        "跑步助手",
+        html=html_content,
+        js_api=api,
+        width=1200 if args.mode == "web" else 1440,
+        height=800 if args.mode == "web" else 1000,
+        resizable=True,
+        hidden=(args.mode == "web")
+    )
+    api.set_window(window)
+
+    if args.mode == "app":
+        # 桌面模式：直接启动 GUI 事件循环
+        webview.start(debug=True)
+    else:
+        # Web 模式：启动 Flask 服务器（后台线程），同时启动隐藏的 pywebview 以执行 JS
+        import threading
+        from web_mode import create_app
+
+        webview_ready = threading.Event()
+
+        def on_webview_loaded():
+            try:
+                # 窗口已加载（即 JS 引擎可用）
+                webview_ready.set()
+            except Exception:
+                pass
+
+        # 启动 Flask（后台线程，避免阻塞 GUI 主循环）
+        def run_flask():
+            app = create_app(api, webview_ready)
+            # 关闭 reloader，避免多进程导致的对象复制问题
+            app.run(host=args.web_host, port=args.web_port, debug=False, use_reloader=False, threaded=True)
+
+        flask_thread = threading.Thread(target=run_flask, name="FlaskServer", daemon=True)
+        flask_thread.start()
+
+        # 启动 pywebview 主循环（阻塞当前线程）
+        webview.start(func=on_webview_loaded, debug=False)
+
+if __name__ == "__main__":
+    main()
