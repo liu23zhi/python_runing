@@ -1,7 +1,5 @@
 # 跑步助手
 
-import tkinter
-from tkinter import filedialog, messagebox
 import os
 import sys
 import configparser
@@ -22,26 +20,62 @@ import warnings
 import csv
 import queue as _queue
 import uuid
-import math
-import random
+import secrets
+import pickle
+from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify
+from flask_cors import CORS
 
+# 会话存储目录
+SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
+if not os.path.exists(SESSION_STORAGE_DIR):
+    os.makedirs(SESSION_STORAGE_DIR)
+
+# 会话索引文件：存储SHA256哈希和完整UUID的对应关系
+SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
+
+# 配置UTF-8编码（用于日志和控制台输出）
+if sys.platform.startswith('win'):
+    # Windows系统特殊处理
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Python 3.6及更早版本不支持reconfigure
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
+# Playwright用于在服务器端运行Chrome进行JS计算
 try:
-    import webview   # 嵌入式浏览器
+    from playwright.sync_api import sync_playwright
+    playwright_available = True
+except ImportError:
+    playwright_available = False
+
+# webview仅用于桌面模式（已弃用tkinter）
+try:
+    import webview   # 嵌入式浏览器（桌面模式）
+except ImportError:
+    webview = None
+
+# 这些库是必需的
+try:
     import requests  # HTTP请求
     import openpyxl  # xlsx 读写
     import xlrd      # xls 读取
     import xlwt      # xls 写入
     import chardet   # 编码修正
-except ImportError:
-    # 如果导入失败，弹出Tkinter消息框提示用户安装依赖
-    root = tkinter.Tk()
-    root.withdraw()
-    messagebox.showerror(  # <--- 修改这里，去掉 'tkinter.'
-        "依赖错误",
-        "运行本程序需要 'pywebview', 'requests', 'openpyxl', 'chardet', 'xlrd' 和 'xlwt' 库。\n"
+except ImportError as e:
+    # 如果导入失败，提示用户安装依赖
+    error_msg = (
+        "运行本程序需要 'requests', 'openpyxl', 'chardet', 'xlrd' 和 'xlwt' 库。\n"
         "请先在终端运行:\n"
-        "pip install \"pywebview[qt]\" requests openpyxl xlrd xlwt chardet"
+        "pip install requests openpyxl xlrd xlwt chardet Flask flask-cors playwright\n"
+        f"详细错误: {e}"
     )
+    
+    # 打印到控制台
+    print(f"\n{'='*60}\n错误: {error_msg}\n{'='*60}\n", file=sys.stderr)
     sys.exit(1)
 
 
@@ -440,7 +474,15 @@ class Api:
         self.current_run_idx = -1
         self.stop_run_flag = threading.Event()
         self.stop_run_flag.set()
-        self.target_range_m = 0.0
+        # 修复打卡点检测：设置合理的打卡半径（米）
+        # 如果未来服务器返回此值，应从任务详情中更新
+        self.target_range_m = 30.0  # 默认30米打卡范围
+        
+        # 修复会话持久化：初始化登录状态标志（不清除已存在的）
+        if not hasattr(self, 'login_success'):
+            self.login_success = False
+        if not hasattr(self, 'user_info'):
+            self.user_info = None
         # 全局登录并发控制（多账号模式下串行登录）
         # 固定并发为 1；若已有实例，则保持现状（防止模式切换时重复创建）
         if not hasattr(self, 'multi_login_lock') or self.multi_login_lock is None:
@@ -894,8 +936,20 @@ class Api:
         # 在返回数据前，先加载一次全局配置
         self._load_global_config()
 
-        logging.debug(f"Initial users={users}, last user={last_user}")
-        return {"users": users, "lastUser": last_user, "amap_key": self.global_params.get('amap_js_key', '')}
+        # 修复Issue 5: 检查是否已登录（会话持久化）
+        is_logged_in = hasattr(self, 'login_success') and self.login_success
+        user_info = None
+        if is_logged_in and hasattr(self, 'user_info'):
+            user_info = self.user_info
+
+        logging.debug(f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
+        return {
+            "users": users, 
+            "lastUser": last_user, 
+            "amap_key": self.global_params.get('amap_js_key', ''),
+            "isLoggedIn": is_logged_in,
+            "userInfo": user_info
+        }
 
     def save_amap_key(self, api_key: str):
         """由JS调用，保存高德地图API Key到主配置文件"""
@@ -924,7 +978,9 @@ class Api:
         if not username:
             return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
         password = self._load_config(username)
+        # 修复Issue 2: _load_config已经设置了self.device_ua，确保返回
         ua = self.device_ua or ""
+        logging.debug(f"on_user_selected: username={username}, ua={ua}, password={'***' if password else 'empty'}")
         info = {"name": self.user_data.name, "student_id": self.user_data.student_id}
         return {"password": password or "", "ua": ua, "params": self.params, "userInfo": info}
 
@@ -1025,6 +1081,11 @@ class Api:
         # --- 新增：将获取到的半径附加到返回信息中 ---
         user_info_dict['server_attendance_radius_m'] = self.server_attendance_radius_m
 
+        # 修复Issue 5: 设置登录状态标志用于会话持久化
+        self.login_success = True
+        self.user_info = user_info_dict
+        logging.info(f"会话状态已保存: login_success={self.login_success}, user_id={ud.id}")
+
         return {"success": True, "userInfo": user_info_dict, "ua": self.device_ua}
 
 
@@ -1042,6 +1103,11 @@ class Api:
             self.auto_refresh_thread = None
         except Exception as e:
             logging.warning(f"Failed to stop auto-refresh thread: {e}")
+        
+        # 修复Issue 5: 清除登录状态标志
+        self.login_success = False
+        self.user_info = None
+        
         self._init_state_variables()
         self._load_global_config()
         self.api_client.session.cookies.clear()
@@ -1364,19 +1430,28 @@ class Api:
         
     def check_target_reached_during_run(self, run_data: RunData, current_lon: float, current_lat: float):
         """在模拟运行时，检查是否到达了打卡点"""
-        if not (0 < run_data.target_sequence <= len(run_data.target_points)): return
+        if not (0 < run_data.target_sequence <= len(run_data.target_points)): 
+            logging.debug(f"打卡点检查跳过: target_sequence={run_data.target_sequence}, total_points={len(run_data.target_points)}")
+            return
 
         tar_lon, tar_lat = run_data.target_points[run_data.target_sequence - 1]
         dist = self._calculate_distance_m(current_lon, current_lat, tar_lon, tar_lat)
         is_in_zone = (dist < self.target_range_m)
+        
+        logging.debug(f"打卡点检查: 当前位置=({current_lon:.6f}, {current_lat:.6f}), "
+                     f"目标点{run_data.target_sequence}=({tar_lon:.6f}, {tar_lat:.6f}), "
+                     f"距离={dist:.2f}米, 范围={self.target_range_m:.2f}米, "
+                     f"在范围内={is_in_zone}, 已在区域内={run_data.is_in_target_zone}")
 
         if is_in_zone and not run_data.is_in_target_zone:
             run_data.is_in_target_zone = True
+            logging.info(f"✓ 到达打卡点 {run_data.target_sequence}/{len(run_data.target_points)}")
             if run_data.target_sequence < len(run_data.target_points):
                 run_data.target_sequence += 1
                 next_lon, next_lat = run_data.target_points[run_data.target_sequence - 1]
                 if self._calculate_distance_m(current_lon, current_lat, next_lon, next_lat) >= self.target_range_m:
                     run_data.is_in_target_zone = False
+                    logging.debug(f"移动到下一个打卡点 {run_data.target_sequence}，已离开区域")
         elif not is_in_zone:
             run_data.is_in_target_zone = False
 
@@ -1405,11 +1480,53 @@ class Api:
         logging.info("Stop run signal received.")
         self.stop_run_flag.set()
         return {"success": True}
+    
+    def get_run_status(self):
+        """获取当前运行状态（用于前端轮询）"""
+        # 检查是否有任务在运行
+        is_running = not self.stop_run_flag.is_set()
+        
+        if not is_running or self.current_run_idx == -1:
+            return {"running": False}
+        
+        run_data = self.all_run_data[self.current_run_idx]
+        total_points = len(run_data.run_coords) if run_data.run_coords else 0
+        
+        # 修复Issue 1: 使用current_point_index追踪实际进度
+        processed_points = getattr(run_data, 'current_point_index', 0)
+        processed_points = min(processed_points, total_points)
+        
+        # 获取当前位置（如果有的话）
+        current_position = None
+        if processed_points > 0 and processed_points <= total_points:
+            coord = run_data.run_coords[processed_points - 1]
+            current_position = {
+                "lon": coord[0],
+                "lat": coord[1]
+            }
+        
+        return {
+            "running": True,
+            "processed_points": processed_points,
+            "total_points": total_points,
+            "distance_covered": run_data.distance_covered_m,
+            "target_sequence": run_data.target_sequence,
+            "duration": sum(p[2] for p in run_data.run_coords[:processed_points]) if processed_points > 0 else 0,
+            "current_position": current_position
+        }
 
     # 修正: 添加 acc_session 或 api_client 参数
     def _submit_chunk(self, run_data: RunData, chunk, start_time, is_finish, chunk_start_index, client: ApiClient, user: UserData):
         """将一小块轨迹数据提交到服务器"""
         log_func = client.app.log if hasattr(client.app, 'log') else client.app.api_bridge.log
+        
+        # 修复离线测试模式：检查是否为离线模式
+        if self.is_offline_mode:
+            log_func(f"[离线测试模式] 模拟提交 {len(chunk)} 个GPS点...")
+            logging.info(f"[离线测试模式] 模拟提交 chunk: start_index={chunk_start_index}, size={len(chunk)}, is_finish={is_finish}")
+            time.sleep(0.1)  # 模拟网络延迟
+            return True  # 离线模式总是返回成功
+        
         log_func(f"正在提交数据...")
         logging.debug(f"Submitting chunk: start_index={chunk_start_index}, size={len(chunk)}, is_finish={is_finish}")
         
@@ -1541,6 +1658,7 @@ class Api:
             last_point_gps = run_data.run_coords[0]
             submission_successful = True
 
+            point_index = 0  # 修复Issue 1: 追踪当前处理的点索引
             for i in range(0, len(run_data.run_coords), 40):
                 if stop_flag.is_set():
                     log_func("任务已中止。")
@@ -1556,6 +1674,8 @@ class Api:
                     
                     run_data.distance_covered_m += self._calculate_distance_m(last_point_gps[0], last_point_gps[1], lon, lat)
                     last_point_gps = (lon, lat, dur_ms)
+                    point_index += 1  # 修复Issue 1: 更新点索引
+                    run_data.current_point_index = point_index  # 修复Issue 1: 保存到run_data
                     self.check_target_reached_during_run(run_data, lon, lat)
                     
                     if self.window and self.current_run_idx == task_index:
@@ -1568,9 +1688,27 @@ class Api:
                 if stop_flag.is_set(): break
                 
                 is_final_chunk = (i + 40 >= len(run_data.run_coords))
-                if not self._submit_chunk(run_data, chunk, start_time_ms, is_final_chunk, i, client, user_data):
+                # 尝试提交，失败时最多重试 3 次再放弃
+                max_attempts = 3
+                attempt = 1
+                chunk_submitted = False
+                while attempt <= max_attempts:
+                    if self._submit_chunk(run_data, chunk, start_time_ms, is_final_chunk, i, client, user_data):
+                        chunk_submitted = True
+                        break
+                    # 提交失败
                     submission_successful = False
-                    logging.warning("Chunk submission failed, aborting task.")
+                    if self.is_offline_mode:
+                        logging.error(f"[离线测试模式] 模拟提交失败（不应该发生），尝试 {attempt}/{max_attempts}")
+                        # 离线模式下不做额外等待
+                    else:
+                        logging.warning(f"数据提交失败，重试 {attempt}/{max_attempts}")
+                        # 短暂等待后重试
+                        time.sleep(1)
+                    attempt += 1
+
+                if not chunk_submitted:
+                    logging.error(f"数据提交在 {max_attempts} 次尝试后仍然失败，任务中止")
                     break
             
             if not stop_flag.is_set() and submission_successful:
@@ -1579,8 +1717,18 @@ class Api:
                 time.sleep(3)
                 self._finalize_run(run_data, task_index, client)
         finally:
+            # 修复Issue: 只有在停止标志已设置（用户手动停止）或出现错误时才设置停止标志
+            # 正常完成时不应该设置停止标志，避免中断后续操作
             if not is_all:
-                self.stop_run_flag.set()
+                # 仅在任务被手动停止或失败时才标记停止
+                # 正常完成的情况下，stop_flag.is_set()应该为False
+                if not submission_successful or stop_flag.is_set():
+                    self.stop_run_flag.set()
+                    logging.info(f"任务停止或失败，设置停止标志")
+                else:
+                    # 正常完成，设置停止标志以允许新任务开始
+                    self.stop_run_flag.set()
+                    logging.info(f"任务正常完成，重置停止标志")
                 if self.window: self.window.evaluate_js('onRunStopped()')
             if finished_event: finished_event.set()
             logging.info(f"Submission thread finished for task: {run_data.run_name}")
@@ -1909,20 +2057,11 @@ class Api:
         return {"success": False, "message": "加载历史轨迹失败"}
 
     def open_file_dialog(self, dialog_type, options):
-            """打开系统文件对话框"""
+            """打开系统文件对话框（Web模式不支持，返回错误）"""
             logging.info(f"API CALL: open_file_dialog (type={dialog_type})")
-            root = tkinter.Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
-            filepath = ""
-            try:
-                if dialog_type == 'save':
-                    filepath = filedialog.asksaveasfilename(**options) # <--- 修改这里
-                elif dialog_type == 'open':
-                    filepath = filedialog.askopenfilename(**options) # <--- 修改这里
-            finally:
-                root.destroy()
-            return filepath
+            # Web模式下无法使用文件对话框
+            logging.error("文件对话框在Web模式下不可用")
+            return None
 
     def show_confirm_dialog(self, title, message):
             """(已修复) 由JS调用，显示一个基于HTML的确认对话框(是/否)"""
@@ -1946,19 +2085,8 @@ class Api:
             except Exception as e:
                 # 如果JS函数不存在、JS执行出错或返回了非预期值
                 logging.error(f"Error showing/getting confirm dialog from JS: {e}", exc_info=True)
-                
-                # --- 回退到 Tkinter (作为保险) ---
-                logging.warning("Falling back to Tkinter confirm dialog.")
-                try:
-                    root = tkinter.Tk()
-                    root.withdraw()
-                    root.attributes('-topmost', True)
-                    result_tk = messagebox.askyesno(title, message)
-                    root.destroy()
-                    return result_tk
-                except Exception as tk_e:
-                    logging.fatal(f"Tkinter fallback also failed: {tk_e}", exc_info=True)
-                    return False # 终极回退
+                # Web模式下无法使用tkinter回退
+                return False
 
 
     def update_param(self, key, value):
@@ -2023,11 +2151,15 @@ class Api:
         return {"success": False, "message": "Unknown parameter"}
 
     def export_task_data(self):
-        """导出当前任务数据为JSON文件"""
+        """导出当前任务数据为JSON文件（Web模式：返回JSON数据让前端下载）"""
         logging.info("API CALL: export_task_data")
-        if self.current_run_idx == -1: return {"success": False, "message": "请先选择一个任务。"}
+        logging.info("导出任务数据...")
+        if self.current_run_idx == -1: 
+            logging.warning("未选择任务，无法导出")
+            return {"success": False, "message": "请先选择一个任务。"}
         run_data = self.all_run_data[self.current_run_idx]
         if not run_data.draft_coords and not run_data.run_coords and not run_data.recommended_coords:
+            logging.warning("任务无路径数据，无法导出")
             return {"success": False, "message": "当前任务没有可导出的路径数据。"}
 
         export_data = {
@@ -2036,45 +2168,49 @@ class Api:
             "target_point_names": run_data.target_point_names, "recommended_coords": run_data.recommended_coords,
             "draft_coords (gps)": run_data.draft_coords, "run_coords (gps)": run_data.run_coords
         }
+        
+        # Web模式：返回数据让前端处理下载
         try:
-            filepath = self.open_file_dialog('save', {
-                'initialfile': f"task_{run_data.errand_schedule or 'debug'}_{int(time.time())}.json",
-                'filetypes': [('JSON 文件 (*.json)', '*.json'), ('所有文件 (*.*)', '*.*')],
-                'defaultextension': ".json"
-            })
-            if not filepath:
-                self.log("已取消导出。")
-                return {"success": False, "message": "用户取消操作"}
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=4, ensure_ascii=False)
-            self.log("导出成功。")
-            logging.info(f"Task data exported to {filepath}")
-            return {"success": True, "message": f"成功导出到 {os.path.basename(filepath)}"}
+            logging.info(f"导出任务数据成功: {run_data.run_name}")
+            return {
+                "success": True, 
+                "data": export_data,
+                "filename": f"task_{run_data.errand_schedule or 'debug'}_{int(time.time())}.json",
+                "message": "任务数据已准备完成"
+            }
         except Exception as e:
-            self.log("导出失败。")
-            logging.error(f"Export failed: {e}", exc_info=True)
+            logging.error(f"导出失败: {e}", exc_info=True)
             return {"success": False, "message": f"导出失败: {e}"}
 
-    def import_task_data(self, *args, **kwargs):
+    def import_task_data(self, json_data=None):
             """导入JSON任务数据，进入离线调试模式（UA=Null，保留用户信息）"""
             logging.info("API CALL: import_task_data")
+            logging.info("开始导入任务数据...")
+            
+            if not json_data:
+                logging.error("未提供JSON数据")
+                return {"success": False, "message": "未提供导入数据"}
+            
             try:
-                filepath = self.open_file_dialog('open', {'filetypes': [('JSON 文件 (*.json)', '*.json'), ('所有文件 (*.*)', '*.*')]})
-                if not filepath:
-                    self.log("已取消导入。")
-                    return {"success": False, "message": "用户取消操作"}
-                
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+                # 如果json_data是字符串，解析它
+                if isinstance(json_data, str):
+                    logging.info("解析JSON字符串...")
+                    data = json.loads(json_data)
+                else:
+                    data = json_data
+
+                logging.info(f"JSON数据解析成功，任务名称: {data.get('task_name', '未知')}")
 
                 # --- 软重置：保留用户信息，但 UA 强制置空 ---
                 prev_user = copy.deepcopy(getattr(self, 'user_data', UserData()))
 
                 self.is_offline_mode = True
+                logging.info("切换到离线模式")
                 # 停止任何运行中的单账号任务
                 try:
                     if hasattr(self, 'stop_run_flag') and isinstance(self.stop_run_flag, threading.Event):
                         self.stop_run_flag.set()
+                        logging.info("停止运行中的任务")
                 except Exception:
                     pass
                 # 清空运行态
@@ -2088,6 +2224,8 @@ class Api:
                     self.user_data.name = "离线调试"
                 if not (self.user_data.student_id or "").strip():
                     self.user_data.student_id = "NULL"
+
+                logging.info(f"用户信息: {self.user_data.name} ({self.user_data.student_id})")
 
                 # 离线模式下 UA 必须为 NULL
                 self.device_ua = None
@@ -2118,15 +2256,14 @@ class Api:
                     total_time_s = sum(p[2] for p in debug_run.run_coords) / 1000.0
                     debug_run.total_run_distance_m = total_dist_m
                     debug_run.total_run_time_s = total_time_s
-                    logging.info(f"Imported path stats calculated: Distance={total_dist_m:.1f}m, Time={total_time_s:.1f}s")
+                    logging.info(f"导入路径统计完成: 距离={total_dist_m:.1f}米, 时间={total_time_s:.1f}秒")
 
                 debug_run.details_fetched = True
                 self.all_run_data = [debug_run]
                 self.current_run_idx = 0  
 
-                filename = os.path.basename(filepath)
                 self.log("离线数据已导入。")
-                logging.info(f"Imported offline data from {filename}")
+                logging.info(f"离线数据导入成功: {debug_run.run_name}")
 
                 tasks_for_js = [r.__dict__.copy() for r in self.all_run_data]
                 tasks_for_js[0]['info_text'] = "离线"
@@ -2139,7 +2276,7 @@ class Api:
                 }
             except Exception as e:
                 self.log("导入失败。")
-                logging.error(f"Import failed: {e}", exc_info=True)
+                logging.error(f"导入失败: {e}", exc_info=True)
                 return {"success": False, "message": f"导入失败: {e}"}
 
 
@@ -4337,51 +4474,601 @@ except Exception as e:
     sys.exit(1)
 
 
+def check_port_available(host, port):
+    """检查端口是否可用"""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((host, port))
+            return True
+    except OSError:
+        return False
+
 def main():
-    """主函数，负责解析参数、创建窗口和启动应用"""
+    """主函数，启动Web服务器模式（已弃用桌面模式）"""
     
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--autologin", nargs=2, metavar=('USERNAME','PASSWORD'), help="自动登录")
+    parser = argparse.ArgumentParser(description='跑步助手 - Web服务器模式')
+    parser.add_argument("--port", type=int, default=5000, help="Web服务器端口（默认5000）")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Web服务器地址（默认127.0.0.1）")
+    parser.add_argument("--headless", action="store_true", default=True, help="使用无头Chrome模式（默认启用）")
+    parser.add_argument("--debug", action="store_true", help="启用调试日志")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)])
+    # 配置详细的中文日志输出（确保UTF-8编码）
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    log_format = "%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s"
     
-    # --- 定义并应用日志过滤器 ---
-    class PywebviewErrorFilter(logging.Filter):
-        def filter(self, record):
-            # 定义要屏蔽的特定错误信息片段
-            suppress_messages = [
-                "Error while processing window.native.AccessibleRole",
-                "Error while processing window.native.AccessibilityObject.Bounds",
-                "Error while processing window.native.ActiveControl",
-                "Error while processing window.native.ControlCollection",
-                "Error while processing window.native.DockPaddingEdgesConverter"
-            ]
-                
-            message = record.getMessage()
-            # 如果日志信息不包含任何一个片段，则通过，否则屏蔽
-            return not any(msg in message for msg in suppress_messages)
-
-    # 获取 pywebview 库的日志记录器
-    pywebview_logger = logging.getLogger('pywebview')
-    # 为该记录器添加我们自定义的过滤器
-    pywebview_logger.addFilter(PywebviewErrorFilter())
-
-
-    api = Api(args)
+    # 创建UTF-8编码的StreamHandler
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter(log_format))
     
-    window = webview.create_window(
-        "跑步助手",
-        html=html_content,
-        js_api=api,
-        width=1440,
-        height=1000,
-        resizable=True
+    logging.basicConfig(
+        level=log_level,
+        format=log_format,
+        handlers=[handler]
     )
     
-    api.set_window(window)
+    logging.info("="*60)
+    logging.info("跑步助手 Web 模式启动中...")
+    logging.info(f"日志级别: {'调试' if args.debug else '信息'}")
+    logging.info(f"服务器地址: {args.host}:{args.port}")
+    logging.info("="*60)
     
-    webview.start(debug=True)
+    # 检查Playwright是否可用
+    if not playwright_available:
+        print("\n" + "="*60)
+        print("错误: 需要安装 Playwright 以在服务器端运行Chrome")
+        print("请运行以下命令:")
+        print("  pip install playwright")
+        print("  python -m playwright install chromium")
+        print("="*60 + "\n")
+        sys.exit(1)
+    
+    # 检查端口是否可用
+    if not check_port_available(args.host, args.port):
+        print(f"\n{'='*60}")
+        print(f"警告: 端口 {args.port} 不可用或已被占用")
+        print(f"")
+        print(f"建议使用其他端口：")
+        
+        # 尝试查找可用端口
+        alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000]
+        available_ports = []
+        for port in alternative_ports:
+            if check_port_available(args.host, port):
+                available_ports.append(port)
+                if len(available_ports) >= 3:
+                    break
+        
+        if available_ports:
+            print(f"  以下端口可用：")
+            for port in available_ports:
+                print(f"    python main.py --port {port}")
+        else:
+            print(f"  python main.py --port 8080")
+            print(f"  python main.py --port 3000")
+        
+        print(f"")
+        print(f"或者关闭占用端口 {args.port} 的程序后重试")
+        print(f"{'='*60}\n")
+        sys.exit(1)
+    
+    # 启动Web服务器模式
+    logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
+    start_web_server(args)
+
+
+# ==============================================================================
+# 5. Web服务器模式
+#    支持通过浏览器访问，使用UUID进行会话管理
+#    使用Playwright在服务器端运行Chrome进行JS计算
+# ==============================================================================
+
+# 全局会话存储：{session_id: Api实例}
+web_sessions = {}
+web_sessions_lock = threading.Lock()
+
+# 会话持久化函数
+def _load_session_index():
+    """加载会话索引文件"""
+    try:
+        if os.path.exists(SESSION_INDEX_FILE):
+            with open(SESSION_INDEX_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        logging.warning(f"加载会话索引失败: {e}")
+    return {}
+
+def _save_session_index(index):
+    """保存会话索引文件"""
+    try:
+        with open(SESSION_INDEX_FILE, 'w', encoding='utf-8') as f:
+            json.dump(index, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logging.error(f"保存会话索引失败: {e}")
+
+def save_session_state(session_id, api_instance):
+    """将会话状态保存到文件（完整版：保存所有应用状态包括离线任务数据）"""
+    try:
+        # 修复Windows路径长度限制：使用SHA256哈希作为文件名
+        # 2048位UUID(512字符)会导致Windows文件名过长错误
+        import hashlib
+        session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+        
+        # 基础状态
+        state = {
+            'session_id': session_id,  # 在文件内容中保存完整的UUID
+            'login_success': getattr(api_instance, 'login_success', False),
+            'user_info': getattr(api_instance, 'user_info', None),
+            'created_at': getattr(api_instance, '_session_created_at', time.time()),
+            'last_accessed': time.time()
+        }
+        
+        # 增强：保存任务状态（包括完整的离线任务数据）
+        if hasattr(api_instance, 'selected_tasks'):
+            state['selected_tasks'] = api_instance.selected_tasks
+        
+        # 保存完整的任务列表（包括所有离线任务字段）
+        if hasattr(api_instance, 'all_run_data') and api_instance.all_run_data:
+            loaded_tasks = []
+            for run_data in api_instance.all_run_data:
+                task_dict = {
+                    'run_name': getattr(run_data, 'run_name', ''),
+                    'errand_id': getattr(run_data, 'errand_id', ''),
+                    'errand_schedule': getattr(run_data, 'errand_schedule', ''),
+                    'status': getattr(run_data, 'status', 0),
+                    'start_time': getattr(run_data, 'start_time', ''),
+                    'end_time': getattr(run_data, 'end_time', ''),
+                    'total_run_distance_m': getattr(run_data, 'total_run_distance_m', 0),
+                    
+                    # 离线任务完整数据（核心）
+                    'target_points': getattr(run_data, 'target_points', []),
+                    'target_point_names': getattr(run_data, 'target_point_names', ''),
+                    'recommended_coords': getattr(run_data, 'recommended_coords', []),
+                    'draft_coords': getattr(run_data, 'draft_coords', []),
+                    'run_coords': getattr(run_data, 'gps_list', []),  # run_coords即gps_list
+                    
+                    # 运行时状态
+                    'target_sequence': getattr(run_data, 'target_sequence', 1),
+                    'current_point_index': getattr(run_data, 'current_point_index', 0),
+                    'distance_covered_m': getattr(run_data, 'distance_covered_m', 0),
+                    'is_in_target_zone': getattr(run_data, 'is_in_target_zone', False)
+                }
+                loaded_tasks.append(task_dict)
+            state['loaded_tasks'] = loaded_tasks
+        
+        # 增强：保存运行状态
+        state['is_running'] = getattr(api_instance, 'is_running', False)
+        state['run_mode'] = getattr(api_instance, 'run_mode', None)
+        state['is_offline_mode'] = getattr(api_instance, 'is_offline_mode', False)
+        if hasattr(api_instance, 'current_run_idx'):
+            state['current_run_idx'] = api_instance.current_run_idx
+        
+        # 增强：保存当前运行数据的简要信息（指向loaded_tasks中的数据）
+        if hasattr(api_instance, 'run_data') and api_instance.run_data:
+            run_data = api_instance.run_data
+            state['current_run_data'] = {
+                'task_name': getattr(run_data, 'run_name', None),
+                'errand_id': getattr(run_data, 'errand_id', None),
+                'target_sequence': getattr(run_data, 'target_sequence', 1),
+                'processed_points': getattr(run_data, 'current_point_index', 0),
+                'total_points': len(run_data.gps_list) if hasattr(run_data, 'gps_list') else 0,
+                'total_targets': len(run_data.target_points) if hasattr(run_data, 'target_points') else 0,
+                'start_time': getattr(run_data, 'start_time', None),
+                'distance_covered_m': getattr(run_data, 'distance_covered_m', 0)
+            }
+        
+        # 增强：保存UI状态
+        if hasattr(api_instance, 'ui_state'):
+            state['ui_state'] = api_instance.ui_state
+        
+        # 增强：保存用户设置
+        if hasattr(api_instance, 'user_settings'):
+            state['user_settings'] = api_instance.user_settings
+        
+        with open(session_file, 'w', encoding='utf-8') as f:
+            json.dump(state, f, indent=2, ensure_ascii=False)
+        
+        # 更新索引文件：存储完整UUID到SHA256哈希的映射
+        index = _load_session_index()
+        index[session_id] = session_hash
+        _save_session_index(index)
+        
+        tasks_count = len(state.get('loaded_tasks', []))
+        logging.debug(f"会话状态已保存: {session_id[:32]}... (运行中:{state['is_running']}, 任务数:{tasks_count})")
+    except Exception as e:
+        logging.error(f"保存会话状态失败: {e}")
+
+def load_session_state(session_id):
+    """从文件加载会话状态"""
+    try:
+        # 优化：首先从索引文件查找哈希，避免每次都计算
+        import hashlib
+        index = _load_session_index()
+        
+        # 如果索引中存在，直接使用索引中的哈希值
+        if session_id in index:
+            session_hash = index[session_id]
+            logging.debug(f"从索引找到会话哈希: {session_id[:32]}... -> {session_hash[:16]}...")
+        else:
+            # 索引中不存在，计算哈希值（兼容旧文件或索引损坏情况）
+            session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+            logging.debug(f"索引中未找到，计算会话哈希: {session_id[:32]}... -> {session_hash[:16]}...")
+        
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+        
+        if os.path.exists(session_file):
+            with open(session_file, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+            # 验证加载的UUID是否匹配
+            if state.get('session_id') == session_id:
+                logging.info(f"从文件加载会话: {session_id[:32]}... (登录状态: {state.get('login_success')})")
+                return state
+            else:
+                logging.warning(f"会话文件UUID不匹配，忽略")
+    except Exception as e:
+        logging.error(f"加载会话状态失败: {e}")
+    return None
+
+def load_all_sessions(args):
+    """启动时加载所有持久化会话"""
+    if not os.path.exists(SESSION_STORAGE_DIR):
+        return
+    
+    # 加载或重建索引文件
+    index = _load_session_index()
+    new_index = {}
+    
+    loaded_count = 0
+    for filename in os.listdir(SESSION_STORAGE_DIR):
+        # 跳过索引文件本身
+        if filename == '_index.json':
+            continue
+            
+        if filename.endswith('.json'):
+            # 从文件中读取完整的session_id，而不是从文件名
+            try:
+                session_file = os.path.join(SESSION_STORAGE_DIR, filename)
+                with open(session_file, 'r', encoding='utf-8') as f:
+                    state = json.load(f)
+                
+                session_id = state.get('session_id')
+                if not session_id:
+                    logging.warning(f"会话文件 {filename} 缺少session_id，跳过")
+                    continue
+                
+                # 检查会话是否过期（7天）
+                last_accessed = state.get('last_accessed', 0)
+                if time.time() - last_accessed > 7 * 24 * 3600:
+                    logging.info(f"清理过期会话: {session_id[:32]}...")
+                    try:
+                        os.remove(session_file)
+                    except:
+                        pass
+                    continue
+                
+                # 将会话添加到新索引（重建索引）
+                session_hash = filename[:-5]  # 移除.json后缀
+                new_index[session_id] = session_hash
+                
+                # 重建Api实例
+                api_instance = Api(args)
+                api_instance._session_created_at = state.get('created_at', time.time())
+                if state.get('login_success'):
+                    api_instance.login_success = True
+                    api_instance.user_info = state.get('user_info')
+                    logging.info(f"恢复已登录会话: {session_id[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')})")
+                web_sessions[session_id] = api_instance
+                loaded_count += 1
+            except Exception as e:
+                logging.error(f"加载会话文件 {filename} 失败: {e}")
+                continue
+    
+    # 保存重建的索引（清理过期条目）
+    if new_index:
+        _save_session_index(new_index)
+        logging.debug(f"会话索引已更新，包含 {len(new_index)} 个有效会话")
+    
+    if loaded_count > 0:
+        logging.info(f"共加载 {loaded_count} 个持久化会话")
+
+# Playwright浏览器池管理
+class ChromeBrowserPool:
+    """管理服务器端Chrome浏览器实例，用于执行JS计算"""
+    
+    def __init__(self, headless=True, max_instances=5):
+        self.headless = headless
+        self.max_instances = max_instances
+        self.playwright = None
+        self.browser = None
+        self.contexts = {}  # {session_id: browser_context}
+        self.lock = threading.Lock()
+        self._initialize()
+    
+    def _initialize(self):
+        """初始化Playwright和浏览器"""
+        try:
+            self.playwright = sync_playwright().start()
+            self.browser = self.playwright.chromium.launch(
+                headless=self.headless,
+                args=['--no-sandbox', '--disable-setuid-sandbox']
+            )
+            logging.info(f"Chrome浏览器已启动 (headless={self.headless})")
+        except Exception as e:
+            logging.error(f"启动Chrome失败: {e}")
+            raise
+    
+    def get_context(self, session_id):
+        """获取或创建指定会话的浏览器上下文"""
+        with self.lock:
+            if session_id not in self.contexts:
+                # 创建新的浏览器上下文
+                context = self.browser.new_context(
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                )
+                page = context.new_page()
+                self.contexts[session_id] = {'context': context, 'page': page}
+                logging.info(f"为会话 {session_id} 创建Chrome上下文")
+            return self.contexts[session_id]
+    
+    def execute_js(self, session_id, script, *args):
+        """在指定会话的Chrome中执行JavaScript代码"""
+        try:
+            ctx = self.get_context(session_id)
+            page = ctx['page']
+            result = page.evaluate(script, *args)
+            return result
+        except Exception as e:
+            logging.error(f"执行JS失败 (session={session_id}): {e}")
+            return None
+    
+    def close_context(self, session_id):
+        """关闭指定会话的浏览器上下文"""
+        with self.lock:
+            if session_id in self.contexts:
+                try:
+                    ctx = self.contexts[session_id]
+                    ctx['context'].close()
+                    del self.contexts[session_id]
+                    logging.info(f"关闭会话 {session_id} 的Chrome上下文")
+                except Exception as e:
+                    logging.error(f"关闭上下文失败: {e}")
+    
+    def cleanup(self):
+        """清理所有资源"""
+        with self.lock:
+            for session_id in list(self.contexts.keys()):
+                try:
+                    self.contexts[session_id]['context'].close()
+                except:
+                    pass
+            self.contexts.clear()
+            
+            if self.browser:
+                self.browser.close()
+            if self.playwright:
+                self.playwright.stop()
+
+# 全局Chrome浏览器池
+chrome_pool = None
+
+def start_web_server(args):
+    """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
+    global chrome_pool
+    
+    # 初始化Chrome浏览器池
+    try:
+        chrome_pool = ChromeBrowserPool(headless=getattr(args, 'headless', True))
+        logging.info("Chrome浏览器池初始化成功")
+    except Exception as e:
+        logging.error(f"无法初始化Chrome浏览器池: {e}")
+        sys.exit(1)
+    
+    app = Flask(__name__)
+    app.secret_key = secrets.token_hex(32)  # 生成安全的密钥
+    CORS(app)  # 允许跨域请求
+    
+    # 会话配置
+    app.config['SESSION_TYPE'] = 'filesystem'
+    app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=7)  # 会话保持7天
+    
+    @app.route('/')
+    def index():
+        """首页：自动分配UUID并重定向"""
+        # 生成2048位UUID（512个十六进制字符）
+        session_id = secrets.token_hex(256)  # 256字节 = 2048位 = 512个十六进制字符
+        
+        # 创建新的Api实例并保存到文件
+        with web_sessions_lock:
+            if session_id not in web_sessions:
+                api_instance = Api(args)
+                api_instance._session_created_at = time.time()
+                web_sessions[session_id] = api_instance
+                save_session_state(session_id, api_instance)
+                logging.info(f"创建新会话 (2048位UUID): {session_id[:32]}...")
+        
+        # 重定向到带UUID的URL（不依赖Flask session）
+        return redirect(url_for('session_view', uuid=session_id))
+    
+    @app.route('/uuid=<uuid>')
+    def session_view(uuid):
+        """会话页面：显示应用界面"""
+        # 验证UUID格式（2048位 = 512个十六进制字符）
+        if not uuid or len(uuid) != 512:
+            logging.warning(f"无效的UUID格式: {uuid[:32] if uuid else 'None'}... (长度: {len(uuid) if uuid else 0}, 期望: 512)")
+            return redirect(url_for('index'))
+        
+        # 确保Api实例存在（从URL或文件恢复会话，不依赖Flask session）
+        with web_sessions_lock:
+            if uuid not in web_sessions:
+                # 尝试从文件加载会话状态
+                state = load_session_state(uuid)
+                api_instance = Api(args)
+                api_instance._session_created_at = time.time()
+                
+                if state and state.get('login_success'):
+                    # 恢复登录状态
+                    api_instance.login_success = True
+                    api_instance.user_info = state.get('user_info')
+                    api_instance._session_created_at = state.get('created_at', time.time())
+                    logging.info(f"从文件恢复已登录会话 (2048位UUID): {uuid[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')})")
+                else:
+                    logging.info(f"创建新会话 (2048位UUID): {uuid[:32]}...")
+                
+                web_sessions[uuid] = api_instance
+                save_session_state(uuid, api_instance)
+            else:
+                logging.debug(f"使用现有会话: {uuid[:32]}...")
+        
+        # 返回HTML内容
+        return render_template_string(html_content)
+    
+    @app.route('/api/<path:method>', methods=['GET', 'POST'])
+    def api_call(method):
+        """API调用端点：将前端调用转发到Python后端"""
+        # 从请求头获取session_id（前端会在每次调用时添加）
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"}), 401
+        
+        with web_sessions_lock:
+            if session_id not in web_sessions:
+                return jsonify({"success": False, "message": "会话已过期或无效"}), 401
+            api_instance = web_sessions[session_id]
+        
+        # 获取请求参数
+        if request.method == 'POST':
+            params = request.get_json() or {}
+        else:
+            params = dict(request.args)
+        
+        # 调用对应的API方法
+        try:
+            if hasattr(api_instance, method):
+                func = getattr(api_instance, method)
+                # 将参数展开调用
+                if params:
+                    result = func(**params) if isinstance(params, dict) else func(*params)
+                else:
+                    result = func()
+                
+                # 对于会改变会话状态的API调用，保存会话状态
+                if method in ['login', 'logout']:
+                    save_session_state(session_id, api_instance)
+                    logging.debug(f"API '{method}' 调用后保存会话状态")
+                
+                return jsonify(result if result is not None else {"success": True})
+            else:
+                return jsonify({"success": False, "message": f"未知的API方法: {method}"}), 404
+        except Exception as e:
+            logging.error(f"API调用失败 {method}: {e}", exc_info=True)
+            # 不暴露详细错误信息给前端，只记录到日志
+            return jsonify({"success": False, "message": "服务器内部错误"}), 500
+    
+    @app.route('/execute_js', methods=['POST'])
+    def execute_js():
+        """在服务器端Chrome中执行JavaScript代码"""
+        # 从请求头获取session_id
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"}), 401
+        data = request.get_json() or {}
+        script = data.get('script', '')
+        args_list = data.get('args', [])
+        
+        if not script:
+            return jsonify({"success": False, "message": "缺少script参数"}), 400
+        
+        try:
+            result = chrome_pool.execute_js(session_id, script, *args_list)
+            return jsonify({"success": True, "result": result})
+        except Exception as e:
+            logging.error(f"执行JS失败: {e}")
+            return jsonify({"success": False, "message": "JS执行失败"}), 500
+    
+    @app.route('/health')
+    def health():
+        """健康检查端点"""
+        return jsonify({
+            "status": "ok", 
+            "sessions": len(web_sessions),
+            "chrome_contexts": len(chrome_pool.contexts) if chrome_pool else 0
+        })
+    
+    # 定期清理过期会话（可选）
+    def cleanup_sessions():
+        """定期清理超过24小时无活动的会话"""
+        while True:
+            time.sleep(3600)  # 每小时检查一次
+            with web_sessions_lock:
+                # 这里可以添加更复杂的会话过期逻辑
+                # 清理Chrome上下文
+                if chrome_pool:
+                    for session_id in list(web_sessions.keys()):
+                        # 可以添加超时检查逻辑
+                        pass
+    
+    cleanup_thread = threading.Thread(target=cleanup_sessions, daemon=True)
+    cleanup_thread.start()
+    
+    # 加载持久化会话
+    logging.info("正在加载持久化会话...")
+    load_all_sessions(args)
+    
+    # 启动服务器
+    print(f"\n{'='*60}")
+    print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染，2048位UUID）")
+    print(f"  访问地址: http://{args.host}:{args.port}")
+    print(f"  首次访问将自动分配2048位UUID并重定向")
+    print(f"  会话持久化已启用（服务器重启后保留登录状态）")
+    print(f"  JS计算在服务器端Chrome中执行，提升安全性")
+    print(f"{'='*60}\n")
+    
+    try:
+        logging.info(f"正在启动Web服务器于 http://{args.host}:{args.port}")
+        app.run(host=args.host, port=args.port, debug=False, threaded=True)
+    except OSError as e:
+        if "WinError 10013" in str(e) or "permission" in str(e).lower() or "访问权限" in str(e):
+            print(f"\n{'='*60}")
+            print(f"错误: 端口 {args.port} 被占用或无访问权限")
+            print(f"")
+            print(f"可能的原因：")
+            print(f"  1. 端口已被其他程序使用")
+            print(f"  2. Windows系统保留了该端口")
+            print(f"  3. 需要管理员权限")
+            print(f"")
+            print(f"解决方法：")
+            print(f"  方法1: 使用其他端口")
+            print(f"    python main.py --port 8080")
+            print(f"    python main.py --port 3000")
+            print(f"")
+            print(f"  方法2: 以管理员身份运行")
+            print(f"    右键点击 PowerShell → 以管理员身份运行")
+            print(f"")
+            print(f"  方法3 (Windows): 检查并关闭占用端口的程序")
+            print(f"    netstat -ano | findstr :{args.port}")
+            print(f"    taskkill /PID <进程ID> /F")
+            print(f"{'='*60}\n")
+            logging.error(f"端口绑定失败: {e}")
+        else:
+            print(f"\n错误: 启动服务器失败 - {e}\n")
+            logging.error(f"服务器启动失败: {e}", exc_info=True)
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n错误: 服务器运行时发生异常 - {e}\n")
+        logging.error(f"服务器异常: {e}", exc_info=True)
+        sys.exit(1)
+    finally:
+        # 清理Chrome资源
+        if chrome_pool:
+            logging.info("正在清理Chrome浏览器资源...")
+            chrome_pool.cleanup()
+
 
 if __name__ == "__main__":
     main()
