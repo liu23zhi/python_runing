@@ -4589,7 +4589,7 @@ def _save_session_index(index):
         logging.error(f"保存会话索引失败: {e}")
 
 def save_session_state(session_id, api_instance):
-    """将会话状态保存到文件"""
+    """将会话状态保存到文件（增强版：保存完整应用状态）"""
     try:
         # 修复Windows路径长度限制：使用SHA256哈希作为文件名
         # 2048位UUID(512字符)会导致Windows文件名过长错误
@@ -4597,6 +4597,7 @@ def save_session_state(session_id, api_instance):
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         
+        # 基础状态
         state = {
             'session_id': session_id,  # 在文件内容中保存完整的UUID
             'login_success': getattr(api_instance, 'login_success', False),
@@ -4604,6 +4605,39 @@ def save_session_state(session_id, api_instance):
             'created_at': getattr(api_instance, '_session_created_at', time.time()),
             'last_accessed': time.time()
         }
+        
+        # 增强：保存任务状态
+        if hasattr(api_instance, 'selected_tasks'):
+            state['selected_tasks'] = api_instance.selected_tasks
+        if hasattr(api_instance, 'loaded_tasks'):
+            state['loaded_tasks'] = api_instance.loaded_tasks
+        
+        # 增强：保存运行状态
+        state['is_running'] = getattr(api_instance, 'is_running', False)
+        state['run_mode'] = getattr(api_instance, 'run_mode', None)
+        state['is_offline_mode'] = getattr(api_instance, 'is_offline_mode', False)
+        
+        # 增强：保存当前运行数据（如果有）
+        if hasattr(api_instance, 'run_data') and api_instance.run_data:
+            run_data = api_instance.run_data
+            state['current_run_data'] = {
+                'task_id': getattr(run_data, 'task_id', None),
+                'task_name': getattr(run_data, 'task_name', None),
+                'target_sequence': getattr(run_data, 'target_sequence', 1),
+                'processed_points': getattr(run_data, 'current_point_index', 0),
+                'total_points': len(run_data.gps_list) if hasattr(run_data, 'gps_list') else 0,
+                'total_targets': len(run_data.target_points) if hasattr(run_data, 'target_points') else 0,
+                'start_time': getattr(run_data, 'start_time', None)
+            }
+        
+        # 增强：保存UI状态
+        if hasattr(api_instance, 'ui_state'):
+            state['ui_state'] = api_instance.ui_state
+        
+        # 增强：保存用户设置
+        if hasattr(api_instance, 'user_settings'):
+            state['user_settings'] = api_instance.user_settings
+        
         with open(session_file, 'w', encoding='utf-8') as f:
             json.dump(state, f, indent=2, ensure_ascii=False)
         
@@ -4612,7 +4646,7 @@ def save_session_state(session_id, api_instance):
         index[session_id] = session_hash
         _save_session_index(index)
         
-        logging.debug(f"会话状态已保存: {session_id[:32]}... (文件: {session_hash[:16]}...)")
+        logging.debug(f"会话状态已保存: {session_id[:32]}... (运行中:{state['is_running']})")
     except Exception as e:
         logging.error(f"保存会话状态失败: {e}")
 
