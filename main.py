@@ -4589,7 +4589,7 @@ def _save_session_index(index):
         logging.error(f"保存会话索引失败: {e}")
 
 def save_session_state(session_id, api_instance):
-    """将会话状态保存到文件（增强版：保存完整应用状态）"""
+    """将会话状态保存到文件（完整版：保存所有应用状态包括离线任务数据）"""
     try:
         # 修复Windows路径长度限制：使用SHA256哈希作为文件名
         # 2048位UUID(512字符)会导致Windows文件名过长错误
@@ -4606,28 +4606,58 @@ def save_session_state(session_id, api_instance):
             'last_accessed': time.time()
         }
         
-        # 增强：保存任务状态
+        # 增强：保存任务状态（包括完整的离线任务数据）
         if hasattr(api_instance, 'selected_tasks'):
             state['selected_tasks'] = api_instance.selected_tasks
-        if hasattr(api_instance, 'loaded_tasks'):
-            state['loaded_tasks'] = api_instance.loaded_tasks
+        
+        # 保存完整的任务列表（包括所有离线任务字段）
+        if hasattr(api_instance, 'all_run_data') and api_instance.all_run_data:
+            loaded_tasks = []
+            for run_data in api_instance.all_run_data:
+                task_dict = {
+                    'run_name': getattr(run_data, 'run_name', ''),
+                    'errand_id': getattr(run_data, 'errand_id', ''),
+                    'errand_schedule': getattr(run_data, 'errand_schedule', ''),
+                    'status': getattr(run_data, 'status', 0),
+                    'start_time': getattr(run_data, 'start_time', ''),
+                    'end_time': getattr(run_data, 'end_time', ''),
+                    'total_run_distance_m': getattr(run_data, 'total_run_distance_m', 0),
+                    
+                    # 离线任务完整数据（核心）
+                    'target_points': getattr(run_data, 'target_points', []),
+                    'target_point_names': getattr(run_data, 'target_point_names', ''),
+                    'recommended_coords': getattr(run_data, 'recommended_coords', []),
+                    'draft_coords': getattr(run_data, 'draft_coords', []),
+                    'run_coords': getattr(run_data, 'gps_list', []),  # run_coords即gps_list
+                    
+                    # 运行时状态
+                    'target_sequence': getattr(run_data, 'target_sequence', 1),
+                    'current_point_index': getattr(run_data, 'current_point_index', 0),
+                    'distance_covered_m': getattr(run_data, 'distance_covered_m', 0),
+                    'is_in_target_zone': getattr(run_data, 'is_in_target_zone', False)
+                }
+                loaded_tasks.append(task_dict)
+            state['loaded_tasks'] = loaded_tasks
         
         # 增强：保存运行状态
         state['is_running'] = getattr(api_instance, 'is_running', False)
         state['run_mode'] = getattr(api_instance, 'run_mode', None)
         state['is_offline_mode'] = getattr(api_instance, 'is_offline_mode', False)
+        if hasattr(api_instance, 'current_run_idx'):
+            state['current_run_idx'] = api_instance.current_run_idx
         
-        # 增强：保存当前运行数据（如果有）
+        # 增强：保存当前运行数据的简要信息（指向loaded_tasks中的数据）
         if hasattr(api_instance, 'run_data') and api_instance.run_data:
             run_data = api_instance.run_data
             state['current_run_data'] = {
-                'task_id': getattr(run_data, 'task_id', None),
-                'task_name': getattr(run_data, 'task_name', None),
+                'task_name': getattr(run_data, 'run_name', None),
+                'errand_id': getattr(run_data, 'errand_id', None),
                 'target_sequence': getattr(run_data, 'target_sequence', 1),
                 'processed_points': getattr(run_data, 'current_point_index', 0),
                 'total_points': len(run_data.gps_list) if hasattr(run_data, 'gps_list') else 0,
                 'total_targets': len(run_data.target_points) if hasattr(run_data, 'target_points') else 0,
-                'start_time': getattr(run_data, 'start_time', None)
+                'start_time': getattr(run_data, 'start_time', None),
+                'distance_covered_m': getattr(run_data, 'distance_covered_m', 0)
             }
         
         # 增强：保存UI状态
@@ -4646,7 +4676,8 @@ def save_session_state(session_id, api_instance):
         index[session_id] = session_hash
         _save_session_index(index)
         
-        logging.debug(f"会话状态已保存: {session_id[:32]}... (运行中:{state['is_running']})")
+        tasks_count = len(state.get('loaded_tasks', []))
+        logging.debug(f"会话状态已保存: {session_id[:32]}... (运行中:{state['is_running']}, 任务数:{tasks_count})")
     except Exception as e:
         logging.error(f"保存会话状态失败: {e}")
 
