@@ -1385,6 +1385,17 @@ async function initializeApp() {
   if (initialData.isLoggedIn && initialData.userInfo) {
     // 用户已登录，直接显示主界面
     currentUserData = initialData.userInfo;
+    
+    // Issue 4修复：恢复会话时确保API Key已配置并加载地图
+    AMAP_API_KEY = initialData.amap_key || "";
+    if (AMAP_API_KEY) {
+      try {
+        await loadAMapOnce();
+      } catch (e) {
+        console.error('地图加载失败（会话恢复）', e);
+      }
+    }
+    
     showMainApp();
     const name = currentUserData.name || '';
     $('user-name-label').textContent = `姓名: ${name}`;
@@ -1394,6 +1405,20 @@ async function initializeApp() {
     await fetchNotifications();
     const base = pythonParams.theme_base_color || '#7dd3fc'; 
     setBaseColor(base, base);
+  } else {
+    // 未登录，检查API Key
+    AMAP_API_KEY = initialData.amap_key || "";
+    if (!AMAP_API_KEY) {
+      logMessage("[警告] 未配置高德地图API Key，请在弹窗中输入。");
+      $('amap-key-modal').classList.remove('hidden');
+      $('amap-key-modal').classList.add('flex');
+    } else {
+      try {
+        await loadAMapOnce();
+      } catch (e) {
+        console.error('AMap SDK 加载失败（ready 阶段）', e);
+      }
+    }
   }
 
   if (pythonParams.theme_style) {
@@ -1418,20 +1443,6 @@ async function initializeApp() {
 
   // 绑定API Key模态框的确认按钮事件
   $('confirm-amap-key-btn').addEventListener('click', onConfirmAmapKey);
-
-  // 检查API Key
-  AMAP_API_KEY = initialData.amap_key || "";
-  if (!AMAP_API_KEY) {
-    logMessage("[警告] 未配置高德地图API Key，请在弹窗中输入。");
-    $('amap-key-modal').classList.remove('hidden');
-    $('amap-key-modal').classList.add('flex');
-  } else {
-      try {
-        await loadAMapOnce();
-      } catch (e) {
-        console.error('AMap SDK 加载失败（ready 阶段）', e);
-      }
-  }
 
   // 将定时刷新移动到 API 就绪后再启动
   setInterval(refreshUserList, 5000);
@@ -3383,44 +3394,74 @@ function updateRunnerPosition(lon, lat, distance, targetSequence, duration, cent
 
 }
 function onTaskCompleted(taskIndex) { if (currentTasks[taskIndex]) { currentTasks[taskIndex].status = 1; renderTaskList(); } }
-async function exportTask() { if (selectedTaskIndex === -1) { showModalAlert("请先选择一个要导出的任务！"); return; } const result = await callPythonAPI('export_task_data'); if (result && !result.success) showModalAlert(`导出失败: ${result.message}`); }
-async function importTask() {
-  const result = await callPythonAPI('import_task_data');
-  if (result.success) {
-    // 标记离线模式
-    IS_OFFLINE = true;
-    currentSessionUA = "NULL";
-
-    // 清理/覆盖登录页中的 UA 标签，避免“用户详情”引用旧值
-    const uaLabel = $('ua-label');
-    if (uaLabel) uaLabel.textContent = 'NULL';
-    const uaBtn = $('random-ua-btn');
-    if (uaBtn) uaBtn.disabled = true;
-
-    // 优先同步后端返回的 userInfo，确保左上角不是 NULL
-    if (result.userInfo) {
-      currentUserData = result.userInfo;
-      const name = currentUserData.name || '离线调试';
-      const sid = currentUserData.student_id || 'NULL';
-      $('user-name-label').textContent = `姓名: ${name}`;
-      $('user-id-label').textContent = `学号: ${sid}`;
-    }
-
-    showMainApp(); // 显示主界面，并创建 mapReadyPromise
-
-    // 等待地图实例通过 'complete' 事件兑现 Promise
-    await mapReadyPromise;
-
-    currentTasks = result.tasks;
-    renderTaskList();
-    selectTask(0); // 确保 map 已就绪后再选中任务
-
-    // 下一帧再次校准视图，解决最终渲染尺寸问题
-    requestAnimationFrame(() => drawOnMap());
-  } else if (result.message !== '用户取消操作') {
-    showModalAlert(result.message || '导入失败');
+async function exportTask() { 
+  if (selectedTaskIndex === -1) { 
+    showModalAlert("请先选择一个要导出的任务！"); 
+    return; 
+  } 
+  const result = await callPythonAPI('export_task_data'); 
+  if (result && result.success && result.data) {
+    // Web模式：创建下载链接
+    const jsonStr = JSON.stringify(result.data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = result.filename || 'task_export.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    logMessage('导出成功');
+  } else if (result && !result.success) {
+    showModalAlert(`导出失败: ${result.message}`);
   }
 }
+
+async function importTask() {
+  // Web模式：使用文件输入
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    try {
+      const text = await file.text();
+      const result = await callPythonAPI('import_task_data', text);
+      
+      if (result.success) {
+        IS_OFFLINE = true;
+        currentSessionUA = "NULL";
+        const uaLabel = $('ua-label');
+        if (uaLabel) uaLabel.textContent = 'NULL';
+        const uaBtn = $('random-ua-btn');
+        if (uaBtn) uaBtn.disabled = true;
+        if (result.userInfo) {
+          currentUserData = result.userInfo;
+          const name = currentUserData.name || '离线调试';
+          const sid = currentUserData.student_id || 'NULL';
+          $('user-name-label').textContent = `姓名: ${name}`;
+          $('user-id-label').textContent = `学号: ${sid}`;
+        }
+        showMainApp();
+        await mapReadyPromise;
+        currentTasks = result.tasks;
+        renderTaskList();
+        selectTask(0);
+        requestAnimationFrame(() => drawOnMap());
+        logMessage('导入成功');
+      } else {
+        showModalAlert(result.message || '导入失败');
+      }
+    } catch (error) {
+      showModalAlert(`导入失败: ${error.message}`);
+    }
+  };
+  input.click();
+}
+
 
 
 

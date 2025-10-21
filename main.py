@@ -24,6 +24,18 @@ import secrets
 from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify
 from flask_cors import CORS
 
+# 配置UTF-8编码（用于日志和控制台输出）
+if sys.platform.startswith('win'):
+    # Windows系统特殊处理
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Python 3.6及更早版本不支持reconfigure
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
 # Playwright用于在服务器端运行Chrome进行JS计算
 try:
     from playwright.sync_api import sync_playwright
@@ -1982,20 +1994,11 @@ class Api:
         return {"success": False, "message": "加载历史轨迹失败"}
 
     def open_file_dialog(self, dialog_type, options):
-            """打开系统文件对话框"""
+            """打开系统文件对话框（Web模式不支持，返回错误）"""
             logging.info(f"API CALL: open_file_dialog (type={dialog_type})")
-            root = tkinter.Tk()
-            root.withdraw()
-            root.attributes('-topmost', True)
-            filepath = ""
-            try:
-                if dialog_type == 'save':
-                    filepath = filedialog.asksaveasfilename(**options) # <--- 修改这里
-                elif dialog_type == 'open':
-                    filepath = filedialog.askopenfilename(**options) # <--- 修改这里
-            finally:
-                root.destroy()
-            return filepath
+            # Web模式下无法使用文件对话框
+            logging.error("文件对话框在Web模式下不可用")
+            return None
 
     def show_confirm_dialog(self, title, message):
             """(已修复) 由JS调用，显示一个基于HTML的确认对话框(是/否)"""
@@ -2019,19 +2022,8 @@ class Api:
             except Exception as e:
                 # 如果JS函数不存在、JS执行出错或返回了非预期值
                 logging.error(f"Error showing/getting confirm dialog from JS: {e}", exc_info=True)
-                
-                # --- 回退到 Tkinter (作为保险) ---
-                logging.warning("Falling back to Tkinter confirm dialog.")
-                try:
-                    root = tkinter.Tk()
-                    root.withdraw()
-                    root.attributes('-topmost', True)
-                    result_tk = messagebox.askyesno(title, message)
-                    root.destroy()
-                    return result_tk
-                except Exception as tk_e:
-                    logging.fatal(f"Tkinter fallback also failed: {tk_e}", exc_info=True)
-                    return False # 终极回退
+                # Web模式下无法使用tkinter回退
+                return False
 
 
     def update_param(self, key, value):
@@ -2096,11 +2088,15 @@ class Api:
         return {"success": False, "message": "Unknown parameter"}
 
     def export_task_data(self):
-        """导出当前任务数据为JSON文件"""
+        """导出当前任务数据为JSON文件（Web模式：返回JSON数据让前端下载）"""
         logging.info("API CALL: export_task_data")
-        if self.current_run_idx == -1: return {"success": False, "message": "请先选择一个任务。"}
+        logging.info("导出任务数据...")
+        if self.current_run_idx == -1: 
+            logging.warning("未选择任务，无法导出")
+            return {"success": False, "message": "请先选择一个任务。"}
         run_data = self.all_run_data[self.current_run_idx]
         if not run_data.draft_coords and not run_data.run_coords and not run_data.recommended_coords:
+            logging.warning("任务无路径数据，无法导出")
             return {"success": False, "message": "当前任务没有可导出的路径数据。"}
 
         export_data = {
@@ -2109,45 +2105,49 @@ class Api:
             "target_point_names": run_data.target_point_names, "recommended_coords": run_data.recommended_coords,
             "draft_coords (gps)": run_data.draft_coords, "run_coords (gps)": run_data.run_coords
         }
+        
+        # Web模式：返回数据让前端处理下载
         try:
-            filepath = self.open_file_dialog('save', {
-                'initialfile': f"task_{run_data.errand_schedule or 'debug'}_{int(time.time())}.json",
-                'filetypes': [('JSON 文件 (*.json)', '*.json'), ('所有文件 (*.*)', '*.*')],
-                'defaultextension': ".json"
-            })
-            if not filepath:
-                self.log("已取消导出。")
-                return {"success": False, "message": "用户取消操作"}
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=4, ensure_ascii=False)
-            self.log("导出成功。")
-            logging.info(f"Task data exported to {filepath}")
-            return {"success": True, "message": f"成功导出到 {os.path.basename(filepath)}"}
+            logging.info(f"导出任务数据成功: {run_data.run_name}")
+            return {
+                "success": True, 
+                "data": export_data,
+                "filename": f"task_{run_data.errand_schedule or 'debug'}_{int(time.time())}.json",
+                "message": "任务数据已准备完成"
+            }
         except Exception as e:
-            self.log("导出失败。")
-            logging.error(f"Export failed: {e}", exc_info=True)
+            logging.error(f"导出失败: {e}", exc_info=True)
             return {"success": False, "message": f"导出失败: {e}"}
 
-    def import_task_data(self, *args, **kwargs):
+    def import_task_data(self, json_data=None):
             """导入JSON任务数据，进入离线调试模式（UA=Null，保留用户信息）"""
             logging.info("API CALL: import_task_data")
+            logging.info("开始导入任务数据...")
+            
+            if not json_data:
+                logging.error("未提供JSON数据")
+                return {"success": False, "message": "未提供导入数据"}
+            
             try:
-                filepath = self.open_file_dialog('open', {'filetypes': [('JSON 文件 (*.json)', '*.json'), ('所有文件 (*.*)', '*.*')]})
-                if not filepath:
-                    self.log("已取消导入。")
-                    return {"success": False, "message": "用户取消操作"}
-                
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+                # 如果json_data是字符串，解析它
+                if isinstance(json_data, str):
+                    logging.info("解析JSON字符串...")
+                    data = json.loads(json_data)
+                else:
+                    data = json_data
+
+                logging.info(f"JSON数据解析成功，任务名称: {data.get('task_name', '未知')}")
 
                 # --- 软重置：保留用户信息，但 UA 强制置空 ---
                 prev_user = copy.deepcopy(getattr(self, 'user_data', UserData()))
 
                 self.is_offline_mode = True
+                logging.info("切换到离线模式")
                 # 停止任何运行中的单账号任务
                 try:
                     if hasattr(self, 'stop_run_flag') and isinstance(self.stop_run_flag, threading.Event):
                         self.stop_run_flag.set()
+                        logging.info("停止运行中的任务")
                 except Exception:
                     pass
                 # 清空运行态
@@ -2161,6 +2161,8 @@ class Api:
                     self.user_data.name = "离线调试"
                 if not (self.user_data.student_id or "").strip():
                     self.user_data.student_id = "NULL"
+
+                logging.info(f"用户信息: {self.user_data.name} ({self.user_data.student_id})")
 
                 # 离线模式下 UA 必须为 NULL
                 self.device_ua = None
@@ -2191,15 +2193,14 @@ class Api:
                     total_time_s = sum(p[2] for p in debug_run.run_coords) / 1000.0
                     debug_run.total_run_distance_m = total_dist_m
                     debug_run.total_run_time_s = total_time_s
-                    logging.info(f"Imported path stats calculated: Distance={total_dist_m:.1f}m, Time={total_time_s:.1f}s")
+                    logging.info(f"导入路径统计完成: 距离={total_dist_m:.1f}米, 时间={total_time_s:.1f}秒")
 
                 debug_run.details_fetched = True
                 self.all_run_data = [debug_run]
                 self.current_run_idx = 0  
 
-                filename = os.path.basename(filepath)
                 self.log("离线数据已导入。")
-                logging.info(f"Imported offline data from {filename}")
+                logging.info(f"离线数据导入成功: {debug_run.run_name}")
 
                 tasks_for_js = [r.__dict__.copy() for r in self.all_run_data]
                 tasks_for_js[0]['info_text'] = "离线"
@@ -2212,7 +2213,7 @@ class Api:
                 }
             except Exception as e:
                 self.log("导入失败。")
-                logging.error(f"Import failed: {e}", exc_info=True)
+                logging.error(f"导入失败: {e}", exc_info=True)
                 return {"success": False, "message": f"导入失败: {e}"}
 
 
@@ -4428,9 +4429,28 @@ def main():
     parser.add_argument("--port", type=int, default=5000, help="Web服务器端口（默认5000）")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Web服务器地址（默认127.0.0.1）")
     parser.add_argument("--headless", action="store_true", default=True, help="使用无头Chrome模式（默认启用）")
+    parser.add_argument("--debug", action="store_true", help="启用调试日志")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)])
+    # 配置详细的中文日志输出（确保UTF-8编码）
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    log_format = "%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s"
+    
+    # 创建UTF-8编码的StreamHandler
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter(log_format))
+    
+    logging.basicConfig(
+        level=log_level,
+        format=log_format,
+        handlers=[handler]
+    )
+    
+    logging.info("="*60)
+    logging.info("跑步助手 Web 模式启动中...")
+    logging.info(f"日志级别: {'调试' if args.debug else '信息'}")
+    logging.info(f"服务器地址: {args.host}:{args.port}")
+    logging.info("="*60)
     
     # 检查Playwright是否可用
     if not playwright_available:
