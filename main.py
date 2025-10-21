@@ -24,6 +24,9 @@ import queue as _queue
 import uuid
 import math
 import random
+import secrets
+from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify
+from flask_cors import CORS
 
 try:
     import webview   # 嵌入式浏览器
@@ -4342,6 +4345,9 @@ def main():
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--autologin", nargs=2, metavar=('USERNAME','PASSWORD'), help="自动登录")
+    parser.add_argument("--web", action="store_true", help="启动Web服务器模式")
+    parser.add_argument("--port", type=int, default=5000, help="Web服务器端口（默认5000）")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Web服务器地址（默认127.0.0.1）")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)])
@@ -4368,20 +4374,153 @@ def main():
     pywebview_logger.addFilter(PywebviewErrorFilter())
 
 
-    api = Api(args)
+    # 检查是否启用Web模式
+    if args.web:
+        # Web服务器模式
+        logging.info("启动Web服务器模式...")
+        start_web_server(args)
+    else:
+        # 桌面应用模式（原有逻辑）
+        api = Api(args)
+        
+        window = webview.create_window(
+            "跑步助手",
+            html=html_content,
+            js_api=api,
+            width=1440,
+            height=1000,
+            resizable=True
+        )
+        
+        api.set_window(window)
+        
+        webview.start(debug=True)
+
+
+# ==============================================================================
+# 5. Web服务器模式
+#    支持通过浏览器访问，使用UUID进行会话管理
+# ==============================================================================
+
+# 全局会话存储：{session_id: Api实例}
+web_sessions = {}
+web_sessions_lock = threading.Lock()
+
+def start_web_server(args):
+    """启动Flask Web服务器"""
+    app = Flask(__name__)
+    app.secret_key = secrets.token_hex(32)  # 生成安全的密钥
+    CORS(app)  # 允许跨域请求
     
-    window = webview.create_window(
-        "跑步助手",
-        html=html_content,
-        js_api=api,
-        width=1440,
-        height=1000,
-        resizable=True
-    )
+    # 会话配置
+    app.config['SESSION_TYPE'] = 'filesystem'
+    app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=7)  # 会话保持7天
     
-    api.set_window(window)
+    @app.route('/')
+    def index():
+        """首页：自动分配UUID并重定向"""
+        # 检查是否已有会话ID
+        if 'session_id' not in session:
+            # 生成新的UUID
+            session_id = str(uuid.uuid4()).replace('-', '')[:24]
+            session['session_id'] = session_id
+            session.permanent = True
+            
+            # 创建新的Api实例
+            with web_sessions_lock:
+                if session_id not in web_sessions:
+                    web_sessions[session_id] = Api(args)
+                    logging.info(f"创建新会话: {session_id}")
+            
+            # 重定向到带UUID的URL
+            return redirect(url_for('session_view', uuid=session_id))
+        else:
+            # 已有会话，重定向到对应UUID
+            return redirect(url_for('session_view', uuid=session['session_id']))
     
-    webview.start(debug=True)
+    @app.route('/uuid=<uuid>')
+    def session_view(uuid):
+        """会话页面：显示应用界面"""
+        # 验证UUID格式
+        if not uuid or len(uuid) < 16:
+            return redirect(url_for('index'))
+        
+        # 确保会话匹配
+        if 'session_id' not in session or session['session_id'] != uuid:
+            session['session_id'] = uuid
+            session.permanent = True
+        
+        # 确保Api实例存在
+        with web_sessions_lock:
+            if uuid not in web_sessions:
+                web_sessions[uuid] = Api(args)
+                logging.info(f"恢复会话: {uuid}")
+        
+        # 返回HTML内容
+        return render_template_string(html_content)
+    
+    @app.route('/api/<path:method>', methods=['GET', 'POST'])
+    def api_call(method):
+        """API调用端点：将前端调用转发到Python后端"""
+        if 'session_id' not in session:
+            return jsonify({"success": False, "message": "无效的会话"}), 401
+        
+        session_id = session['session_id']
+        
+        with web_sessions_lock:
+            if session_id not in web_sessions:
+                return jsonify({"success": False, "message": "会话已过期"}), 401
+            api_instance = web_sessions[session_id]
+        
+        # 获取请求参数
+        if request.method == 'POST':
+            params = request.get_json() or {}
+        else:
+            params = dict(request.args)
+        
+        # 调用对应的API方法
+        try:
+            if hasattr(api_instance, method):
+                func = getattr(api_instance, method)
+                # 将参数展开调用
+                if params:
+                    result = func(**params) if isinstance(params, dict) else func(*params)
+                else:
+                    result = func()
+                return jsonify(result if result is not None else {"success": True})
+            else:
+                return jsonify({"success": False, "message": f"未知的API方法: {method}"}), 404
+        except Exception as e:
+            logging.error(f"API调用失败 {method}: {e}", exc_info=True)
+            return jsonify({"success": False, "message": str(e)}), 500
+    
+    @app.route('/health')
+    def health():
+        """健康检查端点"""
+        return jsonify({"status": "ok", "sessions": len(web_sessions)})
+    
+    # 定期清理过期会话（可选）
+    def cleanup_sessions():
+        """定期清理超过24小时无活动的会话"""
+        while True:
+            time.sleep(3600)  # 每小时检查一次
+            with web_sessions_lock:
+                # 这里可以添加更复杂的会话过期逻辑
+                pass
+    
+    cleanup_thread = threading.Thread(target=cleanup_sessions, daemon=True)
+    cleanup_thread.start()
+    
+    # 启动服务器
+    logging.info(f"Web服务器启动于 http://{args.host}:{args.port}")
+    print(f"\n{'='*60}")
+    print(f"  跑步助手 Web 模式已启动")
+    print(f"  访问地址: http://{args.host}:{args.port}")
+    print(f"  首次访问将自动分配UUID并重定向")
+    print(f"{'='*60}\n")
+    
+    app.run(host=args.host, port=args.port, debug=False, threaded=True)
+
 
 if __name__ == "__main__":
     main()

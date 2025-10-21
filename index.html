@@ -979,6 +979,38 @@ let isRefreshingTasks = false;
 // 离线模式标志
 let IS_OFFLINE = false;
 
+// Web模式检测和API封装
+let isWebMode = (typeof window.pywebview === 'undefined');  // 如果没有pywebview，则为Web模式
+let sessionUUID = null;  // 当前会话UUID
+
+// 统一的API调用函数
+async function callPythonAPI(method, ...args) {
+  if (isWebMode) {
+    // Web模式：通过HTTP调用后端API
+    const response = await fetch(`/api/${method}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
+    });
+    if (!response.ok) {
+      throw new Error(`API调用失败: ${response.statusText}`);
+    }
+    return await response.json();
+  } else {
+    // 桌面模式：直接调用pywebview API
+    if (!window.pywebview || !window.pywebview.api) {
+      throw new Error('pywebview API未就绪');
+    }
+    const func = window.pywebview.api[method];
+    if (typeof func !== 'function') {
+      throw new Error(`未知的API方法: ${method}`);
+    }
+    return await func(...args);
+  }
+}
+
 // 单账号模式：GPS点进度计数
 let singleProcessedPoints = 0;       // 已处理/已上报的点数
 let singleTotalPoints = 0;           // 当前任务总点数（run_coords长度）
@@ -1290,15 +1322,22 @@ function setBaseColor(c, deep) {
 function onColorPicked(val) { setBaseColor(val, val); }
 
 // --- 初始化 ---
-window.addEventListener('pywebviewready', async () => {
-  // 标记 API 已就绪
-  pywebviewApiReady = true;
+async function initializeApp() {
+  // 检测Web模式并提取UUID
+  if (isWebMode) {
+    const urlPath = window.location.pathname;
+    const match = urlPath.match(/\/uuid=([a-zA-Z0-9]+)/);
+    if (match) {
+      sessionUUID = match[1];
+      console.log('Web模式: 会话UUID =', sessionUUID);
+    }
+  }
 
   // 既然能成功初始化，就隐藏CDN错误提示（如果是误报）
   const cdnErrorOverlay = document.getElementById('cdn-error-overlay');
   if (cdnErrorOverlay) cdnErrorOverlay.style.display = 'none';
 
-  const initialData = await window.pywebview.api.get_initial_data();
+  const initialData = await callPythonAPI('get_initial_data');
   const userCombo = $('user-combo');
   userCombo.innerHTML = '<option value="">(新用户)</option>';
   initialData.users.forEach(user => {
@@ -1350,8 +1389,23 @@ window.addEventListener('pywebviewready', async () => {
 
   // 将定时刷新移动到 API 就绪后再启动
   setInterval(refreshUserList, 5000);
-});
+  
+  // 标记 API 已就绪
+  pywebviewApiReady = true;
+}
 
+// 监听pywebview就绪事件（桌面模式）
+window.addEventListener('pywebviewready', initializeApp);
+
+// 如果是Web模式，在DOMContentLoaded时初始化
+if (isWebMode) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+  } else {
+    // DOM已加载，直接初始化
+    initializeApp();
+  }
+}
 
 function enhanceMapInteraction(mapInstance) {
     if (!mapInstance) return () => {}; // 防御：如果实例无效，返回空清理函数
@@ -2020,7 +2074,7 @@ async function onLogin() {
   // 在登录前，从登录页的UA标签捕获当前的UA
   const uaOnLoginScreen = $('ua-label')?.textContent || "";
 
-  const result = await window.pywebview.api.login(user, pass);
+  const result = await callPythonAPI('login', user, pass);
   if(result.success) {
     showMainApp();
     currentUserData = result.userInfo;
@@ -2044,7 +2098,7 @@ async function onLogin() {
 
 
 async function onLogout() {
-  await window.pywebview.api.logout();
+  await callPythonAPI('logout');
   // 统一提示：退出单账号模式（由后端发出）
   if (window?.pywebview?.api?.exit_single_account_mode) {
     await window.pywebview.api.exit_single_account_mode();
