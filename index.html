@@ -1283,7 +1283,7 @@ function setThemeStyle(styleName) {
   });
 
   // 调用 Python 后端保存设置
-  window.pywebview.api.update_param('theme_style', styleName);
+  callPythonAPI('update_param', 'theme_style', styleName);
   logMessage(`主题已切换为: ${styleName}`);
 }
 
@@ -1316,7 +1316,7 @@ function setBaseColor(c, deep) {
   document.documentElement.style.setProperty('--base-color', c);
   document.documentElement.style.setProperty('--base-color-600', deep);
   document.documentElement.style.setProperty('--base-color-300', c);
-  window.pywebview.api.update_param('theme_base_color', c);
+  callPythonAPI('update_param', 'theme_base_color', c);
   if ($('base-color-input')) $('base-color-input').value = c;
 }
 function onColorPicked(val) { setBaseColor(val, val); }
@@ -1723,7 +1723,7 @@ function showMainApp() {
   $('main-app').classList.add('grid');
 
   if (window?.pywebview?.api?.enter_single_account_mode) {
-    window.pywebview.api.enter_single_account_mode();
+    callPythonAPI('enter_single_account_mode');
   } else {
     logMessage("已进入单账号模式。");
   }
@@ -1847,14 +1847,14 @@ $('username-entry').addEventListener('input', async (e) => {
   const exists = [...userCombo.options].some(o => o.value === username);
   userCombo.value = exists ? username : "";
   if (!username) { $('ua-label').textContent = '(新用户将在登录时自动生成)'; return; }
-  const data = await window.pywebview.api.on_user_selected(username);
+  const data = await callPythonAPI('on_user_selected', username);
   if (data && data.password) $('password-entry').value = data.password;
   $('ua-label').textContent = data && data.ua ? data.ua : '(新用户将在登录时自动生成)';
   pythonParams = (data && data.params) ? data.params : pythonParams;
   updateParamInputs($('params-container'), 'param', pythonParams);
   const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
 });
-$('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await window.pywebview.api.generate_new_ua());
+$('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
 $('login-button').addEventListener('click', onLogin);
 $('logout-button').addEventListener('click', onLogout);
 $('refresh-button').addEventListener('click', refreshTasks);
@@ -1904,7 +1904,7 @@ async function onConfirmAmapKey() {
         return;
     }
 
-    const result = await window.pywebview.api.save_amap_key(newKey);
+    const result = await callPythonAPI('save_amap_key', newKey);
     if (result.success) {
         AMAP_API_KEY = newKey;
         const modal = $('amap-key-modal');
@@ -1952,7 +1952,7 @@ function bindImmediateRefreshForUserSelects() {
 // --- 专门用于后端强制刷新UI的函数 ---
 
 async function multi_downloadTemplate() {
-  const result = await window.pywebview.api.multi_download_import_template();
+  const result = await callPythonAPI('multi_download_import_template');
   if (!result || !result.success) {
     showModalAlert(result?.message || '模板下载失败');
   }
@@ -1964,7 +1964,7 @@ async function forceRefreshTaskUI(index) {
     logMessage(`[Backend] 正在强制刷新任务 #${index} 的界面...`);
 
     // 1. 从Python获取最新的任务详情
-    const result = await window.pywebview.api.get_task_details(index);
+    const result = await callPythonAPI('get_task_details', index);
     if (!result.success) {
         logMessage(`强制刷新失败: ${result.message}`);
         return;
@@ -1992,7 +1992,7 @@ async function refreshUserList() {
     // API 未就绪时直接返回，避免 TypeError
     if (!pywebviewApiReady || !window.pywebview?.api?.get_initial_data) return;
 
-    const initialData = await window.pywebview.api.get_initial_data();
+    const initialData = await callPythonAPI('get_initial_data');
     // 兼容结构 { users: [...], lastUser: '...' }
     const users = Array.isArray(initialData?.users) ? initialData.users : [];
 
@@ -2046,7 +2046,7 @@ setInterval(refreshUserList, 5000);
 
 async function onUserChange() {
   const username = $('user-combo').value;
-  const data = await window.pywebview.api.on_user_selected(username);
+  const data = await callPythonAPI('on_user_selected', username);
   $('username-entry').value = username;
   $('password-entry').value = data.password || "";
   $('ua-label').textContent = data.ua || '(新用户将在登录时自动生成)';
@@ -2101,7 +2101,7 @@ async function onLogout() {
   await callPythonAPI('logout');
   // 统一提示：退出单账号模式（由后端发出）
   if (window?.pywebview?.api?.exit_single_account_mode) {
-    await window.pywebview.api.exit_single_account_mode();
+    await callPythonAPI('exit_single_account_mode');
   }
   currentSessionUA = "";
   resetUI();
@@ -2120,7 +2120,7 @@ async function refreshTasks(){
   if (btn) btn.disabled = true;
 
   try {
-    const taskResult = await window.pywebview.api.load_tasks();
+    const taskResult = await callPythonAPI('load_tasks');
     if (taskResult && taskResult.success) {
       currentTasks = taskResult.tasks;
       renderTaskList();
@@ -2129,7 +2129,7 @@ async function refreshTasks(){
 
     // 小延迟重试一次（兜底），但仍保持防抖
     await new Promise(r => setTimeout(r, 300));
-    const retry = await window.pywebview.api.load_tasks();
+    const retry = await callPythonAPI('load_tasks');
     if (retry && retry.success) {
       currentTasks = retry.tasks;
       renderTaskList();
@@ -2215,7 +2215,7 @@ async function selectTask(index) {
     updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
   } else {
     // 在线模式: 按原逻辑从后端获取详情
-    const result = await window.pywebview.api.get_task_details(index);
+    const result = await callPythonAPI('get_task_details', index);
     if (result.success) {
       currentRunData = result.details;
       updateDashboard();
@@ -2257,7 +2257,7 @@ async function switchToMultiMode() {
     
     $('multi-account-count').textContent = 0;
 
-    const result = await window.pywebview.api.enter_multi_account_mode();
+    const result = await callPythonAPI('enter_multi_account_mode');
     if(!result.success) return;
     $('login-container').classList.add('hidden');
     $('main-app').classList.add('hidden');
@@ -2334,7 +2334,7 @@ async function switchToMultiMode() {
 
     
 
-    const configUsers = await window.pywebview.api.multi_get_all_config_users();
+    const configUsers = await callPythonAPI('multi_get_all_config_users');
     const select = $('multi-config-user-select');
     select.innerHTML = '<option value="">(新用户/手动输入)</option>';
     configUsers.users.forEach(u => {
@@ -2350,7 +2350,7 @@ async function switchToMultiMode() {
     pythonParams = result.params;
     updateParamInputs(container, 'multi-param', pythonParams);
 
-    await window.pywebview.api.set_multi_run_only_incomplete(
+    await callPythonAPI('set_multi_run_only_incomplete', 
       document.getElementById('multi-run-only-incomplete-check').checked
     );
 
@@ -2365,7 +2365,7 @@ async function switchToMultiMode() {
 async function exitMultiMode() {
     path_planning_queue = [];
     is_planning_path = false;
-    await window.pywebview.api.exit_multi_account_mode();
+    await callPythonAPI('exit_multi_account_mode');
     $('multi-account-app').classList.add('hidden');
     $('multi-account-app').classList.remove('grid');
     $('login-container').classList.remove('hidden');
@@ -2387,7 +2387,7 @@ async function exitMultiMode() {
 
 
 async function multi_loadAllFromConfig() {
-    const result = await window.pywebview.api.multi_load_accounts_from_config();
+    const result = await callPythonAPI('multi_load_accounts_from_config');
     if (result && result.accounts) renderMultiAccountList(result.accounts);
 }
 
@@ -2419,28 +2419,28 @@ async function multi_addFromConfig(){
                 return;
             }
             closeNewUserModal();
-            const result = await window.pywebview.api.multi_add_account(inputUsername, inputPassword);
+            const result = await callPythonAPI('multi_add_account', inputUsername, inputPassword);
             if (result && result.accounts) renderMultiAccountList(result.accounts);
         };
         return;
     }
     // 已有配置用户
-    const result = await window.pywebview.api.multi_add_account(user, "");
+    const result = await callPythonAPI('multi_add_account', user, "");
     if (result && result.accounts) renderMultiAccountList(result.accounts);
 }
 
 
 async function multi_importFromExcel() {
-    const result = await window.pywebview.api.multi_import_accounts();
+    const result = await callPythonAPI('multi_import_accounts');
     if (result && result.accounts) renderMultiAccountList(result.accounts);
 }
 
 async function multi_exportToExcel() {
-    await window.pywebview.api.multi_export_accounts_summary();
+    await callPythonAPI('multi_export_accounts_summary');
 }
 
 
-async function multi_exportToExcel() { await window.pywebview.api.multi_export_accounts_summary(); }
+async function multi_exportToExcel() { await callPythonAPI('multi_export_accounts_summary'); }
 
 async function multi_startAll() {
 
@@ -2459,7 +2459,7 @@ async function multi_startAll() {
     const max_delay = parseInt($('multi-max-delay-input').value) || 300;
     const run_only_incomplete = $('multi-run-only-incomplete-check').checked;
 
-    const result = await window.pywebview.api.multi_start_all_accounts(min_delay, max_delay, use_delay, run_only_incomplete);
+    const result = await callPythonAPI('multi_start_all_accounts', min_delay, max_delay, use_delay, run_only_incomplete);
     // 失败时回滚按钮状态并提示
     if (!result || !result.success) {
         showModalAlert(result?.message || '无法开始全部账号任务。');
@@ -2470,7 +2470,7 @@ async function multi_startAll() {
 
 
 async function multi_stopAll() {
-    await window.pywebview.api.multi_stop_all_accounts();
+    await callPythonAPI('multi_stop_all_accounts');
 
 }
 
@@ -2549,18 +2549,18 @@ function renderMultiAccountList(accounts) {
 
     document.querySelectorAll('.btn-account-start').forEach(b => b.onclick = (e) => {
       const runOnly = document.getElementById('multi-run-only-incomplete-check')?.checked ?? true;
-      window.pywebview.api.multi_start_single_account(e.target.dataset.username, runOnly);
+      callPythonAPI('multi_start_single_account', e.target.dataset.username, runOnly);
     });
     document.getElementById('multi-run-only-incomplete-check').addEventListener('change', async (e) => {
       // 先告诉后端当前的开关状态
-      await window.pywebview.api.set_multi_run_only_incomplete(e.target.checked);
+      await callPythonAPI('set_multi_run_only_incomplete', e.target.checked);
       // 再触发一次“刷新全部”，让摘要与按钮立刻一致
-      await window.pywebview.api.multi_refresh_all_statuses();
+      await callPythonAPI('multi_refresh_all_statuses');
     });
 
 
 
-    document.querySelectorAll('.btn-account-stop').forEach(b => b.onclick = (e) => window.pywebview.api.multi_stop_single_account(e.target.dataset.username));
+    document.querySelectorAll('.btn-account-stop').forEach(b => b.onclick = (e) => callPythonAPI('multi_stop_single_account', e.target.dataset.username));
     document.querySelectorAll('.btn-account-params').forEach(b => b.onclick = (e) => openAccountParamsModal(e.target.dataset.username));
     updateSelectAllCheckboxState();
     // const startAllBtn = $('multi-start-all-btn');
@@ -2576,7 +2576,7 @@ function renderMultiAccountList(accounts) {
                 const statusEl = item.querySelector('.status-text');
                 if (statusEl) statusEl.textContent = '刷新中...';
             }
-            const result = await window.pywebview.api.multi_refresh_single_status(u);
+            const result = await callPythonAPI('multi_refresh_single_status', u);
             if (!result || !result.success) {
                 showModalAlert(result?.message || '刷新失败');
             }
@@ -2609,7 +2609,7 @@ $('multi-account-list').addEventListener('change', (event) => { if (event.target
 async function multi_removeAll() {
     const confirmed = await jsShowConfirm('确认操作', '确定要移除列表中的所有账号吗？此操作不可撤销。');
     if (confirmed) {
-        const result = await window.pywebview.api.multi_remove_all_accounts();
+        const result = await callPythonAPI('multi_remove_all_accounts');
         if (result && result.accounts) renderMultiAccountList(result.accounts);
     }
 }
@@ -2619,7 +2619,7 @@ async function multi_removeSelected() {
     if (selectedUsernames.length === 0) { showModalAlert("请至少选择一个要移除的账号。"); return; }
     const confirmed = await jsShowConfirm('确认操作', `确定要移除选中的 ${selectedUsernames.length} 个账号吗？`);
     if (confirmed) {
-        const result = await window.pywebview.api.multi_remove_selected_accounts(selectedUsernames);
+        const result = await callPythonAPI('multi_remove_selected_accounts', selectedUsernames);
         if (result && result.accounts) renderMultiAccountList(result.accounts);
     }
 }
@@ -2651,7 +2651,7 @@ async function multi_startSelected() {
                 // 轻量延迟，不阻塞 UI
                 await new Promise(res => setTimeout(res, d * 10)); // 缩短一个数量级，避免过长等待
             }
-            await window.pywebview.api.multi_start_single_account(u);
+            await callPythonAPI('multi_start_single_account', u);
         } catch (e) {
             console.error(`开始账号 ${u} 失败`, e);
         }
@@ -2666,7 +2666,7 @@ async function multi_stopSelected() {
     }
     for (const u of usernames) {
         try {
-            await window.pywebview.api.multi_stop_single_account(u);
+            await callPythonAPI('multi_stop_single_account', u);
         } catch (e) {
             console.error(`停止账号 ${u} 失败`, e);
         }
@@ -2687,7 +2687,7 @@ async function multi_refreshSelected() {
                 const statusEl = item.querySelector('.status-text');
                 if (statusEl) statusEl.textContent = '刷新中...';
             }
-            await window.pywebview.api.multi_refresh_single_status(u);
+            await callPythonAPI('multi_refresh_single_status', u);
         } catch (e) {
             console.error(`刷新账号 ${u} 失败`, e);
         }
@@ -2695,7 +2695,7 @@ async function multi_refreshSelected() {
 }
 
 
-async function multi_refreshAll() { await window.pywebview.api.multi_refresh_all_statuses(); }
+async function multi_refreshAll() { await callPythonAPI('multi_refresh_all_statuses'); }
 
 async function process_path_queue() {
     if (is_planning_path || path_planning_queue.length === 0) return;
@@ -2705,10 +2705,10 @@ async function process_path_queue() {
         logMessage(`[JS-Queue] 开始处理 ${username} 的路径规划...`);
         const path = await getWalkingPath(waypoints);
         logMessage(`[JS-Queue] 路径规划成功 for ${username}, 返回 ${path.length} 点给Python。`);
-        window.pywebview.api.multi_path_generation_callback(username, true, path);
+        callPythonAPI('multi_path_generation_callback', username, true, path);
     } catch (error) {
         logMessage(`[JS-Queue] 路径规划失败 for ${username}: ${error}`);
-        window.pywebview.api.multi_path_generation_callback(username, false, String(error));
+        callPythonAPI('multi_path_generation_callback', username, false, String(error));
     } finally {
         is_planning_path = false;
         setTimeout(process_path_queue, 100);
@@ -3148,7 +3148,7 @@ function toggleRecordMode() {
     pendingUnlockMap = true; isPathDrawing = false; if (drawingInfoMarker) drawingInfoMarker.hide();
     const totalTargets = (currentRunData.target_points?.length || 0);
     const inLastZone = totalTargets > 0 && currentRunData.target_sequence >= totalTargets && currentRunData.isInTargetZone === true;
-    if (inLastZone) { if (draftPath.length > 0) window.pywebview.api.set_draft_path(draftPath).then(() => processCurrentPath()); }
+    if (inLastZone) { if (draftPath.length > 0) callPythonAPI('set_draft_path', draftPath).then(() => processCurrentPath()); }
     else { discardBlackDraftPolyline(); logMessage("未达到最后打卡点，已舍弃路径。"); }
     currentRunData.target_sequence = 0; draftTotalDist = 0;
     updateDashboard(); drawMarkers(); resetMapView();
@@ -3160,7 +3160,7 @@ async function clearCurrentPath(confirm = true) {
       const userConfirmed = await jsShowConfirm('确认操作','确认清除当前任务已生成的路径吗？');
       if (!userConfirmed) return;
   }
-  await window.pywebview.api.clear_current_task_draft()
+  await callPythonAPI('clear_current_task_draft')
   if (polylines.draft) { map.remove(polylines.draft); polylines.draft = null; }
   if (polylines.run) { map.remove(polylines.run); polylines.run = null; }
   if (drawingInfoMarker) drawingInfoMarker.hide();
@@ -3174,14 +3174,14 @@ async function discardBlackDraftPolyline() {
     if (polylines.draft) { map.remove(polylines.draft); polylines.draft = null; }
     draftPath = []; draftPathLngLat = []; pendingPoints = []; isUpdating = false; isPathDrawing = false; leftMouseDown = false; draftTotalDist = 0;
     if (drawingInfoMarker) drawingInfoMarker.hide();
-    await window.pywebview.api.set_draft_path([]);
+    await callPythonAPI('set_draft_path', []);
     if (selectedTaskIndex !== -1 && currentTasks[selectedTaskIndex]) { currentTasks[selectedTaskIndex].draft_coords = []; renderTaskList(); }
     if (currentRunData) currentRunData.draft_coords = [];
   } catch (e) { console.error("discardBlackDraftPolyline() error:", e); }
 }
 async function processCurrentPath() {
-  if (draftPath.length > 0) await window.pywebview.api.set_draft_path(draftPath);
-  const result = await window.pywebview.api.process_path();
+  if (draftPath.length > 0) await callPythonAPI('set_draft_path', draftPath);
+  const result = await callPythonAPI('process_path');
   if(result.success) {
     currentRunData.run_coords = result.run_coords;
     currentRunData.total_run_distance_m = result.total_dist;
@@ -3197,10 +3197,10 @@ async function processCurrentPath() {
 async function toggleRun() {
   const btn = $('start-run-button'); runAccumulatedMs = 0;
   if (btn.textContent === '开始执行') {
-    const result = await window.pywebview.api.start_single_run();
+    const result = await callPythonAPI('start_single_run');
     if(result.success) onRunStarted(); else showModalAlert(result.message);
   } else {
-    await window.pywebview.api.stop_run(); onRunStopped();
+    await callPythonAPI('stop_run'); onRunStopped();
   }
 }
 async function toggleAllRuns() {
@@ -3208,9 +3208,9 @@ async function toggleAllRuns() {
   if (btn.textContent === '执行所有') {
     const ignoreCompleted = $('run-completed-check').checked;
     const autoGen = $('auto-gen-all-check').checked;
-    const result = await window.pywebview.api.start_all_runs(ignoreCompleted, autoGen);
+    const result = await callPythonAPI('start_all_runs', ignoreCompleted, autoGen);
     if(!result.success) showModalAlert(result.message);
-  } else await window.pywebview.api.stop_run();
+  } else await callPythonAPI('stop_run');
 }
 function onRunStarted() {
   $('start-run-button').textContent = '停止';
@@ -3283,9 +3283,9 @@ function updateRunnerPosition(lon, lat, distance, targetSequence, duration, cent
 
 }
 function onTaskCompleted(taskIndex) { if (currentTasks[taskIndex]) { currentTasks[taskIndex].status = 1; renderTaskList(); } }
-async function exportTask() { if (selectedTaskIndex === -1) { showModalAlert("请先选择一个要导出的任务！"); return; } const result = await window.pywebview.api.export_task_data(); if (result && !result.success) showModalAlert(`导出失败: ${result.message}`); }
+async function exportTask() { if (selectedTaskIndex === -1) { showModalAlert("请先选择一个要导出的任务！"); return; } const result = await callPythonAPI('export_task_data'); if (result && !result.success) showModalAlert(`导出失败: ${result.message}`); }
 async function importTask() {
-  const result = await window.pywebview.api.import_task_data();
+  const result = await callPythonAPI('import_task_data');
   if (result.success) {
     // 标记离线模式
     IS_OFFLINE = true;
@@ -3329,16 +3329,16 @@ async function importTask() {
 async function getWalkingPath(waypoints) {
   if (!AMapInstance || waypoints.length < 2) throw new Error("地图实例未加载或路径点少于2");
   const useFallback = pythonParams.api_fallback_line ?? false, maxRetries = pythonParams.api_retries ?? 2, retryDelayMs = (pythonParams.api_retry_delay_s ?? 0.5) * 1000;
-  window.pywebview.api.js_log('INFO', `开始路径规划: 重试=${maxRetries}次, 延迟=${retryDelayMs}ms, 备用直线=${useFallback}`);
+  callPythonAPI('js_log', 'INFO', `开始路径规划: 重试=${maxRetries}次, 延迟=${retryDelayMs}ms, 备用直线=${useFallback}`);
   const all_path = [];
   const areCoordsEqual = (c1, c2) => Math.abs(c1.lng - c2.lng) < 1e-6 && Math.abs(c1.lat - c2.lat) < 1e-6;
   const searchSegment = (start, end) => new Promise((resolve) => {
-    window.pywebview.api.js_log('DEBUG', `AMap API请求 --> 步行路径: ${start.toString()} 至 ${end.toString()}`);
+    callPythonAPI('js_log', 'DEBUG', `AMap API请求 --> 步行路径: ${start.toString()} 至 ${end.toString()}`);
     new AMap.Walking({ map: null, panel: "", hideMarkers: true }).search(start, end, (status, result) => {
       if (status === 'complete' && result.routes?.length > 0) {
         const p = []; result.routes[0].steps.forEach(s => s.path.forEach(pt => p.push({ lng: pt.lng, lat: pt.lat })));
-        window.pywebview.api.js_log('DEBUG', `AMap API响应 <-- 成功，点数: ${p.length}`); resolve(p);
-      } else { let info = result ? (result.info || JSON.stringify(result)) : 'NULL'; window.pywebview.api.js_log('ERROR', `AMap API响应 <-- 失败. 状态: ${status}, 结果: ${info}`); resolve([]); }
+        callPythonAPI('js_log', 'DEBUG', `AMap API响应 <-- 成功，点数: ${p.length}`); resolve(p);
+      } else { let info = result ? (result.info || JSON.stringify(result)) : 'NULL'; callPythonAPI('js_log', 'ERROR', `AMap API响应 <-- 失败. 状态: ${status}, 结果: ${info}`); resolve([]); }
     });
   });
   // await new Promise(resolve => AMap.plugin('AMap.Walking', resolve));
@@ -3370,7 +3370,7 @@ async function onConfirmAutoGenerate() {
     const waypoints = currentRunData.target_points.map(p => new AMapInstance.LngLat(p[0], p[1]));
     const apiPath = await getWalkingPath(waypoints);
     logMessage(`路径规划成功，共 ${apiPath.length} 个坐标点。正在生成模拟数据...`);
-    const result = await window.pywebview.api.auto_generate_path_with_api(apiPath, minTime, maxTime, minDist);
+    const result = await callPythonAPI('auto_generate_path_with_api', apiPath, minTime, maxTime, minDist);
     if (result.success) { 
       currentRunData.run_coords = result.run_coords; 
       currentRunData.total_run_distance_m = result.total_dist; 
@@ -3393,7 +3393,7 @@ async function onConfirmAutoGenerate() {
 }
 async function loadHistory(index) {
   $('history-placeholder').textContent = "正在加载..."; $('history-list').innerHTML = "";
-  const result = await window.pywebview.api.get_task_history(index);
+  const result = await callPythonAPI('get_task_history', index);
   if(result.success && result.history.length > 0) {
     $('history-placeholder').classList.add('hidden');
     result.history.forEach(rec => {
@@ -3405,7 +3405,7 @@ async function loadHistory(index) {
   } else { $('history-placeholder').textContent = "无历史记录或加载失败"; $('history-placeholder').classList.remove('hidden'); }
 }
 async function showHistoricalTrack(trid) {
-  const result = await window.pywebview.api.get_historical_track(trid);
+  const result = await callPythonAPI('get_historical_track', trid);
   if(result.success) {
     if(polylines.history) map.remove(polylines.history);
     polylines.history = new AMapInstance.Polyline({ path: result.coords.map(p => new AMapInstance.LngLat(p[0], p[1])), strokeColor: "#8b5cf6", strokeWeight: 6, strokeOpacity: 0.8, zIndex: 55 });
@@ -3620,18 +3620,18 @@ function onParamChange(event) {
   let value;
   if (event.target.type === 'checkbox') value = event.target.checked;
   else value = event.target.value;
-  pythonParams[key] = value; window.pywebview.api.update_param(key, value);
+  pythonParams[key] = value; callPythonAPI('update_param', key, value);
 }
 
 function onGlobalParamChange(event) {
   const key = event.target.dataset.key;
   let value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
   pythonParams[key] = value;
-  window.pywebview.api.update_param(key, value);
+  callPythonAPI('update_param', key, value);
 }
 
 async function openAccountParamsModal(username) {
-    const result = await window.pywebview.api.multi_get_account_params(username);
+    const result = await callPythonAPI('multi_get_account_params', username);
     if (!result.success) { showModalAlert(result.message); return; }
 
     $('account-params-title').textContent = `[${username}] 参数设置`;
@@ -3645,7 +3645,7 @@ async function openAccountParamsModal(username) {
         for (const input of inputs) {
             const key = input.dataset.key;
             const value = input.type === 'checkbox' ? input.checked : input.value;
-            await window.pywebview.api.multi_update_account_param(username, key, value);
+            await callPythonAPI('multi_update_account_param', username, key, value);
         }
         // 关闭时移除样式与 body 标记
         const modal = $('account-params-modal');
@@ -3763,7 +3763,7 @@ async function fetchNotifications() {
   const badge = $('notification-badge');
   let result = null; // <-- 1. 必须在函数顶部声明
   try {
-    result = await window.pywebview.api.get_notifications(); // <-- 2. 在 try 块中赋值 (不使用 const/let)
+    result = await callPythonAPI('get_notifications'); // <-- 2. 在 try 块中赋值 (不使用 const/let)
     
     // 3. 检查 result 是否为 null (防止网络错误)
     if (result && result.success) { 
@@ -4106,7 +4106,7 @@ async function handleAttendance(event, rollCallId, targetCoords) {
   event.stopPropagation();
   logMessage(`正在为您自动签到... 活动ID: ${rollCallId}`);
   // 调用后端随机签到 (location_choice='random', specific_coords=null, is_makeup=false)
-  const result = await window.pywebview.api.trigger_attendance(rollCallId, targetCoords, 'random', null, false);
+  const result = await callPythonAPI('trigger_attendance', rollCallId, targetCoords, 'random', null, false);
   if (result.success) {
     logMessage(`签到成功: ${result.message}`);
     showModalAlert(`签到成功: ${result.message}`);
@@ -4223,7 +4223,7 @@ async function handleManualAttendance(event, rollCallId, targetCoords) {
     logMessage(`已选择签到点: ${specificCoords.join(', ')} (距离 ${distance.toFixed(1)}m)`);
     
     try {
-      const result = await window.pywebview.api.trigger_attendance(rollCallId, targetCoords, 'specific', specificCoords, false);
+      const result = await callPythonAPI('trigger_attendance', rollCallId, targetCoords, 'specific', specificCoords, false);
       if (result.success) {
         logMessage(`签到成功: ${result.message}`);
         showModalAlert(`签到成功: ${result.message}`);
@@ -4267,7 +4267,7 @@ async function handleMakeupAttendance(event, rollCallId, targetCoords) {
   
   // 调用后端随机签到，并明确传递 is_makeup=True
   // 签名: trigger_attendance(rollCallId, targetCoords, location_choice, specific_coords, is_makeup)
-  const result = await window.pywebview.api.trigger_attendance(
+  const result = await callPythonAPI('trigger_attendance', 
     rollCallId, 
     targetCoords, 
     'random',   // location_choice
@@ -4381,7 +4381,7 @@ async function handleManualMakeupAttendance(event, rollCallId, targetCoords) {
     logMessage(`已选择 [补签] 点: ${specificCoords.join(', ')} (距离 ${distance.toFixed(1)}m)`);
     
     try {
-      const result = await window.pywebview.api.trigger_attendance(rollCallId, targetCoords, 'specific', specificCoords, true);
+      const result = await callPythonAPI('trigger_attendance', rollCallId, targetCoords, 'specific', specificCoords, true);
       if (result.success) {
         logMessage(`补签成功: ${result.message}`);
         showModalAlert(`补签成功: ${result.message}`);
@@ -4428,7 +4428,7 @@ async function markAsRead(event, noticeId) {
     btn.textContent = '...';
 
     try {
-        const result = await window.pywebview.api.mark_notification_read(noticeId);
+        const result = await callPythonAPI('mark_notification_read', noticeId);
         if (result.success) {
             // 成功后，重新从服务器获取最新列表
             // 这是最可靠的方式，能自动更新角标和列表状态
@@ -4465,7 +4465,7 @@ async function markAllAsRead() {
     try {
         // 并行发送所有“设为已读”请求
         const promises = unreadNotices.map(n => 
-            window.pywebview.api.mark_notification_read(n.id)
+            callPythonAPI('mark_notification_read', n.id)
         );
         await Promise.all(promises);
         

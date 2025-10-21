@@ -1,7 +1,5 @@
 # 跑步助手
 
-import tkinter
-from tkinter import filedialog, messagebox
 import os
 import sys
 import configparser
@@ -22,29 +20,52 @@ import warnings
 import csv
 import queue as _queue
 import uuid
-import math
-import random
 import secrets
 from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify
 from flask_cors import CORS
 
+# tkinter只在桌面模式需要
+try:
+    import tkinter
+    from tkinter import filedialog, messagebox
+except ImportError:
+    tkinter = None
+    filedialog = None
+    messagebox = None
+
+# webview只在桌面模式需要
 try:
     import webview   # 嵌入式浏览器
+except ImportError:
+    webview = None
+
+# 这些库是必需的
+try:
     import requests  # HTTP请求
     import openpyxl  # xlsx 读写
     import xlrd      # xls 读取
     import xlwt      # xls 写入
     import chardet   # 编码修正
-except ImportError:
-    # 如果导入失败，弹出Tkinter消息框提示用户安装依赖
-    root = tkinter.Tk()
-    root.withdraw()
-    messagebox.showerror(  # <--- 修改这里，去掉 'tkinter.'
-        "依赖错误",
-        "运行本程序需要 'pywebview', 'requests', 'openpyxl', 'chardet', 'xlrd' 和 'xlwt' 库。\n"
+except ImportError as e:
+    # 如果导入失败，提示用户安装依赖
+    error_msg = (
+        "运行本程序需要 'requests', 'openpyxl', 'chardet', 'xlrd' 和 'xlwt' 库。\n"
         "请先在终端运行:\n"
-        "pip install \"pywebview[qt]\" requests openpyxl xlrd xlwt chardet"
+        "pip install requests openpyxl xlrd xlwt chardet Flask flask-cors\n"
+        f"详细错误: {e}"
     )
+    
+    # 如果在桌面模式且tkinter可用，弹出对话框
+    if tkinter and messagebox:
+        try:
+            root = tkinter.Tk()
+            root.withdraw()
+            messagebox.showerror("依赖错误", error_msg)
+        except:
+            pass
+    
+    # 打印到控制台
+    print(f"\n{'='*60}\n错误: {error_msg}\n{'='*60}\n", file=sys.stderr)
     sys.exit(1)
 
 
@@ -4381,6 +4402,12 @@ def main():
         start_web_server(args)
     else:
         # 桌面应用模式（原有逻辑）
+        if not webview:
+            print("\n错误: 桌面模式需要 pywebview 库")
+            print("请运行: pip install pywebview[qt]")
+            print("或使用 --web 参数启动Web模式\n")
+            sys.exit(1)
+        
         api = Api(args)
         
         window = webview.create_window(
