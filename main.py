@@ -1682,8 +1682,18 @@ class Api:
                 time.sleep(3)
                 self._finalize_run(run_data, task_index, client)
         finally:
+            # 修复Issue: 只有在停止标志已设置（用户手动停止）或出现错误时才设置停止标志
+            # 正常完成时不应该设置停止标志，避免中断后续操作
             if not is_all:
-                self.stop_run_flag.set()
+                # 仅在任务被手动停止或失败时才标记停止
+                # 正常完成的情况下，stop_flag.is_set()应该为False
+                if not submission_successful or stop_flag.is_set():
+                    self.stop_run_flag.set()
+                    logging.info(f"任务停止或失败，设置停止标志")
+                else:
+                    # 正常完成，设置停止标志以允许新任务开始
+                    self.stop_run_flag.set()
+                    logging.info(f"任务正常完成，重置停止标志")
                 if self.window: self.window.evaluate_js('onRunStopped()')
             if finished_event: finished_event.set()
             logging.info(f"Submission thread finished for task: {run_data.run_name}")
@@ -4628,14 +4638,14 @@ def start_web_server(args):
     @app.route('/')
     def index():
         """首页：自动分配UUID并重定向"""
-        # 生成256位UUID（64个十六进制字符）
-        session_id = secrets.token_hex(32)  # 32字节 = 256位 = 64个十六进制字符
+        # 生成512位UUID（128个十六进制字符）
+        session_id = secrets.token_hex(64)  # 64字节 = 512位 = 128个十六进制字符
         
         # 创建新的Api实例
         with web_sessions_lock:
             if session_id not in web_sessions:
                 web_sessions[session_id] = Api(args)
-                logging.info(f"创建新会话 (256位UUID): {session_id}")
+                logging.info(f"创建新会话 (512位UUID): {session_id}")
         
         # 重定向到带UUID的URL（不依赖Flask session）
         return redirect(url_for('session_view', uuid=session_id))
@@ -4643,16 +4653,16 @@ def start_web_server(args):
     @app.route('/uuid=<uuid>')
     def session_view(uuid):
         """会话页面：显示应用界面"""
-        # 验证UUID格式（256位 = 64个十六进制字符）
-        if not uuid or len(uuid) != 64:
-            logging.warning(f"无效的UUID格式: {uuid} (长度: {len(uuid) if uuid else 0}, 期望: 64)")
+        # 验证UUID格式（512位 = 128个十六进制字符）
+        if not uuid or len(uuid) != 128:
+            logging.warning(f"无效的UUID格式: {uuid} (长度: {len(uuid) if uuid else 0}, 期望: 128)")
             return redirect(url_for('index'))
         
         # 确保Api实例存在（从URL恢复会话，不依赖Flask session）
         with web_sessions_lock:
             if uuid not in web_sessions:
                 web_sessions[uuid] = Api(args)
-                logging.info(f"恢复会话 (256位UUID): {uuid}")
+                logging.info(f"恢复会话 (512位UUID): {uuid}")
             else:
                 logging.debug(f"使用现有会话: {uuid}")
         
