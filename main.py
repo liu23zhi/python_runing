@@ -1075,6 +1075,7 @@ class Api:
         # 修复Issue 5: 设置登录状态标志用于会话持久化
         self.login_success = True
         self.user_info = user_info_dict
+        logging.info(f"会话状态已保存: login_success={self.login_success}, user_id={ud.id}")
 
         return {"success": True, "userInfo": user_info_dict, "ua": self.device_ua}
 
@@ -4627,42 +4628,33 @@ def start_web_server(args):
     @app.route('/')
     def index():
         """首页：自动分配UUID并重定向"""
-        # 检查是否已有会话ID
-        if 'session_id' not in session:
-            # 生成新的UUID
-            session_id = str(uuid.uuid4()).replace('-', '')[:24]
-            session['session_id'] = session_id
-            session.permanent = True
-            
-            # 创建新的Api实例
-            with web_sessions_lock:
-                if session_id not in web_sessions:
-                    web_sessions[session_id] = Api(args)
-                    logging.info(f"创建新会话: {session_id}")
-            
-            # 重定向到带UUID的URL
-            return redirect(url_for('session_view', uuid=session_id))
-        else:
-            # 已有会话，重定向到对应UUID
-            return redirect(url_for('session_view', uuid=session['session_id']))
+        # 生成256位UUID（64个十六进制字符）
+        session_id = secrets.token_hex(32)  # 32字节 = 256位 = 64个十六进制字符
+        
+        # 创建新的Api实例
+        with web_sessions_lock:
+            if session_id not in web_sessions:
+                web_sessions[session_id] = Api(args)
+                logging.info(f"创建新会话 (256位UUID): {session_id}")
+        
+        # 重定向到带UUID的URL（不依赖Flask session）
+        return redirect(url_for('session_view', uuid=session_id))
     
     @app.route('/uuid=<uuid>')
     def session_view(uuid):
         """会话页面：显示应用界面"""
-        # 验证UUID格式
-        if not uuid or len(uuid) < 16:
+        # 验证UUID格式（256位 = 64个十六进制字符）
+        if not uuid or len(uuid) != 64:
+            logging.warning(f"无效的UUID格式: {uuid} (长度: {len(uuid) if uuid else 0}, 期望: 64)")
             return redirect(url_for('index'))
         
-        # 确保会话匹配
-        if 'session_id' not in session or session['session_id'] != uuid:
-            session['session_id'] = uuid
-            session.permanent = True
-        
-        # 确保Api实例存在
+        # 确保Api实例存在（从URL恢复会话，不依赖Flask session）
         with web_sessions_lock:
             if uuid not in web_sessions:
                 web_sessions[uuid] = Api(args)
-                logging.info(f"恢复会话: {uuid}")
+                logging.info(f"恢复会话 (256位UUID): {uuid}")
+            else:
+                logging.debug(f"使用现有会话: {uuid}")
         
         # 返回HTML内容
         return render_template_string(html_content)
@@ -4670,14 +4662,15 @@ def start_web_server(args):
     @app.route('/api/<path:method>', methods=['GET', 'POST'])
     def api_call(method):
         """API调用端点：将前端调用转发到Python后端"""
-        if 'session_id' not in session:
-            return jsonify({"success": False, "message": "无效的会话"}), 401
+        # 从请求头获取session_id（前端会在每次调用时添加）
+        session_id = request.headers.get('X-Session-ID', '')
         
-        session_id = session['session_id']
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"}), 401
         
         with web_sessions_lock:
             if session_id not in web_sessions:
-                return jsonify({"success": False, "message": "会话已过期"}), 401
+                return jsonify({"success": False, "message": "会话已过期或无效"}), 401
             api_instance = web_sessions[session_id]
         
         # 获取请求参数
@@ -4706,10 +4699,11 @@ def start_web_server(args):
     @app.route('/execute_js', methods=['POST'])
     def execute_js():
         """在服务器端Chrome中执行JavaScript代码"""
-        if 'session_id' not in session:
-            return jsonify({"success": False, "message": "无效的会话"}), 401
+        # 从请求头获取session_id
+        session_id = request.headers.get('X-Session-ID', '')
         
-        session_id = session['session_id']
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"}), 401
         data = request.get_json() or {}
         script = data.get('script', '')
         args_list = data.get('args', [])

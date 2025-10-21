@@ -986,12 +986,19 @@ let sessionUUID = null;  // 当前会话UUID
 // 统一的API调用函数
 async function callPythonAPI(method, ...args) {
   if (isWebMode) {
-    // Web模式：通过HTTP调用后端API
+    // Web模式：通过HTTP调用后端API，带上会话UUID
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    
+    // 添加会话UUID到请求头
+    if (sessionUUID) {
+      headers['X-Session-ID'] = sessionUUID;
+    }
+    
     const response = await fetch(`/api/${method}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: headers,
       body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
     });
     if (!response.ok) {
@@ -1019,11 +1026,18 @@ async function executeServerJS(script, ...args) {
   }
   
   // Web模式：发送到服务器端Chrome执行
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  // 添加会话UUID到请求头
+  if (sessionUUID) {
+    headers['X-Session-ID'] = sessionUUID;
+  }
+  
   const response = await fetch('/execute_js', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: headers,
     body: JSON.stringify({
       script: script,
       args: args
