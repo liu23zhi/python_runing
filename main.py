@@ -4519,7 +4519,8 @@ def start_web_server(args):
                 return jsonify({"success": False, "message": f"未知的API方法: {method}"}), 404
         except Exception as e:
             logging.error(f"API调用失败 {method}: {e}", exc_info=True)
-            return jsonify({"success": False, "message": str(e)}), 500
+            # 不暴露详细错误信息给前端，只记录到日志
+            return jsonify({"success": False, "message": "服务器内部错误"}), 500
     
     @app.route('/health')
     def health():
