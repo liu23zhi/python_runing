@@ -63,22 +63,39 @@ python main.py
 
 ## 疑难解答
 
-### 问题1: 端口已被占用
+### 问题1: 端口被占用或无权限 (Windows常见)
 
 **错误信息:**
 ```
 Address already in use
+以一种访问权限不允许的方式做了一个访问套接字的尝试
 ```
+
+**原因:**
+- Windows系统中端口5000常被系统服务占用
+- 其他程序已使用该端口
+- 需要管理员权限
 
 **解决方法:**
 ```bash
-# 方法1: 使用其他端口
-python main.py --web --port 5001
+# 方法1: 使用其他端口（推荐，程序会自动建议可用端口）
+python main.py --port 8080
+python main.py --port 3000
 
-# 方法2: 查找并关闭占用端口的进程
-lsof -ti:5000 | xargs kill -9  # Linux/Mac
-netstat -ano | findstr :5000   # Windows
+# 方法2 (Windows): 检查占用端口的程序
+netstat -ano | findstr :5000
+# 然后关闭对应的进程ID
+taskkill /PID <进程ID> /F
+
+# 方法3 (Linux/Mac): 查找并关闭占用端口的进程
+lsof -ti:5000 | xargs kill -9
+
+# 方法4: 以管理员身份运行
+# Windows: 右键PowerShell → 以管理员身份运行
+# Linux/Mac: sudo python main.py
 ```
+
+**提示:** 程序启动时会自动检测端口可用性，并建议可用端口。
 
 ### 问题2: 依赖未安装
 

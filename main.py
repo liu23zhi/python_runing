@@ -4350,6 +4350,17 @@ except Exception as e:
     sys.exit(1)
 
 
+def check_port_available(host, port):
+    """检查端口是否可用"""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind((host, port))
+            return True
+    except OSError:
+        return False
+
 def main():
     """主函数，启动Web服务器模式（已弃用桌面模式）"""
     
@@ -4369,6 +4380,35 @@ def main():
         print("  pip install playwright")
         print("  python -m playwright install chromium")
         print("="*60 + "\n")
+        sys.exit(1)
+    
+    # 检查端口是否可用
+    if not check_port_available(args.host, args.port):
+        print(f"\n{'='*60}")
+        print(f"警告: 端口 {args.port} 不可用或已被占用")
+        print(f"")
+        print(f"建议使用其他端口：")
+        
+        # 尝试查找可用端口
+        alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000]
+        available_ports = []
+        for port in alternative_ports:
+            if check_port_available(args.host, port):
+                available_ports.append(port)
+                if len(available_ports) >= 3:
+                    break
+        
+        if available_ports:
+            print(f"  以下端口可用：")
+            for port in available_ports:
+                print(f"    python main.py --port {port}")
+        else:
+            print(f"  python main.py --port 8080")
+            print(f"  python main.py --port 3000")
+        
+        print(f"")
+        print(f"或者关闭占用端口 {args.port} 的程序后重试")
+        print(f"{'='*60}\n")
         sys.exit(1)
     
     # 启动Web服务器模式
@@ -4613,7 +4653,6 @@ def start_web_server(args):
     cleanup_thread.start()
     
     # 启动服务器
-    logging.info(f"Web服务器启动于 http://{args.host}:{args.port}")
     print(f"\n{'='*60}")
     print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染）")
     print(f"  访问地址: http://{args.host}:{args.port}")
@@ -4622,7 +4661,39 @@ def start_web_server(args):
     print(f"{'='*60}\n")
     
     try:
+        logging.info(f"正在启动Web服务器于 http://{args.host}:{args.port}")
         app.run(host=args.host, port=args.port, debug=False, threaded=True)
+    except OSError as e:
+        if "WinError 10013" in str(e) or "permission" in str(e).lower() or "访问权限" in str(e):
+            print(f"\n{'='*60}")
+            print(f"错误: 端口 {args.port} 被占用或无访问权限")
+            print(f"")
+            print(f"可能的原因：")
+            print(f"  1. 端口已被其他程序使用")
+            print(f"  2. Windows系统保留了该端口")
+            print(f"  3. 需要管理员权限")
+            print(f"")
+            print(f"解决方法：")
+            print(f"  方法1: 使用其他端口")
+            print(f"    python main.py --port 8080")
+            print(f"    python main.py --port 3000")
+            print(f"")
+            print(f"  方法2: 以管理员身份运行")
+            print(f"    右键点击 PowerShell → 以管理员身份运行")
+            print(f"")
+            print(f"  方法3 (Windows): 检查并关闭占用端口的程序")
+            print(f"    netstat -ano | findstr :{args.port}")
+            print(f"    taskkill /PID <进程ID> /F")
+            print(f"{'='*60}\n")
+            logging.error(f"端口绑定失败: {e}")
+        else:
+            print(f"\n错误: 启动服务器失败 - {e}\n")
+            logging.error(f"服务器启动失败: {e}", exc_info=True)
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n错误: 服务器运行时发生异常 - {e}\n")
+        logging.error(f"服务器异常: {e}", exc_info=True)
+        sys.exit(1)
     finally:
         # 清理Chrome资源
         if chrome_pool:
