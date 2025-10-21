@@ -44,6 +44,21 @@ except ImportError:
     )
     sys.exit(1)
 
+# Web mode dependencies (optional, only for --mode=web)
+try:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options as ChromeOptions
+    from selenium.webdriver.chrome.service import Service as ChromeService
+    SELENIUM_AVAILABLE = True
+except ImportError:
+    SELENIUM_AVAILABLE = False
+
+try:
+    import flask
+    FLASK_AVAILABLE = True
+except ImportError:
+    FLASK_AVAILABLE = False
+
 
 
 class UserData:
@@ -4345,6 +4360,7 @@ def main():
     parser.add_argument("--mode", choices=["app", "web"], default="app", help="运行模式：app=桌面应用(默认)，web=Flask Web 模式")
     parser.add_argument("--web-host", default="127.0.0.1", help="Web 模式监听地址")
     parser.add_argument("--web-port", type=int, default=5000, help="Web 模式端口")
+    parser.add_argument("--use-chrome", action="store_true", help="使用Chrome/Chromium浏览器执行JS（需要安装selenium和chromedriver）")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", handlers=[logging.StreamHandler(sys.stdout)])
@@ -4365,48 +4381,124 @@ def main():
     pywebview_logger = logging.getLogger('pywebview')
     pywebview_logger.addFilter(PywebviewErrorFilter())
 
-    api = Api(args)
+    # Validate dependencies for web mode
+    if args.mode == "web":
+        if not FLASK_AVAILABLE:
+            print("错误: Web模式需要Flask库")
+            print("请运行: pip install flask")
+            sys.exit(1)
+        
+        if args.use_chrome and not SELENIUM_AVAILABLE:
+            print("错误: --use-chrome选项需要Selenium库")
+            print("请运行: pip install selenium")
+            sys.exit(1)
 
-    # 创建 pywebview 窗口；在 web 模式下隐藏窗口，仅作为 JS 计算引擎
-    window = webview.create_window(
-        "跑步助手",
-        html=html_content,
-        js_api=api,
-        width=1200 if args.mode == "web" else 1440,
-        height=800 if args.mode == "web" else 1000,
-        resizable=True,
-        hidden=(args.mode == "web")
-    )
-    api.set_window(window)
+    api = Api(args)
 
     if args.mode == "app":
         # 桌面模式：直接启动 GUI 事件循环
+        window = webview.create_window(
+            "跑步助手",
+            html=html_content,
+            js_api=api,
+            width=1440,
+            height=1000,
+            resizable=True,
+            hidden=False
+        )
+        api.set_window(window)
         webview.start(debug=True)
     else:
-        # Web 模式：启动 Flask 服务器（后台线程），同时启动隐藏的 pywebview 以执行 JS
+        # Web 模式：启动 Flask 服务器
         import threading
         from web_mode import create_app
 
-        webview_ready = threading.Event()
-
-        def on_webview_loaded():
+        if args.use_chrome:
+            # 使用 Chrome 作为 JS 引擎
+            logging.info("使用Chrome/Chromium作为JS执行引擎")
+            
+            chrome_options = ChromeOptions()
+            chrome_options.add_argument('--headless')  # 无头模式
+            chrome_options.add_argument('--no-sandbox')
+            chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--disable-gpu')
+            
             try:
-                # 窗口已加载（即 JS 引擎可用）
-                webview_ready.set()
-            except Exception:
-                pass
+                driver = webdriver.Chrome(options=chrome_options)
+                logging.info("Chrome driver 初始化成功")
+                
+                # 创建一个简单的JS执行接口
+                class ChromeJSExecutor:
+                    def __init__(self, driver):
+                        self.driver = driver
+                    
+                    def evaluate_js(self, js_code):
+                        try:
+                            return self.driver.execute_script(js_code)
+                        except Exception as e:
+                            logging.error(f"JS execution failed: {e}")
+                            return None
+                
+                # 将 ChromeJSExecutor 设置为 window 对象
+                api.set_window(ChromeJSExecutor(driver))
+                
+                webview_ready = threading.Event()
+                webview_ready.set()  # Chrome is ready immediately
+                
+            except Exception as e:
+                logging.error(f"无法启动Chrome: {e}")
+                print("错误: 无法启动Chrome浏览器")
+                print("请确保已安装Chrome/Chromium和chromedriver")
+                sys.exit(1)
+        else:
+            # 使用隐藏的 pywebview 作为 JS 引擎
+            logging.info("使用pywebview作为JS执行引擎")
+            window = webview.create_window(
+                "跑步助手-后台",
+                html=html_content,
+                js_api=api,
+                width=1200,
+                height=800,
+                resizable=True,
+                hidden=True
+            )
+            api.set_window(window)
+            
+            webview_ready = threading.Event()
 
-        # 启动 Flask（后台线程，避免阻塞 GUI 主循环）
+            def on_webview_loaded():
+                try:
+                    webview_ready.set()
+                    logging.info("Pywebview JS引擎已就绪")
+                except Exception:
+                    pass
+
+        # 启动 Flask（后台线程，避免阻塞主循环）
         def run_flask():
             app = create_app(api, webview_ready)
+            logging.info(f"Flask服务器启动在 http://{args.web_host}:{args.web_port}")
+            print(f"\n========================================")
+            print(f"Web模式已启动！")
+            print(f"请在浏览器中访问: http://{args.web_host}:{args.web_port}")
+            print(f"========================================\n")
             # 关闭 reloader，避免多进程导致的对象复制问题
             app.run(host=args.web_host, port=args.web_port, debug=False, use_reloader=False, threaded=True)
 
         flask_thread = threading.Thread(target=run_flask, name="FlaskServer", daemon=True)
         flask_thread.start()
 
-        # 启动 pywebview 主循环（阻塞当前线程）
-        webview.start(func=on_webview_loaded, debug=False)
+        if not args.use_chrome:
+            # 启动 pywebview 主循环（阻塞当前线程）
+            webview.start(func=on_webview_loaded, debug=False)
+        else:
+            # 如果使用Chrome，保持主线程运行
+            try:
+                while True:
+                    threading.Event().wait(1)
+            except KeyboardInterrupt:
+                logging.info("收到退出信号，正在关闭...")
+                if 'driver' in locals():
+                    driver.quit()
 
 if __name__ == "__main__":
     main()

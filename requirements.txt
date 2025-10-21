@@ -1,0 +1,13 @@
+# Core dependencies for desktop mode
+pywebview[qt]
+requests
+openpyxl
+xlrd
+xlwt
+chardet
+
+# Web mode dependencies
+flask>=2.0.0
+
+# Optional: Chrome/Selenium support for web mode
+selenium>=4.0.0
