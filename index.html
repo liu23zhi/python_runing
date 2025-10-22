@@ -945,20 +945,30 @@ body.modal-visible .amap-copyright {
 
 // 全局变量
 
-let cdnErrorOccurred = false;
+let cdnErrorCount = 0;
+let cdnErrorTimer = null;
+let appInitialized = false;
+
 function handleCdnError() {
-  if (cdnErrorOccurred) return;
-  cdnErrorOccurred = true;
-
+  cdnErrorCount++;
+  console.warn(`CDN资源加载失败 (${cdnErrorCount}/3)，等待应用初始化...`);
   
-  // 只负责显示错误提示页面，不再隐藏其他元素或停止页面
-  const errorOverlay = document.getElementById('cdn-error-overlay');
-  if (errorOverlay) {
-    // 使用 !important 来确保它能覆盖其他样式
-    errorOverlay.style.setProperty('display', 'flex', 'important');
+  // 优化：不立即显示错误，而是延迟检查
+  // 如果3秒后应用仍未初始化，且有CDN错误，则显示错误提示
+  if (cdnErrorTimer) {
+    clearTimeout(cdnErrorTimer);
   }
-
-  console.error("一个或多个CDN资源加载失败，已显示错误提示。应用将继续尝试初始化。");
+  
+  cdnErrorTimer = setTimeout(() => {
+    // 只有在应用未成功初始化时才显示错误
+    if (!appInitialized && cdnErrorCount > 0) {
+      const errorOverlay = document.getElementById('cdn-error-overlay');
+      if (errorOverlay) {
+        errorOverlay.style.setProperty('display', 'flex', 'important');
+        console.error(`应用初始化超时，CDN资源加载失败 (${cdnErrorCount}个资源)`);
+      }
+    }
+  }, 3000); // 延迟3秒显示错误，给应用初始化机会
 }
 
 
@@ -1973,9 +1983,20 @@ async function initializeApp() {
     }
   }
 
-  // 既然能成功初始化，就隐藏CDN错误提示（如果是误报）
+  // 标记应用已成功初始化
+  appInitialized = true;
+  
+  // 取消CDN错误定时器（如果还在等待）
+  if (cdnErrorTimer) {
+    clearTimeout(cdnErrorTimer);
+    cdnErrorTimer = null;
+  }
+  
+  // 隐藏CDN错误提示（如果已显示）
   const cdnErrorOverlay = document.getElementById('cdn-error-overlay');
   if (cdnErrorOverlay) cdnErrorOverlay.style.display = 'none';
+  
+  console.log('应用初始化成功，CDN资源状态正常或可用替代方案');
 
   const initialData = await callPythonAPI('get_initial_data');
   const userCombo = $('user-combo');
@@ -2067,15 +2088,52 @@ async function initializeApp() {
 }
 
 // 监听pywebview就绪事件（桌面模式）
-window.addEventListener('pywebviewready', initializeApp);
+window.addEventListener('pywebviewready', () => {
+  initializeApp().catch(err => {
+    console.error('应用初始化失败:', err);
+    // 立即显示CDN错误（如果有）
+    appInitialized = false;
+    if (cdnErrorCount > 0) {
+      if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
+      const errorOverlay = document.getElementById('cdn-error-overlay');
+      if (errorOverlay) {
+        errorOverlay.style.setProperty('display', 'flex', 'important');
+      }
+    }
+  });
+});
 
 // 如果是Web模式，在DOMContentLoaded时初始化
 if (isWebMode) {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeApp);
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeApp().catch(err => {
+        console.error('应用初始化失败:', err);
+        // 立即显示CDN错误（如果有）
+        appInitialized = false;
+        if (cdnErrorCount > 0) {
+          if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
+          const errorOverlay = document.getElementById('cdn-error-overlay');
+          if (errorOverlay) {
+            errorOverlay.style.setProperty('display', 'flex', 'important');
+          }
+        }
+      });
+    });
   } else {
     // DOM已加载，直接初始化
-    initializeApp();
+    initializeApp().catch(err => {
+      console.error('应用初始化失败:', err);
+      // 立即显示CDN错误（如果有）
+      appInitialized = false;
+      if (cdnErrorCount > 0) {
+        if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
+        const errorOverlay = document.getElementById('cdn-error-overlay');
+        if (errorOverlay) {
+          errorOverlay.style.setProperty('display', 'flex', 'important');
+        }
+      }
+    });
   }
 }
 
