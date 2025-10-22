@@ -95,7 +95,6 @@ def _get_default_config():
     # [Map] 地图配置
     config['Map'] = {
         'amap_js_key': '',  # 高德地图JS API密钥
-        'amap_web_key': '',  # 高德地图Web服务API密钥
     }
     
     # [AutoFill] 自动填充配置
@@ -2230,14 +2229,26 @@ class Api:
             cfg = configparser.ConfigParser()
             if os.path.exists(self.config_path):
                 cfg.read(self.config_path, encoding='utf-8')
+            
+            # 确保 [Map] 分区存在并更新 amap_js_key（新版）
+            if not cfg.has_section('Map'):
+                cfg.add_section('Map')
+            cfg.set('Map', 'amap_js_key', api_key)
+            
+            # 同时保持 [System] AmapJsKey 以兼容旧版本（可选）
             if not cfg.has_section('System'):
                 cfg.add_section('System')
             cfg.set('System', 'AmapJsKey', api_key)
+            
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 cfg.write(f)
             self.log("高德地图API Key已保存。")
             logging.info("Saved new Amap JS Key.")
             return {"success": True}
+        except Exception as e:
+            self.log(f"保存高德地图API Key失败: {e}")
+            logging.error(f"Failed to save Amap JS Key: {e}")
+            return {"success": False, "message": str(e)}
         except Exception as e:
             self.log(f"API Key保存失败: {e}")
             logging.error(f"Failed to save Amap JS Key: {e}", exc_info=True)
