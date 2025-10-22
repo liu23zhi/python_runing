@@ -718,6 +718,11 @@ class AuthSystem:
             with open(user_file, 'r', encoding='utf-8') as f:
                 user_data = json.load(f)
             
+            # 检查用户是否被封禁
+            if user_data.get('banned', False):
+                self._log_login_attempt(auth_username, False, ip_address, user_agent, 'user_banned')
+                return {"success": False, "message": "账号已被封禁，请联系管理员"}
+            
             # 验证密码
             if not self._verify_password(auth_password, user_data.get('password')):
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'wrong_password')
@@ -976,7 +981,9 @@ class AuthSystem:
                         'group': user_data.get('group', 'user'),
                         'created_at': user_data.get('created_at'),
                         'last_login': user_data.get('last_login'),
-                        '2fa_enabled': user_data.get('2fa_enabled', False)
+                        '2fa_enabled': user_data.get('2fa_enabled', False),
+                        'banned': user_data.get('banned', False),
+                        'max_sessions': user_data.get('max_sessions', 1)
                     })
                 except Exception as e:
                     logging.error(f"读取用户文件失败 {filename}: {e}")
@@ -1119,6 +1126,76 @@ class AuthSystem:
                 msg = f"已设置最大会话数量为：{max_sessions}个，超出时将自动清理最旧的会话"
             
             return {"success": True, "message": msg}
+    
+    def ban_user(self, auth_username):
+        """封禁用户"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['banned'] = True
+            user_data['banned_at'] = time.time()
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"用户已封禁: {auth_username}")
+            return {"success": True, "message": "用户已封禁"}
+    
+    def unban_user(self, auth_username):
+        """解封用户"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['banned'] = False
+            user_data['unbanned_at'] = time.time()
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"用户已解封: {auth_username}")
+            return {"success": True, "message": "用户已解封"}
+    
+    def delete_user(self, auth_username):
+        """删除用户（需要管理员权限）"""
+        with self.lock:
+            # 不允许删除超级管理员
+            super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
+            if auth_username == super_admin:
+                return {"success": False, "message": "不允许删除超级管理员"}
+            
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            # 删除用户文件
+            try:
+                os.remove(user_file)
+            except Exception as e:
+                logging.error(f"删除用户文件失败: {e}")
+                return {"success": False, "message": f"删除失败: {e}"}
+            
+            # 从权限组映射中移除
+            if auth_username in self.permissions.get('user_groups', {}):
+                del self.permissions['user_groups'][auth_username]
+            
+            # 从差分权限中移除
+            if 'user_custom_permissions' in self.permissions and auth_username in self.permissions['user_custom_permissions']:
+                del self.permissions['user_custom_permissions'][auth_username]
+            
+            self._save_permissions()
+            
+            logging.info(f"用户已删除: {auth_username}")
+            return {"success": True, "message": "用户已删除"}
     
     def get_user_details(self, auth_username):
         """获取用户详细信息"""
@@ -1972,11 +2049,16 @@ class Api:
             main_cfg.add_section('Config')
         main_cfg.set('Config', 'LastUser', username)
 
-        # 确保 [System] 分区存在并更新 AmapJsKey
-        if not main_cfg.has_section('System'):
-            main_cfg.add_section('System')
+        # 确保 [Map] 分区存在并更新 amap_js_key（新版）
+        if not main_cfg.has_section('Map'):
+            main_cfg.add_section('Map')
         # 从内存中的全局参数获取最新的 Key
         amap_key_in_memory = self.global_params.get('amap_js_key', '')
+        main_cfg.set('Map', 'amap_js_key', amap_key_in_memory)
+        
+        # 同时保持 [System] AmapJsKey 以兼容旧版本（可选）
+        if not main_cfg.has_section('System'):
+            main_cfg.add_section('System')
         main_cfg.set('System', 'AmapJsKey', amap_key_in_memory)
 
         # 安全写入主 config.ini 文件
@@ -1989,16 +2071,30 @@ class Api:
 
 
     def _load_global_config(self):
-        """从主 config.ini 加载全局配置"""
+        """从主 config.ini 加载全局配置（兼容旧版AmapJsKey和新版Map.amap_js_key）"""
         if not os.path.exists(self.config_path):
             return
         cfg = configparser.ConfigParser()
-        try: # 添加try-except块增加鲁棒性
+        try:
             cfg.read(self.config_path, encoding='utf-8')
-            # 读取系统区的 Key，如果不存在则默认为空字符串
-            # 确保使用 .get() 并提供 fallback，防止 Section 或 Option 不存在时出错
-            self.global_params['amap_js_key'] = cfg.get('System', 'AmapJsKey', fallback="")
-            logging.info(f"Loaded global Amap JS Key: {'*' * len(self.global_params.get('amap_js_key', ''))}") # 使用 .get() 安全访问
+            
+            # 优先读取新版配置 [Map] amap_js_key
+            amap_key = cfg.get('Map', 'amap_js_key', fallback="")
+            
+            # 如果新版配置为空，尝试读取旧版配置 [System] AmapJsKey（兼容性）
+            if not amap_key:
+                amap_key = cfg.get('System', 'AmapJsKey', fallback="")
+                # 如果旧版有值，迁移到新版
+                if amap_key:
+                    if not cfg.has_section('Map'):
+                        cfg.add_section('Map')
+                    cfg.set('Map', 'amap_js_key', amap_key)
+                    with open(self.config_path, 'w', encoding='utf-8') as f:
+                        cfg.write(f)
+                    logging.info("已将AmapJsKey从旧版[System]迁移到新版[Map]")
+            
+            self.global_params['amap_js_key'] = amap_key
+            logging.info(f"Loaded global Amap JS Key: {'*' * len(amap_key) if amap_key else '(empty)'}")
         except Exception as e:
             logging.error(f"加载全局配置文件 {self.config_path} 失败: {e}", exc_info=True)
 
@@ -6781,6 +6877,139 @@ def start_web_server(args):
         
         auth_username = getattr(api_instance, 'auth_username', '')
         result = auth_system.enable_2fa(auth_username, verification_code)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/create_user', methods=['POST'])
+    def auth_admin_create_user():
+        """管理员：创建新用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        new_username = data.get('username', '')
+        password = data.get('password', '')
+        group = data.get('group', 'user')
+        
+        if not new_username or not password:
+            return jsonify({"success": False, "message": "用户名和密码不能为空"})
+        
+        result = auth_system.register_user(new_username, password, group)
+        
+        # 记录审计日志
+        if result.get('success'):
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'create_user',
+                f'创建新用户: {new_username} (组: {group})',
+                ip_address,
+                session_id
+            )
+        
+        return jsonify(result)
+    
+    @app.route('/auth/admin/ban_user', methods=['POST'])
+    def auth_admin_ban_user():
+        """管理员：封禁用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        
+        result = auth_system.ban_user(target_username)
+        
+        # 记录审计日志
+        if result.get('success'):
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'ban_user',
+                f'封禁用户: {target_username}',
+                ip_address,
+                session_id
+            )
+        
+        return jsonify(result)
+    
+    @app.route('/auth/admin/unban_user', methods=['POST'])
+    def auth_admin_unban_user():
+        """管理员：解封用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        
+        result = auth_system.unban_user(target_username)
+        
+        # 记录审计日志
+        if result.get('success'):
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'unban_user',
+                f'解封用户: {target_username}',
+                ip_address,
+                session_id
+            )
+        
+        return jsonify(result)
+    
+    @app.route('/auth/admin/delete_user', methods=['POST'])
+    def auth_admin_delete_user():
+        """管理员：删除用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        
+        result = auth_system.delete_user(target_username)
+        
+        # 记录审计日志
+        if result.get('success'):
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'delete_user',
+                f'删除用户: {target_username}',
+                ip_address,
+                session_id
+            )
+        
         return jsonify(result)
     
     @app.route('/auth/admin/login_logs', methods=['GET'])
