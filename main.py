@@ -5319,6 +5319,16 @@ class Api:
         if not self.user_data.id or self.is_multi_account_mode:
             return {"success": False, "message": "仅单账号登录模式可用"}
 
+        # 【修复 Requirement 13】离线模式下直接返回空白通知列表，不读取缓存
+        if self.is_offline_mode:
+            return {
+                "success": True,
+                "data": {
+                    "unreadNumber": 0,
+                    "notices": []
+                }
+            }
+
         try:
             # 1. 获取未读数量
             count_resp = self.api_client.get_unread_notice_count()
@@ -6642,12 +6652,99 @@ def start_web_server(args):
         result = auth_system.update_permission_group(group_name, permissions)
         return jsonify(result)
     
+    @app.route('/auth/admin/delete_group', methods=['POST'])
+    def auth_admin_delete_group():
+        """超级管理员：删除权限组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        group_name = data.get('group_name', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查是否为超级管理员
+        if api_instance.auth_group != 'super_admin':
+            return jsonify({"success": False, "message": "仅超级管理员可删除权限组"})
+        
+        result = auth_system.delete_permission_group(group_name)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/get_user_permissions', methods=['POST'])
+    def auth_admin_get_user_permissions():
+        """管理员：获取用户的完整权限列表"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        target_username = data.get('username', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_permissions'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        permissions = auth_system.get_user_permissions(target_username)
+        
+        # 获取用户的差分权限信息
+        user_custom = auth_system.permissions.get('user_custom_permissions', {}).get(target_username, {})
+        
+        return jsonify({
+            "success": True,
+            "permissions": permissions,
+            "custom_permissions": {
+                "added": user_custom.get('added', []),
+                "removed": user_custom.get('removed', [])
+            }
+        })
+    
+    @app.route('/auth/admin/set_user_permission', methods=['POST'])
+    def auth_admin_set_user_permission():
+        """管理员：为用户设置自定义权限（差分化存储）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        target_username = data.get('username', '')
+        permission = data.get('permission', '')
+        grant = data.get('grant', False)
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_permissions'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        result = auth_system.set_user_custom_permission(target_username, permission, grant)
+        
+        # 记录审计日志
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        auth_system.log_audit(
+            auth_username,
+            'set_user_permission',
+            f'为用户 {target_username} {"授予" if grant else "移除"} 权限: {permission}',
+            ip_address,
+            session_id
+        )
+        
+        return jsonify(result)
+    
     @app.route('/auth/get_config', methods=['GET'])
     def auth_get_config():
         """获取认证配置（用于前端显示）"""
         return jsonify({
             "success": True,
-            "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True)
+            "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True),
+            "guest_auto_fill_password": auth_system.config.getboolean('AutoFill', 'guest_auto_fill_password', fallback=False),
+            "amap_js_key": auth_system.config.get('Map', 'amap_js_key', fallback='')
         })
     
     @app.route('/auth/2fa/generate', methods=['POST'])
@@ -6957,6 +7054,109 @@ def start_web_server(args):
                 del web_sessions[target_session_id]
         
         return jsonify({"success": True, "message": "会话已删除"})
+    
+    @app.route('/auth/admin/all_sessions', methods=['GET'])
+    def auth_admin_all_sessions():
+        """管理员：获取所有活跃会话（上帝模式）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查上帝模式权限
+        if not auth_system.check_permission(auth_username, 'god_mode'):
+            return jsonify({"success": False, "message": "需要上帝模式权限"}), 403
+        
+        # 获取所有会话信息
+        all_sessions = []
+        with web_sessions_lock:
+            for sid, api in web_sessions.items():
+                session_info = {
+                    'session_id': sid,
+                    'session_hash': hashlib.sha256(sid.encode()).hexdigest()[:16],
+                    'auth_username': getattr(api, 'auth_username', 'anonymous'),
+                    'auth_group': getattr(api, 'auth_group', 'guest'),
+                    'is_authenticated': getattr(api, 'is_authenticated', False),
+                    'is_guest': getattr(api, 'is_guest', False),
+                    'created_at': getattr(api, '_session_created_at', 0),
+                    'login_success': getattr(api, 'login_success', False),
+                    'user_info': getattr(api, 'user_info', {}),
+                    'is_current': sid == session_id
+                }
+                all_sessions.append(session_info)
+        
+        return jsonify({
+            "success": True,
+            "sessions": all_sessions,
+            "total_count": len(all_sessions)
+        })
+    
+    @app.route('/auth/admin/destroy_session', methods=['POST'])
+    def auth_admin_destroy_session():
+        """管理员：强制销毁任意会话（上帝模式）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查上帝模式权限
+        if not auth_system.check_permission(auth_username, 'god_mode'):
+            return jsonify({"success": False, "message": "需要上帝模式权限"}), 403
+        
+        data = request.json
+        target_session_id = data.get('session_id', '')
+        
+        if not target_session_id:
+            return jsonify({"success": False, "message": "会话ID缺失"})
+        
+        # 不能销毁自己的会话
+        if target_session_id == session_id:
+            return jsonify({"success": False, "message": "不能销毁当前会话"})
+        
+        # 获取目标会话的用户信息（用于日志）
+        target_username = 'unknown'
+        with web_sessions_lock:
+            if target_session_id in web_sessions:
+                target_api = web_sessions[target_session_id]
+                target_username = getattr(target_api, 'auth_username', 'unknown')
+        
+        # 从用户数据中移除会话关联
+        if target_username != 'unknown' and target_username != 'guest':
+            auth_system.unlink_session_from_user(target_username, target_session_id)
+        
+        # 删除会话文件
+        import hashlib
+        session_hash = hashlib.sha256(target_session_id.encode()).hexdigest()
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+        if os.path.exists(session_file):
+            try:
+                os.remove(session_file)
+            except:
+                pass
+        
+        # 从内存中移除
+        with web_sessions_lock:
+            if target_session_id in web_sessions:
+                del web_sessions[target_session_id]
+        
+        # 记录审计日志
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        auth_system.log_audit(
+            auth_username,
+            'destroy_session',
+            f'强制销毁用户 {target_username} 的会话: {target_session_id[:32]}...',
+            ip_address,
+            session_id
+        )
+        
+        return jsonify({
+            "success": True,
+            "message": f"已销毁用户 {target_username} 的会话"
+        })
     
     @app.route('/auth/admin/audit_logs', methods=['GET'])
     def auth_admin_audit_logs():
