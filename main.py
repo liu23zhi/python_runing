@@ -1648,6 +1648,10 @@ class Api:
         user_data = client.app.user_data if hasattr(client.app, 'user_data') else self.user_data
         stop_flag = client.app.stop_event if hasattr(client.app, 'stop_event') else self.stop_run_flag
         
+        # 获取当前会话ID（用于Web模式的自动保存）
+        session_id = getattr(self, '_web_session_id', None)
+        last_auto_save_time = time.time()
+        
         try:
             log_func("开始执行任务。")
             logging.info(f"Submission thread started for task: {run_data.run_name}")
@@ -1677,6 +1681,17 @@ class Api:
                     point_index += 1  # 修复Issue 1: 更新点索引
                     run_data.current_point_index = point_index  # 修复Issue 1: 保存到run_data
                     self.check_target_reached_during_run(run_data, lon, lat)
+                    
+                    # 关键增强：每30秒自动保存会话状态（在Web模式下）
+                    if session_id and (time.time() - last_auto_save_time >= 30):
+                        try:
+                            with web_sessions_lock:
+                                if session_id in web_sessions:
+                                    save_session_state(session_id, web_sessions[session_id])
+                                    logging.debug(f"任务执行中自动保存会话状态 (进度: {point_index}/{len(run_data.run_coords)})")
+                            last_auto_save_time = time.time()
+                        except Exception as e:
+                            logging.error(f"任务执行中自动保存会话失败: {e}")
                     
                     if self.window and self.current_run_idx == task_index:
                         center_now = False
@@ -1716,6 +1731,17 @@ class Api:
                 logging.info("Run execution finished, awaiting finalization.")
                 time.sleep(3)
                 self._finalize_run(run_data, task_index, client)
+                
+                # 关键增强：任务完成后立即保存会话状态
+                if session_id:
+                    try:
+                        with web_sessions_lock:
+                            if session_id in web_sessions:
+                                save_session_state(session_id, web_sessions[session_id], force_save=True)
+                                logging.info(f"任务完成，已保存会话状态")
+                    except Exception as e:
+                        logging.error(f"任务完成后保存会话失败: {e}")
+                        
         finally:
             # 修复Issue: 只有在停止标志已设置（用户手动停止）或出现错误时才设置停止标志
             # 正常完成时不应该设置停止标志，避免中断后续操作
@@ -4568,6 +4594,9 @@ def main():
 # 全局会话存储：{session_id: Api实例}
 web_sessions = {}
 web_sessions_lock = threading.Lock()
+# 会话文件锁，用于并发保护
+session_file_locks = {}  # {session_hash: threading.Lock}
+session_file_locks_lock = threading.Lock()
 
 # 会话持久化函数
 def _load_session_index():
@@ -4588,8 +4617,15 @@ def _save_session_index(index):
     except Exception as e:
         logging.error(f"保存会话索引失败: {e}")
 
-def save_session_state(session_id, api_instance):
-    """将会话状态保存到文件（完整版：保存所有应用状态包括离线任务数据）"""
+def save_session_state(session_id, api_instance, force_save=False):
+    """
+    将会话状态保存到文件（完整版：保存所有应用状态包括离线任务数据）
+    
+    Args:
+        session_id: 会话UUID
+        api_instance: Api实例
+        force_save: 强制保存，即使距离上次保存时间很短
+    """
     try:
         # 修复Windows路径长度限制：使用SHA256哈希作为文件名
         # 2048位UUID(512字符)会导致Windows文件名过长错误
@@ -4597,89 +4633,118 @@ def save_session_state(session_id, api_instance):
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         
-        # 基础状态
-        state = {
-            'session_id': session_id,  # 在文件内容中保存完整的UUID
-            'login_success': getattr(api_instance, 'login_success', False),
-            'user_info': getattr(api_instance, 'user_info', None),
-            'created_at': getattr(api_instance, '_session_created_at', time.time()),
-            'last_accessed': time.time()
-        }
+        # 线程安全：获取或创建此会话文件的锁
+        with session_file_locks_lock:
+            if session_hash not in session_file_locks:
+                session_file_locks[session_hash] = threading.Lock()
+            file_lock = session_file_locks[session_hash]
         
-        # 增强：保存任务状态（包括完整的离线任务数据）
-        if hasattr(api_instance, 'selected_tasks'):
-            state['selected_tasks'] = api_instance.selected_tasks
-        
-        # 保存完整的任务列表（包括所有离线任务字段）
-        if hasattr(api_instance, 'all_run_data') and api_instance.all_run_data:
-            loaded_tasks = []
-            for run_data in api_instance.all_run_data:
-                task_dict = {
-                    'run_name': getattr(run_data, 'run_name', ''),
-                    'errand_id': getattr(run_data, 'errand_id', ''),
-                    'errand_schedule': getattr(run_data, 'errand_schedule', ''),
-                    'status': getattr(run_data, 'status', 0),
-                    'start_time': getattr(run_data, 'start_time', ''),
-                    'end_time': getattr(run_data, 'end_time', ''),
-                    'total_run_distance_m': getattr(run_data, 'total_run_distance_m', 0),
-                    
-                    # 离线任务完整数据（核心）
-                    'target_points': getattr(run_data, 'target_points', []),
-                    'target_point_names': getattr(run_data, 'target_point_names', ''),
-                    'recommended_coords': getattr(run_data, 'recommended_coords', []),
-                    'draft_coords': getattr(run_data, 'draft_coords', []),
-                    'run_coords': getattr(run_data, 'gps_list', []),  # run_coords即gps_list
-                    
-                    # 运行时状态
-                    'target_sequence': getattr(run_data, 'target_sequence', 1),
-                    'current_point_index': getattr(run_data, 'current_point_index', 0),
-                    'distance_covered_m': getattr(run_data, 'distance_covered_m', 0),
-                    'is_in_target_zone': getattr(run_data, 'is_in_target_zone', False)
-                }
-                loaded_tasks.append(task_dict)
-            state['loaded_tasks'] = loaded_tasks
-        
-        # 增强：保存运行状态
-        state['is_running'] = getattr(api_instance, 'is_running', False)
-        state['run_mode'] = getattr(api_instance, 'run_mode', None)
-        state['is_offline_mode'] = getattr(api_instance, 'is_offline_mode', False)
-        if hasattr(api_instance, 'current_run_idx'):
-            state['current_run_idx'] = api_instance.current_run_idx
-        
-        # 增强：保存当前运行数据的简要信息（指向loaded_tasks中的数据）
-        if hasattr(api_instance, 'run_data') and api_instance.run_data:
-            run_data = api_instance.run_data
-            state['current_run_data'] = {
-                'task_name': getattr(run_data, 'run_name', None),
-                'errand_id': getattr(run_data, 'errand_id', None),
-                'target_sequence': getattr(run_data, 'target_sequence', 1),
-                'processed_points': getattr(run_data, 'current_point_index', 0),
-                'total_points': len(run_data.gps_list) if hasattr(run_data, 'gps_list') else 0,
-                'total_targets': len(run_data.target_points) if hasattr(run_data, 'target_points') else 0,
-                'start_time': getattr(run_data, 'start_time', None),
-                'distance_covered_m': getattr(run_data, 'distance_covered_m', 0)
+        # 使用文件锁保护并发写入
+        with file_lock:
+            # 防抖：避免过于频繁的保存（除非强制保存）
+            if not force_save:
+                last_save_time = getattr(api_instance, '_last_session_save_time', 0)
+                if time.time() - last_save_time < 2.0:  # 最少间隔2秒
+                    return
+            
+            # 记录本次保存时间
+            api_instance._last_session_save_time = time.time()
+            
+            # 基础状态
+            state = {
+                'session_id': session_id,  # 在文件内容中保存完整的UUID
+                'login_success': getattr(api_instance, 'login_success', False),
+                'user_info': getattr(api_instance, 'user_info', None),
+                'created_at': getattr(api_instance, '_session_created_at', time.time()),
+                'last_accessed': time.time()
             }
-        
-        # 增强：保存UI状态
-        if hasattr(api_instance, 'ui_state'):
-            state['ui_state'] = api_instance.ui_state
-        
-        # 增强：保存用户设置
-        if hasattr(api_instance, 'user_settings'):
-            state['user_settings'] = api_instance.user_settings
-        
-        with open(session_file, 'w', encoding='utf-8') as f:
-            json.dump(state, f, indent=2, ensure_ascii=False)
-        
-        # 更新索引文件：存储完整UUID到SHA256哈希的映射
-        index = _load_session_index()
-        index[session_id] = session_hash
-        _save_session_index(index)
-        
-        tasks_count = len(state.get('loaded_tasks', []))
-        logging.debug(f"会话状态已保存: {session_id[:32]}... (运行中:{state['is_running']}, 任务数:{tasks_count})")
+            
+            # 增强：保存用户配置参数
+            if hasattr(api_instance, 'params'):
+                state['params'] = api_instance.params
+            
+            # 增强：保存User-Agent
+            if hasattr(api_instance, 'device_ua'):
+                state['device_ua'] = api_instance.device_ua
+            
+            # 增强：保存用户数据
+            if hasattr(api_instance, 'user_data') and api_instance.user_data:
+                user_data = api_instance.user_data
+                state['user_data'] = {
+                    'name': getattr(user_data, 'name', ''),
+                    'phone': getattr(user_data, 'phone', ''),
+                    'student_id': getattr(user_data, 'student_id', ''),
+                    'id': getattr(user_data, 'id', ''),
+                    'username': getattr(user_data, 'username', ''),
+                    'gender': getattr(user_data, 'gender', ''),
+                    'school_name': getattr(user_data, 'school_name', '')
+                }
+            
+            # 增强：保存任务选择状态
+            if hasattr(api_instance, 'current_run_idx'):
+                state['current_run_idx'] = api_instance.current_run_idx
+            
+            # 保存完整的任务列表（包括所有离线任务字段）
+            if hasattr(api_instance, 'all_run_data') and api_instance.all_run_data:
+                loaded_tasks = []
+                for run_data in api_instance.all_run_data:
+                    task_dict = {
+                        # 任务基本信息
+                        'run_name': getattr(run_data, 'run_name', ''),
+                        'errand_id': getattr(run_data, 'errand_id', ''),
+                        'errand_schedule': getattr(run_data, 'errand_schedule', ''),
+                        'status': getattr(run_data, 'status', 0),
+                        'start_time': getattr(run_data, 'start_time', ''),
+                        'end_time': getattr(run_data, 'end_time', ''),
+                        'upload_time': getattr(run_data, 'upload_time', ''),
+                        'total_run_time_s': getattr(run_data, 'total_run_time_s', 0.0),
+                        'total_run_distance_m': getattr(run_data, 'total_run_distance_m', 0.0),
+                        
+                        # 离线任务完整数据（核心）
+                        'target_points': getattr(run_data, 'target_points', []),
+                        'target_point_names': getattr(run_data, 'target_point_names', ''),
+                        'recommended_coords': getattr(run_data, 'recommended_coords', []),
+                        'draft_coords': getattr(run_data, 'draft_coords', []),
+                        'run_coords': getattr(run_data, 'run_coords', []),
+                        
+                        # 运行时状态
+                        'target_sequence': getattr(run_data, 'target_sequence', 0),
+                        'is_in_target_zone': getattr(run_data, 'is_in_target_zone', False),
+                        'trid': getattr(run_data, 'trid', ''),
+                        'details_fetched': getattr(run_data, 'details_fetched', False),
+                        'distance_covered_m': getattr(run_data, 'distance_covered_m', 0.0)
+                    }
+                    loaded_tasks.append(task_dict)
+                state['loaded_tasks'] = loaded_tasks
+            
+            # 增强：保存运行状态
+            state['is_offline_mode'] = getattr(api_instance, 'is_offline_mode', False)
+            
+            # 增强：保存停止标志状态
+            if hasattr(api_instance, 'stop_run_flag'):
+                state['stop_run_flag_set'] = api_instance.stop_run_flag.is_set()
+            
+            # 增强：保存UI状态（如果存在）
+            if hasattr(api_instance, 'ui_state'):
+                state['ui_state'] = api_instance.ui_state
+            
+            # 增强：保存用户设置（如果存在）
+            if hasattr(api_instance, 'user_settings'):
+                state['user_settings'] = api_instance.user_settings
+            
+            # 写入文件
+            with open(session_file, 'w', encoding='utf-8') as f:
+                json.dump(state, f, indent=2, ensure_ascii=False)
+            
+            # 更新索引文件：存储完整UUID到SHA256哈希的映射
+            index = _load_session_index()
+            index[session_id] = session_hash
+            _save_session_index(index)
+            
+            tasks_count = len(state.get('loaded_tasks', []))
+            logging.debug(f"会话状态已保存: {session_id[:32]}... (任务数:{tasks_count}, 选中索引:{state.get('current_run_idx', -1)})")
     except Exception as e:
-        logging.error(f"保存会话状态失败: {e}")
+        logging.error(f"保存会话状态失败: {e}", exc_info=True)
 
 def load_session_state(session_id):
     """从文件加载会话状态"""
@@ -4700,17 +4765,115 @@ def load_session_state(session_id):
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         
         if os.path.exists(session_file):
-            with open(session_file, 'r', encoding='utf-8') as f:
-                state = json.load(f)
+            # 线程安全：获取或创建此会话文件的锁
+            with session_file_locks_lock:
+                if session_hash not in session_file_locks:
+                    session_file_locks[session_hash] = threading.Lock()
+                file_lock = session_file_locks[session_hash]
+            
+            # 使用文件锁保护并发读取
+            with file_lock:
+                with open(session_file, 'r', encoding='utf-8') as f:
+                    state = json.load(f)
+            
             # 验证加载的UUID是否匹配
             if state.get('session_id') == session_id:
-                logging.info(f"从文件加载会话: {session_id[:32]}... (登录状态: {state.get('login_success')})")
+                tasks_count = len(state.get('loaded_tasks', []))
+                logging.info(f"从文件加载会话: {session_id[:32]}... (登录状态: {state.get('login_success')}, 任务数: {tasks_count})")
                 return state
             else:
                 logging.warning(f"会话文件UUID不匹配，忽略")
     except Exception as e:
-        logging.error(f"加载会话状态失败: {e}")
+        logging.error(f"加载会话状态失败: {e}", exc_info=True)
     return None
+
+def restore_session_to_api_instance(api_instance, state):
+    """
+    将保存的会话状态恢复到Api实例
+    
+    Args:
+        api_instance: Api实例
+        state: 从文件加载的状态字典
+    """
+    try:
+        # 恢复用户配置参数
+        if 'params' in state:
+            api_instance.params = state['params']
+        
+        # 恢复User-Agent
+        if 'device_ua' in state:
+            api_instance.device_ua = state['device_ua']
+        
+        # 恢复用户数据
+        if 'user_data' in state:
+            user_data_dict = state['user_data']
+            api_instance.user_data.name = user_data_dict.get('name', '')
+            api_instance.user_data.phone = user_data_dict.get('phone', '')
+            api_instance.user_data.student_id = user_data_dict.get('student_id', '')
+            api_instance.user_data.id = user_data_dict.get('id', '')
+            api_instance.user_data.username = user_data_dict.get('username', '')
+            api_instance.user_data.gender = user_data_dict.get('gender', '')
+            api_instance.user_data.school_name = user_data_dict.get('school_name', '')
+        
+        # 恢复任务列表
+        if 'loaded_tasks' in state:
+            api_instance.all_run_data = []
+            for task_dict in state['loaded_tasks']:
+                run_data = RunData()
+                # 任务基本信息
+                run_data.run_name = task_dict.get('run_name', '')
+                run_data.errand_id = task_dict.get('errand_id', '')
+                run_data.errand_schedule = task_dict.get('errand_schedule', '')
+                run_data.status = task_dict.get('status', 0)
+                run_data.start_time = task_dict.get('start_time', '')
+                run_data.end_time = task_dict.get('end_time', '')
+                run_data.upload_time = task_dict.get('upload_time', '')
+                run_data.total_run_time_s = task_dict.get('total_run_time_s', 0.0)
+                run_data.total_run_distance_m = task_dict.get('total_run_distance_m', 0.0)
+                
+                # 离线任务完整数据
+                run_data.target_points = [tuple(p) for p in task_dict.get('target_points', [])]
+                run_data.target_point_names = task_dict.get('target_point_names', '')
+                run_data.recommended_coords = [tuple(p) for p in task_dict.get('recommended_coords', [])]
+                run_data.draft_coords = [tuple(p) for p in task_dict.get('draft_coords', [])]
+                run_data.run_coords = [tuple(p) for p in task_dict.get('run_coords', [])]
+                
+                # 运行时状态
+                run_data.target_sequence = task_dict.get('target_sequence', 0)
+                run_data.is_in_target_zone = task_dict.get('is_in_target_zone', False)
+                run_data.trid = task_dict.get('trid', '')
+                run_data.details_fetched = task_dict.get('details_fetched', False)
+                run_data.distance_covered_m = task_dict.get('distance_covered_m', 0.0)
+                
+                api_instance.all_run_data.append(run_data)
+        
+        # 恢复任务选择状态
+        if 'current_run_idx' in state:
+            api_instance.current_run_idx = state['current_run_idx']
+        
+        # 恢复离线模式标志
+        if 'is_offline_mode' in state:
+            api_instance.is_offline_mode = state['is_offline_mode']
+        
+        # 恢复停止标志状态
+        if 'stop_run_flag_set' in state:
+            if state['stop_run_flag_set']:
+                api_instance.stop_run_flag.set()
+            else:
+                api_instance.stop_run_flag.clear()
+        
+        # 恢复UI状态
+        if 'ui_state' in state:
+            api_instance.ui_state = state['ui_state']
+        
+        # 恢复用户设置
+        if 'user_settings' in state:
+            api_instance.user_settings = state['user_settings']
+        
+        logging.info(f"会话状态恢复完成: 任务数={len(api_instance.all_run_data)}, 选中索引={api_instance.current_run_idx}")
+        
+    except Exception as e:
+        logging.error(f"恢复会话状态失败: {e}", exc_info=True)
 
 def load_all_sessions(args):
     """启动时加载所有持久化会话"""
@@ -4756,14 +4919,20 @@ def load_all_sessions(args):
                 # 重建Api实例
                 api_instance = Api(args)
                 api_instance._session_created_at = state.get('created_at', time.time())
+                
+                # 恢复登录状态
                 if state.get('login_success'):
                     api_instance.login_success = True
                     api_instance.user_info = state.get('user_info')
-                    logging.info(f"恢复已登录会话: {session_id[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')})")
+                
+                # 使用新的恢复函数恢复完整状态
+                restore_session_to_api_instance(api_instance, state)
+                
+                logging.info(f"恢复会话: {session_id[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')}, 任务数: {len(api_instance.all_run_data)})")
                 web_sessions[session_id] = api_instance
                 loaded_count += 1
             except Exception as e:
-                logging.error(f"加载会话文件 {filename} 失败: {e}")
+                logging.error(f"加载会话文件 {filename} 失败: {e}", exc_info=True)
                 continue
     
     # 保存重建的索引（清理过期条目）
@@ -4908,19 +5077,28 @@ def start_web_server(args):
                 state = load_session_state(uuid)
                 api_instance = Api(args)
                 api_instance._session_created_at = time.time()
+                api_instance._web_session_id = uuid  # 关键：保存session_id到实例，用于后台任务自动保存
                 
                 if state and state.get('login_success'):
                     # 恢复登录状态
                     api_instance.login_success = True
                     api_instance.user_info = state.get('user_info')
                     api_instance._session_created_at = state.get('created_at', time.time())
-                    logging.info(f"从文件恢复已登录会话 (2048位UUID): {uuid[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')})")
+                    
+                    # 使用新的恢复函数恢复完整状态
+                    restore_session_to_api_instance(api_instance, state)
+                    
+                    logging.info(f"从文件恢复已登录会话 (2048位UUID): {uuid[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')}, 任务数: {len(api_instance.all_run_data)})")
                 else:
                     logging.info(f"创建新会话 (2048位UUID): {uuid[:32]}...")
                 
                 web_sessions[uuid] = api_instance
                 save_session_state(uuid, api_instance)
             else:
+                # 确保已有会话也有_web_session_id属性
+                api_instance = web_sessions[uuid]
+                if not hasattr(api_instance, '_web_session_id'):
+                    api_instance._web_session_id = uuid
                 logging.debug(f"使用现有会话: {uuid[:32]}...")
         
         # 返回HTML内容
@@ -4937,7 +5115,18 @@ def start_web_server(args):
         
         with web_sessions_lock:
             if session_id not in web_sessions:
-                return jsonify({"success": False, "message": "会话已过期或无效"}), 401
+                # 尝试恢复会话
+                state = load_session_state(session_id)
+                if state and state.get('login_success'):
+                    api_instance = Api(args)
+                    api_instance._session_created_at = state.get('created_at', time.time())
+                    api_instance.login_success = True
+                    api_instance.user_info = state.get('user_info')
+                    restore_session_to_api_instance(api_instance, state)
+                    web_sessions[session_id] = api_instance
+                    logging.info(f"API调用时自动恢复会话: {session_id[:32]}...")
+                else:
+                    return jsonify({"success": False, "message": "会话已过期或无效"}), 401
             api_instance = web_sessions[session_id]
         
         # 获取请求参数
@@ -4956,10 +5145,18 @@ def start_web_server(args):
                 else:
                     result = func()
                 
-                # 对于会改变会话状态的API调用，保存会话状态
-                if method in ['login', 'logout']:
+                # 关键改进：对于会改变会话状态的API调用，保存会话状态
+                # 扩展自动保存的方法列表，包括所有可能改变状态的操作
+                auto_save_methods = [
+                    'login', 'logout', 'load_tasks', 'select_task', 
+                    'start_single_run', 'start_all_runs', 'stop_current_run',
+                    'import_offline_file', 'export_offline_file',
+                    'record_path', 'auto_generate_path', 'process_path', 'clear_path',
+                    'update_param', 'generate_new_ua'
+                ]
+                if method in auto_save_methods:
                     save_session_state(session_id, api_instance)
-                    logging.debug(f"API '{method}' 调用后保存会话状态")
+                    logging.debug(f"API '{method}' 调用后自动保存会话状态")
                 
                 return jsonify(result if result is not None else {"success": True})
             else:
