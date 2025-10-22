@@ -320,8 +320,83 @@ body.modal-visible .amap-copyright {
   <p class="text-base font-bold text-sky-600">正在加载资源中...</p>
 </div>
 
-<!-- 登录界面 -->
-<div id="login-container" class="w-full h-full grid grid-cols-1 lg:grid-cols-2">
+<!-- 用户认证登录界面 -->
+<div id="auth-login-container" class="w-full h-full flex items-center justify-center">
+  <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
+    <div class="text-center">
+      <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
+      <p class="text-sm text-slate-500">请登录或注册以继续使用</p>
+    </div>
+    
+    <!-- 登录/注册切换标签 -->
+    <div class="flex border-b border-slate-200">
+      <button id="auth-tab-login" class="flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition">登录</button>
+      <button id="auth-tab-register" class="flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition hover:text-slate-600">注册</button>
+    </div>
+    
+    <!-- 登录表单 -->
+    <div id="auth-login-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
+        <input type="text" id="auth-username" class="input-field mt-1" placeholder="请输入用户名" autocomplete="username">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
+        <input type="password" id="auth-password" class="input-field mt-1" placeholder="请输入密码" autocomplete="current-password">
+      </div>
+      <button id="auth-login-btn" class="btn btn-primary w-full py-3">登录</button>
+      <div id="guest-login-section" class="text-center hidden">
+        <div class="relative flex py-2 items-center">
+          <div class="flex-grow border-t border-slate-200"></div>
+          <span class="flex-shrink mx-4 text-slate-400 text-xs">或</span>
+          <div class="flex-grow border-t border-slate-200"></div>
+        </div>
+        <button id="auth-guest-btn" class="btn btn-ghost w-full">以游客身份继续</button>
+        <!-- 游客模式警告 -->
+        <div class="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-left">
+          <div class="flex items-start gap-2">
+            <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"/>
+            </svg>
+            <div class="text-xs text-amber-800">
+              <p class="font-semibold mb-1">⚠️ 游客模式提示</p>
+              <ul class="space-y-1">
+                <li>• 游客使用UUID恢复状态，请务必保存地址</li>
+                <li>• 丢失URL将无法恢复您的数据和进度</li>
+                <li>• 5分钟不活跃会话将被自动清理</li>
+                <li>• 建议注册账号以获得更好的体验</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 注册表单 -->
+    <div id="auth-register-form" class="hidden space-y-4">
+      <div>
+        <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
+        <input type="text" id="auth-reg-username" class="input-field mt-1" placeholder="请输入用户名（3-20字符）" autocomplete="username">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
+        <input type="password" id="auth-reg-password" class="input-field mt-1" placeholder="请输入密码（至少6字符）" autocomplete="new-password">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold leading-6 text-slate-700">确认密码</label>
+        <input type="password" id="auth-reg-password-confirm" class="input-field mt-1" placeholder="请再次输入密码" autocomplete="new-password">
+      </div>
+      <button id="auth-register-btn" class="btn btn-success w-full py-3">注册</button>
+    </div>
+    
+    <!-- 错误提示 -->
+    <div id="auth-error-msg" class="hidden text-sm text-center p-3 rounded-lg bg-red-50 border border-red-200 text-red-600"></div>
+    <div id="auth-success-msg" class="hidden text-sm text-center p-3 rounded-lg bg-green-50 border border-green-200 text-green-600"></div>
+  </div>
+</div>
+
+<!-- 登录界面 (应用登录，在认证后显示) -->
+<div id="login-container" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-2">
   
   <div class="flex flex-col items-center justify-center p-12 bg-gradient-to-br from-slate-50 to-gray-100">
       <div class="text-center w-full max-w-sm space-y-6">
@@ -389,6 +464,7 @@ body.modal-visible .amap-copyright {
         <span id="notification-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">0</span>
       </button>
       <button id="show-user-details" class="btn btn-ghost !py-2 !px-3" title="查看用户详情">详情</button>
+      <button id="show-admin-panel" class="btn btn-ghost !py-2 !px-3 hidden" title="管理面板">管理</button>
       <button id="logout-button" class="btn btn-ghost !py-2 !px-3 !text-red-600" title="注销">退出</button>
     </div>
     <!-- 任务列表面板 -->
@@ -807,6 +883,44 @@ body.modal-visible .amap-copyright {
     </p>
     <div class="flex justify-center gap-3 pt-4">
       <button id="alert-modal-close-btn" class="btn btn-primary">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="admin-panel-modal" class="fixed inset-0 hidden items-center justify-center z-50">
+  <div class="absolute inset-0 bg-black/40" onclick="toggleAdminPanel(false)"></div>
+  <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+    <div class="flex items-center justify-between">
+      <h3 class="text-xl font-bold text-sky-600">管理面板</h3>
+      <button class="btn btn-ghost !py-1 !px-3" onclick="toggleAdminPanel(false)">关闭</button>
+    </div>
+    
+    <!-- 管理标签 -->
+    <div class="flex border-b border-slate-200">
+      <button id="admin-tab-users" class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">用户管理</button>
+      <button id="admin-tab-groups" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">权限组管理</button>
+    </div>
+    
+    <!-- 用户管理面板 -->
+    <div id="admin-users-panel" class="space-y-4">
+      <div class="flex justify-between items-center">
+        <h4 class="font-semibold">用户列表</h4>
+        <button id="admin-refresh-users" class="btn btn-ghost !py-1 !px-2">刷新</button>
+      </div>
+      <div id="admin-users-list" class="space-y-2">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+    </div>
+    
+    <!-- 权限组管理面板 -->
+    <div id="admin-groups-panel" class="hidden space-y-4">
+      <div class="flex justify-between items-center">
+        <h4 class="font-semibold">权限组列表</h4>
+        <button id="admin-refresh-groups" class="btn btn-ghost !py-1 !px-2">刷新</button>
+      </div>
+      <div id="admin-groups-list" class="space-y-2">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
     </div>
   </div>
 </div>
@@ -1366,6 +1480,480 @@ function setBaseColor(c, deep) {
 }
 function onColorPicked(val) { setBaseColor(val, val); }
 
+// ====================
+// 认证系统 JavaScript
+// ====================
+
+// 检查并显示认证状态
+async function checkAuthStatus() {
+  if (!isWebMode) {
+    // 桌面模式跳过认证
+    return true;
+  }
+  
+  // 检查会话是否已认证
+  try {
+    const result = await callPythonAPI('get_initial_data');
+    if (result && result.is_authenticated) {
+      return true;
+    }
+  } catch (e) {
+    console.log('未认证或会话过期');
+  }
+  
+  return false;
+}
+
+// 显示认证登录界面
+function showAuthLogin() {
+  $('auth-login-container').classList.remove('hidden');
+  $('login-container').classList.add('hidden');
+  $('main-app').classList.add('hidden');
+  
+  // 检查是否允许游客登录
+  checkGuestLoginEnabled();
+}
+
+// 检查是否允许游客登录
+async function checkGuestLoginEnabled() {
+  try {
+    const result = await fetch('/auth/get_config');
+    const data = await result.json();
+    if (data.success && data.allow_guest_login) {
+      $('guest-login-section').classList.remove('hidden');
+    } else {
+      $('guest-login-section').classList.add('hidden');
+    }
+  } catch (e) {
+    console.error('获取配置失败:', e);
+  }
+}
+
+// 切换登录/注册标签
+function switchAuthTab(tab) {
+  const loginTab = $('auth-tab-login');
+  const registerTab = $('auth-tab-register');
+  const loginForm = $('auth-login-form');
+  const registerForm = $('auth-register-form');
+  
+  if (tab === 'login') {
+    loginTab.classList.add('text-sky-600', 'border-sky-600');
+    loginTab.classList.remove('text-slate-400', 'border-transparent');
+    registerTab.classList.remove('text-sky-600', 'border-sky-600');
+    registerTab.classList.add('text-slate-400', 'border-transparent');
+    loginForm.classList.remove('hidden');
+    registerForm.classList.add('hidden');
+  } else {
+    registerTab.classList.add('text-sky-600', 'border-sky-600');
+    registerTab.classList.remove('text-slate-400', 'border-transparent');
+    loginTab.classList.remove('text-sky-600', 'border-sky-600');
+    loginTab.classList.add('text-slate-400', 'border-transparent');
+    registerForm.classList.remove('hidden');
+    loginForm.classList.add('hidden');
+  }
+  
+  // 清空错误/成功消息
+  $('auth-error-msg').classList.add('hidden');
+  $('auth-success-msg').classList.add('hidden');
+}
+
+// 显示认证错误消息
+function showAuthError(message) {
+  const errorMsg = $('auth-error-msg');
+  errorMsg.textContent = message;
+  errorMsg.classList.remove('hidden');
+  $('auth-success-msg').classList.add('hidden');
+}
+
+// 显示认证成功消息
+function showAuthSuccess(message) {
+  const successMsg = $('auth-success-msg');
+  successMsg.textContent = message;
+  successMsg.classList.remove('hidden');
+  $('auth-error-msg').classList.add('hidden');
+}
+
+// 用户登录
+async function handleAuthLogin() {
+  const username = $('auth-username').value.trim();
+  const password = $('auth-password').value.trim();
+  
+  if (!username || !password) {
+    showAuthError('请输入用户名和密码');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionUUID
+      },
+      body: JSON.stringify({
+        auth_username: username,
+        auth_password: password
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      showAuthSuccess('登录成功！');
+      
+      // 如果是注册用户且有历史会话，询问是否恢复
+      if (!result.is_guest && result.user_sessions && result.user_sessions.length > 0) {
+        const lastSession = result.user_sessions[result.user_sessions.length - 1];
+        // 检查是否与当前UUID不同
+        if (lastSession !== sessionUUID) {
+          const shouldRestore = await new Promise((resolve) => {
+            if (confirm('检测到上次使用的会话，是否恢复上次的状态？\n点击"确定"恢复上次状态，点击"取消"使用新会话。')) {
+              resolve(true);
+            } else {
+              resolve(false);
+            }
+          });
+          
+          if (shouldRestore) {
+            // 重定向到上次的会话UUID
+            window.location.href = `/uuid=${lastSession}`;
+            return;
+          }
+        }
+      }
+      
+      setTimeout(() => {
+        // 隐藏认证界面，显示应用登录界面
+        $('auth-login-container').classList.add('hidden');
+        $('login-container').classList.remove('hidden');
+        // 如果是游客，显示提示
+        if (result.is_guest) {
+          logMessage('[游客模式] 部分功能受限：无法标记通知已读、无法使用签到功能、无法执行多账号任务');
+          logMessage('[游客提示] 请保存当前地址，丢失后无法恢复您的数据！5分钟不活跃会话将被清理。');
+        } else {
+          logMessage('[注册用户] 您的状态已关联到账号，可在任何设备登录恢复。');
+        }
+      }, 1000);
+    } else {
+      showAuthError(result.message || '登录失败');
+    }
+  } catch (e) {
+    showAuthError('登录请求失败：' + e.message);
+  }
+}
+
+// 用户注册
+async function handleAuthRegister() {
+  const username = $('auth-reg-username').value.trim();
+  const password = $('auth-reg-password').value.trim();
+  const passwordConfirm = $('auth-reg-password-confirm').value.trim();
+  
+  // 验证输入
+  if (!username || !password || !passwordConfirm) {
+    showAuthError('请填写所有字段');
+    return;
+  }
+  
+  if (username.length < 3 || username.length > 20) {
+    showAuthError('用户名长度应为3-20字符');
+    return;
+  }
+  
+  if (password.length < 6) {
+    showAuthError('密码长度至少为6字符');
+    return;
+  }
+  
+  if (password !== passwordConfirm) {
+    showAuthError('两次输入的密码不一致');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        auth_username: username,
+        auth_password: password
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      showAuthSuccess('注册成功！请登录');
+      setTimeout(() => {
+        // 切换到登录标签并填充用户名
+        switchAuthTab('login');
+        $('auth-username').value = username;
+        $('auth-password').value = password;
+      }, 1500);
+    } else {
+      showAuthError(result.message || '注册失败');
+    }
+  } catch (e) {
+    showAuthError('注册请求失败：' + e.message);
+  }
+}
+
+// 游客登录
+async function handleGuestLogin() {
+  try {
+    const response = await fetch('/auth/guest_login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionUUID
+      }
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      showAuthSuccess('以游客身份登录成功！');
+      setTimeout(() => {
+        $('auth-login-container').classList.add('hidden');
+        $('login-container').classList.remove('hidden');
+        logMessage('[游客模式] 部分功能受限：无法标记通知已读、无法使用签到功能、无法执行多账号任务');
+      }, 1000);
+    } else {
+      showAuthError(result.message || '游客登录失败');
+    }
+  } catch (e) {
+    showAuthError('游客登录请求失败：' + e.message);
+  }
+}
+
+// ====================
+// 认证事件绑定
+// ====================
+
+// 在DOM加载完成后绑定事件
+if (typeof window !== 'undefined') {
+  window.addEventListener('load', () => {
+    // 认证标签切换
+    const loginTab = $('auth-tab-login');
+    const registerTab = $('auth-tab-register');
+    if (loginTab) loginTab.addEventListener('click', () => switchAuthTab('login'));
+    if (registerTab) registerTab.addEventListener('click', () => switchAuthTab('register'));
+    
+    // 登录按钮
+    const loginBtn = $('auth-login-btn');
+    if (loginBtn) loginBtn.addEventListener('click', handleAuthLogin);
+    
+    // 注册按钮
+    const registerBtn = $('auth-register-btn');
+    if (registerBtn) registerBtn.addEventListener('click', handleAuthRegister);
+    
+    // 游客登录按钮
+    const guestBtn = $('auth-guest-btn');
+    if (guestBtn) guestBtn.addEventListener('click', handleGuestLogin);
+    
+    // Enter键登录
+    const authUsername = $('auth-username');
+    const authPassword = $('auth-password');
+    if (authUsername) authUsername.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleAuthLogin();
+    });
+    if (authPassword) authPassword.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleAuthLogin();
+    });
+    
+    // Enter键注册
+    const authRegPassword = $('auth-reg-password-confirm');
+    if (authRegPassword) authRegPassword.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleAuthRegister();
+    });
+    
+    // 管理面板按钮
+    const adminPanelBtn = $('show-admin-panel');
+    if (adminPanelBtn) adminPanelBtn.addEventListener('click', () => toggleAdminPanel(true));
+    
+    // 管理面板标签
+    const adminUsersTab = $('admin-tab-users');
+    const adminGroupsTab = $('admin-tab-groups');
+    if (adminUsersTab) adminUsersTab.addEventListener('click', () => switchAdminTab('users'));
+    if (adminGroupsTab) adminGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
+    
+    // 刷新按钮
+    const refreshUsersBtn = $('admin-refresh-users');
+    const refreshGroupsBtn = $('admin-refresh-groups');
+    if (refreshUsersBtn) refreshUsersBtn.addEventListener('click', loadAdminUsers);
+    if (refreshGroupsBtn) refreshGroupsBtn.addEventListener('click', loadAdminGroups);
+  });
+}
+
+// ====================
+// 管理面板功能
+// ====================
+
+function toggleAdminPanel(show) {
+  const modal = $('admin-panel-modal');
+  if (show) {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    loadAdminUsers();
+  } else {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+}
+
+function switchAdminTab(tab) {
+  const usersTab = $('admin-tab-users');
+  const groupsTab = $('admin-tab-groups');
+  const usersPanel = $('admin-users-panel');
+  const groupsPanel = $('admin-groups-panel');
+  
+  if (tab === 'users') {
+    usersTab.classList.add('text-sky-600', 'border-sky-600');
+    usersTab.classList.remove('text-slate-400', 'border-transparent');
+    groupsTab.classList.remove('text-sky-600', 'border-sky-600');
+    groupsTab.classList.add('text-slate-400', 'border-transparent');
+    usersPanel.classList.remove('hidden');
+    groupsPanel.classList.add('hidden');
+    loadAdminUsers();
+  } else {
+    groupsTab.classList.add('text-sky-600', 'border-sky-600');
+    groupsTab.classList.remove('text-slate-400', 'border-transparent');
+    usersTab.classList.remove('text-sky-600', 'border-sky-600');
+    usersTab.classList.add('text-slate-400', 'border-transparent');
+    groupsPanel.classList.remove('hidden');
+    usersPanel.classList.add('hidden');
+    loadAdminGroups();
+  }
+}
+
+async function loadAdminUsers() {
+  try {
+    const response = await fetch('/auth/admin/list_users', {
+      headers: {
+        'X-Session-ID': sessionUUID
+      }
+    });
+    const result = await response.json();
+    
+    if (!result.success) {
+      $('admin-users-list').innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+      return;
+    }
+    
+    const listEl = $('admin-users-list');
+    if (result.users.length === 0) {
+      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无用户</p>';
+      return;
+    }
+    
+    // 同时获取权限组列表
+    const groupsResp = await fetch('/auth/admin/list_groups', {
+      headers: {
+        'X-Session-ID': sessionUUID
+      }
+    });
+    const groupsData = await groupsResp.json();
+    const groups = groupsData.success ? Object.keys(groupsData.groups) : ['guest', 'user', 'admin'];
+    
+    listEl.innerHTML = result.users.map(user => {
+      const createdDate = new Date(user.created_at * 1000).toLocaleString();
+      const lastLoginDate = user.last_login ? new Date(user.last_login * 1000).toLocaleString() : '从未登录';
+      
+      const groupSelect = `
+        <select class="text-sm border border-slate-300 rounded px-2 py-1" onchange="updateUserGroup('${user.auth_username}', this.value)">
+          ${groups.map(g => `<option value="${g}" ${g === user.group ? 'selected' : ''}>${g}</option>`).join('')}
+        </select>
+      `;
+      
+      return `
+        <div class="border border-slate-200 rounded-lg p-3">
+          <div class="flex justify-between items-start">
+            <div class="flex-1">
+              <p class="font-semibold text-slate-800">${user.auth_username}</p>
+              <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+              <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
+            </div>
+            <div class="flex flex-col items-end gap-1">
+              <span class="text-xs text-slate-600">权限组:</span>
+              ${groupSelect}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    $('admin-users-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+  }
+}
+
+async function updateUserGroup(username, newGroup) {
+  try {
+    const response = await fetch('/auth/admin/update_user_group', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionUUID
+      },
+      body: JSON.stringify({
+        target_username: username,
+        new_group: newGroup
+      })
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+      logMessage(`用户 ${username} 的权限组已更新为 ${newGroup}`);
+    } else {
+      alert('更新失败: ' + result.message);
+      loadAdminUsers(); // 重新加载以恢复原状态
+    }
+  } catch (e) {
+    alert('更新失败: ' + e.message);
+    loadAdminUsers();
+  }
+}
+
+async function loadAdminGroups() {
+  try {
+    const response = await fetch('/auth/admin/list_groups', {
+      headers: {
+        'X-Session-ID': sessionUUID
+      }
+    });
+    const result = await response.json();
+    
+    if (!result.success) {
+      $('admin-groups-list').innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+      return;
+    }
+    
+    const listEl = $('admin-groups-list');
+    const groups = result.groups;
+    
+    listEl.innerHTML = Object.keys(groups).map(groupKey => {
+      const group = groups[groupKey];
+      const perms = group.permissions;
+      
+      return `
+        <div class="border border-slate-200 rounded-lg p-4">
+          <h5 class="font-semibold text-slate-800 mb-2">${group.name} (${groupKey})</h5>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            ${Object.keys(perms).map(perm => `
+              <div class="flex items-center gap-2">
+                <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'}">${perms[perm] ? '✓' : '✗'}</span>
+                <span class="text-slate-600">${perm}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    $('admin-groups-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+  }
+}
+
 // --- 初始化 ---
 async function initializeApp() {
   // 检测Web模式并提取UUID
@@ -1375,6 +1963,13 @@ async function initializeApp() {
     if (match) {
       sessionUUID = match[1];
       console.log('Web模式: 会话UUID =', sessionUUID);
+    }
+    
+    // 检查认证状态
+    const isAuthenticated = await checkAuthStatus();
+    if (!isAuthenticated) {
+      showAuthLogin();
+      return; // 停止初始化，等待认证
     }
   }
 
@@ -1419,6 +2014,12 @@ async function initializeApp() {
     await fetchNotifications();
     const base = pythonParams.theme_base_color || '#7dd3fc'; 
     setBaseColor(base, base);
+    
+    // 检查是否有管理权限，显示管理按钮
+    if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
+      const adminBtn = $('show-admin-panel');
+      if (adminBtn) adminBtn.classList.remove('hidden');
+    }
   } else {
     // 未登录，检查API Key
     AMAP_API_KEY = initialData.amap_key || "";

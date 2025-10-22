@@ -33,6 +33,26 @@ if not os.path.exists(SESSION_STORAGE_DIR):
 # 会话索引文件：存储SHA256哈希和完整UUID的对应关系
 SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
 
+# 学校账号数据目录
+SCHOOL_ACCOUNTS_DIR = os.path.join(os.path.dirname(__file__), 'school_accounts')
+if not os.path.exists(SCHOOL_ACCOUNTS_DIR):
+    os.makedirs(SCHOOL_ACCOUNTS_DIR)
+
+# 系统认证账号目录（与学校账号分离）
+SYSTEM_ACCOUNTS_DIR = os.path.join(SCHOOL_ACCOUNTS_DIR, 'system_auth')
+if not os.path.exists(SYSTEM_ACCOUNTS_DIR):
+    os.makedirs(SYSTEM_ACCOUNTS_DIR)
+
+# 登录日志目录
+LOGIN_LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
+if not os.path.exists(LOGIN_LOGS_DIR):
+    os.makedirs(LOGIN_LOGS_DIR)
+
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
+PERMISSIONS_FILE = os.path.join(os.path.dirname(__file__), 'permissions.json')
+LOGIN_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'login_history.jsonl')
+AUDIT_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'audit.jsonl')
+
 # 配置UTF-8编码（用于日志和控制台输出）
 if sys.platform.startswith('win'):
     # Windows系统特殊处理
@@ -79,6 +99,668 @@ except ImportError as e:
     sys.exit(1)
 
 
+
+# ==============================================================================
+# 认证和权限管理系统
+# ==============================================================================
+
+class AuthSystem:
+    """用户认证和权限管理系统"""
+    
+    def __init__(self):
+        self.config = self._load_config()
+        self.permissions = self._load_permissions()
+        self.lock = threading.Lock()
+    
+    def _load_config(self):
+        """加载配置文件"""
+        config = configparser.ConfigParser()
+        if os.path.exists(CONFIG_FILE):
+            config.read(CONFIG_FILE, encoding='utf-8')
+        else:
+            # 创建默认配置
+            config['Admin'] = {'super_admin': 'admin'}
+            config['Guest'] = {'allow_guest_login': 'true'}
+            config['System'] = {
+                'session_expiry_days': '7',
+                'users_dir': 'users',
+                'permissions_file': 'permissions.json'
+            }
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                config.write(f)
+        return config
+    
+    def _load_permissions(self):
+        """加载权限配置"""
+        if os.path.exists(PERMISSIONS_FILE):
+            with open(PERMISSIONS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return {
+            "permission_groups": {},
+            "user_groups": {}
+        }
+    
+    def _save_permissions(self):
+        """保存权限配置"""
+        with self.lock:
+            with open(PERMISSIONS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.permissions, f, indent=2, ensure_ascii=False)
+    
+    def get_user_file_path(self, auth_username):
+        """获取用户文件路径"""
+        import hashlib
+        user_hash = hashlib.sha256(auth_username.encode()).hexdigest()
+        return os.path.join(SYSTEM_ACCOUNTS_DIR, f"{user_hash}.json")
+    
+    def _get_password_storage_method(self):
+        """获取密码存储方式"""
+        return self.config.get('Security', 'password_storage', fallback='plaintext')
+    
+    def _encrypt_password(self, password):
+        """加密密码（可选功能）"""
+        method = self._get_password_storage_method()
+        if method == 'encrypted':
+            import hashlib
+            # 使用SHA256加密
+            return hashlib.sha256(password.encode()).hexdigest()
+        return password  # 明文
+    
+    def _verify_password(self, input_password, stored_password):
+        """验证密码"""
+        method = self._get_password_storage_method()
+        if method == 'encrypted':
+            import hashlib
+            return hashlib.sha256(input_password.encode()).hexdigest() == stored_password
+        return input_password == stored_password  # 明文比较
+    
+    def _log_login_attempt(self, auth_username, success, ip_address='', user_agent='', reason=''):
+        """记录登录尝试"""
+        log_entry = {
+            'timestamp': time.time(),
+            'datetime': datetime.datetime.now().isoformat(),
+            'username': auth_username,
+            'success': success,
+            'ip_address': ip_address,
+            'user_agent': user_agent,
+            'reason': reason
+        }
+        
+        try:
+            with open(LOGIN_LOG_FILE, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+        except Exception as e:
+            logging.error(f"记录登录日志失败: {e}")
+    
+    def get_login_history(self, username=None, limit=100):
+        """获取登录历史"""
+        if not os.path.exists(LOGIN_LOG_FILE):
+            return []
+        
+        history = []
+        try:
+            with open(LOGIN_LOG_FILE, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line.strip())
+                        if username is None or entry.get('username') == username:
+                            history.append(entry)
+                    except:
+                        continue
+        except Exception as e:
+            logging.error(f"读取登录历史失败: {e}")
+        
+        # 返回最近的记录
+        return history[-limit:]
+    
+    def check_brute_force(self, auth_username, ip_address):
+        """检查暴力破解（5分钟内最多5次失败）"""
+        recent_attempts = []
+        current_time = time.time()
+        cutoff_time = current_time - 300  # 5分钟前
+        
+        if os.path.exists(LOGIN_LOG_FILE):
+            try:
+                with open(LOGIN_LOG_FILE, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            entry = json.loads(line.strip())
+                            if entry.get('timestamp', 0) > cutoff_time:
+                                if entry.get('username') == auth_username or entry.get('ip_address') == ip_address:
+                                    if not entry.get('success', False):
+                                        recent_attempts.append(entry)
+                        except:
+                            continue
+            except Exception as e:
+                logging.error(f"检查暴力破解失败: {e}")
+        
+        # 如果5分钟内失败超过5次，则锁定
+        if len(recent_attempts) >= 5:
+            return True, "登录失败次数过多，请5分钟后再试"
+        return False, ""
+    
+    def generate_2fa_secret(self, auth_username):
+        """生成2FA密钥"""
+        try:
+            import pyotp
+            secret = pyotp.random_base32()
+            
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                with self.lock:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                    
+                    user_data['2fa_secret'] = secret
+                    user_data['2fa_enabled'] = False  # 初始未启用，需要验证后启用
+                    
+                    with open(user_file, 'w', encoding='utf-8') as f:
+                        json.dump(user_data, f, indent=2, ensure_ascii=False)
+                
+                # 生成二维码URI
+                totp = pyotp.TOTP(secret)
+                uri = totp.provisioning_uri(name=auth_username, issuer_name="跑步助手")
+                return {"success": True, "secret": secret, "uri": uri}
+            return {"success": False, "message": "用户不存在"}
+        except ImportError:
+            return {"success": False, "message": "2FA功能需要安装pyotp库：pip install pyotp"}
+    
+    def enable_2fa(self, auth_username, verification_code):
+        """启用2FA（需要验证一次）"""
+        try:
+            import pyotp
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                with self.lock:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                    
+                    secret = user_data.get('2fa_secret')
+                    if not secret:
+                        return {"success": False, "message": "请先生成2FA密钥"}
+                    
+                    totp = pyotp.TOTP(secret)
+                    if totp.verify(verification_code):
+                        user_data['2fa_enabled'] = True
+                        with open(user_file, 'w', encoding='utf-8') as f:
+                            json.dump(user_data, f, indent=2, ensure_ascii=False)
+                        return {"success": True, "message": "2FA已启用"}
+                    return {"success": False, "message": "验证码错误"}
+            return {"success": False, "message": "用户不存在"}
+        except ImportError:
+            return {"success": False, "message": "2FA功能需要安装pyotp库"}
+    
+    def verify_2fa(self, auth_username, verification_code):
+        """验证2FA代码"""
+        try:
+            import pyotp
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                if not user_data.get('2fa_enabled', False):
+                    return True  # 2FA未启用，直接通过
+                
+                secret = user_data.get('2fa_secret')
+                if not secret:
+                    return False
+                
+                totp = pyotp.TOTP(secret)
+                return totp.verify(verification_code)
+            return False
+        except ImportError:
+            logging.warning("2FA验证失败：pyotp库未安装")
+            return True  # 如果库未安装，允许通过
+    
+    def register_user(self, auth_username, auth_password, group='user'):
+        """注册新用户"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                return {"success": False, "message": "用户名已存在"}
+            
+            # 根据配置选择密码存储方式
+            stored_password = self._encrypt_password(auth_password)
+            
+            user_data = {
+                'auth_username': auth_username,
+                'password': stored_password,
+                'group': group,
+                'created_at': time.time(),
+                'last_login': None,
+                'session_ids': [],  # 用于关联用户的会话ID
+                '2fa_enabled': False,
+                '2fa_secret': None,
+                'avatar_url': '',  # 用户头像URL
+                'max_sessions': 1,  # 允许的最大会话数量 (1=单会话, >1=多会话, -1=无限制)
+                'theme': 'light'  # 主题偏好：light/dark
+            }
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            # 添加到权限组
+            self.permissions['user_groups'][auth_username] = group
+            self._save_permissions()
+            
+            logging.info(f"新用户注册: {auth_username} (组: {group})")
+            return {"success": True, "message": "注册成功"}
+    
+    def authenticate(self, auth_username, auth_password, ip_address='', user_agent='', two_fa_code=''):
+        """验证用户登录（支持2FA和暴力破解防护）"""
+        with self.lock:
+            # 检查是否为游客登录
+            if auth_username == 'guest' and self.config.getboolean('Guest', 'allow_guest_login', fallback=True):
+                self._log_login_attempt(auth_username, True, ip_address, user_agent, 'guest_login')
+                return {
+                    "success": True, 
+                    "auth_username": "guest",
+                    "group": "guest",
+                    "is_guest": True
+                }
+            
+            # 检查暴力破解
+            is_locked, lock_message = self.check_brute_force(auth_username, ip_address)
+            if is_locked:
+                self._log_login_attempt(auth_username, False, ip_address, user_agent, 'brute_force_locked')
+                return {"success": False, "message": lock_message}
+            
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                self._log_login_attempt(auth_username, False, ip_address, user_agent, 'user_not_found')
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            # 验证密码
+            if not self._verify_password(auth_password, user_data.get('password')):
+                self._log_login_attempt(auth_username, False, ip_address, user_agent, 'wrong_password')
+                return {"success": False, "message": "密码错误"}
+            
+            # 验证2FA（如果启用）
+            if user_data.get('2fa_enabled', False):
+                if not two_fa_code:
+                    return {"success": False, "message": "需要2FA验证码", "requires_2fa": True}
+                
+                if not self.verify_2fa(auth_username, two_fa_code):
+                    self._log_login_attempt(auth_username, False, ip_address, user_agent, '2fa_failed')
+                    return {"success": False, "message": "2FA验证码错误"}
+            
+            # 更新最后登录时间
+            user_data['last_login'] = time.time()
+            if 'session_ids' not in user_data:
+                user_data['session_ids'] = []
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            # 检查是否为超级管理员
+            super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
+            if auth_username == super_admin:
+                group = 'super_admin'
+            else:
+                group = user_data.get('group', 'user')
+            
+            self._log_login_attempt(auth_username, True, ip_address, user_agent, 'success')
+            logging.info(f"用户登录: {auth_username} (组: {group}) from {ip_address}")
+            return {
+                "success": True,
+                "auth_username": auth_username,
+                "group": group,
+                "is_guest": False,
+                "max_sessions": user_data.get('max_sessions', 1),
+                "avatar_url": user_data.get('avatar_url', ''),
+                "theme": user_data.get('theme', 'light'),
+                "session_ids": user_data.get('session_ids', [])
+            }
+    
+    def check_permission(self, auth_username, permission):
+        """检查用户是否有特定权限"""
+        # 获取用户组
+        group = self.permissions['user_groups'].get(auth_username, 'guest')
+        
+        # 检查是否为超级管理员
+        super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
+        if auth_username == super_admin:
+            group = 'super_admin'
+        
+        # 获取组权限
+        group_perms = self.permissions['permission_groups'].get(group, {}).get('permissions', {})
+        return group_perms.get(permission, False)
+    
+    def get_user_group(self, auth_username):
+        """获取用户所属组"""
+        super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
+        if auth_username == super_admin:
+            return 'super_admin'
+        return self.permissions['user_groups'].get(auth_username, 'guest')
+    
+    def update_user_group(self, auth_username, new_group):
+        """更新用户组（需要管理员权限）"""
+        with self.lock:
+            if new_group not in self.permissions['permission_groups']:
+                return {"success": False, "message": "权限组不存在"}
+            
+            self.permissions['user_groups'][auth_username] = new_group
+            self._save_permissions()
+            
+            # 同时更新用户文件
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                user_data['group'] = new_group
+                with open(user_file, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            return {"success": True, "message": "权限组已更新"}
+    
+    def create_permission_group(self, group_name, permissions, display_name):
+        """创建新的权限组（需要超级管理员权限）"""
+        with self.lock:
+            if group_name in self.permissions['permission_groups']:
+                return {"success": False, "message": "权限组已存在"}
+            
+            self.permissions['permission_groups'][group_name] = {
+                'name': display_name,
+                'permissions': permissions
+            }
+            self._save_permissions()
+            return {"success": True, "message": "权限组已创建"}
+    
+    def update_permission_group(self, group_name, permissions):
+        """更新权限组（需要超级管理员权限）"""
+        with self.lock:
+            if group_name not in self.permissions['permission_groups']:
+                return {"success": False, "message": "权限组不存在"}
+            
+            self.permissions['permission_groups'][group_name]['permissions'] = permissions
+            self._save_permissions()
+            return {"success": True, "message": "权限组已更新"}
+    
+    def list_users(self):
+        """列出所有用户"""
+        users = []
+        for filename in os.listdir(SYSTEM_ACCOUNTS_DIR):
+            if filename.endswith('.json'):
+                user_file = os.path.join(SYSTEM_ACCOUNTS_DIR, filename)
+                try:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                    users.append({
+                        'auth_username': user_data['auth_username'],
+                        'group': user_data.get('group', 'user'),
+                        'created_at': user_data.get('created_at'),
+                        'last_login': user_data.get('last_login'),
+                        '2fa_enabled': user_data.get('2fa_enabled', False)
+                    })
+                except Exception as e:
+                    logging.error(f"读取用户文件失败 {filename}: {e}")
+        return users
+    
+    def get_all_groups(self):
+        """获取所有权限组"""
+        return self.permissions['permission_groups']
+    
+    def link_session_to_user(self, auth_username, session_id):
+        """关联会话ID到用户账号（用于状态恢复）"""
+        if auth_username == 'guest':
+            return  # 游客不关联会话
+        
+        user_file = self.get_user_file_path(auth_username)
+        if os.path.exists(user_file):
+            with self.lock:
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                if 'session_ids' not in user_data:
+                    user_data['session_ids'] = []
+                
+                # 只保留最近的5个会话ID
+                if session_id not in user_data['session_ids']:
+                    user_data['session_ids'].append(session_id)
+                    user_data['session_ids'] = user_data['session_ids'][-5:]
+                
+                with open(user_file, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+    
+    def get_user_sessions(self, auth_username):
+        """获取用户关联的会话ID列表"""
+        if auth_username == 'guest':
+            return []
+        
+        user_file = self.get_user_file_path(auth_username)
+        if os.path.exists(user_file):
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            return user_data.get('session_ids', [])
+        return []
+    
+    def unlink_session_from_user(self, auth_username, session_id):
+        """取消会话与用户的关联"""
+        if auth_username == 'guest':
+            return
+        
+        user_file = self.get_user_file_path(auth_username)
+        if os.path.exists(user_file):
+            with self.lock:
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                if 'session_ids' in user_data and session_id in user_data['session_ids']:
+                    user_data['session_ids'].remove(session_id)
+                    
+                    with open(user_file, 'w', encoding='utf-8') as f:
+                        json.dump(user_data, f, indent=2, ensure_ascii=False)
+    
+    def reset_user_password(self, auth_username, new_password):
+        """重置用户密码（管理员功能）"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            # 加密新密码
+            user_data['password'] = self._encrypt_password(new_password)
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"管理员重置密码: {auth_username}")
+            return {"success": True, "message": "密码已重置"}
+    
+    def update_user_avatar(self, auth_username, avatar_url):
+        """更新用户头像"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['avatar_url'] = avatar_url
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            return {"success": True, "message": "头像已更新"}
+    
+    def update_user_theme(self, auth_username, theme):
+        """更新用户主题偏好"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['theme'] = theme
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            return {"success": True, "message": "主题已更新"}
+    
+    def update_max_sessions(self, auth_username, max_sessions):
+        """更新用户最大会话数量
+        
+        Args:
+            auth_username: 用户名
+            max_sessions: 最大会话数 (1=单会话, >1=指定数量, -1=无限制)
+        """
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['max_sessions'] = max_sessions
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            # 生成提示信息
+            if max_sessions == 1:
+                msg = f"已设置为单会话模式：用户每次只能保持1个活跃会话"
+            elif max_sessions == -1:
+                msg = f"已设置为无限会话模式：用户可以创建任意数量的会话"
+            else:
+                msg = f"已设置最大会话数量为：{max_sessions}个，超出时将自动清理最旧的会话"
+            
+            return {"success": True, "message": msg}
+    
+    def get_user_details(self, auth_username):
+        """获取用户详细信息"""
+        user_file = self.get_user_file_path(auth_username)
+        if not os.path.exists(user_file):
+            return None
+        
+        with open(user_file, 'r', encoding='utf-8') as f:
+            user_data = json.load(f)
+        
+        # 返回用户信息（不包含密码）
+        return {
+            'auth_username': user_data['auth_username'],
+            'group': user_data.get('group', 'user'),
+            'created_at': user_data.get('created_at'),
+            'last_login': user_data.get('last_login'),
+            '2fa_enabled': user_data.get('2fa_enabled', False),
+            'avatar_url': user_data.get('avatar_url', ''),
+            'max_sessions': user_data.get('max_sessions', 1),
+            'theme': user_data.get('theme', 'light'),
+            'session_ids': user_data.get('session_ids', [])
+        }
+    
+    def check_single_session_enforcement(self, auth_username, new_session_id):
+        """检查并强制执行会话数量限制
+        
+        根据用户的max_sessions设置：
+        - max_sessions = 1: 单会话模式，移除所有旧会话
+        - max_sessions > 1: 多会话模式，超出时移除最旧的会话
+        - max_sessions = -1: 无限制模式，不移除任何会话
+        
+        Returns:
+            tuple: (需要清理的旧会话列表, 提示信息)
+        """
+        if auth_username == 'guest':
+            return [], ""  # 游客不受限制
+        
+        user_file = self.get_user_file_path(auth_username)
+        if not os.path.exists(user_file):
+            return [], ""
+        
+        with self.lock:
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            max_sessions = user_data.get('max_sessions', 1)
+            old_sessions = user_data.get('session_ids', [])
+            
+            # 无限制模式，不清理
+            if max_sessions == -1:
+                return [], ""
+            
+            # 单会话模式：移除所有旧会话
+            if max_sessions == 1:
+                user_data['session_ids'] = [new_session_id]
+                
+                with open(user_file, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+                
+                message = "单会话模式：已自动清理所有旧会话"
+                return old_sessions, message
+            
+            # 多会话模式：检查是否超出限制
+            current_count = len(old_sessions)
+            if current_count >= max_sessions:
+                # 超出限制，移除最旧的会话
+                sessions_to_remove = old_sessions[:current_count - max_sessions + 1]
+                remaining_sessions = old_sessions[current_count - max_sessions + 1:]
+                user_data['session_ids'] = remaining_sessions + [new_session_id]
+                
+                with open(user_file, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+                
+                message = f"已达到最大会话数量限制({max_sessions}个)，已自动清理{len(sessions_to_remove)}个最旧的会话"
+                return sessions_to_remove, message
+            else:
+                # 未超出限制，正常添加
+                return [], ""
+    
+    def log_audit(self, auth_username, action, details='', ip_address='', session_id=''):
+        """记录审计日志"""
+        audit_entry = {
+            'timestamp': time.time(),
+            'datetime': datetime.datetime.now().isoformat(),
+            'username': auth_username,
+            'action': action,
+            'details': details,
+            'ip_address': ip_address,
+            'session_id': session_id
+        }
+        
+        try:
+            with open(AUDIT_LOG_FILE, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(audit_entry, ensure_ascii=False) + '\n')
+        except Exception as e:
+            logging.error(f"记录审计日志失败: {e}")
+    
+    def get_audit_logs(self, username=None, action=None, limit=100):
+        """获取审计日志"""
+        if not os.path.exists(AUDIT_LOG_FILE):
+            return []
+        
+        logs = []
+        try:
+            with open(AUDIT_LOG_FILE, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line.strip())
+                        if (username is None or entry.get('username') == username) and \
+                           (action is None or entry.get('action') == action):
+                            logs.append(entry)
+                    except:
+                        continue
+        except Exception as e:
+            logging.error(f"读取审计日志失败: {e}")
+        
+        # 返回最近的记录
+        return logs[-limit:]
+
+# 创建全局认证系统实例
+auth_system = AuthSystem()
+
+# ==============================================================================
+# 数据结构定义
+# ==============================================================================
 
 class UserData:
     """存储用户相关信息的类"""
@@ -437,7 +1119,7 @@ class Api:
 
         # --- 路径和配置部分保持不变 ---
         self.run_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-        self.user_dir = os.path.join(self.run_dir, "user")
+        self.user_dir = SCHOOL_ACCOUNTS_DIR  # 使用新的学校账号目录
         os.makedirs(self.user_dir, exist_ok=True)
         self.config_path = os.path.join(self.run_dir, "config.ini")
         self.user_config_path = self.config_path
@@ -943,12 +1625,23 @@ class Api:
             user_info = self.user_info
 
         logging.debug(f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
+        
+        # 检查认证状态
+        is_authenticated = hasattr(self, 'is_authenticated') and self.is_authenticated
+        auth_username = getattr(self, 'auth_username', None)
+        auth_group = getattr(self, 'auth_group', 'guest')
+        is_guest = getattr(self, 'is_guest', False)
+        
         return {
             "users": users, 
             "lastUser": last_user, 
             "amap_key": self.global_params.get('amap_js_key', ''),
             "isLoggedIn": is_logged_in,
-            "userInfo": user_info
+            "userInfo": user_info,
+            "is_authenticated": is_authenticated,
+            "auth_username": auth_username,
+            "auth_group": auth_group,
+            "is_guest": is_guest
         }
 
     def save_amap_key(self, api_key: str):
@@ -1648,6 +2341,10 @@ class Api:
         user_data = client.app.user_data if hasattr(client.app, 'user_data') else self.user_data
         stop_flag = client.app.stop_event if hasattr(client.app, 'stop_event') else self.stop_run_flag
         
+        # 获取当前会话ID（用于Web模式的自动保存）
+        session_id = getattr(self, '_web_session_id', None)
+        last_auto_save_time = time.time()
+        
         try:
             log_func("开始执行任务。")
             logging.info(f"Submission thread started for task: {run_data.run_name}")
@@ -1677,6 +2374,17 @@ class Api:
                     point_index += 1  # 修复Issue 1: 更新点索引
                     run_data.current_point_index = point_index  # 修复Issue 1: 保存到run_data
                     self.check_target_reached_during_run(run_data, lon, lat)
+                    
+                    # 关键增强：每30秒自动保存会话状态（在Web模式下）
+                    if session_id and (time.time() - last_auto_save_time >= 30):
+                        try:
+                            with web_sessions_lock:
+                                if session_id in web_sessions:
+                                    save_session_state(session_id, web_sessions[session_id])
+                                    logging.debug(f"任务执行中自动保存会话状态 (进度: {point_index}/{len(run_data.run_coords)})")
+                            last_auto_save_time = time.time()
+                        except Exception as e:
+                            logging.error(f"任务执行中自动保存会话失败: {e}")
                     
                     if self.window and self.current_run_idx == task_index:
                         center_now = False
@@ -1716,6 +2424,17 @@ class Api:
                 logging.info("Run execution finished, awaiting finalization.")
                 time.sleep(3)
                 self._finalize_run(run_data, task_index, client)
+                
+                # 关键增强：任务完成后立即保存会话状态
+                if session_id:
+                    try:
+                        with web_sessions_lock:
+                            if session_id in web_sessions:
+                                save_session_state(session_id, web_sessions[session_id], force_save=True)
+                                logging.info(f"任务完成，已保存会话状态")
+                    except Exception as e:
+                        logging.error(f"任务完成后保存会话失败: {e}")
+                        
         finally:
             # 修复Issue: 只有在停止标志已设置（用户手动停止）或出现错误时才设置停止标志
             # 正常完成时不应该设置停止标志，避免中断后续操作
@@ -4568,6 +5287,130 @@ def main():
 # 全局会话存储：{session_id: Api实例}
 web_sessions = {}
 web_sessions_lock = threading.Lock()
+# 会话文件锁，用于并发保护
+session_file_locks = {}  # {session_hash: threading.Lock}
+session_file_locks_lock = threading.Lock()
+# 会话活动追踪：{session_id: last_activity_time}
+session_activity = {}
+session_activity_lock = threading.Lock()
+
+def update_session_activity(session_id):
+    """更新会话活动时间"""
+    with session_activity_lock:
+        session_activity[session_id] = time.time()
+
+def cleanup_session(session_id, reason="manual"):
+    """清理指定会话（支持指定原因）"""
+    logging.info(f"清理会话: {session_id[:32]}... (原因: {reason})")
+    cleanup_inactive_session(session_id)
+
+def cleanup_inactive_session(session_id):
+    """清理不活跃的会话"""
+    try:
+        logging.info(f"清理不活跃会话: {session_id[:32]}...")
+        
+        # 从内存中移除会话
+        with web_sessions_lock:
+            if session_id in web_sessions:
+                api_instance = web_sessions[session_id]
+                
+                # 停止运行中的任务
+                if hasattr(api_instance, 'stop_run_flag'):
+                    api_instance.stop_run_flag.set()
+                
+                # 如果是注册用户，取消会话关联
+                if hasattr(api_instance, 'auth_username') and not getattr(api_instance, 'is_guest', True):
+                    auth_system.unlink_session_from_user(api_instance.auth_username, session_id)
+                
+                del web_sessions[session_id]
+        
+        # 删除会话文件
+        import hashlib
+        session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+        if os.path.exists(session_file):
+            os.remove(session_file)
+            logging.info(f"已删除会话文件: {session_hash[:16]}...")
+        
+        # 从活动追踪中移除
+        with session_activity_lock:
+            if session_id in session_activity:
+                del session_activity[session_id]
+        
+        # 从索引中移除
+        index = _load_session_index()
+        if session_id in index:
+            del index[session_id]
+            _save_session_index(index)
+        
+        logging.info(f"会话清理完成: {session_id[:32]}...")
+    except Exception as e:
+        logging.error(f"清理会话失败 {session_id[:32]}...: {e}")
+
+def monitor_session_inactivity():
+    """监控会话不活跃状态并清理（5分钟无活动）"""
+    while True:
+        try:
+            time.sleep(60)  # 每分钟检查一次
+            
+            current_time = time.time()
+            inactive_sessions = []
+            
+            with session_activity_lock:
+                for session_id, last_activity in list(session_activity.items()):
+                    # 检查是否在登录页面且5分钟无活动
+                    if current_time - last_activity > 300:  # 5分钟 = 300秒
+                        with web_sessions_lock:
+                            if session_id in web_sessions:
+                                api_instance = web_sessions[session_id]
+                                # 只清理已认证但未登录应用的会话
+                                is_authenticated = getattr(api_instance, 'is_authenticated', False)
+                                is_logged_in = getattr(api_instance, 'login_success', False)
+                                
+                                # 检查是否有任务正在执行
+                                has_active_task = False
+                                
+                                # 单账号模式：检查是否有跑步任务正在执行
+                                if hasattr(api_instance, 'stop_run_flag'):
+                                    has_active_task = has_active_task or not api_instance.stop_run_flag.is_set()
+                                
+                                # 单账号模式：检查自动签到是否正在运行
+                                if hasattr(api_instance, 'auto_refresh_thread'):
+                                    thread = api_instance.auto_refresh_thread
+                                    has_active_task = has_active_task or (thread is not None and thread.is_alive())
+                                
+                                # 多账号模式：检查多账号自动签到是否正在运行
+                                if hasattr(api_instance, 'multi_auto_refresh_thread'):
+                                    thread = api_instance.multi_auto_refresh_thread
+                                    has_active_task = has_active_task or (thread is not None and thread.is_alive())
+                                
+                                # 多账号模式：检查是否有账号的任务线程正在运行
+                                if hasattr(api_instance, 'multi_accounts'):
+                                    for acc in api_instance.multi_accounts:
+                                        if hasattr(acc, 'worker_thread'):
+                                            thread = acc.worker_thread
+                                            has_active_task = has_active_task or (thread is not None and thread.is_alive())
+                                
+                                # 只清理：已认证但未登录应用，并且没有任务正在执行的会话
+                                if is_authenticated and not is_logged_in and not has_active_task:
+                                    inactive_sessions.append(session_id)
+                                    logging.debug(f"会话 {session_id[:32]}... 标记为不活跃（无任务执行）")
+                                elif has_active_task:
+                                    logging.debug(f"会话 {session_id[:32]}... 有活跃任务，跳过清理")
+            
+            # 清理不活跃会话
+            for session_id in inactive_sessions:
+                cleanup_inactive_session(session_id)
+                
+        except Exception as e:
+            logging.error(f"会话监控线程错误: {e}")
+
+# 启动会话监控线程
+def start_session_monitor():
+    """启动会话不活跃监控"""
+    monitor_thread = threading.Thread(target=monitor_session_inactivity, daemon=True)
+    monitor_thread.start()
+    logging.info("会话监控线程已启动")
 
 # 会话持久化函数
 def _load_session_index():
@@ -4588,8 +5431,15 @@ def _save_session_index(index):
     except Exception as e:
         logging.error(f"保存会话索引失败: {e}")
 
-def save_session_state(session_id, api_instance):
-    """将会话状态保存到文件（完整版：保存所有应用状态包括离线任务数据）"""
+def save_session_state(session_id, api_instance, force_save=False):
+    """
+    将会话状态保存到文件（完整版：保存所有应用状态包括离线任务数据）
+    
+    Args:
+        session_id: 会话UUID
+        api_instance: Api实例
+        force_save: 强制保存，即使距离上次保存时间很短
+    """
     try:
         # 修复Windows路径长度限制：使用SHA256哈希作为文件名
         # 2048位UUID(512字符)会导致Windows文件名过长错误
@@ -4597,89 +5447,125 @@ def save_session_state(session_id, api_instance):
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         
-        # 基础状态
-        state = {
-            'session_id': session_id,  # 在文件内容中保存完整的UUID
-            'login_success': getattr(api_instance, 'login_success', False),
-            'user_info': getattr(api_instance, 'user_info', None),
-            'created_at': getattr(api_instance, '_session_created_at', time.time()),
-            'last_accessed': time.time()
-        }
+        # 线程安全：获取或创建此会话文件的锁
+        with session_file_locks_lock:
+            if session_hash not in session_file_locks:
+                session_file_locks[session_hash] = threading.Lock()
+            file_lock = session_file_locks[session_hash]
         
-        # 增强：保存任务状态（包括完整的离线任务数据）
-        if hasattr(api_instance, 'selected_tasks'):
-            state['selected_tasks'] = api_instance.selected_tasks
-        
-        # 保存完整的任务列表（包括所有离线任务字段）
-        if hasattr(api_instance, 'all_run_data') and api_instance.all_run_data:
-            loaded_tasks = []
-            for run_data in api_instance.all_run_data:
-                task_dict = {
-                    'run_name': getattr(run_data, 'run_name', ''),
-                    'errand_id': getattr(run_data, 'errand_id', ''),
-                    'errand_schedule': getattr(run_data, 'errand_schedule', ''),
-                    'status': getattr(run_data, 'status', 0),
-                    'start_time': getattr(run_data, 'start_time', ''),
-                    'end_time': getattr(run_data, 'end_time', ''),
-                    'total_run_distance_m': getattr(run_data, 'total_run_distance_m', 0),
-                    
-                    # 离线任务完整数据（核心）
-                    'target_points': getattr(run_data, 'target_points', []),
-                    'target_point_names': getattr(run_data, 'target_point_names', ''),
-                    'recommended_coords': getattr(run_data, 'recommended_coords', []),
-                    'draft_coords': getattr(run_data, 'draft_coords', []),
-                    'run_coords': getattr(run_data, 'gps_list', []),  # run_coords即gps_list
-                    
-                    # 运行时状态
-                    'target_sequence': getattr(run_data, 'target_sequence', 1),
-                    'current_point_index': getattr(run_data, 'current_point_index', 0),
-                    'distance_covered_m': getattr(run_data, 'distance_covered_m', 0),
-                    'is_in_target_zone': getattr(run_data, 'is_in_target_zone', False)
-                }
-                loaded_tasks.append(task_dict)
-            state['loaded_tasks'] = loaded_tasks
-        
-        # 增强：保存运行状态
-        state['is_running'] = getattr(api_instance, 'is_running', False)
-        state['run_mode'] = getattr(api_instance, 'run_mode', None)
-        state['is_offline_mode'] = getattr(api_instance, 'is_offline_mode', False)
-        if hasattr(api_instance, 'current_run_idx'):
-            state['current_run_idx'] = api_instance.current_run_idx
-        
-        # 增强：保存当前运行数据的简要信息（指向loaded_tasks中的数据）
-        if hasattr(api_instance, 'run_data') and api_instance.run_data:
-            run_data = api_instance.run_data
-            state['current_run_data'] = {
-                'task_name': getattr(run_data, 'run_name', None),
-                'errand_id': getattr(run_data, 'errand_id', None),
-                'target_sequence': getattr(run_data, 'target_sequence', 1),
-                'processed_points': getattr(run_data, 'current_point_index', 0),
-                'total_points': len(run_data.gps_list) if hasattr(run_data, 'gps_list') else 0,
-                'total_targets': len(run_data.target_points) if hasattr(run_data, 'target_points') else 0,
-                'start_time': getattr(run_data, 'start_time', None),
-                'distance_covered_m': getattr(run_data, 'distance_covered_m', 0)
+        # 使用文件锁保护并发写入
+        with file_lock:
+            # 防抖：避免过于频繁的保存（除非强制保存）
+            if not force_save:
+                last_save_time = getattr(api_instance, '_last_session_save_time', 0)
+                if time.time() - last_save_time < 2.0:  # 最少间隔2秒
+                    return
+            
+            # 记录本次保存时间
+            api_instance._last_session_save_time = time.time()
+            
+            # 基础状态
+            state = {
+                'session_id': session_id,  # 在文件内容中保存完整的UUID
+                'login_success': getattr(api_instance, 'login_success', False),
+                'user_info': getattr(api_instance, 'user_info', None),
+                'created_at': getattr(api_instance, '_session_created_at', time.time()),
+                'last_accessed': time.time()
             }
-        
-        # 增强：保存UI状态
-        if hasattr(api_instance, 'ui_state'):
-            state['ui_state'] = api_instance.ui_state
-        
-        # 增强：保存用户设置
-        if hasattr(api_instance, 'user_settings'):
-            state['user_settings'] = api_instance.user_settings
-        
-        with open(session_file, 'w', encoding='utf-8') as f:
-            json.dump(state, f, indent=2, ensure_ascii=False)
-        
-        # 更新索引文件：存储完整UUID到SHA256哈希的映射
-        index = _load_session_index()
-        index[session_id] = session_hash
-        _save_session_index(index)
-        
-        tasks_count = len(state.get('loaded_tasks', []))
-        logging.debug(f"会话状态已保存: {session_id[:32]}... (运行中:{state['is_running']}, 任务数:{tasks_count})")
+            
+            # 增强：保存认证信息
+            if hasattr(api_instance, 'auth_username'):
+                state['auth_username'] = api_instance.auth_username
+                state['auth_group'] = getattr(api_instance, 'auth_group', 'guest')
+                state['is_guest'] = getattr(api_instance, 'is_guest', False)
+                state['is_authenticated'] = getattr(api_instance, 'is_authenticated', False)
+            
+            # 增强：保存用户配置参数
+            if hasattr(api_instance, 'params'):
+                state['params'] = api_instance.params
+            
+            # 增强：保存User-Agent
+            if hasattr(api_instance, 'device_ua'):
+                state['device_ua'] = api_instance.device_ua
+            
+            # 增强：保存用户数据
+            if hasattr(api_instance, 'user_data') and api_instance.user_data:
+                user_data = api_instance.user_data
+                state['user_data'] = {
+                    'name': getattr(user_data, 'name', ''),
+                    'phone': getattr(user_data, 'phone', ''),
+                    'student_id': getattr(user_data, 'student_id', ''),
+                    'id': getattr(user_data, 'id', ''),
+                    'username': getattr(user_data, 'username', ''),
+                    'gender': getattr(user_data, 'gender', ''),
+                    'school_name': getattr(user_data, 'school_name', '')
+                }
+            
+            # 增强：保存任务选择状态
+            if hasattr(api_instance, 'current_run_idx'):
+                state['current_run_idx'] = api_instance.current_run_idx
+            
+            # 保存完整的任务列表（包括所有离线任务字段）
+            if hasattr(api_instance, 'all_run_data') and api_instance.all_run_data:
+                loaded_tasks = []
+                for run_data in api_instance.all_run_data:
+                    task_dict = {
+                        # 任务基本信息
+                        'run_name': getattr(run_data, 'run_name', ''),
+                        'errand_id': getattr(run_data, 'errand_id', ''),
+                        'errand_schedule': getattr(run_data, 'errand_schedule', ''),
+                        'status': getattr(run_data, 'status', 0),
+                        'start_time': getattr(run_data, 'start_time', ''),
+                        'end_time': getattr(run_data, 'end_time', ''),
+                        'upload_time': getattr(run_data, 'upload_time', ''),
+                        'total_run_time_s': getattr(run_data, 'total_run_time_s', 0.0),
+                        'total_run_distance_m': getattr(run_data, 'total_run_distance_m', 0.0),
+                        
+                        # 离线任务完整数据（核心）
+                        'target_points': getattr(run_data, 'target_points', []),
+                        'target_point_names': getattr(run_data, 'target_point_names', ''),
+                        'recommended_coords': getattr(run_data, 'recommended_coords', []),
+                        'draft_coords': getattr(run_data, 'draft_coords', []),
+                        'run_coords': getattr(run_data, 'run_coords', []),
+                        
+                        # 运行时状态
+                        'target_sequence': getattr(run_data, 'target_sequence', 0),
+                        'is_in_target_zone': getattr(run_data, 'is_in_target_zone', False),
+                        'trid': getattr(run_data, 'trid', ''),
+                        'details_fetched': getattr(run_data, 'details_fetched', False),
+                        'distance_covered_m': getattr(run_data, 'distance_covered_m', 0.0)
+                    }
+                    loaded_tasks.append(task_dict)
+                state['loaded_tasks'] = loaded_tasks
+            
+            # 增强：保存运行状态
+            state['is_offline_mode'] = getattr(api_instance, 'is_offline_mode', False)
+            
+            # 增强：保存停止标志状态
+            if hasattr(api_instance, 'stop_run_flag'):
+                state['stop_run_flag_set'] = api_instance.stop_run_flag.is_set()
+            
+            # 增强：保存UI状态（如果存在）
+            if hasattr(api_instance, 'ui_state'):
+                state['ui_state'] = api_instance.ui_state
+            
+            # 增强：保存用户设置（如果存在）
+            if hasattr(api_instance, 'user_settings'):
+                state['user_settings'] = api_instance.user_settings
+            
+            # 写入文件
+            with open(session_file, 'w', encoding='utf-8') as f:
+                json.dump(state, f, indent=2, ensure_ascii=False)
+            
+            # 更新索引文件：存储完整UUID到SHA256哈希的映射
+            index = _load_session_index()
+            index[session_id] = session_hash
+            _save_session_index(index)
+            
+            tasks_count = len(state.get('loaded_tasks', []))
+            logging.debug(f"会话状态已保存: {session_id[:32]}... (任务数:{tasks_count}, 选中索引:{state.get('current_run_idx', -1)})")
     except Exception as e:
-        logging.error(f"保存会话状态失败: {e}")
+        logging.error(f"保存会话状态失败: {e}", exc_info=True)
 
 def load_session_state(session_id):
     """从文件加载会话状态"""
@@ -4700,17 +5586,128 @@ def load_session_state(session_id):
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         
         if os.path.exists(session_file):
-            with open(session_file, 'r', encoding='utf-8') as f:
-                state = json.load(f)
+            # 线程安全：获取或创建此会话文件的锁
+            with session_file_locks_lock:
+                if session_hash not in session_file_locks:
+                    session_file_locks[session_hash] = threading.Lock()
+                file_lock = session_file_locks[session_hash]
+            
+            # 使用文件锁保护并发读取
+            with file_lock:
+                with open(session_file, 'r', encoding='utf-8') as f:
+                    state = json.load(f)
+            
             # 验证加载的UUID是否匹配
             if state.get('session_id') == session_id:
-                logging.info(f"从文件加载会话: {session_id[:32]}... (登录状态: {state.get('login_success')})")
+                tasks_count = len(state.get('loaded_tasks', []))
+                logging.info(f"从文件加载会话: {session_id[:32]}... (登录状态: {state.get('login_success')}, 任务数: {tasks_count})")
                 return state
             else:
                 logging.warning(f"会话文件UUID不匹配，忽略")
     except Exception as e:
-        logging.error(f"加载会话状态失败: {e}")
+        logging.error(f"加载会话状态失败: {e}", exc_info=True)
     return None
+
+def restore_session_to_api_instance(api_instance, state):
+    """
+    将保存的会话状态恢复到Api实例
+    
+    Args:
+        api_instance: Api实例
+        state: 从文件加载的状态字典
+    """
+    try:
+        # 恢复认证信息
+        if 'auth_username' in state:
+            api_instance.auth_username = state['auth_username']
+            api_instance.auth_group = state.get('auth_group', 'guest')
+            api_instance.is_guest = state.get('is_guest', False)
+            api_instance.is_authenticated = state.get('is_authenticated', False)
+        
+        # 恢复登录状态和用户信息
+        if 'login_success' in state:
+            api_instance.login_success = state['login_success']
+        if 'user_info' in state:
+            api_instance.user_info = state['user_info']
+        
+        # 恢复用户配置参数
+        if 'params' in state:
+            api_instance.params = state['params']
+        
+        # 恢复User-Agent
+        if 'device_ua' in state:
+            api_instance.device_ua = state['device_ua']
+        
+        # 恢复用户数据
+        if 'user_data' in state:
+            user_data_dict = state['user_data']
+            api_instance.user_data.name = user_data_dict.get('name', '')
+            api_instance.user_data.phone = user_data_dict.get('phone', '')
+            api_instance.user_data.student_id = user_data_dict.get('student_id', '')
+            api_instance.user_data.id = user_data_dict.get('id', '')
+            api_instance.user_data.username = user_data_dict.get('username', '')
+            api_instance.user_data.gender = user_data_dict.get('gender', '')
+            api_instance.user_data.school_name = user_data_dict.get('school_name', '')
+        
+        # 恢复任务列表
+        if 'loaded_tasks' in state:
+            api_instance.all_run_data = []
+            for task_dict in state['loaded_tasks']:
+                run_data = RunData()
+                # 任务基本信息
+                run_data.run_name = task_dict.get('run_name', '')
+                run_data.errand_id = task_dict.get('errand_id', '')
+                run_data.errand_schedule = task_dict.get('errand_schedule', '')
+                run_data.status = task_dict.get('status', 0)
+                run_data.start_time = task_dict.get('start_time', '')
+                run_data.end_time = task_dict.get('end_time', '')
+                run_data.upload_time = task_dict.get('upload_time', '')
+                run_data.total_run_time_s = task_dict.get('total_run_time_s', 0.0)
+                run_data.total_run_distance_m = task_dict.get('total_run_distance_m', 0.0)
+                
+                # 离线任务完整数据
+                run_data.target_points = [tuple(p) for p in task_dict.get('target_points', [])]
+                run_data.target_point_names = task_dict.get('target_point_names', '')
+                run_data.recommended_coords = [tuple(p) for p in task_dict.get('recommended_coords', [])]
+                run_data.draft_coords = [tuple(p) for p in task_dict.get('draft_coords', [])]
+                run_data.run_coords = [tuple(p) for p in task_dict.get('run_coords', [])]
+                
+                # 运行时状态
+                run_data.target_sequence = task_dict.get('target_sequence', 0)
+                run_data.is_in_target_zone = task_dict.get('is_in_target_zone', False)
+                run_data.trid = task_dict.get('trid', '')
+                run_data.details_fetched = task_dict.get('details_fetched', False)
+                run_data.distance_covered_m = task_dict.get('distance_covered_m', 0.0)
+                
+                api_instance.all_run_data.append(run_data)
+        
+        # 恢复任务选择状态
+        if 'current_run_idx' in state:
+            api_instance.current_run_idx = state['current_run_idx']
+        
+        # 恢复离线模式标志
+        if 'is_offline_mode' in state:
+            api_instance.is_offline_mode = state['is_offline_mode']
+        
+        # 恢复停止标志状态
+        if 'stop_run_flag_set' in state:
+            if state['stop_run_flag_set']:
+                api_instance.stop_run_flag.set()
+            else:
+                api_instance.stop_run_flag.clear()
+        
+        # 恢复UI状态
+        if 'ui_state' in state:
+            api_instance.ui_state = state['ui_state']
+        
+        # 恢复用户设置
+        if 'user_settings' in state:
+            api_instance.user_settings = state['user_settings']
+        
+        logging.info(f"会话状态恢复完成: 任务数={len(api_instance.all_run_data)}, 选中索引={api_instance.current_run_idx}")
+        
+    except Exception as e:
+        logging.error(f"恢复会话状态失败: {e}", exc_info=True)
 
 def load_all_sessions(args):
     """启动时加载所有持久化会话"""
@@ -4756,14 +5753,20 @@ def load_all_sessions(args):
                 # 重建Api实例
                 api_instance = Api(args)
                 api_instance._session_created_at = state.get('created_at', time.time())
+                
+                # 恢复登录状态
                 if state.get('login_success'):
                     api_instance.login_success = True
                     api_instance.user_info = state.get('user_info')
-                    logging.info(f"恢复已登录会话: {session_id[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')})")
+                
+                # 使用新的恢复函数恢复完整状态
+                restore_session_to_api_instance(api_instance, state)
+                
+                logging.info(f"恢复会话: {session_id[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')}, 任务数: {len(api_instance.all_run_data)})")
                 web_sessions[session_id] = api_instance
                 loaded_count += 1
             except Exception as e:
-                logging.error(f"加载会话文件 {filename} 失败: {e}")
+                logging.error(f"加载会话文件 {filename} 失败: {e}", exc_info=True)
                 continue
     
     # 保存重建的索引（清理过期条目）
@@ -4875,6 +5878,632 @@ def start_web_server(args):
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=7)  # 会话保持7天
     
+    # ====================
+    # 认证相关API路由
+    # ====================
+    
+    @app.route('/auth/register', methods=['POST'])
+    def auth_register():
+        """用户注册"""
+        data = request.get_json() or {}
+        auth_username = data.get('auth_username', '').strip()
+        auth_password = data.get('auth_password', '').strip()
+        
+        if not auth_username or not auth_password:
+            return jsonify({"success": False, "message": "用户名和密码不能为空"})
+        
+        result = auth_system.register_user(auth_username, auth_password)
+        return jsonify(result)
+    
+    @app.route('/auth/login', methods=['POST'])
+    def auth_login():
+        """用户登录认证"""
+        data = request.get_json() or {}
+        auth_username = data.get('auth_username', '').strip()
+        auth_password = data.get('auth_password', '').strip()
+        two_fa_code = data.get('two_fa_code', '').strip()
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 获取IP和UA
+        ip_address = request.remote_addr or ''
+        user_agent = request.headers.get('User-Agent', '')
+        
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"})
+        
+        # 更新会话活动时间
+        update_session_activity(session_id)
+        
+        # 验证用户
+        auth_result = auth_system.authenticate(auth_username, auth_password, ip_address, user_agent, two_fa_code)
+        if not auth_result['success']:
+            return jsonify(auth_result)
+        
+        # 将认证信息附加到会话
+        with web_sessions_lock:
+            if session_id in web_sessions:
+                api_instance = web_sessions[session_id]
+            else:
+                api_instance = Api(args)
+                api_instance._session_created_at = time.time()
+                api_instance._web_session_id = session_id
+                web_sessions[session_id] = api_instance
+            
+            api_instance.auth_username = auth_result['auth_username']
+            api_instance.auth_group = auth_result['group']
+            api_instance.is_guest = auth_result.get('is_guest', False)
+            api_instance.is_authenticated = True
+            
+            # 如果是注册用户（非游客），处理会话关联
+            cleanup_message = ""
+            if not auth_result.get('is_guest', False):
+                # 检查并强制执行会话数量限制
+                old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, session_id)
+                
+                # 清理旧会话（如果超出限制）
+                for old_sid in old_sessions:
+                    cleanup_session(old_sid, "session_limit_exceeded")
+                
+                # 关联新会话到用户账号
+                auth_system.link_session_to_user(auth_username, session_id)
+                
+                # 记录审计日志
+                audit_details = f'登录成功，会话ID: {session_id}'
+                if cleanup_message:
+                    audit_details += f'; {cleanup_message}'
+                
+                auth_system.log_audit(
+                    auth_username,
+                    'user_login',
+                    audit_details,
+                    ip_address,
+                    session_id
+                )
+            
+            save_session_state(session_id, api_instance, force_save=True)
+        
+        # 如果是注册用户，返回已保存的会话ID列表
+        user_sessions = []
+        max_sessions = 1
+        if not auth_result.get('is_guest', False):
+            user_sessions = auth_system.get_user_sessions(auth_username)
+            user_details = auth_system.get_user_details(auth_username)
+            if user_details:
+                max_sessions = user_details.get('max_sessions', 1)
+        
+        # 生成会话限制提示信息
+        session_limit_info = ""
+        if max_sessions == 1:
+            session_limit_info = "您的账号为单会话模式，新登录将自动清理所有旧会话"
+        elif max_sessions == -1:
+            session_limit_info = "您的账号为无限会话模式，可以创建任意数量的会话"
+        else:
+            session_limit_info = f"您的账号最多可以同时保持{max_sessions}个活跃会话，超出时将自动清理最旧的会话"
+        
+        response_data = {
+            "success": True,
+            "auth_username": auth_result['auth_username'],
+            "group": auth_result['group'],
+            "is_guest": auth_result.get('is_guest', False),
+            "user_sessions": user_sessions,  # 用于状态恢复
+            "max_sessions": max_sessions,
+            "session_limit_info": session_limit_info,
+            "avatar_url": auth_result.get('avatar_url', ''),
+            "theme": auth_result.get('theme', 'light')
+        }
+        
+        # 添加清理提示（如果有）
+        if cleanup_message:
+            response_data['cleanup_message'] = cleanup_message
+        
+        return jsonify(response_data)
+    
+    @app.route('/auth/guest_login', methods=['POST'])
+    def auth_guest_login():
+        """游客登录"""
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"})
+        
+        # 更新会话活动时间
+        update_session_activity(session_id)
+        
+        # 检查是否允许游客登录
+        if not auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True):
+            return jsonify({"success": False, "message": "系统不允许游客登录"})
+        
+        # 创建游客会话
+        with web_sessions_lock:
+            if session_id in web_sessions:
+                api_instance = web_sessions[session_id]
+            else:
+                api_instance = Api(args)
+                api_instance._session_created_at = time.time()
+                api_instance._web_session_id = session_id
+                web_sessions[session_id] = api_instance
+            
+            api_instance.auth_username = 'guest'
+            api_instance.auth_group = 'guest'
+            api_instance.is_guest = True
+            api_instance.is_authenticated = True
+            
+            save_session_state(session_id, api_instance, force_save=True)
+        
+        return jsonify({
+            "success": True,
+            "auth_username": "guest",
+            "group": "guest",
+            "is_guest": True
+        })
+    
+    @app.route('/auth/check_permission', methods=['POST'])
+    def auth_check_permission():
+        """检查权限"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        permission = data.get('permission', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "has_permission": False})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "has_permission": False})
+        
+        has_permission = auth_system.check_permission(api_instance.auth_username, permission)
+        return jsonify({"success": True, "has_permission": has_permission})
+    
+    @app.route('/auth/admin/list_users', methods=['GET'])
+    def auth_admin_list_users():
+        """管理员：列出所有用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查权限
+        if not auth_system.check_permission(api_instance.auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"})
+        
+        users = auth_system.list_users()
+        return jsonify({"success": True, "users": users})
+    
+    @app.route('/auth/admin/update_user_group', methods=['POST'])
+    def auth_admin_update_user_group():
+        """管理员：更新用户组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        target_username = data.get('target_username', '')
+        new_group = data.get('new_group', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查权限
+        if not auth_system.check_permission(api_instance.auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"})
+        
+        result = auth_system.update_user_group(target_username, new_group)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/list_groups', methods=['GET'])
+    def auth_admin_list_groups():
+        """管理员：列出所有权限组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查权限
+        if not auth_system.check_permission(api_instance.auth_username, 'manage_permissions'):
+            return jsonify({"success": False, "message": "权限不足"})
+        
+        groups = auth_system.get_all_groups()
+        return jsonify({"success": True, "groups": groups})
+    
+    @app.route('/auth/admin/create_group', methods=['POST'])
+    def auth_admin_create_group():
+        """超级管理员：创建权限组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        group_name = data.get('group_name', '')
+        display_name = data.get('display_name', '')
+        permissions = data.get('permissions', {})
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查是否为超级管理员
+        if api_instance.auth_group != 'super_admin':
+            return jsonify({"success": False, "message": "仅超级管理员可创建权限组"})
+        
+        result = auth_system.create_permission_group(group_name, permissions, display_name)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/update_group', methods=['POST'])
+    def auth_admin_update_group():
+        """超级管理员：更新权限组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        group_name = data.get('group_name', '')
+        permissions = data.get('permissions', {})
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查是否为超级管理员
+        if api_instance.auth_group != 'super_admin':
+            return jsonify({"success": False, "message": "仅超级管理员可更新权限组"})
+        
+        result = auth_system.update_permission_group(group_name, permissions)
+        return jsonify(result)
+    
+    @app.route('/auth/get_config', methods=['GET'])
+    def auth_get_config():
+        """获取认证配置（用于前端显示）"""
+        return jsonify({
+            "success": True,
+            "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True)
+        })
+    
+    @app.route('/auth/2fa/generate', methods=['POST'])
+    def auth_2fa_generate():
+        """生成2FA密钥"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        if not getattr(api_instance, 'is_authenticated', False):
+            return jsonify({"success": False, "message": "未认证"}), 401
+        
+        auth_username = getattr(api_instance, 'auth_username', '')
+        if auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客不支持2FA"}), 403
+        
+        result = auth_system.generate_2fa_secret(auth_username)
+        return jsonify(result)
+    
+    @app.route('/auth/2fa/enable', methods=['POST'])
+    def auth_2fa_enable():
+        """启用2FA"""
+        data = request.get_json() or {}
+        verification_code = data.get('code', '').strip()
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        if not getattr(api_instance, 'is_authenticated', False):
+            return jsonify({"success": False, "message": "未认证"}), 401
+        
+        auth_username = getattr(api_instance, 'auth_username', '')
+        result = auth_system.enable_2fa(auth_username, verification_code)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/login_logs', methods=['GET'])
+    def auth_admin_login_logs():
+        """获取登录日志（管理员）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        
+        # 只有管理员和超级管理员可以查看
+        if auth_group not in ['admin', 'super_admin']:
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        # 获取参数
+        username = request.args.get('username', None)
+        limit = int(request.args.get('limit', 100))
+        
+        logs = auth_system.get_login_history(username, limit)
+        return jsonify({
+            "success": True,
+            "logs": logs
+        })
+    
+    @app.route('/logs/view', methods=['GET'])
+    def view_logs():
+        """查看应用日志（管理员）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        
+        # 只有管理员和超级管理员可以查看
+        if auth_group not in ['admin', 'super_admin']:
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        # 读取最近的日志（最多1000行）
+        lines = int(request.args.get('lines', 100))
+        lines = min(lines, 1000)  # 限制最多1000行
+        
+        log_content = []
+        # 尝试读取日志文件
+        log_files = []
+        
+        # 查找日志目录中的日志文件
+        if os.path.exists(LOGIN_LOGS_DIR):
+            for f in os.listdir(LOGIN_LOGS_DIR):
+                if f.endswith('.log') or f.endswith('.jsonl'):
+                    log_files.append(os.path.join(LOGIN_LOGS_DIR, f))
+        
+        # 读取最近的日志
+        for log_file in log_files[:5]:  # 最多读取5个日志文件
+            try:
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    content = f.readlines()
+                    log_content.extend(content[-lines:])
+            except:
+                continue
+        
+        return jsonify({
+            "success": True,
+            "logs": log_content[-lines:]  # 返回最近的N行
+        })
+    
+    @app.route('/auth/admin/reset_password', methods=['POST'])
+    def auth_admin_reset_password():
+        """重置用户密码（管理员）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'reset_user_password'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        new_password = data.get('new_password', '')
+        
+        if not target_username or not new_password:
+            return jsonify({"success": False, "message": "参数缺失"})
+        
+        result = auth_system.reset_user_password(target_username, new_password)
+        return jsonify(result)
+    
+    @app.route('/auth/user/update_avatar', methods=['POST'])
+    def auth_user_update_avatar():
+        """更新用户头像"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客无法设置头像"})
+        
+        data = request.json
+        avatar_url = data.get('avatar_url', '')
+        
+        result = auth_system.update_user_avatar(auth_username, avatar_url)
+        return jsonify(result)
+    
+    @app.route('/auth/user/update_theme', methods=['POST'])
+    def auth_user_update_theme():
+        """更新用户主题"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客无法设置主题"})
+        
+        data = request.json
+        theme = data.get('theme', 'light')
+        
+        result = auth_system.update_user_theme(auth_username, theme)
+        return jsonify(result)
+    
+    @app.route('/auth/user/details', methods=['GET'])
+    def auth_user_details():
+        """获取用户详细信息"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客无详细信息"})
+        
+        details = auth_system.get_user_details(auth_username)
+        if details:
+            return jsonify({"success": True, "user": details})
+        return jsonify({"success": False, "message": "用户不存在"})
+    
+    @app.route('/auth/admin/update_max_sessions', methods=['POST'])
+    def auth_admin_update_max_sessions():
+        """更新用户最大会话数量（管理员）
+        
+        请求参数:
+        - username: 目标用户名
+        - max_sessions: 最大会话数 (1=单会话, >1=指定数量, -1=无限制)
+        """
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        max_sessions = data.get('max_sessions', 1)
+        
+        # 验证参数
+        if not isinstance(max_sessions, int) or (max_sessions < 1 and max_sessions != -1):
+            return jsonify({
+                "success": False, 
+                "message": "无效的会话数量：必须为正整数或-1（无限制）"
+            }), 400
+        
+        result = auth_system.update_max_sessions(target_username, max_sessions)
+        
+        # 记录审计日志
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        auth_system.log_audit(
+            auth_username,
+            'update_max_sessions',
+            f'修改用户 {target_username} 的最大会话数为: {max_sessions}',
+            ip_address,
+            session_id
+        )
+        
+        return jsonify(result)
+    
+    @app.route('/auth/user/sessions', methods=['GET'])
+    def auth_user_sessions():
+        """获取用户的所有会话"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": True, "sessions": []})
+        
+        # 获取用户的会话ID列表
+        session_ids = auth_system.get_user_sessions(auth_username)
+        
+        # 获取会话详情
+        sessions_info = []
+        for sid in session_ids:
+            # 检查会话是否还存在
+            session_file = get_session_file_path(sid)
+            if os.path.exists(session_file):
+                try:
+                    with open(session_file, 'r', encoding='utf-8') as f:
+                        session_data = json.load(f)
+                    
+                    sessions_info.append({
+                        'session_id': sid,
+                        'created_at': session_data.get('created_at', 0),
+                        'last_activity': session_data.get('last_activity', 0),
+                        'is_current': sid == session_id,
+                        'login_success': session_data.get('login_success', False),
+                        'user_data': session_data.get('user_data', {})
+                    })
+                except:
+                    continue
+        
+        return jsonify({"success": True, "sessions": sessions_info})
+    
+    @app.route('/auth/user/delete_session', methods=['POST'])
+    def auth_user_delete_session():
+        """删除用户的一个会话"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客无会话管理"})
+        
+        data = request.json
+        target_session_id = data.get('session_id', '')
+        
+        if not target_session_id:
+            return jsonify({"success": False, "message": "会话ID缺失"})
+        
+        # 不能删除当前会话
+        if target_session_id == session_id:
+            return jsonify({"success": False, "message": "不能删除当前会话"})
+        
+        # 从用户数据中移除
+        auth_system.unlink_session_from_user(auth_username, target_session_id)
+        
+        # 删除会话文件
+        session_file = get_session_file_path(target_session_id)
+        if os.path.exists(session_file):
+            try:
+                os.remove(session_file)
+            except:
+                pass
+        
+        # 从内存中移除
+        with web_sessions_lock:
+            if target_session_id in web_sessions:
+                del web_sessions[target_session_id]
+        
+        return jsonify({"success": True, "message": "会话已删除"})
+    
+    @app.route('/auth/admin/audit_logs', methods=['GET'])
+    def auth_admin_audit_logs():
+        """获取审计日志（管理员）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'view_audit_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        # 获取参数
+        username = request.args.get('username', None)
+        action = request.args.get('action', None)
+        limit = int(request.args.get('limit', 100))
+        
+        logs = auth_system.get_audit_logs(username, action, limit)
+        return jsonify({
+            "success": True,
+            "logs": logs
+        })
+    
+    # ====================
+    # 应用主路由
+    # ====================
+    
     @app.route('/')
     def index():
         """首页：自动分配UUID并重定向"""
@@ -4886,6 +6515,7 @@ def start_web_server(args):
             if session_id not in web_sessions:
                 api_instance = Api(args)
                 api_instance._session_created_at = time.time()
+                api_instance._web_session_id = session_id  # 关键：保存session_id到实例
                 web_sessions[session_id] = api_instance
                 save_session_state(session_id, api_instance)
                 logging.info(f"创建新会话 (2048位UUID): {session_id[:32]}...")
@@ -4908,19 +6538,28 @@ def start_web_server(args):
                 state = load_session_state(uuid)
                 api_instance = Api(args)
                 api_instance._session_created_at = time.time()
+                api_instance._web_session_id = uuid  # 关键：保存session_id到实例，用于后台任务自动保存
                 
                 if state and state.get('login_success'):
                     # 恢复登录状态
                     api_instance.login_success = True
                     api_instance.user_info = state.get('user_info')
                     api_instance._session_created_at = state.get('created_at', time.time())
-                    logging.info(f"从文件恢复已登录会话 (2048位UUID): {uuid[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')})")
+                    
+                    # 使用新的恢复函数恢复完整状态
+                    restore_session_to_api_instance(api_instance, state)
+                    
+                    logging.info(f"从文件恢复已登录会话 (2048位UUID): {uuid[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')}, 任务数: {len(api_instance.all_run_data)})")
                 else:
                     logging.info(f"创建新会话 (2048位UUID): {uuid[:32]}...")
                 
                 web_sessions[uuid] = api_instance
                 save_session_state(uuid, api_instance)
             else:
+                # 确保已有会话也有_web_session_id属性
+                api_instance = web_sessions[uuid]
+                if not hasattr(api_instance, '_web_session_id'):
+                    api_instance._web_session_id = uuid
                 logging.debug(f"使用现有会话: {uuid[:32]}...")
         
         # 返回HTML内容
@@ -4935,9 +6574,23 @@ def start_web_server(args):
         if not session_id:
             return jsonify({"success": False, "message": "缺少会话ID"}), 401
         
+        # 更新会话活动时间
+        update_session_activity(session_id)
+        
         with web_sessions_lock:
             if session_id not in web_sessions:
-                return jsonify({"success": False, "message": "会话已过期或无效"}), 401
+                # 尝试恢复会话
+                state = load_session_state(session_id)
+                if state and state.get('login_success'):
+                    api_instance = Api(args)
+                    api_instance._session_created_at = state.get('created_at', time.time())
+                    api_instance.login_success = True
+                    api_instance.user_info = state.get('user_info')
+                    restore_session_to_api_instance(api_instance, state)
+                    web_sessions[session_id] = api_instance
+                    logging.info(f"API调用时自动恢复会话: {session_id[:32]}...")
+                else:
+                    return jsonify({"success": False, "message": "会话已过期或无效"}), 401
             api_instance = web_sessions[session_id]
         
         # 获取请求参数
@@ -4948,6 +6601,23 @@ def start_web_server(args):
         
         # 调用对应的API方法
         try:
+            # 权限检查：需要特定权限的方法
+            permission_required_methods = {
+                'mark_notification_read': 'mark_notifications_read',
+                'mark_all_read': 'mark_notifications_read',
+                'trigger_attendance': 'use_attendance',
+                'multi_start_single_account': 'execute_multi_account',
+                'multi_start_all_accounts': 'execute_multi_account',
+            }
+            
+            if method in permission_required_methods:
+                required_permission = permission_required_methods[method]
+                if hasattr(api_instance, 'auth_username'):
+                    if not auth_system.check_permission(api_instance.auth_username, required_permission):
+                        return jsonify({"success": False, "message": f"权限不足：需要 {required_permission} 权限"}), 403
+                else:
+                    return jsonify({"success": False, "message": "请先登录认证"}), 401
+            
             if hasattr(api_instance, method):
                 func = getattr(api_instance, method)
                 # 将参数展开调用
@@ -4956,10 +6626,18 @@ def start_web_server(args):
                 else:
                     result = func()
                 
-                # 对于会改变会话状态的API调用，保存会话状态
-                if method in ['login', 'logout']:
+                # 关键改进：对于会改变会话状态的API调用，保存会话状态
+                # 扩展自动保存的方法列表，包括所有可能改变状态的操作
+                auto_save_methods = [
+                    'login', 'logout', 'load_tasks', 'select_task', 
+                    'start_single_run', 'start_all_runs', 'stop_current_run',
+                    'import_offline_file', 'export_offline_file',
+                    'record_path', 'auto_generate_path', 'process_path', 'clear_path',
+                    'update_param', 'generate_new_ua'
+                ]
+                if method in auto_save_methods:
                     save_session_state(session_id, api_instance)
-                    logging.debug(f"API '{method}' 调用后保存会话状态")
+                    logging.debug(f"API '{method}' 调用后自动保存会话状态")
                 
                 return jsonify(result if result is not None else {"success": True})
             else:
@@ -5020,6 +6698,10 @@ def start_web_server(args):
     logging.info("正在加载持久化会话...")
     load_all_sessions(args)
     
+    # 启动会话监控线程
+    logging.info("正在启动会话监控...")
+    start_session_monitor()
+    
     # 启动服务器
     print(f"\n{'='*60}")
     print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染，2048位UUID）")
@@ -5027,6 +6709,7 @@ def start_web_server(args):
     print(f"  首次访问将自动分配2048位UUID并重定向")
     print(f"  会话持久化已启用（服务器重启后保留登录状态）")
     print(f"  JS计算在服务器端Chrome中执行，提升安全性")
+    print(f"  会话监控已启用（5分钟不活跃自动清理）")
     print(f"{'='*60}\n")
     
     try:
