@@ -114,8 +114,10 @@ class NotificationService:
         if self.config.getboolean('Email', 'enable_email', fallback=False):
             self._send_email(user_info, ntype, data)
         
-        # 发送短信
-        if self.config.getboolean('SMS', 'enable_sms', fallback=False) and user_info.get('phone'):
+        # 发送短信（仅当用户有SMS通知权限时）
+        # 注意：SMS默认仅用于注册验证，通知需要明确授权
+        use_sms = notification.get('use_sms', False)
+        if use_sms and self.config.getboolean('SMS', 'enable_sms', fallback=False) and user_info.get('phone'):
             self._send_sms(user_info, ntype, data)
     
     def _send_email(self, user_info, ntype, data):
@@ -198,6 +200,12 @@ class NotificationService:
                 '会话即将过期',
                 f'<p>您好 {username}，</p><p>您的会话即将在1小时后过期。</p>'
                 f'<p>请及时保存工作并重新登录。</p>'
+            ),
+            'session_destroyed': (
+                '会话已销毁通知',
+                f'<p>您好 {username}，</p><p>您的一个会话已被销毁：</p>'
+                f'<p>会话ID: {data.get("session_id")}<br>原因: {data.get("reason")}<br>时间: {data.get("time")}</p>'
+                f'<p>如非本人操作，请立即检查账号安全。</p>'
             )
         }
         return templates.get(ntype, ('通知', f'<p>{username}: {data}</p>'))
@@ -209,7 +217,8 @@ class NotificationService:
             'suspicious_login': f'【安全警告】{username}检测到异常登录，IP:{data.get("ip")}，位置:{data.get("location")}',
             'task_complete': f'【任务完成】{username}您的任务"{data.get("task_name")}"已完成',
             'permission_change': f'【权限变更】{username}您的权限已变更为{data.get("new_group")}',
-            'session_expiring': f'【提醒】{username}您的会话将在1小时后过期，请及时保存工作'
+            'session_expiring': f'【提醒】{username}您的会话将在1小时后过期，请及时保存工作',
+            'session_destroyed': f'【会话销毁】{username}您的会话已销毁，原因:{data.get("reason")}'
         }
         return templates.get(ntype, f'{username}: 系统通知')
     
