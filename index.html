@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>跑步助手</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 注意: Tailwind CDN 仅用于开发/演示。生产环境建议安装为 PostCSS 插件 -->
 <script src="https://cdn.tailwindcss.com" onerror="handleCdnError()"></script>
 
 <!-- Google Fonts 标准引入（替代手写 @font-face） -->
@@ -13,7 +14,7 @@
   href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap"
   rel="stylesheet" onerror="handleCdnError()">
 
-
+<script src="https://webapi.amap.com/loader.js" onerror="handleCdnError()"></script>
 <script>
 // 配置TailwindCSS
 tailwind.config = {
@@ -273,11 +274,11 @@ body.modal-visible .amap-copyright {
   display: none !important;
 }
 </style>
-<script src="https://webapi.amap.com/loader.js" onerror="handleCdnError()"></script>
+
 </head>
 <body class="text-slate-800 font-sans h-screen overflow-hidden antialiased">
 
-<div id="cdn-error-overlay" style="display: none; position: fixed; inset: 0; z-index: 9999; background-color: #f8fafc; color: #475569; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2rem;">
+<div id="cdn-error-overlay" class="fixed inset-0 z-9999 hidden flex-col items-center justify-center bg-[#f8fafc] p-8 text-center text-[#475569]" style="font-family: sans-serif;">
   <div style="max-width: 500px;">
     <h1 style="font-size: 1.875rem; font-weight: bold; color: #be123c; margin-bottom: 1rem;">界面资源加载失败</h1>
     <p style="font-size: 1.125rem; margin-bottom: 1.5rem;">应用程序无法连接到外部网络服务器（CDN）来下载必要的界面文件（如样式和地图库）。</p>
@@ -419,7 +420,7 @@ body.modal-visible .amap-copyright {
       <div class="space-y-4 w-full">
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">选择账号</label>
-          <select id="user-combo" class="select-field mt-1"></select>
+          <select id="user-combo" class="select-field mt-1" title="选择已保存的账号或创建新账号" aria-label="选择账号"></select>
         </div>
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
@@ -945,20 +946,31 @@ body.modal-visible .amap-copyright {
 
 // 全局变量
 
-let cdnErrorOccurred = false;
+let cdnErrorCount = 0;
+let cdnErrorTimer = null;
+let appInitialized = false;
+
 function handleCdnError() {
-  if (cdnErrorOccurred) return;
-  cdnErrorOccurred = true;
-
+  cdnErrorCount++;
+  console.warn(`CDN资源加载失败 (${cdnErrorCount}/3)，等待应用初始化...`);
   
-  // 只负责显示错误提示页面，不再隐藏其他元素或停止页面
-  const errorOverlay = document.getElementById('cdn-error-overlay');
-  if (errorOverlay) {
-    // 使用 !important 来确保它能覆盖其他样式
-    errorOverlay.style.setProperty('display', 'flex', 'important');
+  // 优化：不立即显示错误，而是延迟检查
+  // 如果3秒后应用仍未初始化，且有CDN错误，则显示错误提示
+  if (cdnErrorTimer) {
+    clearTimeout(cdnErrorTimer);
   }
-
-  console.error("一个或多个CDN资源加载失败，已显示错误提示。应用将继续尝试初始化。");
+  
+  cdnErrorTimer = setTimeout(() => {
+    // 只有在应用未成功初始化时才显示错误
+    if (!appInitialized && cdnErrorCount > 0) {
+      const errorOverlay = document.getElementById('cdn-error-overlay');
+      if (errorOverlay) {
+        errorOverlay.style.setProperty('display', 'flex', 'important');
+        console.error(`应用初始化超时，CDN资源加载失败 (${cdnErrorCount}个资源)`);
+        $('cdn-error-overlay').classList.add('hidden');  //显示错误覆盖层
+      }
+    }
+  }, 3000); // 延迟3秒显示错误，给应用初始化机会
 }
 
 
@@ -1506,6 +1518,7 @@ async function checkAuthStatus() {
 
 // 显示认证登录界面
 function showAuthLogin() {
+  $('loading-overlay').classList.add('hidden');
   $('auth-login-container').classList.remove('hidden');
   $('login-container').classList.add('hidden');
   $('main-app').classList.add('hidden');
@@ -1578,6 +1591,7 @@ async function handleAuthLogin() {
   const username = $('auth-username').value.trim();
   const password = $('auth-password').value.trim();
   
+
   if (!username || !password) {
     showAuthError('请输入用户名和密码');
     return;
@@ -1965,17 +1979,34 @@ async function initializeApp() {
       console.log('Web模式: 会话UUID =', sessionUUID);
     }
     
+
+    //移除加载提示
+    $('loading-overlay').classList.add('hidden');
+    $('cdn-error-overlay').classList.add('hidden');
+
     // 检查认证状态
     const isAuthenticated = await checkAuthStatus();
     if (!isAuthenticated) {
       showAuthLogin();
+      $('loading-overlay').classList.add('hidden');
       return; // 停止初始化，等待认证
     }
   }
 
-  // 既然能成功初始化，就隐藏CDN错误提示（如果是误报）
-  const cdnErrorOverlay = document.getElementById('cdn-error-overlay');
-  if (cdnErrorOverlay) cdnErrorOverlay.style.display = 'none';
+  // 标记应用已成功初始化
+  appInitialized = true;
+  
+  // 取消CDN错误定时器（如果还在等待）
+  if (cdnErrorTimer) {
+    clearTimeout(cdnErrorTimer);
+    cdnErrorTimer = null;
+  }
+  
+  //移除加载提示
+  $('loading-overlay').classList.add('hidden');
+  $('cdn-error-overlay').classList.add('hidden');
+
+  console.log('应用初始化成功，CDN资源状态正常或可用替代方案');
 
   const initialData = await callPythonAPI('get_initial_data');
   const userCombo = $('user-combo');
@@ -2067,15 +2098,52 @@ async function initializeApp() {
 }
 
 // 监听pywebview就绪事件（桌面模式）
-window.addEventListener('pywebviewready', initializeApp);
+window.addEventListener('pywebviewready', () => {
+  initializeApp().catch(err => {
+    console.error('应用初始化失败:', err);
+    // 立即显示CDN错误（如果有）
+    appInitialized = false;
+    if (cdnErrorCount > 0) {
+      if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
+      const errorOverlay = document.getElementById('cdn-error-overlay');
+      if (errorOverlay) {
+        errorOverlay.style.setProperty('display', 'flex', 'important');
+      }
+    }
+  });
+});
 
 // 如果是Web模式，在DOMContentLoaded时初始化
 if (isWebMode) {
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeApp);
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeApp().catch(err => {
+        console.error('应用初始化失败:', err);
+        // 立即显示CDN错误（如果有）
+        appInitialized = false;
+        if (cdnErrorCount > 0) {
+          if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
+          const errorOverlay = document.getElementById('cdn-error-overlay');
+          if (errorOverlay) {
+            errorOverlay.style.setProperty('display', 'flex', 'important');
+          }
+        }
+      });
+    });
   } else {
     // DOM已加载，直接初始化
-    initializeApp();
+    initializeApp().catch(err => {
+      console.error('应用初始化失败:', err);
+      // 立即显示CDN错误（如果有）
+      appInitialized = false;
+      if (cdnErrorCount > 0) {
+        if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
+        const errorOverlay = document.getElementById('cdn-error-overlay');
+        if (errorOverlay) {
+          errorOverlay.style.setProperty('display', 'flex', 'important');
+        }
+      }
+    });
   }
 }
 
@@ -2745,6 +2813,8 @@ async function onUserChange() {
 async function onLogin() {
   const user = $('username-entry').value.trim();
   const pass = $('password-entry').value;
+
+  
   if (!user) { showModalAlert('请输入用户名'); return; }
 
   // 在线登录前，复位离线标志与 UA 按钮
@@ -2756,6 +2826,16 @@ async function onLogin() {
 
   const result = await callPythonAPI('login', user, pass);
   if(result.success) {
+    // 修复Issue 3: 在显示主界面前先加载AMap API Key
+    if (result.amap_key) {
+      AMAP_API_KEY = result.amap_key;
+      try {
+        await loadAMapOnce();
+      } catch (e) {
+        console.error('地图加载失败（登录后）', e);
+      }
+    }
+    
     showMainApp();
     currentUserData = result.userInfo;
     currentSessionUA = uaOnLoginScreen;
