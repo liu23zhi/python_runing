@@ -414,8 +414,9 @@ body.modal-visible .amap-copyright {
 
   <div class="flex items-center justify-center p-8 bg-white">
     <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
-      <div class="flex items-center gap-3">
+      <div class="flex items-center justify-between gap-3">
         <h2 class="text-3xl font-bold text-sky-700 card-title">单账号登录</h2>
+        <button id="show-admin-panel-login" class="btn btn-ghost !py-2 !px-3 hidden" title="管理面板">管理</button>
       </div>
       <div class="space-y-4 w-full">
         <div>
@@ -636,7 +637,10 @@ body.modal-visible .amap-copyright {
     <div class="panel rounded-xl p-4 flex-shrink-0">
         <div class="flex justify-between items-center mb-3">
           <h2 class="text-lg font-bold text-slate-800 card-title">多账号控制台</h2>
-          <button id="exit-multi-mode-btn" class="btn btn-ghost !py-1 !px-3">返回登录页</button>
+          <div class="flex gap-2">
+            <button id="show-admin-panel-multi" class="btn btn-ghost !py-1 !px-3 hidden" title="管理面板">管理</button>
+            <button id="exit-multi-mode-btn" class="btn btn-ghost !py-1 !px-3">返回登录页</button>
+          </div>
         </div>
         <div class="grid grid-cols-2 gap-3">
             <button id="multi-start-all-btn" class="btn btn-primary">全部开始</button>
@@ -1640,6 +1644,15 @@ async function handleAuthLogin() {
         // 隐藏认证界面，显示应用登录界面
         $('auth-login-container').classList.add('hidden');
         $('login-container').classList.remove('hidden');
+        
+        // 显示管理面板按钮（如果有权限）
+        if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
+          const adminBtnLogin = $('show-admin-panel-login');
+          if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
+          const adminBtnMulti = $('show-admin-panel-multi');
+          if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
+        }
+        
         // 如果是游客，显示提示
         if (result.is_guest) {
           logMessage('[游客模式] 部分功能受限：无法标记通知已读、无法使用签到功能、无法执行多账号任务');
@@ -1782,9 +1795,15 @@ if (typeof window !== 'undefined') {
       if (e.key === 'Enter') handleAuthRegister();
     });
     
-    // 管理面板按钮
+    // 管理面板按钮（多个位置）
     const adminPanelBtn = $('show-admin-panel');
     if (adminPanelBtn) adminPanelBtn.addEventListener('click', () => toggleAdminPanel(true));
+    
+    const adminPanelBtnLogin = $('show-admin-panel-login');
+    if (adminPanelBtnLogin) adminPanelBtnLogin.addEventListener('click', () => toggleAdminPanel(true));
+    
+    const adminPanelBtnMulti = $('show-admin-panel-multi');
+    if (adminPanelBtnMulti) adminPanelBtnMulti.addEventListener('click', () => toggleAdminPanel(true));
     
     // 管理面板标签
     const adminUsersTab = $('admin-tab-users');
@@ -2079,6 +2098,14 @@ async function initializeApp() {
     // 如果是游客模式，显示提示
     if (isGuestMode) {
       logMessage('[游客模式] 部分功能受限，请保存当前地址以便恢复会话');
+    }
+    
+    // 显示管理面板按钮（如果有权限）
+    if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
+      const adminBtn = $('show-admin-panel-login');
+      if (adminBtn) adminBtn.classList.remove('hidden');
+      const adminBtnMulti = $('show-admin-panel-multi');
+      if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
     }
   } else {
     // 完全未登录，显示认证面板，检查API Key和游客登录选项
