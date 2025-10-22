@@ -1172,12 +1172,23 @@ class Api:
             user_info = self.user_info
 
         logging.debug(f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
+        
+        # 检查认证状态
+        is_authenticated = hasattr(self, 'is_authenticated') and self.is_authenticated
+        auth_username = getattr(self, 'auth_username', None)
+        auth_group = getattr(self, 'auth_group', 'guest')
+        is_guest = getattr(self, 'is_guest', False)
+        
         return {
             "users": users, 
             "lastUser": last_user, 
             "amap_key": self.global_params.get('amap_js_key', ''),
             "isLoggedIn": is_logged_in,
-            "userInfo": user_info
+            "userInfo": user_info,
+            "is_authenticated": is_authenticated,
+            "auth_username": auth_username,
+            "auth_group": auth_group,
+            "is_guest": is_guest
         }
 
     def save_amap_key(self, api_key: str):
