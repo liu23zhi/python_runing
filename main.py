@@ -4796,6 +4796,12 @@ def restore_session_to_api_instance(api_instance, state):
         state: 从文件加载的状态字典
     """
     try:
+        # 恢复登录状态和用户信息
+        if 'login_success' in state:
+            api_instance.login_success = state['login_success']
+        if 'user_info' in state:
+            api_instance.user_info = state['user_info']
+        
         # 恢复用户配置参数
         if 'params' in state:
             api_instance.params = state['params']
@@ -5055,6 +5061,7 @@ def start_web_server(args):
             if session_id not in web_sessions:
                 api_instance = Api(args)
                 api_instance._session_created_at = time.time()
+                api_instance._web_session_id = session_id  # 关键：保存session_id到实例
                 web_sessions[session_id] = api_instance
                 save_session_state(session_id, api_instance)
                 logging.info(f"创建新会话 (2048位UUID): {session_id[:32]}...")
