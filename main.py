@@ -51,6 +51,7 @@ if not os.path.exists(LOGIN_LOGS_DIR):
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
 PERMISSIONS_FILE = os.path.join(os.path.dirname(__file__), 'permissions.json')
 LOGIN_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'login_history.jsonl')
+AUDIT_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'audit.jsonl')
 
 # 配置UTF-8编码（用于日志和控制台输出）
 if sys.platform.startswith('win'):
@@ -329,7 +330,10 @@ class AuthSystem:
                 'last_login': None,
                 'session_ids': [],  # 用于关联用户的会话ID
                 '2fa_enabled': False,
-                '2fa_secret': None
+                '2fa_secret': None,
+                'avatar_url': '',  # 用户头像URL
+                'allow_multiple_sessions': False,  # 是否允许多会话
+                'theme': 'light'  # 主题偏好：light/dark
             }
             
             with open(user_file, 'w', encoding='utf-8') as f:
@@ -404,7 +408,11 @@ class AuthSystem:
                 "success": True,
                 "auth_username": auth_username,
                 "group": group,
-                "is_guest": False
+                "is_guest": False,
+                "allow_multiple_sessions": user_data.get('allow_multiple_sessions', False),
+                "avatar_url": user_data.get('avatar_url', ''),
+                "theme": user_data.get('theme', 'light'),
+                "session_ids": user_data.get('session_ids', [])
             }
     
     def check_permission(self, auth_username, permission):
@@ -545,6 +553,165 @@ class AuthSystem:
                     
                     with open(user_file, 'w', encoding='utf-8') as f:
                         json.dump(user_data, f, indent=2, ensure_ascii=False)
+    
+    def reset_user_password(self, auth_username, new_password):
+        """重置用户密码（管理员功能）"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            # 加密新密码
+            user_data['password'] = self._encrypt_password(new_password)
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"管理员重置密码: {auth_username}")
+            return {"success": True, "message": "密码已重置"}
+    
+    def update_user_avatar(self, auth_username, avatar_url):
+        """更新用户头像"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['avatar_url'] = avatar_url
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            return {"success": True, "message": "头像已更新"}
+    
+    def update_user_theme(self, auth_username, theme):
+        """更新用户主题偏好"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['theme'] = theme
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            return {"success": True, "message": "主题已更新"}
+    
+    def update_multi_session_permission(self, auth_username, allow_multiple):
+        """更新用户多会话权限"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['allow_multiple_sessions'] = allow_multiple
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            return {"success": True, "message": "多会话权限已更新"}
+    
+    def get_user_details(self, auth_username):
+        """获取用户详细信息"""
+        user_file = self.get_user_file_path(auth_username)
+        if not os.path.exists(user_file):
+            return None
+        
+        with open(user_file, 'r', encoding='utf-8') as f:
+            user_data = json.load(f)
+        
+        # 返回用户信息（不包含密码）
+        return {
+            'auth_username': user_data['auth_username'],
+            'group': user_data.get('group', 'user'),
+            'created_at': user_data.get('created_at'),
+            'last_login': user_data.get('last_login'),
+            '2fa_enabled': user_data.get('2fa_enabled', False),
+            'avatar_url': user_data.get('avatar_url', ''),
+            'allow_multiple_sessions': user_data.get('allow_multiple_sessions', False),
+            'theme': user_data.get('theme', 'light'),
+            'session_ids': user_data.get('session_ids', [])
+        }
+    
+    def check_single_session_enforcement(self, auth_username, new_session_id):
+        """检查并强制执行单会话限制（如果用户不允许多会话）"""
+        if auth_username == 'guest':
+            return []  # 游客不受限制
+        
+        user_file = self.get_user_file_path(auth_username)
+        if not os.path.exists(user_file):
+            return []
+        
+        with self.lock:
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            allow_multiple = user_data.get('allow_multiple_sessions', False)
+            if not allow_multiple:
+                # 单会话模式：移除所有旧会话
+                old_sessions = user_data.get('session_ids', [])
+                user_data['session_ids'] = [new_session_id]
+                
+                with open(user_file, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+                
+                return old_sessions  # 返回需要清理的旧会话
+            else:
+                # 多会话模式：正常添加
+                return []
+    
+    def log_audit(self, auth_username, action, details='', ip_address='', session_id=''):
+        """记录审计日志"""
+        audit_entry = {
+            'timestamp': time.time(),
+            'datetime': datetime.datetime.now().isoformat(),
+            'username': auth_username,
+            'action': action,
+            'details': details,
+            'ip_address': ip_address,
+            'session_id': session_id
+        }
+        
+        try:
+            with open(AUDIT_LOG_FILE, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(audit_entry, ensure_ascii=False) + '\n')
+        except Exception as e:
+            logging.error(f"记录审计日志失败: {e}")
+    
+    def get_audit_logs(self, username=None, action=None, limit=100):
+        """获取审计日志"""
+        if not os.path.exists(AUDIT_LOG_FILE):
+            return []
+        
+        logs = []
+        try:
+            with open(AUDIT_LOG_FILE, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line.strip())
+                        if (username is None or entry.get('username') == username) and \
+                           (action is None or entry.get('action') == action):
+                            logs.append(entry)
+                    except:
+                        continue
+        except Exception as e:
+            logging.error(f"读取审计日志失败: {e}")
+        
+        # 返回最近的记录
+        return logs[-limit:]
 
 # 创建全局认证系统实例
 auth_system = AuthSystem()
@@ -5090,6 +5257,11 @@ def update_session_activity(session_id):
     with session_activity_lock:
         session_activity[session_id] = time.time()
 
+def cleanup_session(session_id, reason="manual"):
+    """清理指定会话（支持指定原因）"""
+    logging.info(f"清理会话: {session_id[:32]}... (原因: {reason})")
+    cleanup_inactive_session(session_id)
+
 def cleanup_inactive_session(session_id):
     """清理不活跃的会话"""
     try:
@@ -5720,9 +5892,26 @@ def start_web_server(args):
             api_instance.is_guest = auth_result.get('is_guest', False)
             api_instance.is_authenticated = True
             
-            # 如果是注册用户（非游客），关联会话到用户账号
+            # 如果是注册用户（非游客），处理会话关联
             if not auth_result.get('is_guest', False):
+                # 检查单会话强制执行
+                old_sessions = auth_system.check_single_session_enforcement(auth_username, session_id)
+                
+                # 清理旧会话（如果是单会话模式）
+                for old_sid in old_sessions:
+                    cleanup_session(old_sid, "single_session_enforcement")
+                
+                # 关联新会话到用户账号
                 auth_system.link_session_to_user(auth_username, session_id)
+                
+                # 记录审计日志
+                auth_system.log_audit(
+                    auth_username,
+                    'user_login',
+                    f'登录成功，会话ID: {session_id}',
+                    ip_address,
+                    session_id
+                )
             
             save_session_state(session_id, api_instance, force_save=True)
         
@@ -5736,7 +5925,10 @@ def start_web_server(args):
             "auth_username": auth_result['auth_username'],
             "group": auth_result['group'],
             "is_guest": auth_result.get('is_guest', False),
-            "user_sessions": user_sessions  # 用于状态恢复
+            "user_sessions": user_sessions,  # 用于状态恢复
+            "allow_multiple_sessions": auth_result.get('allow_multiple_sessions', False),
+            "avatar_url": auth_result.get('avatar_url', ''),
+            "theme": auth_result.get('theme', 'light')
         })
     
     @app.route('/auth/guest_login', methods=['POST'])
@@ -6008,6 +6200,214 @@ def start_web_server(args):
         return jsonify({
             "success": True,
             "logs": log_content[-lines:]  # 返回最近的N行
+        })
+    
+    @app.route('/auth/admin/reset_password', methods=['POST'])
+    def auth_admin_reset_password():
+        """重置用户密码（管理员）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'reset_user_password'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        new_password = data.get('new_password', '')
+        
+        if not target_username or not new_password:
+            return jsonify({"success": False, "message": "参数缺失"})
+        
+        result = auth_system.reset_user_password(target_username, new_password)
+        return jsonify(result)
+    
+    @app.route('/auth/user/update_avatar', methods=['POST'])
+    def auth_user_update_avatar():
+        """更新用户头像"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客无法设置头像"})
+        
+        data = request.json
+        avatar_url = data.get('avatar_url', '')
+        
+        result = auth_system.update_user_avatar(auth_username, avatar_url)
+        return jsonify(result)
+    
+    @app.route('/auth/user/update_theme', methods=['POST'])
+    def auth_user_update_theme():
+        """更新用户主题"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客无法设置主题"})
+        
+        data = request.json
+        theme = data.get('theme', 'light')
+        
+        result = auth_system.update_user_theme(auth_username, theme)
+        return jsonify(result)
+    
+    @app.route('/auth/user/details', methods=['GET'])
+    def auth_user_details():
+        """获取用户详细信息"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客无详细信息"})
+        
+        details = auth_system.get_user_details(auth_username)
+        if details:
+            return jsonify({"success": True, "user": details})
+        return jsonify({"success": False, "message": "用户不存在"})
+    
+    @app.route('/auth/admin/update_multi_session', methods=['POST'])
+    def auth_admin_update_multi_session():
+        """更新用户多会话权限（管理员）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        allow_multiple = data.get('allow_multiple', False)
+        
+        result = auth_system.update_multi_session_permission(target_username, allow_multiple)
+        return jsonify(result)
+    
+    @app.route('/auth/user/sessions', methods=['GET'])
+    def auth_user_sessions():
+        """获取用户的所有会话"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": True, "sessions": []})
+        
+        # 获取用户的会话ID列表
+        session_ids = auth_system.get_user_sessions(auth_username)
+        
+        # 获取会话详情
+        sessions_info = []
+        for sid in session_ids:
+            # 检查会话是否还存在
+            session_file = get_session_file_path(sid)
+            if os.path.exists(session_file):
+                try:
+                    with open(session_file, 'r', encoding='utf-8') as f:
+                        session_data = json.load(f)
+                    
+                    sessions_info.append({
+                        'session_id': sid,
+                        'created_at': session_data.get('created_at', 0),
+                        'last_activity': session_data.get('last_activity', 0),
+                        'is_current': sid == session_id,
+                        'login_success': session_data.get('login_success', False),
+                        'user_data': session_data.get('user_data', {})
+                    })
+                except:
+                    continue
+        
+        return jsonify({"success": True, "sessions": sessions_info})
+    
+    @app.route('/auth/user/delete_session', methods=['POST'])
+    def auth_user_delete_session():
+        """删除用户的一个会话"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客无会话管理"})
+        
+        data = request.json
+        target_session_id = data.get('session_id', '')
+        
+        if not target_session_id:
+            return jsonify({"success": False, "message": "会话ID缺失"})
+        
+        # 不能删除当前会话
+        if target_session_id == session_id:
+            return jsonify({"success": False, "message": "不能删除当前会话"})
+        
+        # 从用户数据中移除
+        auth_system.unlink_session_from_user(auth_username, target_session_id)
+        
+        # 删除会话文件
+        session_file = get_session_file_path(target_session_id)
+        if os.path.exists(session_file):
+            try:
+                os.remove(session_file)
+            except:
+                pass
+        
+        # 从内存中移除
+        with web_sessions_lock:
+            if target_session_id in web_sessions:
+                del web_sessions[target_session_id]
+        
+        return jsonify({"success": True, "message": "会话已删除"})
+    
+    @app.route('/auth/admin/audit_logs', methods=['GET'])
+    def auth_admin_audit_logs():
+        """获取审计日志（管理员）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'view_audit_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        # 获取参数
+        username = request.args.get('username', None)
+        action = request.args.get('action', None)
+        limit = int(request.args.get('limit', 100))
+        
+        logs = auth_system.get_audit_logs(username, action, limit)
+        return jsonify({
+            "success": True,
+            "logs": logs
         })
     
     # ====================

@@ -76,7 +76,9 @@
         "manage_users": true,
         "manage_permissions": true,
         "view_all_sessions": true,
-        "force_logout_users": true
+        "force_logout_users": true,
+        "reset_user_password": true,
+        "view_audit_logs": true
       }
     },
     "super_admin": {
@@ -108,7 +110,9 @@
         "force_logout_users": true,
         "manage_system": true,
         "create_permission_groups": true,
-        "delete_permission_groups": true
+        "delete_permission_groups": true,
+        "reset_user_password": true,
+        "view_audit_logs": true
       }
     }
   },
