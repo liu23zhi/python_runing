@@ -3,7 +3,7 @@ __pycache__/
 *.pyo
 .DS_Store
 sessions/
-# Keep config.ini template but ignore user data
-users/
+# Keep config.ini template but ignore user data (shared with school accounts)
+user/
 # Keep permissions.json template
 /.history

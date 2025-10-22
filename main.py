@@ -33,8 +33,8 @@ if not os.path.exists(SESSION_STORAGE_DIR):
 # 会话索引文件：存储SHA256哈希和完整UUID的对应关系
 SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
 
-# 用户认证系统相关目录
-USERS_DIR = os.path.join(os.path.dirname(__file__), 'users')
+# 用户认证系统相关目录（与学校账号使用相同的user目录）
+USERS_DIR = os.path.join(os.path.dirname(__file__), 'user')
 if not os.path.exists(USERS_DIR):
     os.makedirs(USERS_DIR)
 
@@ -4958,8 +4958,36 @@ def monitor_session_inactivity():
                                 is_authenticated = getattr(api_instance, 'is_authenticated', False)
                                 is_logged_in = getattr(api_instance, 'login_success', False)
                                 
-                                if is_authenticated and not is_logged_in:
+                                # 检查是否有任务正在执行
+                                has_active_task = False
+                                
+                                # 单账号模式：检查是否有跑步任务正在执行
+                                if hasattr(api_instance, 'stop_run_flag'):
+                                    has_active_task = has_active_task or not api_instance.stop_run_flag.is_set()
+                                
+                                # 单账号模式：检查自动签到是否正在运行
+                                if hasattr(api_instance, 'auto_refresh_thread'):
+                                    thread = api_instance.auto_refresh_thread
+                                    has_active_task = has_active_task or (thread is not None and thread.is_alive())
+                                
+                                # 多账号模式：检查多账号自动签到是否正在运行
+                                if hasattr(api_instance, 'multi_auto_refresh_thread'):
+                                    thread = api_instance.multi_auto_refresh_thread
+                                    has_active_task = has_active_task or (thread is not None and thread.is_alive())
+                                
+                                # 多账号模式：检查是否有账号的任务线程正在运行
+                                if hasattr(api_instance, 'multi_accounts'):
+                                    for acc in api_instance.multi_accounts:
+                                        if hasattr(acc, 'worker_thread'):
+                                            thread = acc.worker_thread
+                                            has_active_task = has_active_task or (thread is not None and thread.is_alive())
+                                
+                                # 只清理：已认证但未登录应用，并且没有任务正在执行的会话
+                                if is_authenticated and not is_logged_in and not has_active_task:
                                     inactive_sessions.append(session_id)
+                                    logging.debug(f"会话 {session_id[:32]}... 标记为不活跃（无任务执行）")
+                                elif has_active_task:
+                                    logging.debug(f"会话 {session_id[:32]}... 有活跃任务，跳过清理")
             
             # 清理不活跃会话
             for session_id in inactive_sessions:
