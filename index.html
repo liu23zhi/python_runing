@@ -419,6 +419,12 @@ body.modal-visible .amap-copyright {
         <button id="show-admin-panel-login" class="btn btn-ghost !py-2 !px-3 hidden" title="管理面板">管理</button>
       </div>
       <div class="space-y-4 w-full">
+        <!-- 会话管理按钮 -->
+        <div class="text-center">
+          <button id="show-sessions-login" class="btn btn-secondary w-full" title="会话管理">
+            <span>会话管理</span>
+          </button>
+        </div>
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">选择账号</label>
           <select id="user-combo" class="select-field mt-1" title="选择已保存的账号或创建新账号" aria-label="选择账号"></select>
@@ -461,6 +467,7 @@ body.modal-visible .amap-copyright {
         <p id="user-name-label" class="font-bold text-slate-800 truncate">姓名: NULL</p>
         <p id="user-id-label" class="text-sm text-slate-500">学号: NULL</p>
       </div>
+      <button id="show-sessions-main" class="btn btn-ghost !py-2 !px-3" title="会话管理">会话</button>
       <button id="show-notifications-btn" class="btn btn-ghost !py-2 !px-3 relative" title="查看通知">
         <span>通知</span>
         <span id="notification-badge" class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">0</span>
@@ -638,6 +645,7 @@ body.modal-visible .amap-copyright {
         <div class="flex justify-between items-center mb-3">
           <h2 class="text-lg font-bold text-slate-800 card-title">多账号控制台</h2>
           <div class="flex gap-2">
+            <button id="show-sessions-multi" class="btn btn-ghost !py-1 !px-3" title="会话管理">会话</button>
             <button id="show-admin-panel-multi" class="btn btn-ghost !py-1 !px-3 hidden" title="管理面板">管理</button>
             <button id="exit-multi-mode-btn" class="btn btn-ghost !py-1 !px-3">返回登录页</button>
           </div>
@@ -904,6 +912,7 @@ body.modal-visible .amap-copyright {
     <div class="flex border-b border-slate-200">
       <button id="admin-tab-users" class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">用户管理</button>
       <button id="admin-tab-groups" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">权限组管理</button>
+      <button id="admin-tab-sessions" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
     </div>
     
     <!-- 用户管理面板 -->
@@ -924,6 +933,17 @@ body.modal-visible .amap-copyright {
         <button id="admin-refresh-groups" class="btn btn-ghost !py-1 !px-2">刷新</button>
       </div>
       <div id="admin-groups-list" class="space-y-2">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+    </div>
+    
+    <!-- 会话管理面板 -->
+    <div id="admin-sessions-panel" class="hidden space-y-4">
+      <div class="flex justify-between items-center">
+        <h4 class="font-semibold">会话列表</h4>
+        <button id="admin-refresh-sessions" class="btn btn-ghost !py-1 !px-2">刷新</button>
+      </div>
+      <div id="admin-sessions-list" class="space-y-2">
         <p class="text-slate-400 text-center py-10">加载中...</p>
       </div>
     </div>
@@ -1808,14 +1828,35 @@ if (typeof window !== 'undefined') {
     // 管理面板标签
     const adminUsersTab = $('admin-tab-users');
     const adminGroupsTab = $('admin-tab-groups');
+    const adminSessionsTab = $('admin-tab-sessions');
     if (adminUsersTab) adminUsersTab.addEventListener('click', () => switchAdminTab('users'));
     if (adminGroupsTab) adminGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
+    if (adminSessionsTab) adminSessionsTab.addEventListener('click', () => switchAdminTab('sessions'));
     
     // 刷新按钮
     const refreshUsersBtn = $('admin-refresh-users');
     const refreshGroupsBtn = $('admin-refresh-groups');
+    const refreshSessionsBtn = $('admin-refresh-sessions');
     if (refreshUsersBtn) refreshUsersBtn.addEventListener('click', loadAdminUsers);
     if (refreshGroupsBtn) refreshGroupsBtn.addEventListener('click', loadAdminGroups);
+    if (refreshSessionsBtn) refreshSessionsBtn.addEventListener('click', loadAdminSessions);
+    
+    // 会话管理按钮（多个位置）
+    const showSessionsLogin = $('show-sessions-login');
+    const showSessionsMain = $('show-sessions-main');
+    const showSessionsMulti = $('show-sessions-multi');
+    if (showSessionsLogin) showSessionsLogin.addEventListener('click', () => {
+      toggleAdminPanel(true);
+      switchAdminTab('sessions');
+    });
+    if (showSessionsMain) showSessionsMain.addEventListener('click', () => {
+      toggleAdminPanel(true);
+      switchAdminTab('sessions');
+    });
+    if (showSessionsMulti) showSessionsMulti.addEventListener('click', () => {
+      toggleAdminPanel(true);
+      switchAdminTab('sessions');
+    });
   });
 }
 
@@ -1838,25 +1879,40 @@ function toggleAdminPanel(show) {
 function switchAdminTab(tab) {
   const usersTab = $('admin-tab-users');
   const groupsTab = $('admin-tab-groups');
+  const sessionsTab = $('admin-tab-sessions');
   const usersPanel = $('admin-users-panel');
   const groupsPanel = $('admin-groups-panel');
+  const sessionsPanel = $('admin-sessions-panel');
   
+  // 重置所有标签样式
+  [usersTab, groupsTab, sessionsTab].forEach(t => {
+    if (t) {
+      t.classList.remove('text-sky-600', 'border-sky-600');
+      t.classList.add('text-slate-400', 'border-transparent');
+    }
+  });
+  
+  // 隐藏所有面板
+  [usersPanel, groupsPanel, sessionsPanel].forEach(p => {
+    if (p) p.classList.add('hidden');
+  });
+  
+  // 显示选中的标签和面板
   if (tab === 'users') {
     usersTab.classList.add('text-sky-600', 'border-sky-600');
     usersTab.classList.remove('text-slate-400', 'border-transparent');
-    groupsTab.classList.remove('text-sky-600', 'border-sky-600');
-    groupsTab.classList.add('text-slate-400', 'border-transparent');
     usersPanel.classList.remove('hidden');
-    groupsPanel.classList.add('hidden');
     loadAdminUsers();
-  } else {
+  } else if (tab === 'groups') {
     groupsTab.classList.add('text-sky-600', 'border-sky-600');
     groupsTab.classList.remove('text-slate-400', 'border-transparent');
-    usersTab.classList.remove('text-sky-600', 'border-sky-600');
-    usersTab.classList.add('text-slate-400', 'border-transparent');
     groupsPanel.classList.remove('hidden');
-    usersPanel.classList.add('hidden');
     loadAdminGroups();
+  } else if (tab === 'sessions') {
+    sessionsTab.classList.add('text-sky-600', 'border-sky-600');
+    sessionsTab.classList.remove('text-slate-400', 'border-transparent');
+    sessionsPanel.classList.remove('hidden');
+    loadAdminSessions();
   }
 }
 
@@ -1984,6 +2040,83 @@ async function loadAdminGroups() {
     }).join('');
   } catch (e) {
     $('admin-groups-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+  }
+}
+
+async function loadAdminSessions() {
+  try {
+    const response = await fetch('/auth/user/sessions', {
+      headers: {
+        'X-Session-ID': sessionUUID
+      }
+    });
+    const result = await response.json();
+    
+    if (!result.success) {
+      $('admin-sessions-list').innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+      return;
+    }
+    
+    const listEl = $('admin-sessions-list');
+    const sessions = result.sessions || [];
+    
+    if (sessions.length === 0) {
+      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无会话</p>';
+      return;
+    }
+    
+    listEl.innerHTML = sessions.map(session => {
+      const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
+      const isCurrent = session.is_current || session.session_id === sessionUUID;
+      const sessionHash = session.session_hash || session.session_id.substring(0, 16);
+      
+      return `
+        <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3">
+          <div class="flex justify-between items-start">
+            <div class="flex-1">
+              <p class="font-semibold text-slate-800">
+                会话 ${sessionHash}...
+                ${isCurrent ? '<span class="text-xs text-sky-600 ml-2">(当前会话)</span>' : ''}
+              </p>
+              <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+              <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
+            </div>
+            <div class="flex gap-2">
+              ${!isCurrent ? `<button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    $('admin-sessions-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+  }
+}
+
+async function deleteSession(sessionId) {
+  if (!confirm('确定要删除此会话吗？')) return;
+  
+  try {
+    const response = await fetch('/auth/user/delete_session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionUUID
+      },
+      body: JSON.stringify({
+        session_id: sessionId
+      })
+    });
+    
+    const result = await response.json();
+    if (result.success) {
+      logMessage('会话已删除');
+      loadAdminSessions(); // 刷新列表
+    } else {
+      alert('删除失败: ' + result.message);
+    }
+  } catch (e) {
+    alert('删除失败: ' + e.message);
   }
 }
 
