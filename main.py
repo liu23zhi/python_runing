@@ -33,13 +33,24 @@ if not os.path.exists(SESSION_STORAGE_DIR):
 # 会话索引文件：存储SHA256哈希和完整UUID的对应关系
 SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
 
-# 用户认证系统相关目录（与学校账号使用相同的user目录）
-USERS_DIR = os.path.join(os.path.dirname(__file__), 'user')
-if not os.path.exists(USERS_DIR):
-    os.makedirs(USERS_DIR)
+# 学校账号数据目录
+SCHOOL_ACCOUNTS_DIR = os.path.join(os.path.dirname(__file__), 'school_accounts')
+if not os.path.exists(SCHOOL_ACCOUNTS_DIR):
+    os.makedirs(SCHOOL_ACCOUNTS_DIR)
+
+# 系统认证账号目录（与学校账号分离）
+SYSTEM_ACCOUNTS_DIR = os.path.join(SCHOOL_ACCOUNTS_DIR, 'system_auth')
+if not os.path.exists(SYSTEM_ACCOUNTS_DIR):
+    os.makedirs(SYSTEM_ACCOUNTS_DIR)
+
+# 登录日志目录
+LOGIN_LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
+if not os.path.exists(LOGIN_LOGS_DIR):
+    os.makedirs(LOGIN_LOGS_DIR)
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
 PERMISSIONS_FILE = os.path.join(os.path.dirname(__file__), 'permissions.json')
+LOGIN_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'login_history.jsonl')
 
 # 配置UTF-8编码（用于日志和控制台输出）
 if sys.platform.startswith('win'):
@@ -138,7 +149,167 @@ class AuthSystem:
         """获取用户文件路径"""
         import hashlib
         user_hash = hashlib.sha256(auth_username.encode()).hexdigest()
-        return os.path.join(USERS_DIR, f"{user_hash}.json")
+        return os.path.join(SYSTEM_ACCOUNTS_DIR, f"{user_hash}.json")
+    
+    def _get_password_storage_method(self):
+        """获取密码存储方式"""
+        return self.config.get('Security', 'password_storage', fallback='plaintext')
+    
+    def _encrypt_password(self, password):
+        """加密密码（可选功能）"""
+        method = self._get_password_storage_method()
+        if method == 'encrypted':
+            import hashlib
+            # 使用SHA256加密
+            return hashlib.sha256(password.encode()).hexdigest()
+        return password  # 明文
+    
+    def _verify_password(self, input_password, stored_password):
+        """验证密码"""
+        method = self._get_password_storage_method()
+        if method == 'encrypted':
+            import hashlib
+            return hashlib.sha256(input_password.encode()).hexdigest() == stored_password
+        return input_password == stored_password  # 明文比较
+    
+    def _log_login_attempt(self, auth_username, success, ip_address='', user_agent='', reason=''):
+        """记录登录尝试"""
+        log_entry = {
+            'timestamp': time.time(),
+            'datetime': datetime.datetime.now().isoformat(),
+            'username': auth_username,
+            'success': success,
+            'ip_address': ip_address,
+            'user_agent': user_agent,
+            'reason': reason
+        }
+        
+        try:
+            with open(LOGIN_LOG_FILE, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+        except Exception as e:
+            logging.error(f"记录登录日志失败: {e}")
+    
+    def get_login_history(self, username=None, limit=100):
+        """获取登录历史"""
+        if not os.path.exists(LOGIN_LOG_FILE):
+            return []
+        
+        history = []
+        try:
+            with open(LOGIN_LOG_FILE, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line.strip())
+                        if username is None or entry.get('username') == username:
+                            history.append(entry)
+                    except:
+                        continue
+        except Exception as e:
+            logging.error(f"读取登录历史失败: {e}")
+        
+        # 返回最近的记录
+        return history[-limit:]
+    
+    def check_brute_force(self, auth_username, ip_address):
+        """检查暴力破解（5分钟内最多5次失败）"""
+        recent_attempts = []
+        current_time = time.time()
+        cutoff_time = current_time - 300  # 5分钟前
+        
+        if os.path.exists(LOGIN_LOG_FILE):
+            try:
+                with open(LOGIN_LOG_FILE, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            entry = json.loads(line.strip())
+                            if entry.get('timestamp', 0) > cutoff_time:
+                                if entry.get('username') == auth_username or entry.get('ip_address') == ip_address:
+                                    if not entry.get('success', False):
+                                        recent_attempts.append(entry)
+                        except:
+                            continue
+            except Exception as e:
+                logging.error(f"检查暴力破解失败: {e}")
+        
+        # 如果5分钟内失败超过5次，则锁定
+        if len(recent_attempts) >= 5:
+            return True, "登录失败次数过多，请5分钟后再试"
+        return False, ""
+    
+    def generate_2fa_secret(self, auth_username):
+        """生成2FA密钥"""
+        try:
+            import pyotp
+            secret = pyotp.random_base32()
+            
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                with self.lock:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                    
+                    user_data['2fa_secret'] = secret
+                    user_data['2fa_enabled'] = False  # 初始未启用，需要验证后启用
+                    
+                    with open(user_file, 'w', encoding='utf-8') as f:
+                        json.dump(user_data, f, indent=2, ensure_ascii=False)
+                
+                # 生成二维码URI
+                totp = pyotp.TOTP(secret)
+                uri = totp.provisioning_uri(name=auth_username, issuer_name="跑步助手")
+                return {"success": True, "secret": secret, "uri": uri}
+            return {"success": False, "message": "用户不存在"}
+        except ImportError:
+            return {"success": False, "message": "2FA功能需要安装pyotp库：pip install pyotp"}
+    
+    def enable_2fa(self, auth_username, verification_code):
+        """启用2FA（需要验证一次）"""
+        try:
+            import pyotp
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                with self.lock:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                    
+                    secret = user_data.get('2fa_secret')
+                    if not secret:
+                        return {"success": False, "message": "请先生成2FA密钥"}
+                    
+                    totp = pyotp.TOTP(secret)
+                    if totp.verify(verification_code):
+                        user_data['2fa_enabled'] = True
+                        with open(user_file, 'w', encoding='utf-8') as f:
+                            json.dump(user_data, f, indent=2, ensure_ascii=False)
+                        return {"success": True, "message": "2FA已启用"}
+                    return {"success": False, "message": "验证码错误"}
+            return {"success": False, "message": "用户不存在"}
+        except ImportError:
+            return {"success": False, "message": "2FA功能需要安装pyotp库"}
+    
+    def verify_2fa(self, auth_username, verification_code):
+        """验证2FA代码"""
+        try:
+            import pyotp
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                if not user_data.get('2fa_enabled', False):
+                    return True  # 2FA未启用，直接通过
+                
+                secret = user_data.get('2fa_secret')
+                if not secret:
+                    return False
+                
+                totp = pyotp.TOTP(secret)
+                return totp.verify(verification_code)
+            return False
+        except ImportError:
+            logging.warning("2FA验证失败：pyotp库未安装")
+            return True  # 如果库未安装，允许通过
     
     def register_user(self, auth_username, auth_password, group='user'):
         """注册新用户"""
@@ -147,14 +318,18 @@ class AuthSystem:
             if os.path.exists(user_file):
                 return {"success": False, "message": "用户名已存在"}
             
-            # 明文存储密码（按用户要求）
+            # 根据配置选择密码存储方式
+            stored_password = self._encrypt_password(auth_password)
+            
             user_data = {
                 'auth_username': auth_username,
-                'password': auth_password,  # 明文存储
+                'password': stored_password,
                 'group': group,
                 'created_at': time.time(),
                 'last_login': None,
-                'session_ids': []  # 用于关联用户的会话ID
+                'session_ids': [],  # 用于关联用户的会话ID
+                '2fa_enabled': False,
+                '2fa_secret': None
             }
             
             with open(user_file, 'w', encoding='utf-8') as f:
@@ -167,11 +342,12 @@ class AuthSystem:
             logging.info(f"新用户注册: {auth_username} (组: {group})")
             return {"success": True, "message": "注册成功"}
     
-    def authenticate(self, auth_username, auth_password):
-        """验证用户登录"""
+    def authenticate(self, auth_username, auth_password, ip_address='', user_agent='', two_fa_code=''):
+        """验证用户登录（支持2FA和暴力破解防护）"""
         with self.lock:
             # 检查是否为游客登录
             if auth_username == 'guest' and self.config.getboolean('Guest', 'allow_guest_login', fallback=True):
+                self._log_login_attempt(auth_username, True, ip_address, user_agent, 'guest_login')
                 return {
                     "success": True, 
                     "auth_username": "guest",
@@ -179,16 +355,33 @@ class AuthSystem:
                     "is_guest": True
                 }
             
+            # 检查暴力破解
+            is_locked, lock_message = self.check_brute_force(auth_username, ip_address)
+            if is_locked:
+                self._log_login_attempt(auth_username, False, ip_address, user_agent, 'brute_force_locked')
+                return {"success": False, "message": lock_message}
+            
             user_file = self.get_user_file_path(auth_username)
             if not os.path.exists(user_file):
+                self._log_login_attempt(auth_username, False, ip_address, user_agent, 'user_not_found')
                 return {"success": False, "message": "用户不存在"}
             
             with open(user_file, 'r', encoding='utf-8') as f:
                 user_data = json.load(f)
             
-            # 验证密码（明文比较）
-            if user_data.get('password') != auth_password:
+            # 验证密码
+            if not self._verify_password(auth_password, user_data.get('password')):
+                self._log_login_attempt(auth_username, False, ip_address, user_agent, 'wrong_password')
                 return {"success": False, "message": "密码错误"}
+            
+            # 验证2FA（如果启用）
+            if user_data.get('2fa_enabled', False):
+                if not two_fa_code:
+                    return {"success": False, "message": "需要2FA验证码", "requires_2fa": True}
+                
+                if not self.verify_2fa(auth_username, two_fa_code):
+                    self._log_login_attempt(auth_username, False, ip_address, user_agent, '2fa_failed')
+                    return {"success": False, "message": "2FA验证码错误"}
             
             # 更新最后登录时间
             user_data['last_login'] = time.time()
@@ -205,7 +398,8 @@ class AuthSystem:
             else:
                 group = user_data.get('group', 'user')
             
-            logging.info(f"用户登录: {auth_username} (组: {group})")
+            self._log_login_attempt(auth_username, True, ip_address, user_agent, 'success')
+            logging.info(f"用户登录: {auth_username} (组: {group}) from {ip_address}")
             return {
                 "success": True,
                 "auth_username": auth_username,
@@ -280,9 +474,9 @@ class AuthSystem:
     def list_users(self):
         """列出所有用户"""
         users = []
-        for filename in os.listdir(USERS_DIR):
+        for filename in os.listdir(SYSTEM_ACCOUNTS_DIR):
             if filename.endswith('.json'):
-                user_file = os.path.join(USERS_DIR, filename)
+                user_file = os.path.join(SYSTEM_ACCOUNTS_DIR, filename)
                 try:
                     with open(user_file, 'r', encoding='utf-8') as f:
                         user_data = json.load(f)
@@ -290,7 +484,8 @@ class AuthSystem:
                         'auth_username': user_data['auth_username'],
                         'group': user_data.get('group', 'user'),
                         'created_at': user_data.get('created_at'),
-                        'last_login': user_data.get('last_login')
+                        'last_login': user_data.get('last_login'),
+                        '2fa_enabled': user_data.get('2fa_enabled', False)
                     })
                 except Exception as e:
                     logging.error(f"读取用户文件失败 {filename}: {e}")
@@ -715,7 +910,7 @@ class Api:
 
         # --- 路径和配置部分保持不变 ---
         self.run_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-        self.user_dir = os.path.join(self.run_dir, "user")
+        self.user_dir = SCHOOL_ACCOUNTS_DIR  # 使用新的学校账号目录
         os.makedirs(self.user_dir, exist_ok=True)
         self.config_path = os.path.join(self.run_dir, "config.ini")
         self.user_config_path = self.config_path
@@ -5492,7 +5687,12 @@ def start_web_server(args):
         data = request.get_json() or {}
         auth_username = data.get('auth_username', '').strip()
         auth_password = data.get('auth_password', '').strip()
+        two_fa_code = data.get('two_fa_code', '').strip()
         session_id = request.headers.get('X-Session-ID', '')
+        
+        # 获取IP和UA
+        ip_address = request.remote_addr or ''
+        user_agent = request.headers.get('User-Agent', '')
         
         if not session_id:
             return jsonify({"success": False, "message": "缺少会话ID"})
@@ -5501,7 +5701,7 @@ def start_web_server(args):
         update_session_activity(session_id)
         
         # 验证用户
-        auth_result = auth_system.authenticate(auth_username, auth_password)
+        auth_result = auth_system.authenticate(auth_username, auth_password, ip_address, user_agent, two_fa_code)
         if not auth_result['success']:
             return jsonify(auth_result)
         
@@ -5706,6 +5906,108 @@ def start_web_server(args):
         return jsonify({
             "success": True,
             "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True)
+        })
+    
+    @app.route('/auth/2fa/generate', methods=['POST'])
+    def auth_2fa_generate():
+        """生成2FA密钥"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        if not getattr(api_instance, 'is_authenticated', False):
+            return jsonify({"success": False, "message": "未认证"}), 401
+        
+        auth_username = getattr(api_instance, 'auth_username', '')
+        if auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客不支持2FA"}), 403
+        
+        result = auth_system.generate_2fa_secret(auth_username)
+        return jsonify(result)
+    
+    @app.route('/auth/2fa/enable', methods=['POST'])
+    def auth_2fa_enable():
+        """启用2FA"""
+        data = request.get_json() or {}
+        verification_code = data.get('code', '').strip()
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        if not getattr(api_instance, 'is_authenticated', False):
+            return jsonify({"success": False, "message": "未认证"}), 401
+        
+        auth_username = getattr(api_instance, 'auth_username', '')
+        result = auth_system.enable_2fa(auth_username, verification_code)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/login_logs', methods=['GET'])
+    def auth_admin_login_logs():
+        """获取登录日志（管理员）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        
+        # 只有管理员和超级管理员可以查看
+        if auth_group not in ['admin', 'super_admin']:
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        # 获取参数
+        username = request.args.get('username', None)
+        limit = int(request.args.get('limit', 100))
+        
+        logs = auth_system.get_login_history(username, limit)
+        return jsonify({
+            "success": True,
+            "logs": logs
+        })
+    
+    @app.route('/logs/view', methods=['GET'])
+    def view_logs():
+        """查看应用日志（管理员）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        
+        # 只有管理员和超级管理员可以查看
+        if auth_group not in ['admin', 'super_admin']:
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        # 读取最近的日志（最多1000行）
+        lines = int(request.args.get('lines', 100))
+        lines = min(lines, 1000)  # 限制最多1000行
+        
+        log_content = []
+        # 尝试读取日志文件
+        log_files = []
+        
+        # 查找日志目录中的日志文件
+        if os.path.exists(LOGIN_LOGS_DIR):
+            for f in os.listdir(LOGIN_LOGS_DIR):
+                if f.endswith('.log') or f.endswith('.jsonl'):
+                    log_files.append(os.path.join(LOGIN_LOGS_DIR, f))
+        
+        # 读取最近的日志
+        for log_file in log_files[:5]:  # 最多读取5个日志文件
+            try:
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    content = f.readlines()
+                    log_content.extend(content[-lines:])
+            except:
+                continue
+        
+        return jsonify({
+            "success": True,
+            "logs": log_content[-lines:]  # 返回最近的N行
         })
     
     # ====================
