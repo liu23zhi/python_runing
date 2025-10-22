@@ -58,7 +58,7 @@ def _create_directories():
     directories = [
         'logs',
         'school_accounts',
-        'school_accounts/system_auth',
+        'system_accounts',  # 修正：系统账号独立存储，不在school_accounts下
         'sessions'
     ]
     
@@ -67,11 +67,8 @@ def _create_directories():
             os.makedirs(directory, exist_ok=True)
 
 
-def _create_config_ini():
-    """创建默认的config.ini配置文件"""
-    if os.path.exists('config.ini'):
-        return
-    
+def _get_default_config():
+    """获取默认配置项（用于创建新配置和补全旧配置）"""
     config = configparser.ConfigParser()
     
     # [Admin] 管理员配置
@@ -84,7 +81,7 @@ def _create_config_ini():
     config['System'] = {
         'session_expiry_days': '7',
         'school_accounts_dir': 'school_accounts',
-        'system_accounts_dir': 'school_accounts/system_auth',
+        'system_accounts_dir': 'system_accounts',  # 修正：不应该在school_accounts下
         'permissions_file': 'permissions.json'
     }
     
@@ -95,8 +92,51 @@ def _create_config_ini():
         'login_log_retention_days': '90'
     }
     
-    with open('config.ini', 'w', encoding='utf-8') as f:
-        config.write(f)
+    # [Map] 地图配置
+    config['Map'] = {
+        'amap_js_key': '',  # 高德地图JS API密钥
+        'amap_web_key': '',  # 高德地图Web服务API密钥
+    }
+    
+    # [AutoFill] 自动填充配置
+    config['AutoFill'] = {
+        'guest_auto_fill_password': 'false',  # 游客模式是否自动填充密码
+        'auto_fill_accounts': '',  # 允许自动填充密码的账号列表（逗号分隔）
+    }
+    
+    return config
+
+
+def _create_config_ini():
+    """创建或更新config.ini配置文件（兼容旧版本，自动补全缺失参数）"""
+    default_config = _get_default_config()
+    
+    if os.path.exists('config.ini'):
+        # 读取现有配置
+        existing_config = configparser.ConfigParser()
+        existing_config.read('config.ini', encoding='utf-8')
+        
+        # 检查并补全缺失的节和参数
+        updated = False
+        for section in default_config.sections():
+            if not existing_config.has_section(section):
+                existing_config.add_section(section)
+                updated = True
+            
+            for key, value in default_config.items(section):
+                if not existing_config.has_option(section, key):
+                    existing_config.set(section, key, value)
+                    updated = True
+        
+        # 如果有更新，保存配置文件
+        if updated:
+            with open('config.ini', 'w', encoding='utf-8') as f:
+                existing_config.write(f)
+            logging.info("配置文件已更新：自动补全缺失参数")
+    else:
+        # 创建新配置文件
+        with open('config.ini', 'w', encoding='utf-8') as f:
+            default_config.write(f)
 
 
 def _create_permissions_json():
@@ -108,96 +148,166 @@ def _create_permissions_json():
         "permission_groups": {
             "guest": {
                 "name": "游客",
+                "is_system": True,  # 系统预设权限组，不可删除
                 "permissions": {
+                    # 基础权限
                     "view_tasks": True,
                     "create_tasks": False,
                     "delete_tasks": False,
                     "start_tasks": True,
                     "stop_tasks": True,
+                    
+                    # 地图权限
                     "view_map": True,
                     "record_path": True,
                     "auto_generate_path": True,
+                    
+                    # 通知权限
                     "view_notifications": True,
                     "mark_notifications_read": False,
+                    
+                    # 用户权限
                     "view_user_details": True,
                     "modify_user_settings": False,
+                    
+                    # 多账号和签到
                     "execute_multi_account": False,
                     "use_attendance": False,
+                    
+                    # 日志权限
                     "view_logs": False,
-                    "clear_logs": False
+                    "clear_logs": False,
+                    
+                    # 新增细分权限
+                    "auto_fill_password": False,  # 自动填充密码
+                    "import_offline": True,
+                    "export_data": True,
+                    "modify_params": True,
                 }
             },
             "user": {
                 "name": "普通用户",
+                "is_system": True,  # 系统预设权限组，不可删除
                 "permissions": {
+                    # 基础权限
                     "view_tasks": True,
                     "create_tasks": True,
                     "delete_tasks": True,
                     "start_tasks": True,
                     "stop_tasks": True,
+                    
+                    # 地图权限
                     "view_map": True,
                     "record_path": True,
                     "auto_generate_path": True,
+                    
+                    # 通知权限
                     "view_notifications": True,
                     "mark_notifications_read": True,
+                    
+                    # 用户权限
                     "view_user_details": True,
                     "modify_user_settings": True,
+                    
+                    # 多账号和签到
                     "execute_multi_account": True,
                     "use_attendance": True,
+                    
+                    # 日志权限
                     "view_logs": False,
                     "clear_logs": False,
-                    "manage_users": False,
-                    "manage_permissions": False,
-                    "reset_user_password": False,
-                    "view_audit_logs": False
+                    
+                    # 新增细分权限
+                    "auto_fill_password": True,  # 自动填充密码
+                    "import_offline": True,
+                    "export_data": True,
+                    "modify_params": True,
+                    "manage_own_sessions": True,  # 管理自己的会话
                 }
             },
             "admin": {
                 "name": "管理员",
+                "is_system": True,  # 系统预设权限组，不可删除
                 "permissions": {
+                    # 基础权限
                     "view_tasks": True,
                     "create_tasks": True,
                     "delete_tasks": True,
                     "start_tasks": True,
                     "stop_tasks": True,
+                    
+                    # 地图权限
                     "view_map": True,
                     "record_path": True,
                     "auto_generate_path": True,
+                    
+                    # 通知权限
                     "view_notifications": True,
                     "mark_notifications_read": True,
+                    
+                    # 用户权限
                     "view_user_details": True,
                     "modify_user_settings": True,
+                    
+                    # 多账号和签到
                     "execute_multi_account": True,
                     "use_attendance": True,
+                    
+                    # 日志权限
                     "view_logs": True,
                     "clear_logs": True,
+                    
+                    # 管理权限
                     "manage_users": True,
                     "manage_permissions": True,
                     "reset_user_password": True,
                     "view_audit_logs": True,
                     "view_all_sessions": True,
-                    "force_logout_users": True
+                    "force_logout_users": True,
+                    
+                    # 新增细分权限
+                    "auto_fill_password": True,
+                    "import_offline": True,
+                    "export_data": True,
+                    "modify_params": True,
+                    "manage_own_sessions": True,
+                    "manage_user_sessions": True,  # 管理其他用户的会话
+                    "view_session_details": True,
                 }
             },
             "super_admin": {
                 "name": "超级管理员",
+                "is_system": True,  # 系统预设权限组，不可删除
                 "permissions": {
+                    # 基础权限
                     "view_tasks": True,
                     "create_tasks": True,
                     "delete_tasks": True,
                     "start_tasks": True,
                     "stop_tasks": True,
+                    
+                    # 地图权限
                     "view_map": True,
                     "record_path": True,
                     "auto_generate_path": True,
+                    
+                    # 通知权限
                     "view_notifications": True,
                     "mark_notifications_read": True,
+                    
+                    # 用户权限
                     "view_user_details": True,
                     "modify_user_settings": True,
+                    
+                    # 多账号和签到
                     "execute_multi_account": True,
                     "use_attendance": True,
+                    
+                    # 日志权限
                     "view_logs": True,
                     "clear_logs": True,
+                    
+                    # 管理权限
                     "manage_users": True,
                     "manage_permissions": True,
                     "reset_user_password": True,
@@ -206,11 +316,23 @@ def _create_permissions_json():
                     "force_logout_users": True,
                     "manage_system": True,
                     "create_permission_groups": True,
-                    "delete_permission_groups": True
+                    "delete_permission_groups": True,
+                    "modify_permission_groups": True,
+                    
+                    # 新增细分权限
+                    "auto_fill_password": True,
+                    "import_offline": True,
+                    "export_data": True,
+                    "modify_params": True,
+                    "manage_own_sessions": True,
+                    "manage_user_sessions": True,
+                    "view_session_details": True,
+                    "god_mode": True,  # 上帝模式：可以查看和销毁所有会话
                 }
             }
         },
-        "user_groups": {}
+        "user_groups": {},
+        "user_custom_permissions": {}  # 用户差分权限存储：{username: {added: [], removed: []}}
     }
     
     with open('permissions.json', 'w', encoding='utf-8') as f:
@@ -219,7 +341,7 @@ def _create_permissions_json():
 
 def _create_default_admin():
     """创建默认的管理员账号"""
-    admin_dir = 'school_accounts/system_auth'
+    admin_dir = 'system_accounts'  # 修正：系统账号独立存储
     if not os.path.exists(admin_dir):
         os.makedirs(admin_dir, exist_ok=True)
     
@@ -269,8 +391,8 @@ SCHOOL_ACCOUNTS_DIR = os.path.join(os.path.dirname(__file__), 'school_accounts')
 if not os.path.exists(SCHOOL_ACCOUNTS_DIR):
     os.makedirs(SCHOOL_ACCOUNTS_DIR)
 
-# 系统认证账号目录（与学校账号分离）
-SYSTEM_ACCOUNTS_DIR = os.path.join(SCHOOL_ACCOUNTS_DIR, 'system_auth')
+# 系统认证账号目录（修正：独立存储，不在school_accounts下）
+SYSTEM_ACCOUNTS_DIR = os.path.join(os.path.dirname(__file__), 'system_accounts')
 if not os.path.exists(SYSTEM_ACCOUNTS_DIR):
     os.makedirs(SYSTEM_ACCOUNTS_DIR)
 
@@ -344,21 +466,13 @@ class AuthSystem:
         self.lock = threading.Lock()
     
     def _load_config(self):
-        """加载配置文件"""
+        """加载配置文件（兼容旧版本，自动补全缺失参数）"""
+        # 首先确保配置文件已创建或更新
+        _create_config_ini()
+        
+        # 然后加载配置
         config = configparser.ConfigParser()
-        if os.path.exists(CONFIG_FILE):
-            config.read(CONFIG_FILE, encoding='utf-8')
-        else:
-            # 创建默认配置
-            config['Admin'] = {'super_admin': 'admin'}
-            config['Guest'] = {'allow_guest_login': 'true'}
-            config['System'] = {
-                'session_expiry_days': '7',
-                'users_dir': 'users',
-                'permissions_file': 'permissions.json'
-            }
-            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-                config.write(f)
+        config.read(CONFIG_FILE, encoding='utf-8')
         return config
     
     def _load_permissions(self):
@@ -647,7 +761,12 @@ class AuthSystem:
             }
     
     def check_permission(self, auth_username, permission):
-        """检查用户是否有特定权限"""
+        """检查用户是否有特定权限（支持差分化权限）
+        
+        权限计算顺序：
+        1. 获取用户所属权限组的基础权限
+        2. 应用用户的自定义权限（added/removed）
+        """
         # 获取用户组
         group = self.permissions['user_groups'].get(auth_username, 'guest')
         
@@ -656,9 +775,109 @@ class AuthSystem:
         if auth_username == super_admin:
             group = 'super_admin'
         
+        # 获取组权限（基础权限）
+        group_perms = self.permissions['permission_groups'].get(group, {}).get('permissions', {})
+        has_permission = group_perms.get(permission, False)
+        
+        # 应用用户的差分化权限
+        user_custom = self.permissions.get('user_custom_permissions', {}).get(auth_username, {})
+        added_perms = user_custom.get('added', [])
+        removed_perms = user_custom.get('removed', [])
+        
+        # 如果权限在added列表中，则有权限
+        if permission in added_perms:
+            has_permission = True
+        
+        # 如果权限在removed列表中，则无权限
+        if permission in removed_perms:
+            has_permission = False
+        
+        return has_permission
+    
+    def get_user_permissions(self, auth_username):
+        """获取用户的完整权限列表（包含差分权限）"""
+        # 获取用户组
+        group = self.get_user_group(auth_username)
+        
         # 获取组权限
         group_perms = self.permissions['permission_groups'].get(group, {}).get('permissions', {})
-        return group_perms.get(permission, False)
+        
+        # 复制基础权限
+        user_perms = dict(group_perms)
+        
+        # 应用差分化权限
+        user_custom = self.permissions.get('user_custom_permissions', {}).get(auth_username, {})
+        added_perms = user_custom.get('added', [])
+        removed_perms = user_custom.get('removed', [])
+        
+        # 添加额外权限
+        for perm in added_perms:
+            user_perms[perm] = True
+        
+        # 移除权限
+        for perm in removed_perms:
+            user_perms[perm] = False
+        
+        return user_perms
+    
+    def set_user_custom_permission(self, auth_username, permission, grant):
+        """为用户设置自定义权限（差分化存储）
+        
+        Args:
+            auth_username: 用户名
+            permission: 权限名
+            grant: True=授予权限, False=移除权限
+        """
+        with self.lock:
+            # 初始化user_custom_permissions结构
+            if 'user_custom_permissions' not in self.permissions:
+                self.permissions['user_custom_permissions'] = {}
+            
+            if auth_username not in self.permissions['user_custom_permissions']:
+                self.permissions['user_custom_permissions'][auth_username] = {
+                    'added': [],
+                    'removed': []
+                }
+            
+            user_custom = self.permissions['user_custom_permissions'][auth_username]
+            
+            # 获取用户组的基础权限
+            group = self.get_user_group(auth_username)
+            group_perms = self.permissions['permission_groups'].get(group, {}).get('permissions', {})
+            base_has_permission = group_perms.get(permission, False)
+            
+            # 根据授予/移除状态更新差分列表
+            if grant:
+                # 授予权限
+                if not base_has_permission:
+                    # 基础权限没有，添加到added列表
+                    if permission not in user_custom['added']:
+                        user_custom['added'].append(permission)
+                    # 从removed列表移除（如果存在）
+                    if permission in user_custom['removed']:
+                        user_custom['removed'].remove(permission)
+                else:
+                    # 基础权限已有，从removed列表移除（如果存在）
+                    if permission in user_custom['removed']:
+                        user_custom['removed'].remove(permission)
+            else:
+                # 移除权限
+                if base_has_permission:
+                    # 基础权限有，添加到removed列表
+                    if permission not in user_custom['removed']:
+                        user_custom['removed'].append(permission)
+                    # 从added列表移除（如果存在）
+                    if permission in user_custom['added']:
+                        user_custom['added'].remove(permission)
+                else:
+                    # 基础权限没有，从added列表移除（如果存在）
+                    if permission in user_custom['added']:
+                        user_custom['added'].remove(permission)
+            
+            self._save_permissions()
+            
+            logging.info(f"设置用户 {auth_username} 权限 {permission} = {grant}")
+            return {"success": True, "message": "权限已更新"}
     
     def get_user_group(self, auth_username):
         """获取用户所属组"""
@@ -695,13 +914,17 @@ class AuthSystem:
             
             self.permissions['permission_groups'][group_name] = {
                 'name': display_name,
+                'is_system': False,  # 用户创建的权限组可以删除
                 'permissions': permissions
             }
             self._save_permissions()
             return {"success": True, "message": "权限组已创建"}
     
     def update_permission_group(self, group_name, permissions):
-        """更新权限组（需要超级管理员权限）"""
+        """更新权限组（需要超级管理员权限）
+        
+        注意：系统预设权限组可以修改，但不能删除
+        """
         with self.lock:
             if group_name not in self.permissions['permission_groups']:
                 return {"success": False, "message": "权限组不存在"}
@@ -709,6 +932,35 @@ class AuthSystem:
             self.permissions['permission_groups'][group_name]['permissions'] = permissions
             self._save_permissions()
             return {"success": True, "message": "权限组已更新"}
+    
+    def delete_permission_group(self, group_name):
+        """删除权限组（需要超级管理员权限）
+        
+        注意：不允许删除系统预设权限组（guest、user、admin、super_admin）
+        """
+        with self.lock:
+            if group_name not in self.permissions['permission_groups']:
+                return {"success": False, "message": "权限组不存在"}
+            
+            # 检查是否为系统预设权限组
+            group_info = self.permissions['permission_groups'][group_name]
+            if group_info.get('is_system', False):
+                return {"success": False, "message": "不允许删除系统预设权限组"}
+            
+            # 检查是否有用户正在使用此权限组
+            users_count = sum(1 for u, g in self.permissions['user_groups'].items() if g == group_name)
+            if users_count > 0:
+                return {
+                    "success": False, 
+                    "message": f"无法删除：有 {users_count} 个用户正在使用此权限组"
+                }
+            
+            # 删除权限组
+            del self.permissions['permission_groups'][group_name]
+            self._save_permissions()
+            
+            logging.info(f"权限组已删除: {group_name}")
+            return {"success": True, "message": "权限组已删除"}
     
     def list_users(self):
         """列出所有用户"""
