@@ -147,16 +147,14 @@ class AuthSystem:
             if os.path.exists(user_file):
                 return {"success": False, "message": "用户名已存在"}
             
-            # 密码哈希
-            import hashlib
-            password_hash = hashlib.sha256(auth_password.encode()).hexdigest()
-            
+            # 明文存储密码（按用户要求）
             user_data = {
                 'auth_username': auth_username,
-                'password_hash': password_hash,
+                'password': auth_password,  # 明文存储
                 'group': group,
                 'created_at': time.time(),
-                'last_login': None
+                'last_login': None,
+                'session_ids': []  # 用于关联用户的会话ID
             }
             
             with open(user_file, 'w', encoding='utf-8') as f:
@@ -188,15 +186,15 @@ class AuthSystem:
             with open(user_file, 'r', encoding='utf-8') as f:
                 user_data = json.load(f)
             
-            # 验证密码
-            import hashlib
-            password_hash = hashlib.sha256(auth_password.encode()).hexdigest()
-            
-            if user_data['password_hash'] != password_hash:
+            # 验证密码（明文比较）
+            if user_data.get('password') != auth_password:
                 return {"success": False, "message": "密码错误"}
             
             # 更新最后登录时间
             user_data['last_login'] = time.time()
+            if 'session_ids' not in user_data:
+                user_data['session_ids'] = []
+            
             with open(user_file, 'w', encoding='utf-8') as f:
                 json.dump(user_data, f, indent=2, ensure_ascii=False)
             
@@ -301,6 +299,57 @@ class AuthSystem:
     def get_all_groups(self):
         """获取所有权限组"""
         return self.permissions['permission_groups']
+    
+    def link_session_to_user(self, auth_username, session_id):
+        """关联会话ID到用户账号（用于状态恢复）"""
+        if auth_username == 'guest':
+            return  # 游客不关联会话
+        
+        user_file = self.get_user_file_path(auth_username)
+        if os.path.exists(user_file):
+            with self.lock:
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                if 'session_ids' not in user_data:
+                    user_data['session_ids'] = []
+                
+                # 只保留最近的5个会话ID
+                if session_id not in user_data['session_ids']:
+                    user_data['session_ids'].append(session_id)
+                    user_data['session_ids'] = user_data['session_ids'][-5:]
+                
+                with open(user_file, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+    
+    def get_user_sessions(self, auth_username):
+        """获取用户关联的会话ID列表"""
+        if auth_username == 'guest':
+            return []
+        
+        user_file = self.get_user_file_path(auth_username)
+        if os.path.exists(user_file):
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            return user_data.get('session_ids', [])
+        return []
+    
+    def unlink_session_from_user(self, auth_username, session_id):
+        """取消会话与用户的关联"""
+        if auth_username == 'guest':
+            return
+        
+        user_file = self.get_user_file_path(auth_username)
+        if os.path.exists(user_file):
+            with self.lock:
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                if 'session_ids' in user_data and session_id in user_data['session_ids']:
+                    user_data['session_ids'].remove(session_id)
+                    
+                    with open(user_file, 'w', encoding='utf-8') as f:
+                        json.dump(user_data, f, indent=2, ensure_ascii=False)
 
 # 创建全局认证系统实例
 auth_system = AuthSystem()
@@ -4837,6 +4886,94 @@ web_sessions_lock = threading.Lock()
 # 会话文件锁，用于并发保护
 session_file_locks = {}  # {session_hash: threading.Lock}
 session_file_locks_lock = threading.Lock()
+# 会话活动追踪：{session_id: last_activity_time}
+session_activity = {}
+session_activity_lock = threading.Lock()
+
+def update_session_activity(session_id):
+    """更新会话活动时间"""
+    with session_activity_lock:
+        session_activity[session_id] = time.time()
+
+def cleanup_inactive_session(session_id):
+    """清理不活跃的会话"""
+    try:
+        logging.info(f"清理不活跃会话: {session_id[:32]}...")
+        
+        # 从内存中移除会话
+        with web_sessions_lock:
+            if session_id in web_sessions:
+                api_instance = web_sessions[session_id]
+                
+                # 停止运行中的任务
+                if hasattr(api_instance, 'stop_run_flag'):
+                    api_instance.stop_run_flag.set()
+                
+                # 如果是注册用户，取消会话关联
+                if hasattr(api_instance, 'auth_username') and not getattr(api_instance, 'is_guest', True):
+                    auth_system.unlink_session_from_user(api_instance.auth_username, session_id)
+                
+                del web_sessions[session_id]
+        
+        # 删除会话文件
+        import hashlib
+        session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+        if os.path.exists(session_file):
+            os.remove(session_file)
+            logging.info(f"已删除会话文件: {session_hash[:16]}...")
+        
+        # 从活动追踪中移除
+        with session_activity_lock:
+            if session_id in session_activity:
+                del session_activity[session_id]
+        
+        # 从索引中移除
+        index = _load_session_index()
+        if session_id in index:
+            del index[session_id]
+            _save_session_index(index)
+        
+        logging.info(f"会话清理完成: {session_id[:32]}...")
+    except Exception as e:
+        logging.error(f"清理会话失败 {session_id[:32]}...: {e}")
+
+def monitor_session_inactivity():
+    """监控会话不活跃状态并清理（5分钟无活动）"""
+    while True:
+        try:
+            time.sleep(60)  # 每分钟检查一次
+            
+            current_time = time.time()
+            inactive_sessions = []
+            
+            with session_activity_lock:
+                for session_id, last_activity in list(session_activity.items()):
+                    # 检查是否在登录页面且5分钟无活动
+                    if current_time - last_activity > 300:  # 5分钟 = 300秒
+                        with web_sessions_lock:
+                            if session_id in web_sessions:
+                                api_instance = web_sessions[session_id]
+                                # 只清理已认证但未登录应用的会话
+                                is_authenticated = getattr(api_instance, 'is_authenticated', False)
+                                is_logged_in = getattr(api_instance, 'login_success', False)
+                                
+                                if is_authenticated and not is_logged_in:
+                                    inactive_sessions.append(session_id)
+            
+            # 清理不活跃会话
+            for session_id in inactive_sessions:
+                cleanup_inactive_session(session_id)
+                
+        except Exception as e:
+            logging.error(f"会话监控线程错误: {e}")
+
+# 启动会话监控线程
+def start_session_monitor():
+    """启动会话不活跃监控"""
+    monitor_thread = threading.Thread(target=monitor_session_inactivity, daemon=True)
+    monitor_thread.start()
+    logging.info("会话监控线程已启动")
 
 # 会话持久化函数
 def _load_session_index():
@@ -5332,6 +5469,9 @@ def start_web_server(args):
         if not session_id:
             return jsonify({"success": False, "message": "缺少会话ID"})
         
+        # 更新会话活动时间
+        update_session_activity(session_id)
+        
         # 验证用户
         auth_result = auth_system.authenticate(auth_username, auth_password)
         if not auth_result['success']:
@@ -5352,13 +5492,23 @@ def start_web_server(args):
             api_instance.is_guest = auth_result.get('is_guest', False)
             api_instance.is_authenticated = True
             
+            # 如果是注册用户（非游客），关联会话到用户账号
+            if not auth_result.get('is_guest', False):
+                auth_system.link_session_to_user(auth_username, session_id)
+            
             save_session_state(session_id, api_instance, force_save=True)
+        
+        # 如果是注册用户，返回已保存的会话ID列表
+        user_sessions = []
+        if not auth_result.get('is_guest', False):
+            user_sessions = auth_system.get_user_sessions(auth_username)
         
         return jsonify({
             "success": True,
             "auth_username": auth_result['auth_username'],
             "group": auth_result['group'],
-            "is_guest": auth_result.get('is_guest', False)
+            "is_guest": auth_result.get('is_guest', False),
+            "user_sessions": user_sessions  # 用于状态恢复
         })
     
     @app.route('/auth/guest_login', methods=['POST'])
@@ -5368,6 +5518,9 @@ def start_web_server(args):
         
         if not session_id:
             return jsonify({"success": False, "message": "缺少会话ID"})
+        
+        # 更新会话活动时间
+        update_session_activity(session_id)
         
         # 检查是否允许游客登录
         if not auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True):
@@ -5601,6 +5754,9 @@ def start_web_server(args):
         if not session_id:
             return jsonify({"success": False, "message": "缺少会话ID"}), 401
         
+        # 更新会话活动时间
+        update_session_activity(session_id)
+        
         with web_sessions_lock:
             if session_id not in web_sessions:
                 # 尝试恢复会话
@@ -5722,6 +5878,10 @@ def start_web_server(args):
     logging.info("正在加载持久化会话...")
     load_all_sessions(args)
     
+    # 启动会话监控线程
+    logging.info("正在启动会话监控...")
+    start_session_monitor()
+    
     # 启动服务器
     print(f"\n{'='*60}")
     print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染，2048位UUID）")
@@ -5729,6 +5889,7 @@ def start_web_server(args):
     print(f"  首次访问将自动分配2048位UUID并重定向")
     print(f"  会话持久化已启用（服务器重启后保留登录状态）")
     print(f"  JS计算在服务器端Chrome中执行，提升安全性")
+    print(f"  会话监控已启用（5分钟不活跃自动清理）")
     print(f"{'='*60}\n")
     
     try:

@@ -352,6 +352,23 @@ body.modal-visible .amap-copyright {
           <div class="flex-grow border-t border-slate-200"></div>
         </div>
         <button id="auth-guest-btn" class="btn btn-ghost w-full">以游客身份继续</button>
+        <!-- 游客模式警告 -->
+        <div class="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-left">
+          <div class="flex items-start gap-2">
+            <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"/>
+            </svg>
+            <div class="text-xs text-amber-800">
+              <p class="font-semibold mb-1">⚠️ 游客模式提示</p>
+              <ul class="space-y-1">
+                <li>• 游客使用UUID恢复状态，请务必保存地址</li>
+                <li>• 丢失URL将无法恢复您的数据和进度</li>
+                <li>• 5分钟不活跃会话将被自动清理</li>
+                <li>• 建议注册账号以获得更好的体验</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     
@@ -1583,6 +1600,28 @@ async function handleAuthLogin() {
     
     if (result.success) {
       showAuthSuccess('登录成功！');
+      
+      // 如果是注册用户且有历史会话，询问是否恢复
+      if (!result.is_guest && result.user_sessions && result.user_sessions.length > 0) {
+        const lastSession = result.user_sessions[result.user_sessions.length - 1];
+        // 检查是否与当前UUID不同
+        if (lastSession !== sessionUUID) {
+          const shouldRestore = await new Promise((resolve) => {
+            if (confirm('检测到上次使用的会话，是否恢复上次的状态？\n点击"确定"恢复上次状态，点击"取消"使用新会话。')) {
+              resolve(true);
+            } else {
+              resolve(false);
+            }
+          });
+          
+          if (shouldRestore) {
+            // 重定向到上次的会话UUID
+            window.location.href = `/uuid=${lastSession}`;
+            return;
+          }
+        }
+      }
+      
       setTimeout(() => {
         // 隐藏认证界面，显示应用登录界面
         $('auth-login-container').classList.add('hidden');
@@ -1590,6 +1629,9 @@ async function handleAuthLogin() {
         // 如果是游客，显示提示
         if (result.is_guest) {
           logMessage('[游客模式] 部分功能受限：无法标记通知已读、无法使用签到功能、无法执行多账号任务');
+          logMessage('[游客提示] 请保存当前地址，丢失后无法恢复您的数据！5分钟不活跃会话将被清理。');
+        } else {
+          logMessage('[注册用户] 您的状态已关联到账号，可在任何设备登录恢复。');
         }
       }, 1000);
     } else {

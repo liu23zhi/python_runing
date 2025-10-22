@@ -10,7 +10,19 @@
         "execute_single_task": true,
         "import_offline": true,
         "export_data": true,
-        "modify_params": true
+        "modify_params": true,
+        "view_tasks": true,
+        "create_tasks": false,
+        "delete_tasks": false,
+        "start_tasks": true,
+        "stop_tasks": true,
+        "view_map": true,
+        "record_path": true,
+        "auto_generate_path": true,
+        "view_user_details": true,
+        "modify_user_settings": false,
+        "view_logs": true,
+        "clear_logs": false
       }
     },
     "user": {
@@ -23,7 +35,19 @@
         "execute_single_task": true,
         "import_offline": true,
         "export_data": true,
-        "modify_params": true
+        "modify_params": true,
+        "view_tasks": true,
+        "create_tasks": true,
+        "delete_tasks": true,
+        "start_tasks": true,
+        "stop_tasks": true,
+        "view_map": true,
+        "record_path": true,
+        "auto_generate_path": true,
+        "view_user_details": true,
+        "modify_user_settings": true,
+        "view_logs": true,
+        "clear_logs": true
       }
     },
     "admin": {
@@ -37,8 +61,22 @@
         "import_offline": true,
         "export_data": true,
         "modify_params": true,
+        "view_tasks": true,
+        "create_tasks": true,
+        "delete_tasks": true,
+        "start_tasks": true,
+        "stop_tasks": true,
+        "view_map": true,
+        "record_path": true,
+        "auto_generate_path": true,
+        "view_user_details": true,
+        "modify_user_settings": true,
+        "view_logs": true,
+        "clear_logs": true,
         "manage_users": true,
-        "manage_permissions": true
+        "manage_permissions": true,
+        "view_all_sessions": true,
+        "force_logout_users": true
       }
     },
     "super_admin": {
@@ -52,9 +90,25 @@
         "import_offline": true,
         "export_data": true,
         "modify_params": true,
+        "view_tasks": true,
+        "create_tasks": true,
+        "delete_tasks": true,
+        "start_tasks": true,
+        "stop_tasks": true,
+        "view_map": true,
+        "record_path": true,
+        "auto_generate_path": true,
+        "view_user_details": true,
+        "modify_user_settings": true,
+        "view_logs": true,
+        "clear_logs": true,
         "manage_users": true,
         "manage_permissions": true,
-        "manage_system": true
+        "view_all_sessions": true,
+        "force_logout_users": true,
+        "manage_system": true,
+        "create_permission_groups": true,
+        "delete_permission_groups": true
       }
     }
   },
