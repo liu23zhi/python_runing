@@ -2022,8 +2022,13 @@ async function initializeApp() {
   await onUserChange();
   
   // 修复Issue 5: 检查是否已经登录（会话持久化）
-  if (initialData.isLoggedIn && initialData.userInfo) {
-    // 用户已登录，直接显示主界面
+  // 兼容学校账号登录(isLoggedIn)和系统账号登录(is_authenticated)
+  const hasSchoolLogin = initialData.isLoggedIn && initialData.userInfo;
+  const hasSystemAuth = initialData.is_authenticated && !initialData.is_guest;
+  const isGuestMode = initialData.is_authenticated && initialData.is_guest;
+  
+  if (hasSchoolLogin) {
+    // 学校账号已登录，直接显示主界面
     currentUserData = initialData.userInfo;
     
     // Issue 4修复：恢复会话时确保API Key已配置并加载地图
@@ -2034,6 +2039,11 @@ async function initializeApp() {
       } catch (e) {
         console.error('地图加载失败（会话恢复）', e);
       }
+    } else {
+      // 已登录但没有API Key，弹出提示
+      logMessage("[警告] 未配置高德地图API Key，请在弹窗中输入。");
+      $('amap-key-modal').classList.remove('hidden');
+      $('amap-key-modal').classList.add('flex');
     }
     
     showMainApp();
@@ -2051,8 +2061,27 @@ async function initializeApp() {
       const adminBtn = $('show-admin-panel');
       if (adminBtn) adminBtn.classList.remove('hidden');
     }
+  } else if (hasSystemAuth || isGuestMode) {
+    // 系统账号已登录（admin/普通用户）或游客模式，隐藏认证面板，显示学校登录面板
+    $('auth-login-container').classList.add('hidden');
+    $('login-container').classList.remove('hidden');
+    
+    // 加载地图API Key
+    AMAP_API_KEY = initialData.amap_key || "";
+    if (AMAP_API_KEY) {
+      try {
+        await loadAMapOnce();
+      } catch (e) {
+        console.error('地图加载失败（系统账号恢复）', e);
+      }
+    }
+    
+    // 如果是游客模式，显示提示
+    if (isGuestMode) {
+      logMessage('[游客模式] 部分功能受限，请保存当前地址以便恢复会话');
+    }
   } else {
-    // 未登录，检查API Key
+    // 完全未登录，显示认证面板，检查API Key和游客登录选项
     AMAP_API_KEY = initialData.amap_key || "";
     if (!AMAP_API_KEY) {
       logMessage("[警告] 未配置高德地图API Key，请在弹窗中输入。");
@@ -2065,6 +2094,9 @@ async function initializeApp() {
         console.error('AMap SDK 加载失败（ready 阶段）', e);
       }
     }
+    
+    // 检查是否允许游客登录并显示按钮
+    checkGuestLoginEnabled();
   }
 
   if (pythonParams.theme_style) {
