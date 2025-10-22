@@ -3,5 +3,7 @@ __pycache__/
 *.pyo
 .DS_Store
 sessions/
-*.ini
+# Keep config.ini template but ignore user data
+users/
+# Keep permissions.json template
 /.history

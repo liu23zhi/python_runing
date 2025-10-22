@@ -1,0 +1,62 @@
+{
+  "permission_groups": {
+    "guest": {
+      "name": "游客",
+      "permissions": {
+        "view_notifications": true,
+        "mark_notifications_read": false,
+        "execute_multi_account": false,
+        "use_attendance": false,
+        "execute_single_task": true,
+        "import_offline": true,
+        "export_data": true,
+        "modify_params": true
+      }
+    },
+    "user": {
+      "name": "普通用户",
+      "permissions": {
+        "view_notifications": true,
+        "mark_notifications_read": true,
+        "execute_multi_account": true,
+        "use_attendance": true,
+        "execute_single_task": true,
+        "import_offline": true,
+        "export_data": true,
+        "modify_params": true
+      }
+    },
+    "admin": {
+      "name": "管理员",
+      "permissions": {
+        "view_notifications": true,
+        "mark_notifications_read": true,
+        "execute_multi_account": true,
+        "use_attendance": true,
+        "execute_single_task": true,
+        "import_offline": true,
+        "export_data": true,
+        "modify_params": true,
+        "manage_users": true,
+        "manage_permissions": true
+      }
+    },
+    "super_admin": {
+      "name": "超级管理员",
+      "permissions": {
+        "view_notifications": true,
+        "mark_notifications_read": true,
+        "execute_multi_account": true,
+        "use_attendance": true,
+        "execute_single_task": true,
+        "import_offline": true,
+        "export_data": true,
+        "modify_params": true,
+        "manage_users": true,
+        "manage_permissions": true,
+        "manage_system": true
+      }
+    }
+  },
+  "user_groups": {}
+}

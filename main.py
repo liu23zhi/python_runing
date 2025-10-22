@@ -33,6 +33,14 @@ if not os.path.exists(SESSION_STORAGE_DIR):
 # 会话索引文件：存储SHA256哈希和完整UUID的对应关系
 SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
 
+# 用户认证系统相关目录
+USERS_DIR = os.path.join(os.path.dirname(__file__), 'users')
+if not os.path.exists(USERS_DIR):
+    os.makedirs(USERS_DIR)
+
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
+PERMISSIONS_FILE = os.path.join(os.path.dirname(__file__), 'permissions.json')
+
 # 配置UTF-8编码（用于日志和控制台输出）
 if sys.platform.startswith('win'):
     # Windows系统特殊处理
@@ -79,6 +87,227 @@ except ImportError as e:
     sys.exit(1)
 
 
+
+# ==============================================================================
+# 认证和权限管理系统
+# ==============================================================================
+
+class AuthSystem:
+    """用户认证和权限管理系统"""
+    
+    def __init__(self):
+        self.config = self._load_config()
+        self.permissions = self._load_permissions()
+        self.lock = threading.Lock()
+    
+    def _load_config(self):
+        """加载配置文件"""
+        config = configparser.ConfigParser()
+        if os.path.exists(CONFIG_FILE):
+            config.read(CONFIG_FILE, encoding='utf-8')
+        else:
+            # 创建默认配置
+            config['Admin'] = {'super_admin': 'admin'}
+            config['Guest'] = {'allow_guest_login': 'true'}
+            config['System'] = {
+                'session_expiry_days': '7',
+                'users_dir': 'users',
+                'permissions_file': 'permissions.json'
+            }
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                config.write(f)
+        return config
+    
+    def _load_permissions(self):
+        """加载权限配置"""
+        if os.path.exists(PERMISSIONS_FILE):
+            with open(PERMISSIONS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return {
+            "permission_groups": {},
+            "user_groups": {}
+        }
+    
+    def _save_permissions(self):
+        """保存权限配置"""
+        with self.lock:
+            with open(PERMISSIONS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.permissions, f, indent=2, ensure_ascii=False)
+    
+    def get_user_file_path(self, auth_username):
+        """获取用户文件路径"""
+        import hashlib
+        user_hash = hashlib.sha256(auth_username.encode()).hexdigest()
+        return os.path.join(USERS_DIR, f"{user_hash}.json")
+    
+    def register_user(self, auth_username, auth_password, group='user'):
+        """注册新用户"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                return {"success": False, "message": "用户名已存在"}
+            
+            # 密码哈希
+            import hashlib
+            password_hash = hashlib.sha256(auth_password.encode()).hexdigest()
+            
+            user_data = {
+                'auth_username': auth_username,
+                'password_hash': password_hash,
+                'group': group,
+                'created_at': time.time(),
+                'last_login': None
+            }
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            # 添加到权限组
+            self.permissions['user_groups'][auth_username] = group
+            self._save_permissions()
+            
+            logging.info(f"新用户注册: {auth_username} (组: {group})")
+            return {"success": True, "message": "注册成功"}
+    
+    def authenticate(self, auth_username, auth_password):
+        """验证用户登录"""
+        with self.lock:
+            # 检查是否为游客登录
+            if auth_username == 'guest' and self.config.getboolean('Guest', 'allow_guest_login', fallback=True):
+                return {
+                    "success": True, 
+                    "auth_username": "guest",
+                    "group": "guest",
+                    "is_guest": True
+                }
+            
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            # 验证密码
+            import hashlib
+            password_hash = hashlib.sha256(auth_password.encode()).hexdigest()
+            
+            if user_data['password_hash'] != password_hash:
+                return {"success": False, "message": "密码错误"}
+            
+            # 更新最后登录时间
+            user_data['last_login'] = time.time()
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            # 检查是否为超级管理员
+            super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
+            if auth_username == super_admin:
+                group = 'super_admin'
+            else:
+                group = user_data.get('group', 'user')
+            
+            logging.info(f"用户登录: {auth_username} (组: {group})")
+            return {
+                "success": True,
+                "auth_username": auth_username,
+                "group": group,
+                "is_guest": False
+            }
+    
+    def check_permission(self, auth_username, permission):
+        """检查用户是否有特定权限"""
+        # 获取用户组
+        group = self.permissions['user_groups'].get(auth_username, 'guest')
+        
+        # 检查是否为超级管理员
+        super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
+        if auth_username == super_admin:
+            group = 'super_admin'
+        
+        # 获取组权限
+        group_perms = self.permissions['permission_groups'].get(group, {}).get('permissions', {})
+        return group_perms.get(permission, False)
+    
+    def get_user_group(self, auth_username):
+        """获取用户所属组"""
+        super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
+        if auth_username == super_admin:
+            return 'super_admin'
+        return self.permissions['user_groups'].get(auth_username, 'guest')
+    
+    def update_user_group(self, auth_username, new_group):
+        """更新用户组（需要管理员权限）"""
+        with self.lock:
+            if new_group not in self.permissions['permission_groups']:
+                return {"success": False, "message": "权限组不存在"}
+            
+            self.permissions['user_groups'][auth_username] = new_group
+            self._save_permissions()
+            
+            # 同时更新用户文件
+            user_file = self.get_user_file_path(auth_username)
+            if os.path.exists(user_file):
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                user_data['group'] = new_group
+                with open(user_file, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            return {"success": True, "message": "权限组已更新"}
+    
+    def create_permission_group(self, group_name, permissions, display_name):
+        """创建新的权限组（需要超级管理员权限）"""
+        with self.lock:
+            if group_name in self.permissions['permission_groups']:
+                return {"success": False, "message": "权限组已存在"}
+            
+            self.permissions['permission_groups'][group_name] = {
+                'name': display_name,
+                'permissions': permissions
+            }
+            self._save_permissions()
+            return {"success": True, "message": "权限组已创建"}
+    
+    def update_permission_group(self, group_name, permissions):
+        """更新权限组（需要超级管理员权限）"""
+        with self.lock:
+            if group_name not in self.permissions['permission_groups']:
+                return {"success": False, "message": "权限组不存在"}
+            
+            self.permissions['permission_groups'][group_name]['permissions'] = permissions
+            self._save_permissions()
+            return {"success": True, "message": "权限组已更新"}
+    
+    def list_users(self):
+        """列出所有用户"""
+        users = []
+        for filename in os.listdir(USERS_DIR):
+            if filename.endswith('.json'):
+                user_file = os.path.join(USERS_DIR, filename)
+                try:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                    users.append({
+                        'auth_username': user_data['auth_username'],
+                        'group': user_data.get('group', 'user'),
+                        'created_at': user_data.get('created_at'),
+                        'last_login': user_data.get('last_login')
+                    })
+                except Exception as e:
+                    logging.error(f"读取用户文件失败 {filename}: {e}")
+        return users
+    
+    def get_all_groups(self):
+        """获取所有权限组"""
+        return self.permissions['permission_groups']
+
+# 创建全局认证系统实例
+auth_system = AuthSystem()
+
+# ==============================================================================
+# 数据结构定义
+# ==============================================================================
 
 class UserData:
     """存储用户相关信息的类"""
@@ -4659,6 +4888,13 @@ def save_session_state(session_id, api_instance, force_save=False):
                 'last_accessed': time.time()
             }
             
+            # 增强：保存认证信息
+            if hasattr(api_instance, 'auth_username'):
+                state['auth_username'] = api_instance.auth_username
+                state['auth_group'] = getattr(api_instance, 'auth_group', 'guest')
+                state['is_guest'] = getattr(api_instance, 'is_guest', False)
+                state['is_authenticated'] = getattr(api_instance, 'is_authenticated', False)
+            
             # 增强：保存用户配置参数
             if hasattr(api_instance, 'params'):
                 state['params'] = api_instance.params
@@ -4796,6 +5032,13 @@ def restore_session_to_api_instance(api_instance, state):
         state: 从文件加载的状态字典
     """
     try:
+        # 恢复认证信息
+        if 'auth_username' in state:
+            api_instance.auth_username = state['auth_username']
+            api_instance.auth_group = state.get('auth_group', 'guest')
+            api_instance.is_guest = state.get('is_guest', False)
+            api_instance.is_authenticated = state.get('is_authenticated', False)
+        
         # 恢复登录状态和用户信息
         if 'login_success' in state:
             api_instance.login_success = state['login_success']
@@ -5050,6 +5293,233 @@ def start_web_server(args):
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=7)  # 会话保持7天
     
+    # ====================
+    # 认证相关API路由
+    # ====================
+    
+    @app.route('/auth/register', methods=['POST'])
+    def auth_register():
+        """用户注册"""
+        data = request.get_json() or {}
+        auth_username = data.get('auth_username', '').strip()
+        auth_password = data.get('auth_password', '').strip()
+        
+        if not auth_username or not auth_password:
+            return jsonify({"success": False, "message": "用户名和密码不能为空"})
+        
+        result = auth_system.register_user(auth_username, auth_password)
+        return jsonify(result)
+    
+    @app.route('/auth/login', methods=['POST'])
+    def auth_login():
+        """用户登录认证"""
+        data = request.get_json() or {}
+        auth_username = data.get('auth_username', '').strip()
+        auth_password = data.get('auth_password', '').strip()
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"})
+        
+        # 验证用户
+        auth_result = auth_system.authenticate(auth_username, auth_password)
+        if not auth_result['success']:
+            return jsonify(auth_result)
+        
+        # 将认证信息附加到会话
+        with web_sessions_lock:
+            if session_id in web_sessions:
+                api_instance = web_sessions[session_id]
+            else:
+                api_instance = Api(args)
+                api_instance._session_created_at = time.time()
+                api_instance._web_session_id = session_id
+                web_sessions[session_id] = api_instance
+            
+            api_instance.auth_username = auth_result['auth_username']
+            api_instance.auth_group = auth_result['group']
+            api_instance.is_guest = auth_result.get('is_guest', False)
+            api_instance.is_authenticated = True
+            
+            save_session_state(session_id, api_instance, force_save=True)
+        
+        return jsonify({
+            "success": True,
+            "auth_username": auth_result['auth_username'],
+            "group": auth_result['group'],
+            "is_guest": auth_result.get('is_guest', False)
+        })
+    
+    @app.route('/auth/guest_login', methods=['POST'])
+    def auth_guest_login():
+        """游客登录"""
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"})
+        
+        # 检查是否允许游客登录
+        if not auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True):
+            return jsonify({"success": False, "message": "系统不允许游客登录"})
+        
+        # 创建游客会话
+        with web_sessions_lock:
+            if session_id in web_sessions:
+                api_instance = web_sessions[session_id]
+            else:
+                api_instance = Api(args)
+                api_instance._session_created_at = time.time()
+                api_instance._web_session_id = session_id
+                web_sessions[session_id] = api_instance
+            
+            api_instance.auth_username = 'guest'
+            api_instance.auth_group = 'guest'
+            api_instance.is_guest = True
+            api_instance.is_authenticated = True
+            
+            save_session_state(session_id, api_instance, force_save=True)
+        
+        return jsonify({
+            "success": True,
+            "auth_username": "guest",
+            "group": "guest",
+            "is_guest": True
+        })
+    
+    @app.route('/auth/check_permission', methods=['POST'])
+    def auth_check_permission():
+        """检查权限"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        permission = data.get('permission', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "has_permission": False})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "has_permission": False})
+        
+        has_permission = auth_system.check_permission(api_instance.auth_username, permission)
+        return jsonify({"success": True, "has_permission": has_permission})
+    
+    @app.route('/auth/admin/list_users', methods=['GET'])
+    def auth_admin_list_users():
+        """管理员：列出所有用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查权限
+        if not auth_system.check_permission(api_instance.auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"})
+        
+        users = auth_system.list_users()
+        return jsonify({"success": True, "users": users})
+    
+    @app.route('/auth/admin/update_user_group', methods=['POST'])
+    def auth_admin_update_user_group():
+        """管理员：更新用户组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        target_username = data.get('target_username', '')
+        new_group = data.get('new_group', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查权限
+        if not auth_system.check_permission(api_instance.auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"})
+        
+        result = auth_system.update_user_group(target_username, new_group)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/list_groups', methods=['GET'])
+    def auth_admin_list_groups():
+        """管理员：列出所有权限组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查权限
+        if not auth_system.check_permission(api_instance.auth_username, 'manage_permissions'):
+            return jsonify({"success": False, "message": "权限不足"})
+        
+        groups = auth_system.get_all_groups()
+        return jsonify({"success": True, "groups": groups})
+    
+    @app.route('/auth/admin/create_group', methods=['POST'])
+    def auth_admin_create_group():
+        """超级管理员：创建权限组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        group_name = data.get('group_name', '')
+        display_name = data.get('display_name', '')
+        permissions = data.get('permissions', {})
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查是否为超级管理员
+        if api_instance.auth_group != 'super_admin':
+            return jsonify({"success": False, "message": "仅超级管理员可创建权限组"})
+        
+        result = auth_system.create_permission_group(group_name, permissions, display_name)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/update_group', methods=['POST'])
+    def auth_admin_update_group():
+        """超级管理员：更新权限组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        group_name = data.get('group_name', '')
+        permissions = data.get('permissions', {})
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查是否为超级管理员
+        if api_instance.auth_group != 'super_admin':
+            return jsonify({"success": False, "message": "仅超级管理员可更新权限组"})
+        
+        result = auth_system.update_permission_group(group_name, permissions)
+        return jsonify(result)
+    
+    @app.route('/auth/get_config', methods=['GET'])
+    def auth_get_config():
+        """获取认证配置（用于前端显示）"""
+        return jsonify({
+            "success": True,
+            "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True)
+        })
+    
+    # ====================
+    # 应用主路由
+    # ====================
+    
     @app.route('/')
     def index():
         """首页：自动分配UUID并重定向"""
@@ -5144,6 +5614,23 @@ def start_web_server(args):
         
         # 调用对应的API方法
         try:
+            # 权限检查：需要特定权限的方法
+            permission_required_methods = {
+                'mark_notification_read': 'mark_notifications_read',
+                'mark_all_read': 'mark_notifications_read',
+                'trigger_attendance': 'use_attendance',
+                'multi_start_single_account': 'execute_multi_account',
+                'multi_start_all_accounts': 'execute_multi_account',
+            }
+            
+            if method in permission_required_methods:
+                required_permission = permission_required_methods[method]
+                if hasattr(api_instance, 'auth_username'):
+                    if not auth_system.check_permission(api_instance.auth_username, required_permission):
+                        return jsonify({"success": False, "message": f"权限不足：需要 {required_permission} 权限"}), 403
+                else:
+                    return jsonify({"success": False, "message": "请先登录认证"}), 401
+            
             if hasattr(api_instance, method):
                 func = getattr(api_instance, method)
                 # 将参数展开调用
