@@ -22,8 +22,239 @@ import queue as _queue
 import uuid
 import secrets
 import pickle
+import hashlib
 from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify
 from flask_cors import CORS
+
+
+# ==============================================================================
+# 自动初始化系统 (整合自 auto_init.py)
+# ==============================================================================
+
+def auto_init_system():
+    """
+    自动初始化系统，创建所有必需的文件和目录
+    确保程序在只有main.py和index.html时仍能正常运行
+    """
+    # 静默运行，只在遇到错误时才打印
+    try:
+        # 创建必需的目录
+        _create_directories()
+        
+        # 创建配置文件
+        _create_config_ini()
+        
+        # 创建权限配置文件
+        _create_permissions_json()
+        
+        # 创建默认管理员账号
+        _create_default_admin()
+    except Exception as e:
+        logging.error(f"系统初始化失败: {e}", exc_info=True)
+
+
+def _create_directories():
+    """创建必需的目录结构"""
+    directories = [
+        'logs',
+        'school_accounts',
+        'school_accounts/system_auth',
+        'sessions'
+    ]
+    
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+
+
+def _create_config_ini():
+    """创建默认的config.ini配置文件"""
+    if os.path.exists('config.ini'):
+        return
+    
+    config = configparser.ConfigParser()
+    
+    # [Admin] 管理员配置
+    config['Admin'] = {'super_admin': 'admin'}
+    
+    # [Guest] 游客配置
+    config['Guest'] = {'allow_guest_login': 'true'}
+    
+    # [System] 系统配置
+    config['System'] = {
+        'session_expiry_days': '7',
+        'school_accounts_dir': 'school_accounts',
+        'system_accounts_dir': 'school_accounts/system_auth',
+        'permissions_file': 'permissions.json'
+    }
+    
+    # [Security] 安全配置
+    config['Security'] = {
+        'password_storage': 'plaintext',
+        'brute_force_protection': 'true',
+        'login_log_retention_days': '90'
+    }
+    
+    with open('config.ini', 'w', encoding='utf-8') as f:
+        config.write(f)
+
+
+def _create_permissions_json():
+    """创建默认的permissions.json权限配置文件"""
+    if os.path.exists('permissions.json'):
+        return
+    
+    permissions = {
+        "permission_groups": {
+            "guest": {
+                "name": "游客",
+                "permissions": {
+                    "view_tasks": True,
+                    "create_tasks": False,
+                    "delete_tasks": False,
+                    "start_tasks": True,
+                    "stop_tasks": True,
+                    "view_map": True,
+                    "record_path": True,
+                    "auto_generate_path": True,
+                    "view_notifications": True,
+                    "mark_notifications_read": False,
+                    "view_user_details": True,
+                    "modify_user_settings": False,
+                    "execute_multi_account": False,
+                    "use_attendance": False,
+                    "view_logs": False,
+                    "clear_logs": False
+                }
+            },
+            "user": {
+                "name": "普通用户",
+                "permissions": {
+                    "view_tasks": True,
+                    "create_tasks": True,
+                    "delete_tasks": True,
+                    "start_tasks": True,
+                    "stop_tasks": True,
+                    "view_map": True,
+                    "record_path": True,
+                    "auto_generate_path": True,
+                    "view_notifications": True,
+                    "mark_notifications_read": True,
+                    "view_user_details": True,
+                    "modify_user_settings": True,
+                    "execute_multi_account": True,
+                    "use_attendance": True,
+                    "view_logs": False,
+                    "clear_logs": False,
+                    "manage_users": False,
+                    "manage_permissions": False,
+                    "reset_user_password": False,
+                    "view_audit_logs": False
+                }
+            },
+            "admin": {
+                "name": "管理员",
+                "permissions": {
+                    "view_tasks": True,
+                    "create_tasks": True,
+                    "delete_tasks": True,
+                    "start_tasks": True,
+                    "stop_tasks": True,
+                    "view_map": True,
+                    "record_path": True,
+                    "auto_generate_path": True,
+                    "view_notifications": True,
+                    "mark_notifications_read": True,
+                    "view_user_details": True,
+                    "modify_user_settings": True,
+                    "execute_multi_account": True,
+                    "use_attendance": True,
+                    "view_logs": True,
+                    "clear_logs": True,
+                    "manage_users": True,
+                    "manage_permissions": True,
+                    "reset_user_password": True,
+                    "view_audit_logs": True,
+                    "view_all_sessions": True,
+                    "force_logout_users": True
+                }
+            },
+            "super_admin": {
+                "name": "超级管理员",
+                "permissions": {
+                    "view_tasks": True,
+                    "create_tasks": True,
+                    "delete_tasks": True,
+                    "start_tasks": True,
+                    "stop_tasks": True,
+                    "view_map": True,
+                    "record_path": True,
+                    "auto_generate_path": True,
+                    "view_notifications": True,
+                    "mark_notifications_read": True,
+                    "view_user_details": True,
+                    "modify_user_settings": True,
+                    "execute_multi_account": True,
+                    "use_attendance": True,
+                    "view_logs": True,
+                    "clear_logs": True,
+                    "manage_users": True,
+                    "manage_permissions": True,
+                    "reset_user_password": True,
+                    "view_audit_logs": True,
+                    "view_all_sessions": True,
+                    "force_logout_users": True,
+                    "manage_system": True,
+                    "create_permission_groups": True,
+                    "delete_permission_groups": True
+                }
+            }
+        },
+        "user_groups": {}
+    }
+    
+    with open('permissions.json', 'w', encoding='utf-8') as f:
+        json.dump(permissions, f, indent=2, ensure_ascii=False)
+
+
+def _create_default_admin():
+    """创建默认的管理员账号"""
+    admin_dir = 'school_accounts/system_auth'
+    if not os.path.exists(admin_dir):
+        os.makedirs(admin_dir, exist_ok=True)
+    
+    # 使用用户名的哈希作为文件名
+    username = 'admin'
+    filename = hashlib.sha256(username.encode()).hexdigest()
+    admin_file = os.path.join(admin_dir, f'{filename}.json')
+    
+    if os.path.exists(admin_file):
+        return
+    
+    admin_data = {
+        "auth_username": "admin",
+        "password": "admin",
+        "group": "super_admin",
+        "created_at": time.time(),
+        "last_login": None,
+        "session_ids": [],
+        "2fa_enabled": False,
+        "2fa_secret": None,
+        "avatar_url": "",
+        "max_sessions": -1,
+        "theme": "light"
+    }
+    
+    with open(admin_file, 'w', encoding='utf-8') as f:
+        json.dump(admin_data, f, indent=2, ensure_ascii=False)
+
+
+# 在导入完成后立即初始化系统
+auto_init_system()
+
+# ==============================================================================
+# 原有代码继续
+# ==============================================================================
 
 # 会话存储目录
 SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
@@ -1779,7 +2010,7 @@ class Api:
         self.user_info = user_info_dict
         logging.info(f"会话状态已保存: login_success={self.login_success}, user_id={ud.id}")
 
-        return {"success": True, "userInfo": user_info_dict, "ua": self.device_ua}
+        return {"success": True, "userInfo": user_info_dict, "ua": self.device_ua, "amap_key": self.global_params.get('amap_js_key', '')}
 
 
 

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>跑步助手</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 注意: Tailwind CDN 仅用于开发/演示。生产环境建议安装为 PostCSS 插件 -->
 <script src="https://cdn.tailwindcss.com" onerror="handleCdnError()"></script>
 
 <!-- Google Fonts 标准引入（替代手写 @font-face） -->
@@ -419,7 +420,7 @@ body.modal-visible .amap-copyright {
       <div class="space-y-4 w-full">
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">选择账号</label>
-          <select id="user-combo" class="select-field mt-1"></select>
+          <select id="user-combo" class="select-field mt-1" title="选择已保存的账号或创建新账号" aria-label="选择账号"></select>
         </div>
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
@@ -2825,6 +2826,16 @@ async function onLogin() {
 
   const result = await callPythonAPI('login', user, pass);
   if(result.success) {
+    // 修复Issue 3: 在显示主界面前先加载AMap API Key
+    if (result.amap_key) {
+      AMAP_API_KEY = result.amap_key;
+      try {
+        await loadAMapOnce();
+      } catch (e) {
+        console.error('地图加载失败（登录后）', e);
+      }
+    }
+    
     showMainApp();
     currentUserData = result.userInfo;
     currentSessionUA = uaOnLoginScreen;
