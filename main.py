@@ -332,7 +332,7 @@ class AuthSystem:
                 '2fa_enabled': False,
                 '2fa_secret': None,
                 'avatar_url': '',  # 用户头像URL
-                'allow_multiple_sessions': False,  # 是否允许多会话
+                'max_sessions': 1,  # 允许的最大会话数量 (1=单会话, >1=多会话, -1=无限制)
                 'theme': 'light'  # 主题偏好：light/dark
             }
             
@@ -409,7 +409,7 @@ class AuthSystem:
                 "auth_username": auth_username,
                 "group": group,
                 "is_guest": False,
-                "allow_multiple_sessions": user_data.get('allow_multiple_sessions', False),
+                "max_sessions": user_data.get('max_sessions', 1),
                 "avatar_url": user_data.get('avatar_url', ''),
                 "theme": user_data.get('theme', 'light'),
                 "session_ids": user_data.get('session_ids', [])
@@ -607,8 +607,13 @@ class AuthSystem:
             
             return {"success": True, "message": "主题已更新"}
     
-    def update_multi_session_permission(self, auth_username, allow_multiple):
-        """更新用户多会话权限"""
+    def update_max_sessions(self, auth_username, max_sessions):
+        """更新用户最大会话数量
+        
+        Args:
+            auth_username: 用户名
+            max_sessions: 最大会话数 (1=单会话, >1=指定数量, -1=无限制)
+        """
         with self.lock:
             user_file = self.get_user_file_path(auth_username)
             if not os.path.exists(user_file):
@@ -617,12 +622,20 @@ class AuthSystem:
             with open(user_file, 'r', encoding='utf-8') as f:
                 user_data = json.load(f)
             
-            user_data['allow_multiple_sessions'] = allow_multiple
+            user_data['max_sessions'] = max_sessions
             
             with open(user_file, 'w', encoding='utf-8') as f:
                 json.dump(user_data, f, indent=2, ensure_ascii=False)
             
-            return {"success": True, "message": "多会话权限已更新"}
+            # 生成提示信息
+            if max_sessions == 1:
+                msg = f"已设置为单会话模式：用户每次只能保持1个活跃会话"
+            elif max_sessions == -1:
+                msg = f"已设置为无限会话模式：用户可以创建任意数量的会话"
+            else:
+                msg = f"已设置最大会话数量为：{max_sessions}个，超出时将自动清理最旧的会话"
+            
+            return {"success": True, "message": msg}
     
     def get_user_details(self, auth_username):
         """获取用户详细信息"""
@@ -641,37 +654,66 @@ class AuthSystem:
             'last_login': user_data.get('last_login'),
             '2fa_enabled': user_data.get('2fa_enabled', False),
             'avatar_url': user_data.get('avatar_url', ''),
-            'allow_multiple_sessions': user_data.get('allow_multiple_sessions', False),
+            'max_sessions': user_data.get('max_sessions', 1),
             'theme': user_data.get('theme', 'light'),
             'session_ids': user_data.get('session_ids', [])
         }
     
     def check_single_session_enforcement(self, auth_username, new_session_id):
-        """检查并强制执行单会话限制（如果用户不允许多会话）"""
+        """检查并强制执行会话数量限制
+        
+        根据用户的max_sessions设置：
+        - max_sessions = 1: 单会话模式，移除所有旧会话
+        - max_sessions > 1: 多会话模式，超出时移除最旧的会话
+        - max_sessions = -1: 无限制模式，不移除任何会话
+        
+        Returns:
+            tuple: (需要清理的旧会话列表, 提示信息)
+        """
         if auth_username == 'guest':
-            return []  # 游客不受限制
+            return [], ""  # 游客不受限制
         
         user_file = self.get_user_file_path(auth_username)
         if not os.path.exists(user_file):
-            return []
+            return [], ""
         
         with self.lock:
             with open(user_file, 'r', encoding='utf-8') as f:
                 user_data = json.load(f)
             
-            allow_multiple = user_data.get('allow_multiple_sessions', False)
-            if not allow_multiple:
-                # 单会话模式：移除所有旧会话
-                old_sessions = user_data.get('session_ids', [])
+            max_sessions = user_data.get('max_sessions', 1)
+            old_sessions = user_data.get('session_ids', [])
+            
+            # 无限制模式，不清理
+            if max_sessions == -1:
+                return [], ""
+            
+            # 单会话模式：移除所有旧会话
+            if max_sessions == 1:
                 user_data['session_ids'] = [new_session_id]
                 
                 with open(user_file, 'w', encoding='utf-8') as f:
                     json.dump(user_data, f, indent=2, ensure_ascii=False)
                 
-                return old_sessions  # 返回需要清理的旧会话
+                message = "单会话模式：已自动清理所有旧会话"
+                return old_sessions, message
+            
+            # 多会话模式：检查是否超出限制
+            current_count = len(old_sessions)
+            if current_count >= max_sessions:
+                # 超出限制，移除最旧的会话
+                sessions_to_remove = old_sessions[:current_count - max_sessions + 1]
+                remaining_sessions = old_sessions[current_count - max_sessions + 1:]
+                user_data['session_ids'] = remaining_sessions + [new_session_id]
+                
+                with open(user_file, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+                
+                message = f"已达到最大会话数量限制({max_sessions}个)，已自动清理{len(sessions_to_remove)}个最旧的会话"
+                return sessions_to_remove, message
             else:
-                # 多会话模式：正常添加
-                return []
+                # 未超出限制，正常添加
+                return [], ""
     
     def log_audit(self, auth_username, action, details='', ip_address='', session_id=''):
         """记录审计日志"""
@@ -5893,22 +5935,27 @@ def start_web_server(args):
             api_instance.is_authenticated = True
             
             # 如果是注册用户（非游客），处理会话关联
+            cleanup_message = ""
             if not auth_result.get('is_guest', False):
-                # 检查单会话强制执行
-                old_sessions = auth_system.check_single_session_enforcement(auth_username, session_id)
+                # 检查并强制执行会话数量限制
+                old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, session_id)
                 
-                # 清理旧会话（如果是单会话模式）
+                # 清理旧会话（如果超出限制）
                 for old_sid in old_sessions:
-                    cleanup_session(old_sid, "single_session_enforcement")
+                    cleanup_session(old_sid, "session_limit_exceeded")
                 
                 # 关联新会话到用户账号
                 auth_system.link_session_to_user(auth_username, session_id)
                 
                 # 记录审计日志
+                audit_details = f'登录成功，会话ID: {session_id}'
+                if cleanup_message:
+                    audit_details += f'; {cleanup_message}'
+                
                 auth_system.log_audit(
                     auth_username,
                     'user_login',
-                    f'登录成功，会话ID: {session_id}',
+                    audit_details,
                     ip_address,
                     session_id
                 )
@@ -5917,19 +5964,39 @@ def start_web_server(args):
         
         # 如果是注册用户，返回已保存的会话ID列表
         user_sessions = []
+        max_sessions = 1
         if not auth_result.get('is_guest', False):
             user_sessions = auth_system.get_user_sessions(auth_username)
+            user_details = auth_system.get_user_details(auth_username)
+            if user_details:
+                max_sessions = user_details.get('max_sessions', 1)
         
-        return jsonify({
+        # 生成会话限制提示信息
+        session_limit_info = ""
+        if max_sessions == 1:
+            session_limit_info = "您的账号为单会话模式，新登录将自动清理所有旧会话"
+        elif max_sessions == -1:
+            session_limit_info = "您的账号为无限会话模式，可以创建任意数量的会话"
+        else:
+            session_limit_info = f"您的账号最多可以同时保持{max_sessions}个活跃会话，超出时将自动清理最旧的会话"
+        
+        response_data = {
             "success": True,
             "auth_username": auth_result['auth_username'],
             "group": auth_result['group'],
             "is_guest": auth_result.get('is_guest', False),
             "user_sessions": user_sessions,  # 用于状态恢复
-            "allow_multiple_sessions": auth_result.get('allow_multiple_sessions', False),
+            "max_sessions": max_sessions,
+            "session_limit_info": session_limit_info,
             "avatar_url": auth_result.get('avatar_url', ''),
             "theme": auth_result.get('theme', 'light')
-        })
+        }
+        
+        # 添加清理提示（如果有）
+        if cleanup_message:
+            response_data['cleanup_message'] = cleanup_message
+        
+        return jsonify(response_data)
     
     @app.route('/auth/guest_login', methods=['POST'])
     def auth_guest_login():
@@ -6283,9 +6350,14 @@ def start_web_server(args):
             return jsonify({"success": True, "user": details})
         return jsonify({"success": False, "message": "用户不存在"})
     
-    @app.route('/auth/admin/update_multi_session', methods=['POST'])
-    def auth_admin_update_multi_session():
-        """更新用户多会话权限（管理员）"""
+    @app.route('/auth/admin/update_max_sessions', methods=['POST'])
+    def auth_admin_update_max_sessions():
+        """更新用户最大会话数量（管理员）
+        
+        请求参数:
+        - username: 目标用户名
+        - max_sessions: 最大会话数 (1=单会话, >1=指定数量, -1=无限制)
+        """
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
@@ -6300,9 +6372,27 @@ def start_web_server(args):
         
         data = request.json
         target_username = data.get('username', '')
-        allow_multiple = data.get('allow_multiple', False)
+        max_sessions = data.get('max_sessions', 1)
         
-        result = auth_system.update_multi_session_permission(target_username, allow_multiple)
+        # 验证参数
+        if not isinstance(max_sessions, int) or (max_sessions < 1 and max_sessions != -1):
+            return jsonify({
+                "success": False, 
+                "message": "无效的会话数量：必须为正整数或-1（无限制）"
+            }), 400
+        
+        result = auth_system.update_max_sessions(target_username, max_sessions)
+        
+        # 记录审计日志
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        auth_system.log_audit(
+            auth_username,
+            'update_max_sessions',
+            f'修改用户 {target_username} 的最大会话数为: {max_sessions}',
+            ip_address,
+            session_id
+        )
+        
         return jsonify(result)
     
     @app.route('/auth/user/sessions', methods=['GET'])
