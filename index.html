@@ -2286,6 +2286,7 @@ async function initializeApp() {
         if (result.uuid_type === 'guest') {
           // 游客UUID - 直接恢复会话
           console.log('检测到游客UUID，直接恢复会话');
+          hideLoadingOverlays(); // 确保隐藏加载遮挡
           // 继续正常初始化流程
         } else if (result.uuid_type === 'system_account') {
           // 系统账号UUID - 跳转到无UUID网址，要求重新登录（安全措施）
@@ -2306,6 +2307,7 @@ async function initializeApp() {
         }
       } catch (e) {
         console.error('检查UUID类型失败:', e);
+        hideLoadingOverlays(); // 确保隐藏加载遮挡
         showUserFriendlyError('网络错误', '无法验证会话状态，请检查网络连接后重试');
         // 出错时也跳转到无UUID网址
         setTimeout(() => {
@@ -2324,16 +2326,16 @@ async function initializeApp() {
       return; // 停止初始化，等待认证完成后重新初始化
     }
 
-    //移除加载提示
-    hideLoadingOverlays();
-
     // 检查认证状态
     const isAuthenticated = await checkAuthStatus();
     if (!isAuthenticated) {
+      hideLoadingOverlays(); // 认证失败时隐藏加载遮挡
       showAuthLogin();
-      hideLoadingOverlays();
       return; // 停止初始化，等待认证
     }
+    
+    // 认证成功，继续初始化
+    hideLoadingOverlays();
   }
 
   // 标记应用已成功初始化
