@@ -6854,6 +6854,63 @@ def start_web_server(args):
             "amap_js_key": auth_system.config.get('Map', 'amap_js_key', fallback='')
         })
     
+    @app.route('/auth/check_uuid_type', methods=['POST'])
+    def auth_check_uuid_type():
+        """
+        检查UUID类型：游客UUID、系统账号UUID或未知UUID
+        用于实现访问控制和会话验证
+        """
+        data = request.json
+        check_uuid = data.get('uuid', '')
+        
+        if not check_uuid:
+            return jsonify({"success": False, "message": "UUID参数缺失"}), 400
+        
+        # 检查会话文件是否存在
+        session_file = get_session_file_path(check_uuid)
+        if not os.path.exists(session_file):
+            return jsonify({
+                "success": True,
+                "uuid_type": "unknown",
+                "message": "UUID不存在"
+            })
+        
+        # 读取会话文件判断类型
+        try:
+            with open(session_file, 'r', encoding='utf-8') as f:
+                session_data = json.load(f)
+            
+            # 检查是否为游客会话
+            is_guest = session_data.get('is_guest', False)
+            auth_username = session_data.get('auth_username', '')
+            
+            if is_guest or auth_username == 'guest':
+                return jsonify({
+                    "success": True,
+                    "uuid_type": "guest",
+                    "message": "游客UUID"
+                })
+            elif auth_username:
+                return jsonify({
+                    "success": True,
+                    "uuid_type": "system_account",
+                    "auth_username": auth_username,
+                    "message": "系统账号UUID"
+                })
+            else:
+                return jsonify({
+                    "success": True,
+                    "uuid_type": "unknown",
+                    "message": "未知类型UUID"
+                })
+        except Exception as e:
+            logging.error(f"检查UUID类型失败: {e}")
+            return jsonify({
+                "success": True,
+                "uuid_type": "unknown",
+                "message": f"读取会话失败: {str(e)}"
+            })
+    
     @app.route('/auth/2fa/generate', methods=['POST'])
     def auth_2fa_generate():
         """生成2FA密钥"""

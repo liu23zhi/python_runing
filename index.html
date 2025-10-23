@@ -1645,27 +1645,22 @@ async function handleAuthLogin() {
     if (result.success) {
       showAuthSuccess('登录成功！');
       
-      // 如果是注册用户且有历史会话，询问是否恢复
-      if (!result.is_guest && result.user_sessions && result.user_sessions.length > 0) {
-        const lastSession = result.user_sessions[result.user_sessions.length - 1];
-        // 检查是否与当前UUID不同
-        if (lastSession !== sessionUUID) {
-          const shouldRestore = await new Promise((resolve) => {
-            if (confirm('检测到上次使用的会话，是否恢复上次的状态？\n点击"确定"恢复上次状态，点击"取消"使用新会话。')) {
-              resolve(true);
-            } else {
-              resolve(false);
-            }
-          });
+      // 系统账号登录成功后，显示会话选择面板
+      if (!result.is_guest) {
+        setTimeout(() => {
+          // 打开管理面板并切换到会话管理标签，让用户选择会话
+          $('auth-login-container').classList.add('hidden');
+          toggleAdminPanel(true);
+          switchAdminTab('sessions');
           
-          if (shouldRestore) {
-            // 重定向到上次的会话UUID
-            window.location.href = `/uuid=${lastSession}`;
-            return;
-          }
-        }
+          // 显示提示信息
+          logMessage('[会话选择] 请选择要恢复的会话，或点击"刷新"查看所有会话');
+          logMessage('[提示] 您可以创建新会话或选择现有会话。当前会话数受权限限制。');
+        }, 1000);
+        return;
       }
       
+      // 游客登录：分配新UUID并跳转
       setTimeout(() => {
         // 隐藏认证界面，显示应用登录界面
         $('auth-login-container').classList.add('hidden');
@@ -1755,22 +1750,24 @@ async function handleAuthRegister() {
 // 游客登录
 async function handleGuestLogin() {
   try {
+    // 游客登录时生成新UUID
+    const newUUID = generateUUID();
+    
     const response = await fetch('/auth/guest_login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Session-ID': sessionUUID
+        'X-Session-ID': newUUID
       }
     });
     
     const result = await response.json();
     
     if (result.success) {
-      showAuthSuccess('以游客身份登录成功！');
+      showAuthSuccess('以游客身份登录成功！正在跳转...');
       setTimeout(() => {
-        $('auth-login-container').classList.add('hidden');
-        $('login-container').classList.remove('hidden');
-        logMessage('[游客模式] 部分功能受限：无法标记通知已读、无法使用签到功能、无法执行多账号任务');
+        // 跳转到新的UUID地址
+        window.location.href = `/uuid=${newUUID}`;
       }, 1000);
     } else {
       showAuthError(result.message || '游客登录失败');
@@ -1778,6 +1775,15 @@ async function handleGuestLogin() {
   } catch (e) {
     showAuthError('游客登录请求失败：' + e.message);
   }
+}
+
+// 生成UUID的辅助函数
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 // ====================
@@ -2066,32 +2072,65 @@ async function loadAdminSessions() {
     const listEl = $('admin-sessions-list');
     const sessions = result.sessions || [];
     
-    if (sessions.length === 0) {
-      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无会话</p>';
-      return;
-    }
+    // 添加创建新会话按钮
+    let html = `
+      <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
+        <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
+        <button class="btn btn-primary w-full" onclick="createNewSession()">创建新会话</button>
+      </div>
+    `;
     
-    listEl.innerHTML = sessions.map(session => {
-      const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
-      const isCurrent = session.is_current || session.session_id === sessionUUID;
-      const sessionHash = session.session_hash || session.session_id.substring(0, 16);
-      
-      return `
-        <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3">
-          <div class="flex justify-between items-start">
-            <div class="flex-1">
-              <p class="font-semibold text-slate-800">
-                会话 ${sessionHash}...
-                ${isCurrent ? '<span class="text-xs text-sky-600 ml-2">(当前会话)</span>' : ''}
-              </p>
-              <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-              <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
-            </div>
-            <div class="flex gap-2">
-              ${!isCurrent ? `<button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>` : ''}
+    if (sessions.length === 0) {
+      html += '<p class="text-slate-400 text-center py-10">暂无会话</p>';
+    } else {
+      html += sessions.map(session => {
+        const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
+        const isCurrent = session.is_current || session.session_id === sessionUUID;
+        const sessionHash = session.session_hash || session.session_id.substring(0, 16);
+        
+        return `
+          <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <p class="font-semibold text-slate-800">
+                  会话 ${sessionHash}...
+                  ${isCurrent ? '<span class="text-xs text-sky-600 ml-2">(当前会话)</span>' : ''}
+                </p>
+                <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+                <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
+              </div>
+              <div class="flex gap-2">
+                ${!isCurrent ? `
+                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
+                  <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
+                ` : ''}
+              </div>
             </div>
           </div>
-        </div>
+        `;
+      }).join('');
+    }
+    
+    listEl.innerHTML = html;
+  } catch (e) {
+    $('admin-sessions-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+  }
+}
+
+// 选择会话并跳转
+function selectSession(sessionId) {
+  if (confirm('确定要切换到此会话吗？')) {
+    window.location.href = `/uuid=${sessionId}`;
+  }
+}
+
+// 创建新会话
+function createNewSession() {
+  const newUUID = generateUUID();
+  if (confirm('确定要创建新会话吗？\n新会话ID: ' + newUUID.substring(0, 16) + '...')) {
+    window.location.href = `/uuid=${newUUID}`;
+  }
+}
       `;
     }).join('');
   } catch (e) {
@@ -2132,11 +2171,64 @@ async function initializeApp() {
   if (isWebMode) {
     const urlPath = window.location.pathname;
     const match = urlPath.match(/\/uuid=([a-zA-Z0-9]+)/);
-    if (match) {
-      sessionUUID = match[1];
-      console.log('Web模式: 会话UUID =', sessionUUID);
-    }
     
+    if (match) {
+      // 情况2：访问含UUID的网址
+      sessionUUID = match[1];
+      console.log('Web模式: 检测到UUID =', sessionUUID);
+      
+      // 检查UUID类型
+      try {
+        const response = await fetch('/auth/check_uuid_type', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ uuid: sessionUUID })
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          console.error('检查UUID失败:', result.message);
+          // 跳转到无UUID网址
+          window.location.href = '/';
+          return;
+        }
+        
+        if (result.uuid_type === 'guest') {
+          // 游客UUID - 直接恢复会话
+          console.log('检测到游客UUID，直接恢复会话');
+          // 继续正常初始化流程
+        } else if (result.uuid_type === 'system_account') {
+          // 系统账号UUID - 跳转到无UUID网址，要求重新登录（安全措施）
+          console.log('检测到系统账号UUID，跳转到登录页面');
+          alert('安全提示：系统账号需要重新登录验证');
+          window.location.href = '/';
+          return;
+        } else {
+          // 未知UUID - 跳转到无UUID网址
+          console.log('检测到未知UUID，跳转到登录页面');
+          window.location.href = '/';
+          return;
+        }
+      } catch (e) {
+        console.error('检查UUID类型失败:', e);
+        // 出错时也跳转到无UUID网址
+        window.location.href = '/';
+        return;
+      }
+    } else {
+      // 情况1：访问不含UUID的网址
+      console.log('Web模式: 未检测到UUID，显示认证登录页面');
+      //移除加载提示
+      $('loading-overlay').classList.add('hidden');
+      $('cdn-error-overlay').classList.add('hidden');
+      
+      // 显示认证登录界面，等待用户登录/游客模式
+      showAuthLogin();
+      return; // 停止初始化，等待认证完成后重新初始化
+    }
 
     //移除加载提示
     $('loading-overlay').classList.add('hidden');
