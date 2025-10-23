@@ -1621,9 +1621,22 @@ async function handleAuthLogin() {
   const username = $('auth-username').value.trim();
   const password = $('auth-password').value.trim();
   
-
+  // 输入验证
   if (!username || !password) {
     showAuthError('请输入用户名和密码');
+    return;
+  }
+  
+  // 验证用户名格式
+  const usernameValidation = validateInput(username, 'username');
+  if (!usernameValidation.valid) {
+    showAuthError(usernameValidation.message);
+    return;
+  }
+  
+  // 验证密码长度
+  if (password.length < 6) {
+    showAuthError('密码长度至少6个字符');
     return;
   }
   
@@ -1686,7 +1699,8 @@ async function handleAuthLogin() {
       showAuthError(result.message || '登录失败');
     }
   } catch (e) {
-    showAuthError('登录请求失败：' + e.message);
+    console.error('登录请求失败:', e);
+    showAuthError('网络错误，请检查连接后重试');
   }
 }
 
@@ -1702,13 +1716,16 @@ async function handleAuthRegister() {
     return;
   }
   
-  if (username.length < 3 || username.length > 20) {
-    showAuthError('用户名长度应为3-20字符');
+  // 使用统一的验证函数
+  const usernameValidation = validateInput(username, 'username');
+  if (!usernameValidation.valid) {
+    showAuthError(usernameValidation.message);
     return;
   }
   
-  if (password.length < 6) {
-    showAuthError('密码长度至少为6字符');
+  const passwordValidation = validateInput(password, 'password');
+  if (!passwordValidation.valid) {
+    showAuthError(passwordValidation.message);
     return;
   }
   
@@ -1743,7 +1760,8 @@ async function handleAuthRegister() {
       showAuthError(result.message || '注册失败');
     }
   } catch (e) {
-    showAuthError('注册请求失败：' + e.message);
+    console.error('注册请求失败:', e);
+    showAuthError('网络错误，请检查连接后重试');
   }
 }
 
@@ -2167,15 +2185,81 @@ async function deleteSession(sessionId) {
 
 // --- 初始化 ---
 async function initializeApp() {
+  // UUID格式验证函数 - 标准UUID v4格式
+  function isValidUUID(uuid) {
+    const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+    return uuidPattern.test(uuid);
+  }
+  
+  // 隐藏加载覆盖层的通用函数
+  function hideLoadingOverlays() {
+    $('loading-overlay').classList.add('hidden');
+    $('cdn-error-overlay').classList.add('hidden');
+  }
+  
+  // 显示用户友好的错误提示
+  function showUserFriendlyError(title, message, isWarning = false) {
+    const type = isWarning ? 'warning' : 'error';
+    Swal.fire({
+      title: title,
+      text: message,
+      icon: type,
+      confirmButtonText: '确定'
+    });
+  }
+  
+  // 输入验证函数
+  function validateInput(input, type) {
+    if (!input || input.trim() === '') {
+      return { valid: false, message: '输入不能为空' };
+    }
+    
+    switch(type) {
+      case 'username':
+        if (input.length < 3 || input.length > 50) {
+          return { valid: false, message: '用户名长度应在3-50个字符之间' };
+        }
+        if (!/^[a-zA-Z0-9_-]+$/.test(input)) {
+          return { valid: false, message: '用户名只能包含字母、数字、下划线和连字符' };
+        }
+        break;
+      case 'password':
+        if (input.length < 6) {
+          return { valid: false, message: '密码长度至少6个字符' };
+        }
+        break;
+      case 'email':
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(input)) {
+          return { valid: false, message: '请输入有效的邮箱地址' };
+        }
+        break;
+    }
+    
+    return { valid: true };
+  }
+  
   // 检测Web模式并提取UUID
   if (isWebMode) {
     const urlPath = window.location.pathname;
-    const match = urlPath.match(/\/uuid=([a-zA-Z0-9]+)/);
+    // 使用标准UUID v4格式的正则表达式
+    const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
     
     if (match) {
       // 情况2：访问含UUID的网址
       sessionUUID = match[1];
-      console.log('Web模式: 检测到UUID =', sessionUUID);
+      
+      // 验证UUID格式
+      if (!isValidUUID(sessionUUID)) {
+        console.error('无效的UUID格式:', sessionUUID);
+        showUserFriendlyError('无效的会话', 'UUID格式不正确，将跳转到登录页面', true);
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+        return;
+      }
+      
+      console.log('Web模式: 检测到有效UUID =', sessionUUID);
       
       // 检查UUID类型
       try {
@@ -2191,8 +2275,11 @@ async function initializeApp() {
         
         if (!result.success) {
           console.error('检查UUID失败:', result.message);
+          showUserFriendlyError('会话验证失败', result.message, true);
           // 跳转到无UUID网址
-          window.location.href = '/';
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
           return;
         }
         
@@ -2203,27 +2290,34 @@ async function initializeApp() {
         } else if (result.uuid_type === 'system_account') {
           // 系统账号UUID - 跳转到无UUID网址，要求重新登录（安全措施）
           console.log('检测到系统账号UUID，跳转到登录页面');
-          alert('安全提示：系统账号需要重新登录验证');
-          window.location.href = '/';
+          showUserFriendlyError('安全验证', '系统账号需要重新登录验证，确保账号安全', true);
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
           return;
         } else {
           // 未知UUID - 跳转到无UUID网址
           console.log('检测到未知UUID，跳转到登录页面');
-          window.location.href = '/';
+          showUserFriendlyError('会话不存在', '该会话已过期或不存在，请重新登录', true);
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
           return;
         }
       } catch (e) {
         console.error('检查UUID类型失败:', e);
+        showUserFriendlyError('网络错误', '无法验证会话状态，请检查网络连接后重试');
         // 出错时也跳转到无UUID网址
-        window.location.href = '/';
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3000);
         return;
       }
     } else {
       // 情况1：访问不含UUID的网址
       console.log('Web模式: 未检测到UUID，显示认证登录页面');
       //移除加载提示
-      $('loading-overlay').classList.add('hidden');
-      $('cdn-error-overlay').classList.add('hidden');
+      hideLoadingOverlays();
       
       // 显示认证登录界面，等待用户登录/游客模式
       showAuthLogin();
@@ -2231,14 +2325,13 @@ async function initializeApp() {
     }
 
     //移除加载提示
-    $('loading-overlay').classList.add('hidden');
-    $('cdn-error-overlay').classList.add('hidden');
+    hideLoadingOverlays();
 
     // 检查认证状态
     const isAuthenticated = await checkAuthStatus();
     if (!isAuthenticated) {
       showAuthLogin();
-      $('loading-overlay').classList.add('hidden');
+      hideLoadingOverlays();
       return; // 停止初始化，等待认证
     }
   }
@@ -2253,8 +2346,7 @@ async function initializeApp() {
   }
   
   //移除加载提示
-  $('loading-overlay').classList.add('hidden');
-  $('cdn-error-overlay').classList.add('hidden');
+  hideLoadingOverlays();
 
   console.log('应用初始化成功，CDN资源状态正常或可用替代方案');
 

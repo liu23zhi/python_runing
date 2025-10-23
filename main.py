@@ -6866,6 +6866,18 @@ def start_web_server(args):
         if not check_uuid:
             return jsonify({"success": False, "message": "UUID参数缺失"}), 400
         
+        # UUID格式验证 - 标准UUID v4格式
+        import re
+        uuid_pattern = re.compile(
+            r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
+            re.IGNORECASE
+        )
+        if not uuid_pattern.match(check_uuid):
+            return jsonify({
+                "success": False,
+                "message": "无效的UUID格式，请使用标准UUID v4格式"
+            }), 400
+        
         # 检查会话文件是否存在
         session_file = get_session_file_path(check_uuid)
         if not os.path.exists(session_file):
@@ -6875,41 +6887,69 @@ def start_web_server(args):
                 "message": "UUID不存在"
             })
         
-        # 读取会话文件判断类型
-        try:
-            with open(session_file, 'r', encoding='utf-8') as f:
-                session_data = json.load(f)
-            
-            # 检查是否为游客会话
-            is_guest = session_data.get('is_guest', False)
-            auth_username = session_data.get('auth_username', '')
-            
-            if is_guest or auth_username == 'guest':
+        # 读取会话文件判断类型 - 使用文件锁避免并发问题
+        import fcntl
+        max_retries = 3
+        retry_delay = 0.1
+        
+        for attempt in range(max_retries):
+            try:
+                with open(session_file, 'r', encoding='utf-8') as f:
+                    # 加共享锁（读锁）
+                    fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                    try:
+                        session_data = json.load(f)
+                    finally:
+                        # 释放锁
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                
+                # 检查是否为游客会话
+                is_guest = session_data.get('is_guest', False)
+                auth_username = session_data.get('auth_username', '')
+                
+                if is_guest or auth_username == 'guest':
+                    return jsonify({
+                        "success": True,
+                        "uuid_type": "guest",
+                        "message": "游客UUID"
+                    })
+                elif auth_username:
+                    return jsonify({
+                        "success": True,
+                        "uuid_type": "system_account",
+                        "auth_username": auth_username,
+                        "message": "系统账号UUID"
+                    })
+                else:
+                    return jsonify({
+                        "success": True,
+                        "uuid_type": "unknown",
+                        "message": "未知类型UUID"
+                    })
+            except (IOError, OSError) as e:
+                # 文件锁定或IO错误，重试
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    logging.error(f"读取会话文件失败（已重试{max_retries}次）: {e}")
+                    return jsonify({
+                        "success": False,
+                        "message": "读取会话失败，请稍后重试"
+                    }), 500
+            except json.JSONDecodeError as e:
+                logging.error(f"会话文件JSON解析失败: {e}")
                 return jsonify({
-                    "success": True,
-                    "uuid_type": "guest",
-                    "message": "游客UUID"
-                })
-            elif auth_username:
+                    "success": False,
+                    "message": "会话数据损坏"
+                }), 500
+            except Exception as e:
+                logging.error(f"检查UUID类型失败: {e}")
                 return jsonify({
-                    "success": True,
-                    "uuid_type": "system_account",
-                    "auth_username": auth_username,
-                    "message": "系统账号UUID"
-                })
-            else:
-                return jsonify({
-                    "success": True,
-                    "uuid_type": "unknown",
-                    "message": "未知类型UUID"
-                })
-        except Exception as e:
-            logging.error(f"检查UUID类型失败: {e}")
-            return jsonify({
-                "success": True,
-                "uuid_type": "unknown",
-                "message": f"读取会话失败: {str(e)}"
-            })
+                    "success": False,
+                    "message": f"服务器错误: {str(e)}"
+                }), 500
     
     @app.route('/auth/2fa/generate', methods=['POST'])
     def auth_2fa_generate():
