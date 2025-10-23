@@ -412,11 +412,17 @@ body.modal-visible .amap-copyright {
       </div>
   </div>
 
+  <!-- 管理面板入口（居中显示） -->
+  <div class="lg:col-span-2 flex items-center justify-center py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50">
+    <button id="show-admin-panel-login" class="btn btn-primary !py-2 !px-6 hidden" title="管理面板">
+      <span>🔧 管理面板</span>
+    </button>
+  </div>
+
   <div class="flex items-center justify-center p-8 bg-white">
     <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
       <div class="flex items-center justify-between gap-3">
         <h2 class="text-3xl font-bold text-sky-700 card-title">单账号登录</h2>
-        <button id="show-admin-panel-login" class="btn btn-ghost !py-2 !px-3 hidden" title="管理面板">管理</button>
       </div>
       <div class="space-y-4 w-full">
         <!-- 会话管理按钮 -->
