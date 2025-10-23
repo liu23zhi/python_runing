@@ -7526,22 +7526,10 @@ def start_web_server(args):
     
     @app.route('/')
     def index():
-        """首页：自动分配UUID并重定向"""
-        # 生成2048位UUID（512个十六进制字符）
-        session_id = secrets.token_hex(256)  # 256字节 = 2048位 = 512个十六进制字符
-        
-        # 创建新的Api实例并保存到文件
-        with web_sessions_lock:
-            if session_id not in web_sessions:
-                api_instance = Api(args)
-                api_instance._session_created_at = time.time()
-                api_instance._web_session_id = session_id  # 关键：保存session_id到实例
-                web_sessions[session_id] = api_instance
-                save_session_state(session_id, api_instance)
-                logging.info(f"创建新会话 (2048位UUID): {session_id[:32]}...")
-        
-        # 重定向到带UUID的URL（不依赖Flask session）
-        return redirect(url_for('session_view', uuid=session_id))
+        """首页：显示登录页面，等待用户认证后分配UUID"""
+        # 不再自动分配UUID，直接返回HTML让前端处理认证
+        # UUID将在用户完成认证（游客登录或系统账号登录）后由前端或后端API分配
+        return render_template_string(html_content)
     
     @app.route('/uuid=<uuid>')
     def session_view(uuid):
