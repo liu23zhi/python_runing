@@ -1256,6 +1256,46 @@
     </div>
   </div>
 
+  <!-- 会话选择模态框 -->
+  <div id="session-picker-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1052]">
+    <div class="absolute inset-0 bg-black/60"></div>
+    <div class="panel rounded-2xl p-6 w-[40rem] max-h-[70vh] space-y-4 relative">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-sky-600">会话管理</h3>
+        <button class="btn btn-ghost !py-1 !px-3" onclick="closeSessionPicker()">关闭</button>
+      </div>
+
+      <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
+        <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
+        <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          创建新会话
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex justify-between items-center">
+          <h4 class="font-semibold text-slate-700">现有会话</h4>
+          <button class="btn btn-ghost !py-1 !px-2" onclick="refreshSessionPicker()">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            刷新
+          </button>
+        </div>
+        <div id="session-picker-list" class="max-h-[40vh] overflow-y-auto space-y-2">
+          <p class="text-slate-400 text-center py-10">加载中...</p>
+        </div>
+      </div>
+
+      <div class="border-t pt-3 text-xs text-slate-500">
+        <p>💡 提示：每个会话都是独立的学校账号登录状态。您可以创建多个会话来管理不同的账号。</p>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ==============================================================================
     // JavaScript部分
@@ -1953,18 +1993,16 @@
         if (result.success) {
           showAuthSuccess('登录成功！');
 
-          // 系统账号登录成功后，显示会话选择面板
+          // 系统账号登录成功后，显示会话选择器
           if (!result.is_guest) {
             setTimeout(() => {
-              // 打开管理面板并切换到会话管理标签，让用户选择会话
-              // 传入 skipAuthCheck=true 以跳过学校账号认证检查（用户还未登录学校账号）
+              // 隐藏登录界面，显示会话选择器模态框
               $('auth-login-container').classList.add('hidden');
-              toggleAdminPanel(true, true);
-              switchAdminTab('sessions');
+              showSessionPicker();
 
               // 显示提示信息
-              logMessage('[会话选择] 请选择要恢复的会话，或点击"刷新"查看所有会话');
-              logMessage('[提示] 您可以创建新会话或选择现有会话。当前会话数受权限限制。');
+              logMessage('[会话选择] 请选择要进入的会话，或创建新会话');
+              logMessage('[提示] 每个会话都是独立的学校账号登录状态');
             }, 1000);
             return;
           }
@@ -2794,6 +2832,147 @@
         if (result.success) {
           logMessage('会话已删除');
           loadAdminSessions(); // 刷新列表
+        } else {
+          alert('删除失败: ' + result.message);
+        }
+      } catch (e) {
+        alert('删除失败: ' + e.message);
+      }
+    }
+
+    // ====================
+    // 会话选择器模态框函数
+    // ====================
+
+    function showSessionPicker() {
+      const modal = $('session-picker-modal');
+      if (!modal) return;
+      
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.classList.add('modal-visible');
+      
+      // 自动加载会话列表
+      loadSessionPickerList();
+    }
+
+    function closeSessionPicker() {
+      const modal = $('session-picker-modal');
+      if (!modal) return;
+      
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.classList.remove('modal-visible');
+    }
+
+    async function loadSessionPickerList() {
+      const listEl = $('session-picker-list');
+      if (!listEl) return;
+      
+      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+      try {
+        const response = await fetch('/auth/user/sessions', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+
+        const sessions = result.sessions || [];
+
+        if (sessions.length === 0) {
+          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无会话，请创建新会话</p>';
+          return;
+        }
+
+        listEl.innerHTML = sessions.map(session => {
+          const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
+          const isCurrent = session.is_current || session.session_id === sessionUUID;
+          const sessionHash = session.session_hash || session.session_id.substring(0, 16);
+
+          return `
+            <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 hover:shadow-md transition-shadow">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="font-semibold text-slate-800">
+                    会话 ${sessionHash}...
+                    ${isCurrent ? '<span class="text-xs text-sky-600 ml-2 px-2 py-0.5 bg-sky-100 rounded-full">(当前)</span>' : ''}
+                  </p>
+                  <p class="text-xs text-slate-500 mt-1">创建时间: ${createdDate}</p>
+                  <p class="text-xs mt-1">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${session.login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}">
+                      ${session.login_success ? '✓ 已登录' : '○ 未登录'}
+                    </span>
+                  </p>
+                </div>
+                <div class="flex flex-col gap-2">
+                  ${!isCurrent ? `
+                    <button class="btn btn-primary !py-1 !px-3 text-xs" onclick="selectSessionFromPicker('${session.session_id}')">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                      </svg>
+                      进入
+                    </button>
+                    <button class="btn btn-ghost !py-1 !px-3 !text-red-600 text-xs border border-red-200 hover:bg-red-50" onclick="deleteSessionFromPicker('${session.session_id}')">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      </svg>
+                      删除
+                    </button>
+                  ` : '<span class="text-xs text-slate-400">当前会话</span>'}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        console.error('加载会话列表失败:', e);
+        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    function refreshSessionPicker() {
+      loadSessionPickerList();
+    }
+
+    function selectSessionFromPicker(sessionId) {
+      logMessage(`正在切换到会话 ${sessionId.substring(0, 16)}...`);
+      window.location.href = `/uuid=${sessionId}`;
+    }
+
+    function createNewSessionFromPicker() {
+      const newUUID = generateUUID();
+      logMessage(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
+      window.location.href = `/uuid=${newUUID}`;
+    }
+
+    async function deleteSessionFromPicker(sessionId) {
+      if (!confirm('确定要删除此会话吗？此操作不可恢复。')) return;
+
+      const listEl = $('session-picker-list');
+      try {
+        const response = await fetch('/auth/user/delete_session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            session_id: sessionId
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          logMessage('会话已删除');
+          // 重新加载会话列表
+          loadSessionPickerList();
         } else {
           alert('删除失败: ' + result.message);
         }
