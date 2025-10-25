@@ -1476,6 +1476,7 @@
 
     // 统一的API调用函数
     async function callPythonAPI(method, ...args) {
+      console.log(`[API调用] 方法: ${method}, 参数数量: ${args.length}`);
       if (isWebMode) {
         // Web模式：通过HTTP调用后端API，带上会话UUID
         const headers = {
@@ -1485,8 +1486,10 @@
         // 添加会话UUID到请求头
         if (sessionUUID) {
           headers['X-Session-ID'] = sessionUUID;
+          console.log(`[API调用] 会话ID: ${sessionUUID.substring(0, 16)}...`);
         }
 
+        console.log(`[API调用] 发送请求到 /api/${method}`);
         const response = await fetch(`/api/${method}`, {
           method: 'POST',
           headers: headers,
@@ -1496,6 +1499,7 @@
         
         // 处理token相关错误
         if (!response.ok) {
+          console.log(`[API调用] ✗ 响应错误: ${response.status} ${response.statusText}`);
           // 尝试解析JSON错误消息
           try {
             const errorData = await response.json();
@@ -1503,6 +1507,7 @@
             // 处理token过期或验证失败
             if (errorData.need_login) {
               let errorMsg = errorData.message || 'API调用失败';
+              console.log(`[API调用] ✗ 需要重新登录: ${errorMsg}`);
               
               // 如果是在其他设备登录导致的
               if (errorData.logged_out_elsewhere) {
@@ -1511,6 +1516,7 @@
                   '多设备登录检测'
                 );
                 logMessage('[安全提示] 检测到账号在其他设备登录，已自动登出');
+                console.log('[API调用] ✗ 多设备登录检测');
               } else {
                 showModalAlert(errorMsg, '登录失效');
                 logMessage(`[安全提示] ${errorMsg}`);
@@ -1533,17 +1539,26 @@
           throw new Error(`API调用失败: ${response.statusText}`);
         }
         
-        return await response.json();
+        console.log(`[API调用] ✓ 请求成功`);
+        const result = await response.json();
+        console.log(`[API调用] ✓ 返回结果:`, result.success ? '成功' : '失败');
+        return result;
       } else {
+        console.log('[API调用] 使用桌面模式');
         // 桌面模式：直接调用pywebview API
         if (!window.pywebview || !window.pywebview.api) {
+          console.log('[API调用] ✗ pywebview API未就绪');
           throw new Error('pywebview API未就绪');
         }
         const func = window.pywebview.api[method];
         if (typeof func !== 'function') {
+          console.log(`[API调用] ✗ 未知的API方法: ${method}`);
           throw new Error(`未知的API方法: ${method}`);
         }
-        return await func(...args);
+        console.log(`[API调用] 调用桌面API: ${method}`);
+        const result = await func(...args);
+        console.log(`[API调用] ✓ 桌面API调用完成`);
+        return result;
       }
     }
 
@@ -4248,11 +4263,16 @@
     }
 
     async function onLogin() {
+      console.log('[前端-登录] 开始登录流程...');
       const user = $('username-entry').value.trim();
       const pass = $('password-entry').value;
 
-
-      if (!user) { showModalAlert('请输入用户名'); return; }
+      console.log(`[前端-登录] 用户名: ${user}`);
+      if (!user) { 
+        console.log('[前端-登录] 错误: 用户名为空');
+        showModalAlert('请输入用户名'); 
+        return; 
+      }
 
       // 在线登录前，复位离线标志与 UA 按钮
       IS_OFFLINE = false;
@@ -4260,34 +4280,47 @@
 
       // 在登录前，从登录页的UA标签捕获当前的UA
       const uaOnLoginScreen = $('ua-label')?.textContent || "";
+      console.log(`[前端-登录] 当前UA: ${uaOnLoginScreen.substring(0, 50)}...`);
 
+      console.log('[前端-登录] 调用后端API进行登录验证...');
       const result = await callPythonAPI('login', user, pass);
       if (result.success) {
+        console.log('[前端-登录] ✓ 登录成功！');
         // 修复Issue 3: 在显示主界面前先加载AMap API Key
         if (result.amap_key) {
+          console.log('[前端-登录] 加载高德地图API...');
           AMAP_API_KEY = result.amap_key;
           try {
             await loadAMapOnce();
+            console.log('[前端-登录] ✓ 地图加载成功');
           } catch (e) {
-            console.error('地图加载失败（登录后）', e);
+            console.error('[前端-登录] ✗ 地图加载失败:', e);
           }
         }
 
+        console.log('[前端-登录] 显示主应用界面...');
         showMainApp();
         currentUserData = result.userInfo;
         currentSessionUA = uaOnLoginScreen;
         const name = currentUserData.name || '';
         $('user-name-label').textContent = `姓名: ${name}`;
         $('user-id-label').textContent = `学号: ${currentUserData.student_id}`;
+        console.log(`[前端-登录] 用户信息已更新: ${name} (${currentUserData.student_id})`);
 
+        console.log('[前端-登录] 更新仪表盘...');
         updateDashboard();
 
+        console.log('[前端-登录] 刷新任务列表...');
         await refreshTasks();
 
+        console.log('[前端-登录] 获取通知...');
         await fetchNotifications();
 
-        const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
+        const base = pythonParams.theme_base_color || '#7dd3fc'; 
+        setBaseColor(base, base);
+        console.log('[前端-登录] ✓ 登录流程完成！');
       } else {
+        console.log(`[前端-登录] ✗ 登录失败: ${result.message}`);
         showModalAlert(result.message, '登录失败');
       }
     }
@@ -5709,6 +5742,9 @@
       const timestamp = `[${h}:${m}:${s}]`;
       const line = typeof msg === 'string' ? msg : JSON.stringify(msg);
       const fullMessage = `${timestamp} ${line}`; // 组合时间戳和消息
+
+      // 输出到浏览器控制台（用于调试）
+      console.log(`[前端日志] ${fullMessage}`);
 
       const single = $('log-text');
       const multi = $('multi-log-text');

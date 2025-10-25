@@ -68,6 +68,7 @@ def check_and_import_dependencies():
     如果缺少任何库，将打印详细的安装说明并终止程序运行。
     如果所有库都存在，则将它们导入到全局命名空间中。
     """
+    print("[依赖检查] 开始检查并导入第三方库...")
     
     # 声明我们将要修改全局变量
     global Flask, render_template_string, session, redirect, url_for, request, jsonify
@@ -77,34 +78,52 @@ def check_and_import_dependencies():
         # --- 尝试导入所有必需的第三方库 ---
         
         # 1. Flask Web 框架
+        print("[依赖检查] 正在导入 Flask Web 框架...")
         from flask import (
             Flask, render_template_string, session, 
             redirect, url_for, request, jsonify
         )
+        print("[依赖检查] ✓ Flask 导入成功")
         
         # 2. Flask 跨域支持
+        print("[依赖检查] 正在导入 Flask CORS...")
         from flask_cors import CORS
+        print("[依赖检查] ✓ Flask CORS 导入成功")
         
         # 3. 一次性密码 (TOTP/HOTP)
+        print("[依赖检查] 正在导入 pyotp...")
         import pyotp
+        print("[依赖检查] ✓ pyotp 导入成功")
         
         # 4. HTTP 请求库
+        print("[依赖检查] 正在导入 requests...")
         import requests
+        print("[依赖检查] ✓ requests 导入成功")
         
         # 5. Excel (xlsx) 读写
+        print("[依赖检查] 正在导入 openpyxl...")
         import openpyxl
+        print("[依赖检查] ✓ openpyxl 导入成功")
         
         # 6. Excel (xls) 读取
+        print("[依赖检查] 正在导入 xlrd...")
         import xlrd
+        print("[依赖检查] ✓ xlrd 导入成功")
         
         # 7. Excel (xls) 写入
+        print("[依赖检查] 正在导入 xlwt...")
         import xlwt
+        print("[依赖检查] ✓ xlwt 导入成功")
         
         # 8. 字符编码检测
+        print("[依赖检查] 正在导入 chardet...")
         import chardet
+        print("[依赖检查] ✓ chardet 导入成功")
         
         # 9. 浏览器自动化
+        print("[依赖检查] 正在导入 Playwright...")
         from playwright.sync_api import sync_playwright
+        print("[依赖检查] ✓ Playwright 导入成功")
 
     except ImportError as e:
         # --- 捕获到导入错误 ---
@@ -148,6 +167,8 @@ def check_and_import_dependencies():
         
         # 退出程序，返回错误码 1
         sys.exit(1)
+    
+    print("[依赖检查] 所有依赖库导入完成！")
 
 
 
@@ -161,21 +182,29 @@ def auto_init_system():
     自动初始化系统，创建所有必需的文件和目录
     确保程序在只有main.py和index.html时仍能正常运行
     """
+    print("[系统初始化] 开始自动初始化系统...")
     # 静默运行，只在遇到错误时才打印
     try:
         # 创建必需的目录
+        print("[系统初始化] 创建必需的目录...")
         _create_directories()
         
         # 创建配置文件
+        print("[系统初始化] 创建/更新配置文件...")
         _create_config_ini()
         
         # 创建权限配置文件
+        print("[系统初始化] 创建权限配置文件...")
         _create_permissions_json()
         
         # 创建默认管理员账号
+        print("[系统初始化] 创建默认管理员账号...")
         _create_default_admin()
+        
+        print("[系统初始化] 系统初始化完成！")
     except Exception as e:
         logging.error(f"系统初始化失败: {e}", exc_info=True)
+        print(f"[系统初始化] 错误: 系统初始化失败 - {e}")
 
 
 def _create_directories():
@@ -190,6 +219,9 @@ def _create_directories():
     for directory in directories:
         if not os.path.exists(directory):
             os.makedirs(directory, exist_ok=True)
+            print(f"[目录创建] 创建目录: {directory}")
+        else:
+            print(f"[目录创建] 目录已存在: {directory}")
 
 
 def _get_default_config():
@@ -236,6 +268,7 @@ def _create_config_ini():
     default_config = _get_default_config()
     
     if os.path.exists('config.ini'):
+        print("[配置文件] config.ini 已存在，检查是否需要更新...")
         # 读取现有配置
         existing_config = configparser.ConfigParser()
         existing_config.read('config.ini', encoding='utf-8')
@@ -246,28 +279,37 @@ def _create_config_ini():
             if not existing_config.has_section(section):
                 existing_config.add_section(section)
                 updated = True
+                print(f"[配置文件] 添加新的配置节: {section}")
             
             for key, value in default_config.items(section):
                 if not existing_config.has_option(section, key):
                     existing_config.set(section, key, value)
                     updated = True
+                    print(f"[配置文件] 添加缺失的配置项: [{section}] {key} = {value}")
         
         # 如果有更新，保存配置文件
         if updated:
             with open('config.ini', 'w', encoding='utf-8') as f:
                 existing_config.write(f)
             logging.info("配置文件已更新：自动补全缺失参数")
+            print("[配置文件] 配置文件已更新并保存")
+        else:
+            print("[配置文件] 配置文件无需更新")
     else:
+        print("[配置文件] config.ini 不存在，创建新配置文件...")
         # 创建新配置文件
         with open('config.ini', 'w', encoding='utf-8') as f:
             default_config.write(f)
+        print("[配置文件] 配置文件创建完成")
 
 
 def _create_permissions_json():
     """创建默认的permissions.json权限配置文件"""
     if os.path.exists('permissions.json'):
+        print("[权限配置] permissions.json 已存在，跳过创建")
         return
     
+    print("[权限配置] 创建新的 permissions.json 文件...")
     permissions = {
         "permission_groups": {
             "guest": {
@@ -461,6 +503,7 @@ def _create_permissions_json():
     
     with open('permissions.json', 'w', encoding='utf-8') as f:
         json.dump(permissions, f, indent=2, ensure_ascii=False)
+    print("[权限配置] permissions.json 文件创建完成")
 
 
 def _create_default_admin():
@@ -468,6 +511,7 @@ def _create_default_admin():
     admin_dir = 'system_accounts'  # 修正：系统账号独立存储
     if not os.path.exists(admin_dir):
         os.makedirs(admin_dir, exist_ok=True)
+        print(f"[管理员账号] 创建目录: {admin_dir}")
     
     # 使用用户名的哈希作为文件名
     username = 'admin'
@@ -475,8 +519,10 @@ def _create_default_admin():
     admin_file = os.path.join(admin_dir, f'{filename}.json')
     
     if os.path.exists(admin_file):
+        print("[管理员账号] 默认管理员账号已存在，跳过创建")
         return
     
+    print("[管理员账号] 创建默认管理员账号 (用户名: admin, 密码: admin)...")
     admin_data = {
         "auth_username": "admin",
         "password": "admin",
@@ -493,6 +539,7 @@ def _create_default_admin():
     
     with open(admin_file, 'w', encoding='utf-8') as f:
         json.dump(admin_data, f, indent=2, ensure_ascii=False)
+    print("[管理员账号] 默认管理员账号创建完成")
 
 
 # 在导入完成后立即初始化系统
@@ -766,12 +813,15 @@ class AuthSystem:
     
     def register_user(self, auth_username, auth_password, group='user'):
         """注册新用户"""
+        print(f"[用户注册] 开始注册新用户: {auth_username}, 权限组: {group}")
         with self.lock:
             user_file = self.get_user_file_path(auth_username)
             if os.path.exists(user_file):
+                print(f"[用户注册] 用户名已存在: {auth_username}")
                 return {"success": False, "message": "用户名已存在"}
             
             # 根据配置选择密码存储方式
+            print(f"[用户注册] 加密密码...")
             stored_password = self._encrypt_password(auth_password)
             
             user_data = {
@@ -788,6 +838,7 @@ class AuthSystem:
                 'theme': 'light'  # 主题偏好：light/dark
             }
             
+            print(f"[用户注册] 保存用户数据到文件...")
             with open(user_file, 'w', encoding='utf-8') as f:
                 json.dump(user_data, f, indent=2, ensure_ascii=False)
             
@@ -796,13 +847,16 @@ class AuthSystem:
             self._save_permissions()
             
             logging.info(f"新用户注册: {auth_username} (组: {group})")
+            print(f"[用户注册] ✓ 用户注册成功: {auth_username} (组: {group})")
             return {"success": True, "message": "注册成功"}
     
     def authenticate(self, auth_username, auth_password, ip_address='', user_agent='', two_fa_code=''):
         """验证用户登录（支持2FA和暴力破解防护）"""
+        print(f"[用户认证] 开始认证用户: {auth_username}, IP: {ip_address}")
         with self.lock:
             # 检查是否为游客登录
             if auth_username == 'guest' and self.config.getboolean('Guest', 'allow_guest_login', fallback=True):
+                print(f"[用户认证] 游客登录成功: {auth_username}")
                 self._log_login_attempt(auth_username, True, ip_address, user_agent, 'guest_login')
                 return {
                     "success": True, 
@@ -812,39 +866,50 @@ class AuthSystem:
                 }
             
             # 检查暴力破解
+            print(f"[用户认证] 检查暴力破解: {auth_username}")
             is_locked, lock_message = self.check_brute_force(auth_username, ip_address)
             if is_locked:
+                print(f"[用户认证] 用户被锁定（暴力破解防护）: {auth_username}")
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'brute_force_locked')
                 return {"success": False, "message": lock_message}
             
             user_file = self.get_user_file_path(auth_username)
             if not os.path.exists(user_file):
+                print(f"[用户认证] 用户不存在: {auth_username}")
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'user_not_found')
                 return {"success": False, "message": "用户不存在"}
             
+            print(f"[用户认证] 读取用户数据: {auth_username}")
             with open(user_file, 'r', encoding='utf-8') as f:
                 user_data = json.load(f)
             
             # 检查用户是否被封禁
             if user_data.get('banned', False):
+                print(f"[用户认证] 用户已被封禁: {auth_username}")
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'user_banned')
                 return {"success": False, "message": "账号已被封禁，请联系管理员"}
             
             # 验证密码
+            print(f"[用户认证] 验证密码: {auth_username}")
             if not self._verify_password(auth_password, user_data.get('password')):
+                print(f"[用户认证] 密码错误: {auth_username}")
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'wrong_password')
                 return {"success": False, "message": "密码错误"}
             
             # 验证2FA（如果启用）
             if user_data.get('2fa_enabled', False):
+                print(f"[用户认证] 检查2FA验证: {auth_username}")
                 if not two_fa_code:
+                    print(f"[用户认证] 需要2FA验证码: {auth_username}")
                     return {"success": False, "message": "需要2FA验证码", "requires_2fa": True}
                 
                 if not self.verify_2fa(auth_username, two_fa_code):
+                    print(f"[用户认证] 2FA验证失败: {auth_username}")
                     self._log_login_attempt(auth_username, False, ip_address, user_agent, '2fa_failed')
                     return {"success": False, "message": "2FA验证码错误"}
             
             # 更新最后登录时间
+            print(f"[用户认证] 更新最后登录时间: {auth_username}")
             user_data['last_login'] = time.time()
             if 'session_ids' not in user_data:
                 user_data['session_ids'] = []
@@ -861,6 +926,7 @@ class AuthSystem:
             
             self._log_login_attempt(auth_username, True, ip_address, user_agent, 'success')
             logging.info(f"用户登录: {auth_username} (组: {group}) from {ip_address}")
+            print(f"[用户认证] ✓ 用户登录成功: {auth_username} (组: {group})")
             return {
                 "success": True,
                 "auth_username": auth_username,
