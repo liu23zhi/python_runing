@@ -2957,11 +2957,42 @@
       window.location.href = `/uuid=${sessionId}`;
     }
 
-    function createNewSessionFromPicker() {
+    async function createNewSessionFromPicker() {
       const newUUID = generateUUID();
       logMessage(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
-      closeSessionPicker();
-      window.location.href = `/uuid=${newUUID}`;
+      
+      try {
+        // 调用后端API创建会话持久化文件
+        const response = await fetch('/auth/user/create_session_persistence', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            session_id: newUUID
+          })
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+          logMessage(`会话持久化文件已创建: ${result.message}`);
+          if (result.cleanup_message) {
+            logMessage(`提示: ${result.cleanup_message}`);
+          }
+          closeSessionPicker();
+          window.location.href = `/uuid=${newUUID}`;
+        } else {
+          logMessage(`创建会话失败: ${result.message}`);
+          alert(`创建会话失败: ${result.message}`);
+        }
+      } catch (e) {
+        logMessage(`创建会话时发生错误: ${e.message}`);
+        // 如果API调用失败，仍然允许创建会话（向后兼容）
+        closeSessionPicker();
+        window.location.href = `/uuid=${newUUID}`;
+      }
     }
 
     async function deleteSessionFromPicker(sessionId) {
