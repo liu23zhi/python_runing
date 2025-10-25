@@ -5926,91 +5926,6 @@ def check_port_available(host, port):
     except OSError:
         return False
 
-def main():
-    """主函数，启动Web服务器模式（已弃用桌面模式）"""
-    
-    parser = argparse.ArgumentParser(description='跑步助手 - Web服务器模式')
-    parser.add_argument("--port", type=int, default=5000, help="Web服务器端口（默认5000）")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Web服务器地址（默认127.0.0.1）")
-    parser.add_argument("--headless", action="store_true", default=True, help="使用无头Chrome模式（默认启用）")
-    parser.add_argument("--debug", action="store_true", help="启用调试日志")
-    args = parser.parse_args()
-
-    # 配置详细的中文日志输出（确保UTF-8编码）
-    log_level = logging.DEBUG if args.debug else logging.INFO
-    log_format = "%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s"
-    
-    # 创建UTF-8编码的StreamHandler
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter(log_format))
-    
-    logging.basicConfig(
-        level=log_level,
-        format=log_format,
-        handlers=[handler]
-    )
-    
-    logging.info("="*60)
-    logging.info("跑步助手 Web 模式启动中...")
-    logging.info(f"日志级别: {'调试' if args.debug else '信息'}")
-    logging.info(f"服务器地址: {args.host}:{args.port}")
-    logging.info("="*60)
-    
-    check_and_import_dependencies()
-
-    # 检查Playwright是否可用
-    if not playwright_available:
-        print("\n" + "="*60)
-        print("错误: 需要安装 Playwright 以在服务器端运行Chrome")
-        print("请运行以下命令:")
-        print("  pip install playwright")
-        print("  python -m playwright install chromium")
-        print("="*60 + "\n")
-        sys.exit(1)
-    
-    initial_port = args.port
-    if not check_port_available(args.host, args.port):
-        logging.warning(f"指定的端口 {args.port} 不可用或已被占用，尝试自动查找可用端口...")
-        found_port = None
-        # 尝试常用备选端口
-        alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000, 5005, 5050]
-        for port in alternative_ports:
-            logging.info(f"尝试端口 {port}...")
-            if check_port_available(args.host, port):
-                found_port = port
-                logging.info(f"找到可用端口: {found_port}")
-                break
-
-        # 如果常用端口都不可用，尝试随机端口 (例如 10000 到 65535 之间)
-        if not found_port:
-            logging.info("常用备选端口均不可用，尝试在 10000-65535 范围内查找随机可用端口...")
-            max_random_tries = 20 # 限制尝试次数
-            for i in range(max_random_tries):
-                random_port = random.randint(10000, 65535)
-                # logging.debug(f"尝试随机端口 {random_port} ({i+1}/{max_random_tries})...") # Debug日志
-                if check_port_available(args.host, random_port):
-                    found_port = random_port
-                    logging.info(f"找到可用随机端口: {found_port}")
-                    break
-                # 短暂等待避免CPU占用过高
-                time.sleep(0.01)
-
-
-        # 如果最终仍未找到可用端口
-        if not found_port:
-            logging.error(f"自动查找端口失败。初始端口 {initial_port} 及所有尝试的备选/随机端口均不可用。")
-            print(f"\n{'='*60}")
-            print(f"错误: 无法自动找到可用的网络端口。")
-            print(f"请检查端口 {initial_port} 或其他常用端口是否被占用，或手动指定一个可用端口:")
-            print(f"  python main.py --port <可用端口号>")
-            print(f"{'='*60}\n")
-            sys.exit(1)
-        else:
-            args.port = found_port # 更新 args 中的端口号为找到的可用端口
-    
-    # 启动Web服务器模式
-    logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
-    start_web_server(args)
 
 
 # ==============================================================================
@@ -6717,8 +6632,8 @@ def start_web_server(args):
         # if not session_id:
         #     return jsonify({"success": False, "message": "缺少会话ID"})
         
-        # 更新会话活动时间
-        update_session_activity(session_id)
+        # # 更新会话活动时间
+        # update_session_activity(session_id)
         
         # 验证用户
         auth_result = auth_system.authenticate(auth_username, auth_password, ip_address, user_agent, two_fa_code)
@@ -6766,7 +6681,7 @@ def start_web_server(args):
                     session_id
                 )
             
-            save_session_state(session_id, api_instance, force_save=True)
+            # save_session_state(session_id, api_instance, force_save=True)
         
         # 如果是注册用户，返回已保存的会话ID列表
         user_sessions = []
@@ -8113,6 +8028,100 @@ def start_web_server(args):
         #     chrome_pool.cleanup()
         pass
 
+def main():
+    """主函数，启动Web服务器模式（已弃用桌面模式）"""
+    
+    parser = argparse.ArgumentParser(description='跑步助手 - Web服务器模式')
+    parser.add_argument("--port", type=int, default=5000, help="Web服务器端口（默认5000）")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Web服务器地址（默认127.0.0.1）")
+    parser.add_argument("--headless", action="store_true", default=True, help="使用无头Chrome模式（默认启用）")
+    parser.add_argument("--log-level", choices=['debug', 'info', 'warning', 'error', 'critical'], default='debug', help="设置日志级别（默认 debug）")
+    parser.add_argument("--debug", action="store_true", help="启用调试日志（兼容旧参数，等同于 --log-level debug）")
+    args = parser.parse_args()
+
+    # 配置详细的中文日志输出（确保UTF-8编码）
+    selected_level_name = 'debug' if args.debug else args.log_level
+    log_level = getattr(logging, selected_level_name.upper(), logging.DEBUG)
+    log_format = "%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s"
+    
+    # 创建UTF-8编码的StreamHandler
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter(log_format))
+    
+    logging.basicConfig(
+        level=log_level,
+        format=log_format,
+        handlers=[handler]
+    )
+    
+    logging.info("="*60)
+    logging.info("跑步助手 Web 模式启动中...")
+    level_name_map = {
+        logging.DEBUG: "调试",
+        logging.INFO: "信息",
+        logging.WARNING: "警告",
+        logging.ERROR: "错误",
+        logging.CRITICAL: "严重"
+    }
+    logging.info(f"日志级别: {level_name_map.get(log_level, selected_level_name.upper())} ({selected_level_name.upper()})")
+    logging.info(f"服务器地址: {args.host}:{args.port}")
+    logging.info("="*60)
+    
+    check_and_import_dependencies()
+
+    # 检查Playwright是否可用
+    if not playwright_available:
+        print("\n" + "="*60)
+        print("错误: 需要安装 Playwright 以在服务器端运行Chrome")
+        print("请运行以下命令:")
+        print("  pip install playwright")
+        print("  python -m playwright install chromium")
+        print("="*60 + "\n")
+        sys.exit(1)
+    
+    initial_port = args.port
+    if not check_port_available(args.host, args.port):
+        logging.warning(f"指定的端口 {args.port} 不可用或已被占用，尝试自动查找可用端口...")
+        found_port = None
+        # 尝试常用备选端口
+        alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000, 5005, 5050]
+        for port in alternative_ports:
+            logging.info(f"尝试端口 {port}...")
+            if check_port_available(args.host, port):
+                found_port = port
+                logging.info(f"找到可用端口: {found_port}")
+                break
+
+        # 如果常用端口都不可用，尝试随机端口 (例如 10000 到 65535 之间)
+        if not found_port:
+            logging.info("常用备选端口均不可用，尝试在 10000-65535 范围内查找随机可用端口...")
+            max_random_tries = 20 # 限制尝试次数
+            for i in range(max_random_tries):
+                random_port = random.randint(10000, 65535)
+                # logging.debug(f"尝试随机端口 {random_port} ({i+1}/{max_random_tries})...") # Debug日志
+                if check_port_available(args.host, random_port):
+                    found_port = random_port
+                    logging.info(f"找到可用随机端口: {found_port}")
+                    break
+                # 短暂等待避免CPU占用过高
+                time.sleep(0.01)
+
+
+        # 如果最终仍未找到可用端口
+        if not found_port:
+            logging.error(f"自动查找端口失败。初始端口 {initial_port} 及所有尝试的备选/随机端口均不可用。")
+            print(f"\n{'='*60}")
+            print(f"错误: 无法自动找到可用的网络端口。")
+            print(f"请检查端口 {initial_port} 或其他常用端口是否被占用，或手动指定一个可用端口:")
+            print(f"  python main.py --port <可用端口号>")
+            print(f"{'='*60}\n")
+            sys.exit(1)
+        else:
+            args.port = found_port # 更新 args 中的端口号为找到的可用端口
+    
+    # 启动Web服务器模式
+    logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
+    start_web_server(args)
 
 if __name__ == "__main__":
     main()

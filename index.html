@@ -1262,7 +1262,7 @@
     <div class="panel rounded-2xl p-6 w-[40rem] max-h-[70vh] space-y-4 relative">
       <div class="flex items-center justify-between">
         <h3 class="text-xl font-bold text-sky-600">会话管理</h3>
-        <button class="btn btn-ghost !py-1 !px-3" onclick="closeSessionPicker()">关闭</button>
+        <!-- <button class="btn btn-ghost !py-1 !px-3" onclick="closeSessionPicker()">关闭</button> -->
       </div>
 
       <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
@@ -1977,10 +1977,10 @@
 
       try {
         // 构建请求头
-        // 对于系统登录，如果没有sessionUUID，发送空字符串而不是null
+        // 对于系统登录，如果没有sessionUUID，发送null
         const headers = {
           'Content-Type': 'application/json',
-          'X-Session-ID': sessionUUID || ''
+          'X-Session-ID': sessionUUID || null
         };
 
         const response = await fetch('/auth/login', {
@@ -2876,9 +2876,9 @@
       listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
-        // 构建请求头，发送空字符串而不是null
+        // 构建请求头，发送null
         const headers = {
-          'X-Session-ID': sessionUUID || ''
+          'X-Session-ID': sessionUUID || null
         };
 
         const response = await fetch('/auth/user/sessions', {
@@ -2961,6 +2961,7 @@
       const newUUID = generateUUID();
       logMessage(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
       
+      
       try {
         // 调用后端API创建会话持久化文件
         const response = await fetch('/auth/user/create_session_persistence', {
@@ -2973,6 +2974,7 @@
             session_id: newUUID
           })
         });
+      
 
         const result = await response.json();
         
@@ -3081,7 +3083,7 @@
       }
 
       // 检测Web模式并提取UUID
-      if (isWebMode) {
+      
         const urlPath = window.location.pathname;
         // 使用标准UUID v4格式的正则表达式
         const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
@@ -3132,10 +3134,62 @@
             } else if (result.uuid_type === 'system_account') {
               // 系统账号UUID - 跳转到无UUID网址，要求重新登录（安全措施）
               console.log('检测到系统账号UUID，跳转到登录页面');
-              showUserFriendlyError('安全验证', '系统账号需要重新登录验证，确保账号安全', true);
-              setTimeout(() => {
+              showUserFriendlyError('安全验证', '重新登录系统账号进行验证，以确保学校账号的安全', true);
+
+
+
+              // 强制设置背景、居中并禁用输入框y
+              const loginContainer = document.getElementById('login-container');
+              const mainApp = document.getElementById('main-app');
+              const multiApp = document.getElementById('multi-account-app');
+              const authContainer = document.getElementById('auth-login-container');
+
+              // 1. 强制隐藏其他容器
+              if (loginContainer) loginContainer.classList.add('hidden');
+              if (mainApp) mainApp.classList.add('hidden');
+              if (multiApp) multiApp.classList.add('hidden');
+
+              // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
+              if (authContainer) {
+                authContainer.classList.remove('hidden');
+                // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
+                authContainer.classList.remove('h-full', 'w-full');
+                // 添加 fixed 定位覆盖全屏和 flex 居中
+                authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
+                // 确保背景可见（有时需要 z-index，但通常不需要）
+                // authContainer.style.zIndex = '10'; // 一般不需要
+              }
+
+              // 3. 禁用 auth-login-container 内的输入框
+              const inputsToDisable = [
+                'auth-username',
+                'auth-password',
+                'auth-reg-username',
+                'auth-reg-password',
+                'auth-reg-password-confirm'
+              ];
+              inputsToDisable.forEach(inputId => {
+                const inputElement = document.getElementById(inputId);
+                if (inputElement) {
+                  inputElement.disabled = true;
+                  // 可选：添加视觉提示，例如降低透明度
+                  // inputElement.style.opacity = '0.7';
+                  // inputElement.style.cursor = 'not-allowed';
+                }
+              });
+
+              if (authContainer) authContainer.classList.remove('hidden');
+              // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
+              Swal.fire({
+                title: '安全验证', // 弹窗标题
+                text: '该会话为系统账号创建的会话，重新登录系统账号进行验证，以确保学校账号的安全', // 弹窗消息
+                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+                confirmButtonText: '确定' // 按钮文字
+              }).then(() => {
+                // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+                console.log('用户确认弹窗，正在跳转到登录页面...');
                 window.location.href = '/';
-              }, 2000);
+              });
               return;
             } else {
               // 未知UUID - 弹窗提示后跳转到无UUID网址
@@ -3226,7 +3280,7 @@
 
         // 认证成功，继续初始化
         hideLoadingOverlays();
-      }
+      
 
       // 标记应用已成功初始化
       appInitialized = true;
