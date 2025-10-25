@@ -1,30 +1,149 @@
 # 跑步助手
 
-import os
-import sys
-import configparser
-import threading
-import time
-import random
-import math
-import json
-import urllib
-import datetime
-import collections
 import argparse
 import bisect
-import traceback
-import logging
+import collections
+import configparser
 import copy
-import warnings
 import csv
-import queue as _queue
-import uuid
-import secrets
-import pickle
+import datetime
+# import fcntl
 import hashlib
-from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify
-from flask_cors import CORS
+import json
+import logging
+import math
+import os
+import pickle
+import queue as _queue  # 保留用户原有的别名
+import random
+import re
+import secrets
+import socket
+import sys
+import threading
+import time
+import traceback
+import urllib
+import uuid
+import warnings
+import atexit
+
+# ==============================================================================
+#  2. 依赖检查与第三方库导入
+# ==============================================================================
+
+# --- 预先声明全局变量 ---
+# 这样做是为了让后续代码（以及IDE）知道这些变量是存在的
+# 它们将在下面的 check_and_import_dependencies() 函数中被真正赋值
+
+# Flask 及其组件
+Flask, render_template_string, session, redirect, url_for, request, jsonify = (None,) * 7
+# Flask 跨域
+CORS = None
+# 一次性密码
+pyotp = None
+# HTTP 请求
+requests = None
+# Excel (xlsx)
+openpyxl = None
+# Excel (xls)
+xlrd = None
+xlwt = None
+# 编码检测
+chardet = None
+# 浏览器自动化
+sync_playwright = None
+
+
+def check_and_import_dependencies():
+    """
+    检查并导入所有必需的第三方库。
+    
+    如果缺少任何库，将打印详细的安装说明并终止程序运行。
+    如果所有库都存在，则将它们导入到全局命名空间中。
+    """
+    
+    # 声明我们将要修改全局变量
+    global Flask, render_template_string, session, redirect, url_for, request, jsonify
+    global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright
+
+    try:
+        # --- 尝试导入所有必需的第三方库 ---
+        
+        # 1. Flask Web 框架
+        from flask import (
+            Flask, render_template_string, session, 
+            redirect, url_for, request, jsonify
+        )
+        
+        # 2. Flask 跨域支持
+        from flask_cors import CORS
+        
+        # 3. 一次性密码 (TOTP/HOTP)
+        import pyotp
+        
+        # 4. HTTP 请求库
+        import requests
+        
+        # 5. Excel (xlsx) 读写
+        import openpyxl
+        
+        # 6. Excel (xls) 读取
+        import xlrd
+        
+        # 7. Excel (xls) 写入
+        import xlwt
+        
+        # 8. 字符编码检测
+        import chardet
+        
+        # 9. 浏览器自动化
+        from playwright.sync_api import sync_playwright
+
+    except ImportError as e:
+        # --- 捕获到导入错误 ---
+        
+        # e.name 会告诉我们 *第一个* 导入失败的模块名 (例如 'flask' 或 'playwright')
+        missing_module_name = e.name 
+
+        # 定义所有必需的 Pypi 包名（这通常与模块名相同，但不总是，如 'flask_cors' 对应 'flask-cors'）
+        all_packages = [
+            'Flask', 
+            'flask-cors',  # 注意 pip install 时用 'flask-cors'
+            'pyotp', 
+            'requests', 
+            'openpyxl', 
+            'xlrd', 
+            'xlwt', 
+            'chardet', 
+            'playwright'
+        ]
+        all_packages_str = ' '.join(all_packages)
+        
+        # --- 构造详细的错误消息 ---
+        error_msg = (
+            f"程序启动失败，缺少必要的 Python 库: '{missing_module_name}'\n\n"
+            f"运行本程序需要以下所有库:\n"
+            f"{', '.join(all_packages)}\n\n"
+            f"请在您的终端（命令行）中运行以下命令来安装 *所有* 依赖:\n\n"
+            f"   pip install {all_packages_str}\n\n"
+            f"如果您使用的是 pip3，请运行:\n"
+            f"   pip3 install {all_packages_str}\n\n"
+            f"--- 特别提示：关于 'playwright' ---\n"
+            f"playwright 库在首次安装后，还需要安装浏览器驱动。\n"
+            f"请在安装完 pip 包后，额外运行一次:\n"
+            f"   playwright install chromium\n"
+            f"--------------------------------------\n\n"
+            f"详细的导入错误信息: {e}"
+        )
+        
+        # 打印到标准错误流
+        print(f"\n{'='*70}\n[依赖缺失错误]\n\n{error_msg}\n{'='*70}\n", file=sys.stderr)
+        
+        # 退出程序，返回错误码 1
+        sys.exit(1)
+
+
 
 
 # ==============================================================================
@@ -373,14 +492,18 @@ def _create_default_admin():
 # 在导入完成后立即初始化系统
 auto_init_system()
 
-# ==============================================================================
-# 原有代码继续
-# ==============================================================================
-
 # 会话存储目录
 SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
 if not os.path.exists(SESSION_STORAGE_DIR):
     os.makedirs(SESSION_STORAGE_DIR)
+
+
+
+def get_session_file_path(session_id: str) -> str:
+    """根据 session_id (UUID) 计算会话文件的完整路径"""
+    session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+    return os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+
 
 # 会话索引文件：存储SHA256哈希和完整UUID的对应关系
 SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
@@ -424,32 +547,7 @@ try:
 except ImportError:
     playwright_available = False
 
-# webview仅用于桌面模式（已弃用tkinter）
-try:
-    import webview   # 嵌入式浏览器（桌面模式）
-except ImportError:
-    webview = None
-
-# 这些库是必需的
-try:
-    import requests  # HTTP请求
-    import openpyxl  # xlsx 读写
-    import xlrd      # xls 读取
-    import xlwt      # xls 写入
-    import chardet   # 编码修正
-except ImportError as e:
-    # 如果导入失败，提示用户安装依赖
-    error_msg = (
-        "运行本程序需要 'requests', 'openpyxl', 'chardet', 'xlrd' 和 'xlwt' 库。\n"
-        "请先在终端运行:\n"
-        "pip install requests openpyxl xlrd xlwt chardet Flask flask-cors playwright\n"
-        f"详细错误: {e}"
-    )
-    
-    # 打印到控制台
-    print(f"\n{'='*60}\n错误: {error_msg}\n{'='*60}\n", file=sys.stderr)
-    sys.exit(1)
-
+check_and_import_dependencies()
 
 
 # ==============================================================================
@@ -492,7 +590,7 @@ class AuthSystem:
     
     def get_user_file_path(self, auth_username):
         """获取用户文件路径"""
-        import hashlib
+        
         user_hash = hashlib.sha256(auth_username.encode()).hexdigest()
         return os.path.join(SYSTEM_ACCOUNTS_DIR, f"{user_hash}.json")
     
@@ -504,7 +602,6 @@ class AuthSystem:
         """加密密码（可选功能）"""
         method = self._get_password_storage_method()
         if method == 'encrypted':
-            import hashlib
             # 使用SHA256加密
             return hashlib.sha256(password.encode()).hexdigest()
         return password  # 明文
@@ -513,7 +610,7 @@ class AuthSystem:
         """验证密码"""
         method = self._get_password_storage_method()
         if method == 'encrypted':
-            import hashlib
+            
             return hashlib.sha256(input_password.encode()).hexdigest() == stored_password
         return input_password == stored_password  # 明文比较
     
@@ -585,7 +682,7 @@ class AuthSystem:
     def generate_2fa_secret(self, auth_username):
         """生成2FA密钥"""
         try:
-            import pyotp
+            
             secret = pyotp.random_base32()
             
             user_file = self.get_user_file_path(auth_username)
@@ -611,7 +708,7 @@ class AuthSystem:
     def enable_2fa(self, auth_username, verification_code):
         """启用2FA（需要验证一次）"""
         try:
-            import pyotp
+            
             user_file = self.get_user_file_path(auth_username)
             if os.path.exists(user_file):
                 with self.lock:
@@ -636,7 +733,7 @@ class AuthSystem:
     def verify_2fa(self, auth_username, verification_code):
         """验证2FA代码"""
         try:
-            import pyotp
+            
             user_file = self.get_user_file_path(auth_username)
             if os.path.exists(user_file):
                 with open(user_file, 'r', encoding='utf-8') as f:
@@ -4074,7 +4171,7 @@ class Api:
 
                 wb.save(filepath)
             elif ext == ".csv":
-                import csv
+                
                 with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow(headers)
@@ -4317,7 +4414,7 @@ class Api:
                 wb.save(filepath)
 
             elif ext == ".csv":
-                import csv
+                
                 with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow(headers)
@@ -5795,7 +5892,7 @@ except Exception as e:
 
 def check_port_available(host, port):
     """检查端口是否可用"""
-    import socket
+    
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -5834,6 +5931,8 @@ def main():
     logging.info(f"服务器地址: {args.host}:{args.port}")
     logging.info("="*60)
     
+    check_and_import_dependencies()
+
     # 检查Playwright是否可用
     if not playwright_available:
         print("\n" + "="*60)
@@ -5844,34 +5943,45 @@ def main():
         print("="*60 + "\n")
         sys.exit(1)
     
-    # 检查端口是否可用
+    initial_port = args.port
     if not check_port_available(args.host, args.port):
-        print(f"\n{'='*60}")
-        print(f"警告: 端口 {args.port} 不可用或已被占用")
-        print(f"")
-        print(f"建议使用其他端口：")
-        
-        # 尝试查找可用端口
-        alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000]
-        available_ports = []
+        logging.warning(f"指定的端口 {args.port} 不可用或已被占用，尝试自动查找可用端口...")
+        found_port = None
+        # 尝试常用备选端口
+        alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000, 5005, 5050]
         for port in alternative_ports:
+            logging.info(f"尝试端口 {port}...")
             if check_port_available(args.host, port):
-                available_ports.append(port)
-                if len(available_ports) >= 3:
+                found_port = port
+                logging.info(f"找到可用端口: {found_port}")
+                break
+
+        # 如果常用端口都不可用，尝试随机端口 (例如 10000 到 65535 之间)
+        if not found_port:
+            logging.info("常用备选端口均不可用，尝试在 10000-65535 范围内查找随机可用端口...")
+            max_random_tries = 20 # 限制尝试次数
+            for i in range(max_random_tries):
+                random_port = random.randint(10000, 65535)
+                # logging.debug(f"尝试随机端口 {random_port} ({i+1}/{max_random_tries})...") # Debug日志
+                if check_port_available(args.host, random_port):
+                    found_port = random_port
+                    logging.info(f"找到可用随机端口: {found_port}")
                     break
-        
-        if available_ports:
-            print(f"  以下端口可用：")
-            for port in available_ports:
-                print(f"    python main.py --port {port}")
+                # 短暂等待避免CPU占用过高
+                time.sleep(0.01)
+
+
+        # 如果最终仍未找到可用端口
+        if not found_port:
+            logging.error(f"自动查找端口失败。初始端口 {initial_port} 及所有尝试的备选/随机端口均不可用。")
+            print(f"\n{'='*60}")
+            print(f"错误: 无法自动找到可用的网络端口。")
+            print(f"请检查端口 {initial_port} 或其他常用端口是否被占用，或手动指定一个可用端口:")
+            print(f"  python main.py --port <可用端口号>")
+            print(f"{'='*60}\n")
+            sys.exit(1)
         else:
-            print(f"  python main.py --port 8080")
-            print(f"  python main.py --port 3000")
-        
-        print(f"")
-        print(f"或者关闭占用端口 {args.port} 的程序后重试")
-        print(f"{'='*60}\n")
-        sys.exit(1)
+            args.port = found_port # 更新 args 中的端口号为找到的可用端口
     
     # 启动Web服务器模式
     logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
@@ -5925,7 +6035,7 @@ def cleanup_inactive_session(session_id):
                 del web_sessions[session_id]
         
         # 删除会话文件
-        import hashlib
+        
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         if os.path.exists(session_file):
@@ -6043,7 +6153,6 @@ def save_session_state(session_id, api_instance, force_save=False):
     try:
         # 修复Windows路径长度限制：使用SHA256哈希作为文件名
         # 2048位UUID(512字符)会导致Windows文件名过长错误
-        import hashlib
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         
@@ -6171,7 +6280,6 @@ def load_session_state(session_id):
     """从文件加载会话状态"""
     try:
         # 优化：首先从索引文件查找哈希，避免每次都计算
-        import hashlib
         index = _load_session_index()
         
         # 如果索引中存在，直接使用索引中的哈希值
@@ -6318,56 +6426,75 @@ def load_all_sessions(args):
     index = _load_session_index()
     new_index = {}
     
+    successful_sessions = {}
+
     loaded_count = 0
     for filename in os.listdir(SESSION_STORAGE_DIR):
-        # 跳过索引文件本身
         if filename == '_index.json':
             continue
-            
+
         if filename.endswith('.json'):
-            # 从文件中读取完整的session_id，而不是从文件名
+            session_file = os.path.join(SESSION_STORAGE_DIR, filename)
+            session_id = None # 先声明 session_id
+            session_hash = filename[:-5]
             try:
-                session_file = os.path.join(SESSION_STORAGE_DIR, filename)
+                # 尝试读取文件基本信息
                 with open(session_file, 'r', encoding='utf-8') as f:
                     state = json.load(f)
-                
+
                 session_id = state.get('session_id')
                 if not session_id:
-                    logging.warning(f"会话文件 {filename} 缺少session_id，跳过")
-                    continue
-                
-                # 检查会话是否过期（7天）
+                    raise ValueError(f"文件 {filename} 缺少 session_id")
+
+                # 检查会话是否过期
                 last_accessed = state.get('last_accessed', 0)
                 if time.time() - last_accessed > 7 * 24 * 3600:
-                    logging.info(f"清理过期会话: {session_id[:32]}...")
+                    logging.info(f"清理过期会话: {session_id[:8]}... (文件: {filename})")
                     try:
                         os.remove(session_file)
-                    except:
-                        pass
-                    continue
-                
-                # 将会话添加到新索引（重建索引）
-                session_hash = filename[:-5]  # 移除.json后缀
-                new_index[session_id] = session_hash
-                
-                # 重建Api实例
+                    except Exception as remove_err:
+                        logging.error(f"删除过期会话文件 {filename} 失败: {remove_err}")
+                    continue # 过期则跳过，不尝试恢复
+
+                # --- 尝试恢复完整状态 ---
                 api_instance = Api(args)
                 api_instance._session_created_at = state.get('created_at', time.time())
-                
-                # 恢复登录状态
-                if state.get('login_success'):
-                    api_instance.login_success = True
-                    api_instance.user_info = state.get('user_info')
-                
-                # 使用新的恢复函数恢复完整状态
+                # restore_session_to_api_instance 现在包含恢复 login_success 等所有状态
                 restore_session_to_api_instance(api_instance, state)
-                
-                logging.info(f"恢复会话: {session_id[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')}, 任务数: {len(api_instance.all_run_data)})")
-                web_sessions[session_id] = api_instance
+
+                # --- 如果成功恢复 ---
+                logging.info(f"成功恢复会话: {session_id[:8]}... (用户: {api_instance.auth_username if hasattr(api_instance, 'auth_username') else 'Unknown'}, 文件: {filename})")
+                web_sessions[session_id] = api_instance # 加入内存
+                session_activity[session_id] = last_accessed # 恢复活动时间
+                successful_sessions[session_id] = session_hash # 记录成功加载的会话及其哈希
                 loaded_count += 1
-            except Exception as e:
-                logging.error(f"加载会话文件 {filename} 失败: {e}", exc_info=True)
-                continue
+
+            except (json.JSONDecodeError, ValueError, KeyError, TypeError, AttributeError) as e:
+                # 加载或恢复过程中发生任何错误
+                logging.error(f"加载或恢复会话文件 {filename} 失败: {e}", exc_info=False) # 可以关闭 exc_info 避免过多日志
+                logging.warning(f"将删除损坏的/无法恢复的会话文件: {filename}")
+                try:
+                    os.remove(session_file) # 删除损坏的文件
+                except Exception as remove_err:
+                    logging.error(f"删除损坏的会话文件 {filename} 失败: {remove_err}")
+                # 不将失败的会话加入 web_sessions 或 successful_sessions
+                continue # 继续处理下一个文件
+            except Exception as e: # 捕获其他意外错误
+                 logging.error(f"处理会话文件 {filename} 时发生未知错误: {e}", exc_info=True)
+                 try:
+                     os.remove(session_file) # 也尝试删除
+                 except Exception as remove_err:
+                     logging.error(f"删除未知错误的会话文件 {filename} 失败: {remove_err}")
+                 continue
+
+    # 保存重建的索引（只包含成功加载的会话）
+    if successful_sessions:
+        _save_session_index(successful_sessions) # 使用 successful_sessions 作为新的索引内容
+        logging.info(f"会话索引已更新，包含 {len(successful_sessions)} 个有效会话")
+    elif not any(f.endswith('.json') and f != '_index.json' for f in os.listdir(SESSION_STORAGE_DIR)):
+         # 如果 sessions 目录为空 (除了 index)，则清空 index 文件
+         _save_session_index({})
+         logging.info("会话目录为空，已清空会话索引。")
     
     # 保存重建的索引（清理过期条目）
     if new_index:
@@ -6443,29 +6570,78 @@ class ChromeBrowserPool:
     def cleanup(self):
         """清理所有资源"""
         with self.lock:
+            # 首先尝试关闭所有上下文
             for session_id in list(self.contexts.keys()):
                 try:
+                    # 增加日志，明确关闭哪个上下文
+                    logging.debug(f"正在关闭会话 {session_id[:8]}... 的 Chrome 上下文...")
                     self.contexts[session_id]['context'].close()
-                except:
-                    pass
+                    logging.debug(f"会话 {session_id[:8]}... 的上下文已关闭。")
+                except Exception as e:
+                    # 捕获关闭上下文时的错误，记录并继续
+                    logging.warning(f"关闭会话 {session_id[:8]}... 上下文失败: {e}")
             self.contexts.clear()
-            
-            if self.browser:
-                self.browser.close()
-            if self.playwright:
-                self.playwright.stop()
+            logging.debug("所有 Chrome 上下文已清理。")
 
+            # 然后尝试关闭浏览器
+            if self.browser:
+                try:
+                    logging.debug("正在关闭主 Chrome 浏览器实例...")
+                    self.browser.close() # <--- 在这里捕获异常
+                    logging.debug("主 Chrome 浏览器实例已关闭。")
+                except Exception as e:
+                    # 捕获关闭浏览器时的错误，记录日志但允许程序继续退出
+                    logging.warning(f"关闭 Chrome 浏览器实例时发生错误 (可忽略): {e}")
+                    # 注意：这里我们只记录警告，因为程序正在退出
+
+            # 最后停止 Playwright 实例
+            if self.playwright:
+                try:
+                    logging.debug("正在停止 Playwright 实例...")
+                    self.playwright.stop()
+                    logging.debug("Playwright 实例已停止。")
+                except Exception as e:
+                    # 捕获停止 Playwright 时的错误
+                    logging.warning(f"停止 Playwright 实例时发生错误 (可忽略): {e}")
 # 全局Chrome浏览器池
 chrome_pool = None
 
+def _cleanup_playwright():
+    """在程序退出时清理 Playwright 资源"""
+    global chrome_pool
+    if chrome_pool:
+        logging.info("捕获到程序退出信号，正在清理 Playwright 资源...")
+        try:
+            chrome_pool.cleanup()
+            logging.info("Playwright 资源清理完成。")
+        except Exception as e:
+            # 在退出时尽量不抛出新异常，只记录错误
+            logging.error(f"清理 Playwright 资源时发生错误: {e}", exc_info=False)
+    else:
+        logging.debug("Playwright 池未初始化，无需清理。")
+
+
 def start_web_server(args):
     """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
-    global chrome_pool
+    global chrome_pool, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock
     
+
+    # --- 新增：显式初始化/重置内存锁状态 ---
+    web_sessions = {}
+    web_sessions_lock = threading.Lock()
+    session_file_locks = {}
+    session_file_locks_lock = threading.Lock()
+    session_activity = {}
+    session_activity_lock = threading.Lock()
+    logging.info("内存锁和会话状态已重置。")
+    # --- 结束新增 ---
+
     # 初始化Chrome浏览器池
     try:
         chrome_pool = ChromeBrowserPool(headless=getattr(args, 'headless', True))
         logging.info("Chrome浏览器池初始化成功")
+        atexit.register(_cleanup_playwright)
+        logging.info("已注册 Playwright 退出清理函数。")
     except Exception as e:
         logging.error(f"无法初始化Chrome浏览器池: {e}")
         sys.exit(1)
@@ -6867,7 +7043,7 @@ def start_web_server(args):
             return jsonify({"success": False, "message": "UUID参数缺失"}), 400
         
         # UUID格式验证 - 标准UUID v4格式
-        import re
+    
         uuid_pattern = re.compile(
             r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
             re.IGNORECASE
@@ -6880,29 +7056,43 @@ def start_web_server(args):
         
         # 检查会话文件是否存在
         session_file = get_session_file_path(check_uuid)
-        if not os.path.exists(session_file):
+        file_exists = os.path.exists(session_file)
+        logging.debug(f"/auth/check_uuid_type: Checking UUID {check_uuid[:8]}..., File path: {session_file}, Exists: {file_exists}") # 新增日志
+
+        if not file_exists:
             return jsonify({
                 "success": True,
                 "uuid_type": "unknown",
-                "message": "UUID不存在"
+                "message": "UUID不存在 (文件未找到)" # 更明确的消息
             })
         
         # 读取会话文件判断类型 - 使用文件锁避免并发问题
-        import fcntl
+        
         max_retries = 3
         retry_delay = 0.1
         
+        import sys
+        # 在循环开始前尝试导入 fcntl (仅非Windows)
+        fcntl = None
+        if sys.platform != 'win32':
+            try:
+                import fcntl
+            except ImportError:
+                logging.warning("fcntl 模块在当前平台不可用，文件锁将被跳过。")
+
         for attempt in range(max_retries):
             try:
                 with open(session_file, 'r', encoding='utf-8') as f:
-                    # 加共享锁（读锁）
-                    fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                    # 加共享锁（读锁），仅当 fcntl 可用时
+                    if fcntl: # <- 添加判断
+                        fcntl.flock(f.fileno(), fcntl.LOCK_SH)
                     try:
                         session_data = json.load(f)
                     finally:
-                        # 释放锁
-                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-                
+                        # 释放锁，仅当 fcntl 可用时
+                        if fcntl: # <- 添加判断
+                            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
                 # 检查是否为游客会话
                 is_guest = session_data.get('is_guest', False)
                 auth_username = session_data.get('auth_username', '')
@@ -6921,15 +7111,16 @@ def start_web_server(args):
                         "message": "系统账号UUID"
                     })
                 else:
+                    logging.warning(f"/auth/check_uuid_type: 文件 {session_file} 存在但内容无法识别用户类型 (auth_username='{auth_username}', is_guest={is_guest})，返回 unknown") # 新增日志
                     return jsonify({
                         "success": True,
                         "uuid_type": "unknown",
-                        "message": "未知类型UUID"
+                        "message": "未知类型UUID (内容无法识别)" # 更明确的消息
                     })
             except (IOError, OSError) as e:
                 # 文件锁定或IO错误，重试
                 if attempt < max_retries - 1:
-                    import time
+                    
                     time.sleep(retry_delay)
                     continue
                 else:
@@ -7466,7 +7657,7 @@ def start_web_server(args):
             auth_system.unlink_session_from_user(target_username, target_session_id)
         
         # 删除会话文件
-        import hashlib
+        
         session_hash = hashlib.sha256(target_session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         if os.path.exists(session_file):
@@ -7534,10 +7725,16 @@ def start_web_server(args):
     @app.route('/uuid=<uuid>')
     def session_view(uuid):
         """会话页面：显示应用界面"""
-        # 验证UUID格式（2048位 = 512个十六进制字符）
-        if not uuid or len(uuid) != 512:
-            logging.warning(f"无效的UUID格式: {uuid[:32] if uuid else 'None'}... (长度: {len(uuid) if uuid else 0}, 期望: 512)")
-            return redirect(url_for('index'))
+        # --- 修复 UUID 验证 ---
+        # 验证UUID格式 - 标准UUID v4格式
+        uuid_pattern = re.compile(
+            r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
+            re.IGNORECASE
+        )
+        if not uuid or not uuid_pattern.match(uuid):
+            # 日志记录修改为记录实际收到的UUID（截断）和失败原因
+            logging.warning(f"无效的UUID格式或不匹配标准格式: {uuid[:40] if uuid else 'None'}...")
+            return redirect(url_for('index')) # 验证失败，重定向到首页
         
         # 确保Api实例存在（从URL或文件恢复会话，不依赖Flask session）
         with web_sessions_lock:
@@ -7562,7 +7759,7 @@ def start_web_server(args):
                     logging.info(f"创建新会话 (2048位UUID): {uuid[:32]}...")
                 
                 web_sessions[uuid] = api_instance
-                save_session_state(uuid, api_instance)
+                # save_session_state(uuid, api_instance)
             else:
                 # 确保已有会话也有_web_session_id属性
                 api_instance = web_sessions[uuid]
@@ -7686,7 +7883,7 @@ def start_web_server(args):
             "chrome_contexts": len(chrome_pool.contexts) if chrome_pool else 0
         })
     
-    # 定期清理过期会话（可选）
+    # 定期清理过期会话
     def cleanup_sessions():
         """定期清理超过24小时无活动的会话"""
         while True:
@@ -7755,10 +7952,11 @@ def start_web_server(args):
         logging.error(f"服务器异常: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        # 清理Chrome资源
-        if chrome_pool:
-            logging.info("正在清理Chrome浏览器资源...")
-            chrome_pool.cleanup()
+        # # 清理Chrome资源
+        # if chrome_pool:
+        #     logging.info("正在清理Chrome浏览器资源...")
+        #     chrome_pool.cleanup()
+        pass
 
 
 if __name__ == "__main__":

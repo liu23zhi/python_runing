@@ -15,7 +15,7 @@
   rel="stylesheet" onerror="handleCdnError()">
 
 <script src="https://webapi.amap.com/loader.js" onerror="handleCdnError()"></script>
-<script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> <script>
 // 配置TailwindCSS
 tailwind.config = {
   theme: {
@@ -396,41 +396,38 @@ body.modal-visible .amap-copyright {
   </div>
 </div>
 
-<!-- 登录界面 (应用登录，在认证后显示) -->
-<div id="login-container" class="hidden w-full h-full grid grid-cols-1 lg:grid-cols-2">
-  
+<!-- 登录界面 -->
+<div id="login-container" class="w-full h-full grid grid-cols-1 lg:grid-cols-3">
+
   <div class="flex flex-col items-center justify-center p-12 bg-gradient-to-br from-slate-50 to-gray-100">
-      <div class="text-center w-full max-w-sm space-y-6">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto text-violet-500" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-          
-          <h2 class="text-3xl font-bold text-slate-800 card-title">多账号模式</h2>
-          <p class="text-slate-500">
-              支持批量导入、统一管理和一键执行所有任务。
-          </p>
-          
-          <button id="multi-account-btn" class="btn btn-secondary w-full py-3">进入多账号控制台</button>
-      </div>
+    <div class="text-center w-full max-w-sm space-y-6">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto text-violet-500" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+      </svg>
+
+      <h2 class="text-3xl font-bold text-slate-800 card-title">多账号模式</h2>
+      <p class="text-slate-500">
+        支持批量导入、统一管理和一键执行所有任务。
+      </p>
+
+      <button id="multi-account-btn" class="btn btn-secondary w-full py-3">进入多账号控制台</button>
+    </div>
   </div>
 
-  <!-- 管理面板入口（居中显示） -->
-  <div class="lg:col-span-2 flex items-center justify-center py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50">
-    <button id="show-admin-panel-login" class="btn btn-primary !py-2 !px-6 hidden" title="管理面板">
-      <span>🔧 管理面板</span>
-    </button>
+  <div class="flex flex-col items-center justify-center p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50">
+    <div class="text-center w-full max-w-sm space-y-6">
+      <button id="show-admin-panel-login" class="btn btn-primary !py-2 !px-6 hidden" title="管理面板">
+        <span>🔧 管理面板</span>
+      </button>
+    </div>
   </div>
 
   <div class="flex items-center justify-center p-8 bg-white">
     <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
         <h2 class="text-3xl font-bold text-sky-700 card-title">单账号登录</h2>
       </div>
       <div class="space-y-4 w-full">
-        <!-- 会话管理按钮 -->
-        <div class="text-center">
-          <button id="show-sessions-login" class="btn btn-secondary w-full" title="会话管理">
-            <span>会话管理</span>
-          </button>
-        </div>
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">选择账号</label>
           <select id="user-combo" class="select-field mt-1" title="选择已保存的账号或创建新账号" aria-label="选择账号"></select>
@@ -445,13 +442,13 @@ body.modal-visible .amap-copyright {
         </div>
       </div>
       <button id="login-button" class="btn btn-primary w-full py-3">登录</button>
-            <div class="relative flex py-2 items-center">
+      <div class="relative flex py-2 items-center">
         <div class="flex-grow border-t border-slate-200"></div>
         <span class="flex-shrink mx-4 text-slate-400 text-xs">或</span>
         <div class="flex-grow border-t border-slate-200"></div>
       </div>
       <button id="import-button" class="btn btn-success w-full">导入离线文件</button>
-      
+
       <div class="pt-2">
         <div class="flex justify-between items-center text-xs text-slate-500 mb-1">
           <span>User-Agent</span>
@@ -461,6 +458,7 @@ body.modal-visible .amap-copyright {
       </div>
     </div>
   </div>
+
 </div>
 
 <!-- 主应用界面 -->
@@ -995,9 +993,17 @@ function handleCdnError() {
     if (!appInitialized && cdnErrorCount > 0) {
       const errorOverlay = document.getElementById('cdn-error-overlay');
       if (errorOverlay) {
-        errorOverlay.style.setProperty('display', 'flex', 'important');
+        // 使用直接 DOM 操作确保覆盖层可见。
+        // 注意：此处不能依赖 $ 快捷函数，因为 handleCdnError 可能在 $ 定义之前被调用。
+        try {
+          errorOverlay.style.setProperty('display', 'flex', 'important');
+        } catch (e) {
+          // 某些环境下 setProperty 的第三个参数可能不可用，回退到直接设置
+          errorOverlay.style.display = 'flex';
+        }
+        // 移除 hidden 类以确保可见
+        errorOverlay.classList.remove('hidden');
         console.error(`应用初始化超时，CDN资源加载失败 (${cdnErrorCount}个资源)`);
-        $('cdn-error-overlay').classList.add('hidden');  //显示错误覆盖层
       }
     }
   }, 3000); // 延迟3秒显示错误，给应用初始化机会
@@ -2149,12 +2155,7 @@ function createNewSession() {
     window.location.href = `/uuid=${newUUID}`;
   }
 }
-      `;
-    }).join('');
-  } catch (e) {
-    $('admin-sessions-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
-  }
-}
+
 
 async function deleteSession(sessionId) {
   if (!confirm('确定要删除此会话吗？')) return;
