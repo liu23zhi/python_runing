@@ -32,6 +32,7 @@ import atexit
 # ===== Flask-SocketIO（必须在 monkey_patch 之后）=====
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
+from flask import make_response
 
 # ==============================================================================
 #  2. 依赖检查与第三方库导入
@@ -6962,7 +6963,7 @@ def start_web_server(args):
                     session_id
                 )
             
-            # save_session_state(session_id, api_instance, force_save=True)
+            save_session_state(session_id, api_instance, force_save=True)
         
         # 如果是注册用户，返回已保存的会话ID列表
         user_sessions = []
@@ -7129,6 +7130,81 @@ def start_web_server(args):
         has_permission = auth_system.check_permission(api_instance.auth_username, permission)
         return jsonify({"success": True, "has_permission": has_permission})
     
+    @app.route('/auth/switch_session', methods=['POST'])
+    def auth_switch_session():
+        """
+        切换会话时，为目标会话刷新/生成 token 并更新 cookie
+        """
+        current_session_id = request.headers.get('X-Session-ID', '') # 当前活动窗口的 Session ID
+        data = request.get_json() or {}
+        target_session_id = data.get('target_session_id', '') # 用户想要切换到的 Session ID
+
+        if not current_session_id or not target_session_id:
+            return jsonify({"success": False, "message": "缺少会话ID参数"}), 400
+
+        # 1. 验证当前用户身份 (基于 current_session_id 和 cookie)
+        username = None
+        is_guest = True
+        with web_sessions_lock:
+            if current_session_id in web_sessions:
+                api_instance = web_sessions[current_session_id]
+                if getattr(api_instance, 'is_authenticated', False):
+                    username = getattr(api_instance, 'auth_username', None)
+                    is_guest = getattr(api_instance, 'is_guest', True)
+
+        if not username or is_guest:
+            return jsonify({"success": False, "message": "用户未登录或为游客，无法切换会话"}), 401
+
+        # 2. 检查 token (这一步是必要的，确保当前操作是合法的)
+        token_from_cookie = request.cookies.get('auth_token')
+        if not token_from_cookie:
+            return jsonify({"success": False, "message": "缺少认证令牌(cookie)"}), 401
+
+        is_valid, reason = token_manager.verify_token(username, current_session_id, token_from_cookie)
+        if not is_valid:
+            # 如果当前 token 都无效了，直接要求重新登录
+            logging.warning(f"切换会话失败：用户 {username} 的当前会话 {current_session_id[:8]} token 无效 ({reason})")
+            response_data = {"success": False, "message": f"当前认证已失效({reason})，请重新登录", "need_login": True}
+            response = make_response(jsonify(response_data), 401)
+            response.set_cookie('auth_token', '', max_age=0) # 清除无效 cookie
+            return response
+
+
+        # 3. 为目标会话生成新 Token
+        # 注意：即使目标会话已存在 token，这里也生成一个新的，以确保安全性和一致性
+        new_token_for_target = token_manager.create_token(username, target_session_id)
+        logging.info(f"用户 {username} 切换会话：为目标会话 {target_session_id[:8]} 生成新 token")
+
+        # 4. 创建响应，并设置新的 auth_token cookie
+        response_data = {"success": True, "message": "Token已更新，可以跳转"}
+        response = make_response(jsonify(response_data))
+        response.set_cookie(
+            'auth_token',
+            value=new_token_for_target,
+            max_age=3600,  # 1 小时
+            httponly=True,
+            secure=False, # 开发环境 False，生产环境 True
+            samesite='Lax'
+        )
+
+        # 5. （可选但推荐）确保目标会话状态存在于内存或文件中
+        with web_sessions_lock:
+            if target_session_id not in web_sessions:
+                # 尝试从文件加载，如果文件不存在或加载失败，也没关系，
+                # 因为 /uuid=<target_id> 路由会处理新会话的创建
+                state = load_session_state(target_session_id)
+                if state:
+                    target_api_instance = Api(args)
+                    target_api_instance._web_session_id = target_session_id
+                    restore_session_to_api_instance(target_api_instance, state)
+                    web_sessions[target_session_id] = target_api_instance
+                    logging.info(f"切换会话时，预加载目标会话 {target_session_id[:8]} 状态成功")
+                else:
+                    logging.warning(f"切换会话时，目标会话 {target_session_id[:8]} 状态文件不存在或加载失败，将在访问时创建")
+
+        return response
+
+
     @app.route('/auth/admin/list_users', methods=['GET'])
     def auth_admin_list_users():
         """管理员：列出所有用户"""

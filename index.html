@@ -3014,10 +3014,46 @@
       loadSessionPickerList();
     }
 
-    function selectSessionFromPicker(sessionId) {
-      logMessage(`正在切换到会话 ${sessionId.substring(0, 16)}...`);
-      closeSessionPicker();
-      window.location.href = `/uuid=${sessionId}`;
+    async function selectSessionFromPicker(sessionId) {
+      logMessage(`准备切换到会话 ${sessionId.substring(0, 16)}...`);
+      closeSessionPicker(); // 先关闭选择器
+
+      try {
+        logMessage(`正在为目标会话 ${sessionId.substring(0, 16)} 刷新认证令牌...`);
+
+        // 调用新的后端 API 端点来更新 Cookie
+        const response = await fetch('/auth/switch_session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID // 发送当前页面的 session ID
+          },
+          credentials: 'include', // 确保发送 cookie
+          body: JSON.stringify({
+            target_session_id: sessionId // 告知后端要切换到的目标 session ID
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          logMessage(`令牌更新成功，正在跳转到会话 ${sessionId.substring(0, 16)}...`);
+          // 只有在后端成功更新 Cookie 后才执行跳转
+          window.location.href = `/uuid=${sessionId}`;
+        } else {
+          // 如果后端返回错误（例如当前认证失效）
+          logMessage(`[错误] 无法切换会话: ${result.message}`);
+          showModalAlert(`无法切换会话: ${result.message}`, '切换失败');
+          // 如果后端指示需要重新登录
+          if (result.need_login) {
+            setTimeout(() => { window.location.href = '/'; }, 2000);
+          }
+        }
+      } catch (e) {
+        console.error('切换会话失败:', e);
+        logMessage(`[错误] 切换会话时发生网络或脚本错误: ${e.message}`);
+        showModalAlert(`切换会话时发生网络或脚本错误: ${e.message}`, '切换失败');
+      }
     }
 
     async function createNewSessionFromPicker() {
