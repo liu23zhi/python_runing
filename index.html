@@ -2872,10 +2872,14 @@
       listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
+        // 构建请求头，只在 sessionUUID 有效时才添加
+        const headers = {};
+        if (sessionUUID && sessionUUID !== 'null') {
+          headers['X-Session-ID'] = sessionUUID;
+        }
+
         const response = await fetch('/auth/user/sessions', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
+          headers: headers
         });
         const result = await response.json();
 
@@ -2946,12 +2950,14 @@
 
     function selectSessionFromPicker(sessionId) {
       logMessage(`正在切换到会话 ${sessionId.substring(0, 16)}...`);
+      closeSessionPicker();
       window.location.href = `/uuid=${sessionId}`;
     }
 
     function createNewSessionFromPicker() {
       const newUUID = generateUUID();
       logMessage(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
+      closeSessionPicker();
       window.location.href = `/uuid=${newUUID}`;
     }
 
