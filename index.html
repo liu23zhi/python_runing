@@ -1490,11 +1490,49 @@
         const response = await fetch(`/api/${method}`, {
           method: 'POST',
           headers: headers,
+          credentials: 'include',  // 重要：包含cookies
           body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
         });
+        
+        // 处理token相关错误
         if (!response.ok) {
+          // 尝试解析JSON错误消息
+          try {
+            const errorData = await response.json();
+            
+            // 处理token过期或验证失败
+            if (errorData.need_login) {
+              let errorMsg = errorData.message || 'API调用失败';
+              
+              // 如果是在其他设备登录导致的
+              if (errorData.logged_out_elsewhere) {
+                showModalAlert(
+                  '您的账号已在其他设备登录，本设备已自动登出。请重新登录。',
+                  '多设备登录检测'
+                );
+                logMessage('[安全提示] 检测到账号在其他设备登录，已自动登出');
+              } else {
+                showModalAlert(errorMsg, '登录失效');
+                logMessage(`[安全提示] ${errorMsg}`);
+              }
+              
+              // 清除本地状态并返回登录页
+              setTimeout(() => {
+                window.location.href = '/';
+              }, 2000);
+              
+              throw new Error(errorMsg);
+            }
+          } catch (e) {
+            // 如果解析失败，抛出原始错误
+            if (e.message && e.message.includes('需要登录')) {
+              throw e;
+            }
+          }
+          
           throw new Error(`API调用失败: ${response.statusText}`);
         }
+        
         return await response.json();
       } else {
         // 桌面模式：直接调用pywebview API
@@ -1986,6 +2024,7 @@
         const response = await fetch('/auth/login', {
           method: 'POST',
           headers: headers,
+          credentials: 'include',  // 重要：包含cookies
           body: JSON.stringify({
             auth_username: username,
             auth_password: password
@@ -1995,7 +2034,26 @@
         const result = await response.json();
 
         if (result.success) {
-          showAuthSuccess('登录成功！');
+          // 显示成功消息
+          let successMessage = '登录成功！';
+          
+          // 如果有多设备登录警告
+          if (result.multi_device_warning) {
+            successMessage += '\n' + result.multi_device_warning;
+          }
+          
+          // 如果有会话清理提示
+          if (result.cleanup_message) {
+            successMessage += '\n' + result.cleanup_message;
+          }
+          
+          showAuthSuccess(successMessage);
+          
+          // 如果有token，记录日志（用于调试）
+          if (result.token) {
+            console.log('Received auth token (stored in cookie)');
+            logMessage('[安全] 登录令牌已生成，有效期1小时');
+          }
 
           // 系统账号登录成功后，显示会话选择器
           if (!result.is_guest) {
@@ -2007,7 +2065,12 @@
               // 显示提示信息
               logMessage('[会话选择] 请选择要进入的会话，或创建新会话');
               logMessage('[提示] 每个会话都是独立的学校账号登录状态');
-            }, 1000);
+              
+              // 如果踢出了其他设备，显示信息
+              if (result.kicked_sessions_count > 0) {
+                logMessage(`[多设备检测] 已自动登出该账号在其他 ${result.kicked_sessions_count} 个设备上的会话`);
+              }
+            }, 1500);
             return;
           }
 
