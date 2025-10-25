@@ -8159,6 +8159,36 @@ def start_web_server(args):
                 if not hasattr(api_instance, '_web_session_id'):
                     api_instance._web_session_id = uuid
                 logging.debug(f"使用现有会话: {uuid[:32]}...")
+            
+            # ===== Token验证 (仅非游客会话) =====
+            api_instance = web_sessions[uuid]
+            if hasattr(api_instance, 'is_authenticated') and api_instance.is_authenticated:
+                if hasattr(api_instance, 'is_guest') and not api_instance.is_guest:
+                    username = getattr(api_instance, 'auth_username', None)
+                    
+                    if username:
+                        # 从cookie获取token
+                        token = request.cookies.get('auth_token')
+                        
+                        if not token:
+                            logging.warning(f"非游客会话 {uuid[:16]}... 访问时未找到token，重定向到登录页")
+                            return redirect(url_for('index'))
+                        
+                        # 验证token
+                        is_valid, reason = token_manager.verify_token(username, uuid, token)
+                        
+                        if not is_valid:
+                            if reason == "token_expired":
+                                logging.warning(f"非游客会话 {uuid[:16]}... 的token已过期，重定向到登录页")
+                            elif reason == "token_mismatch":
+                                logging.warning(f"非游客会话 {uuid[:16]}... 的token不匹配（可能在其他设备登录），重定向到登录页")
+                            else:
+                                logging.warning(f"非游客会话 {uuid[:16]}... 的token验证失败 ({reason})，重定向到登录页")
+                            return redirect(url_for('index'))
+                        
+                        # Token有效，刷新过期时间
+                        token_manager.refresh_token(username, uuid)
+                        logging.debug(f"非游客会话 {uuid[:16]}... 的token验证成功并已刷新")
         
         # 返回HTML内容
         return render_template_string(html_content)
