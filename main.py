@@ -1,30 +1,154 @@
 # 跑步助手
 
-import os
-import sys
-import configparser
-import threading
-import time
-import random
-import math
-import json
-import urllib
-import datetime
-import collections
+# ===== 导入标准库 =====
 import argparse
 import bisect
-import traceback
-import logging
+import collections
+import configparser
 import copy
-import warnings
 import csv
-import queue as _queue
-import uuid
-import secrets
-import pickle
+import datetime
+# import fcntl
 import hashlib
-from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify
-from flask_cors import CORS
+import json
+import logging
+import math
+import os
+import pickle
+import queue
+import random
+import re
+import secrets
+import socket
+import sys
+import threading
+import time
+import traceback
+import urllib
+import uuid
+import warnings
+import atexit
+
+# ===== Flask-SocketIO（必须在 monkey_patch 之后）=====
+from flask_socketio import SocketIO, emit, join_room, leave_room
+
+
+# ==============================================================================
+#  2. 依赖检查与第三方库导入
+# ==============================================================================
+
+# --- 预先声明全局变量 ---
+# 这样做是为了让后续代码（以及IDE）知道这些变量是存在的
+# 它们将在下面的 check_and_import_dependencies() 函数中被真正赋值
+
+# Flask 及其组件
+Flask, render_template_string, session, redirect, url_for, request, jsonify = (None,) * 7
+# Flask 跨域
+CORS = None
+# 一次性密码
+pyotp = None
+# HTTP 请求
+requests = None
+# Excel (xlsx)
+openpyxl = None
+# Excel (xls)
+xlrd = None
+xlwt = None
+# 编码检测
+chardet = None
+# 浏览器自动化
+sync_playwright = None
+
+
+def check_and_import_dependencies():
+    """
+    检查并导入所有必需的第三方库。
+    
+    如果缺少任何库，将打印详细的安装说明并终止程序运行。
+    如果所有库都存在，则将它们导入到全局命名空间中。
+    """
+    
+    # 声明我们将要修改全局变量
+    global Flask, render_template_string, session, redirect, url_for, request, jsonify
+    global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright
+
+    try:
+        # --- 尝试导入所有必需的第三方库 ---
+        
+        # 1. Flask Web 框架
+        from flask import (
+            Flask, render_template_string, session, 
+            redirect, url_for, request, jsonify
+        )
+        
+        # 2. Flask 跨域支持
+        from flask_cors import CORS
+        
+        # 3. 一次性密码 (TOTP/HOTP)
+        import pyotp
+        
+        # 4. HTTP 请求库
+        import requests
+        
+        # 5. Excel (xlsx) 读写
+        import openpyxl
+        
+        # 6. Excel (xls) 读取
+        import xlrd
+        
+        # 7. Excel (xls) 写入
+        import xlwt
+        
+        # 8. 字符编码检测
+        import chardet
+        
+        # 9. 浏览器自动化
+        from playwright.sync_api import sync_playwright
+
+    except ImportError as e:
+        # --- 捕获到导入错误 ---
+        
+        # e.name 会告诉我们 *第一个* 导入失败的模块名 (例如 'flask' 或 'playwright')
+        missing_module_name = e.name 
+
+        # 定义所有必需的 Pypi 包名（这通常与模块名相同，但不总是，如 'flask_cors' 对应 'flask-cors'）
+        all_packages = [
+            'Flask', 
+            'flask-cors',  # 注意 pip install 时用 'flask-cors'
+            'pyotp', 
+            'requests', 
+            'openpyxl', 
+            'xlrd', 
+            'xlwt', 
+            'chardet', 
+            'playwright'
+        ]
+        all_packages_str = ' '.join(all_packages)
+        
+        # --- 构造详细的错误消息 ---
+        error_msg = (
+            f"程序启动失败，缺少必要的 Python 库: '{missing_module_name}'\n\n"
+            f"运行本程序需要以下所有库:\n"
+            f"{', '.join(all_packages)}\n\n"
+            f"请在您的终端（命令行）中运行以下命令来安装 *所有* 依赖:\n\n"
+            f"   pip install {all_packages_str}\n\n"
+            f"如果您使用的是 pip3，请运行:\n"
+            f"   pip3 install {all_packages_str}\n\n"
+            f"--- 特别提示：关于 'playwright' ---\n"
+            f"playwright 库在首次安装后，还需要安装浏览器驱动。\n"
+            f"请在安装完 pip 包后，额外运行一次:\n"
+            f"   playwright install chromium\n"
+            f"--------------------------------------\n\n"
+            f"详细的导入错误信息: {e}"
+        )
+        
+        # 打印到标准错误流
+        print(f"\n{'='*70}\n[依赖缺失错误]\n\n{error_msg}\n{'='*70}\n", file=sys.stderr)
+        
+        # 退出程序，返回错误码 1
+        sys.exit(1)
+
+
 
 
 # ==============================================================================
@@ -58,7 +182,7 @@ def _create_directories():
     directories = [
         'logs',
         'school_accounts',
-        'school_accounts/system_auth',
+        'system_accounts',  # 修正：系统账号独立存储，不在school_accounts下
         'sessions'
     ]
     
@@ -67,11 +191,8 @@ def _create_directories():
             os.makedirs(directory, exist_ok=True)
 
 
-def _create_config_ini():
-    """创建默认的config.ini配置文件"""
-    if os.path.exists('config.ini'):
-        return
-    
+def _get_default_config():
+    """获取默认配置项（用于创建新配置和补全旧配置）"""
     config = configparser.ConfigParser()
     
     # [Admin] 管理员配置
@@ -84,7 +205,7 @@ def _create_config_ini():
     config['System'] = {
         'session_expiry_days': '7',
         'school_accounts_dir': 'school_accounts',
-        'system_accounts_dir': 'school_accounts/system_auth',
+        'system_accounts_dir': 'system_accounts',  # 修正：不应该在school_accounts下
         'permissions_file': 'permissions.json'
     }
     
@@ -95,8 +216,50 @@ def _create_config_ini():
         'login_log_retention_days': '90'
     }
     
-    with open('config.ini', 'w', encoding='utf-8') as f:
-        config.write(f)
+    # [Map] 地图配置
+    config['Map'] = {
+        'amap_js_key': '',  # 高德地图JS API密钥
+    }
+    
+    # [AutoFill] 自动填充配置
+    config['AutoFill'] = {
+        'guest_auto_fill_password': 'false',  # 游客模式是否自动填充密码
+        'auto_fill_accounts': '',  # 允许自动填充密码的账号列表（逗号分隔）
+    }
+    
+    return config
+
+
+def _create_config_ini():
+    """创建或更新config.ini配置文件（兼容旧版本，自动补全缺失参数）"""
+    default_config = _get_default_config()
+    
+    if os.path.exists('config.ini'):
+        # 读取现有配置
+        existing_config = configparser.ConfigParser()
+        existing_config.read('config.ini', encoding='utf-8')
+        
+        # 检查并补全缺失的节和参数
+        updated = False
+        for section in default_config.sections():
+            if not existing_config.has_section(section):
+                existing_config.add_section(section)
+                updated = True
+            
+            for key, value in default_config.items(section):
+                if not existing_config.has_option(section, key):
+                    existing_config.set(section, key, value)
+                    updated = True
+        
+        # 如果有更新，保存配置文件
+        if updated:
+            with open('config.ini', 'w', encoding='utf-8') as f:
+                existing_config.write(f)
+            logging.info("配置文件已更新：自动补全缺失参数")
+    else:
+        # 创建新配置文件
+        with open('config.ini', 'w', encoding='utf-8') as f:
+            default_config.write(f)
 
 
 def _create_permissions_json():
@@ -108,96 +271,166 @@ def _create_permissions_json():
         "permission_groups": {
             "guest": {
                 "name": "游客",
+                "is_system": True,  # 系统预设权限组，不可删除
                 "permissions": {
+                    # 基础权限
                     "view_tasks": True,
                     "create_tasks": False,
                     "delete_tasks": False,
                     "start_tasks": True,
                     "stop_tasks": True,
+                    
+                    # 地图权限
                     "view_map": True,
                     "record_path": True,
                     "auto_generate_path": True,
+                    
+                    # 通知权限
                     "view_notifications": True,
                     "mark_notifications_read": False,
+                    
+                    # 用户权限
                     "view_user_details": True,
                     "modify_user_settings": False,
+                    
+                    # 多账号和签到
                     "execute_multi_account": False,
                     "use_attendance": False,
+                    
+                    # 日志权限
                     "view_logs": False,
-                    "clear_logs": False
+                    "clear_logs": False,
+                    
+                    # 新增细分权限
+                    "auto_fill_password": False,  # 自动填充密码
+                    "import_offline": True,
+                    "export_data": True,
+                    "modify_params": True,
                 }
             },
             "user": {
                 "name": "普通用户",
+                "is_system": True,  # 系统预设权限组，不可删除
                 "permissions": {
+                    # 基础权限
                     "view_tasks": True,
                     "create_tasks": True,
                     "delete_tasks": True,
                     "start_tasks": True,
                     "stop_tasks": True,
+                    
+                    # 地图权限
                     "view_map": True,
                     "record_path": True,
                     "auto_generate_path": True,
+                    
+                    # 通知权限
                     "view_notifications": True,
                     "mark_notifications_read": True,
+                    
+                    # 用户权限
                     "view_user_details": True,
                     "modify_user_settings": True,
+                    
+                    # 多账号和签到
                     "execute_multi_account": True,
                     "use_attendance": True,
+                    
+                    # 日志权限
                     "view_logs": False,
                     "clear_logs": False,
-                    "manage_users": False,
-                    "manage_permissions": False,
-                    "reset_user_password": False,
-                    "view_audit_logs": False
+                    
+                    # 新增细分权限
+                    "auto_fill_password": True,  # 自动填充密码
+                    "import_offline": True,
+                    "export_data": True,
+                    "modify_params": True,
+                    "manage_own_sessions": True,  # 管理自己的会话
                 }
             },
             "admin": {
                 "name": "管理员",
+                "is_system": True,  # 系统预设权限组，不可删除
                 "permissions": {
+                    # 基础权限
                     "view_tasks": True,
                     "create_tasks": True,
                     "delete_tasks": True,
                     "start_tasks": True,
                     "stop_tasks": True,
+                    
+                    # 地图权限
                     "view_map": True,
                     "record_path": True,
                     "auto_generate_path": True,
+                    
+                    # 通知权限
                     "view_notifications": True,
                     "mark_notifications_read": True,
+                    
+                    # 用户权限
                     "view_user_details": True,
                     "modify_user_settings": True,
+                    
+                    # 多账号和签到
                     "execute_multi_account": True,
                     "use_attendance": True,
+                    
+                    # 日志权限
                     "view_logs": True,
                     "clear_logs": True,
+                    
+                    # 管理权限
                     "manage_users": True,
                     "manage_permissions": True,
                     "reset_user_password": True,
                     "view_audit_logs": True,
                     "view_all_sessions": True,
-                    "force_logout_users": True
+                    "force_logout_users": True,
+                    
+                    # 新增细分权限
+                    "auto_fill_password": True,
+                    "import_offline": True,
+                    "export_data": True,
+                    "modify_params": True,
+                    "manage_own_sessions": True,
+                    "manage_user_sessions": True,  # 管理其他用户的会话
+                    "view_session_details": True,
                 }
             },
             "super_admin": {
                 "name": "超级管理员",
+                "is_system": True,  # 系统预设权限组，不可删除
                 "permissions": {
+                    # 基础权限
                     "view_tasks": True,
                     "create_tasks": True,
                     "delete_tasks": True,
                     "start_tasks": True,
                     "stop_tasks": True,
+                    
+                    # 地图权限
                     "view_map": True,
                     "record_path": True,
                     "auto_generate_path": True,
+                    
+                    # 通知权限
                     "view_notifications": True,
                     "mark_notifications_read": True,
+                    
+                    # 用户权限
                     "view_user_details": True,
                     "modify_user_settings": True,
+                    
+                    # 多账号和签到
                     "execute_multi_account": True,
                     "use_attendance": True,
+                    
+                    # 日志权限
                     "view_logs": True,
                     "clear_logs": True,
+                    
+                    # 管理权限
                     "manage_users": True,
                     "manage_permissions": True,
                     "reset_user_password": True,
@@ -206,11 +439,23 @@ def _create_permissions_json():
                     "force_logout_users": True,
                     "manage_system": True,
                     "create_permission_groups": True,
-                    "delete_permission_groups": True
+                    "delete_permission_groups": True,
+                    "modify_permission_groups": True,
+                    
+                    # 新增细分权限
+                    "auto_fill_password": True,
+                    "import_offline": True,
+                    "export_data": True,
+                    "modify_params": True,
+                    "manage_own_sessions": True,
+                    "manage_user_sessions": True,
+                    "view_session_details": True,
+                    "god_mode": True,  # 上帝模式：可以查看和销毁所有会话
                 }
             }
         },
-        "user_groups": {}
+        "user_groups": {},
+        "user_custom_permissions": {}  # 用户差分权限存储：{username: {added: [], removed: []}}
     }
     
     with open('permissions.json', 'w', encoding='utf-8') as f:
@@ -219,7 +464,7 @@ def _create_permissions_json():
 
 def _create_default_admin():
     """创建默认的管理员账号"""
-    admin_dir = 'school_accounts/system_auth'
+    admin_dir = 'system_accounts'  # 修正：系统账号独立存储
     if not os.path.exists(admin_dir):
         os.makedirs(admin_dir, exist_ok=True)
     
@@ -252,14 +497,18 @@ def _create_default_admin():
 # 在导入完成后立即初始化系统
 auto_init_system()
 
-# ==============================================================================
-# 原有代码继续
-# ==============================================================================
-
 # 会话存储目录
 SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
 if not os.path.exists(SESSION_STORAGE_DIR):
     os.makedirs(SESSION_STORAGE_DIR)
+
+
+
+def get_session_file_path(session_id: str) -> str:
+    """根据 session_id (UUID) 计算会话文件的完整路径"""
+    session_hash = hashlib.sha256(session_id.encode()).hexdigest()
+    return os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+
 
 # 会话索引文件：存储SHA256哈希和完整UUID的对应关系
 SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
@@ -269,8 +518,8 @@ SCHOOL_ACCOUNTS_DIR = os.path.join(os.path.dirname(__file__), 'school_accounts')
 if not os.path.exists(SCHOOL_ACCOUNTS_DIR):
     os.makedirs(SCHOOL_ACCOUNTS_DIR)
 
-# 系统认证账号目录（与学校账号分离）
-SYSTEM_ACCOUNTS_DIR = os.path.join(SCHOOL_ACCOUNTS_DIR, 'system_auth')
+# 系统认证账号目录（修正：独立存储，不在school_accounts下）
+SYSTEM_ACCOUNTS_DIR = os.path.join(os.path.dirname(__file__), 'system_accounts')
 if not os.path.exists(SYSTEM_ACCOUNTS_DIR):
     os.makedirs(SYSTEM_ACCOUNTS_DIR)
 
@@ -303,32 +552,7 @@ try:
 except ImportError:
     playwright_available = False
 
-# webview仅用于桌面模式（已弃用tkinter）
-try:
-    import webview   # 嵌入式浏览器（桌面模式）
-except ImportError:
-    webview = None
-
-# 这些库是必需的
-try:
-    import requests  # HTTP请求
-    import openpyxl  # xlsx 读写
-    import xlrd      # xls 读取
-    import xlwt      # xls 写入
-    import chardet   # 编码修正
-except ImportError as e:
-    # 如果导入失败，提示用户安装依赖
-    error_msg = (
-        "运行本程序需要 'requests', 'openpyxl', 'chardet', 'xlrd' 和 'xlwt' 库。\n"
-        "请先在终端运行:\n"
-        "pip install requests openpyxl xlrd xlwt chardet Flask flask-cors playwright\n"
-        f"详细错误: {e}"
-    )
-    
-    # 打印到控制台
-    print(f"\n{'='*60}\n错误: {error_msg}\n{'='*60}\n", file=sys.stderr)
-    sys.exit(1)
-
+check_and_import_dependencies()
 
 
 # ==============================================================================
@@ -341,24 +565,16 @@ class AuthSystem:
     def __init__(self):
         self.config = self._load_config()
         self.permissions = self._load_permissions()
-        self.lock = threading.Lock()
+        self.lock = threading.Semaphore(1)
     
     def _load_config(self):
-        """加载配置文件"""
+        """加载配置文件（兼容旧版本，自动补全缺失参数）"""
+        # 首先确保配置文件已创建或更新
+        _create_config_ini()
+        
+        # 然后加载配置
         config = configparser.ConfigParser()
-        if os.path.exists(CONFIG_FILE):
-            config.read(CONFIG_FILE, encoding='utf-8')
-        else:
-            # 创建默认配置
-            config['Admin'] = {'super_admin': 'admin'}
-            config['Guest'] = {'allow_guest_login': 'true'}
-            config['System'] = {
-                'session_expiry_days': '7',
-                'users_dir': 'users',
-                'permissions_file': 'permissions.json'
-            }
-            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-                config.write(f)
+        config.read(CONFIG_FILE, encoding='utf-8')
         return config
     
     def _load_permissions(self):
@@ -379,7 +595,7 @@ class AuthSystem:
     
     def get_user_file_path(self, auth_username):
         """获取用户文件路径"""
-        import hashlib
+        
         user_hash = hashlib.sha256(auth_username.encode()).hexdigest()
         return os.path.join(SYSTEM_ACCOUNTS_DIR, f"{user_hash}.json")
     
@@ -391,7 +607,6 @@ class AuthSystem:
         """加密密码（可选功能）"""
         method = self._get_password_storage_method()
         if method == 'encrypted':
-            import hashlib
             # 使用SHA256加密
             return hashlib.sha256(password.encode()).hexdigest()
         return password  # 明文
@@ -400,7 +615,7 @@ class AuthSystem:
         """验证密码"""
         method = self._get_password_storage_method()
         if method == 'encrypted':
-            import hashlib
+            
             return hashlib.sha256(input_password.encode()).hexdigest() == stored_password
         return input_password == stored_password  # 明文比较
     
@@ -472,7 +687,7 @@ class AuthSystem:
     def generate_2fa_secret(self, auth_username):
         """生成2FA密钥"""
         try:
-            import pyotp
+            
             secret = pyotp.random_base32()
             
             user_file = self.get_user_file_path(auth_username)
@@ -498,7 +713,7 @@ class AuthSystem:
     def enable_2fa(self, auth_username, verification_code):
         """启用2FA（需要验证一次）"""
         try:
-            import pyotp
+            
             user_file = self.get_user_file_path(auth_username)
             if os.path.exists(user_file):
                 with self.lock:
@@ -523,7 +738,7 @@ class AuthSystem:
     def verify_2fa(self, auth_username, verification_code):
         """验证2FA代码"""
         try:
-            import pyotp
+            
             user_file = self.get_user_file_path(auth_username)
             if os.path.exists(user_file):
                 with open(user_file, 'r', encoding='utf-8') as f:
@@ -604,6 +819,11 @@ class AuthSystem:
             with open(user_file, 'r', encoding='utf-8') as f:
                 user_data = json.load(f)
             
+            # 检查用户是否被封禁
+            if user_data.get('banned', False):
+                self._log_login_attempt(auth_username, False, ip_address, user_agent, 'user_banned')
+                return {"success": False, "message": "账号已被封禁，请联系管理员"}
+            
             # 验证密码
             if not self._verify_password(auth_password, user_data.get('password')):
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'wrong_password')
@@ -647,7 +867,12 @@ class AuthSystem:
             }
     
     def check_permission(self, auth_username, permission):
-        """检查用户是否有特定权限"""
+        """检查用户是否有特定权限（支持差分化权限）
+        
+        权限计算顺序：
+        1. 获取用户所属权限组的基础权限
+        2. 应用用户的自定义权限（added/removed）
+        """
         # 获取用户组
         group = self.permissions['user_groups'].get(auth_username, 'guest')
         
@@ -656,9 +881,109 @@ class AuthSystem:
         if auth_username == super_admin:
             group = 'super_admin'
         
+        # 获取组权限（基础权限）
+        group_perms = self.permissions['permission_groups'].get(group, {}).get('permissions', {})
+        has_permission = group_perms.get(permission, False)
+        
+        # 应用用户的差分化权限
+        user_custom = self.permissions.get('user_custom_permissions', {}).get(auth_username, {})
+        added_perms = user_custom.get('added', [])
+        removed_perms = user_custom.get('removed', [])
+        
+        # 如果权限在added列表中，则有权限
+        if permission in added_perms:
+            has_permission = True
+        
+        # 如果权限在removed列表中，则无权限
+        if permission in removed_perms:
+            has_permission = False
+        
+        return has_permission
+    
+    def get_user_permissions(self, auth_username):
+        """获取用户的完整权限列表（包含差分权限）"""
+        # 获取用户组
+        group = self.get_user_group(auth_username)
+        
         # 获取组权限
         group_perms = self.permissions['permission_groups'].get(group, {}).get('permissions', {})
-        return group_perms.get(permission, False)
+        
+        # 复制基础权限
+        user_perms = dict(group_perms)
+        
+        # 应用差分化权限
+        user_custom = self.permissions.get('user_custom_permissions', {}).get(auth_username, {})
+        added_perms = user_custom.get('added', [])
+        removed_perms = user_custom.get('removed', [])
+        
+        # 添加额外权限
+        for perm in added_perms:
+            user_perms[perm] = True
+        
+        # 移除权限
+        for perm in removed_perms:
+            user_perms[perm] = False
+        
+        return user_perms
+    
+    def set_user_custom_permission(self, auth_username, permission, grant):
+        """为用户设置自定义权限（差分化存储）
+        
+        Args:
+            auth_username: 用户名
+            permission: 权限名
+            grant: True=授予权限, False=移除权限
+        """
+        with self.lock:
+            # 初始化user_custom_permissions结构
+            if 'user_custom_permissions' not in self.permissions:
+                self.permissions['user_custom_permissions'] = {}
+            
+            if auth_username not in self.permissions['user_custom_permissions']:
+                self.permissions['user_custom_permissions'][auth_username] = {
+                    'added': [],
+                    'removed': []
+                }
+            
+            user_custom = self.permissions['user_custom_permissions'][auth_username]
+            
+            # 获取用户组的基础权限
+            group = self.get_user_group(auth_username)
+            group_perms = self.permissions['permission_groups'].get(group, {}).get('permissions', {})
+            base_has_permission = group_perms.get(permission, False)
+            
+            # 根据授予/移除状态更新差分列表
+            if grant:
+                # 授予权限
+                if not base_has_permission:
+                    # 基础权限没有，添加到added列表
+                    if permission not in user_custom['added']:
+                        user_custom['added'].append(permission)
+                    # 从removed列表移除（如果存在）
+                    if permission in user_custom['removed']:
+                        user_custom['removed'].remove(permission)
+                else:
+                    # 基础权限已有，从removed列表移除（如果存在）
+                    if permission in user_custom['removed']:
+                        user_custom['removed'].remove(permission)
+            else:
+                # 移除权限
+                if base_has_permission:
+                    # 基础权限有，添加到removed列表
+                    if permission not in user_custom['removed']:
+                        user_custom['removed'].append(permission)
+                    # 从added列表移除（如果存在）
+                    if permission in user_custom['added']:
+                        user_custom['added'].remove(permission)
+                else:
+                    # 基础权限没有，从added列表移除（如果存在）
+                    if permission in user_custom['added']:
+                        user_custom['added'].remove(permission)
+            
+            self._save_permissions()
+            
+            logging.info(f"设置用户 {auth_username} 权限 {permission} = {grant}")
+            return {"success": True, "message": "权限已更新"}
     
     def get_user_group(self, auth_username):
         """获取用户所属组"""
@@ -695,13 +1020,17 @@ class AuthSystem:
             
             self.permissions['permission_groups'][group_name] = {
                 'name': display_name,
+                'is_system': False,  # 用户创建的权限组可以删除
                 'permissions': permissions
             }
             self._save_permissions()
             return {"success": True, "message": "权限组已创建"}
     
     def update_permission_group(self, group_name, permissions):
-        """更新权限组（需要超级管理员权限）"""
+        """更新权限组（需要超级管理员权限）
+        
+        注意：系统预设权限组可以修改，但不能删除
+        """
         with self.lock:
             if group_name not in self.permissions['permission_groups']:
                 return {"success": False, "message": "权限组不存在"}
@@ -709,6 +1038,35 @@ class AuthSystem:
             self.permissions['permission_groups'][group_name]['permissions'] = permissions
             self._save_permissions()
             return {"success": True, "message": "权限组已更新"}
+    
+    def delete_permission_group(self, group_name):
+        """删除权限组（需要超级管理员权限）
+        
+        注意：不允许删除系统预设权限组（guest、user、admin、super_admin）
+        """
+        with self.lock:
+            if group_name not in self.permissions['permission_groups']:
+                return {"success": False, "message": "权限组不存在"}
+            
+            # 检查是否为系统预设权限组
+            group_info = self.permissions['permission_groups'][group_name]
+            if group_info.get('is_system', False):
+                return {"success": False, "message": "不允许删除系统预设权限组"}
+            
+            # 检查是否有用户正在使用此权限组
+            users_count = sum(1 for u, g in self.permissions['user_groups'].items() if g == group_name)
+            if users_count > 0:
+                return {
+                    "success": False, 
+                    "message": f"无法删除：有 {users_count} 个用户正在使用此权限组"
+                }
+            
+            # 删除权限组
+            del self.permissions['permission_groups'][group_name]
+            self._save_permissions()
+            
+            logging.info(f"权限组已删除: {group_name}")
+            return {"success": True, "message": "权限组已删除"}
     
     def list_users(self):
         """列出所有用户"""
@@ -724,7 +1082,9 @@ class AuthSystem:
                         'group': user_data.get('group', 'user'),
                         'created_at': user_data.get('created_at'),
                         'last_login': user_data.get('last_login'),
-                        '2fa_enabled': user_data.get('2fa_enabled', False)
+                        '2fa_enabled': user_data.get('2fa_enabled', False),
+                        'banned': user_data.get('banned', False),
+                        'max_sessions': user_data.get('max_sessions', 1)
                     })
                 except Exception as e:
                     logging.error(f"读取用户文件失败 {filename}: {e}")
@@ -867,6 +1227,76 @@ class AuthSystem:
                 msg = f"已设置最大会话数量为：{max_sessions}个，超出时将自动清理最旧的会话"
             
             return {"success": True, "message": msg}
+    
+    def ban_user(self, auth_username):
+        """封禁用户"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['banned'] = True
+            user_data['banned_at'] = time.time()
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"用户已封禁: {auth_username}")
+            return {"success": True, "message": "用户已封禁"}
+    
+    def unban_user(self, auth_username):
+        """解封用户"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            with open(user_file, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+            
+            user_data['banned'] = False
+            user_data['unbanned_at'] = time.time()
+            
+            with open(user_file, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"用户已解封: {auth_username}")
+            return {"success": True, "message": "用户已解封"}
+    
+    def delete_user(self, auth_username):
+        """删除用户（需要管理员权限）"""
+        with self.lock:
+            # 不允许删除超级管理员
+            super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
+            if auth_username == super_admin:
+                return {"success": False, "message": "不允许删除超级管理员"}
+            
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+            
+            # 删除用户文件
+            try:
+                os.remove(user_file)
+            except Exception as e:
+                logging.error(f"删除用户文件失败: {e}")
+                return {"success": False, "message": f"删除失败: {e}"}
+            
+            # 从权限组映射中移除
+            if auth_username in self.permissions.get('user_groups', {}):
+                del self.permissions['user_groups'][auth_username]
+            
+            # 从差分权限中移除
+            if 'user_custom_permissions' in self.permissions and auth_username in self.permissions['user_custom_permissions']:
+                del self.permissions['user_custom_permissions'][auth_username]
+            
+            self._save_permissions()
+            
+            logging.info(f"用户已删除: {auth_username}")
+            return {"success": True, "message": "用户已删除"}
     
     def get_user_details(self, auth_username):
         """获取用户详细信息"""
@@ -1366,16 +1796,24 @@ class Api:
         # - 任何 addErrandTrack 的提交都会被封装为任务入队；
         # - 后台仅有一个工作线程串行处理，保证“同时只提交一个数据包”；
         # - 调用方在入队后阻塞等待本次提交的结果（带超时）。
-        self._submission_queue: _queue.Queue | None = getattr(self, '_submission_queue', None)
+        # - 调用方在入队后阻塞等待本次提交的结果（带超时）。
+        # 提交串行队列相关的共享状态
+        self._submission_queue: queue.Queue | None = getattr(self, '_submission_queue', None)
         self._submission_worker_thread: threading.Thread | None = getattr(self, '_submission_worker_thread', None)
         self._submission_worker_stop: threading.Event | None = getattr(self, '_submission_worker_stop', None)
         if self._submission_queue is None:
-            self._submission_queue = _queue.Queue()
+            self._submission_queue = queue.Queue()
         if self._submission_worker_stop is None:
             self._submission_worker_stop = threading.Event()
         if (self._submission_worker_thread is None) or (not self._submission_worker_thread.is_alive()):
-            self._submission_worker_thread = threading.Thread(target=self._submission_worker_loop, name="SubmitWorker", daemon=True)
+            self._submission_worker_thread = threading.Thread(
+                target=self._submission_worker_loop,
+                name="SubmissionWorker",
+                daemon=True,
+            )
             self._submission_worker_thread.start()
+
+
 
     def _init_state_variables(self):
         """初始化或重置应用的所有状态变量"""
@@ -1451,6 +1889,7 @@ class Api:
                 if acc.worker_thread and acc.worker_thread.is_alive():
                     acc.stop_event.set()
         self.accounts: dict[str, AccountSession] = {} # {username: AccountSession}
+        # 使用 threading（已被 eventlet monkey_patch 绿化）
         self.multi_run_stop_flag = threading.Event()
         self.multi_run_stop_flag.set()
 
@@ -1483,13 +1922,24 @@ class Api:
             user, passwd = self.args.autologin
             self.log("收到自动登录指令。")
             logging.debug(f"Autologin requested for user={user}")
-            threading.Timer(2.0, lambda: self.window.evaluate_js(f'autoLogin("{user}", "{passwd}")')).start()
+            # 使用 threading.Timer（已被绿化）
+            timer = threading.Timer(2.0, lambda: self.window.evaluate_js(f'autoLogin("{user}", "{passwd}")'))
+            timer.start()
 
     def log(self, message):
-            """将日志消息发送到前端界面显示"""
-            if self.window:
-                escaped_message = json.dumps(message)
-                self.window.evaluate_js(f'logMessage({escaped_message})')
+        """将日志消息通过 WebSocket 发送到前端界面显示"""
+        # 尝试获取当前 Api 实例关联的 session_id
+        session_id = getattr(self, '_web_session_id', None)
+        if session_id and socketio:
+            try:
+                # 使用 session_id 作为房间名，确保消息只发给对应的浏览器标签页
+                socketio.emit('log_message', {'msg': str(message)}, room=session_id)
+            except Exception as e:
+                # 在后台记录发送失败的日志，避免程序崩溃
+                logging.error(f"WebSocket emit log failed for session {session_id[:8]}: {e}")
+        else:
+            # 如果没有 session_id 或 socketio 未初始化，则仅记录到后端日志
+            logging.debug(f"[Log Emission Skipped] Session ID or SocketIO missing. Message: {message}")
 
     def js_log(self, level, message):
         """接收并记录来自JavaScript的日志"""
@@ -1720,11 +2170,16 @@ class Api:
             main_cfg.add_section('Config')
         main_cfg.set('Config', 'LastUser', username)
 
-        # 确保 [System] 分区存在并更新 AmapJsKey
-        if not main_cfg.has_section('System'):
-            main_cfg.add_section('System')
+        # 确保 [Map] 分区存在并更新 amap_js_key（新版）
+        if not main_cfg.has_section('Map'):
+            main_cfg.add_section('Map')
         # 从内存中的全局参数获取最新的 Key
         amap_key_in_memory = self.global_params.get('amap_js_key', '')
+        main_cfg.set('Map', 'amap_js_key', amap_key_in_memory)
+        
+        # 同时保持 [System] AmapJsKey 以兼容旧版本（可选）
+        if not main_cfg.has_section('System'):
+            main_cfg.add_section('System')
         main_cfg.set('System', 'AmapJsKey', amap_key_in_memory)
 
         # 安全写入主 config.ini 文件
@@ -1737,16 +2192,30 @@ class Api:
 
 
     def _load_global_config(self):
-        """从主 config.ini 加载全局配置"""
+        """从主 config.ini 加载全局配置（兼容旧版AmapJsKey和新版Map.amap_js_key）"""
         if not os.path.exists(self.config_path):
             return
         cfg = configparser.ConfigParser()
-        try: # 添加try-except块增加鲁棒性
+        try:
             cfg.read(self.config_path, encoding='utf-8')
-            # 读取系统区的 Key，如果不存在则默认为空字符串
-            # 确保使用 .get() 并提供 fallback，防止 Section 或 Option 不存在时出错
-            self.global_params['amap_js_key'] = cfg.get('System', 'AmapJsKey', fallback="")
-            logging.info(f"Loaded global Amap JS Key: {'*' * len(self.global_params.get('amap_js_key', ''))}") # 使用 .get() 安全访问
+            
+            # 优先读取新版配置 [Map] amap_js_key
+            amap_key = cfg.get('Map', 'amap_js_key', fallback="")
+            
+            # 如果新版配置为空，尝试读取旧版配置 [System] AmapJsKey（兼容性）
+            if not amap_key:
+                amap_key = cfg.get('System', 'AmapJsKey', fallback="")
+                # 如果旧版有值，迁移到新版
+                if amap_key:
+                    if not cfg.has_section('Map'):
+                        cfg.add_section('Map')
+                    cfg.set('Map', 'amap_js_key', amap_key)
+                    with open(self.config_path, 'w', encoding='utf-8') as f:
+                        cfg.write(f)
+                    logging.info("已将AmapJsKey从旧版[System]迁移到新版[Map]")
+            
+            self.global_params['amap_js_key'] = amap_key
+            logging.info(f"Loaded global Amap JS Key: {'*' * len(amap_key) if amap_key else '(empty)'}")
         except Exception as e:
             logging.error(f"加载全局配置文件 {self.config_path} 失败: {e}", exc_info=True)
 
@@ -1882,14 +2351,26 @@ class Api:
             cfg = configparser.ConfigParser()
             if os.path.exists(self.config_path):
                 cfg.read(self.config_path, encoding='utf-8')
+            
+            # 确保 [Map] 分区存在并更新 amap_js_key（新版）
+            if not cfg.has_section('Map'):
+                cfg.add_section('Map')
+            cfg.set('Map', 'amap_js_key', api_key)
+            
+            # 同时保持 [System] AmapJsKey 以兼容旧版本（可选）
             if not cfg.has_section('System'):
                 cfg.add_section('System')
             cfg.set('System', 'AmapJsKey', api_key)
+            
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 cfg.write(f)
             self.log("高德地图API Key已保存。")
             logging.info("Saved new Amap JS Key.")
             return {"success": True}
+        except Exception as e:
+            self.log(f"保存高德地图API Key失败: {e}")
+            logging.error(f"Failed to save Amap JS Key: {e}")
+            return {"success": False, "message": str(e)}
         except Exception as e:
             self.log(f"API Key保存失败: {e}")
             logging.error(f"Failed to save Amap JS Key: {e}", exc_info=True)
@@ -2526,7 +3007,7 @@ class Api:
         task = {
             'client': client,
             'payload': payload_str,
-            'event': threading.Event(),
+            'event': threading.Event(),  # 使用绿化后的 Event
             'response': None
         }
         # 简要日志：提示入队长度，帮助定位排队情况
@@ -2879,7 +3360,7 @@ class Api:
                     # 准备回调通道
                     callback_key = f"single_{idx}_{int(time.time() * 1000)}"
                     path_result: dict = {}
-                    completion_event = threading.Event()
+                    completion_event = threading.Event()  # 使用绿化后的 Event
                     self.path_gen_callbacks[callback_key] = (path_result, completion_event)
 
                     # 将打卡点传给前端；JS会调用 getWalkingPath 并通过 multi_path_generation_callback 回传
@@ -2946,7 +3427,7 @@ class Api:
             
             run_data.target_sequence, run_data.is_in_target_zone = 1, False
             self._first_center_done = False
-            task_finished_event = threading.Event()
+            task_finished_event = threading.Event()  # 使用绿化后的 Event
             self._run_submission_thread(run_data, idx, self.api_client, True, task_finished_event)
             task_finished_event.wait()
 
@@ -3715,7 +4196,7 @@ class Api:
 
                 wb.save(filepath)
             elif ext == ".csv":
-                import csv
+                
                 with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow(headers)
@@ -3958,7 +4439,7 @@ class Api:
                 wb.save(filepath)
 
             elif ext == ".csv":
-                import csv
+                
                 with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
                     writer = csv.writer(f)
                     writer.writerow(headers)
@@ -4617,7 +5098,7 @@ class Api:
                 run_data.target_points = waypoints
 
                 path_result = {}
-                completion_event = threading.Event()
+                completion_event = threading.Event()  # 使用绿化后的 Event
                 self.path_gen_callbacks[acc.username] = (path_result, completion_event)
                 self.window.evaluate_js(f'triggerPathGenerationForPy("{acc.username}", {json.dumps(waypoints)})')
                 
@@ -5067,6 +5548,16 @@ class Api:
         if not self.user_data.id or self.is_multi_account_mode:
             return {"success": False, "message": "仅单账号登录模式可用"}
 
+        # 【修复 Requirement 13】离线模式下直接返回空白通知列表，不读取缓存
+        if self.is_offline_mode:
+            return {
+                "success": True,
+                "data": {
+                    "unreadNumber": 0,
+                    "notices": []
+                }
+            }
+
         try:
             # 1. 获取未读数量
             count_resp = self.api_client.get_unread_notice_count()
@@ -5426,7 +5917,7 @@ except Exception as e:
 
 def check_port_available(host, port):
     """检查端口是否可用"""
-    import socket
+    
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -5465,6 +5956,8 @@ def main():
     logging.info(f"服务器地址: {args.host}:{args.port}")
     logging.info("="*60)
     
+    check_and_import_dependencies()
+
     # 检查Playwright是否可用
     if not playwright_available:
         print("\n" + "="*60)
@@ -5475,34 +5968,45 @@ def main():
         print("="*60 + "\n")
         sys.exit(1)
     
-    # 检查端口是否可用
+    initial_port = args.port
     if not check_port_available(args.host, args.port):
-        print(f"\n{'='*60}")
-        print(f"警告: 端口 {args.port} 不可用或已被占用")
-        print(f"")
-        print(f"建议使用其他端口：")
-        
-        # 尝试查找可用端口
-        alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000]
-        available_ports = []
+        logging.warning(f"指定的端口 {args.port} 不可用或已被占用，尝试自动查找可用端口...")
+        found_port = None
+        # 尝试常用备选端口
+        alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000, 5005, 5050]
         for port in alternative_ports:
+            logging.info(f"尝试端口 {port}...")
             if check_port_available(args.host, port):
-                available_ports.append(port)
-                if len(available_ports) >= 3:
+                found_port = port
+                logging.info(f"找到可用端口: {found_port}")
+                break
+
+        # 如果常用端口都不可用，尝试随机端口 (例如 10000 到 65535 之间)
+        if not found_port:
+            logging.info("常用备选端口均不可用，尝试在 10000-65535 范围内查找随机可用端口...")
+            max_random_tries = 20 # 限制尝试次数
+            for i in range(max_random_tries):
+                random_port = random.randint(10000, 65535)
+                # logging.debug(f"尝试随机端口 {random_port} ({i+1}/{max_random_tries})...") # Debug日志
+                if check_port_available(args.host, random_port):
+                    found_port = random_port
+                    logging.info(f"找到可用随机端口: {found_port}")
                     break
-        
-        if available_ports:
-            print(f"  以下端口可用：")
-            for port in available_ports:
-                print(f"    python main.py --port {port}")
+                # 短暂等待避免CPU占用过高
+                time.sleep(0.01)
+
+
+        # 如果最终仍未找到可用端口
+        if not found_port:
+            logging.error(f"自动查找端口失败。初始端口 {initial_port} 及所有尝试的备选/随机端口均不可用。")
+            print(f"\n{'='*60}")
+            print(f"错误: 无法自动找到可用的网络端口。")
+            print(f"请检查端口 {initial_port} 或其他常用端口是否被占用，或手动指定一个可用端口:")
+            print(f"  python main.py --port <可用端口号>")
+            print(f"{'='*60}\n")
+            sys.exit(1)
         else:
-            print(f"  python main.py --port 8080")
-            print(f"  python main.py --port 3000")
-        
-        print(f"")
-        print(f"或者关闭占用端口 {args.port} 的程序后重试")
-        print(f"{'='*60}\n")
-        sys.exit(1)
+            args.port = found_port # 更新 args 中的端口号为找到的可用端口
     
     # 启动Web服务器模式
     logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
@@ -5556,7 +6060,7 @@ def cleanup_inactive_session(session_id):
                 del web_sessions[session_id]
         
         # 删除会话文件
-        import hashlib
+        
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         if os.path.exists(session_file):
@@ -5674,7 +6178,6 @@ def save_session_state(session_id, api_instance, force_save=False):
     try:
         # 修复Windows路径长度限制：使用SHA256哈希作为文件名
         # 2048位UUID(512字符)会导致Windows文件名过长错误
-        import hashlib
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         
@@ -5802,7 +6305,6 @@ def load_session_state(session_id):
     """从文件加载会话状态"""
     try:
         # 优化：首先从索引文件查找哈希，避免每次都计算
-        import hashlib
         index = _load_session_index()
         
         # 如果索引中存在，直接使用索引中的哈希值
@@ -5949,56 +6451,75 @@ def load_all_sessions(args):
     index = _load_session_index()
     new_index = {}
     
+    successful_sessions = {}
+
     loaded_count = 0
     for filename in os.listdir(SESSION_STORAGE_DIR):
-        # 跳过索引文件本身
         if filename == '_index.json':
             continue
-            
+
         if filename.endswith('.json'):
-            # 从文件中读取完整的session_id，而不是从文件名
+            session_file = os.path.join(SESSION_STORAGE_DIR, filename)
+            session_id = None # 先声明 session_id
+            session_hash = filename[:-5]
             try:
-                session_file = os.path.join(SESSION_STORAGE_DIR, filename)
+                # 尝试读取文件基本信息
                 with open(session_file, 'r', encoding='utf-8') as f:
                     state = json.load(f)
-                
+
                 session_id = state.get('session_id')
                 if not session_id:
-                    logging.warning(f"会话文件 {filename} 缺少session_id，跳过")
-                    continue
-                
-                # 检查会话是否过期（7天）
+                    raise ValueError(f"文件 {filename} 缺少 session_id")
+
+                # 检查会话是否过期
                 last_accessed = state.get('last_accessed', 0)
                 if time.time() - last_accessed > 7 * 24 * 3600:
-                    logging.info(f"清理过期会话: {session_id[:32]}...")
+                    logging.info(f"清理过期会话: {session_id[:8]}... (文件: {filename})")
                     try:
                         os.remove(session_file)
-                    except:
-                        pass
-                    continue
-                
-                # 将会话添加到新索引（重建索引）
-                session_hash = filename[:-5]  # 移除.json后缀
-                new_index[session_id] = session_hash
-                
-                # 重建Api实例
+                    except Exception as remove_err:
+                        logging.error(f"删除过期会话文件 {filename} 失败: {remove_err}")
+                    continue # 过期则跳过，不尝试恢复
+
+                # --- 尝试恢复完整状态 ---
                 api_instance = Api(args)
                 api_instance._session_created_at = state.get('created_at', time.time())
-                
-                # 恢复登录状态
-                if state.get('login_success'):
-                    api_instance.login_success = True
-                    api_instance.user_info = state.get('user_info')
-                
-                # 使用新的恢复函数恢复完整状态
+                # restore_session_to_api_instance 现在包含恢复 login_success 等所有状态
                 restore_session_to_api_instance(api_instance, state)
-                
-                logging.info(f"恢复会话: {session_id[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')}, 任务数: {len(api_instance.all_run_data)})")
-                web_sessions[session_id] = api_instance
+
+                # --- 如果成功恢复 ---
+                logging.info(f"成功恢复会话: {session_id[:8]}... (用户: {api_instance.auth_username if hasattr(api_instance, 'auth_username') else 'Unknown'}, 文件: {filename})")
+                web_sessions[session_id] = api_instance # 加入内存
+                session_activity[session_id] = last_accessed # 恢复活动时间
+                successful_sessions[session_id] = session_hash # 记录成功加载的会话及其哈希
                 loaded_count += 1
-            except Exception as e:
-                logging.error(f"加载会话文件 {filename} 失败: {e}", exc_info=True)
-                continue
+
+            except (json.JSONDecodeError, ValueError, KeyError, TypeError, AttributeError) as e:
+                # 加载或恢复过程中发生任何错误
+                logging.error(f"加载或恢复会话文件 {filename} 失败: {e}", exc_info=False) # 可以关闭 exc_info 避免过多日志
+                logging.warning(f"将删除损坏的/无法恢复的会话文件: {filename}")
+                try:
+                    os.remove(session_file) # 删除损坏的文件
+                except Exception as remove_err:
+                    logging.error(f"删除损坏的会话文件 {filename} 失败: {remove_err}")
+                # 不将失败的会话加入 web_sessions 或 successful_sessions
+                continue # 继续处理下一个文件
+            except Exception as e: # 捕获其他意外错误
+                 logging.error(f"处理会话文件 {filename} 时发生未知错误: {e}", exc_info=True)
+                 try:
+                     os.remove(session_file) # 也尝试删除
+                 except Exception as remove_err:
+                     logging.error(f"删除未知错误的会话文件 {filename} 失败: {remove_err}")
+                 continue
+
+    # 保存重建的索引（只包含成功加载的会话）
+    if successful_sessions:
+        _save_session_index(successful_sessions) # 使用 successful_sessions 作为新的索引内容
+        logging.info(f"会话索引已更新，包含 {len(successful_sessions)} 个有效会话")
+    elif not any(f.endswith('.json') and f != '_index.json' for f in os.listdir(SESSION_STORAGE_DIR)):
+         # 如果 sessions 目录为空 (除了 index)，则清空 index 文件
+         _save_session_index({})
+         logging.info("会话目录为空，已清空会话索引。")
     
     # 保存重建的索引（清理过期条目）
     if new_index:
@@ -6074,29 +6595,78 @@ class ChromeBrowserPool:
     def cleanup(self):
         """清理所有资源"""
         with self.lock:
+            # 首先尝试关闭所有上下文
             for session_id in list(self.contexts.keys()):
                 try:
+                    # 增加日志，明确关闭哪个上下文
+                    logging.debug(f"正在关闭会话 {session_id[:8]}... 的 Chrome 上下文...")
                     self.contexts[session_id]['context'].close()
-                except:
-                    pass
+                    logging.debug(f"会话 {session_id[:8]}... 的上下文已关闭。")
+                except Exception as e:
+                    # 捕获关闭上下文时的错误，记录并继续
+                    logging.warning(f"关闭会话 {session_id[:8]}... 上下文失败: {e}")
             self.contexts.clear()
-            
-            if self.browser:
-                self.browser.close()
-            if self.playwright:
-                self.playwright.stop()
+            logging.debug("所有 Chrome 上下文已清理。")
 
+            # 然后尝试关闭浏览器
+            if self.browser:
+                try:
+                    logging.debug("正在关闭主 Chrome 浏览器实例...")
+                    self.browser.close() # <--- 在这里捕获异常
+                    logging.debug("主 Chrome 浏览器实例已关闭。")
+                except Exception as e:
+                    # 捕获关闭浏览器时的错误，记录日志但允许程序继续退出
+                    logging.warning(f"关闭 Chrome 浏览器实例时发生错误: {e}")
+                    # 注意：这里我们只记录警告，因为程序正在退出
+
+            # 最后停止 Playwright 实例
+            if self.playwright:
+                try:
+                    logging.debug("正在停止 Playwright 实例...")
+                    self.playwright.stop()
+                    logging.debug("Playwright 实例已停止。")
+                except Exception as e:
+                    # 捕获停止 Playwright 时的错误
+                    logging.warning(f"停止 Playwright 实例时发生错误: {e}")
 # 全局Chrome浏览器池
 chrome_pool = None
 
+def _cleanup_playwright():
+    """在程序退出时清理 Playwright 资源"""
+    global chrome_pool
+    if chrome_pool:
+        logging.info("捕获到程序退出信号，正在清理 Playwright 资源...")
+        try:
+            chrome_pool.cleanup()
+            logging.info("Playwright 资源清理完成。")
+        except Exception as e:
+            # 在退出时尽量不抛出新异常，只记录错误
+            logging.error(f"清理 Playwright 资源时发生错误: {e}", exc_info=False)
+    else:
+        logging.debug("Playwright 池未初始化，无需清理。")
+
+
 def start_web_server(args):
     """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
-    global chrome_pool
+    global chrome_pool, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock
     
+
+    # --- 新增：显式初始化/重置内存锁状态 ---
+    web_sessions = {}
+    web_sessions_lock = threading.Lock()
+    session_file_locks = {}
+    session_file_locks_lock = threading.Lock()
+    session_activity = {}
+    session_activity_lock = threading.Lock()
+    logging.info("内存锁和会话状态已重置。")
+    # --- 结束新增 ---
+
     # 初始化Chrome浏览器池
     try:
         chrome_pool = ChromeBrowserPool(headless=getattr(args, 'headless', True))
         logging.info("Chrome浏览器池初始化成功")
+        atexit.register(_cleanup_playwright)
+        logging.info("已注册 Playwright 退出清理函数。")
     except Exception as e:
         logging.error(f"无法初始化Chrome浏览器池: {e}")
         sys.exit(1)
@@ -6105,6 +6675,11 @@ def start_web_server(args):
     app.secret_key = secrets.token_hex(32)  # 生成安全的密钥
     CORS(app)  # 允许跨域请求
     
+    # 声明 socketio 为全局变量
+    global socketio
+    # 初始化 SocketIO
+    socketio = SocketIO(app, async_mode='threading')
+
     # 会话配置
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=7)  # 会话保持7天
@@ -6390,13 +6965,212 @@ def start_web_server(args):
         result = auth_system.update_permission_group(group_name, permissions)
         return jsonify(result)
     
+    @app.route('/auth/admin/delete_group', methods=['POST'])
+    def auth_admin_delete_group():
+        """超级管理员：删除权限组"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        group_name = data.get('group_name', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"})
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"})
+        
+        # 检查是否为超级管理员
+        if api_instance.auth_group != 'super_admin':
+            return jsonify({"success": False, "message": "仅超级管理员可删除权限组"})
+        
+        result = auth_system.delete_permission_group(group_name)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/get_user_permissions', methods=['POST'])
+    def auth_admin_get_user_permissions():
+        """管理员：获取用户的完整权限列表"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        target_username = data.get('username', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_permissions'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        permissions = auth_system.get_user_permissions(target_username)
+        
+        # 获取用户的差分权限信息
+        user_custom = auth_system.permissions.get('user_custom_permissions', {}).get(target_username, {})
+        
+        return jsonify({
+            "success": True,
+            "permissions": permissions,
+            "custom_permissions": {
+                "added": user_custom.get('added', []),
+                "removed": user_custom.get('removed', [])
+            }
+        })
+    
+    @app.route('/auth/admin/set_user_permission', methods=['POST'])
+    def auth_admin_set_user_permission():
+        """管理员：为用户设置自定义权限（差分化存储）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        data = request.get_json() or {}
+        target_username = data.get('username', '')
+        permission = data.get('permission', '')
+        grant = data.get('grant', False)
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_permissions'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        result = auth_system.set_user_custom_permission(target_username, permission, grant)
+        
+        # 记录审计日志
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        auth_system.log_audit(
+            auth_username,
+            'set_user_permission',
+            f'为用户 {target_username} {"授予" if grant else "移除"} 权限: {permission}',
+            ip_address,
+            session_id
+        )
+        
+        return jsonify(result)
+    
     @app.route('/auth/get_config', methods=['GET'])
     def auth_get_config():
         """获取认证配置（用于前端显示）"""
         return jsonify({
             "success": True,
-            "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True)
+            "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True),
+            "guest_auto_fill_password": auth_system.config.getboolean('AutoFill', 'guest_auto_fill_password', fallback=False),
+            "amap_js_key": auth_system.config.get('Map', 'amap_js_key', fallback='')
         })
+    
+    @app.route('/auth/check_uuid_type', methods=['POST'])
+    def auth_check_uuid_type():
+        """
+        检查UUID类型：游客UUID、系统账号UUID或未知UUID
+        用于实现访问控制和会话验证
+        """
+        data = request.json
+        check_uuid = data.get('uuid', '')
+        
+        if not check_uuid:
+            return jsonify({"success": False, "message": "UUID参数缺失"}), 400
+        
+        # UUID格式验证 - 标准UUID v4格式
+    
+        uuid_pattern = re.compile(
+            r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
+            re.IGNORECASE
+        )
+        if not uuid_pattern.match(check_uuid):
+            return jsonify({
+                "success": False,
+                "message": "无效的UUID格式，请使用标准UUID v4格式"
+            }), 400
+        
+        # 检查会话文件是否存在
+        session_file = get_session_file_path(check_uuid)
+        file_exists = os.path.exists(session_file)
+        logging.debug(f"/auth/check_uuid_type: Checking UUID {check_uuid[:8]}..., File path: {session_file}, Exists: {file_exists}") # 新增日志
+
+        if not file_exists:
+            return jsonify({
+                "success": True,
+                "uuid_type": "unknown",
+                "message": "UUID不存在 (文件未找到)" # 更明确的消息
+            })
+        
+        # 读取会话文件判断类型 - 使用文件锁避免并发问题
+        
+        max_retries = 3
+        retry_delay = 0.1
+        
+        import sys
+        # 在循环开始前尝试导入 fcntl (仅非Windows)
+        fcntl = None
+        if sys.platform != 'win32':
+            try:
+                import fcntl
+            except ImportError:
+                logging.warning("fcntl 模块在当前平台不可用，文件锁将被跳过。")
+
+        for attempt in range(max_retries):
+            try:
+                with open(session_file, 'r', encoding='utf-8') as f:
+                    # 加共享锁（读锁），仅当 fcntl 可用时
+                    if fcntl: # <- 添加判断
+                        fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                    try:
+                        session_data = json.load(f)
+                    finally:
+                        # 释放锁，仅当 fcntl 可用时
+                        if fcntl: # <- 添加判断
+                            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+                # 检查是否为游客会话
+                is_guest = session_data.get('is_guest', False)
+                auth_username = session_data.get('auth_username', '')
+                
+                if is_guest or auth_username == 'guest':
+                    return jsonify({
+                        "success": True,
+                        "uuid_type": "guest",
+                        "message": "游客UUID"
+                    })
+                elif auth_username:
+                    return jsonify({
+                        "success": True,
+                        "uuid_type": "system_account",
+                        "auth_username": auth_username,
+                        "message": "系统账号UUID"
+                    })
+                else:
+                    logging.warning(f"/auth/check_uuid_type: 文件 {session_file} 存在但内容无法识别用户类型 (auth_username='{auth_username}', is_guest={is_guest})，返回 unknown") # 新增日志
+                    return jsonify({
+                        "success": True,
+                        "uuid_type": "unknown",
+                        "message": "未知类型UUID (内容无法识别)" # 更明确的消息
+                    })
+            except (IOError, OSError) as e:
+                # 文件锁定或IO错误，重试
+                if attempt < max_retries - 1:
+                    
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    logging.error(f"读取会话文件失败（已重试{max_retries}次）: {e}")
+                    return jsonify({
+                        "success": False,
+                        "message": "读取会话失败，请稍后重试"
+                    }), 500
+            except json.JSONDecodeError as e:
+                logging.error(f"会话文件JSON解析失败: {e}")
+                return jsonify({
+                    "success": False,
+                    "message": "会话数据损坏"
+                }), 500
+            except Exception as e:
+                logging.error(f"检查UUID类型失败: {e}")
+                return jsonify({
+                    "success": False,
+                    "message": f"服务器错误: {str(e)}"
+                }), 500
     
     @app.route('/auth/2fa/generate', methods=['POST'])
     def auth_2fa_generate():
@@ -6432,6 +7206,139 @@ def start_web_server(args):
         
         auth_username = getattr(api_instance, 'auth_username', '')
         result = auth_system.enable_2fa(auth_username, verification_code)
+        return jsonify(result)
+    
+    @app.route('/auth/admin/create_user', methods=['POST'])
+    def auth_admin_create_user():
+        """管理员：创建新用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        new_username = data.get('username', '')
+        password = data.get('password', '')
+        group = data.get('group', 'user')
+        
+        if not new_username or not password:
+            return jsonify({"success": False, "message": "用户名和密码不能为空"})
+        
+        result = auth_system.register_user(new_username, password, group)
+        
+        # 记录审计日志
+        if result.get('success'):
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'create_user',
+                f'创建新用户: {new_username} (组: {group})',
+                ip_address,
+                session_id
+            )
+        
+        return jsonify(result)
+    
+    @app.route('/auth/admin/ban_user', methods=['POST'])
+    def auth_admin_ban_user():
+        """管理员：封禁用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        
+        result = auth_system.ban_user(target_username)
+        
+        # 记录审计日志
+        if result.get('success'):
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'ban_user',
+                f'封禁用户: {target_username}',
+                ip_address,
+                session_id
+            )
+        
+        return jsonify(result)
+    
+    @app.route('/auth/admin/unban_user', methods=['POST'])
+    def auth_admin_unban_user():
+        """管理员：解封用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        
+        result = auth_system.unban_user(target_username)
+        
+        # 记录审计日志
+        if result.get('success'):
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'unban_user',
+                f'解封用户: {target_username}',
+                ip_address,
+                session_id
+            )
+        
+        return jsonify(result)
+    
+    @app.route('/auth/admin/delete_user', methods=['POST'])
+    def auth_admin_delete_user():
+        """管理员：删除用户"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        
+        result = auth_system.delete_user(target_username)
+        
+        # 记录审计日志
+        if result.get('success'):
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'delete_user',
+                f'删除用户: {target_username}',
+                ip_address,
+                session_id
+            )
+        
         return jsonify(result)
     
     @app.route('/auth/admin/login_logs', methods=['GET'])
@@ -6706,6 +7613,109 @@ def start_web_server(args):
         
         return jsonify({"success": True, "message": "会话已删除"})
     
+    @app.route('/auth/admin/all_sessions', methods=['GET'])
+    def auth_admin_all_sessions():
+        """管理员：获取所有活跃会话（上帝模式）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查上帝模式权限
+        if not auth_system.check_permission(auth_username, 'god_mode'):
+            return jsonify({"success": False, "message": "需要上帝模式权限"}), 403
+        
+        # 获取所有会话信息
+        all_sessions = []
+        with web_sessions_lock:
+            for sid, api in web_sessions.items():
+                session_info = {
+                    'session_id': sid,
+                    'session_hash': hashlib.sha256(sid.encode()).hexdigest()[:16],
+                    'auth_username': getattr(api, 'auth_username', 'anonymous'),
+                    'auth_group': getattr(api, 'auth_group', 'guest'),
+                    'is_authenticated': getattr(api, 'is_authenticated', False),
+                    'is_guest': getattr(api, 'is_guest', False),
+                    'created_at': getattr(api, '_session_created_at', 0),
+                    'login_success': getattr(api, 'login_success', False),
+                    'user_info': getattr(api, 'user_info', {}),
+                    'is_current': sid == session_id
+                }
+                all_sessions.append(session_info)
+        
+        return jsonify({
+            "success": True,
+            "sessions": all_sessions,
+            "total_count": len(all_sessions)
+        })
+    
+    @app.route('/auth/admin/destroy_session', methods=['POST'])
+    def auth_admin_destroy_session():
+        """管理员：强制销毁任意会话（上帝模式）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查上帝模式权限
+        if not auth_system.check_permission(auth_username, 'god_mode'):
+            return jsonify({"success": False, "message": "需要上帝模式权限"}), 403
+        
+        data = request.json
+        target_session_id = data.get('session_id', '')
+        
+        if not target_session_id:
+            return jsonify({"success": False, "message": "会话ID缺失"})
+        
+        # 不能销毁自己的会话
+        if target_session_id == session_id:
+            return jsonify({"success": False, "message": "不能销毁当前会话"})
+        
+        # 获取目标会话的用户信息（用于日志）
+        target_username = 'unknown'
+        with web_sessions_lock:
+            if target_session_id in web_sessions:
+                target_api = web_sessions[target_session_id]
+                target_username = getattr(target_api, 'auth_username', 'unknown')
+        
+        # 从用户数据中移除会话关联
+        if target_username != 'unknown' and target_username != 'guest':
+            auth_system.unlink_session_from_user(target_username, target_session_id)
+        
+        # 删除会话文件
+        
+        session_hash = hashlib.sha256(target_session_id.encode()).hexdigest()
+        session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
+        if os.path.exists(session_file):
+            try:
+                os.remove(session_file)
+            except:
+                pass
+        
+        # 从内存中移除
+        with web_sessions_lock:
+            if target_session_id in web_sessions:
+                del web_sessions[target_session_id]
+        
+        # 记录审计日志
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        auth_system.log_audit(
+            auth_username,
+            'destroy_session',
+            f'强制销毁用户 {target_username} 的会话: {target_session_id[:32]}...',
+            ip_address,
+            session_id
+        )
+        
+        return jsonify({
+            "success": True,
+            "message": f"已销毁用户 {target_username} 的会话"
+        })
+    
     @app.route('/auth/admin/audit_logs', methods=['GET'])
     def auth_admin_audit_logs():
         """获取审计日志（管理员）"""
@@ -6737,30 +7747,24 @@ def start_web_server(args):
     
     @app.route('/')
     def index():
-        """首页：自动分配UUID并重定向"""
-        # 生成2048位UUID（512个十六进制字符）
-        session_id = secrets.token_hex(256)  # 256字节 = 2048位 = 512个十六进制字符
-        
-        # 创建新的Api实例并保存到文件
-        with web_sessions_lock:
-            if session_id not in web_sessions:
-                api_instance = Api(args)
-                api_instance._session_created_at = time.time()
-                api_instance._web_session_id = session_id  # 关键：保存session_id到实例
-                web_sessions[session_id] = api_instance
-                save_session_state(session_id, api_instance)
-                logging.info(f"创建新会话 (2048位UUID): {session_id[:32]}...")
-        
-        # 重定向到带UUID的URL（不依赖Flask session）
-        return redirect(url_for('session_view', uuid=session_id))
+        """首页：显示登录页面，等待用户认证后分配UUID"""
+        # 不再自动分配UUID，直接返回HTML让前端处理认证
+        # UUID将在用户完成认证（游客登录或系统账号登录）后由前端或后端API分配
+        return render_template_string(html_content)
     
     @app.route('/uuid=<uuid>')
     def session_view(uuid):
         """会话页面：显示应用界面"""
-        # 验证UUID格式（2048位 = 512个十六进制字符）
-        if not uuid or len(uuid) != 512:
-            logging.warning(f"无效的UUID格式: {uuid[:32] if uuid else 'None'}... (长度: {len(uuid) if uuid else 0}, 期望: 512)")
-            return redirect(url_for('index'))
+        # --- 修复 UUID 验证 ---
+        # 验证UUID格式 - 标准UUID v4格式
+        uuid_pattern = re.compile(
+            r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
+            re.IGNORECASE
+        )
+        if not uuid or not uuid_pattern.match(uuid):
+            # 日志记录修改为记录实际收到的UUID（截断）和失败原因
+            logging.warning(f"无效的UUID格式或不匹配标准格式: {uuid[:40] if uuid else 'None'}...")
+            return redirect(url_for('index')) # 验证失败，重定向到首页
         
         # 确保Api实例存在（从URL或文件恢复会话，不依赖Flask session）
         with web_sessions_lock:
@@ -6785,7 +7789,7 @@ def start_web_server(args):
                     logging.info(f"创建新会话 (2048位UUID): {uuid[:32]}...")
                 
                 web_sessions[uuid] = api_instance
-                save_session_state(uuid, api_instance)
+                # save_session_state(uuid, api_instance)
             else:
                 # 确保已有会话也有_web_session_id属性
                 api_instance = web_sessions[uuid]
@@ -6909,7 +7913,38 @@ def start_web_server(args):
             "chrome_contexts": len(chrome_pool.contexts) if chrome_pool else 0
         })
     
-    # 定期清理过期会话（可选）
+    @socketio.on('connect')
+    def handle_connect():
+        # 前端 JS 连接时会触发
+        # 从请求头或 cookie 中获取 session_id (这取决于前端如何发送)
+        # 假设前端通过 cookie 或查询参数传递 session_id
+        session_id = request.args.get('session_id') or request.cookies.get('session_id_cookie') # 示例，需要前端配合
+        if not session_id:
+            # 或者从 Flask session 获取，如果使用了 Flask-Session
+            session_id = session.get('session_id')
+
+        # 更可靠的方式: 让前端在连接后立即发送一个带有 session_id 的 'join' 事件
+        logging.info(f"WebSocket client connected: {request.sid}")
+        # 注意：此时还不知道是哪个 session_id，等待前端发送 'join' 事件
+
+    @socketio.on('join')
+    def handle_join(data):
+        session_id = data.get('session_id')
+        if session_id:
+            # 将当前 WebSocket 连接加入以 session_id 命名的房间
+            join_room(session_id)
+            logging.info(f"WebSocket client {request.sid} joined room: {session_id[:8]}...")
+            # 可以选择性地在这里发送一条欢迎消息
+            # emit('log_message', {'msg': 'WebSocket connected successfully.'}, room=session_id)
+        else:
+            logging.warning(f"WebSocket client {request.sid} failed to join room: session_id missing.")
+
+    @socketio.on('disconnect')
+    def handle_disconnect():
+        logging.info(f"WebSocket client disconnected: {request.sid}")
+
+
+    # 定期清理过期会话
     def cleanup_sessions():
         """定期清理超过24小时无活动的会话"""
         while True:
@@ -6944,8 +7979,8 @@ def start_web_server(args):
     print(f"{'='*60}\n")
     
     try:
-        logging.info(f"正在启动Web服务器于 http://{args.host}:{args.port}")
-        app.run(host=args.host, port=args.port, debug=False, threaded=True)
+        logging.info(f"正在启动带有 WebSocket 支持的 Web 服务器于 http://{args.host}:{args.port}")
+        socketio.run(app, host=args.host, port=args.port, debug=False)
     except OSError as e:
         if "WinError 10013" in str(e) or "permission" in str(e).lower() or "访问权限" in str(e):
             print(f"\n{'='*60}")
@@ -6978,10 +8013,11 @@ def start_web_server(args):
         logging.error(f"服务器异常: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        # 清理Chrome资源
-        if chrome_pool:
-            logging.info("正在清理Chrome浏览器资源...")
-            chrome_pool.cleanup()
+        # # 清理Chrome资源
+        # if chrome_pool:
+        #     logging.info("正在清理Chrome浏览器资源...")
+        #     chrome_pool.cleanup()
+        pass
 
 
 if __name__ == "__main__":

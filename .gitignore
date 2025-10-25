@@ -2,9 +2,7 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
-sessions/
-# Keep config.ini template but ignore account data directories
-school_accounts/
-logs/
-# Keep permissions.json template
-/.history
+/sessions/
+/school_accounts/
+/logs/
+/.history/
