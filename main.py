@@ -6962,7 +6962,7 @@ def start_web_server(args):
                     session_id
                 )
             
-            save_session_state(session_id, api_instance, force_save=True)
+            # save_session_state(session_id, api_instance, force_save=True)
         
         # 如果是注册用户，返回已保存的会话ID列表
         user_sessions = []
