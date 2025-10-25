@@ -2886,12 +2886,15 @@
 
         const sessions = result.sessions || [];
 
-        if (sessions.length === 0) {
+        // 过滤掉无效会话（session_id 为 null 或 undefined 的会话）
+        const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null');
+
+        if (validSessions.length === 0) {
           listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无会话，请创建新会话</p>';
           return;
         }
 
-        listEl.innerHTML = sessions.map(session => {
+        listEl.innerHTML = validSessions.map(session => {
           const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
           const isCurrent = session.is_current || session.session_id === sessionUUID;
           const sessionHash = session.session_hash || session.session_id.substring(0, 16);
