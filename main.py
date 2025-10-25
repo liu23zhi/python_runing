@@ -502,6 +502,11 @@ SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
 if not os.path.exists(SESSION_STORAGE_DIR):
     os.makedirs(SESSION_STORAGE_DIR)
 
+# Token存储目录
+TOKENS_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'tokens')
+if not os.path.exists(TOKENS_STORAGE_DIR):
+    os.makedirs(TOKENS_STORAGE_DIR)
+
 
 
 def get_session_file_path(session_id: str) -> str:
@@ -1418,6 +1423,278 @@ class AuthSystem:
 
 # 创建全局认证系统实例
 auth_system = AuthSystem()
+
+
+# ==============================================================================
+# Token管理系统 (2048位令牌)
+# ==============================================================================
+
+class TokenManager:
+    """管理用户登录令牌的系统
+    
+    功能:
+    - 生成2048位(256字节)安全令牌
+    - 持久化存储令牌到独立文件
+    - 验证令牌有效性(1小时过期)
+    - 检测多设备登录
+    - 自动刷新活跃用户的令牌
+    """
+    
+    def __init__(self, tokens_dir):
+        self.tokens_dir = tokens_dir
+        self.lock = threading.Lock()
+        if not os.path.exists(tokens_dir):
+            os.makedirs(tokens_dir)
+    
+    def _get_token_file_path(self, username):
+        """获取用户的token文件路径"""
+        # 使用用户名的哈希作为文件名
+        username_hash = hashlib.sha256(username.encode()).hexdigest()
+        return os.path.join(self.tokens_dir, f"{username_hash}_tokens.json")
+    
+    def generate_token(self):
+        """生成2048位(256字节)的安全令牌"""
+        # secrets.token_hex(256) 生成 256字节 = 2048位 的随机令牌
+        return secrets.token_hex(256)
+    
+    def create_token(self, username, session_id):
+        """为用户创建新令牌并存储
+        
+        Args:
+            username: 用户名
+            session_id: 会话UUID
+            
+        Returns:
+            token: 生成的令牌字符串
+        """
+        token = self.generate_token()
+        created_at = time.time()
+        expires_at = created_at + 3600  # 1小时后过期
+        
+        token_data = {
+            'token': token,
+            'session_id': session_id,
+            'created_at': created_at,
+            'expires_at': expires_at,
+            'last_activity': created_at
+        }
+        
+        with self.lock:
+            token_file = self._get_token_file_path(username)
+            
+            # 读取现有tokens
+            all_tokens = {}
+            if os.path.exists(token_file):
+                try:
+                    with open(token_file, 'r', encoding='utf-8') as f:
+                        all_tokens = json.load(f)
+                except:
+                    all_tokens = {}
+            
+            # 添加新token
+            all_tokens[session_id] = token_data
+            
+            # 保存到文件
+            with open(token_file, 'w', encoding='utf-8') as f:
+                json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+        
+        logging.info(f"为用户 {username} 创建新令牌，会话: {session_id[:16]}...")
+        return token
+    
+    def verify_token(self, username, session_id, token):
+        """验证令牌是否有效
+        
+        Args:
+            username: 用户名
+            session_id: 会话UUID
+            token: 要验证的令牌
+            
+        Returns:
+            tuple: (is_valid, reason)
+        """
+        token_file = self._get_token_file_path(username)
+        
+        if not os.path.exists(token_file):
+            return False, "no_token_file"
+        
+        try:
+            with open(token_file, 'r', encoding='utf-8') as f:
+                all_tokens = json.load(f)
+            
+            if session_id not in all_tokens:
+                return False, "session_not_found"
+            
+            token_data = all_tokens[session_id]
+            
+            # 检查令牌是否匹配
+            if token_data['token'] != token:
+                return False, "token_mismatch"
+            
+            # 检查是否过期
+            if time.time() > token_data['expires_at']:
+                return False, "token_expired"
+            
+            return True, "valid"
+            
+        except Exception as e:
+            logging.error(f"验证令牌时出错: {e}")
+            return False, "error"
+    
+    def refresh_token(self, username, session_id):
+        """刷新令牌的过期时间和最后活动时间
+        
+        Args:
+            username: 用户名
+            session_id: 会话UUID
+            
+        Returns:
+            bool: 是否刷新成功
+        """
+        with self.lock:
+            token_file = self._get_token_file_path(username)
+            
+            if not os.path.exists(token_file):
+                return False
+            
+            try:
+                with open(token_file, 'r', encoding='utf-8') as f:
+                    all_tokens = json.load(f)
+                
+                if session_id not in all_tokens:
+                    return False
+                
+                # 更新过期时间和最后活动时间
+                current_time = time.time()
+                all_tokens[session_id]['expires_at'] = current_time + 3600  # 延长1小时
+                all_tokens[session_id]['last_activity'] = current_time
+                
+                # 保存
+                with open(token_file, 'w', encoding='utf-8') as f:
+                    json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+                
+                return True
+                
+            except Exception as e:
+                logging.error(f"刷新令牌时出错: {e}")
+                return False
+    
+    def invalidate_token(self, username, session_id):
+        """使令牌失效（用于登出）
+        
+        Args:
+            username: 用户名
+            session_id: 会话UUID
+        """
+        with self.lock:
+            token_file = self._get_token_file_path(username)
+            
+            if not os.path.exists(token_file):
+                return
+            
+            try:
+                with open(token_file, 'r', encoding='utf-8') as f:
+                    all_tokens = json.load(f)
+                
+                if session_id in all_tokens:
+                    del all_tokens[session_id]
+                    
+                    # 保存
+                    with open(token_file, 'w', encoding='utf-8') as f:
+                        json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+                    
+                    logging.info(f"令牌已失效: {username}, 会话: {session_id[:16]}...")
+            except Exception as e:
+                logging.error(f"使令牌失效时出错: {e}")
+    
+    def get_active_sessions(self, username):
+        """获取用户所有有效的会话
+        
+        Args:
+            username: 用户名
+            
+        Returns:
+            list: 有效会话ID列表
+        """
+        token_file = self._get_token_file_path(username)
+        
+        if not os.path.exists(token_file):
+            return []
+        
+        try:
+            with open(token_file, 'r', encoding='utf-8') as f:
+                all_tokens = json.load(f)
+            
+            current_time = time.time()
+            active_sessions = []
+            
+            for session_id, token_data in all_tokens.items():
+                if current_time <= token_data['expires_at']:
+                    active_sessions.append(session_id)
+            
+            return active_sessions
+            
+        except Exception as e:
+            logging.error(f"获取活跃会话时出错: {e}")
+            return []
+    
+    def cleanup_expired_tokens(self, username):
+        """清理过期的令牌
+        
+        Args:
+            username: 用户名
+        """
+        with self.lock:
+            token_file = self._get_token_file_path(username)
+            
+            if not os.path.exists(token_file):
+                return
+            
+            try:
+                with open(token_file, 'r', encoding='utf-8') as f:
+                    all_tokens = json.load(f)
+                
+                current_time = time.time()
+                valid_tokens = {}
+                
+                for session_id, token_data in all_tokens.items():
+                    if current_time <= token_data['expires_at']:
+                        valid_tokens[session_id] = token_data
+                
+                # 保存清理后的tokens
+                with open(token_file, 'w', encoding='utf-8') as f:
+                    json.dump(valid_tokens, f, indent=2, ensure_ascii=False)
+                
+                removed_count = len(all_tokens) - len(valid_tokens)
+                if removed_count > 0:
+                    logging.info(f"清理了 {removed_count} 个过期令牌: {username}")
+                    
+            except Exception as e:
+                logging.error(f"清理过期令牌时出错: {e}")
+    
+    def detect_multi_device_login(self, username, new_session_id):
+        """检测多设备登录
+        
+        Args:
+            username: 用户名
+            new_session_id: 新的会话ID
+            
+        Returns:
+            list: 需要踢出的旧会话ID列表
+        """
+        active_sessions = self.get_active_sessions(username)
+        
+        # 排除新会话本身
+        old_sessions = [s for s in active_sessions if s != new_session_id]
+        
+        if old_sessions:
+            logging.info(f"检测到多设备登录: {username}, 旧会话数: {len(old_sessions)}")
+        
+        return old_sessions
+
+
+# 创建全局Token管理器实例
+token_manager = TokenManager(TOKENS_STORAGE_DIR)
+
 
 # ==============================================================================
 # 数据结构定义
@@ -5968,9 +6245,13 @@ def cleanup_inactive_session(session_id):
                 if hasattr(api_instance, 'stop_run_flag'):
                     api_instance.stop_run_flag.set()
                 
-                # 如果是注册用户，取消会话关联
+                # 如果是注册用户，取消会话关联并使token失效
                 if hasattr(api_instance, 'auth_username') and not getattr(api_instance, 'is_guest', True):
-                    auth_system.unlink_session_from_user(api_instance.auth_username, session_id)
+                    username = api_instance.auth_username
+                    auth_system.unlink_session_from_user(username, session_id)
+                    # 使token失效
+                    token_manager.invalidate_token(username, session_id)
+                    logging.info(f"已使用户 {username} 的会话 {session_id[:16]}... 的token失效")
                 
                 del web_sessions[session_id]
         
@@ -6701,6 +6982,29 @@ def start_web_server(args):
         else:
             session_limit_info = f"您的账号最多可以同时保持{max_sessions}个活跃会话，超出时将自动清理最旧的会话"
         
+        # ===== 生成和存储Token (仅非游客) =====
+        token = None
+        kicked_sessions = []
+        if not auth_result.get('is_guest', False) and session_id:
+            # 1. 生成2048位token
+            token = token_manager.create_token(auth_username, session_id)
+            
+            # 2. 检测多设备登录
+            kicked_sessions = token_manager.detect_multi_device_login(auth_username, session_id)
+            
+            # 3. 清理过期token
+            token_manager.cleanup_expired_tokens(auth_username)
+            
+            # 4. 踢出旧设备（使token失效并清理会话）
+            if kicked_sessions:
+                for old_sid in kicked_sessions:
+                    # 使token失效
+                    token_manager.invalidate_token(auth_username, old_sid)
+                    # 清理会话
+                    cleanup_session(old_sid, "logged_in_elsewhere")
+                
+                logging.info(f"用户 {auth_username} 从新设备登录，已踢出 {len(kicked_sessions)} 个旧设备")
+        
         response_data = {
             "success": True,
             "auth_username": auth_result['auth_username'],
@@ -6710,14 +7014,41 @@ def start_web_server(args):
             "max_sessions": max_sessions,
             "session_limit_info": session_limit_info,
             "avatar_url": auth_result.get('avatar_url', ''),
-            "theme": auth_result.get('theme', 'light')
+            "theme": auth_result.get('theme', 'light'),
+            "token": token,  # 返回token给前端
+            "kicked_sessions_count": len(kicked_sessions)  # 踢出的设备数量
         }
         
         # 添加清理提示（如果有）
         if cleanup_message:
             response_data['cleanup_message'] = cleanup_message
         
-        return jsonify(response_data)
+        # 添加多设备登录提示
+        if kicked_sessions:
+            response_data['multi_device_warning'] = f"检测到该账号在其他 {len(kicked_sessions)} 个设备上登录，已自动登出旧设备"
+        
+        # 创建响应并设置Cookie (仅非游客)
+        response = jsonify(response_data)
+        if token:
+            # 设置1小时过期的httponly cookie
+            response.set_cookie(
+                'auth_token',
+                value=token,
+                max_age=3600,  # 1小时
+                httponly=True,  # 防止JavaScript访问
+                secure=False,  # 开发环境设为False，生产环境应为True
+                samesite='Lax'
+            )
+            response.set_cookie(
+                'session_id',
+                value=session_id,
+                max_age=3600,
+                httponly=False,  # 前端需要读取
+                secure=False,
+                samesite='Lax'
+            )
+        
+        return response
     
     @app.route('/auth/guest_login', methods=['POST'])
     def auth_guest_login():
@@ -6757,6 +7088,38 @@ def start_web_server(args):
             "group": "guest",
             "is_guest": True
         })
+    
+    @app.route('/auth/logout', methods=['POST'])
+    def auth_logout():
+        """用户登出 - 清除token和cookie"""
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"}), 400
+        
+        # 获取用户信息
+        username = None
+        with web_sessions_lock:
+            if session_id in web_sessions:
+                api_instance = web_sessions[session_id]
+                if hasattr(api_instance, 'auth_username'):
+                    username = api_instance.auth_username
+                    is_guest = getattr(api_instance, 'is_guest', True)
+                    
+                    # 如果是非游客用户，使token失效
+                    if not is_guest and username:
+                        token_manager.invalidate_token(username, session_id)
+                        logging.info(f"用户 {username} 登出，session: {session_id[:16]}...")
+        
+        # 清理会话
+        cleanup_session(session_id, "user_logout")
+        
+        # 创建响应并清除cookies
+        response = jsonify({"success": True, "message": "登出成功"})
+        response.set_cookie('auth_token', '', max_age=0)
+        response.set_cookie('session_id', '', max_age=0)
+        
+        return response
     
     @app.route('/auth/check_permission', methods=['POST'])
     def auth_check_permission():
@@ -7818,6 +8181,37 @@ def start_web_server(args):
         if not session_id:
             return jsonify({"success": False, "message": "缺少会话ID"}), 401
         
+        # ===== Token验证 (仅非游客会话) =====
+        with web_sessions_lock:
+            if session_id in web_sessions:
+                api_instance = web_sessions[session_id]
+                
+                # 如果是已认证的非游客用户，验证token
+                if hasattr(api_instance, 'is_authenticated') and api_instance.is_authenticated:
+                    if hasattr(api_instance, 'is_guest') and not api_instance.is_guest:
+                        username = getattr(api_instance, 'auth_username', None)
+                        
+                        if username:
+                            # 从cookie获取token
+                            token = request.cookies.get('auth_token')
+                            
+                            if not token:
+                                return jsonify({"success": False, "message": "未找到认证令牌，请重新登录", "need_login": True}), 401
+                            
+                            # 验证token
+                            is_valid, reason = token_manager.verify_token(username, session_id, token)
+                            
+                            if not is_valid:
+                                if reason == "token_expired":
+                                    return jsonify({"success": False, "message": "令牌已过期，请重新登录", "need_login": True}), 401
+                                elif reason == "token_mismatch":
+                                    return jsonify({"success": False, "message": "令牌验证失败，可能账号在其他设备登录", "need_login": True, "logged_out_elsewhere": True}), 401
+                                else:
+                                    return jsonify({"success": False, "message": "令牌验证失败，请重新登录", "need_login": True}), 401
+                            
+                            # Token有效，刷新过期时间
+                            token_manager.refresh_token(username, session_id)
+        
         # 更新会话活动时间
         update_session_activity(session_id)
         
@@ -7883,7 +8277,32 @@ def start_web_server(args):
                     save_session_state(session_id, api_instance)
                     logging.debug(f"API '{method}' 调用后自动保存会话状态")
                 
-                return jsonify(result if result is not None else {"success": True})
+                # 返回结果时刷新cookie（如果是非游客）
+                response = jsonify(result if result is not None else {"success": True})
+                
+                # 刷新cookie过期时间（仅非游客）
+                if hasattr(api_instance, 'is_authenticated') and api_instance.is_authenticated:
+                    if hasattr(api_instance, 'is_guest') and not api_instance.is_guest:
+                        token = request.cookies.get('auth_token')
+                        if token:
+                            response.set_cookie(
+                                'auth_token',
+                                value=token,
+                                max_age=3600,
+                                httponly=True,
+                                secure=False,
+                                samesite='Lax'
+                            )
+                            response.set_cookie(
+                                'session_id',
+                                value=session_id,
+                                max_age=3600,
+                                httponly=False,
+                                secure=False,
+                                samesite='Lax'
+                            )
+                
+                return response
             else:
                 return jsonify({"success": False, "message": f"未知的API方法: {method}"}), 404
         except Exception as e:
