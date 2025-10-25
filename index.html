@@ -3195,65 +3195,78 @@
               hideLoadingOverlays(); // 确保隐藏加载遮挡
               // 继续正常初始化流程
             } else if (result.uuid_type === 'system_account') {
-              // 系统账号UUID - 跳转到无UUID网址，要求重新登录（安全措施）
-              console.log('检测到系统账号UUID，跳转到登录页面');
-              showUserFriendlyError('安全验证', '重新登录系统账号进行验证，以确保学校账号的安全', true);
+              // 系统账号UUID - 检查是否有有效的token
+              console.log('检测到系统账号UUID，检查token...');
+              
+              // 检查是否有auth_token cookie
+              const hasAuthToken = document.cookie.split(';').some(cookie => 
+                cookie.trim().startsWith('auth_token=')
+              );
+              
+              if (!hasAuthToken) {
+                // 没有token，需要重新登录
+                console.log('未找到auth_token，要求重新登录');
+                showUserFriendlyError('安全验证', '重新登录系统账号进行验证，以确保学校账号的安全', true);
 
+                // 强制设置背景、居中并禁用输入框
+                const loginContainer = document.getElementById('login-container');
+                const mainApp = document.getElementById('main-app');
+                const multiApp = document.getElementById('multi-account-app');
+                const authContainer = document.getElementById('auth-login-container');
 
+                // 1. 强制隐藏其他容器
+                if (loginContainer) loginContainer.classList.add('hidden');
+                if (mainApp) mainApp.classList.add('hidden');
+                if (multiApp) multiApp.classList.add('hidden');
 
-              // 强制设置背景、居中并禁用输入框y
-              const loginContainer = document.getElementById('login-container');
-              const mainApp = document.getElementById('main-app');
-              const multiApp = document.getElementById('multi-account-app');
-              const authContainer = document.getElementById('auth-login-container');
-
-              // 1. 强制隐藏其他容器
-              if (loginContainer) loginContainer.classList.add('hidden');
-              if (mainApp) mainApp.classList.add('hidden');
-              if (multiApp) multiApp.classList.add('hidden');
-
-              // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
-              if (authContainer) {
-                authContainer.classList.remove('hidden');
-                // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
-                authContainer.classList.remove('h-full', 'w-full');
-                // 添加 fixed 定位覆盖全屏和 flex 居中
-                authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
-                // 确保背景可见（有时需要 z-index，但通常不需要）
-                // authContainer.style.zIndex = '10'; // 一般不需要
-              }
-
-              // 3. 禁用 auth-login-container 内的输入框
-              const inputsToDisable = [
-                'auth-username',
-                'auth-password',
-                'auth-reg-username',
-                'auth-reg-password',
-                'auth-reg-password-confirm'
-              ];
-              inputsToDisable.forEach(inputId => {
-                const inputElement = document.getElementById(inputId);
-                if (inputElement) {
-                  inputElement.disabled = true;
-                  // 可选：添加视觉提示，例如降低透明度
-                  // inputElement.style.opacity = '0.7';
-                  // inputElement.style.cursor = 'not-allowed';
+                // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
+                if (authContainer) {
+                  authContainer.classList.remove('hidden');
+                  // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
+                  authContainer.classList.remove('h-full', 'w-full');
+                  // 添加 fixed 定位覆盖全屏和 flex 居中
+                  authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
+                  // 确保背景可见（有时需要 z-index，但通常不需要）
+                  // authContainer.style.zIndex = '10'; // 一般不需要
                 }
-              });
 
-              if (authContainer) authContainer.classList.remove('hidden');
-              // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
-              Swal.fire({
-                title: '安全验证', // 弹窗标题
-                text: '该会话为系统账号创建的会话，重新登录系统账号进行验证，以确保学校账号的安全', // 弹窗消息
-                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-                confirmButtonText: '确定' // 按钮文字
+                // 3. 禁用 auth-login-container 内的输入框
+                const inputsToDisable = [
+                  'auth-username',
+                  'auth-password',
+                  'auth-reg-username',
+                  'auth-reg-password',
+                  'auth-reg-password-confirm'
+                ];
+                inputsToDisable.forEach(inputId => {
+                  const inputElement = document.getElementById(inputId);
+                  if (inputElement) {
+                    inputElement.disabled = true;
+                    // 可选：添加视觉提示，例如降低透明度
+                    // inputElement.style.opacity = '0.7';
+                    // inputElement.style.cursor = 'not-allowed';
+                  }
+                });
+
+                if (authContainer) authContainer.classList.remove('hidden');
+                // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
+                Swal.fire({
+                  title: '安全验证', // 弹窗标题
+                  text: '该会话为系统账号创建的会话，重新登录系统账号进行验证，以确保学校账号的安全', // 弹窗消息
+                  icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+                  confirmButtonText: '确定' // 按钮文字
               }).then(() => {
                 // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
                 console.log('用户确认弹窗，正在跳转到登录页面...');
                 window.location.href = '/';
               });
               return;
+              } else {
+                // 有token，允许继续访问（后端会验证token有效性）
+                console.log('找到auth_token，允许访问（后端将验证token）');
+                hideLoadingOverlays(); // 确保隐藏加载遮挡
+                // 继续正常初始化流程
+              }
             } else {
               // 未知UUID - 弹窗提示后跳转到无UUID网址
               console.log('检测到未知UUID，准备弹窗提示后跳转到登录页面');
