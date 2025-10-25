@@ -1663,21 +1663,32 @@ class TokenManager:
     """
     
     def __init__(self, tokens_dir):
+        logging.info("="*80)
+        logging.info(f"TokenManager: 初始化令牌管理器，目录: {tokens_dir}")
         self.tokens_dir = tokens_dir
         self.lock = threading.Lock()
         if not os.path.exists(tokens_dir):
             os.makedirs(tokens_dir)
+            logging.info(f"TokenManager: 创建令牌目录: {tokens_dir}")
+        else:
+            logging.debug(f"TokenManager: 令牌目录已存在: {tokens_dir}")
+        logging.info("TokenManager: 初始化完成")
+        logging.info("="*80)
     
     def _get_token_file_path(self, username):
         """获取用户的token文件路径"""
         # 使用用户名的哈希作为文件名
         username_hash = hashlib.sha256(username.encode()).hexdigest()
-        return os.path.join(self.tokens_dir, f"{username_hash}_tokens.json")
+        file_path = os.path.join(self.tokens_dir, f"{username_hash}_tokens.json")
+        logging.debug(f"_get_token_file_path: 用户 {username} 的令牌文件: {file_path}")
+        return file_path
     
     def generate_token(self):
         """生成2048位(256字节)的安全令牌"""
         # secrets.token_hex(256) 生成 256字节 = 2048位 的随机令牌
-        return secrets.token_hex(256)
+        token = secrets.token_hex(256)
+        logging.debug(f"generate_token: 生成新令牌，长度: {len(token)} 字符")
+        return token
     
     def create_token(self, username, session_id):
         """为用户创建新令牌并存储
@@ -1689,6 +1700,7 @@ class TokenManager:
         Returns:
             token: 生成的令牌字符串
         """
+        logging.info(f"create_token: 为用户 {username} 创建令牌，会话: {session_id[:16]}...")
         token = self.generate_token()
         created_at = time.time()
         expires_at = created_at + 3600  # 1小时后过期
