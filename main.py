@@ -6714,8 +6714,8 @@ def start_web_server(args):
         ip_address = request.remote_addr or ''
         user_agent = request.headers.get('User-Agent', '')
         
-        if not session_id:
-            return jsonify({"success": False, "message": "缺少会话ID"})
+        # if not session_id:
+        #     return jsonify({"success": False, "message": "缺少会话ID"})
         
         # 更新会话活动时间
         update_session_activity(session_id)
