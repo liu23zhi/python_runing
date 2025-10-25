@@ -4354,22 +4354,34 @@
     }
 
     async function selectTask(index) {
-      if (isDrawing) { logMessage("请先结束当前路径绘制！"); return; }
-      if (selectedTaskIndex === index) return;
+      logMessage(`[任务选择] 开始选择任务，索引: ${index}`, 'DEBUG');
+      console.log(`[前端-任务选择] 选择任务 #${index}`);
+      
+      if (isDrawing) { 
+        logMessage("请先结束当前路径绘制！", 'WARN'); 
+        return; 
+      }
+      if (selectedTaskIndex === index) {
+        logMessage(`[任务选择] 任务已选中，无需重复选择: ${index}`, 'DEBUG');
+        return;
+      }
 
       const taskListDiv = $('task-list');
       if (selectedTaskIndex > -1 && taskListDiv.children[selectedTaskIndex]) {
         taskListDiv.children[selectedTaskIndex].classList.remove('selected');
+        logMessage(`[任务选择] 取消选中上一个任务: ${selectedTaskIndex}`, 'DEBUG');
       }
       selectedTaskIndex = index;
       if (taskListDiv.children[selectedTaskIndex]) {
         taskListDiv.children[selectedTaskIndex].classList.add('selected');
+        logMessage(`[任务选择] 高亮显示当前任务: ${index}`, 'DEBUG');
       }
 
       // --- BUG修复 ---
       const selectedTask = currentTasks[index];
       // 判断是否为离线导入的任务
       if (selectedTask && selectedTask.info_text === "离线") {
+        logMessage(`[任务选择] 离线模式任务，使用本地数据`, 'INFO');
         // 离线模式: 直接使用前端已有的完整数据，不再请求后端
         currentRunData = selectedTask;
         updateDashboard();
@@ -4378,17 +4390,20 @@
         singleProcessedPoints = 0;
         singleTotalPoints = (currentRunData.run_coords?.length || 0);
         updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+        logMessage(`[任务选择] ✓ 离线任务加载完成，总点数: ${singleTotalPoints}`, 'INFO');
       } else {
         // 在线模式: 按原逻辑从后端获取详情
+        logMessage(`[任务选择] 在线模式，从后端获取任务详情...`, 'INFO');
         const result = await callPythonAPI('get_task_details', index);
         if (result.success) {
+          logMessage(`[任务选择] ✓ 任务详情获取成功`, 'INFO');
           currentRunData = result.details;
           updateDashboard();
 
           drawOnMap();
           setTimeout(() => {
             if (selectedTaskIndex === index) {
-              logMessage("执行二次渲染以修正初始位移...");
+              logMessage("执行二次渲染以修正初始位移...", 'DEBUG');
               drawOnMap();
             }
           }, 100); // 稍微增加延迟以确保渲染稳定
@@ -4397,7 +4412,9 @@
           singleProcessedPoints = 0;
           singleTotalPoints = (currentRunData.run_coords?.length || 0);
           updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+          logMessage(`[任务选择] ✓ 在线任务加载完成，总点数: ${singleTotalPoints}`, 'INFO');
         } else {
+          logMessage(`[任务选择] ✗ 获取任务详情失败: ${result.message}`, 'ERROR');
           logMessage(result.message);
         }
       }

@@ -947,14 +947,18 @@ class AuthSystem:
     
     def register_user(self, auth_username, auth_password, group='user'):
         """注册新用户"""
+        logging.info(f"register_user: 开始注册新用户: {auth_username}, 权限组: {group}")
         print(f"[用户注册] 开始注册新用户: {auth_username}, 权限组: {group}")
         with self.lock:
             user_file = self.get_user_file_path(auth_username)
+            logging.debug(f"register_user: 检查用户文件是否存在: {user_file}")
             if os.path.exists(user_file):
+                logging.warning(f"register_user: 用户名已存在: {auth_username}")
                 print(f"[用户注册] 用户名已存在: {auth_username}")
                 return {"success": False, "message": "用户名已存在"}
             
             # 根据配置选择密码存储方式
+            logging.debug(f"register_user: 加密密码...")
             print(f"[用户注册] 加密密码...")
             stored_password = self._encrypt_password(auth_password)
             
@@ -972,11 +976,13 @@ class AuthSystem:
                 'theme': 'light'  # 主题偏好：light/dark
             }
             
+            logging.debug(f"register_user: 保存用户数据到文件: {user_file}")
             print(f"[用户注册] 保存用户数据到文件...")
             with open(user_file, 'w', encoding='utf-8') as f:
                 json.dump(user_data, f, indent=2, ensure_ascii=False)
             
             # 添加到权限组
+            logging.debug(f"register_user: 添加用户到权限组: {group}")
             self.permissions['user_groups'][auth_username] = group
             self._save_permissions()
             
@@ -986,10 +992,12 @@ class AuthSystem:
     
     def authenticate(self, auth_username, auth_password, ip_address='', user_agent='', two_fa_code=''):
         """验证用户登录（支持2FA和暴力破解防护）"""
+        logging.info(f"authenticate: 开始认证用户: {auth_username}, IP: {ip_address}")
         print(f"[用户认证] 开始认证用户: {auth_username}, IP: {ip_address}")
         with self.lock:
             # 检查是否为游客登录
             if auth_username == 'guest' and self.config.getboolean('Guest', 'allow_guest_login', fallback=True):
+                logging.info(f"authenticate: 游客登录成功: {auth_username}")
                 print(f"[用户认证] 游客登录成功: {auth_username}")
                 self._log_login_attempt(auth_username, True, ip_address, user_agent, 'guest_login')
                 return {
@@ -1000,49 +1008,61 @@ class AuthSystem:
                 }
             
             # 检查暴力破解
+            logging.debug(f"authenticate: 检查暴力破解防护: {auth_username}")
             print(f"[用户认证] 检查暴力破解: {auth_username}")
             is_locked, lock_message = self.check_brute_force(auth_username, ip_address)
             if is_locked:
+                logging.warning(f"authenticate: 用户被锁定（暴力破解防护）: {auth_username}")
                 print(f"[用户认证] 用户被锁定（暴力破解防护）: {auth_username}")
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'brute_force_locked')
                 return {"success": False, "message": lock_message}
             
             user_file = self.get_user_file_path(auth_username)
+            logging.debug(f"authenticate: 检查用户文件: {user_file}")
             if not os.path.exists(user_file):
+                logging.warning(f"authenticate: 用户不存在: {auth_username}")
                 print(f"[用户认证] 用户不存在: {auth_username}")
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'user_not_found')
                 return {"success": False, "message": "用户不存在"}
             
+            logging.debug(f"authenticate: 读取用户数据: {auth_username}")
             print(f"[用户认证] 读取用户数据: {auth_username}")
             with open(user_file, 'r', encoding='utf-8') as f:
                 user_data = json.load(f)
             
             # 检查用户是否被封禁
             if user_data.get('banned', False):
+                logging.warning(f"authenticate: 用户已被封禁: {auth_username}")
                 print(f"[用户认证] 用户已被封禁: {auth_username}")
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'user_banned')
                 return {"success": False, "message": "账号已被封禁，请联系管理员"}
             
             # 验证密码
+            logging.debug(f"authenticate: 验证密码: {auth_username}")
             print(f"[用户认证] 验证密码: {auth_username}")
             if not self._verify_password(auth_password, user_data.get('password')):
+                logging.warning(f"authenticate: 密码错误: {auth_username}")
                 print(f"[用户认证] 密码错误: {auth_username}")
                 self._log_login_attempt(auth_username, False, ip_address, user_agent, 'wrong_password')
                 return {"success": False, "message": "密码错误"}
             
             # 验证2FA（如果启用）
             if user_data.get('2fa_enabled', False):
+                logging.debug(f"authenticate: 检查2FA验证: {auth_username}")
                 print(f"[用户认证] 检查2FA验证: {auth_username}")
                 if not two_fa_code:
+                    logging.info(f"authenticate: 需要2FA验证码: {auth_username}")
                     print(f"[用户认证] 需要2FA验证码: {auth_username}")
                     return {"success": False, "message": "需要2FA验证码", "requires_2fa": True}
                 
                 if not self.verify_2fa(auth_username, two_fa_code):
+                    logging.warning(f"authenticate: 2FA验证失败: {auth_username}")
                     print(f"[用户认证] 2FA验证失败: {auth_username}")
                     self._log_login_attempt(auth_username, False, ip_address, user_agent, '2fa_failed')
                     return {"success": False, "message": "2FA验证码错误"}
             
             # 更新最后登录时间
+            logging.debug(f"authenticate: 更新最后登录时间: {auth_username}")
             print(f"[用户认证] 更新最后登录时间: {auth_username}")
             user_data['last_login'] = time.time()
             if 'session_ids' not in user_data:
@@ -1061,6 +1081,7 @@ class AuthSystem:
             self._log_login_attempt(auth_username, True, ip_address, user_agent, 'success')
             logging.info(f"用户登录: {auth_username} (组: {group}) from {ip_address}")
             print(f"[用户认证] ✓ 用户登录成功: {auth_username} (组: {group})")
+            logging.info(f"authenticate: ✓ 认证成功，返回用户信息")
             return {
                 "success": True,
                 "auth_username": auth_username,
