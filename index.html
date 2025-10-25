@@ -1953,16 +1953,21 @@
         if (result.success) {
           showAuthSuccess('登录成功！');
 
-          // 系统账号登录成功后，显示会话选择面板
+          // 系统账号登录成功后，显示学校账号登录页面（包含会话管理面板）
           if (!result.is_guest) {
             setTimeout(() => {
-              // 打开管理面板并切换到会话管理标签，让用户选择会话
+              // 显示学校账号登录界面，内嵌管理面板会自动显示会话列表
               $('auth-login-container').classList.add('hidden');
-              toggleAdminPanel(true);
-              switchAdminTab('sessions');
+              $('login-container').classList.remove('hidden');
+
+              // 显示管理面板按钮（如果有权限）
+              if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
+                const adminBtn = $('show-admin-panel');
+                if (adminBtn) adminBtn.classList.remove('hidden');
+              }
 
               // 显示提示信息
-              logMessage('[会话选择] 请选择要恢复的会话，或点击"刷新"查看所有会话');
+              logMessage('[会话选择] 请在会话管理标签页选择要恢复的会话，或点击"刷新"查看所有会话');
               logMessage('[提示] 您可以创建新会话或选择现有会话。当前会话数受权限限制。');
             }, 1000);
             return;
