@@ -221,7 +221,7 @@ Device B (New):
 ## File Structure
 
 ```
-python_runing/
+python_running/
 ├── main.py                    # Backend implementation
 │   ├── TokenManager class
 │   ├── /auth/login endpoint
@@ -376,12 +376,12 @@ if __name__ == '__main__':
 - Verify `credentials: 'include'` in fetch requests
 - Check if cookies are blocked by browser settings
 
-### Token验证失败
+### Token 验证失败
 - Check token file exists in `tokens/` directory
 - Verify username hash matches
 - Check system time is synchronized
 
-### Cookies不生效
+### Cookies 不生效
 - Verify `httponly` cookies are enabled in browser
 - Check `samesite` attribute compatibility
 - For production: ensure `secure: True` with HTTPS
