@@ -1953,21 +1953,17 @@
         if (result.success) {
           showAuthSuccess('登录成功！');
 
-          // 系统账号登录成功后，显示学校账号登录页面（包含会话管理面板）
+          // 系统账号登录成功后，显示会话选择面板
           if (!result.is_guest) {
             setTimeout(() => {
-              // 显示学校账号登录界面，内嵌管理面板会自动显示会话列表
+              // 打开管理面板并切换到会话管理标签，让用户选择会话
+              // 传入 skipAuthCheck=true 以跳过学校账号认证检查（用户还未登录学校账号）
               $('auth-login-container').classList.add('hidden');
-              $('login-container').classList.remove('hidden');
-
-              // 显示管理面板按钮（如果有权限）
-              if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
-                const adminBtn = $('show-admin-panel');
-                if (adminBtn) adminBtn.classList.remove('hidden');
-              }
+              toggleAdminPanel(true, true);
+              switchAdminTab('sessions');
 
               // 显示提示信息
-              logMessage('[会话选择] 请在会话管理标签页选择要恢复的会话，或点击"刷新"查看所有会话');
+              logMessage('[会话选择] 请选择要恢复的会话，或点击"刷新"查看所有会话');
               logMessage('[提示] 您可以创建新会话或选择现有会话。当前会话数受权限限制。');
             }, 1000);
             return;
@@ -2224,7 +2220,7 @@
       }
     }
 
-    async function toggleAdminPanel(show) {
+    async function toggleAdminPanel(show, skipAuthCheck = false) {
       const modal = $('admin-panel-modal');
       const usersTab = $('admin-tab-users');
       const groupsTab = $('admin-tab-groups');
@@ -2239,12 +2235,19 @@
         document.body.classList.add('modal-visible'); // 添加 body class
 
         // --- 权限检查 ---
-        const canManageUsers = await checkAdminPermission('manage_users');
-        const canManageGroups = await checkAdminPermission('manage_permissions'); // 通常管理组需要 manage_permissions
-        // 会话管理对所有认证用户（非游客）可见
-        const isAuthenticated = await checkAuthStatus(); // 假设这个函数能正确返回是否登录
-        const isGuest = currentUserData?.is_guest; // 假设 currentUserData 有 is_guest 属性
-        const canManageSessions = isAuthenticated && !isGuest; // 认证用户且非游客
+        // 当 skipAuthCheck=true 时（例如系统登录后打开），跳过学校账号认证检查
+        let canManageUsers = false;
+        let canManageGroups = false;
+        let isAuthenticated = skipAuthCheck; // 如果跳过检查，假定已认证
+        
+        if (!skipAuthCheck) {
+          canManageUsers = await checkAdminPermission('manage_users');
+          canManageGroups = await checkAdminPermission('manage_permissions');
+          isAuthenticated = await checkAuthStatus();
+        }
+        
+        const isGuest = currentUserData?.is_guest;
+        const canManageSessions = isAuthenticated && !isGuest;
 
         // --- 控制标签页可见性 ---
         if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
