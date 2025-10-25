@@ -1490,11 +1490,49 @@
         const response = await fetch(`/api/${method}`, {
           method: 'POST',
           headers: headers,
+          credentials: 'include',  // 重要：包含cookies
           body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
         });
+        
+        // 处理token相关错误
         if (!response.ok) {
+          // 尝试解析JSON错误消息
+          try {
+            const errorData = await response.json();
+            
+            // 处理token过期或验证失败
+            if (errorData.need_login) {
+              let errorMsg = errorData.message || 'API调用失败';
+              
+              // 如果是在其他设备登录导致的
+              if (errorData.logged_out_elsewhere) {
+                showModalAlert(
+                  '您的账号已在其他设备登录，本设备已自动登出。请重新登录。',
+                  '多设备登录检测'
+                );
+                logMessage('[安全提示] 检测到账号在其他设备登录，已自动登出');
+              } else {
+                showModalAlert(errorMsg, '登录失效');
+                logMessage(`[安全提示] ${errorMsg}`);
+              }
+              
+              // 清除本地状态并返回登录页
+              setTimeout(() => {
+                window.location.href = '/';
+              }, 2000);
+              
+              throw new Error(errorMsg);
+            }
+          } catch (e) {
+            // 如果解析失败，抛出原始错误
+            if (e.message && e.message.includes('需要登录')) {
+              throw e;
+            }
+          }
+          
           throw new Error(`API调用失败: ${response.statusText}`);
         }
+        
         return await response.json();
       } else {
         // 桌面模式：直接调用pywebview API
@@ -1986,6 +2024,7 @@
         const response = await fetch('/auth/login', {
           method: 'POST',
           headers: headers,
+          credentials: 'include',  // 重要：包含cookies
           body: JSON.stringify({
             auth_username: username,
             auth_password: password
@@ -1995,7 +2034,26 @@
         const result = await response.json();
 
         if (result.success) {
-          showAuthSuccess('登录成功！');
+          // 显示成功消息
+          let successMessage = '登录成功！';
+          
+          // 如果有多设备登录警告
+          if (result.multi_device_warning) {
+            successMessage += '\n' + result.multi_device_warning;
+          }
+          
+          // 如果有会话清理提示
+          if (result.cleanup_message) {
+            successMessage += '\n' + result.cleanup_message;
+          }
+          
+          showAuthSuccess(successMessage);
+          
+          // 如果有token，记录日志（用于调试）
+          if (result.token) {
+            console.log('Received auth token (stored in cookie)');
+            logMessage('[安全] 登录令牌已生成，有效期1小时');
+          }
 
           // 系统账号登录成功后，显示会话选择器
           if (!result.is_guest) {
@@ -2007,7 +2065,12 @@
               // 显示提示信息
               logMessage('[会话选择] 请选择要进入的会话，或创建新会话');
               logMessage('[提示] 每个会话都是独立的学校账号登录状态');
-            }, 1000);
+              
+              // 如果踢出了其他设备，显示信息
+              if (result.kicked_sessions_count > 0) {
+                logMessage(`[多设备检测] 已自动登出该账号在其他 ${result.kicked_sessions_count} 个设备上的会话`);
+              }
+            }, 1500);
             return;
           }
 
@@ -2951,10 +3014,46 @@
       loadSessionPickerList();
     }
 
-    function selectSessionFromPicker(sessionId) {
-      logMessage(`正在切换到会话 ${sessionId.substring(0, 16)}...`);
-      closeSessionPicker();
-      window.location.href = `/uuid=${sessionId}`;
+    async function selectSessionFromPicker(sessionId) {
+      logMessage(`准备切换到会话 ${sessionId.substring(0, 16)}...`);
+      closeSessionPicker(); // 先关闭选择器
+
+      try {
+        logMessage(`正在为目标会话 ${sessionId.substring(0, 16)} 刷新认证令牌...`);
+
+        // 调用新的后端 API 端点来更新 Cookie
+        const response = await fetch('/auth/switch_session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID // 发送当前页面的 session ID
+          },
+          credentials: 'include', // 确保发送 cookie
+          body: JSON.stringify({
+            target_session_id: sessionId // 告知后端要切换到的目标 session ID
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          logMessage(`令牌更新成功，正在跳转到会话 ${sessionId.substring(0, 16)}...`);
+          // 只有在后端成功更新 Cookie 后才执行跳转
+          window.location.href = `/uuid=${sessionId}`;
+        } else {
+          // 如果后端返回错误（例如当前认证失效）
+          logMessage(`[错误] 无法切换会话: ${result.message}`);
+          showModalAlert(`无法切换会话: ${result.message}`, '切换失败');
+          // 如果后端指示需要重新登录
+          if (result.need_login) {
+            setTimeout(() => { window.location.href = '/'; }, 2000);
+          }
+        }
+      } catch (e) {
+        console.error('切换会话失败:', e);
+        logMessage(`[错误] 切换会话时发生网络或脚本错误: ${e.message}`);
+        showModalAlert(`切换会话时发生网络或脚本错误: ${e.message}`, '切换失败');
+      }
     }
 
     async function createNewSessionFromPicker() {
@@ -3132,65 +3231,12 @@
               hideLoadingOverlays(); // 确保隐藏加载遮挡
               // 继续正常初始化流程
             } else if (result.uuid_type === 'system_account') {
-              // 系统账号UUID - 跳转到无UUID网址，要求重新登录（安全措施）
-              console.log('检测到系统账号UUID，跳转到登录页面');
-              showUserFriendlyError('安全验证', '重新登录系统账号进行验证，以确保学校账号的安全', true);
-
-
-
-              // 强制设置背景、居中并禁用输入框y
-              const loginContainer = document.getElementById('login-container');
-              const mainApp = document.getElementById('main-app');
-              const multiApp = document.getElementById('multi-account-app');
-              const authContainer = document.getElementById('auth-login-container');
-
-              // 1. 强制隐藏其他容器
-              if (loginContainer) loginContainer.classList.add('hidden');
-              if (mainApp) mainApp.classList.add('hidden');
-              if (multiApp) multiApp.classList.add('hidden');
-
-              // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
-              if (authContainer) {
-                authContainer.classList.remove('hidden');
-                // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
-                authContainer.classList.remove('h-full', 'w-full');
-                // 添加 fixed 定位覆盖全屏和 flex 居中
-                authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
-                // 确保背景可见（有时需要 z-index，但通常不需要）
-                // authContainer.style.zIndex = '10'; // 一般不需要
-              }
-
-              // 3. 禁用 auth-login-container 内的输入框
-              const inputsToDisable = [
-                'auth-username',
-                'auth-password',
-                'auth-reg-username',
-                'auth-reg-password',
-                'auth-reg-password-confirm'
-              ];
-              inputsToDisable.forEach(inputId => {
-                const inputElement = document.getElementById(inputId);
-                if (inputElement) {
-                  inputElement.disabled = true;
-                  // 可选：添加视觉提示，例如降低透明度
-                  // inputElement.style.opacity = '0.7';
-                  // inputElement.style.cursor = 'not-allowed';
-                }
-              });
-
-              if (authContainer) authContainer.classList.remove('hidden');
-              // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
-              Swal.fire({
-                title: '安全验证', // 弹窗标题
-                text: '该会话为系统账号创建的会话，重新登录系统账号进行验证，以确保学校账号的安全', // 弹窗消息
-                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-                confirmButtonText: '确定' // 按钮文字
-              }).then(() => {
-                // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-                console.log('用户确认弹窗，正在跳转到登录页面...');
-                window.location.href = '/';
-              });
-              return;
+              // 系统账号UUID - 允许访问，后端会在API调用时验证token
+              // 注意：auth_token是httponly cookie，JavaScript无法访问，所以前端不做检查
+              console.log('检测到系统账号UUID，允许访问（后端将验证token）');
+              hideLoadingOverlays(); // 确保隐藏加载遮挡
+              // 继续正常初始化流程
+              // 如果token无效或过期，后端API调用会返回401错误，前端会处理并重定向到登录
             } else {
               // 未知UUID - 弹窗提示后跳转到无UUID网址
               console.log('检测到未知UUID，准备弹窗提示后跳转到登录页面');
