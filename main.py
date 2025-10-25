@@ -7039,14 +7039,6 @@ def start_web_server(args):
                 secure=False,  # 开发环境设为False，生产环境应为True
                 samesite='Lax'
             )
-            response.set_cookie(
-                'session_id',
-                value=session_id,
-                max_age=3600,
-                httponly=False,  # 前端需要读取
-                secure=False,
-                samesite='Lax'
-            )
         
         return response
     
@@ -7117,7 +7109,6 @@ def start_web_server(args):
         # 创建响应并清除cookies
         response = jsonify({"success": True, "message": "登出成功"})
         response.set_cookie('auth_token', '', max_age=0)
-        response.set_cookie('session_id', '', max_age=0)
         
         return response
     
@@ -8290,14 +8281,6 @@ def start_web_server(args):
                                 value=token,
                                 max_age=3600,
                                 httponly=True,
-                                secure=False,
-                                samesite='Lax'
-                            )
-                            response.set_cookie(
-                                'session_id',
-                                value=session_id,
-                                max_age=3600,
-                                httponly=False,
                                 secure=False,
                                 samesite='Lax'
                             )
