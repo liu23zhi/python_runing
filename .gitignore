@@ -2,8 +2,7 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
-sessions/
-school_accounts/
-logs/
-.history/
-system_accounts/
+/sessions/
+/school_accounts/
+/logs/
+/.history/
