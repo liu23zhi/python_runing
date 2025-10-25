@@ -722,25 +722,38 @@ class AuthSystem:
     """用户认证和权限管理系统"""
     
     def __init__(self):
+        logging.info("="*80)
+        logging.info("初始化AuthSystem认证系统...")
         self.config = self._load_config()
+        logging.info("配置文件已加载")
         self.permissions = self._load_permissions()
+        logging.info("权限配置已加载")
         self.lock = threading.Semaphore(1)
+        logging.info("线程锁已创建")
+        logging.info("AuthSystem初始化完成")
+        logging.info("="*80)
     
     def _load_config(self):
         """加载配置文件（兼容旧版本，自动补全缺失参数）"""
+        logging.debug("_load_config: 开始加载配置文件...")
         # 首先确保配置文件已创建或更新
         _create_config_ini()
         
         # 然后加载配置
         config = configparser.ConfigParser()
         config.read(CONFIG_FILE, encoding='utf-8')
+        logging.debug(f"_load_config: 配置文件加载完成，配置节: {list(config.sections())}")
         return config
     
     def _load_permissions(self):
         """加载权限配置"""
+        logging.debug(f"_load_permissions: 检查权限文件: {PERMISSIONS_FILE}")
         if os.path.exists(PERMISSIONS_FILE):
             with open(PERMISSIONS_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                perms = json.load(f)
+            logging.debug(f"_load_permissions: 权限配置已加载，权限组数: {len(perms.get('permission_groups', {}))}, 用户组数: {len(perms.get('user_groups', {}))}")
+            return perms
+        logging.debug("_load_permissions: 权限文件不存在，使用默认配置")
         return {
             "permission_groups": {},
             "user_groups": {}
@@ -748,38 +761,52 @@ class AuthSystem:
     
     def _save_permissions(self):
         """保存权限配置"""
+        logging.debug("_save_permissions: 保存权限配置到文件...")
         with self.lock:
             with open(PERMISSIONS_FILE, 'w', encoding='utf-8') as f:
                 json.dump(self.permissions, f, indent=2, ensure_ascii=False)
+        logging.debug(f"_save_permissions: 权限配置已保存到 {PERMISSIONS_FILE}")
     
     def get_user_file_path(self, auth_username):
         """获取用户文件路径"""
-        
         user_hash = hashlib.sha256(auth_username.encode()).hexdigest()
-        return os.path.join(SYSTEM_ACCOUNTS_DIR, f"{user_hash}.json")
+        file_path = os.path.join(SYSTEM_ACCOUNTS_DIR, f"{user_hash}.json")
+        logging.debug(f"get_user_file_path: 用户 {auth_username} 的文件路径: {file_path}")
+        return file_path
     
     def _get_password_storage_method(self):
         """获取密码存储方式"""
-        return self.config.get('Security', 'password_storage', fallback='plaintext')
+        method = self.config.get('Security', 'password_storage', fallback='plaintext')
+        logging.debug(f"_get_password_storage_method: 密码存储方式: {method}")
+        return method
     
     def _encrypt_password(self, password):
         """加密密码（可选功能）"""
         method = self._get_password_storage_method()
+        logging.debug(f"_encrypt_password: 使用 {method} 方法加密密码")
         if method == 'encrypted':
             # 使用SHA256加密
-            return hashlib.sha256(password.encode()).hexdigest()
+            encrypted = hashlib.sha256(password.encode()).hexdigest()
+            logging.debug("_encrypt_password: 密码已加密")
+            return encrypted
+        logging.debug("_encrypt_password: 使用明文存储密码")
         return password  # 明文
     
     def _verify_password(self, input_password, stored_password):
         """验证密码"""
         method = self._get_password_storage_method()
+        logging.debug(f"_verify_password: 使用 {method} 方法验证密码")
         if method == 'encrypted':
-            
-            return hashlib.sha256(input_password.encode()).hexdigest() == stored_password
-        return input_password == stored_password  # 明文比较
+            result = hashlib.sha256(input_password.encode()).hexdigest() == stored_password
+            logging.debug(f"_verify_password: 密码验证结果: {'成功' if result else '失败'}")
+            return result
+        result = input_password == stored_password  # 明文比较
+        logging.debug(f"_verify_password: 密码验证结果: {'成功' if result else '失败'}")
+        return result
     
     def _log_login_attempt(self, auth_username, success, ip_address='', user_agent='', reason=''):
         """记录登录尝试"""
+        logging.info(f"登录尝试: 用户={auth_username}, 成功={success}, IP={ip_address}, 原因={reason}")
         log_entry = {
             'timestamp': time.time(),
             'datetime': datetime.datetime.now().isoformat(),
@@ -793,8 +820,9 @@ class AuthSystem:
         try:
             with open(LOGIN_LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            logging.debug(f"_log_login_attempt: 登录日志已写入 {LOGIN_LOG_FILE}")
         except Exception as e:
-            logging.error(f"记录登录日志失败: {e}")
+            logging.error(f"记录登录日志失败: {e}", exc_info=True)
     
     def get_login_history(self, username=None, limit=100):
         """获取登录历史"""
