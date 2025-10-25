@@ -1976,13 +1976,12 @@
       }
 
       try {
-        // 构建请求头，只在 sessionUUID 有效时才添加
+        // 构建请求头
+        // 对于系统登录，如果没有sessionUUID，发送空字符串而不是null
         const headers = {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionUUID || ''
         };
-        if (sessionUUID && sessionUUID !== 'null') {
-          headers['X-Session-ID'] = sessionUUID;
-        }
 
         const response = await fetch('/auth/login', {
           method: 'POST',
@@ -2877,11 +2876,10 @@
       listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
-        // 构建请求头，只在 sessionUUID 有效时才添加
-        const headers = {};
-        if (sessionUUID && sessionUUID !== 'null') {
-          headers['X-Session-ID'] = sessionUUID;
-        }
+        // 构建请求头，发送空字符串而不是null
+        const headers = {
+          'X-Session-ID': sessionUUID || ''
+        };
 
         const response = await fetch('/auth/user/sessions', {
           headers: headers
@@ -2895,8 +2893,8 @@
 
         const sessions = result.sessions || [];
 
-        // 过滤掉无效会话（session_id 为 null 或 undefined 的会话）
-        const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null');
+        // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
+        const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
 
         if (validSessions.length === 0) {
           listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无会话，请创建新会话</p>';
