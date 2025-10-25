@@ -1976,12 +1976,17 @@
       }
 
       try {
+        // 构建请求头，只在 sessionUUID 有效时才添加
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        if (sessionUUID && sessionUUID !== 'null') {
+          headers['X-Session-ID'] = sessionUUID;
+        }
+
         const response = await fetch('/auth/login', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Session-ID': sessionUUID
-          },
+          headers: headers,
           body: JSON.stringify({
             auth_username: username,
             auth_password: password
