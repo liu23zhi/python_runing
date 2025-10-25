@@ -7613,6 +7613,100 @@ def start_web_server(args):
         
         return jsonify({"success": True, "message": "会话已删除"})
     
+    @app.route('/auth/user/create_session_persistence', methods=['POST'])
+    def auth_user_create_session_persistence():
+        """创建会话持久化文件（登录状态下）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 游客也可以创建会话持久化，但不关联到用户账号
+        is_guest = getattr(api_instance, 'is_guest', False)
+        
+        # 获取新的会话ID（从请求中或生成新的）
+        data = request.json or {}
+        new_session_id = data.get('session_id', '')
+        
+        if not new_session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"}), 400
+        
+        # 验证UUID格式
+        import re
+        uuid_pattern = re.compile(
+            r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
+            re.IGNORECASE
+        )
+        if not uuid_pattern.match(new_session_id):
+            return jsonify({"success": False, "message": "无效的UUID格式"}), 400
+        
+        # 创建新的API实例，继承当前用户的认证信息
+        new_api_instance = Api(args)
+        new_api_instance._session_created_at = time.time()
+        new_api_instance._web_session_id = new_session_id
+        
+        # 继承认证信息
+        if hasattr(api_instance, 'auth_username'):
+            new_api_instance.auth_username = api_instance.auth_username
+            new_api_instance.auth_group = getattr(api_instance, 'auth_group', 'guest')
+            new_api_instance.is_guest = is_guest
+            new_api_instance.is_authenticated = True
+        
+        # 继承参数配置
+        if hasattr(api_instance, 'params'):
+            new_api_instance.params = copy.deepcopy(api_instance.params)
+        
+        # 继承User-Agent
+        if hasattr(api_instance, 'device_ua'):
+            new_api_instance.device_ua = api_instance.device_ua
+        
+        # 如果是注册用户（非游客），处理会话关联
+        cleanup_message = ""
+        if not is_guest and auth_username:
+            # 检查并强制执行会话数量限制
+            old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, new_session_id)
+            
+            # 清理旧会话（如果超出限制）
+            for old_sid in old_sessions:
+                cleanup_session(old_sid, "session_limit_exceeded")
+            
+            # 关联新会话到用户账号
+            auth_system.link_session_to_user(auth_username, new_session_id)
+            
+            # 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            audit_details = f'创建新会话持久化文件，会话ID: {new_session_id}'
+            if cleanup_message:
+                audit_details += f'; {cleanup_message}'
+            
+            auth_system.log_audit(
+                auth_username,
+                'create_session_persistence',
+                audit_details,
+                ip_address,
+                session_id
+            )
+        
+        # 保存新会话状态到文件
+        with web_sessions_lock:
+            web_sessions[new_session_id] = new_api_instance
+            save_session_state(new_session_id, new_api_instance, force_save=True)
+        
+        response_data = {
+            "success": True,
+            "message": "会话持久化文件已创建",
+            "session_id": new_session_id
+        }
+        
+        # 添加清理提示（如果有）
+        if cleanup_message:
+            response_data['cleanup_message'] = cleanup_message
+        
+        logging.info(f"用户 {auth_username} 创建新会话持久化: {new_session_id[:32]}...")
+        return jsonify(response_data)
+    
     @app.route('/auth/admin/all_sessions', methods=['GET'])
     def auth_admin_all_sessions():
         """管理员：获取所有活跃会话（上帝模式）"""
