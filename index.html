@@ -1395,7 +1395,7 @@
     let resolveConfirmPromise = null;
 
     function jsShowConfirm(title, message) {
-      // 返回一个 Promise，pywebview 会等待它
+      // 返回一个 Promise
       return new Promise((resolve) => {
         const modal = $('confirm-modal');
         const titleEl = $('confirm-modal-title');
@@ -1459,8 +1459,6 @@
 
 
 
-    let pywebviewApiReady = false;
-
     let AMAP_API_KEY = ""; // 全局API Key变量
     let isRefreshingNotifications = false; // 通知刷新的“in-flight”标志
 
@@ -1469,106 +1467,80 @@
 
     // 离线模式标志
     let IS_OFFLINE = false;
-
-    // Web模式检测和API封装
-    let isWebMode = (typeof window.pywebview === 'undefined');  // 如果没有pywebview，则为Web模式
     let sessionUUID = null;  // 当前会话UUID
 
     // 统一的API调用函数
     async function callPythonAPI(method, ...args) {
       console.log(`[API调用] 方法: ${method}, 参数数量: ${args.length}`);
-      if (isWebMode) {
-        // Web模式：通过HTTP调用后端API，带上会话UUID
-        const headers = {
-          'Content-Type': 'application/json',
-        };
+      // Web模式：通过HTTP调用后端API，带上会话UUID
+      const headers = {
+        'Content-Type': 'application/json',
+      };
 
-        // 添加会话UUID到请求头
-        if (sessionUUID) {
-          headers['X-Session-ID'] = sessionUUID;
-          console.log(`[API调用] 会话ID: ${sessionUUID.substring(0, 16)}...`);
-        }
-
-        console.log(`[API调用] 发送请求到 /api/${method}`);
-        const response = await fetch(`/api/${method}`, {
-          method: 'POST',
-          headers: headers,
-          credentials: 'include',  // 重要：包含cookies
-          body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
-        });
-        
-        // 处理token相关错误
-        if (!response.ok) {
-          console.log(`[API调用] ✗ 响应错误: ${response.status} ${response.statusText}`);
-          // 尝试解析JSON错误消息
-          try {
-            const errorData = await response.json();
-            
-            // 处理token过期或验证失败
-            if (errorData.need_login) {
-              let errorMsg = errorData.message || 'API调用失败';
-              console.log(`[API调用] ✗ 需要重新登录: ${errorMsg}`);
-              
-              // 如果是在其他设备登录导致的
-              if (errorData.logged_out_elsewhere) {
-                showModalAlert(
-                  '您的账号已在其他设备登录，本设备已自动登出。请重新登录。',
-                  '多设备登录检测'
-                );
-                logMessage('[安全提示] 检测到账号在其他设备登录，已自动登出');
-                console.log('[API调用] ✗ 多设备登录检测');
-              } else {
-                showModalAlert(errorMsg, '登录失效');
-                logMessage(`[安全提示] ${errorMsg}`);
-              }
-              
-              // 清除本地状态并返回登录页
-              setTimeout(() => {
-                window.location.href = '/';
-              }, 2000);
-              
-              throw new Error(errorMsg);
-            }
-          } catch (e) {
-            // 如果解析失败，抛出原始错误
-            if (e.message && e.message.includes('需要登录')) {
-              throw e;
-            }
-          }
-          
-          throw new Error(`API调用失败: ${response.statusText}`);
-        }
-        
-        console.log(`[API调用] ✓ 请求成功`);
-        const result = await response.json();
-        console.log(`[API调用] ✓ 返回结果:`, result.success ? '成功' : '失败');
-        return result;
-      } else {
-        console.log('[API调用] 使用桌面模式');
-        // 桌面模式：直接调用pywebview API
-        if (!window.pywebview || !window.pywebview.api) {
-          console.log('[API调用] ✗ pywebview API未就绪');
-          throw new Error('pywebview API未就绪');
-        }
-        const func = window.pywebview.api[method];
-        if (typeof func !== 'function') {
-          console.log(`[API调用] ✗ 未知的API方法: ${method}`);
-          throw new Error(`未知的API方法: ${method}`);
-        }
-        console.log(`[API调用] 调用桌面API: ${method}`);
-        const result = await func(...args);
-        console.log(`[API调用] ✓ 桌面API调用完成`);
-        return result;
+      // 添加会话UUID到请求头
+      if (sessionUUID) {
+        headers['X-Session-ID'] = sessionUUID;
+        console.log(`[API调用] 会话ID: ${sessionUUID.substring(0, 16)}...`);
       }
+
+      console.log(`[API调用] 发送请求到 /api/${method}`);
+      const response = await fetch(`/api/${method}`, {
+        method: 'POST',
+        headers: headers,
+        credentials: 'include',  // 重要：包含cookies
+        body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
+      });
+      
+      // 处理token相关错误
+      if (!response.ok) {
+        console.log(`[API调用] ✗ 响应错误: ${response.status} ${response.statusText}`);
+        // 尝试解析JSON错误消息
+        try {
+          const errorData = await response.json();
+          
+          // 处理token过期或验证失败
+          if (errorData.need_login) {
+            let errorMsg = errorData.message || 'API调用失败';
+            console.log(`[API调用] ✗ 需要重新登录: ${errorMsg}`);
+            
+            // 如果是在其他设备登录导致的
+            if (errorData.logged_out_elsewhere) {
+              showModalAlert(
+                '您的账号已在其他设备登录，本设备已自动登出。请重新登录。',
+                '多设备登录检测'
+              );
+              logMessage('[安全提示] 检测到账号在其他设备登录，已自动登出');
+              console.log('[API调用] ✗ 多设备登录检测');
+            } else {
+              showModalAlert(errorMsg, '登录失效');
+              logMessage(`[安全提示] ${errorMsg}`);
+            }
+            
+            // 清除本地状态并返回登录页
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+            
+            throw new Error(errorMsg);
+          }
+        } catch (e) {
+          // 如果解析失败，抛出原始错误
+          if (e.message && e.message.includes('需要登录')) {
+            throw e;
+          }
+        }
+        
+        throw new Error(`API调用失败: ${response.statusText}`);
+      }
+      
+      console.log(`[API调用] ✓ 请求成功`);
+      const result = await response.json();
+      console.log(`[API调用] ✓ 返回结果:`, result.success ? '成功' : '失败');
+      return result;
     }
 
-    // 在服务器端Chrome中执行JavaScript（Web模式专用）
+    // 在服务器端Chrome中执行JavaScript
     async function executeServerJS(script, ...args) {
-      if (!isWebMode) {
-        // 非Web模式，直接在本地执行
-        return eval(script);
-      }
-
       // Web模式：发送到服务器端Chrome执行
       const headers = {
         'Content-Type': 'application/json',
@@ -1916,11 +1888,6 @@
 
     // 检查并显示认证状态
     async function checkAuthStatus() {
-      if (!isWebMode) {
-        // 桌面模式跳过认证
-        return true;
-      }
-
       // 检查会话是否已认证
       try {
         const result = await callPythonAPI('get_initial_data');
@@ -3494,9 +3461,6 @@
 
       // 将定时刷新移动到 API 就绪后再启动
       setInterval(refreshUserList, 5000);
-
-      // 标记 API 已就绪
-      pywebviewApiReady = true;
     }
 
     let socket = null; // 全局 socket 变量
@@ -3549,41 +3513,9 @@
     }
 
 
-    // 监听pywebview就绪事件（桌面模式）
-    window.addEventListener('pywebviewready', () => {
-      initializeApp().catch(err => {
-        console.error('应用初始化失败:', err);
-        // 立即显示CDN错误（如果有）
-        appInitialized = false;
-        if (cdnErrorCount > 0) {
-          if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
-          const errorOverlay = document.getElementById('cdn-error-overlay');
-          if (errorOverlay) {
-            errorOverlay.style.setProperty('display', 'flex', 'important');
-          }
-        }
-      });
-    });
-
-    // 如果是Web模式，在DOMContentLoaded时初始化
-    if (isWebMode) {
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-          initializeApp().catch(err => {
-            console.error('应用初始化失败:', err);
-            // 立即显示CDN错误（如果有）
-            appInitialized = false;
-            if (cdnErrorCount > 0) {
-              if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
-              const errorOverlay = document.getElementById('cdn-error-overlay');
-              if (errorOverlay) {
-                errorOverlay.style.setProperty('display', 'flex', 'important');
-              }
-            }
-          });
-        });
-      } else {
-        // DOM已加载，直接初始化
+    // Web模式初始化
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
         initializeApp().catch(err => {
           console.error('应用初始化失败:', err);
           // 立即显示CDN错误（如果有）
@@ -3596,7 +3528,21 @@
             }
           }
         });
-      }
+      });
+    } else {
+      // DOM已加载，直接初始化
+      initializeApp().catch(err => {
+        console.error('应用初始化失败:', err);
+        // 立即显示CDN错误（如果有）
+        appInitialized = false;
+        if (cdnErrorCount > 0) {
+          if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
+          const errorOverlay = document.getElementById('cdn-error-overlay');
+          if (errorOverlay) {
+            errorOverlay.style.setProperty('display', 'flex', 'important');
+          }
+        }
+      });
     }
 
     function enhanceMapInteraction(mapInstance) {
@@ -3914,11 +3860,7 @@
       $('main-app').classList.remove('hidden');
       $('main-app').classList.add('grid');
 
-      if (window?.pywebview?.api?.enter_single_account_mode) {
-        callPythonAPI('enter_single_account_mode');
-      } else {
-        logMessage("已进入单账号模式。");
-      }
+      logMessage("已进入单账号模式。");
 
       // 1. 确保旧实例被销毁
       destroySingleMap();
@@ -4189,9 +4131,6 @@
     // 用 get_initial_data 兼容刷新用户列表
     async function refreshUserList() {
       try {
-        // API 未就绪时直接返回，避免 TypeError
-        if (!pywebviewApiReady || !window.pywebview?.api?.get_initial_data) return;
-
         const initialData = await callPythonAPI('get_initial_data');
         // 兼容结构 { users: [...], lastUser: '...' }
         const users = Array.isArray(initialData?.users) ? initialData.users : [];
@@ -4329,10 +4268,6 @@
 
     async function onLogout() {
       await callPythonAPI('logout');
-      // 统一提示：退出单账号模式（由后端发出）
-      if (window?.pywebview?.api?.exit_single_account_mode) {
-        await callPythonAPI('exit_single_account_mode');
-      }
       currentSessionUA = "";
       resetUI();
     }
