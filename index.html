@@ -2151,14 +2151,16 @@
         if (adminPanelBtnMulti) adminPanelBtnMulti.addEventListener('click', () => toggleAdminPanel(true));
 
         // 管理面板标签
+        // 注意: 由于存在两组管理面板（登录页内嵌 + 模态框），$() 会返回第一个匹配元素
+        // 第一个匹配的是登录页内嵌面板，所以这里应该调用 switchAdminTab_inline
         const adminUsersTab = $('admin-tab-users');
         const adminGroupsTab = $('admin-tab-groups');
         const adminSessionsTab = $('admin-tab-sessions');
-        if (adminUsersTab) adminUsersTab.addEventListener('click', () => switchAdminTab('users'));
-        if (adminGroupsTab) adminGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
-        if (adminSessionsTab) adminSessionsTab.addEventListener('click', () => switchAdminTab('sessions'));
+        if (adminUsersTab) adminUsersTab.addEventListener('click', () => switchAdminTab_inline('users'));
+        if (adminGroupsTab) adminGroupsTab.addEventListener('click', () => switchAdminTab_inline('groups'));
+        if (adminSessionsTab) adminSessionsTab.addEventListener('click', () => switchAdminTab_inline('sessions'));
 
-        // 刷新按钮
+        // 模态框刷新按钮（这些ID是唯一的，只存在于模态框中）
         const refreshUsersBtn = $('admin-refresh-users');
         const refreshGroupsBtn = $('admin-refresh-groups');
         const refreshSessionsBtn = $('admin-refresh-sessions');
@@ -2182,14 +2184,6 @@
           toggleAdminPanel(true);
           switchAdminTab('sessions');
         });
-
-        // 内嵌登录页面管理面板标签 (新增)
-        const adminUsersTabInline = $('admin-tab-users');
-        const adminGroupsTabInline = $('admin-tab-groups');
-        const adminSessionsTabInline = $('admin-tab-sessions');
-        if (adminUsersTabInline) adminUsersTabInline.addEventListener('click', () => switchAdminTab_inline('users'));
-        if (adminGroupsTabInline) adminGroupsTabInline.addEventListener('click', () => switchAdminTab_inline('groups'));
-        if (adminSessionsTabInline) adminSessionsTabInline.addEventListener('click', () => switchAdminTab_inline('sessions'));
 
         // 内嵌登录页面管理面板刷新按钮 (新增)
         const refreshUsersInlineBtn = $('admin-refresh-users-inline');
@@ -2265,13 +2259,14 @@
 
     // 处理嵌入式登录页面面板的标签切换
     function switchAdminTab_inline(tab) {
-      // 获取嵌入式面板内的标签按钮和内容面板的引用 (使用新的 ID)
-      const usersTab = $('admin-tab-users-inline');
-      const groupsTab = $('admin-tab-groups-inline');
-      const sessionsTab = $('admin-tab-sessions-inline');
-      const usersPanel = $('admin-users-panel-inline');
-      const groupsPanel = $('admin-groups-panel-inline');
-      const sessionsPanel = $('admin-sessions-panel-inline');
+      // 获取嵌入式面板内的标签按钮和内容面板的引用
+      // 注意：登录页面内嵌的管理面板与主面板共用相同的ID（没有-inline后缀）
+      const usersTab = $('admin-tab-users');
+      const groupsTab = $('admin-tab-groups');
+      const sessionsTab = $('admin-tab-sessions');
+      const usersPanel = $('admin-users-panel');
+      const groupsPanel = $('admin-groups-panel');
+      const sessionsPanel = $('admin-sessions-panel');
 
       // 防御性编程：检查元素是否存在，避免 null 错误
       if (!usersTab || !groupsTab || !sessionsTab || !usersPanel || !groupsPanel || !sessionsPanel) {
