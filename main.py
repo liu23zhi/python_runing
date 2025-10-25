@@ -1,5 +1,6 @@
 # 跑步助手
 
+# ===== 导入标准库 =====
 import argparse
 import bisect
 import collections
@@ -14,7 +15,7 @@ import logging
 import math
 import os
 import pickle
-import queue as _queue  # 保留用户原有的别名
+import queue
 import random
 import re
 import secrets
@@ -27,6 +28,10 @@ import urllib
 import uuid
 import warnings
 import atexit
+
+# ===== Flask-SocketIO（必须在 monkey_patch 之后）=====
+from flask_socketio import SocketIO, emit, join_room, leave_room
+
 
 # ==============================================================================
 #  2. 依赖检查与第三方库导入
@@ -560,7 +565,7 @@ class AuthSystem:
     def __init__(self):
         self.config = self._load_config()
         self.permissions = self._load_permissions()
-        self.lock = threading.Lock()
+        self.lock = threading.Semaphore(1)
     
     def _load_config(self):
         """加载配置文件（兼容旧版本，自动补全缺失参数）"""
@@ -1791,16 +1796,24 @@ class Api:
         # - 任何 addErrandTrack 的提交都会被封装为任务入队；
         # - 后台仅有一个工作线程串行处理，保证“同时只提交一个数据包”；
         # - 调用方在入队后阻塞等待本次提交的结果（带超时）。
-        self._submission_queue: _queue.Queue | None = getattr(self, '_submission_queue', None)
+        # - 调用方在入队后阻塞等待本次提交的结果（带超时）。
+        # 提交串行队列相关的共享状态
+        self._submission_queue: queue.Queue | None = getattr(self, '_submission_queue', None)
         self._submission_worker_thread: threading.Thread | None = getattr(self, '_submission_worker_thread', None)
         self._submission_worker_stop: threading.Event | None = getattr(self, '_submission_worker_stop', None)
         if self._submission_queue is None:
-            self._submission_queue = _queue.Queue()
+            self._submission_queue = queue.Queue()
         if self._submission_worker_stop is None:
             self._submission_worker_stop = threading.Event()
         if (self._submission_worker_thread is None) or (not self._submission_worker_thread.is_alive()):
-            self._submission_worker_thread = threading.Thread(target=self._submission_worker_loop, name="SubmitWorker", daemon=True)
+            self._submission_worker_thread = threading.Thread(
+                target=self._submission_worker_loop,
+                name="SubmissionWorker",
+                daemon=True,
+            )
             self._submission_worker_thread.start()
+
+
 
     def _init_state_variables(self):
         """初始化或重置应用的所有状态变量"""
@@ -1876,6 +1889,7 @@ class Api:
                 if acc.worker_thread and acc.worker_thread.is_alive():
                     acc.stop_event.set()
         self.accounts: dict[str, AccountSession] = {} # {username: AccountSession}
+        # 使用 threading（已被 eventlet monkey_patch 绿化）
         self.multi_run_stop_flag = threading.Event()
         self.multi_run_stop_flag.set()
 
@@ -1908,13 +1922,24 @@ class Api:
             user, passwd = self.args.autologin
             self.log("收到自动登录指令。")
             logging.debug(f"Autologin requested for user={user}")
-            threading.Timer(2.0, lambda: self.window.evaluate_js(f'autoLogin("{user}", "{passwd}")')).start()
+            # 使用 threading.Timer（已被绿化）
+            timer = threading.Timer(2.0, lambda: self.window.evaluate_js(f'autoLogin("{user}", "{passwd}")'))
+            timer.start()
 
     def log(self, message):
-            """将日志消息发送到前端界面显示"""
-            if self.window:
-                escaped_message = json.dumps(message)
-                self.window.evaluate_js(f'logMessage({escaped_message})')
+        """将日志消息通过 WebSocket 发送到前端界面显示"""
+        # 尝试获取当前 Api 实例关联的 session_id
+        session_id = getattr(self, '_web_session_id', None)
+        if session_id and socketio:
+            try:
+                # 使用 session_id 作为房间名，确保消息只发给对应的浏览器标签页
+                socketio.emit('log_message', {'msg': str(message)}, room=session_id)
+            except Exception as e:
+                # 在后台记录发送失败的日志，避免程序崩溃
+                logging.error(f"WebSocket emit log failed for session {session_id[:8]}: {e}")
+        else:
+            # 如果没有 session_id 或 socketio 未初始化，则仅记录到后端日志
+            logging.debug(f"[Log Emission Skipped] Session ID or SocketIO missing. Message: {message}")
 
     def js_log(self, level, message):
         """接收并记录来自JavaScript的日志"""
@@ -2982,7 +3007,7 @@ class Api:
         task = {
             'client': client,
             'payload': payload_str,
-            'event': threading.Event(),
+            'event': threading.Event(),  # 使用绿化后的 Event
             'response': None
         }
         # 简要日志：提示入队长度，帮助定位排队情况
@@ -3335,7 +3360,7 @@ class Api:
                     # 准备回调通道
                     callback_key = f"single_{idx}_{int(time.time() * 1000)}"
                     path_result: dict = {}
-                    completion_event = threading.Event()
+                    completion_event = threading.Event()  # 使用绿化后的 Event
                     self.path_gen_callbacks[callback_key] = (path_result, completion_event)
 
                     # 将打卡点传给前端；JS会调用 getWalkingPath 并通过 multi_path_generation_callback 回传
@@ -3402,7 +3427,7 @@ class Api:
             
             run_data.target_sequence, run_data.is_in_target_zone = 1, False
             self._first_center_done = False
-            task_finished_event = threading.Event()
+            task_finished_event = threading.Event()  # 使用绿化后的 Event
             self._run_submission_thread(run_data, idx, self.api_client, True, task_finished_event)
             task_finished_event.wait()
 
@@ -5073,7 +5098,7 @@ class Api:
                 run_data.target_points = waypoints
 
                 path_result = {}
-                completion_event = threading.Event()
+                completion_event = threading.Event()  # 使用绿化后的 Event
                 self.path_gen_callbacks[acc.username] = (path_result, completion_event)
                 self.window.evaluate_js(f'triggerPathGenerationForPy("{acc.username}", {json.dumps(waypoints)})')
                 
@@ -6591,7 +6616,7 @@ class ChromeBrowserPool:
                     logging.debug("主 Chrome 浏览器实例已关闭。")
                 except Exception as e:
                     # 捕获关闭浏览器时的错误，记录日志但允许程序继续退出
-                    logging.warning(f"关闭 Chrome 浏览器实例时发生错误 (可忽略): {e}")
+                    logging.warning(f"关闭 Chrome 浏览器实例时发生错误: {e}")
                     # 注意：这里我们只记录警告，因为程序正在退出
 
             # 最后停止 Playwright 实例
@@ -6602,7 +6627,7 @@ class ChromeBrowserPool:
                     logging.debug("Playwright 实例已停止。")
                 except Exception as e:
                     # 捕获停止 Playwright 时的错误
-                    logging.warning(f"停止 Playwright 实例时发生错误 (可忽略): {e}")
+                    logging.warning(f"停止 Playwright 实例时发生错误: {e}")
 # 全局Chrome浏览器池
 chrome_pool = None
 
@@ -6650,6 +6675,11 @@ def start_web_server(args):
     app.secret_key = secrets.token_hex(32)  # 生成安全的密钥
     CORS(app)  # 允许跨域请求
     
+    # 声明 socketio 为全局变量
+    global socketio
+    # 初始化 SocketIO
+    socketio = SocketIO(app, async_mode='threading')
+
     # 会话配置
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(days=7)  # 会话保持7天
@@ -7883,6 +7913,37 @@ def start_web_server(args):
             "chrome_contexts": len(chrome_pool.contexts) if chrome_pool else 0
         })
     
+    @socketio.on('connect')
+    def handle_connect():
+        # 前端 JS 连接时会触发
+        # 从请求头或 cookie 中获取 session_id (这取决于前端如何发送)
+        # 假设前端通过 cookie 或查询参数传递 session_id
+        session_id = request.args.get('session_id') or request.cookies.get('session_id_cookie') # 示例，需要前端配合
+        if not session_id:
+            # 或者从 Flask session 获取，如果使用了 Flask-Session
+            session_id = session.get('session_id')
+
+        # 更可靠的方式: 让前端在连接后立即发送一个带有 session_id 的 'join' 事件
+        logging.info(f"WebSocket client connected: {request.sid}")
+        # 注意：此时还不知道是哪个 session_id，等待前端发送 'join' 事件
+
+    @socketio.on('join')
+    def handle_join(data):
+        session_id = data.get('session_id')
+        if session_id:
+            # 将当前 WebSocket 连接加入以 session_id 命名的房间
+            join_room(session_id)
+            logging.info(f"WebSocket client {request.sid} joined room: {session_id[:8]}...")
+            # 可以选择性地在这里发送一条欢迎消息
+            # emit('log_message', {'msg': 'WebSocket connected successfully.'}, room=session_id)
+        else:
+            logging.warning(f"WebSocket client {request.sid} failed to join room: session_id missing.")
+
+    @socketio.on('disconnect')
+    def handle_disconnect():
+        logging.info(f"WebSocket client disconnected: {request.sid}")
+
+
     # 定期清理过期会话
     def cleanup_sessions():
         """定期清理超过24小时无活动的会话"""
@@ -7918,8 +7979,8 @@ def start_web_server(args):
     print(f"{'='*60}\n")
     
     try:
-        logging.info(f"正在启动Web服务器于 http://{args.host}:{args.port}")
-        app.run(host=args.host, port=args.port, debug=False, threaded=True)
+        logging.info(f"正在启动带有 WebSocket 支持的 Web 服务器于 http://{args.host}:{args.port}")
+        socketio.run(app, host=args.host, port=args.port, debug=False)
     except OSError as e:
         if "WinError 10013" in str(e) or "permission" in str(e).lower() or "访问权限" in str(e):
             print(f"\n{'='*60}")

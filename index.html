@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
+
+<script src="https://cdn.socket.io/4.7.4/socket.io.min.js" onerror="handleCdnError('Socket.IO')"></script> <meta charset="UTF-8">
 <title>跑步助手</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- 注意: Tailwind CDN 仅用于开发/演示。生产环境建议安装为 PostCSS 插件 -->
@@ -28,6 +29,7 @@ tailwind.config = {
 </script>
 <style>
 /* CSS变量定义 */
+
 
 
 /* 默认主题（无需额外 class） */
@@ -416,7 +418,7 @@ body.modal-visible .amap-copyright {
 
   <div class="flex flex-col items-center justify-center p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50">
     <div class="text-center w-full max-w-sm space-y-6">
-      <button id="show-admin-panel-login" class="btn btn-primary !py-2 !px-6 hidden" title="管理面板">
+      <button id="show-admin-panel-login" class="btn btn-primary !py-2 !px-6" title="管理面板">
         <span>🔧 管理面板</span>
       </button>
     </div>
@@ -1900,26 +1902,72 @@ if (typeof window !== 'undefined') {
 // 管理面板功能
 // ====================
 
-function toggleAdminPanel(show) {
+// 在 toggleAdminPanel 函数内部或之前添加一个辅助函数来检查权限
+async function checkAdminPermission(permissionName) {
+  try {
+    // 假设 sessionUUID 存储了当前会话ID
+    const response = await fetch('/auth/check_permission', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionUUID
+      },
+      body: JSON.stringify({ permission: permissionName })
+    });
+    const result = await response.json();
+    return result.success && result.has_permission;
+  } catch (e) {
+    console.error(`检查权限 ${permissionName} 失败:`, e);
+    return false;
+  }
+}
+
+async function toggleAdminPanel(show) {
   const modal = $('admin-panel-modal');
+  const usersTab = $('admin-tab-users');
+  const groupsTab = $('admin-tab-groups');
+  const sessionsTab = $('admin-tab-sessions'); // 会话标签页按钮
+  const usersPanel = $('admin-users-panel');
+  const groupsPanel = $('admin-groups-panel');
+  const sessionsPanel = $('admin-sessions-panel'); // 会话标签页内容
+
   if (show) {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    loadAdminUsers();
+    document.body.classList.add('modal-visible'); // 添加 body class
+
+    // --- 权限检查 ---
+    const canManageUsers = await checkAdminPermission('manage_users');
+    const canManageGroups = await checkAdminPermission('manage_permissions'); // 通常管理组需要 manage_permissions
+    // 会话管理对所有认证用户（非游客）可见
+    const isAuthenticated = await checkAuthStatus(); // 假设这个函数能正确返回是否登录
+    const isGuest = currentUserData?.is_guest; // 假设 currentUserData 有 is_guest 属性
+    const canManageSessions = isAuthenticated && !isGuest; // 认证用户且非游客
+
+    // --- 控制标签页可见性 ---
+    if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
+    if (groupsTab) groupsTab.style.display = canManageGroups ? 'block' : 'none';
+    // 会话管理标签页始终可见 (因为所有用户都能打开面板了)
+    if (sessionsTab) sessionsTab.style.display = 'block';
+
+    // --- 默认显示会话标签页 ---
+    switchAdminTab('sessions'); // 将会话设为默认打开的标签
+
   } else {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+    document.body.classList.remove('modal-visible'); // 移除 body class
   }
 }
 
 function switchAdminTab(tab) {
   const usersTab = $('admin-tab-users');
   const groupsTab = $('admin-tab-groups');
-  const sessionsTab = $('admin-tab-sessions');
+  const sessionsTab = $('admin-tab-sessions'); // 会话标签页按钮
   const usersPanel = $('admin-users-panel');
   const groupsPanel = $('admin-groups-panel');
-  const sessionsPanel = $('admin-sessions-panel');
-  
+  const sessionsPanel = $('admin-sessions-panel'); // 会话标签页内容
+
   // 重置所有标签样式
   [usersTab, groupsTab, sessionsTab].forEach(t => {
     if (t) {
@@ -1927,28 +1975,34 @@ function switchAdminTab(tab) {
       t.classList.add('text-slate-400', 'border-transparent');
     }
   });
-  
+
   // 隐藏所有面板
   [usersPanel, groupsPanel, sessionsPanel].forEach(p => {
     if (p) p.classList.add('hidden');
   });
-  
+
   // 显示选中的标签和面板
-  if (tab === 'users') {
+  if (tab === 'users' && usersTab && usersTab.style.display !== 'none') { // 检查标签是否可见
     usersTab.classList.add('text-sky-600', 'border-sky-600');
     usersTab.classList.remove('text-slate-400', 'border-transparent');
-    usersPanel.classList.remove('hidden');
+    if (usersPanel) usersPanel.classList.remove('hidden');
     loadAdminUsers();
-  } else if (tab === 'groups') {
+  } else if (tab === 'groups' && groupsTab && groupsTab.style.display !== 'none') { // 检查标签是否可见
     groupsTab.classList.add('text-sky-600', 'border-sky-600');
     groupsTab.classList.remove('text-slate-400', 'border-transparent');
-    groupsPanel.classList.remove('hidden');
+    if (groupsPanel) groupsPanel.classList.remove('hidden');
     loadAdminGroups();
-  } else if (tab === 'sessions') {
+  } else if (tab === 'sessions' && sessionsTab) { // 会话标签页始终处理
     sessionsTab.classList.add('text-sky-600', 'border-sky-600');
     sessionsTab.classList.remove('text-slate-400', 'border-transparent');
-    sessionsPanel.classList.remove('hidden');
-    loadAdminSessions();
+    if (sessionsPanel) sessionsPanel.classList.remove('hidden');
+    loadAdminSessions(); // 加载会话数据
+  } else if (sessionsTab) {
+      // 如果尝试切换到隐藏的标签，则回退到会话标签
+      sessionsTab.classList.add('text-sky-600', 'border-sky-600');
+      sessionsTab.classList.remove('text-slate-400', 'border-transparent');
+      if (sessionsPanel) sessionsPanel.classList.remove('hidden');
+      loadAdminSessions();
   }
 }
 
@@ -2298,12 +2352,61 @@ async function initializeApp() {
           }, 2000);
           return;
         } else {
-          // 未知UUID - 跳转到无UUID网址
-          console.log('检测到未知UUID，跳转到登录页面');
-          showUserFriendlyError('会话不存在', '该会话已过期或不存在，请重新登录', true);
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 2000);
+          // 未知UUID - 弹窗提示后跳转到无UUID网址
+          console.log('检测到未知UUID，准备弹窗提示后跳转到登录页面');
+
+          // 强制设置背景、居中并禁用输入框y
+          const loginContainer = document.getElementById('login-container');
+          const mainApp = document.getElementById('main-app');
+          const multiApp = document.getElementById('multi-account-app');
+          const authContainer = document.getElementById('auth-login-container');
+
+          // 1. 强制隐藏其他容器
+          if (loginContainer) loginContainer.classList.add('hidden');
+          if (mainApp) mainApp.classList.add('hidden');
+          if (multiApp) multiApp.classList.add('hidden');
+
+          // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
+          if (authContainer) {
+              authContainer.classList.remove('hidden');
+              // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
+              authContainer.classList.remove('h-full', 'w-full');
+              // 添加 fixed 定位覆盖全屏和 flex 居中
+              authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
+              // 确保背景可见（有时需要 z-index，但通常不需要）
+              // authContainer.style.zIndex = '10'; // 一般不需要
+          }
+
+          // 3. 禁用 auth-login-container 内的输入框
+          const inputsToDisable = [
+              'auth-username',
+              'auth-password',
+              'auth-reg-username',
+              'auth-reg-password',
+              'auth-reg-password-confirm'
+          ];
+          inputsToDisable.forEach(inputId => {
+              const inputElement = document.getElementById(inputId);
+              if (inputElement) {
+                  inputElement.disabled = true;
+                  // 可选：添加视觉提示，例如降低透明度
+                  // inputElement.style.opacity = '0.7';
+                  // inputElement.style.cursor = 'not-allowed';
+              }
+          });
+
+          if (authContainer) authContainer.classList.remove('hidden');
+          // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
+          Swal.fire({
+              title: '会话不存在', // 弹窗标题
+              text: '该会话已过期或不存在，请重新登录', // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+          }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              console.log('用户确认弹窗，正在跳转到登录页面...');
+              window.location.href = '/';
+          });
           return;
         }
       } catch (e) {
@@ -2342,6 +2445,11 @@ async function initializeApp() {
   // 标记应用已成功初始化
   appInitialized = true;
   
+  // 在确认 sessionUUID 有效且应用准备就绪后
+  if (sessionUUID /* && 应用准备就绪的条件 */ ) {
+    connectWebSocket();
+  }
+
   // 取消CDN错误定时器（如果还在等待）
   if (cdnErrorTimer) {
     clearTimeout(cdnErrorTimer);
@@ -2428,8 +2536,11 @@ async function initializeApp() {
     
     // 显示管理面板按钮（如果有权限）
     if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
-      const adminBtn = $('show-admin-panel-login');
-      if (adminBtn) adminBtn.classList.remove('hidden');
+      const adminBtnLogin = $('show-admin-panel-login'); // 获取登录页的管理按钮
+      if (adminBtnLogin) {
+          adminBtnLogin.classList.remove('hidden'); // 移除 hidden 类使其可见
+      }
+      // 多账号界面的按钮保持原逻辑（如果需要的话，虽然这里主要处理 login-container）
       const adminBtnMulti = $('show-admin-panel-multi');
       if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
     }
@@ -2481,6 +2592,56 @@ async function initializeApp() {
   // 标记 API 已就绪
   pywebviewApiReady = true;
 }
+
+let socket = null; // 全局 socket 变量
+
+// 在 initializeApp 成功获取到 sessionUUID 后或者认证成功后调用此函数
+function connectWebSocket() {
+    if (socket && socket.connected) {
+        console.log("WebSocket already connected.");
+        return;
+    }
+
+    if (!sessionUUID) {
+        console.warn("Cannot connect WebSocket: sessionUUID is missing.");
+        return;
+    }
+
+    console.log("Attempting to connect WebSocket...");
+    // 连接到服务器，注意路径可能需要根据实际部署调整
+    socket = io({
+        // 如果部署在非根路径，可能需要指定 path
+        // path: '/socket.io'
+    });
+
+    socket.on('connect', () => {
+        console.log('WebSocket connected successfully. SID:', socket.id);
+        // 连接成功后，立即发送 'join' 事件，告知服务器 session_id
+        socket.emit('join', { session_id: sessionUUID });
+        // (可选) 在日志窗口显示连接成功
+        // logMessage("[System] WebSocket 已连接");
+    });
+
+    socket.on('disconnect', (reason) => {
+        console.warn('WebSocket disconnected:', reason);
+        logMessage("[System] WebSocket 连接已断开，尝试重连...");
+        // Socket.IO 会自动尝试重连
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('WebSocket connection error:', error);
+        logMessage("[System-Error] WebSocket 连接失败");
+    });
+
+    // 监听服务器发送的 'log_message' 事件
+    socket.on('log_message', (data) => {
+        if (data && data.msg) {
+            // 调用现有的 logMessage 函数显示日志
+            logMessage(data.msg);
+        }
+    });
+}
+
 
 // 监听pywebview就绪事件（桌面模式）
 window.addEventListener('pywebviewready', () => {
@@ -4649,29 +4810,25 @@ function updateSingleProgress(pct, text, extra) {
 
 
 function logMessage(msg) {
-  // 新增：自动生成并添加 [HH:MM:SS] 格式的时间戳
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2, '0');
-  const m = String(now.getMinutes()).padStart(2, '0');
-  const s = String(now.getSeconds()).padStart(2, '0');
-  const timestamp = `[${h}:${m}:${s}]`;
+    // 保留原有的时间戳添加逻辑，因为后端 Api.log 未添加时间戳
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `[${h}:${m}:${s}]`;
+    const line = typeof msg === 'string' ? msg : JSON.stringify(msg);
+    const fullMessage = `${timestamp} ${line}`; // 组合时间戳和消息
 
-  const line = typeof msg === 'string' ? msg : JSON.stringify(msg);
-  // 将时间戳与原始消息组合
-  const fullMessage = `${timestamp} ${line}`;
-
-  const single = $('log-text');
-  const multi = $('multi-log-text');
-  if (single) {
-    // 使用带有时间戳的完整消息
-    single.value += fullMessage + '\n';
-    single.scrollTop = single.scrollHeight;
-  }
-  if (multi) {
-    // 使用带有时间戳的完整消息
-    multi.value += fullMessage + '\n';
-    multi.scrollTop = multi.scrollHeight;
-  }
+    const single = $('log-text');
+    const multi = $('multi-log-text');
+    if (single) {
+        single.value += fullMessage + '\n'; // 使用组合后的消息
+        single.scrollTop = single.scrollHeight;
+    }
+    if (multi) {
+        multi.value += fullMessage + '\n'; // 使用组合后的消息
+        multi.scrollTop = multi.scrollHeight;
+    }
 }
 
 
