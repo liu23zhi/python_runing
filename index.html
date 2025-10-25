@@ -5668,7 +5668,7 @@
     }
 
 
-    function logMessage(msg) {
+    function logMessage(msg, level = 'INFO') {
       // 保留原有的时间戳添加逻辑，因为后端 Api.log 未添加时间戳
       const now = new Date();
       const h = String(now.getHours()).padStart(2, '0');
@@ -5680,6 +5680,28 @@
 
       // 输出到浏览器控制台（用于调试）
       console.log(`[前端日志] ${fullMessage}`);
+
+      // 发送到后端日志系统
+      try {
+        fetch('/api/log_frontend', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            level: level,
+            message: line,
+            timestamp: timestamp,
+            source: 'index.html'
+          })
+        }).catch(err => {
+          // 静默失败，避免日志发送失败影响主功能
+          console.error('[日志发送失败]', err);
+        });
+      } catch (e) {
+        console.error('[日志发送异常]', e);
+      }
 
       const single = $('log-text');
       const multi = $('multi-log-text');

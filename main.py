@@ -35,6 +35,67 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask import make_response
 
 # ==============================================================================
+#  1. 日志系统配置
+# ==============================================================================
+
+def setup_logging():
+    """
+    配置详细的日志系统
+    - 所有日志输出到控制台
+    - 所有日志保存到 logs/zx-slm-tool.log
+    - 使用中文友好的格式
+    """
+    # 确保logs目录存在
+    log_dir = 'logs'
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+        print(f"[日志系统] 创建日志目录: {log_dir}")
+    
+    log_file = os.path.join(log_dir, 'zx-slm-tool.log')
+    
+    # 创建logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    
+    # 清除已有的处理器
+    logger.handlers.clear()
+    
+    # 日志格式 - 包含详细信息
+    log_format = logging.Formatter(
+        '%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] [%(funcName)s] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # 控制台处理器 - 输出到标准输出
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.DEBUG)
+    console_handler.setFormatter(log_format)
+    logger.addHandler(console_handler)
+    
+    # 文件处理器 - 保存到文件
+    file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(log_format)
+    logger.addHandler(file_handler)
+    
+    # 记录日志系统启动
+    logging.info("="*80)
+    logging.info("日志系统初始化完成")
+    logging.info(f"日志文件: {log_file}")
+    logging.info(f"日志级别: DEBUG (所有级别)")
+    logging.info("="*80)
+    
+    return logger
+
+# 初始化日志系统
+try:
+    setup_logging()
+except Exception as e:
+    print(f"[错误] 日志系统初始化失败: {e}")
+    import traceback
+    traceback.print_exc()
+
+# ==============================================================================
 #  2. 依赖检查与第三方库导入
 # ==============================================================================
 
@@ -68,6 +129,8 @@ def check_and_import_dependencies():
     如果缺少任何库，将打印详细的安装说明并终止程序运行。
     如果所有库都存在，则将它们导入到全局命名空间中。
     """
+    logging.info("="*80)
+    logging.info("开始检查并导入第三方库...")
     print("[依赖检查] 开始检查并导入第三方库...")
     
     # 声明我们将要修改全局变量
@@ -78,55 +141,77 @@ def check_and_import_dependencies():
         # --- 尝试导入所有必需的第三方库 ---
         
         # 1. Flask Web 框架
+        logging.info("正在导入 Flask Web 框架...")
         print("[依赖检查] 正在导入 Flask Web 框架...")
         from flask import (
             Flask, render_template_string, session, 
             redirect, url_for, request, jsonify
         )
+        logging.info("✓ Flask 导入成功")
         print("[依赖检查] ✓ Flask 导入成功")
         
         # 2. Flask 跨域支持
+        logging.info("正在导入 Flask CORS...")
         print("[依赖检查] 正在导入 Flask CORS...")
         from flask_cors import CORS
+        logging.info("✓ Flask CORS 导入成功")
         print("[依赖检查] ✓ Flask CORS 导入成功")
         
         # 3. 一次性密码 (TOTP/HOTP)
+        logging.info("正在导入 pyotp...")
         print("[依赖检查] 正在导入 pyotp...")
         import pyotp
+        logging.info("✓ pyotp 导入成功")
         print("[依赖检查] ✓ pyotp 导入成功")
         
         # 4. HTTP 请求库
+        logging.info("正在导入 requests...")
         print("[依赖检查] 正在导入 requests...")
         import requests
+        logging.info("✓ requests 导入成功")
         print("[依赖检查] ✓ requests 导入成功")
         
         # 5. Excel (xlsx) 读写
+        logging.info("正在导入 openpyxl...")
         print("[依赖检查] 正在导入 openpyxl...")
         import openpyxl
+        logging.info("✓ openpyxl 导入成功")
         print("[依赖检查] ✓ openpyxl 导入成功")
         
         # 6. Excel (xls) 读取
+        logging.info("正在导入 xlrd...")
         print("[依赖检查] 正在导入 xlrd...")
         import xlrd
+        logging.info("✓ xlrd 导入成功")
         print("[依赖检查] ✓ xlrd 导入成功")
         
         # 7. Excel (xls) 写入
+        logging.info("正在导入 xlwt...")
         print("[依赖检查] 正在导入 xlwt...")
         import xlwt
+        logging.info("✓ xlwt 导入成功")
         print("[依赖检查] ✓ xlwt 导入成功")
         
         # 8. 字符编码检测
+        logging.info("正在导入 chardet...")
         print("[依赖检查] 正在导入 chardet...")
         import chardet
+        logging.info("✓ chardet 导入成功")
         print("[依赖检查] ✓ chardet 导入成功")
         
         # 9. 浏览器自动化
+        logging.info("正在导入 Playwright...")
         print("[依赖检查] 正在导入 Playwright...")
         from playwright.sync_api import sync_playwright
+        logging.info("✓ Playwright 导入成功")
         print("[依赖检查] ✓ Playwright 导入成功")
+        
+        logging.info("所有依赖库导入完成！")
+        logging.info("="*80)
 
     except ImportError as e:
         # --- 捕获到导入错误 ---
+        logging.error(f"导入失败: {e}", exc_info=True)
         
         # e.name 会告诉我们 *第一个* 导入失败的模块名 (例如 'flask' 或 'playwright')
         missing_module_name = e.name 
@@ -182,16 +267,37 @@ def auto_init_system():
     自动初始化系统，创建所有必需的文件和目录
     确保程序在只有main.py和index.html时仍能正常运行
     """
+    logging.info("="*80)
+    logging.info("开始自动初始化系统...")
     print("[系统初始化] 开始自动初始化系统...")
     # 输出详细的初始化过程，便于调试和监控
     try:
         # 创建必需的目录
+        logging.info("步骤1: 创建必需的目录...")
         print("[系统初始化] 创建必需的目录...")
         _create_directories()
         
         # 创建配置文件
+        logging.info("步骤2: 创建/更新配置文件...")
         print("[系统初始化] 创建/更新配置文件...")
         _create_config_ini()
+        
+        # 创建权限配置文件
+        logging.info("步骤3: 创建权限配置文件...")
+        print("[系统初始化] 创建权限配置文件...")
+        _create_permissions_json()
+        
+        # 创建默认管理员账号
+        logging.info("步骤4: 创建默认管理员账号...")
+        print("[系统初始化] 创建默认管理员账号...")
+        _create_default_admin()
+        
+        logging.info("系统初始化完成！")
+        logging.info("="*80)
+        print("[系统初始化] 系统初始化完成！")
+    except Exception as e:
+        logging.error(f"系统初始化失败: {e}", exc_info=True)
+        print(f"[系统初始化] 错误: 系统初始化失败 - {e}")
         
         # 创建权限配置文件
         print("[系统初始化] 创建权限配置文件...")
@@ -8245,6 +8351,42 @@ def start_web_server(args):
             "success": True,
             "logs": logs
         })
+    
+    # ====================
+    # 前端日志接收API
+    # ====================
+    
+    @app.route('/api/log_frontend', methods=['POST'])
+    def log_frontend():
+        """接收前端日志并保存到后端日志文件"""
+        try:
+            data = request.get_json() or {}
+            level = data.get('level', 'INFO').upper()
+            message = data.get('message', '')
+            timestamp = data.get('timestamp', '')
+            source = data.get('source', 'frontend')
+            
+            # 构造日志消息
+            log_message = f"[前端-{source}] {message}"
+            
+            # 根据级别记录日志
+            if level == 'DEBUG':
+                logging.debug(log_message)
+            elif level == 'INFO':
+                logging.info(log_message)
+            elif level == 'WARNING' or level == 'WARN':
+                logging.warning(log_message)
+            elif level == 'ERROR':
+                logging.error(log_message)
+            elif level == 'CRITICAL':
+                logging.critical(log_message)
+            else:
+                logging.info(log_message)
+            
+            return jsonify({"success": True})
+        except Exception as e:
+            logging.error(f"处理前端日志时出错: {e}", exc_info=True)
+            return jsonify({"success": False, "message": str(e)}), 500
     
     # ====================
     # 应用主路由
