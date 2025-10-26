@@ -7405,6 +7405,7 @@ def start_web_server(args):
         
         response_data = {
             "success": True,
+            "session_id": session_id,  # 修正：返回session_id给前端
             "auth_username": auth_result['auth_username'],
             "group": auth_result['group'],
             "is_guest": auth_result.get('is_guest', False),

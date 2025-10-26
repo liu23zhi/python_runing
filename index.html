@@ -2154,6 +2154,12 @@
         const result = await response.json();
 
         if (result.success) {
+          // 修正：设置sessionUUID以便后续API调用
+          if (result.session_id) {
+            sessionUUID = result.session_id;
+            console.log('[登录成功] 会话ID已设置:', sessionUUID.substring(0, 16) + '...');
+          }
+
           // 显示成功消息
           let successMessage = '登录成功！';
 
