@@ -1198,16 +1198,16 @@
 
   <div id="admin-panel-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="toggleAdminPanel(false)"></div>
-    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto overflow-x-hidden space-y-4 relative">
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-x-hidden space-y-4 relative flex flex-col">
 
-      <div class="relative mb-4 text-center">
+      <div class="relative mb-4 text-center flex-shrink-0">
         <h3 class="text-2xl font-bold text-sky-600 inline-block">管理面板</h3>
 
         <button id="admin-modal-close-btn"
           class="absolute top-1/2 right-0 transform -translate-y-1/2 btn btn-ghost !py-1 !px-3"
           onclick="toggleAdminPanel(false)">关闭</button>
       </div>
-      <div class="flex border-b border-slate-200">
+      <div class="flex border-b border-slate-200 flex-shrink-0">
         <button id="admin-tab-users_modal"
           class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">用户管理</button>
         <button id="admin-tab-groups_modal"
@@ -1216,33 +1216,35 @@
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
       </div>
 
-      <div id="admin-users-panel_modal" class="space-y-4 overflow-x-hidden">
-        <div class="flex justify-between items-center">
-          <h4 class="font-semibold">用户列表</h4>
-          <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+      <div class="overflow-y-auto overflow-x-hidden flex-grow min-h-0">
+        <div id="admin-users-panel_modal" class="space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">用户列表</h4>
+            <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-users-list_modal" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
         </div>
-        <div id="admin-users-list_modal" class="space-y-2">
-          <p class="text-slate-400 text-center py-10">加载中...</p>
-        </div>
-      </div>
 
-      <div id="admin-groups-panel_modal" class="hidden space-y-4 overflow-x-hidden">
-        <div class="flex justify-between items-center">
-          <h4 class="font-semibold">权限组列表</h4>
-          <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+        <div id="admin-groups-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">权限组列表</h4>
+            <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-groups-list_modal" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
         </div>
-        <div id="admin-groups-list_modal" class="space-y-2">
-          <p class="text-slate-400 text-center py-10">加载中...</p>
-        </div>
-      </div>
 
-      <div id="admin-sessions-panel_modal" class="hidden space-y-4 overflow-x-hidden">
-        <div class="flex justify-between items-center">
-          <h4 class="font-semibold">会话列表</h4>
-          <button id="admin-refresh-sessions_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
-        </div>
-        <div id="admin-sessions-list_modal" class="space-y-2">
-          <p class="text-slate-400 text-center py-10">加载中...</p>
+        <div id="admin-sessions-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">会话列表</h4>
+            <button id="admin-refresh-sessions_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-sessions-list_modal" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
         </div>
       </div>
     </div>
