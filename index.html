@@ -684,7 +684,7 @@
               <button id="admin-refresh-sessions-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
           </div>
-          <div id="admin-sessions-list-inline" class="space-y-2">
+          <div id="admin-sessions-list-inline" class="space-y-2 max-h-[50vh] overflow-y-auto">
             <p class="text-slate-400 text-center py-10">加载中...</p>
           </div>
         </div>
@@ -2807,7 +2807,7 @@
         const sessions = result.sessions || [];
         
         // 更新会话信息（从后端获取max_sessions信息）
-        const maxSessions = result.max_sessions || 1;
+        const maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1;
         
         // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
         const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
@@ -3045,7 +3045,7 @@
         const sessions = result.sessions || [];
         
         // 更新会话信息（从后端获取max_sessions信息）
-        const maxSessions = result.max_sessions || 1;
+        const maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1;
         
         // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
         const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
