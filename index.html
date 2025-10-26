@@ -614,6 +614,20 @@
         <button id="auth-register-btn" class="btn btn-success w-full py-3">注册</button>
       </div>
 
+      <!-- 2FA验证表单 -->
+      <div id="auth-2fa-form" class="hidden space-y-4">
+        <div class="text-center mb-4">
+          <h3 class="text-xl font-bold text-sky-700 mb-2">双因素认证</h3>
+          <p class="text-sm text-slate-500">请输入您的验证器应用中的6位验证码</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+          <input type="text" id="auth-2fa-code" class="input-field mt-1" placeholder="输入6位验证码" maxlength="6" autocomplete="one-time-code">
+        </div>
+        <button id="auth-2fa-verify-btn" class="btn btn-primary w-full py-3">验证</button>
+        <button id="auth-2fa-back-btn" class="btn btn-ghost w-full">返回登录</button>
+      </div>
+
       <!-- 错误提示 -->
       <div id="auth-error-msg"
         class="hidden text-sm text-center p-3 rounded-lg bg-red-50 border border-red-200 text-red-600"></div>
@@ -2424,6 +2438,31 @@
         const result = await response.json();
 
         if (result.success) {
+          // 检查是否需要2FA验证
+          if (result.requires_2fa) {
+            // 保存用户名用于2FA验证
+            window.temp2FAUsername = username;
+            
+            // 清除登录按钮加载状态
+            setButtonLoading('auth-login-btn', false);
+            
+            // 隐藏登录表单，显示2FA表单
+            const loginForm = $('auth-login-form');
+            const tfaForm = $('auth-2fa-form');
+            if (loginForm) loginForm.classList.add('hidden');
+            if (tfaForm) tfaForm.classList.remove('hidden');
+            
+            // 清空并聚焦到2FA输入框
+            const tfaCodeInput = $('auth-2fa-code');
+            if (tfaCodeInput) {
+              tfaCodeInput.value = '';
+              tfaCodeInput.focus();
+            }
+            
+            showAuthSuccess('密码验证成功，请输入验证码');
+            return;
+          }
+          
           // 修正：设置sessionUUID以便后续API调用
           if (result.session_id) {
             sessionUUID = result.session_id;
@@ -2516,6 +2555,95 @@
         console.error('登录请求失败:', e);
         setButtonLoading('auth-login-btn', false);
         showButtonError('auth-login-btn', '网络错误');
+        showAuthError('网络错误，请检查连接后重试');
+      }
+    }
+
+    // 2FA验证处理
+    async function handle2FAVerify() {
+      const codeInput = $('auth-2fa-code');
+      const code = codeInput ? codeInput.value.trim() : '';
+      
+      if (!code || code.length !== 6) {
+        showAuthError('请输入6位验证码');
+        return;
+      }
+      
+      if (!window.temp2FAUsername) {
+        showAuthError('会话已过期，请重新登录');
+        // 返回登录表单
+        const loginForm = $('auth-login-form');
+        const tfaForm = $('auth-2fa-form');
+        if (loginForm) loginForm.classList.remove('hidden');
+        if (tfaForm) tfaForm.classList.add('hidden');
+        return;
+      }
+      
+      setButtonLoading('auth-2fa-verify-btn', true, '验证中...');
+      
+      try {
+        const response = await fetch('/auth/2fa/verify_login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID || null
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            auth_username: window.temp2FAUsername,
+            code: code
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // 清空临时数据
+          delete window.temp2FAUsername;
+          
+          // 设置sessionUUID
+          if (result.session_id) {
+            sessionUUID = result.session_id;
+            console.log('[2FA验证成功] 会话ID已设置:', sessionUUID.substring(0, 16) + '...');
+          }
+          
+          showButtonSuccess('auth-2fa-verify-btn', '验证成功', 800);
+          showAuthSuccess('2FA验证成功！');
+          
+          // 系统账号登录成功后，显示会话选择器
+          if (!result.is_guest) {
+            setTimeout(() => {
+              setButtonLoading('auth-2fa-verify-btn', false);
+              
+              // 隐藏登录界面，显示会话选择器模态框
+              $('auth-login-container').classList.add('hidden');
+              showSessionPicker();
+              
+              logMessage('[会话选择] 请选择要进入的会话，或创建新会话');
+              logMessage('[提示] 每个会话都是独立的学校账号登录状态');
+              
+              // 重置表单
+              const loginForm = $('auth-login-form');
+              const tfaForm = $('auth-2fa-form');
+              if (loginForm) loginForm.classList.remove('hidden');
+              if (tfaForm) tfaForm.classList.add('hidden');
+              if (codeInput) codeInput.value = '';
+            }, 1000);
+          }
+        } else {
+          setButtonLoading('auth-2fa-verify-btn', false);
+          showButtonError('auth-2fa-verify-btn', '验证失败');
+          showAuthError(result.message || '验证码错误');
+          // 清空验证码输入框
+          if (codeInput) {
+            codeInput.value = '';
+            codeInput.focus();
+          }
+        }
+      } catch (e) {
+        console.error('2FA验证请求失败:', e);
+        setButtonLoading('auth-2fa-verify-btn', false);
+        showButtonError('auth-2fa-verify-btn', '网络错误');
         showAuthError('网络错误，请检查连接后重试');
       }
     }
@@ -2653,6 +2781,23 @@
         // 游客登录按钮
         const guestBtn = $('auth-guest-btn');
         if (guestBtn) guestBtn.addEventListener('click', handleGuestLogin);
+        
+        // 2FA验证按钮
+        const tfa2VerifyBtn = $('auth-2fa-verify-btn');
+        if (tfa2VerifyBtn) tfa2VerifyBtn.addEventListener('click', handle2FAVerify);
+        
+        // 2FA返回按钮
+        const tfa2BackBtn = $('auth-2fa-back-btn');
+        if (tfa2BackBtn) tfa2BackBtn.addEventListener('click', () => {
+          const loginForm = $('auth-login-form');
+          const tfaForm = $('auth-2fa-form');
+          if (loginForm) loginForm.classList.remove('hidden');
+          if (tfaForm) tfaForm.classList.add('hidden');
+          // 清空2FA相关数据
+          delete window.temp2FAUsername;
+          const tfaCodeInput = $('auth-2fa-code');
+          if (tfaCodeInput) tfaCodeInput.value = '';
+        });
 
         // Enter键登录
         const authUsername = $('auth-username');
@@ -2662,6 +2807,12 @@
         });
         if (authPassword) authPassword.addEventListener('keypress', (e) => {
           if (e.key === 'Enter') handleAuthLogin();
+        });
+        
+        // Enter键2FA验证
+        const auth2FACode = $('auth-2fa-code');
+        if (auth2FACode) auth2FACode.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') handle2FAVerify();
         });
 
         // Enter键注册
