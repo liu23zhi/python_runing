@@ -2686,8 +2686,29 @@ class Api:
         if password is not None:
             # 场景: 提供了新密码 (来自 login, multi_add_account)
             cfg_to_save.set('Config', 'Password', password)
-        # 场景: 未提供新密码 (来自 update_param)
-        # 则 *不* 触碰 Password 键，从而保留 cfg_to_save 中已加载的旧密码(或它的缺失状态)。
+        else:
+            # 场景: 未提供新密码 (来自 update_param)
+            # 如果当前配置中没有密码，尝试从备份文件中恢复（防止normalize过程丢失）
+            if not cfg_to_save.has_option('Config', 'Password') or not cfg_to_save.get('Config', 'Password'):
+                backup_path = f"{user_ini_path}.bak"
+                if os.path.exists(backup_path):
+                    try:
+                        # 尝试从备份文件中读取密码
+                        with open(backup_path, "r", encoding="utf-8", errors="ignore") as bf:
+                            for line in bf:
+                                clean_line = line.strip()
+                                temp_line_for_check = clean_line.lower().replace(" ", "")
+                                if temp_line_for_check.startswith("password=") or temp_line_for_check.startswith("密码="):
+                                    parts = clean_line.split("=", 1)
+                                    if len(parts) == 2:
+                                        recovered_password = parts[1].strip()
+                                        if recovered_password:
+                                            cfg_to_save.set('Config', 'Password', recovered_password)
+                                            logging.info(f"已从备份文件恢复用户 {username} 的密码")
+                                            break
+                    except Exception as e:
+                        logging.warning(f"从备份文件恢复密码失败: {e}")
+            # 否则保留 cfg_to_save 中已加载的旧密码(或它的缺失状态)。
 
         # --- 5. 智能处理 UA ---
         # 仅当 *提供了新的* ua (非 None) 时，才覆盖 UA
