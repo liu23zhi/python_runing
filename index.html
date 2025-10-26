@@ -3061,17 +3061,8 @@
 
     // 初始化内嵌管理面板的tab可见性
     async function initializeInlineAdminPanel() {
-      // 简化版本 - 只处理会话管理和上帝模式
-      const godModeToggle = $('god-mode-toggle');
+      // 简化版本 - 只处理会话管理
       const sessionsPanel = $('admin-sessions-panel');
-
-      // 检查上帝模式权限
-      const hasGodMode = await checkAdminPermission('god_mode');
-
-      // 控制上帝模式开关可见性
-      if (godModeToggle) {
-        godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
-      }
 
       // 直接加载会话列表
       if (sessionsPanel) {
