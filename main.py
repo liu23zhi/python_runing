@@ -8383,13 +8383,17 @@ def start_web_server(args):
                 'user_data': {"username": "guest"} # 简单标识
             })
             logging.debug(f"auth_user_sessions: Guest session info prepared: {sessions_info}")
-            return jsonify({"success": True, "sessions": sessions_info})
+            return jsonify({"success": True, "sessions": sessions_info, "max_sessions": -1})
 
         elif auth_username:
             # 注册用户模式：保持原有逻辑
             logging.debug(f"auth_user_sessions: Handling registered user {auth_username}")
             session_ids = auth_system.get_user_sessions(auth_username)
             logging.debug(f"auth_user_sessions: Found linked session IDs for {auth_username}: {session_ids}")
+            
+            # 获取用户的最大会话数设置
+            user_details = auth_system.get_user_details(auth_username)
+            max_sessions = user_details.get('max_sessions', 1) if user_details else 1
 
             for sid in session_ids:
                 session_file = get_session_file_path(sid)
@@ -8413,7 +8417,7 @@ def start_web_server(args):
                         logging.warning(f"Failed to read session file {session_file} for user {auth_username}: {e}")
                         continue # 跳过损坏的文件
             logging.debug(f"auth_user_sessions: Registered user session info prepared: {len(sessions_info)} sessions")
-            return jsonify({"success": True, "sessions": sessions_info})
+            return jsonify({"success": True, "sessions": sessions_info, "max_sessions": max_sessions})
         else:
              # 既不是游客也不是有效注册用户（理论上不应发生，除非状态异常）
             logging.warning(f"auth_user_sessions: Invalid state for session {session_id[:8]} - neither guest nor valid user.")

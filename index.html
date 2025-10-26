@@ -1270,7 +1270,9 @@
     <div class="panel rounded-2xl p-6 w-[40rem] max-h-[70vh] space-y-4 relative">
       <div class="flex items-center justify-between">
         <h3 class="text-xl font-bold text-sky-600">会话管理</h3>
-        <!-- <button class="btn btn-ghost !py-1 !px-3" onclick="closeSessionPicker()">关闭</button> -->
+        <div id="session-count-display" class="text-sm text-slate-600">
+          <!-- 会话计数将由JS动态填充 -->
+        </div>
       </div>
 
       <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
@@ -1319,6 +1321,12 @@
     let appInitialized = false;
 
     let currentUserIsGuest = false;
+    
+    // 会话管理相关变量
+    let currentSessionInfo = {
+      maxSessions: 1,
+      currentCount: 0
+    };
 
     function handleCdnError() {
       cdnErrorCount++;
@@ -3262,9 +3270,17 @@
         }
 
         const sessions = result.sessions || [];
+        
+        // 更新会话信息（从后端获取max_sessions信息）
+        currentSessionInfo.maxSessions = result.max_sessions || 1;
 
         // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
         const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
+        
+        currentSessionInfo.currentCount = validSessions.length;
+        
+        // 更新会话计数显示
+        updateSessionCountDisplay();
 
         if (validSessions.length === 0) {
           listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无会话，请创建新会话</p>';
@@ -3320,6 +3336,22 @@
     function refreshSessionPicker() {
       loadSessionPickerList();
     }
+    
+    function updateSessionCountDisplay() {
+      const countEl = $('session-count-display');
+      if (!countEl) return;
+      
+      const { currentCount, maxSessions } = currentSessionInfo;
+      
+      if (maxSessions === -1) {
+        countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+      } else {
+        const isNearLimit = currentCount >= maxSessions * 0.8;
+        const isAtLimit = currentCount >= maxSessions;
+        const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
+        countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
+      }
+    }
 
     async function selectSessionFromPicker(sessionId) {
       logMessage(`准备切换到会话 ${sessionId.substring(0, 16)}...`);
@@ -3366,6 +3398,71 @@
     }
 
     async function createNewSessionFromPicker() {
+      // 检查是否已达到最大会话数
+      if (currentSessionInfo.maxSessions !== -1 && currentSessionInfo.currentCount >= currentSessionInfo.maxSessions) {
+        // 已达上限，询问用户是否要删除最旧的会话
+        const result = await Swal.fire({
+          title: '会话数量已达上限',
+          html: `您已达到最大会话数量限制（${currentSessionInfo.maxSessions}个）。<br><br>是否要自动删除最早的会话并创建新会话？`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: '确定，删除最旧会话',
+          cancelButtonText: '取消',
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33'
+        });
+        
+        if (!result.isConfirmed) {
+          logMessage("[会话创建] 用户取消操作：会话数已达上限。");
+          return;
+        }
+        
+        // 用户确认，找到最旧的会话并删除
+        try {
+          const response = await fetch('/auth/user/sessions', {
+            headers: { 'X-Session-ID': sessionUUID || null }
+          });
+          const sessionsResult = await response.json();
+          
+          if (sessionsResult.success && sessionsResult.sessions && sessionsResult.sessions.length > 0) {
+            // 过滤掉当前会话和无效会话，按创建时间排序找到最旧的
+            const validSessions = sessionsResult.sessions.filter(s => 
+              s.session_id && 
+              s.session_id !== 'null' && 
+              s.session_id.trim() !== '' &&
+              s.session_id !== sessionUUID
+            );
+            
+            if (validSessions.length > 0) {
+              // 按创建时间排序，最旧的在前
+              validSessions.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+              const oldestSession = validSessions[0];
+              
+              logMessage(`[会话管理] 正在删除最旧的会话: ${oldestSession.session_id.substring(0, 16)}...`);
+              
+              // 删除最旧的会话
+              const deleteResponse = await fetch('/auth/user/delete_session', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Session-ID': sessionUUID
+                },
+                body: JSON.stringify({ session_id: oldestSession.session_id })
+              });
+              
+              const deleteResult = await deleteResponse.json();
+              if (deleteResult.success) {
+                logMessage(`[会话管理] 已删除最旧的会话`);
+              } else {
+                logMessage(`[会话管理] 删除会话失败: ${deleteResult.message}`);
+              }
+            }
+          }
+        } catch (e) {
+          logMessage(`[会话管理] 删除旧会话时出错: ${e.message}`);
+        }
+      }
+      
       const newUUID = generateUUID();
       logMessage(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
 
@@ -3414,7 +3511,11 @@
           window.location.href = `/uuid=${newUUID}`;
         } else {
           logMessage(`创建会话失败: ${result.message}`);
-          alert(`创建会话失败: ${result.message}`);
+          Swal.fire({
+            icon: 'error',
+            title: '创建失败',
+            text: result.message
+          });
         }
       } catch (e) {
         logMessage(`创建会话时发生错误: ${e.message}`);
