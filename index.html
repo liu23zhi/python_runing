@@ -642,8 +642,9 @@
     </div>
 
     <div
-      class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50">
-      <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col overflow-x-hidden" style="max-height: calc(100vh - 12rem);">
+      class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50" id="admin-panel-modal-Inline" >
+      <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col overflow-x-hidden"
+        style="max-height: calc(100vh - 12rem);">
         <h3 class="text-xl font-bold text-sky-600 text-center mb-4">管理面板</h3>
 
         <div class="flex border-b border-slate-200 flex-shrink-0"> <button id="admin-tab-users"
@@ -1331,7 +1332,7 @@
     let appInitialized = false;
 
     let currentUserIsGuest = false;
-    
+
     // 会话管理相关变量
     let currentSessionInfo = {
       maxSessions: 1,
@@ -1520,24 +1521,24 @@
       console.log(`[API调用] 发送请求到 /api/${method}`);
       let response; // 将 response 移到 try 外部
       try { // 包裹 fetch 调用
-          response = await fetch(`/api/${method}`, {
-            method: 'POST',
-            headers: headers,
-            credentials: 'include',  // 重要：包含cookies
-            body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
-          });
+        response = await fetch(`/api/${method}`, {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',  // 重要：包含cookies
+          body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
+        });
       } catch (networkError) {
-          // 捕获 fetch 本身的网络错误 (例如 DNS 解析失败、服务器无法连接)
-          console.error(`[API调用] ✗ 网络请求失败 (${method}):`, networkError);
-          // 显示通用网络错误提示
-          showModalAlert('无法连接到服务器，请检查您的网络连接或稍后重试。', '网络错误');
-          // 停止可能的刷新定时器
-          if (refreshUserListInterval) {
-              console.log('[API调用] 停止用户列表刷新定时器 (因网络错误)');
-              clearInterval(refreshUserListInterval);
-              refreshUserListInterval = null;
-          }
-          throw networkError; // 重新抛出网络错误，中断后续处理
+        // 捕获 fetch 本身的网络错误 (例如 DNS 解析失败、服务器无法连接)
+        console.error(`[API调用] ✗ 网络请求失败 (${method}):`, networkError);
+        // 显示通用网络错误提示
+        showModalAlert('无法连接到服务器，请检查您的网络连接或稍后重试。', '网络错误');
+        // 停止可能的刷新定时器
+        if (refreshUserListInterval) {
+          console.log('[API调用] 停止用户列表刷新定时器 (因网络错误)');
+          clearInterval(refreshUserListInterval);
+          refreshUserListInterval = null;
+        }
+        throw networkError; // 重新抛出网络错误，中断后续处理
       }
 
       // 处理非 OK 响应 (包括 401, 403, 500 等)
@@ -1553,67 +1554,67 @@
 
         // --- ⭐ Bug 修复：处理会话过期 (401) ---
         if (response.status === 401 && errorData && errorData.message && errorData.message.includes('会话已过期或无效')) {
-            console.error('[API调用] ✗ 会话已过期或无效！');
-            logMessage('[系统] 您的会话已过期或无效，请重新登录。'); // 同时记录到界面日志
+          console.error('[API调用] ✗ 会话已过期或无效！');
+          logMessage('[系统] 您的会话已过期或无效，请重新登录。'); // 同时记录到界面日志
 
-            // 停止 refreshUserList 定时器
-            if (refreshUserListInterval) {
-                console.log('[API调用] 停止用户列表刷新定时器 (因会话过期)');
-                clearInterval(refreshUserListInterval);
-                refreshUserListInterval = null; // 清理句柄
-            }
+          // 停止 refreshUserList 定时器
+          if (refreshUserListInterval) {
+            console.log('[API调用] 停止用户列表刷新定时器 (因会话过期)');
+            clearInterval(refreshUserListInterval);
+            refreshUserListInterval = null; // 清理句柄
+          }
 
-            // 弹窗提示用户
-            showModalAlert('您的会话已过期或无效，请重新登录。', '会话失效');
+          // 弹窗提示用户
+          showModalAlert('您的会话已过期或无效，请重新登录。', '会话失效');
 
-            // 延迟后跳转到登录页
-            setTimeout(() => {
-                window.location.href = '/'; // 跳转到根目录
-            }, 2500); // 给用户 2.5 秒时间看提示
+          // 延迟后跳转到登录页
+          setTimeout(() => {
+            window.location.href = '/'; // 跳转到根目录
+          }, 2500); // 给用户 2.5 秒时间看提示
 
-            // 抛出错误，中断当前 API 调用的后续处理
-            throw new Error('会话已过期或无效');
+          // 抛出错误，中断当前 API 调用的后续处理
+          throw new Error('会话已过期或无效');
         }
         // --- 结束 Bug 修复 ---
 
         // 处理其他需要重新登录的情况 (如 token 过期/无效)
         if (errorData && errorData.need_login) {
-            let errorMsg = errorData.message || 'API调用失败';
-            console.log(`[API调用] ✗ 需要重新登录: ${errorMsg}`);
+          let errorMsg = errorData.message || 'API调用失败';
+          console.log(`[API调用] ✗ 需要重新登录: ${errorMsg}`);
 
-            // 如果是在其他设备登录导致的
-            if (errorData.logged_out_elsewhere) {
-              showModalAlert(
-                '您的账号已在其他设备登录，本设备已自动登出。请重新登录。',
-                '多设备登录检测'
-              );
-              logMessage('[安全提示] 检测到账号在其他设备登录，已自动登出');
-              console.log('[API调用] ✗ 多设备登录检测');
-            } else {
-              showModalAlert(errorMsg, '登录失效');
-              logMessage(`[安全提示] ${errorMsg}`);
-            }
+          // 如果是在其他设备登录导致的
+          if (errorData.logged_out_elsewhere) {
+            showModalAlert(
+              '您的账号已在其他设备登录，本设备已自动登出。请重新登录。',
+              '多设备登录检测'
+            );
+            logMessage('[安全提示] 检测到账号在其他设备登录，已自动登出');
+            console.log('[API调用] ✗ 多设备登录检测');
+          } else {
+            showModalAlert(errorMsg, '登录失效');
+            logMessage(`[安全提示] ${errorMsg}`);
+          }
 
-            // 停止可能的刷新定时器 (也适用于 token 过期等情况)
-            if (refreshUserListInterval) {
-                console.log('[API调用] 停止用户列表刷新定时器 (因需重新登录)');
-                clearInterval(refreshUserListInterval);
-                refreshUserListInterval = null;
-            }
+          // 停止可能的刷新定时器 (也适用于 token 过期等情况)
+          if (refreshUserListInterval) {
+            console.log('[API调用] 停止用户列表刷新定时器 (因需重新登录)');
+            clearInterval(refreshUserListInterval);
+            refreshUserListInterval = null;
+          }
 
-            // 清除本地状态并返回登录页
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 2000);
+          // 清除本地状态并返回登录页
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
 
-            throw new Error(errorMsg);
+          throw new Error(errorMsg);
         }
 
         // 处理其他权限不足 (403) 的错误
         if (response.status === 403 && errorData && errorData.message) {
-            console.error(`[API调用] ✗ 权限不足 (${method}): ${errorData.message}`);
-            showModalAlert(`操作失败: ${errorData.message}`, '权限不足');
-            throw new Error(`权限不足: ${errorData.message}`);
+          console.error(`[API调用] ✗ 权限不足 (${method}): ${errorData.message}`);
+          showModalAlert(`操作失败: ${errorData.message}`, '权限不足');
+          throw new Error(`权限不足: ${errorData.message}`);
         }
 
         // 处理其他服务器内部错误 (500) 或未明确处理的错误
@@ -2067,7 +2068,7 @@
     function setButtonLoading(buttonId, loading, originalText = '') {
       const btn = $(buttonId);
       if (!btn) return;
-      
+
       if (loading) {
         btn.dataset.originalText = btn.textContent;
         btn.disabled = true;
@@ -2084,17 +2085,17 @@
     function showButtonSuccess(buttonId, message = '成功', duration = 1500) {
       const btn = $(buttonId);
       if (!btn) return;
-      
+
       // 先清除加载状态，确保按钮可用
       btn.disabled = false;
       btn.classList.remove('opacity-75', 'cursor-not-allowed');
-      
+
       const originalText = btn.dataset.originalText || btn.textContent;
       delete btn.dataset.originalText;
-      
+
       btn.innerHTML = `<span class="mr-1">✓</span>${message}`;
       btn.classList.add('!bg-green-600');
-      
+
       setTimeout(() => {
         btn.textContent = originalText;
         btn.classList.remove('!bg-green-600');
@@ -2105,17 +2106,17 @@
     function showButtonError(buttonId, message = '失败', duration = 2000) {
       const btn = $(buttonId);
       if (!btn) return;
-      
+
       // 先清除加载状态，确保按钮可用
       btn.disabled = false;
       btn.classList.remove('opacity-75', 'cursor-not-allowed');
-      
+
       const originalText = btn.dataset.originalText || btn.textContent;
       delete btn.dataset.originalText;
-      
+
       btn.innerHTML = `<span class="mr-1">✗</span>${message}`;
       btn.classList.add('!bg-red-600');
-      
+
       setTimeout(() => {
         btn.textContent = originalText;
         btn.classList.remove('!bg-red-600');
@@ -2192,7 +2193,7 @@
           }
 
           showAuthSuccess(successMessage);
-          
+
           // 如果有token，记录日志（用于调试）
           if (result.token) {
             console.log('Received auth token (stored in cookie)');
@@ -2203,11 +2204,11 @@
           if (!result.is_guest) {
             // 显示成功状态，持续时间设为800ms，避免与后续操作冲突
             showButtonSuccess('auth-login-btn', '登录成功', 800);
-            
+
             setTimeout(() => {
               // 清除按钮状态，确保按钮恢复正常
               setButtonLoading('auth-login-btn', false);
-              
+
               // 隐藏登录界面，显示会话选择器模态框
               $('auth-login-container').classList.add('hidden');
               showSessionPicker();
@@ -2797,7 +2798,23 @@
       listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
-        const result = await callPythonAPI('get_user_sessions');
+        const response = await fetch('/auth/user/sessions', {
+          headers: {
+            'X-Session-ID': sessionUUID // 确保 sessionUUID 是当前有效的会话 ID
+          }
+        });
+
+        if (!response.ok) {
+          // 处理非 OK 响应 (例如 401 未授权, 500 服务器错误)
+          let errorMsg = `HTTP error ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMsg = errorData.message || errorMsg;
+          } catch (parseError) { /* 如果错误响应体不是 JSON，则忽略 */ }
+          throw new Error(errorMsg); // 抛出错误，由下面的 catch 块处理
+        }
+
+        const result = await response.json()
 
         if (!result.success) {
           listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
@@ -2805,13 +2822,13 @@
         }
 
         const sessions = result.sessions || [];
-        
+
         // 更新会话信息（从后端获取max_sessions信息）
         const maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1;
-        
+
         // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
         const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
-        
+
         // 更新会话计数显示
         updateAdminSessionCountDisplayInline(validSessions.length, maxSessions);
 
@@ -2839,28 +2856,26 @@
           html += validSessions.map(session => {
             const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
             const isCurrent = session.is_current || session.session_id === sessionUUID;
-            const sessionHash = session.session_hash || session.session_id.substring(0, 16);
+            const sessionHash = session.session_hash || session.session_id.substring(0, 16); // Fallback if hash not present
 
             return `
-              <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
-                <div class="flex justify-between items-start">
-                  <div class="flex-1">
-                    <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id}
-                    
-                    </p>
-                    ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
-                    <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-                    <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
-                  </div>
-                  <div class="flex gap-2">
-                    ${!isCurrent ? `
-                      <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
-                      <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
-                    ` : ''}
-                  </div>
-                </div>
-              </div>
-            `;
+                      <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
+                        <div class="flex justify-between items-start">
+                          <div class="flex-1">
+                            <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id} </p>
+                             ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
+                            <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+                            <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
+                          </div>
+                          <div class="flex gap-2">
+                            ${!isCurrent ? `
+                              <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
+                              <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
+                            ` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    `;
           }).join('');
         }
 
@@ -2870,11 +2885,14 @@
         listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
       }
     }
-    
+
     function updateAdminSessionCountDisplayInline(currentCount, maxSessions) {
       const countEl = $('admin-session-count-display-inline');
       if (!countEl) return;
-      
+
+      if(currentUserIsGuest){
+      countEl.innerHTML = `<span class="text-blue-600">会话数: 1 / 游客仅限单会话</span>`;
+      }else {
       if (maxSessions === -1) {
         countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
       } else {
@@ -2882,7 +2900,7 @@
         const isAtLimit = currentCount >= maxSessions;
         const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
         countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
-      }
+      }}
     }
 
     async function loadAdminUsers() {
@@ -3043,13 +3061,13 @@
 
         // const listEl = $('admin-sessions-list_modal'); // <-- 确保这行已删除或注释掉
         const sessions = result.sessions || [];
-        
+
         // 更新会话信息（从后端获取max_sessions信息）
         const maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1;
-        
+
         // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
         const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
-        
+
         // 更新会话计数显示
         updateAdminSessionCountDisplay(validSessions.length, maxSessions);
 
@@ -3099,11 +3117,11 @@
         listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
       }
     }
-    
+
     function updateAdminSessionCountDisplay(currentCount, maxSessions) {
       const countEl = $('admin-session-count-display');
       if (!countEl) return;
-      
+
       if (maxSessions === -1) {
         countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
       } else {
@@ -3326,15 +3344,15 @@
         }
 
         const sessions = result.sessions || [];
-        
+
         // 更新会话信息（从后端获取max_sessions信息）
         currentSessionInfo.maxSessions = result.max_sessions || 1;
 
         // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
         const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
-        
+
         currentSessionInfo.currentCount = validSessions.length;
-        
+
         // 更新会话计数显示
         updateSessionCountDisplay();
 
@@ -3392,13 +3410,13 @@
     function refreshSessionPicker() {
       loadSessionPickerList();
     }
-    
+
     function updateSessionCountDisplay() {
       const countEl = $('session-count-display');
       if (!countEl) return;
-      
+
       const { currentCount, maxSessions } = currentSessionInfo;
-      
+
       if (maxSessions === -1) {
         countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
       } else {
@@ -3454,6 +3472,42 @@
     }
 
     async function createNewSessionFromPicker() {
+      try {
+        logMessage("[会话创建] 正在获取最新会话信息...");
+        // 调用后端 API 获取最新会话数据
+        const response = await fetch('/auth/user/sessions', {
+          headers: {
+            'X-Session-ID': sessionUUID || null // 确保发送当前会话ID
+          }
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          // 更新全局 currentSessionInfo 对象
+          currentSessionInfo.maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1; // 使用后端返回的值，-1表示无限制
+          // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
+          const validSessions = (result.sessions || []).filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
+          currentSessionInfo.currentCount = validSessions.length;
+          logMessage(`[会话创建] 会话信息已更新: 当前 ${currentSessionInfo.currentCount} / 最大 ${currentSessionInfo.maxSessions === -1 ? '无限制' : currentSessionInfo.maxSessions}`);
+          // 同时更新显示（如果 session-picker-modal 是打开的）
+          updateSessionCountDisplay();
+          // 也更新 admin panel modal 内的显示 (如果它是打开的)
+          updateAdminSessionCountDisplay(currentSessionInfo.currentCount, currentSessionInfo.maxSessions);
+          // 也更新 inline admin panel 内的显示 (如果它是可见的)
+          updateAdminSessionCountDisplayInline(currentSessionInfo.currentCount, currentSessionInfo.maxSessions);
+        } else {
+          // 获取失败，记录警告，但继续尝试创建（使用可能过时的限制）
+          logMessage(`[会话创建] 警告: 获取最新会话信息失败: ${result.message}`);
+          showModalAlert('无法获取最新的会话限制信息，将继续尝试创建。', '警告');
+        }
+      } catch (error) {
+        // 网络或其他错误
+        logMessage(`[会话创建] 错误: 获取最新会话信息时发生网络错误: ${error}`);
+        showModalAlert(`获取最新的会话限制信息时发生网络错误: ${error.message}，将继续尝试创建。`, '网络错误');
+      }
+
+
+
       // 检查是否已达到最大会话数
       if (currentSessionInfo.maxSessions !== -1 && currentSessionInfo.currentCount >= currentSessionInfo.maxSessions) {
         // 已达上限，询问用户是否要删除最旧的会话
@@ -3467,35 +3521,35 @@
           confirmButtonColor: '#3085d6',
           cancelButtonColor: '#d33'
         });
-        
+
         if (!result.isConfirmed) {
           logMessage("[会话创建] 用户取消操作：会话数已达上限。");
           return;
         }
-        
+
         // 用户确认，找到最旧的会话并删除
         try {
           const response = await fetch('/auth/user/sessions', {
             headers: { 'X-Session-ID': sessionUUID || null }
           });
           const sessionsResult = await response.json();
-          
+
           if (sessionsResult.success && sessionsResult.sessions && sessionsResult.sessions.length > 0) {
             // 过滤掉当前会话和无效会话，按创建时间排序找到最旧的
-            const validSessions = sessionsResult.sessions.filter(s => 
-              s.session_id && 
-              s.session_id !== 'null' && 
+            const validSessions = sessionsResult.sessions.filter(s =>
+              s.session_id &&
+              s.session_id !== 'null' &&
               s.session_id.trim() !== '' &&
               s.session_id !== sessionUUID
             );
-            
+
             if (validSessions.length > 0) {
               // 按创建时间排序，最旧的在前
               validSessions.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
               const oldestSession = validSessions[0];
-              
+
               logMessage(`[会话管理] 正在删除最旧的会话: ${oldestSession.session_id.substring(0, 16)}...`);
-              
+
               // 删除最旧的会话
               const deleteResponse = await fetch('/auth/user/delete_session', {
                 method: 'POST',
@@ -3505,7 +3559,7 @@
                 },
                 body: JSON.stringify({ session_id: oldestSession.session_id })
               });
-              
+
               const deleteResult = await deleteResponse.json();
               if (deleteResult.success) {
                 logMessage(`[会话管理] 已删除最旧的会话`);
@@ -3518,7 +3572,7 @@
           logMessage(`[会话管理] 删除旧会话时出错: ${e.message}`);
         }
       }
-      
+
       const newUUID = generateUUID();
       logMessage(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
 
@@ -3539,7 +3593,7 @@
         }
       });
 
-      
+
       logMessage(`[会话创建] 准备创建新会话...`);
       // 这个破bug修了我好久
       try {
@@ -3919,7 +3973,7 @@
         }
 
         // 显示管理面板按钮（如果有权限）
-        if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
+        if (initialData.auth_group !== 'guest') {
           const adminBtnLogin = $('show-admin-panel-login'); // 获取登录页的管理按钮
           if (adminBtnLogin) {
             adminBtnLogin.classList.remove('hidden'); // 移除 hidden 类使其可见

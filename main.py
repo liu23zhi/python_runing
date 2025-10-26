@@ -1588,7 +1588,7 @@ class AuthSystem:
             
             # 多会话模式：检查是否超出限制
             current_count = len(old_sessions)
-            if current_count >= max_sessions:
+            if current_count > max_sessions:
                 # 超出限制，移除最旧的会话
                 sessions_to_remove = old_sessions[:current_count - max_sessions + 1]
                 remaining_sessions = old_sessions[current_count - max_sessions + 1:]
@@ -1599,6 +1599,7 @@ class AuthSystem:
                 
                 # 过滤掉无效的session_id
                 valid_sessions_to_remove = [s for s in sessions_to_remove if s and s != 'null' and s.strip() != '']
+                message = ""
                 if len(valid_sessions_to_remove) > 0:
                     message = f"已达到最大会话数量限制({max_sessions}个)，已自动清理{len(valid_sessions_to_remove)}个最旧的会话"
                 return valid_sessions_to_remove, message
