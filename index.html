@@ -645,9 +645,10 @@
       class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50" id="admin-panel-modal-Inline" >
       <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col overflow-x-hidden"
         style="max-height: calc(100vh - 12rem);">
-        <h3 class="text-xl font-bold text-sky-600 text-center mb-4">管理面板</h3>
+        <h3 class="text-xl font-bold text-sky-600 text-center mb-4">会话管理</h3>
 
-        <div class="flex border-b border-slate-200 flex-shrink-0"> <button id="admin-tab-users"
+        <!-- Tab bar hidden for inline panel (session-only), but kept in DOM for JS compatibility -->
+        <div class="flex border-b border-slate-200 flex-shrink-0" style="display:none;"> <button id="admin-tab-users"
             class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">用户管理</button>
           <button id="admin-tab-groups"
             class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">权限组管理</button>
@@ -2672,6 +2673,62 @@
     // 管理面板功能
     // ====================
 
+    // 权限中英文翻译映射
+    const permissionTranslations = {
+      // 基础权限
+      'view_dashboard': '查看仪表板',
+      'view_tasks': '查看任务',
+      'execute_tasks': '执行任务',
+      'view_history': '查看历史记录',
+      
+      // 用户管理
+      'manage_users': '管理用户',
+      'create_users': '创建用户',
+      'delete_users': '删除用户',
+      'ban_users': '封禁用户',
+      'view_users': '查看用户',
+      
+      // 权限管理
+      'manage_permissions': '管理权限',
+      'manage_groups': '管理权限组',
+      'assign_permissions': '分配权限',
+      
+      // 会话管理
+      'manage_sessions': '管理会话',
+      'view_all_sessions': '查看所有会话',
+      'delete_sessions': '删除会话',
+      'god_mode': '上帝模式',
+      
+      // 系统管理
+      'view_logs': '查看日志',
+      'system_settings': '系统设置',
+      'manage_api': '管理API',
+      
+      // 任务相关
+      'create_tasks': '创建任务',
+      'modify_tasks': '修改任务',
+      'delete_tasks': '删除任务',
+      'schedule_tasks': '定时任务',
+      
+      // 数据权限
+      'export_data': '导出数据',
+      'import_data': '导入数据',
+      'backup_data': '备份数据',
+      
+      // 通知权限
+      'send_notifications': '发送通知',
+      'manage_notifications': '管理通知',
+      
+      // 其他
+      'admin_panel': '管理面板',
+      'debug_mode': '调试模式'
+    };
+
+    // 权限翻译函数
+    function translatePermission(permissionKey) {
+      return permissionTranslations[permissionKey] || permissionKey;
+    }
+
     // 在 toggleAdminPanel 函数内部或之前添加一个辅助函数来检查权限
     async function checkAdminPermission(permissionName) {
       try {
@@ -3032,7 +3089,7 @@
                 ${Object.keys(perms).map(perm => `
                   <div class="flex items-start gap-2">
                     <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'} pt-0.5">${perms[perm] ? '✓' : '✗'}</span>
-                    <span class="text-slate-600 break-words">${perm}</span>
+                    <span class="text-slate-600 break-words">${translatePermission(perm)}</span>
                   </div>
                 `).join('')}
               </div>
@@ -3304,7 +3361,7 @@
               permissionsContainer.innerHTML = Object.keys(firstGroup.permissions).map(perm => `
                 <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
                   <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}">
-                  <span class="text-sm text-slate-700">${perm}</span>
+                  <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
                 </label>
               `).join('');
             }
@@ -3649,7 +3706,7 @@
             return `
               <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer border ${statusClass}">
                 <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" data-group-value="${groupHas}" ${currentValue ? 'checked' : ''}>
-                <span class="text-sm text-slate-700 flex-1">${perm}</span>
+                <span class="text-sm text-slate-700 flex-1">${translatePermission(perm)}</span>
                 ${statusText ? `<span class="text-xs ${isAdded ? 'text-green-600' : 'text-red-600'}">${statusText}</span>` : ''}
               </label>
             `;
@@ -3785,7 +3842,7 @@
           permissionsContainer.innerHTML = Object.keys(group.permissions).map(perm => `
             <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
               <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" ${group.permissions[perm] ? 'checked' : ''}>
-              <span class="text-sm text-slate-700">${perm}</span>
+              <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
             </label>
           `).join('');
         }
@@ -3883,7 +3940,7 @@
             ${Object.keys(perms).map(perm => `
               <div class="flex items-center gap-2">
                 <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'}">${perms[perm] ? '✓' : '✗'}</span>
-                <span class="text-slate-600">${perm}</span>
+                <span class="text-slate-600">${translatePermission(perm)}</span>
               </div>
             `).join('')}
           </div>
