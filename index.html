@@ -2175,9 +2175,6 @@
 
           showAuthSuccess(successMessage);
           
-          // 显示成功状态
-          showButtonSuccess('auth-login-btn', '登录成功');
-
           // 如果有token，记录日志（用于调试）
           if (result.token) {
             console.log('Received auth token (stored in cookie)');
@@ -2186,7 +2183,13 @@
 
           // 系统账号登录成功后，显示会话选择器
           if (!result.is_guest) {
+            // 显示成功状态，持续时间设为800ms，避免与后续操作冲突
+            showButtonSuccess('auth-login-btn', '登录成功', 800);
+            
             setTimeout(() => {
+              // 清除按钮状态，确保按钮恢复正常
+              setButtonLoading('auth-login-btn', false);
+              
               // 隐藏登录界面，显示会话选择器模态框
               $('auth-login-container').classList.add('hidden');
               showSessionPicker();
@@ -2199,7 +2202,7 @@
               if (result.kicked_sessions_count > 0) {
                 logMessage(`[多设备检测] 已自动登出该账号在其他 ${result.kicked_sessions_count} 个设备上的会话`);
               }
-            }, 1500);
+            }, 1000);
             return;
           }
 
