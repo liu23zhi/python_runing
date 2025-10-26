@@ -643,7 +643,7 @@
 
     <div
       class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50">
-      <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col h-[60vh]">
+      <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col overflow-x-hidden" style="max-height: calc(100vh - 12rem);">
         <h3 class="text-xl font-bold text-sky-600 text-center mb-4">管理面板</h3>
 
         <div class="flex border-b border-slate-200 flex-shrink-0"> <button id="admin-tab-users"
@@ -654,7 +654,7 @@
             class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">会话管理</button>
         </div>
 
-        <div id="admin-users-panel" class="hidden space-y-4 overflow-y-auto flex-grow min-h-0">
+        <div id="admin-users-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">用户列表</h4>
             <button id="admin-refresh-users-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
@@ -664,7 +664,7 @@
           </div>
         </div>
 
-        <div id="admin-groups-panel" class="hidden space-y-4 overflow-y-auto flex-grow min-h-0">
+        <div id="admin-groups-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">权限组列表</h4>
             <button id="admin-refresh-groups-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
@@ -674,7 +674,7 @@
           </div>
         </div>
 
-        <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto flex-grow min-h-0">
+        <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">会话列表</h4>
             <button id="admin-refresh-sessions-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
@@ -1198,16 +1198,16 @@
 
   <div id="admin-panel-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="toggleAdminPanel(false)"></div>
-    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-x-hidden space-y-4 relative flex flex-col">
 
-      <div class="relative mb-4 text-center">
+      <div class="relative mb-4 text-center flex-shrink-0">
         <h3 class="text-2xl font-bold text-sky-600 inline-block">管理面板</h3>
 
         <button id="admin-modal-close-btn"
           class="absolute top-1/2 right-0 transform -translate-y-1/2 btn btn-ghost !py-1 !px-3"
           onclick="toggleAdminPanel(false)">关闭</button>
       </div>
-      <div class="flex border-b border-slate-200">
+      <div class="flex border-b border-slate-200 flex-shrink-0">
         <button id="admin-tab-users_modal"
           class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">用户管理</button>
         <button id="admin-tab-groups_modal"
@@ -1216,33 +1216,35 @@
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
       </div>
 
-      <div id="admin-users-panel_modal" class="space-y-4">
-        <div class="flex justify-between items-center">
-          <h4 class="font-semibold">用户列表</h4>
-          <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+      <div class="overflow-y-auto overflow-x-hidden flex-grow min-h-0">
+        <div id="admin-users-panel_modal" class="space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">用户列表</h4>
+            <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-users-list_modal" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
         </div>
-        <div id="admin-users-list_modal" class="space-y-2">
-          <p class="text-slate-400 text-center py-10">加载中...</p>
-        </div>
-      </div>
 
-      <div id="admin-groups-panel_modal" class="hidden space-y-4">
-        <div class="flex justify-between items-center">
-          <h4 class="font-semibold">权限组列表</h4>
-          <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+        <div id="admin-groups-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">权限组列表</h4>
+            <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-groups-list_modal" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
         </div>
-        <div id="admin-groups-list_modal" class="space-y-2">
-          <p class="text-slate-400 text-center py-10">加载中...</p>
-        </div>
-      </div>
 
-      <div id="admin-sessions-panel_modal" class="hidden space-y-4">
-        <div class="flex justify-between items-center">
-          <h4 class="font-semibold">会话列表</h4>
-          <button id="admin-refresh-sessions_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
-        </div>
-        <div id="admin-sessions-list_modal" class="space-y-2">
-          <p class="text-slate-400 text-center py-10">加载中...</p>
+        <div id="admin-sessions-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">会话列表</h4>
+            <button id="admin-refresh-sessions_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-sessions-list_modal" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
         </div>
       </div>
     </div>
@@ -2043,8 +2045,69 @@
       $('auth-error-msg').classList.add('hidden');
     }
 
+    // UI反馈辅助函数
+    function setButtonLoading(buttonId, loading, originalText = '') {
+      const btn = $(buttonId);
+      if (!btn) return;
+      
+      if (loading) {
+        btn.dataset.originalText = btn.textContent;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="inline-block animate-spin mr-2">⏳</span>${originalText || '处理中...'}`;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+      } else {
+        btn.disabled = false;
+        btn.textContent = btn.dataset.originalText || originalText;
+        btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        delete btn.dataset.originalText;
+      }
+    }
+
+    function showButtonSuccess(buttonId, message = '成功', duration = 1500) {
+      const btn = $(buttonId);
+      if (!btn) return;
+      
+      // 先清除加载状态，确保按钮可用
+      btn.disabled = false;
+      btn.classList.remove('opacity-75', 'cursor-not-allowed');
+      
+      const originalText = btn.dataset.originalText || btn.textContent;
+      delete btn.dataset.originalText;
+      
+      btn.innerHTML = `<span class="mr-1">✓</span>${message}`;
+      btn.classList.add('!bg-green-600');
+      
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('!bg-green-600');
+        btn.disabled = false; // 确保恢复后按钮可用
+      }, duration);
+    }
+
+    function showButtonError(buttonId, message = '失败', duration = 2000) {
+      const btn = $(buttonId);
+      if (!btn) return;
+      
+      // 先清除加载状态，确保按钮可用
+      btn.disabled = false;
+      btn.classList.remove('opacity-75', 'cursor-not-allowed');
+      
+      const originalText = btn.dataset.originalText || btn.textContent;
+      delete btn.dataset.originalText;
+      
+      btn.innerHTML = `<span class="mr-1">✗</span>${message}`;
+      btn.classList.add('!bg-red-600');
+      
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('!bg-red-600');
+        btn.disabled = false; // 确保恢复后按钮可用
+      }, duration);
+    }
+
     // 用户登录
     async function handleAuthLogin() {
+      const loginBtn = $('auth-login-btn');
       const username = $('auth-username').value.trim();
       const password = $('auth-password').value.trim();
 
@@ -2066,6 +2129,9 @@
         showAuthError('密码长度至少6个字符');
         return;
       }
+
+      // 显示加载状态
+      setButtonLoading('auth-login-btn', true, '登录中...');
 
       try {
         // 构建请求头
@@ -2102,6 +2168,9 @@
           }
 
           showAuthSuccess(successMessage);
+          
+          // 显示成功状态
+          showButtonSuccess('auth-login-btn', '登录成功');
 
           // 如果有token，记录日志（用于调试）
           if (result.token) {
@@ -2153,10 +2222,14 @@
             }
           }, 1000);
         } else {
+          setButtonLoading('auth-login-btn', false);
+          showButtonError('auth-login-btn', '登录失败');
           showAuthError(result.message || '登录失败');
         }
       } catch (e) {
         console.error('登录请求失败:', e);
+        setButtonLoading('auth-login-btn', false);
+        showButtonError('auth-login-btn', '网络错误');
         showAuthError('网络错误，请检查连接后重试');
       }
     }
@@ -2191,6 +2264,9 @@
         return;
       }
 
+      // 显示加载状态
+      setButtonLoading('auth-register-btn', true, '注册中...');
+
       try {
         const response = await fetch('/auth/register', {
           method: 'POST',
@@ -2206,18 +2282,24 @@
         const result = await response.json();
 
         if (result.success) {
+          showButtonSuccess('auth-register-btn', '注册成功');
           showAuthSuccess('注册成功！请登录');
           setTimeout(() => {
+            setButtonLoading('auth-register-btn', false);
             // 切换到登录标签并填充用户名
             switchAuthTab('login');
             $('auth-username').value = username;
             $('auth-password').value = password;
           }, 1500);
         } else {
+          setButtonLoading('auth-register-btn', false);
+          showButtonError('auth-register-btn', '注册失败');
           showAuthError(result.message || '注册失败');
         }
       } catch (e) {
         console.error('注册请求失败:', e);
+        setButtonLoading('auth-register-btn', false);
+        showButtonError('auth-register-btn', '网络错误');
         showAuthError('网络错误，请检查连接后重试');
       }
     }
@@ -4493,10 +4575,14 @@
       const uaOnLoginScreen = $('ua-label')?.textContent || "";
       console.log(`[前端-登录] 当前UA: ${uaOnLoginScreen.substring(0, 50)}...`);
 
+      // 显示加载状态
+      setButtonLoading('login-button', true, '登录中...');
+
       console.log('[前端-登录] 调用后端API进行登录验证...');
       const result = await callPythonAPI('login', user, pass);
       if (result.success) {
         console.log('[前端-登录] ✓ 登录成功！');
+        showButtonSuccess('login-button', '登录成功');
         // 修复Issue 3: 在显示主界面前先加载AMap API Key
         if (result.amap_key) {
           console.log('[前端-登录] 加载高德地图API...');
@@ -4532,6 +4618,8 @@
         console.log('[前端-登录] ✓ 登录流程完成！');
       } else {
         console.log(`[前端-登录] ✗ 登录失败: ${result.message}`);
+        setButtonLoading('login-button', false);
+        showButtonError('login-button', '登录失败');
         showModalAlert(result.message, '登录失败');
       }
     }

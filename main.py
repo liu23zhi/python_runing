@@ -2653,9 +2653,9 @@ class Api:
             with open(path, "w", encoding="utf-8") as f:
                 cfg_en.write(f)
 
-    def _save_config(self, username, password=None):
-        """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码。同时更新主 config.ini 的 LastUser 和 AmapJsKey。"""
-        logging.debug(f"Saving config: username={username!r}, password provided: {password is not None}")
+    def _save_config(self, username, password=None, ua=None):
+        """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码；当 ua 为 None 时保留现有 UA。同时更新主 config.ini 的 LastUser 和 AmapJsKey。"""
+        logging.debug(f"Saving config: username={username!r}, password provided: {password is not None}, ua provided: {ua is not None}")
 
         # --- 1. 处理用户独立的 .ini 文件 ---
         user_ini_path = os.path.join(self.user_dir, f"{username}.ini")
@@ -2686,14 +2686,42 @@ class Api:
         if password is not None:
             # 场景: 提供了新密码 (来自 login, multi_add_account)
             cfg_to_save.set('Config', 'Password', password)
-        # 场景: 未提供新密码 (来自 update_param)
-        # 则 *不* 触碰 Password 键，从而保留 cfg_to_save 中已加载的旧密码(或它的缺失状态)。
+        else:
+            # 场景: 未提供新密码 (来自 update_param)
+            # 如果当前配置中没有密码，尝试从备份文件中恢复（防止normalize过程丢失）
+            if not cfg_to_save.has_option('Config', 'Password') or not cfg_to_save.get('Config', 'Password'):
+                backup_path = f"{user_ini_path}.bak"
+                if os.path.exists(backup_path):
+                    try:
+                        # 尝试从备份文件中读取密码，使用robust_decode确保兼容各种编码
+                        with open(backup_path, "rb") as bf:
+                            raw_backup = bf.read()
+                        backup_text = self._robust_decode(raw_backup)
+                        for line in backup_text.splitlines():
+                            clean_line = line.strip()
+                            # 规范化用于匹配
+                            normalized_line = clean_line.lower().replace(" ", "")
+                            if normalized_line.startswith("password=") or normalized_line.startswith("密码="):
+                                # 从原始clean_line中分割（保留原始大小写和值）
+                                parts = clean_line.split("=", 1)
+                                if len(parts) == 2:
+                                    recovered_password = parts[1].strip()
+                                    if recovered_password:
+                                        cfg_to_save.set('Config', 'Password', recovered_password)
+                                        logging.info(f"已从备份文件恢复用户 {username} 的密码")
+                                        break
+                    except Exception as e:
+                        logging.warning(f"从备份文件恢复密码失败: {e}")
+            # 否则保留 cfg_to_save 中已加载的旧密码(或它的缺失状态)。
 
-        # --- 5. UA：从当前实例状态获取 ---
-        ua_to_save = self.device_ua
-        if self.is_multi_account_mode and username in self.accounts:
-            ua_to_save = self.accounts[username].device_ua
-        cfg_to_save.set('System', 'UA', ua_to_save or "")
+        # --- 5. 智能处理 UA ---
+        # 仅当 *提供了新的* ua (非 None) 时，才覆盖 UA
+        # 修复：避免在切换账号时误将当前实例的 UA 覆盖到其他用户的配置文件
+        if ua is not None:
+            # 场景: 明确提供了新 UA (来自 login, generate_new_ua)
+            cfg_to_save.set('System', 'UA', ua)
+        # 场景: 未提供新 UA (来自 update_param 等)
+        # 则 *不* 触碰 UA 键，从而保留 cfg_to_save 中已加载的旧 UA(或它的缺失状态)。
 
         # --- 6. 参数：从当前实例状态获取 ---
         params_to_save = self.params
@@ -3020,7 +3048,12 @@ class Api:
             return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
         password = self._load_config(username)
         
-        ua = self.device_ua or ""
+        # 修复：如果配置文件不存在（password返回None），UA应该返回空字符串
+        # 这样前端会显示"(新用户将在登录时自动生成)"
+        if password is None:
+            ua = ""
+        else:
+            ua = self.device_ua or ""
         logging.debug(f"on_user_selected: username={username}, ua={ua}, password={'***' if password else 'empty'}")
         info = {"name": self.user_data.name, "student_id": self.user_data.student_id}
         return {"password": password or "", "ua": ua, "params": self.params, "userInfo": info}
@@ -3087,7 +3120,7 @@ class Api:
 
         # 至此，ud.username 已经是“用于保存配置的主键”（学号优先）
         # 现在再保存配置（文件名与 LastUser 都用 ud.username）
-        self._save_config(ud.username, password)
+        self._save_config(ud.username, password, self.device_ua)
 
 
         # --- 新增：登录成功后，立即获取并缓存签到半径 ---
@@ -4588,7 +4621,8 @@ class Api:
         ini_path = os.path.join(self.user_dir, f"{username}.ini")
         try:
             # 创建 .ini 或更新现有 .ini，保存 UA 与参数与密码
-            self._save_config(username, self.accounts[username].password)
+            # 修复：在多账号模式添加账号时，应该保存该账号的 UA
+            self._save_config(username, self.accounts[username].password, self.accounts[username].device_ua)
         except Exception:
             logging.warning(f"保存 {ini_path} 失败（将继续运行）：{traceback.format_exc()}")
 
