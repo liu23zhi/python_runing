@@ -645,7 +645,60 @@
       class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50" id="admin-panel-modal-Inline" >
       <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col overflow-x-hidden"
         style="max-height: calc(100vh - 12rem);">
-        <h3 class="text-xl font-bold text-sky-600 text-center mb-4">会话管理</h3>
+        <h3 class="text-xl font-bold text-sky-600 text-center mb-4">管理面板</h3>
+
+        <div class="flex border-b border-slate-200 flex-shrink-0"> <button id="admin-tab-users"
+            class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">用户管理</button>
+          <button id="admin-tab-groups"
+            class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">权限组管理</button>
+          <button id="admin-tab-logs"
+            class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">日志查看</button>
+          <button id="admin-tab-sessions"
+            class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">会话管理</button>
+        </div>
+
+        <div id="admin-users-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">用户列表</h4>
+            <div class="flex gap-2">
+              <button id="admin-create-user-inline" class="btn btn-primary !py-1 !px-2">新增用户</button>
+              <button id="admin-refresh-users-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
+          </div>
+          <div id="admin-users-list-inline" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <div id="admin-groups-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">权限组列表</h4>
+            <div class="flex gap-2">
+              <button id="admin-create-group-inline" class="btn btn-primary !py-1 !px-2">新增权限组</button>
+              <button id="admin-refresh-groups-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
+          </div>
+          <div id="admin-groups-list-inline" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <div id="admin-logs-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">系统日志</h4>
+            <div class="flex gap-2">
+              <select id="log-lines-select" class="text-sm border border-slate-300 rounded px-2 py-1">
+                <option value="100">最近100行</option>
+                <option value="500">最近500行</option>
+                <option value="1000">最近1000行</option>
+              </select>
+              <button id="admin-refresh-logs-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
+          </div>
+          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[60vh]">
+            <pre id="admin-logs-content-inline" class="whitespace-pre-wrap">加载中...</pre>
+          </div>
+        </div>
 
         <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
           <div class="flex justify-between items-center">
@@ -2529,15 +2582,17 @@
         if (adminPanelBtnMulti) adminPanelBtnMulti.addEventListener('click', () => toggleAdminPanel(true));
 
         // 管理面板标签
-        // 内嵌面板只有会话管理，无需tab切换
-        const adminSessionsInlineRefresh = $('admin-refresh-sessions-inline');
-        if (adminSessionsInlineRefresh) {
-          adminSessionsInlineRefresh.addEventListener('click', loadAdminSessions_inline);
-        }
-
-        // 上帝模式切换（内嵌面板）
-        const godModeCheckbox = $('god-mode-checkbox');
-        if (godModeCheckbox) godModeCheckbox.addEventListener('change', () => loadAdminSessions_inline());
+        // 注意: 由于存在两组管理面板（登录页内嵌 + 模态框），$() 会返回第一个匹配元素
+        // 第一个匹配的是登录页内嵌面板，所以这里应该调用 switchAdminTab_inline
+        const adminUsersTab = $('admin-tab-users');
+        const adminGroupsTab = $('admin-tab-groups');
+        const adminLogsTab = $('admin-tab-logs');
+        const adminSessionsTab = $('admin-tab-sessions');
+        if (adminUsersTab) adminUsersTab.addEventListener('click', () => switchAdminTab_inline('users'));
+        if (adminGroupsTab) adminGroupsTab.addEventListener('click', () => switchAdminTab_inline('groups'));
+        if (adminLogsTab) adminLogsTab.addEventListener('click', () => switchAdminTab_inline('logs'));
+        if (adminSessionsTab) adminSessionsTab.addEventListener('click', () => switchAdminTab_inline('sessions'));
+        if (adminSessionsTab) adminSessionsTab.addEventListener('click', () => switchAdminTab_inline('sessions'));
 
         const modalAdminPanel = $('admin-panel-modal');
         if (modalAdminPanel) {
@@ -2585,14 +2640,30 @@
           switchAdminTab('sessions');
         });
 
-        // 新增用户/权限组按钮（仅模态框）
+        // 内嵌登录页面管理面板刷新按钮 (新增)
+        const refreshUsersInlineBtn = $('admin-refresh-users-inline');
+        const refreshGroupsInlineBtn = $('admin-refresh-groups-inline');
+        const refreshLogsInlineBtn = $('admin-refresh-logs-inline');
+        const refreshSessionsInlineBtn = $('admin-refresh-sessions-inline');
+        if (refreshUsersInlineBtn) refreshUsersInlineBtn.addEventListener('click', loadAdminUsers_inline);
+        if (refreshGroupsInlineBtn) refreshGroupsInlineBtn.addEventListener('click', loadAdminGroups_inline);
+        if (refreshLogsInlineBtn) refreshLogsInlineBtn.addEventListener('click', loadAdminLogs_inline);
+        if (refreshSessionsInlineBtn) refreshSessionsInlineBtn.addEventListener('click', loadAdminSessions_inline);
+
+        // 新增用户/权限组按钮
+        const createUserInlineBtn = $('admin-create-user-inline');
+        const createGroupInlineBtn = $('admin-create-group-inline');
         const createUserModalBtn = $('admin-create-user_modal');
         const createGroupModalBtn = $('admin-create-group_modal');
+        if (createUserInlineBtn) createUserInlineBtn.addEventListener('click', showCreateUserModal);
+        if (createGroupInlineBtn) createGroupInlineBtn.addEventListener('click', showCreateGroupModal);
         if (createUserModalBtn) createUserModalBtn.addEventListener('click', showCreateUserModal);
         if (createGroupModalBtn) createGroupModalBtn.addEventListener('click', showCreateGroupModal);
 
-        // 上帝模式切换（模态框）
+        // 上帝模式切换
+        const godModeCheckbox = $('god-mode-checkbox');
         const godModeCheckboxModal = $('god-mode-checkbox_modal');
+        if (godModeCheckbox) godModeCheckbox.addEventListener('change', () => loadAdminSessions_inline());
         if (godModeCheckboxModal) godModeCheckboxModal.addEventListener('change', () => loadAdminSessions());
       });
     }
@@ -2600,62 +2671,6 @@
     // ====================
     // 管理面板功能
     // ====================
-
-    // 权限中英文翻译映射
-    const permissionTranslations = {
-      // 基础权限
-      'view_dashboard': '查看仪表板',
-      'view_tasks': '查看任务',
-      'execute_tasks': '执行任务',
-      'view_history': '查看历史记录',
-      
-      // 用户管理
-      'manage_users': '管理用户',
-      'create_users': '创建用户',
-      'delete_users': '删除用户',
-      'ban_users': '封禁用户',
-      'view_users': '查看用户',
-      
-      // 权限管理
-      'manage_permissions': '管理权限',
-      'manage_groups': '管理权限组',
-      'assign_permissions': '分配权限',
-      
-      // 会话管理
-      'manage_sessions': '管理会话',
-      'view_all_sessions': '查看所有会话',
-      'delete_sessions': '删除会话',
-      'god_mode': '上帝模式',
-      
-      // 系统管理
-      'view_logs': '查看日志',
-      'system_settings': '系统设置',
-      'manage_api': '管理API',
-      
-      // 任务相关
-      'create_tasks': '创建任务',
-      'modify_tasks': '修改任务',
-      'delete_tasks': '删除任务',
-      'schedule_tasks': '定时任务',
-      
-      // 数据权限
-      'export_data': '导出数据',
-      'import_data': '导入数据',
-      'backup_data': '备份数据',
-      
-      // 通知权限
-      'send_notifications': '发送通知',
-      'manage_notifications': '管理通知',
-      
-      // 其他
-      'admin_panel': '管理面板',
-      'debug_mode': '调试模式'
-    };
-
-    // 权限翻译函数
-    function translatePermission(permissionKey) {
-      return permissionTranslations[permissionKey] || permissionKey;
-    }
 
     // 在 toggleAdminPanel 函数内部或之前添加一个辅助函数来检查权限
     async function checkAdminPermission(permissionName) {
@@ -2731,23 +2746,92 @@
 
     // 初始化内嵌管理面板的tab可见性
     async function initializeInlineAdminPanel() {
-      // 内嵌面板只显示会话管理，直接加载会话数据
+      const usersTab = $('admin-tab-users');
+      const groupsTab = $('admin-tab-groups');
+      const logsTab = $('admin-tab-logs');
+      const sessionsTab = $('admin-tab-sessions');
       const godModeToggle = $('god-mode-toggle');
-      
-      // 检查上帝模式权限
+
+      // 权限检查
+      const canManageUsers = await checkAdminPermission('manage_users');
+      const canManageGroups = await checkAdminPermission('manage_permissions');
+      const canViewLogs = await checkAdminPermission('view_logs');
       const hasGodMode = await checkAdminPermission('god_mode');
+
+      // 控制标签页可见性
+      if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
+      if (groupsTab) groupsTab.style.display = canManageGroups ? 'block' : 'none';
+      if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
+      // 会话管理标签页始终可见
+      if (sessionsTab) sessionsTab.style.display = 'block';
 
       // 控制上帝模式开关可见性
       if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
 
-      // 加载会话列表
-      loadAdminSessions_inline();
+      // 默认显示会话标签页
+      if (sessionsTab) {
+        switchAdminTab_inline('sessions');
+      }
     }
 
-    // 内嵌面板的tab切换函数已废弃，因为内嵌面板只有会话管理
+    // 处理嵌入式登录页面面板的标签切换
     function switchAdminTab_inline(tab) {
-      // 内嵌面板只有会话管理，无需切换
-      console.log('Inline panel only shows session management, no tab switching needed');
+      // 获取嵌入式面板内的标签按钮和内容面板的引用
+      // 注意：登录页面内嵌的管理面板与主面板共用相同的ID（没有-inline后缀）
+      const usersTab = $('admin-tab-users');
+      const groupsTab = $('admin-tab-groups');
+      const logsTab = $('admin-tab-logs');
+      const sessionsTab = $('admin-tab-sessions');
+      const usersPanel = $('admin-users-panel');
+      const groupsPanel = $('admin-groups-panel');
+      const logsPanel = $('admin-logs-panel');
+      const sessionsPanel = $('admin-sessions-panel');
+
+      // 防御性编程：检查元素是否存在，避免 null 错误
+      if (!usersTab || !groupsTab || !logsTab || !sessionsTab || !usersPanel || !groupsPanel || !logsPanel || !sessionsPanel) {
+        console.error("switchAdminTab_inline: 无法找到所有必要的管理面板元素。");
+        return;
+      }
+
+      // 重置所有标签按钮的样式
+      [usersTab, groupsTab, logsTab, sessionsTab].forEach(t => {
+        t.classList.remove('text-sky-600', 'border-sky-600');
+        t.classList.add('text-slate-400', 'border-transparent');
+      });
+
+      // 隐藏所有内容面板
+      [usersPanel, groupsPanel, logsPanel, sessionsPanel].forEach(p => {
+        p.classList.add('hidden');
+      });
+
+      // 根据传入的 tab 参数，激活对应的标签按钮和内容面板，并调用加载函数
+      if (tab === 'users') {
+        usersTab.classList.add('text-sky-600', 'border-sky-600');
+        usersTab.classList.remove('text-slate-400', 'border-transparent');
+        usersPanel.classList.remove('hidden');
+        loadAdminUsers_inline(); // 加载用户数据
+      } else if (tab === 'groups') {
+        groupsTab.classList.add('text-sky-600', 'border-sky-600');
+        groupsTab.classList.remove('text-slate-400', 'border-transparent');
+        groupsPanel.classList.remove('hidden');
+        loadAdminGroups_inline(); // 加载权限组数据 (你也需要创建这个函数)
+      } else if (tab === 'logs') {
+        logsTab.classList.add('text-sky-600', 'border-sky-600');
+        logsTab.classList.remove('text-slate-400', 'border-transparent');
+        logsPanel.classList.remove('hidden');
+        loadAdminLogs_inline(); // 加载日志数据
+      } else if (tab === 'sessions') {
+        sessionsTab.classList.add('text-sky-600', 'border-sky-600');
+        sessionsTab.classList.remove('text-slate-400', 'border-transparent');
+        sessionsPanel.classList.remove('hidden');
+        loadAdminSessions_inline(); // 加载会话数据 (你也需要创建这个函数)
+      } else {
+        // 默认或回退情况，显示会话标签页
+        sessionsTab.classList.add('text-sky-600', 'border-sky-600');
+        sessionsTab.classList.remove('text-slate-400', 'border-transparent');
+        sessionsPanel.classList.remove('hidden');
+        loadAdminSessions_inline(); // 加载会话数据
+      }
     }
 
     // 处理主管理面板模态框的标签切换
@@ -2948,7 +3032,7 @@
                 ${Object.keys(perms).map(perm => `
                   <div class="flex items-start gap-2">
                     <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'} pt-0.5">${perms[perm] ? '✓' : '✗'}</span>
-                    <span class="text-slate-600 break-words">${translatePermission(perm)}</span>
+                    <span class="text-slate-600 break-words">${perm}</span>
                   </div>
                 `).join('')}
               </div>
@@ -3220,7 +3304,7 @@
               permissionsContainer.innerHTML = Object.keys(firstGroup.permissions).map(perm => `
                 <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
                   <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}">
-                  <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
+                  <span class="text-sm text-slate-700">${perm}</span>
                 </label>
               `).join('');
             }
@@ -3565,7 +3649,7 @@
             return `
               <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer border ${statusClass}">
                 <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" data-group-value="${groupHas}" ${currentValue ? 'checked' : ''}>
-                <span class="text-sm text-slate-700 flex-1">${translatePermission(perm)}</span>
+                <span class="text-sm text-slate-700 flex-1">${perm}</span>
                 ${statusText ? `<span class="text-xs ${isAdded ? 'text-green-600' : 'text-red-600'}">${statusText}</span>` : ''}
               </label>
             `;
@@ -3701,7 +3785,7 @@
           permissionsContainer.innerHTML = Object.keys(group.permissions).map(perm => `
             <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
               <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" ${group.permissions[perm] ? 'checked' : ''}>
-              <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
+              <span class="text-sm text-slate-700">${perm}</span>
             </label>
           `).join('');
         }
@@ -3799,7 +3883,7 @@
             ${Object.keys(perms).map(perm => `
               <div class="flex items-center gap-2">
                 <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'}">${perms[perm] ? '✓' : '✗'}</span>
-                <span class="text-slate-600">${translatePermission(perm)}</span>
+                <span class="text-slate-600">${perm}</span>
               </div>
             `).join('')}
           </div>
