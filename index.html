@@ -2326,14 +2326,14 @@
           }
 
           // 游客登录：分配新UUID并跳转
-          setTimeout(() => {
+          setTimeout(async () => {
             // 隐藏认证界面，显示应用登录界面
             $('auth-login-container').classList.add('hidden');
             $('login-container').classList.remove('hidden');
 
             // 初始化内嵌管理面板的tab可见性
             try {
-              initializeInlineAdminPanel();
+              await initializeInlineAdminPanel();
             } catch (e) {
               console.error('初始化管理面板失败:', e);
             }
