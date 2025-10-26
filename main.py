@@ -1328,10 +1328,15 @@ class AuthSystem:
                 if 'session_ids' not in user_data:
                     user_data['session_ids'] = []
                 
-                # 只保留最近的5个会话ID
+                # 添加新会话（如果不存在）
                 if session_id not in user_data['session_ids']:
                     user_data['session_ids'].append(session_id)
-                    user_data['session_ids'] = user_data['session_ids'][-5:]
+                    
+                    # 根据max_sessions配置限制会话数量
+                    max_sessions = user_data.get('max_sessions', 1)
+                    if max_sessions > 0:  # 有限制
+                        user_data['session_ids'] = user_data['session_ids'][-max_sessions:]
+                    # max_sessions == -1 时不限制，保留所有会话
                 
                 with open(user_file, 'w', encoding='utf-8') as f:
                     json.dump(user_data, f, indent=2, ensure_ascii=False)
