@@ -2293,13 +2293,13 @@
         if (result.success) {
           showButtonSuccess('auth-register-btn', '注册成功');
           showAuthSuccess('注册成功！请登录');
-          setTimeout(() => {
-            setButtonLoading('auth-register-btn', false);
-            // // 切换到登录标签并填充用户名
-            // switchAuthTab('login');
-            // $('auth-username').value = username;
-            // $('auth-password').value = password;
-          }, 1500);
+          // setTimeout(() => {
+          //   setButtonLoading('auth-register-btn', false);
+          //   // 切换到登录标签并填充用户名
+          //   switchAuthTab('login');
+          //   $('auth-username').value = username;
+          //   $('auth-password').value = password;
+          // }, 1500);
         } else {
           setButtonLoading('auth-register-btn', false);
           showButtonError('auth-register-btn', '注册失败');
