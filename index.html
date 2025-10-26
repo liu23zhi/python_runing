@@ -3252,10 +3252,9 @@
             if (isGodMode) {
               if (session.username) {
                 ownerInfo = `<p class="text-xs text-slate-500">创建者: ${session.username}</p>`;
-              } else if (session.is_guest) {
-                ownerInfo = `<p class="text-xs text-amber-600">创建者: 游客模式</p>`;
               } else {
-                ownerInfo = `<p class="text-xs text-slate-400">创建者: 未知</p>`;
+                // 没有username的会话视为游客模式
+                ownerInfo = `<p class="text-xs text-amber-600">创建者: 游客模式</p>`;
               }
             }
 
@@ -4647,10 +4646,9 @@
             if (isGodMode) {
               if (session.username) {
                 ownerInfo = `<p class="text-xs text-slate-500">创建者: ${session.username}</p>`;
-              } else if (session.is_guest) {
-                ownerInfo = `<p class="text-xs text-amber-600">创建者: 游客模式</p>`;
               } else {
-                ownerInfo = `<p class="text-xs text-slate-400">创建者: 未知</p>`;
+                // 没有username的会话视为游客模式
+                ownerInfo = `<p class="text-xs text-amber-600">创建者: 游客模式</p>`;
               }
             }
 
