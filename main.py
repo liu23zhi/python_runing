@@ -1569,17 +1569,17 @@ class AuthSystem:
             if max_sessions == -1:
                 return [], ""
             
-            # 单会话模式：移除所有旧会话
-            if max_sessions == 1:
-                user_data['session_ids'] = [new_session_id]
+            # # 单会话模式：移除所有旧会话
+            # if max_sessions == 1:
+            #     user_data['session_ids'] = [new_session_id]
                 
-                with open(user_file, 'w', encoding='utf-8') as f:
-                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+            #     with open(user_file, 'w', encoding='utf-8') as f:
+            #         json.dump(user_data, f, indent=2, ensure_ascii=False)
                 
-                # 过滤掉无效的session_id
-                valid_old_sessions = [s for s in old_sessions if s and s != 'null' and s.strip() != '']
-                message = "单会话模式：已自动清理所有旧会话"
-                return valid_old_sessions, message
+            #     # 过滤掉无效的session_id
+            #     valid_old_sessions = [s for s in old_sessions if s and s != 'null' and s.strip() != '']
+            #     message = "单会话模式：已自动清理所有旧会话"
+            #     return valid_old_sessions, message
             
             # 多会话模式：检查是否超出限制
             current_count = len(old_sessions)
@@ -1594,7 +1594,8 @@ class AuthSystem:
                 
                 # 过滤掉无效的session_id
                 valid_sessions_to_remove = [s for s in sessions_to_remove if s and s != 'null' and s.strip() != '']
-                message = f"已达到最大会话数量限制({max_sessions}个)，已自动清理{len(valid_sessions_to_remove)}个最旧的会话"
+                if len(valid_sessions_to_remove) > 0:
+                    message = f"已达到最大会话数量限制({max_sessions}个)，已自动清理{len(valid_sessions_to_remove)}个最旧的会话"
                 return valid_sessions_to_remove, message
             else:
                 # 未超出限制，正常添加
