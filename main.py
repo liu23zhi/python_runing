@@ -7342,30 +7342,38 @@ def start_web_server(args):
             # 如果是注册用户（非游客），处理会话关联
             cleanup_message = ""
             if not auth_result.get('is_guest', False):
-                # 检查并强制执行会话数量限制
-                old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, session_id)
-                
-                # 清理旧会话（如果超出限制）
-                for old_sid in old_sessions:
-                    cleanup_session(old_sid, "session_limit_exceeded")
-                
-                # 关联新会话到用户账号
-                auth_system.link_session_to_user(auth_username, session_id)
-                
-                # 记录审计日志
-                audit_details = f'登录成功，会话ID: {session_id}'
-                if cleanup_message:
-                    audit_details += f'; {cleanup_message}'
-                
-                auth_system.log_audit(
-                    auth_username,
-                    'user_login',
-                    audit_details,
-                    ip_address,
-                    session_id
-                )
+                try:
+                    # 检查并强制执行会话数量限制
+                    old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, session_id)
+                    
+                    # 清理旧会话（如果超出限制）
+                    for old_sid in old_sessions:
+                        cleanup_session(old_sid, "session_limit_exceeded")
+                    
+                    # 关联新会话到用户账号
+                    auth_system.link_session_to_user(auth_username, session_id)
+                    
+                    # 记录审计日志
+                    audit_details = f'登录成功，会话ID: {session_id}'
+                    if cleanup_message:
+                        audit_details += f'; {cleanup_message}'
+                    
+                    auth_system.log_audit(
+                        auth_username,
+                        'user_login',
+                        audit_details,
+                        ip_address,
+                        session_id
+                    )
+                except Exception as e:
+                    # 即使会话管理失败，也不应阻止登录
+                    logging.error(f"会话管理过程出错，但继续登录流程: {e}")
+                    cleanup_message = ""
             
-            save_session_state(session_id, api_instance, force_save=True)
+            try:
+                save_session_state(session_id, api_instance, force_save=True)
+            except Exception as e:
+                logging.error(f"保存会话状态失败: {e}")
         
         # 如果是注册用户，返回已保存的会话ID列表
         user_sessions = []
