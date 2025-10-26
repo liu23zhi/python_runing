@@ -9,3 +9,5 @@ __pycache__/
 /system_accounts
 ./tokens/
 /tokens
+config.ini
+permissions.json
