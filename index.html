@@ -2067,13 +2067,20 @@
       const btn = $(buttonId);
       if (!btn) return;
       
-      const originalText = btn.textContent;
+      // 先清除加载状态，确保按钮可用
+      btn.disabled = false;
+      btn.classList.remove('opacity-75', 'cursor-not-allowed');
+      
+      const originalText = btn.dataset.originalText || btn.textContent;
+      delete btn.dataset.originalText;
+      
       btn.innerHTML = `<span class="mr-1">✓</span>${message}`;
       btn.classList.add('!bg-green-600');
       
       setTimeout(() => {
         btn.textContent = originalText;
         btn.classList.remove('!bg-green-600');
+        btn.disabled = false; // 确保恢复后按钮可用
       }, duration);
     }
 
@@ -2081,13 +2088,20 @@
       const btn = $(buttonId);
       if (!btn) return;
       
-      const originalText = btn.textContent;
+      // 先清除加载状态，确保按钮可用
+      btn.disabled = false;
+      btn.classList.remove('opacity-75', 'cursor-not-allowed');
+      
+      const originalText = btn.dataset.originalText || btn.textContent;
+      delete btn.dataset.originalText;
+      
       btn.innerHTML = `<span class="mr-1">✗</span>${message}`;
       btn.classList.add('!bg-red-600');
       
       setTimeout(() => {
         btn.textContent = originalText;
         btn.classList.remove('!bg-red-600');
+        btn.disabled = false; // 确保恢复后按钮可用
       }, duration);
     }
 
