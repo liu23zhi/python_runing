@@ -1197,6 +1197,10 @@
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">权限组管理</button>
         <button id="admin-tab-logs_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">日志查看</button>
+        <button id="admin-tab-health_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">系统状态</button>
+        <button id="admin-tab-profile_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">个人信息</button>
         <button id="admin-tab-sessions_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
       </div>
@@ -1261,6 +1265,85 @@
           </div>
           <div id="admin-sessions-list_modal" class="space-y-2 max-h-[50vh] overflow-y-auto">
             <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <!-- 健康状态面板 -->
+        <div id="admin-health-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">系统健康状态</h4>
+            <button id="admin-refresh-health_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-health-content_modal" class="space-y-4">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <!-- 个人信息面板 -->
+        <div id="admin-profile-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">个人信息</h4>
+            <button id="admin-refresh-profile_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-profile-content_modal" class="space-y-6">
+            <!-- 头像 -->
+            <div class="flex items-center gap-4">
+              <img id="profile-avatar-display" src="" alt="用户头像" class="w-20 h-20 rounded-full border-2 border-slate-200" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+              <div class="flex-1">
+                <label class="block text-sm font-semibold text-slate-700 mb-1">头像URL</label>
+                <div class="flex gap-2">
+                  <input type="text" id="profile-avatar-input" class="input-field flex-1" placeholder="输入头像URL">
+                  <button onclick="updateAvatar()" class="btn btn-primary !py-1 !px-3">更新</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 修改密码 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
+                  <input type="password" id="profile-new-password" class="input-field" placeholder="输入新密码">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">确认新密码</label>
+                  <input type="password" id="profile-confirm-password" class="input-field" placeholder="再次输入新密码">
+                </div>
+                <button onclick="updatePassword()" class="btn btn-primary">修改密码</button>
+              </div>
+            </div>
+
+            <!-- 2FA设置 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">双因素认证(2FA)</h5>
+              <div id="profile-2fa-status" class="mb-3">
+                <p class="text-sm text-slate-600">状态: <span id="profile-2fa-enabled">检测中...</span></p>
+              </div>
+              <div id="profile-2fa-setup" class="space-y-3 hidden">
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+                  <img id="profile-2fa-qr" src="" alt="2FA QR Code" class="mx-auto max-w-xs">
+                  <p class="text-xs text-slate-600 mt-2">请使用Google Authenticator或类似应用扫描此二维码</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">验证码</label>
+                  <input type="text" id="profile-2fa-code" class="input-field" placeholder="输入6位验证码">
+                </div>
+                <button onclick="enable2FA()" class="btn btn-primary">启用2FA</button>
+              </div>
+              <div id="profile-2fa-actions" class="space-y-2">
+                <button onclick="generate2FA()" class="btn btn-primary">生成2FA密钥</button>
+              </div>
+            </div>
+
+            <!-- 主题设置 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">主题设置</h5>
+              <select id="profile-theme-select" onchange="updateTheme()" class="select-field">
+                <option value="light">浅色主题</option>
+                <option value="dark">深色主题</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -2537,11 +2620,15 @@
           const modalUsersTab = $('admin-tab-users_modal'); // 直接使用新的唯一 ID
           const modalGroupsTab = $('admin-tab-groups_modal');
           const modalLogsTab = $('admin-tab-logs_modal');
+          const modalHealthTab = $('admin-tab-health_modal');
+          const modalProfileTab = $('admin-tab-profile_modal');
           const modalSessionsTab = $('admin-tab-sessions_modal');
 
           if (modalUsersTab) modalUsersTab.addEventListener('click', () => switchAdminTab('users'));
           if (modalGroupsTab) modalGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
           if (modalLogsTab) modalLogsTab.addEventListener('click', () => switchAdminTab('logs'));
+          if (modalHealthTab) modalHealthTab.addEventListener('click', () => switchAdminTab('health'));
+          if (modalProfileTab) modalProfileTab.addEventListener('click', () => switchAdminTab('profile'));
           if (modalSessionsTab) modalSessionsTab.addEventListener('click', () => switchAdminTab('sessions'));
           console.log("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
         } else {
@@ -2552,12 +2639,16 @@
         const refreshUsersBtnModal = $('admin-refresh-users_modal'); // 使用新的唯一 ID
         const refreshGroupsBtnModal = $('admin-refresh-groups_modal');
         const refreshLogsBtnModal = $('admin-refresh-logs_modal');
+        const refreshHealthBtnModal = $('admin-refresh-health_modal');
+        const refreshProfileBtnModal = $('admin-refresh-profile_modal');
         const refreshSessionsBtnModal = $('admin-refresh-sessions_modal');
 
         // 确保调用的是正确的加载函数 (它们现在内部会操作 _modal 列表)
         if (refreshUsersBtnModal) refreshUsersBtnModal.addEventListener('click', loadAdminUsers);
         if (refreshGroupsBtnModal) refreshGroupsBtnModal.addEventListener('click', loadAdminGroups);
         if (refreshLogsBtnModal) refreshLogsBtnModal.addEventListener('click', loadAdminLogs);
+        if (refreshHealthBtnModal) refreshHealthBtnModal.addEventListener('click', loadHealthStatus);
+        if (refreshProfileBtnModal) refreshProfileBtnModal.addEventListener('click', loadPersonalInfo);
         if (refreshSessionsBtnModal) refreshSessionsBtnModal.addEventListener('click', loadAdminSessions);
         console.log("Admin Panel Modal Refresh Buttons event listeners bound (using _modal IDs).");
 
@@ -2681,6 +2772,8 @@
       const usersTab = $('admin-tab-users_modal');
       const groupsTab = $('admin-tab-groups_modal');
       const logsTab = $('admin-tab-logs_modal');
+      const healthTab = $('admin-tab-health_modal');
+      const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal'); // 会话标签页按钮
       const godModeToggle = $('god-mode-toggle_modal');
 
@@ -2694,6 +2787,7 @@
         let canManageUsers = false;
         let canManageGroups = false;
         let canViewLogs = false;
+        let canViewHealth = false;
         let hasGodMode = false;
         let isAuthenticated = skipAuthCheck; // 如果跳过检查，假定已认证
 
@@ -2701,6 +2795,7 @@
           canManageUsers = await checkAdminPermission('manage_users');
           canManageGroups = await checkAdminPermission('manage_permissions');
           canViewLogs = await checkAdminPermission('view_logs');
+          canViewHealth = await checkAdminPermission('manage_users'); // 管理员可以查看健康状态
           hasGodMode = await checkAdminPermission('god_mode');
           isAuthenticated = await checkAuthStatus();
         }
@@ -2712,14 +2807,16 @@
         if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
         if (groupsTab) groupsTab.style.display = canManageGroups ? 'block' : 'none';
         if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
-        // 会话管理标签页始终可见 (因为所有用户都能打开面板了)
+        if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
+        // 个人信息和会话管理标签页始终可见
+        if (profileTab) profileTab.style.display = 'block';
         if (sessionsTab) sessionsTab.style.display = 'block';
         
         // 控制上帝模式开关可见性
         if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
 
-        // --- 默认显示会话标签页 ---
-        switchAdminTab('sessions'); // 将会话设为默认打开的标签
+        // --- 默认显示个人信息标签页 ---
+        switchAdminTab('profile'); // 将个人信息设为默认打开的标签
 
       } else {
         modal.classList.add('hidden');
@@ -2754,26 +2851,30 @@
       const usersTab = $('admin-tab-users_modal');
       const groupsTab = $('admin-tab-groups_modal');
       const logsTab = $('admin-tab-logs_modal');
+      const healthTab = $('admin-tab-health_modal');
+      const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal');
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
       const logsPanel = $('admin-logs-panel_modal');
+      const healthPanel = $('admin-health-panel_modal');
+      const profilePanel = $('admin-profile-panel_modal');
       const sessionsPanel = $('admin-sessions-panel_modal');
 
       // 防御性编程：检查元素是否存在
-      if (!usersTab || !groupsTab || !logsTab || !sessionsTab || !usersPanel || !groupsPanel || !logsPanel || !sessionsPanel) {
+      if (!usersTab || !groupsTab || !logsTab || !healthTab || !profileTab || !sessionsTab || !usersPanel || !groupsPanel || !logsPanel || !healthPanel || !profilePanel || !sessionsPanel) {
         console.error("switchAdminTab: 无法找到所有必要的管理面板模态框元素 (带_modal后缀)。");
         return;
       }
 
-      // 重置所有标签按钮的样式 (保持不变)
-      [usersTab, groupsTab, logsTab, sessionsTab].forEach(t => {
+      // 重置所有标签按钮的样式
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab].forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
-      // 隐藏所有内容面板 (保持不变)
-      [usersPanel, groupsPanel, logsPanel, sessionsPanel].forEach(p => {
+      // 隐藏所有内容面板
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel].forEach(p => {
         p.classList.add('hidden');
       });
 
@@ -2782,28 +2883,38 @@
         usersTab.classList.add('text-sky-600', 'border-sky-600');
         usersTab.classList.remove('text-slate-400', 'border-transparent');
         usersPanel.classList.remove('hidden');
-        loadAdminUsers(); // 调用加载主面板用户数据的函数 (稍后修改此函数)
+        loadAdminUsers();
       } else if (tab === 'groups') {
         groupsTab.classList.add('text-sky-600', 'border-sky-600');
         groupsTab.classList.remove('text-slate-400', 'border-transparent');
         groupsPanel.classList.remove('hidden');
-        loadAdminGroups(); // 调用加载主面板权限组数据的函数 (稍后修改此函数)
+        loadAdminGroups();
       } else if (tab === 'logs') {
         logsTab.classList.add('text-sky-600', 'border-sky-600');
         logsTab.classList.remove('text-slate-400', 'border-transparent');
         logsPanel.classList.remove('hidden');
-        loadAdminLogs(); // 调用加载日志数据的函数
+        loadAdminLogs();
+      } else if (tab === 'health') {
+        healthTab.classList.add('text-sky-600', 'border-sky-600');
+        healthTab.classList.remove('text-slate-400', 'border-transparent');
+        healthPanel.classList.remove('hidden');
+        loadHealthStatus();
+      } else if (tab === 'profile') {
+        profileTab.classList.add('text-sky-600', 'border-sky-600');
+        profileTab.classList.remove('text-slate-400', 'border-transparent');
+        profilePanel.classList.remove('hidden');
+        loadPersonalInfo();
       } else if (tab === 'sessions') {
         sessionsTab.classList.add('text-sky-600', 'border-sky-600');
         sessionsTab.classList.remove('text-slate-400', 'border-transparent');
         sessionsPanel.classList.remove('hidden');
-        loadAdminSessions(); // 调用加载主面板会话数据的函数 (稍后修改此函数)
+        loadAdminSessions();
       } else {
-        // 默认或回退情况，显示用户标签页（或你希望的默认标签）
-        usersTab.classList.add('text-sky-600', 'border-sky-600');
-        usersTab.classList.remove('text-slate-400', 'border-transparent');
-        usersPanel.classList.remove('hidden');
-        loadAdminUsers(); // (稍后修改此函数)
+        // 默认显示个人信息页面
+        profileTab.classList.add('text-sky-600', 'border-sky-600');
+        profileTab.classList.remove('text-slate-400', 'border-transparent');
+        profilePanel.classList.remove('hidden');
+        loadPersonalInfo();
       }
     }
     // 加载用户列表数据到嵌入式管理面板
@@ -2984,6 +3095,275 @@
       } catch (e) {
         console.error("加载日志失败:", e);
         contentEl.textContent = `加载失败: ${e.message}`;
+      }
+    }
+
+    // ====================
+    // 健康状态检测
+    // ====================
+    async function loadHealthStatus() {
+      const contentEl = $('admin-health-content_modal');
+      
+      if (!contentEl) {
+        console.error("loadHealthStatus: 无法找到健康状态容器");
+        return;
+      }
+
+      contentEl.innerHTML = '<p class="text-slate-400 text-center py-10">检测中...</p>';
+
+      try {
+        const startTime = Date.now();
+        const response = await fetch('/health');
+        const responseTime = Date.now() - startTime;
+        const result = await response.json();
+
+        const statusColor = result.status === 'ok' ? 'green' : 'red';
+        const statusText = result.status === 'ok' ? '运行正常' : '出现错误';
+
+        contentEl.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-${statusColor}-50 border border-${statusColor}-200 rounded-lg p-4">
+              <h5 class="font-semibold text-${statusColor}-800 mb-2">服务器状态</h5>
+              <p class="text-2xl font-bold text-${statusColor}-600">${statusText}</p>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h5 class="font-semibold text-blue-800 mb-2">响应时间</h5>
+              <p class="text-2xl font-bold text-blue-600">${responseTime}ms</p>
+            </div>
+          </div>
+          <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <h5 class="font-semibold text-slate-800 mb-2">系统信息</h5>
+            <pre class="text-xs text-slate-600 whitespace-pre-wrap">${JSON.stringify(result, null, 2)}</pre>
+          </div>
+        `;
+      } catch (e) {
+        console.error("加载健康状态失败:", e);
+        contentEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    // ====================
+    // 个人信息管理
+    // ====================
+    async function loadPersonalInfo() {
+      try {
+        const response = await fetch('/auth/user/details', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          showModalAlert(`加载个人信息失败: ${result.message}`, '错误');
+          return;
+        }
+
+        const user = result.user;
+        
+        // 更新头像显示
+        const avatarDisplay = $('profile-avatar-display');
+        const avatarInput = $('profile-avatar-input');
+        if (avatarDisplay && user.avatar) {
+          avatarDisplay.src = user.avatar;
+        }
+        if (avatarInput) {
+          avatarInput.value = user.avatar || '';
+        }
+
+        // 更新2FA状态
+        const tfaStatus = $('profile-2fa-enabled');
+        if (tfaStatus) {
+          tfaStatus.textContent = user.tfa_enabled ? '已启用' : '未启用';
+          tfaStatus.className = user.tfa_enabled ? 'text-green-600 font-semibold' : 'text-slate-600';
+        }
+
+        // 更新主题选择
+        const themeSelect = $('profile-theme-select');
+        if (themeSelect && user.theme) {
+          themeSelect.value = user.theme;
+        }
+      } catch (e) {
+        console.error("加载个人信息失败:", e);
+        showModalAlert(`加载失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function updateAvatar() {
+      const avatarInput = $('profile-avatar-input');
+      if (!avatarInput || !avatarInput.value.trim()) {
+        showModalAlert('请输入头像URL', '提示');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/user/update_avatar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            avatar: avatarInput.value.trim()
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('头像更新成功！', '成功');
+          loadPersonalInfo(); // 重新加载显示
+        } else {
+          showModalAlert(`更新失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("更新头像失败:", e);
+        showModalAlert(`更新失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function updatePassword() {
+      const newPassword = $('profile-new-password');
+      const confirmPassword = $('profile-confirm-password');
+
+      if (!newPassword || !confirmPassword) return;
+
+      if (!newPassword.value || !confirmPassword.value) {
+        showModalAlert('请填写所有密码字段', '提示');
+        return;
+      }
+
+      if (newPassword.value !== confirmPassword.value) {
+        showModalAlert('两次输入的密码不一致', '错误');
+        return;
+      }
+
+      if (newPassword.value.length < 6) {
+        showModalAlert('密码长度至少为6个字符', '错误');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/admin/reset_password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: currentUser, // 假设有currentUser全局变量
+            new_password: newPassword.value
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('密码修改成功！', '成功');
+          newPassword.value = '';
+          confirmPassword.value = '';
+        } else {
+          showModalAlert(`修改失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("修改密码失败:", e);
+        showModalAlert(`修改失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function generate2FA() {
+      try {
+        const response = await fetch('/auth/2fa/generate', {
+          method: 'POST',
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          showModalAlert(`生成2FA失败: ${result.message}`, '错误');
+          return;
+        }
+
+        // 显示2FA设置区域
+        const setupDiv = $('profile-2fa-setup');
+        const actionsDiv = $('profile-2fa-actions');
+        if (setupDiv) setupDiv.classList.remove('hidden');
+        if (actionsDiv) actionsDiv.classList.add('hidden');
+
+        // 显示二维码
+        const qrImg = $('profile-2fa-qr');
+        if (qrImg && result.qr_code_uri) {
+          qrImg.src = result.qr_code_uri;
+        }
+      } catch (e) {
+        console.error("生成2FA失败:", e);
+        showModalAlert(`生成失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function enable2FA() {
+      const codeInput = $('profile-2fa-code');
+      if (!codeInput || !codeInput.value) {
+        showModalAlert('请输入验证码', '提示');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/2fa/enable', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            code: codeInput.value
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('2FA启用成功！', '成功');
+          // 隐藏设置区域
+          const setupDiv = $('profile-2fa-setup');
+          const actionsDiv = $('profile-2fa-actions');
+          if (setupDiv) setupDiv.classList.add('hidden');
+          if (actionsDiv) actionsDiv.classList.remove('hidden');
+          // 重新加载个人信息
+          loadPersonalInfo();
+        } else {
+          showModalAlert(`启用失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("启用2FA失败:", e);
+        showModalAlert(`启用失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function updateTheme() {
+      const themeSelect = $('profile-theme-select');
+      if (!themeSelect) return;
+
+      try {
+        const response = await fetch('/auth/user/update_theme', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            theme: themeSelect.value
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('主题更新成功！', '成功');
+        } else {
+          showModalAlert(`更新失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("更新主题失败:", e);
+        showModalAlert(`更新失败: ${e.message}`, '错误');
       }
     }
 
