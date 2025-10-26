@@ -1492,25 +1492,72 @@
       if (sessionUUID) {
         headers['X-Session-ID'] = sessionUUID;
         console.log(`[API调用] 会话ID: ${sessionUUID.substring(0, 16)}...`);
+      } else {
+        // 如果连 sessionUUID 都没有（理论上不应在已加载页面后发生），也可能意味着会话问题
+        console.warn(`[API调用] 警告: sessionUUID为空，可能导致会话无效错误`);
       }
 
       console.log(`[API调用] 发送请求到 /api/${method}`);
-      const response = await fetch(`/api/${method}`, {
-        method: 'POST',
-        headers: headers,
-        credentials: 'include',  // 重要：包含cookies
-        body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
-      });
+      let response; // 将 response 移到 try 外部
+      try { // 包裹 fetch 调用
+          response = await fetch(`/api/${method}`, {
+            method: 'POST',
+            headers: headers,
+            credentials: 'include',  // 重要：包含cookies
+            body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
+          });
+      } catch (networkError) {
+          // 捕获 fetch 本身的网络错误 (例如 DNS 解析失败、服务器无法连接)
+          console.error(`[API调用] ✗ 网络请求失败 (${method}):`, networkError);
+          // 显示通用网络错误提示
+          showModalAlert('无法连接到服务器，请检查您的网络连接或稍后重试。', '网络错误');
+          // 停止可能的刷新定时器
+          if (refreshUserListInterval) {
+              console.log('[API调用] 停止用户列表刷新定时器 (因网络错误)');
+              clearInterval(refreshUserListInterval);
+              refreshUserListInterval = null;
+          }
+          throw networkError; // 重新抛出网络错误，中断后续处理
+      }
 
-      // 处理token相关错误
+      // 处理非 OK 响应 (包括 401, 403, 500 等)
       if (!response.ok) {
         console.log(`[API调用] ✗ 响应错误: ${response.status} ${response.statusText}`);
-        // 尝试解析JSON错误消息
+        let errorData = null;
         try {
-          const errorData = await response.json();
+          errorData = await response.json(); // 尝试解析 JSON 错误体
+        } catch (parseError) {
+          console.warn('[API调用] ✗ 无法解析错误响应体为 JSON:', parseError);
+          // 即使无法解析，也要根据状态码处理
+        }
 
-          // 处理token过期或验证失败
-          if (errorData.need_login) {
+        // --- ⭐ Bug 修复：处理会话过期 (401) ---
+        if (response.status === 401 && errorData && errorData.message && errorData.message.includes('会话已过期或无效')) {
+            console.error('[API调用] ✗ 会话已过期或无效！');
+            logMessage('[系统] 您的会话已过期或无效，请重新登录。'); // 同时记录到界面日志
+
+            // 停止 refreshUserList 定时器
+            if (refreshUserListInterval) {
+                console.log('[API调用] 停止用户列表刷新定时器 (因会话过期)');
+                clearInterval(refreshUserListInterval);
+                refreshUserListInterval = null; // 清理句柄
+            }
+
+            // 弹窗提示用户
+            showModalAlert('您的会话已过期或无效，请重新登录。', '会话失效');
+
+            // 延迟后跳转到登录页
+            setTimeout(() => {
+                window.location.href = '/'; // 跳转到根目录
+            }, 2500); // 给用户 2.5 秒时间看提示
+
+            // 抛出错误，中断当前 API 调用的后续处理
+            throw new Error('会话已过期或无效');
+        }
+        // --- 结束 Bug 修复 ---
+
+        // 处理其他需要重新登录的情况 (如 token 过期/无效)
+        if (errorData && errorData.need_login) {
             let errorMsg = errorData.message || 'API调用失败';
             console.log(`[API调用] ✗ 需要重新登录: ${errorMsg}`);
 
@@ -1527,26 +1574,40 @@
               logMessage(`[安全提示] ${errorMsg}`);
             }
 
+            // 停止可能的刷新定时器 (也适用于 token 过期等情况)
+            if (refreshUserListInterval) {
+                console.log('[API调用] 停止用户列表刷新定时器 (因需重新登录)');
+                clearInterval(refreshUserListInterval);
+                refreshUserListInterval = null;
+            }
+
             // 清除本地状态并返回登录页
             setTimeout(() => {
               window.location.href = '/';
             }, 2000);
 
             throw new Error(errorMsg);
-          }
-        } catch (e) {
-          // 如果解析失败，抛出原始错误
-          if (e.message && e.message.includes('需要登录')) {
-            throw e;
-          }
         }
 
-        throw new Error(`API调用失败: ${response.statusText}`);
+        // 处理其他权限不足 (403) 的错误
+        if (response.status === 403 && errorData && errorData.message) {
+            console.error(`[API调用] ✗ 权限不足 (${method}): ${errorData.message}`);
+            showModalAlert(`操作失败: ${errorData.message}`, '权限不足');
+            throw new Error(`权限不足: ${errorData.message}`);
+        }
+
+        // 处理其他服务器内部错误 (500) 或未明确处理的错误
+        const genericErrorMessage = (errorData && errorData.message) ? errorData.message : response.statusText;
+        console.error(`[API调用] ✗ 未处理的错误 (${method}): ${genericErrorMessage}`);
+        // 可以选择是否给用户显示一个通用错误
+        // showModalAlert(`发生意外错误 (${response.status})，请稍后重试或联系管理员。`, '服务器错误');
+        throw new Error(`API调用失败 (${response.status}): ${genericErrorMessage}`);
       }
 
-      console.log(`[API调用] ✓ 请求成功`);
+      // 如果响应 OK (2xx)
+      console.log(`[API调用] ✓ 请求成功 (${method})`);
       const result = await response.json();
-      console.log(`[API调用] ✓ 返回结果:`, result.success ? '成功' : '失败');
+      console.log(`[API调用] ✓ 返回结果 (${method}):`, result.success ? '成功' : '失败');
       return result;
     }
 
@@ -2666,10 +2727,10 @@
               <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
                 <div class="flex justify-between items-start">
                   <div class="flex-1">
-                    <p class="font-semibold text-slate-800">
-                      会话 ${sessionHash}...
-                      ${isCurrent ? '<span class="text-xs text-sky-600 ml-2">(当前会话)</span>' : ''}
+                    <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id}
+                    
                     </p>
+                    ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                     <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                     <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
                   </div>
@@ -2871,10 +2932,10 @@
           <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
             <div class="flex justify-between items-start">
               <div class="flex-1">
-                <p class="font-semibold text-slate-800">
-                  会话 ${sessionHash}...
-                  ${isCurrent ? '<span class="text-xs text-sky-600 ml-2">(当前会话)</span>' : ''}
+                <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id}
+                
                 </p>
+                ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                 <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                 <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
               </div>
@@ -2899,36 +2960,166 @@
     }
 
     // 选择会话并跳转
-    function selectSession(sessionId) {
-      if (confirm('确定要切换到此会话吗？')) {
-        window.location.href = `/uuid=${sessionId}`;
-      }
-    }
+    async function selectSession(sessionId) {
+      // 1. 使用 jsShowConfirm 进行确认
+      const confirmed = await jsShowConfirm('确认切换', `确定要切换到会话\n ${sessionId} \n吗？`);
 
-    async function deleteSession(sessionId) {
-      if (!confirm('确定要删除此会话吗？')) return;
+      if (!confirmed) {
+        logMessage("[会话切换] 用户取消操作。");
+        return; // 用户取消
+      }
+
+      // 2. 显示加载提示 (SweetAlert2)
+      Swal.fire({
+        title: '正在切换会话...',
+        text: '正在更新认证信息，请稍候',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      logMessage(`[会话切换] 准备切换到会话 ${sessionId.substring(0, 16)}...`);
 
       try {
-        const response = await fetch('/auth/user/delete_session', {
+        // 3. 调用后端 API /auth/switch_session 来更新 Cookie
+        //    需要发送当前 sessionUUID (用于验证权限) 和 target_session_id
+        const response = await fetch('/auth/switch_session', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Session-ID': sessionUUID
+            'X-Session-ID': sessionUUID // 当前窗口的 session ID，用于验证身份
           },
+          credentials: 'include', // 必须发送 Cookie 以便后端验证当前用户
           body: JSON.stringify({
-            session_id: sessionId
+            target_session_id: sessionId // 要切换到的目标 session ID
           })
         });
 
         const result = await response.json();
-        if (result.success) {
-          logMessage('会话已删除');
-          loadAdminSessions(); // 刷新列表
+
+        // 4. 关闭加载提示
+        Swal.close();
+
+        if (response.ok && result.success) {
+          // 后端成功处理并已在响应中设置了新的 Set-Cookie
+          logMessage(`[会话切换] ✓ 认证信息更新成功，准备跳转到 ${sessionId.substring(0, 16)}...`);
+          // 显示短暂的成功提示
+          Swal.fire({
+            icon: 'success',
+            title: '切换准备就绪',
+            text: '即将跳转到目标会话...',
+            timer: 1000, // 显示1秒
+            showConfirmButton: false
+          }).then(() => {
+            // 5. 执行跳转，浏览器会自动带上新的 Cookie
+            window.location.href = `/uuid=${sessionId}`;
+          });
         } else {
-          alert('删除失败: ' + result.message);
+          // 6. 后端 API 返回失败 (例如当前认证失效、权限不足等)
+          logMessage(`[会话切换] ✗ 切换失败: ${result.message}`);
+          Swal.fire({
+            icon: 'error',
+            title: '切换失败',
+            text: result.message || '无法更新认证信息，请稍后重试。'
+          });
+          // 如果后端指示需要重新登录
+          if (result.need_login) {
+            setTimeout(() => { window.location.href = '/'; }, 2000);
+          }
         }
       } catch (e) {
-        alert('删除失败: ' + e.message);
+        // 7. 网络或其他脚本错误
+        Swal.close(); // 确保关闭加载提示
+        logMessage(`[会话切换] ✗ 切换时发生网络或脚本错误: ${e.message}`);
+        Swal.fire({
+          icon: 'error',
+          title: '切换出错',
+          text: `网络或脚本错误: ${e.message}`
+        });
+      }
+    }
+
+    async function deleteSession(sessionId) {
+      // 1. 使用 jsShowConfirm 进行确认
+      const confirmed = await jsShowConfirm(
+        '确认删除',
+        `确定要删除会话\n ${sessionId} \n吗？\n此操作不可恢复！`
+      );
+
+      if (!confirmed) {
+        logMessage("[会话删除] 用户取消操作。");
+        return; // 用户取消
+      }
+
+      // 2. 显示加载提示 (SweetAlert2)
+      Swal.fire({
+        title: '正在删除会话...',
+        text: '请稍候',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      logMessage(`[会话删除] 准备删除会话 ${sessionId}...`);
+
+      try {
+        // 3. 调用后端 API /auth/user/delete_session
+        const response = await fetch('/auth/user/delete_session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID // 使用当前会话认证
+          },
+          body: JSON.stringify({
+            session_id: sessionId // 要删除的目标会话
+          })
+        });
+
+        const result = await response.json();
+
+        // 4. 关闭加载提示
+        Swal.close();
+
+        if (result.success) {
+          logMessage(`[会话删除] ✓ 会话 ${sessionId} 已删除。`);
+          // 5. 显示短暂的成功提示
+          Swal.fire({
+            icon: 'success',
+            title: '删除成功',
+            timer: 1500, // 显示1.5秒
+            showConfirmButton: false
+          }).then(() => {
+            // 6. 成功后刷新会话列表
+            //    需要判断当前在哪个面板操作，调用对应的刷新函数
+            const adminModal = document.getElementById('admin-panel-modal');
+            if (adminModal && !adminModal.classList.contains('hidden')) {
+              // 如果管理模态框是可见的，刷新模态框内的列表
+              loadAdminSessions();
+            } else {
+              // 否则，刷新登录页内嵌面板的列表
+              loadAdminSessions_inline();
+            }
+          });
+        } else {
+          // 7. 后端 API 返回失败
+          logMessage(`[会话删除] ✗ 删除失败: ${result.message}`);
+          Swal.fire({
+            icon: 'error',
+            title: '删除失败',
+            text: result.message || '无法删除会话，请稍后重试。'
+          });
+        }
+      } catch (e) {
+        // 8. 网络或其他脚本错误
+        Swal.close(); // 确保关闭加载提示
+        logMessage(`[会话删除] ✗ 删除时发生网络或脚本错误: ${e.message}`);
+        Swal.fire({
+          icon: 'error',
+          title: '删除出错',
+          text: `网络或脚本错误: ${e.message}`
+        });
       }
     }
 
@@ -2998,10 +3189,10 @@
             <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 hover:shadow-md transition-shadow">
               <div class="flex justify-between items-start">
                 <div class="flex-1">
-                  <p class="font-semibold text-slate-800">
-                    会话 ${sessionHash}...
-                    ${isCurrent ? '<span class="text-xs text-sky-600 ml-2 px-2 py-0.5 bg-sky-100 rounded-full">(当前)</span>' : ''}
+                  <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id}
+                    
                   </p>
+                  ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2 px-2 py-0.5 bg-sky-100 rounded-full">(当前)</span></p>' : ''}
                   <p class="text-xs text-slate-500 mt-1">创建时间: ${createdDate}</p>
                   <p class="text-xs mt-1">
                     <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${session.login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}">
@@ -3087,7 +3278,26 @@
       const newUUID = generateUUID();
       logMessage(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
 
+      const confirmed = await jsShowConfirm('确认操作', '您确定要创建一个新的会话吗？');
 
+      if (!confirmed) {
+        logMessage("[会话创建] 用户取消操作。");
+        return; // 用户取消，则不执行任何操作
+      }
+
+      // 2. 显示加载提示 (使用 SweetAlert2)
+      Swal.fire({
+        title: '正在创建新会话...',
+        text: '请稍候',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      
+      logMessage(`[会话创建] 准备创建新会话...`);
+      // 这个破bug修了我好久
       try {
         // 调用后端API创建会话持久化文件
         const response = await fetch('/auth/user/create_session_persistence', {
@@ -4033,18 +4243,22 @@
       const userCombo = $('user-combo');
       const exists = [...userCombo.options].some(o => o.value === username);
       userCombo.value = exists ? username : "";
-      if (!username) {
-        $('ua-label').textContent = '(新用户将在登录时自动生成)';
-        return;
-      }
+      // if (!username) {
+      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
+      //   return;
+      // }
       const data = await callPythonAPI('on_user_selected', username);
       if (data && data.password) $('password-entry').value = data.password;
-      // 修复Issue 1: 确保UA标签正确更新
-      if (data && data.ua) {
-        $('ua-label').textContent = data.ua;
-      } else {
-        $('ua-label').textContent = '(新用户将在登录时自动生成)';
-      }
+
+      const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
+      $('ua-label').textContent = ua_data;
+      console.log('User ua label set to:', ua_data);
+
+      // if (data && data.ua) {
+      //   $('ua-label').textContent = data.ua;
+      // } else {
+      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
+      // }
       pythonParams = (data && data.params) ? data.params : pythonParams;
       updateParamInputs($('params-container'), 'param', pythonParams);
       const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
@@ -4183,6 +4397,11 @@
 
     // 用 get_initial_data 兼容刷新用户列表
     async function refreshUserList() {
+      // ---检查 sessionUUID 是否有效 ---
+      if (!sessionUUID || sessionUUID === 'null' || sessionUUID.trim() === '') {
+        console.log('sessionUUID 尚未分配或无效，无法刷新用户列表。');
+        return; // 如果 UUID 无效，则提前退出，不执行 API 调用
+      }
       try {
         const initialData = await callPythonAPI('get_initial_data');
         // 兼容结构 { users: [...], lastUser: '...' }

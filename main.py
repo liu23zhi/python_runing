@@ -2771,7 +2771,7 @@ class Api:
                     logging.info("已将AmapJsKey从旧版[System]迁移到新版[Map]")
             
             self.global_params['amap_js_key'] = amap_key
-            logging.info(f"Loaded global Amap JS Key: {'*' * len(amap_key) if amap_key else '(empty)'}")
+            logging.info(f"Loaded global Amap JS Key: {amap_key if amap_key else '(empty)'}")
         except Exception as e:
             logging.error(f"加载全局配置文件 {self.config_path} 失败: {e}", exc_info=True)
 
@@ -2889,6 +2889,7 @@ class Api:
         is_guest = getattr(self, 'is_guest', False)
         
         return {
+            "success": True,
             "users": users, 
             "lastUser": last_user, 
             "amap_key": self.global_params.get('amap_js_key', ''),
@@ -3012,12 +3013,13 @@ class Api:
 
 
     def on_user_selected(self, username):
+        # return
         """当用户在登录界面选择一个已有用户时调用"""
         logging.info(f"API CALL: on_user_selected with username: '{username}'")
         if not username:
             return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
         password = self._load_config(username)
-        # 修复Issue 2: _load_config已经设置了self.device_ua，确保返回
+        
         ua = self.device_ua or ""
         logging.debug(f"on_user_selected: username={username}, ua={ua}, password={'***' if password else 'empty'}")
         info = {"name": self.user_data.name, "student_id": self.user_data.student_id}
