@@ -643,7 +643,7 @@
 
     <div
       class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50">
-      <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col" style="max-height: calc(100vh - 12rem);">
+      <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col overflow-x-hidden" style="max-height: calc(100vh - 12rem);">
         <h3 class="text-xl font-bold text-sky-600 text-center mb-4">管理面板</h3>
 
         <div class="flex border-b border-slate-200 flex-shrink-0"> <button id="admin-tab-users"
@@ -654,7 +654,7 @@
             class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">会话管理</button>
         </div>
 
-        <div id="admin-users-panel" class="hidden space-y-4 overflow-y-auto flex-grow min-h-0">
+        <div id="admin-users-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">用户列表</h4>
             <button id="admin-refresh-users-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
@@ -664,7 +664,7 @@
           </div>
         </div>
 
-        <div id="admin-groups-panel" class="hidden space-y-4 overflow-y-auto flex-grow min-h-0">
+        <div id="admin-groups-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">权限组列表</h4>
             <button id="admin-refresh-groups-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
@@ -674,7 +674,7 @@
           </div>
         </div>
 
-        <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto flex-grow min-h-0">
+        <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">会话列表</h4>
             <button id="admin-refresh-sessions-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
@@ -1198,7 +1198,7 @@
 
   <div id="admin-panel-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="toggleAdminPanel(false)"></div>
-    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto overflow-x-hidden space-y-4 relative">
 
       <div class="relative mb-4 text-center">
         <h3 class="text-2xl font-bold text-sky-600 inline-block">管理面板</h3>
@@ -1216,7 +1216,7 @@
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
       </div>
 
-      <div id="admin-users-panel_modal" class="space-y-4">
+      <div id="admin-users-panel_modal" class="space-y-4 overflow-x-hidden">
         <div class="flex justify-between items-center">
           <h4 class="font-semibold">用户列表</h4>
           <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
@@ -1226,7 +1226,7 @@
         </div>
       </div>
 
-      <div id="admin-groups-panel_modal" class="hidden space-y-4">
+      <div id="admin-groups-panel_modal" class="hidden space-y-4 overflow-x-hidden">
         <div class="flex justify-between items-center">
           <h4 class="font-semibold">权限组列表</h4>
           <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
@@ -1236,7 +1236,7 @@
         </div>
       </div>
 
-      <div id="admin-sessions-panel_modal" class="hidden space-y-4">
+      <div id="admin-sessions-panel_modal" class="hidden space-y-4 overflow-x-hidden">
         <div class="flex justify-between items-center">
           <h4 class="font-semibold">会话列表</h4>
           <button id="admin-refresh-sessions_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
