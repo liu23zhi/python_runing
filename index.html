@@ -19,6 +19,7 @@
 
   <script src="https://webapi.amap.com/loader.js" onerror="handleCdnError()"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script>
     // 配置TailwindCSS
     tailwind.config = {
@@ -645,40 +646,17 @@
       class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50" id="admin-panel-modal-Inline" >
       <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col overflow-x-hidden"
         style="max-height: calc(100vh - 12rem);">
-        <h3 class="text-xl font-bold text-sky-600 text-center mb-4">管理面板</h3>
+        <h3 class="text-xl font-bold text-sky-600 text-center mb-4">会话管理</h3>
 
-        <div class="flex border-b border-slate-200 flex-shrink-0"> <button id="admin-tab-users"
-            class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">用户管理</button>
-          <button id="admin-tab-groups"
-            class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">权限组管理</button>
-          <button id="admin-tab-sessions"
-            class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">会话管理</button>
-        </div>
-
-        <div id="admin-users-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
-          <div class="flex justify-between items-center">
-            <h4 class="font-semibold">用户列表</h4>
-            <button id="admin-refresh-users-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
-          </div>
-          <div id="admin-users-list-inline" class="space-y-2">
-            <p class="text-slate-400 text-center py-10">加载中...</p>
-          </div>
-        </div>
-
-        <div id="admin-groups-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
-          <div class="flex justify-between items-center">
-            <h4 class="font-semibold">权限组列表</h4>
-            <button id="admin-refresh-groups-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
-          </div>
-          <div id="admin-groups-list-inline" class="space-y-2">
-            <p class="text-slate-400 text-center py-10">加载中...</p>
-          </div>
-        </div>
-
+        <!-- Session management panel for inline (login page) -->
         <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">会话列表</h4>
             <div class="flex items-center gap-3">
+              <label id="god-mode-toggle" class="flex items-center gap-2 cursor-pointer" style="display:none;">
+                <input type="checkbox" id="god-mode-checkbox" class="w-4 h-4 accent-red-600 rounded cursor-pointer">
+                <span class="text-sm font-semibold text-red-600">上帝模式</span>
+              </label>
               <div id="admin-session-count-display-inline" class="text-sm text-slate-600">
                 <!-- 会话计数将由JS动态填充 -->
               </div>
@@ -1215,9 +1193,15 @@
       </div>
       <div class="flex border-b border-slate-200 flex-shrink-0">
         <button id="admin-tab-users_modal"
-          class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">用户管理</button>
+          class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600" style="display:none;">用户管理</button>
         <button id="admin-tab-groups_modal"
-          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">权限组管理</button>
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">权限组管理</button>
+        <button id="admin-tab-logs_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">日志查看</button>
+        <button id="admin-tab-health_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">系统状态</button>
+        <button id="admin-tab-profile_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">个人信息</button>
         <button id="admin-tab-sessions_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
       </div>
@@ -1226,7 +1210,10 @@
         <div id="admin-users-panel_modal" class="space-y-4">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">用户列表</h4>
-            <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            <div class="flex gap-2">
+              <button id="admin-create-user_modal" class="btn btn-primary !py-1 !px-2">新增用户</button>
+              <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
           </div>
           <div id="admin-users-list_modal" class="space-y-2">
             <p class="text-slate-400 text-center py-10">加载中...</p>
@@ -1236,10 +1223,30 @@
         <div id="admin-groups-panel_modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">权限组列表</h4>
-            <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            <div class="flex gap-2">
+              <button id="admin-create-group_modal" class="btn btn-primary !py-1 !px-2">新增权限组</button>
+              <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
           </div>
           <div id="admin-groups-list_modal" class="space-y-2">
             <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <div id="admin-logs-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">系统日志</h4>
+            <div class="flex gap-2">
+              <select id="log-lines-select_modal" class="text-sm border border-slate-300 rounded px-2 py-1">
+                <option value="100">最近100行</option>
+                <option value="500">最近500行</option>
+                <option value="1000">最近1000行</option>
+              </select>
+              <button id="admin-refresh-logs_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
+          </div>
+          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[60vh]">
+            <pre id="admin-logs-content_modal" class="whitespace-pre-wrap">加载中...</pre>
           </div>
         </div>
 
@@ -1247,6 +1254,10 @@
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">会话列表</h4>
             <div class="flex items-center gap-3">
+              <label id="god-mode-toggle_modal" class="flex items-center gap-2 cursor-pointer" style="display:none;">
+                <input type="checkbox" id="god-mode-checkbox_modal" class="w-4 h-4 accent-red-600 rounded cursor-pointer">
+                <span class="text-sm font-semibold text-red-600">上帝模式</span>
+              </label>
               <div id="admin-session-count-display" class="text-sm text-slate-600">
                 <!-- 会话计数将由JS动态填充 -->
               </div>
@@ -1255,6 +1266,89 @@
           </div>
           <div id="admin-sessions-list_modal" class="space-y-2 max-h-[50vh] overflow-y-auto">
             <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <!-- 健康状态面板 -->
+        <div id="admin-health-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">系统健康状态</h4>
+            <button id="admin-refresh-health_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-health-content_modal" class="space-y-4">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <!-- 个人信息面板 -->
+        <div id="admin-profile-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">个人信息</h4>
+            <button id="admin-refresh-profile_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-profile-content_modal" class="space-y-6">
+            <!-- 头像 -->
+            <div class="flex items-center gap-4">
+              <img id="profile-avatar-display" src="" alt="用户头像" class="w-20 h-20 rounded-full border-2 border-slate-200" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+              <div class="flex-1 space-y-2">
+                <label class="block text-sm font-semibold text-slate-700 mb-1">上传头像</label>
+                <input type="file" id="profile-avatar-file" accept="image/*" class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="previewAvatar(event)">
+                <button onclick="uploadAvatar()" class="btn btn-primary !py-1 !px-3">上传</button>
+                <!-- <p class="text-xs text-slate-500">⚠️ 图片上传功能需要后端API支持</p> -->
+              </div>
+            </div>
+
+            <!-- 修改密码 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">当前密码</label>
+                  <input type="password" id="profile-current-password" class="input-field" placeholder="输入当前密码">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
+                  <input type="password" id="profile-new-password" class="input-field" placeholder="输入新密码">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">确认新密码</label>
+                  <input type="password" id="profile-confirm-password" class="input-field" placeholder="再次输入新密码">
+                </div>
+                <button onclick="updatePassword()" class="btn btn-primary">修改密码</button>
+              </div>
+            </div>
+
+            <!-- 2FA设置 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">双因素认证(2FA)</h5>
+              <div id="profile-2fa-status" class="mb-3">
+                <p class="text-sm text-slate-600">状态: <span id="profile-2fa-enabled">检测中...</span></p>
+              </div>
+              <div id="profile-2fa-setup" class="space-y-3 hidden">
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+                  <canvas id="profile-2fa-qr" class="mx-auto"></canvas>
+                  <p class="text-xs text-slate-600 mt-2">密钥: <span id="profile-2fa-secret" class="font-mono"></span></p>
+                  <p class="text-xs text-slate-600 mt-1">请使用Google Authenticator或类似应用扫描此二维码</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">验证码</label>
+                  <input type="text" id="profile-2fa-code" class="input-field" placeholder="输入6位验证码">
+                </div>
+                <button onclick="enable2FA()" class="btn btn-primary">启用2FA</button>
+              </div>
+              <div id="profile-2fa-actions" class="space-y-2">
+                <button onclick="generate2FA()" class="btn btn-primary">生成2FA密钥</button>
+              </div>
+            </div>
+
+            <!-- 主题设置 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">主题设置</h5>
+              <select id="profile-theme-select" onchange="updateTheme()" class="select-field">
+                <option value="light">浅色主题</option>
+                <option value="dark">深色主题</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -1315,6 +1409,152 @@
 
       <div class="border-t pt-3 text-xs text-slate-500">
         <p>💡 提示：每个会话都是独立的学校账号登录状态。您可以创建多个会话来管理不同的账号。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 创建权限组模态框 -->
+  <div id="create-group-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeCreateGroupModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-sky-600">创建权限组</h3>
+        <button onclick="closeCreateGroupModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">权限组键名</label>
+          <input type="text" id="new-group-key" class="input-field w-full" placeholder="例如: custom_group">
+          <p class="text-xs text-slate-500 mt-1">英文字母、数字、下划线，用于内部标识</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">权限组名称</label>
+          <input type="text" id="new-group-name" class="input-field w-full" placeholder="例如: 自定义权限组">
+          <p class="text-xs text-slate-500 mt-1">显示名称，用于界面展示</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
+          <div id="create-group-permissions" class="grid grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
+            <!-- 权限列表将由JS动态填充 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeCreateGroupModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitCreateGroup()" class="btn btn-primary">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑权限组权限模态框 -->
+  <div id="edit-group-permissions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeEditGroupPermissionsModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-sky-600">编辑权限组: <span id="edit-group-name"></span></h3>
+        <button onclick="closeEditGroupPermissionsModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
+          <div id="edit-group-permissions-list" class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
+            <!-- 权限列表将由JS动态填充 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeEditGroupPermissionsModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitEditGroupPermissions()" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 管理用户权限模态框 -->
+  <div id="manage-user-permissions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeManageUserPermissionsModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-sky-600">管理用户权限: <span id="manage-user-name"></span></h3>
+        <button onclick="closeManageUserPermissionsModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
+      </div>
+
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+        <p class="text-sm text-blue-700">
+          <strong>权限组:</strong> <span id="user-base-group" class="font-mono"></span>
+        </p>
+        <p class="text-xs text-slate-600 mt-1">
+          💡 以下为用户相对于权限组的差分化权限。绿色表示额外添加的权限，红色表示移除的权限。
+        </p>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">权限调整</label>
+          <div id="manage-user-permissions-list" class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
+            <!-- 权限列表将由JS动态填充 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeManageUserPermissionsModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitManageUserPermissions()" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置会话限制模态框 -->
+  <div id="set-max-sessions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="hideModal('set-max-sessions-modal')"></div>
+    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
+      <h3 class="text-xl font-bold text-sky-600">设置会话限制</h3>
+      
+      <div class="space-y-2">
+        <p class="text-sm text-slate-600">用户: <span id="sessions-username" class="font-semibold text-slate-800"></span></p>
+        <p class="text-sm text-slate-600">当前限制: <span id="sessions-current-max" class="font-semibold text-slate-800"></span></p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">新会话限制</label>
+        <input type="number" id="new-max-sessions" min="0" class="input-field" placeholder="输入会话数量">
+        <p class="text-xs text-slate-500 mt-1">0 = 无限制</p>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="hideModal('set-max-sessions-modal')" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitSetMaxSessions()" class="btn btn-primary">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 重置用户密码模态框 -->
+  <div id="reset-user-password-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="hideModal('reset-user-password-modal')"></div>
+    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
+      <h3 class="text-xl font-bold text-amber-600">重置用户密码</h3>
+      
+      <div>
+        <p class="text-sm text-slate-600">目标用户: <span id="reset-password-username" class="font-semibold text-slate-800"></span></p>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
+          <input type="password" id="reset-new-password" class="input-field" placeholder="输入新密码">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">确认密码</label>
+          <input type="password" id="reset-confirm-password" class="input-field" placeholder="再次输入新密码">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="hideModal('reset-user-password-modal')" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitResetUserPassword()" class="btn btn-primary">重置密码</button>
       </div>
     </div>
   </div>
@@ -2226,10 +2466,17 @@
           }
 
           // 游客登录：分配新UUID并跳转
-          setTimeout(() => {
+          setTimeout(async () => {
             // 隐藏认证界面，显示应用登录界面
             $('auth-login-container').classList.add('hidden');
             $('login-container').classList.remove('hidden');
+
+            // 初始化内嵌管理面板的tab可见性
+            try {
+              await initializeInlineAdminPanel();
+            } catch (e) {
+              console.error('初始化管理面板失败:', e);
+            }
 
             // 显示管理面板按钮（如果有权限）
             if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
@@ -2422,24 +2669,23 @@
         const adminPanelBtnMulti = $('show-admin-panel-multi');
         if (adminPanelBtnMulti) adminPanelBtnMulti.addEventListener('click', () => toggleAdminPanel(true));
 
-        // 管理面板标签
-        // 注意: 由于存在两组管理面板（登录页内嵌 + 模态框），$() 会返回第一个匹配元素
-        // 第一个匹配的是登录页内嵌面板，所以这里应该调用 switchAdminTab_inline
-        const adminUsersTab = $('admin-tab-users');
-        const adminGroupsTab = $('admin-tab-groups');
-        const adminSessionsTab = $('admin-tab-sessions');
-        if (adminUsersTab) adminUsersTab.addEventListener('click', () => switchAdminTab_inline('users'));
-        if (adminGroupsTab) adminGroupsTab.addEventListener('click', () => switchAdminTab_inline('groups'));
-        if (adminSessionsTab) adminSessionsTab.addEventListener('click', () => switchAdminTab_inline('sessions'));
+        // Inline panel (login page) no longer has tabs - sessions only
+        // All tab switching is for the modal panel only
 
         const modalAdminPanel = $('admin-panel-modal');
         if (modalAdminPanel) {
           const modalUsersTab = $('admin-tab-users_modal'); // 直接使用新的唯一 ID
           const modalGroupsTab = $('admin-tab-groups_modal');
+          const modalLogsTab = $('admin-tab-logs_modal');
+          const modalHealthTab = $('admin-tab-health_modal');
+          const modalProfileTab = $('admin-tab-profile_modal');
           const modalSessionsTab = $('admin-tab-sessions_modal');
 
           if (modalUsersTab) modalUsersTab.addEventListener('click', () => switchAdminTab('users'));
           if (modalGroupsTab) modalGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
+          if (modalLogsTab) modalLogsTab.addEventListener('click', () => switchAdminTab('logs'));
+          if (modalHealthTab) modalHealthTab.addEventListener('click', () => switchAdminTab('health'));
+          if (modalProfileTab) modalProfileTab.addEventListener('click', () => switchAdminTab('profile'));
           if (modalSessionsTab) modalSessionsTab.addEventListener('click', () => switchAdminTab('sessions'));
           console.log("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
         } else {
@@ -2449,11 +2695,17 @@
         // 模态框刷新按钮（这些ID是唯一的，只存在于模态框中）
         const refreshUsersBtnModal = $('admin-refresh-users_modal'); // 使用新的唯一 ID
         const refreshGroupsBtnModal = $('admin-refresh-groups_modal');
+        const refreshLogsBtnModal = $('admin-refresh-logs_modal');
+        const refreshHealthBtnModal = $('admin-refresh-health_modal');
+        const refreshProfileBtnModal = $('admin-refresh-profile_modal');
         const refreshSessionsBtnModal = $('admin-refresh-sessions_modal');
 
         // 确保调用的是正确的加载函数 (它们现在内部会操作 _modal 列表)
         if (refreshUsersBtnModal) refreshUsersBtnModal.addEventListener('click', loadAdminUsers);
         if (refreshGroupsBtnModal) refreshGroupsBtnModal.addEventListener('click', loadAdminGroups);
+        if (refreshLogsBtnModal) refreshLogsBtnModal.addEventListener('click', loadAdminLogs);
+        if (refreshHealthBtnModal) refreshHealthBtnModal.addEventListener('click', loadHealthStatus);
+        if (refreshProfileBtnModal) refreshProfileBtnModal.addEventListener('click', loadPersonalInfo);
         if (refreshSessionsBtnModal) refreshSessionsBtnModal.addEventListener('click', loadAdminSessions);
         console.log("Admin Panel Modal Refresh Buttons event listeners bound (using _modal IDs).");
 
@@ -2474,19 +2726,83 @@
           switchAdminTab('sessions');
         });
 
-        // 内嵌登录页面管理面板刷新按钮 (新增)
-        const refreshUsersInlineBtn = $('admin-refresh-users-inline');
-        const refreshGroupsInlineBtn = $('admin-refresh-groups-inline');
+        // 内嵌登录页面管理面板刷新按钮 (仅会话管理)
         const refreshSessionsInlineBtn = $('admin-refresh-sessions-inline');
-        if (refreshUsersInlineBtn) refreshUsersInlineBtn.addEventListener('click', loadAdminUsers_inline);
-        if (refreshGroupsInlineBtn) refreshGroupsInlineBtn.addEventListener('click', loadAdminGroups_inline);
         if (refreshSessionsInlineBtn) refreshSessionsInlineBtn.addEventListener('click', loadAdminSessions_inline);
+
+        // 新增用户/权限组按钮 (仅用于模态框)
+        const createUserModalBtn = $('admin-create-user_modal');
+        const createGroupModalBtn = $('admin-create-group_modal');
+        if (createUserModalBtn) createUserModalBtn.addEventListener('click', showCreateUserModal);
+        if (createGroupModalBtn) createGroupModalBtn.addEventListener('click', showCreateGroupModal);
+
+        // 上帝模式切换
+        const godModeCheckbox = $('god-mode-checkbox');
+        const godModeCheckboxModal = $('god-mode-checkbox_modal');
+        if (godModeCheckbox) godModeCheckbox.addEventListener('change', () => loadAdminSessions_inline());
+        if (godModeCheckboxModal) godModeCheckboxModal.addEventListener('change', () => loadAdminSessions());
       });
     }
 
     // ====================
     // 管理面板功能
     // ====================
+
+    // 权限中英文翻译映射
+    const permissionTranslations = {
+      // 基础权限
+      'view_dashboard': '查看仪表板',
+      'view_tasks': '查看任务',
+      'execute_tasks': '执行任务',
+      'view_history': '查看历史记录',
+      
+      // 用户管理
+      'manage_users': '管理用户',
+      'create_users': '创建用户',
+      'delete_users': '删除用户',
+      'ban_users': '封禁用户',
+      'view_users': '查看用户',
+      
+      // 权限管理
+      'manage_permissions': '管理权限',
+      'manage_groups': '管理权限组',
+      'assign_permissions': '分配权限',
+      
+      // 会话管理
+      'manage_sessions': '管理会话',
+      'view_all_sessions': '查看所有会话',
+      'delete_sessions': '删除会话',
+      'god_mode': '上帝模式',
+      
+      // 系统管理
+      'view_logs': '查看日志',
+      'system_settings': '系统设置',
+      'manage_api': '管理API',
+      
+      // 任务相关
+      'create_tasks': '创建任务',
+      'modify_tasks': '修改任务',
+      'delete_tasks': '删除任务',
+      'schedule_tasks': '定时任务',
+      
+      // 数据权限
+      'export_data': '导出数据',
+      'import_data': '导入数据',
+      'backup_data': '备份数据',
+      
+      // 通知权限
+      'send_notifications': '发送通知',
+      'manage_notifications': '管理通知',
+      
+      // 其他
+      'admin_panel': '管理面板',
+      'debug_mode': '调试模式'
+    };
+
+    // 权限翻译函数
+    function translatePermission(permissionKey) {
+      return permissionTranslations[permissionKey] || permissionKey;
+    }
 
     // 在 toggleAdminPanel 函数内部或之前添加一个辅助函数来检查权限
     async function checkAdminPermission(permissionName) {
@@ -2510,12 +2826,13 @@
 
     async function toggleAdminPanel(show, skipAuthCheck = false) {
       const modal = $('admin-panel-modal');
-      const usersTab = $('admin-tab-users');
-      const groupsTab = $('admin-tab-groups');
-      const sessionsTab = $('admin-tab-sessions'); // 会话标签页按钮
-      const usersPanel = $('admin-users-panel');
-      const groupsPanel = $('admin-groups-panel');
-      const sessionsPanel = $('admin-sessions-panel'); // 会话标签页内容
+      const usersTab = $('admin-tab-users_modal');
+      const groupsTab = $('admin-tab-groups_modal');
+      const logsTab = $('admin-tab-logs_modal');
+      const healthTab = $('admin-tab-health_modal');
+      const profileTab = $('admin-tab-profile_modal');
+      const sessionsTab = $('admin-tab-sessions_modal'); // 会话标签页按钮
+      const godModeToggle = $('god-mode-toggle_modal');
 
       if (show) {
         modal.classList.remove('hidden');
@@ -2526,11 +2843,17 @@
         // 当 skipAuthCheck=true 时（例如系统登录后打开），跳过学校账号认证检查
         let canManageUsers = false;
         let canManageGroups = false;
+        let canViewLogs = false;
+        let canViewHealth = false;
+        let hasGodMode = false;
         let isAuthenticated = skipAuthCheck; // 如果跳过检查，假定已认证
 
         if (!skipAuthCheck) {
           canManageUsers = await checkAdminPermission('manage_users');
           canManageGroups = await checkAdminPermission('manage_permissions');
+          canViewLogs = await checkAdminPermission('view_logs');
+          canViewHealth = await checkAdminPermission('manage_users'); // 管理员可以查看健康状态
+          hasGodMode = await checkAdminPermission('god_mode');
           isAuthenticated = await checkAuthStatus();
         }
 
@@ -2540,11 +2863,17 @@
         // --- 控制标签页可见性 ---
         if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
         if (groupsTab) groupsTab.style.display = canManageGroups ? 'block' : 'none';
-        // 会话管理标签页始终可见 (因为所有用户都能打开面板了)
+        if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
+        if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
+        // 个人信息和会话管理标签页始终可见
+        if (profileTab) profileTab.style.display = 'block';
         if (sessionsTab) sessionsTab.style.display = 'block';
+        
+        // 控制上帝模式开关可见性
+        if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
 
-        // --- 默认显示会话标签页 ---
-        switchAdminTab('sessions'); // 将会话设为默认打开的标签
+        // --- 默认显示个人信息标签页 ---
+        switchAdminTab('profile'); // 将个人信息设为默认打开的标签
 
       } else {
         modal.classList.add('hidden');
@@ -2553,56 +2882,23 @@
       }
     }
 
-    // 处理嵌入式登录页面面板的标签切换
-    function switchAdminTab_inline(tab) {
-      // 获取嵌入式面板内的标签按钮和内容面板的引用
-      // 注意：登录页面内嵌的管理面板与主面板共用相同的ID（没有-inline后缀）
-      const usersTab = $('admin-tab-users');
-      const groupsTab = $('admin-tab-groups');
-      const sessionsTab = $('admin-tab-sessions');
-      const usersPanel = $('admin-users-panel');
-      const groupsPanel = $('admin-groups-panel');
+    // 初始化内嵌管理面板的tab可见性
+    async function initializeInlineAdminPanel() {
+      // 简化版本 - 只处理会话管理和上帝模式
+      const godModeToggle = $('god-mode-toggle');
       const sessionsPanel = $('admin-sessions-panel');
 
-      // 防御性编程：检查元素是否存在，避免 null 错误
-      if (!usersTab || !groupsTab || !sessionsTab || !usersPanel || !groupsPanel || !sessionsPanel) {
-        console.error("switchAdminTab_inline: 无法找到所有必要的管理面板元素。");
-        return;
+      // 检查上帝模式权限
+      const hasGodMode = await checkAdminPermission('god_mode');
+
+      // 控制上帝模式开关可见性
+      if (godModeToggle) {
+        godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
       }
 
-      // 重置所有标签按钮的样式
-      [usersTab, groupsTab, sessionsTab].forEach(t => {
-        t.classList.remove('text-sky-600', 'border-sky-600');
-        t.classList.add('text-slate-400', 'border-transparent');
-      });
-
-      // 隐藏所有内容面板
-      [usersPanel, groupsPanel, sessionsPanel].forEach(p => {
-        p.classList.add('hidden');
-      });
-
-      // 根据传入的 tab 参数，激活对应的标签按钮和内容面板，并调用加载函数
-      if (tab === 'users') {
-        usersTab.classList.add('text-sky-600', 'border-sky-600');
-        usersTab.classList.remove('text-slate-400', 'border-transparent');
-        usersPanel.classList.remove('hidden');
-        loadAdminUsers_inline(); // 加载用户数据
-      } else if (tab === 'groups') {
-        groupsTab.classList.add('text-sky-600', 'border-sky-600');
-        groupsTab.classList.remove('text-slate-400', 'border-transparent');
-        groupsPanel.classList.remove('hidden');
-        loadAdminGroups_inline(); // 加载权限组数据 (你也需要创建这个函数)
-      } else if (tab === 'sessions') {
-        sessionsTab.classList.add('text-sky-600', 'border-sky-600');
-        sessionsTab.classList.remove('text-slate-400', 'border-transparent');
-        sessionsPanel.classList.remove('hidden');
-        loadAdminSessions_inline(); // 加载会话数据 (你也需要创建这个函数)
-      } else {
-        // 默认或回退情况，显示会话标签页
-        sessionsTab.classList.add('text-sky-600', 'border-sky-600');
-        sessionsTab.classList.remove('text-slate-400', 'border-transparent');
-        sessionsPanel.classList.remove('hidden');
-        loadAdminSessions_inline(); // 加载会话数据
+      // 直接加载会话列表
+      if (sessionsPanel) {
+        loadAdminSessions_inline();
       }
     }
 
@@ -2611,25 +2907,31 @@
       // 获取主模态框内的标签按钮和内容面板的引用 (使用 _modal 后缀)
       const usersTab = $('admin-tab-users_modal');
       const groupsTab = $('admin-tab-groups_modal');
+      const logsTab = $('admin-tab-logs_modal');
+      const healthTab = $('admin-tab-health_modal');
+      const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal');
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
+      const logsPanel = $('admin-logs-panel_modal');
+      const healthPanel = $('admin-health-panel_modal');
+      const profilePanel = $('admin-profile-panel_modal');
       const sessionsPanel = $('admin-sessions-panel_modal');
 
       // 防御性编程：检查元素是否存在
-      if (!usersTab || !groupsTab || !sessionsTab || !usersPanel || !groupsPanel || !sessionsPanel) {
+      if (!usersTab || !groupsTab || !logsTab || !healthTab || !profileTab || !sessionsTab || !usersPanel || !groupsPanel || !logsPanel || !healthPanel || !profilePanel || !sessionsPanel) {
         console.error("switchAdminTab: 无法找到所有必要的管理面板模态框元素 (带_modal后缀)。");
         return;
       }
 
-      // 重置所有标签按钮的样式 (保持不变)
-      [usersTab, groupsTab, sessionsTab].forEach(t => {
+      // 重置所有标签按钮的样式
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab].forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
-      // 隐藏所有内容面板 (保持不变)
-      [usersPanel, groupsPanel, sessionsPanel].forEach(p => {
+      // 隐藏所有内容面板
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel].forEach(p => {
         p.classList.add('hidden');
       });
 
@@ -2638,155 +2940,41 @@
         usersTab.classList.add('text-sky-600', 'border-sky-600');
         usersTab.classList.remove('text-slate-400', 'border-transparent');
         usersPanel.classList.remove('hidden');
-        loadAdminUsers(); // 调用加载主面板用户数据的函数 (稍后修改此函数)
+        loadAdminUsers();
       } else if (tab === 'groups') {
         groupsTab.classList.add('text-sky-600', 'border-sky-600');
         groupsTab.classList.remove('text-slate-400', 'border-transparent');
         groupsPanel.classList.remove('hidden');
-        loadAdminGroups(); // 调用加载主面板权限组数据的函数 (稍后修改此函数)
+        loadAdminGroups();
+      } else if (tab === 'logs') {
+        logsTab.classList.add('text-sky-600', 'border-sky-600');
+        logsTab.classList.remove('text-slate-400', 'border-transparent');
+        logsPanel.classList.remove('hidden');
+        loadAdminLogs();
+      } else if (tab === 'health') {
+        healthTab.classList.add('text-sky-600', 'border-sky-600');
+        healthTab.classList.remove('text-slate-400', 'border-transparent');
+        healthPanel.classList.remove('hidden');
+        loadHealthStatus();
+      } else if (tab === 'profile') {
+        profileTab.classList.add('text-sky-600', 'border-sky-600');
+        profileTab.classList.remove('text-slate-400', 'border-transparent');
+        profilePanel.classList.remove('hidden');
+        loadPersonalInfo();
       } else if (tab === 'sessions') {
         sessionsTab.classList.add('text-sky-600', 'border-sky-600');
         sessionsTab.classList.remove('text-slate-400', 'border-transparent');
         sessionsPanel.classList.remove('hidden');
-        loadAdminSessions(); // 调用加载主面板会话数据的函数 (稍后修改此函数)
+        loadAdminSessions();
       } else {
-        // 默认或回退情况，显示用户标签页（或你希望的默认标签）
-        usersTab.classList.add('text-sky-600', 'border-sky-600');
-        usersTab.classList.remove('text-slate-400', 'border-transparent');
-        usersPanel.classList.remove('hidden');
-        loadAdminUsers(); // (稍后修改此函数)
+        // 默认显示个人信息页面
+        profileTab.classList.add('text-sky-600', 'border-sky-600');
+        profileTab.classList.remove('text-slate-400', 'border-transparent');
+        profilePanel.classList.remove('hidden');
+        loadPersonalInfo();
       }
     }
     // 加载用户列表数据到嵌入式管理面板
-    async function loadAdminUsers_inline() {
-      const listEl = $('admin-users-list-inline'); // 使用新的列表容器 ID
-
-      if (!listEl) {
-        console.error("loadAdminUsers_inline: 无法找到用户列表容器 'admin-users-list-inline'。");
-        return;
-      }
-
-      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>'; // 显示加载状态
-
-      try {
-        // 调用后端 API 获取用户列表 (假设 sessionUUID 变量是全局可访问的)
-        const response = await fetch('/auth/admin/list_users', {
-          headers: {
-            'X-Session-ID': sessionUUID // 确保 sessionUUID 是当前有效的会话 ID
-          }
-        });
-        const result = await response.json();
-
-        if (!result.success) {
-          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
-          return;
-        }
-
-        if (result.users.length === 0) {
-          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无用户</p>';
-          return;
-        }
-
-        // 同时获取权限组列表，用于下拉选择框
-        const groupsResp = await fetch('/auth/admin/list_groups', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const groupsData = await groupsResp.json();
-        const groups = groupsData.success ? Object.keys(groupsData.groups) : ['guest', 'user', 'admin']; // 回退到默认组
-
-        // 清空加载提示，准备渲染列表
-        listEl.innerHTML = '';
-
-        // 渲染用户列表项
-        result.users.forEach(user => {
-          const createdDate = user.created_at ? new Date(user.created_at * 1000).toLocaleString() : '未知';
-          const lastLoginDate = user.last_login ? new Date(user.last_login * 1000).toLocaleString() : '从未登录';
-
-          // 为每个用户创建权限组下拉选择框
-          const groupSelectHtml = `
-            <select class="text-sm border border-slate-300 rounded px-2 py-1" onchange="updateUserGroup('${user.auth_username}', this.value)">
-              ${groups.map(g => `<option value="${g}" ${g === user.group ? 'selected' : ''}>${g}</option>`).join('')}
-            </select>
-          `;
-
-          // 创建用户项的 HTML
-          const userItem = document.createElement('div');
-          userItem.className = 'border border-slate-200 rounded-lg p-3 mb-2'; // 添加 mb-2 增加间距
-          userItem.innerHTML = `
-            <div class="flex justify-between items-start">
-              <div class="flex-1 min-w-0 pr-4"> <p class="font-semibold text-slate-800 truncate">${user.auth_username}</p> <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-                <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
-              </div>
-              <div class="flex flex-col items-end gap-1 flex-shrink-0"> <span class="text-xs text-slate-600">权限组:</span>
-                ${groupSelectHtml}
-              </div>
-            </div>
-          `;
-          listEl.appendChild(userItem);
-        });
-
-      } catch (e) {
-        console.error("加载用户列表失败:", e);
-        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
-      }
-    }
-
-    async function loadAdminGroups_inline() {
-      const listEl = $('admin-groups-list-inline');
-
-      if (!listEl) {
-        console.error("loadAdminGroups_inline: 无法找到权限组列表容器 'admin-groups-list-inline'。");
-        return;
-      }
-
-      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
-
-      try {
-        const response = await fetch('/auth/admin/list_groups', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const result = await response.json();
-
-        if (!result.success) {
-          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
-          return;
-        }
-
-        const groups = result.groups;
-
-        if (Object.keys(groups).length === 0) {
-          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无权限组</p>';
-          return;
-        }
-
-        listEl.innerHTML = Object.keys(groups).map(groupKey => {
-          const group = groups[groupKey];
-          const perms = group.permissions;
-
-          return `
-            <div class="border border-slate-200 rounded-lg p-4 mb-2">
-              <h5 class="font-semibold text-slate-800 mb-2">${group.name} (${groupKey})</h5>
-              <div class="grid grid-cols-2 gap-2 text-sm">
-                ${Object.keys(perms).map(perm => `
-                  <div class="flex items-start gap-2">
-                    <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'} pt-0.5">${perms[perm] ? '✓' : '✗'}</span>
-                    <span class="text-slate-600 break-words">${perm}</span>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `;
-        }).join('');
-      } catch (e) {
-        console.error("加载权限组列表失败:", e);
-        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
-      }
-    }
-
     async function loadAdminSessions_inline() {
       const listEl = $('admin-sessions-list-inline');
 
@@ -2798,11 +2986,26 @@
       listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
-        const response = await fetch('/auth/user/sessions', {
-          headers: {
-            'X-Session-ID': sessionUUID // 确保 sessionUUID 是当前有效的会话 ID
-          }
-        });
+        // 检查是否开启上帝模式
+        const godModeCheckbox = $('god-mode-checkbox');
+        const isGodMode = godModeCheckbox && godModeCheckbox.checked;
+
+        let response;
+        if (isGodMode) {
+          // 上帝模式：获取所有会话
+          response = await fetch('/auth/admin/all_sessions', {
+            headers: {
+              'X-Session-ID': sessionUUID
+            }
+          });
+        } else {
+          // 普通模式：只获取当前用户的会话
+          response = await fetch('/auth/user/sessions', {
+            headers: {
+              'X-Session-ID': sessionUUID // 确保 sessionUUID 是当前有效的会话 ID
+            }
+          });
+        }
 
         if (!response.ok) {
           // 处理非 OK 响应 (例如 401 未授权, 500 服务器错误)
@@ -2830,7 +3033,11 @@
         const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
 
         // 更新会话计数显示
-        updateAdminSessionCountDisplayInline(validSessions.length, maxSessions);
+        if (isGodMode) {
+          updateAdminSessionCountDisplayInline(validSessions.length, -1); // 上帝模式显示所有会话
+        } else {
+          updateAdminSessionCountDisplayInline(validSessions.length, maxSessions);
+        }
 
         let html = '';
         if (!currentUserIsGuest) { // <-- 检查是否不是游客
@@ -2857,6 +3064,9 @@
             const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
             const isCurrent = session.is_current || session.session_id === sessionUUID;
             const sessionHash = session.session_hash || session.session_id.substring(0, 16); // Fallback if hash not present
+            
+            // 上帝模式显示所有者信息
+            const ownerInfo = isGodMode && session.username ? `<p class="text-xs text-slate-500">所有者: ${session.username}</p>` : '';
 
             return `
                       <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
@@ -2866,12 +3076,14 @@
                              ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                             <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                             <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
+                            ${ownerInfo}
                           </div>
                           <div class="flex gap-2">
                             ${!isCurrent ? `
                               <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
                               <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
                             ` : ''}
+                            ${isGodMode ? `<button class="btn btn-danger !py-1 !px-2 text-xs" onclick="destroySession('${session.session_id}')">销毁</button>` : ''}
                           </div>
                         </div>
                       </div>
@@ -2901,6 +3113,505 @@
         const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
         countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
       }}
+    }
+
+    // ====================
+    // 新增功能：日志查看
+    // ====================
+    async function loadAdminLogs() {
+      const contentEl = $('admin-logs-content_modal');
+      const linesSelect = $('log-lines-select_modal');
+      
+      if (!contentEl) {
+        console.error("loadAdminLogs: 无法找到日志内容容器");
+        return;
+      }
+
+      contentEl.textContent = '加载中...';
+
+      try {
+        const lines = linesSelect ? linesSelect.value : 100;
+        const response = await fetch(`/logs/view?lines=${lines}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          contentEl.textContent = `加载失败: ${result.message}`;
+          return;
+        }
+
+        if (result.logs.length === 0) {
+          contentEl.textContent = '暂无日志';
+          return;
+        }
+
+        contentEl.textContent = result.logs.join('');
+      } catch (e) {
+        console.error("加载日志失败:", e);
+        contentEl.textContent = `加载失败: ${e.message}`;
+      }
+    }
+
+    // ====================
+    // 健康状态检测
+    // ====================
+    async function loadHealthStatus() {
+      const contentEl = $('admin-health-content_modal');
+      
+      if (!contentEl) {
+        console.error("loadHealthStatus: 无法找到健康状态容器");
+        return;
+      }
+
+      contentEl.innerHTML = '<p class="text-slate-400 text-center py-10">检测中...</p>';
+
+      try {
+        const startTime = Date.now();
+        const response = await fetch('/health');
+        const responseTime = Date.now() - startTime;
+        const result = await response.json();
+
+        const statusColor = result.status === 'ok' ? 'green' : 'red';
+        const statusText = result.status === 'ok' ? '运行正常' : '出现错误';
+
+        contentEl.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-${statusColor}-50 border border-${statusColor}-200 rounded-lg p-4">
+              <h5 class="font-semibold text-${statusColor}-800 mb-2">服务器状态</h5>
+              <p class="text-2xl font-bold text-${statusColor}-600">${statusText}</p>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h5 class="font-semibold text-blue-800 mb-2">响应时间</h5>
+              <p class="text-2xl font-bold text-blue-600">${responseTime}ms</p>
+            </div>
+          </div>
+          <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <h5 class="font-semibold text-slate-800 mb-2">系统信息</h5>
+            <pre class="text-xs text-slate-600 whitespace-pre-wrap">${JSON.stringify(result, null, 2)}</pre>
+          </div>
+        `;
+      } catch (e) {
+        console.error("加载健康状态失败:", e);
+        contentEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    // ====================
+    // 个人信息管理
+    // ====================
+    async function loadPersonalInfo() {
+      try {
+        const response = await fetch('/auth/user/details', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          showModalAlert(`加载个人信息失败: ${result.message}`, '错误');
+          return;
+        }
+
+        const user = result.user;
+        
+        // 更新头像显示
+        const avatarDisplay = $('profile-avatar-display');
+        const avatarInput = $('profile-avatar-input');
+        if (avatarDisplay && user.avatar) {
+          avatarDisplay.src = user.avatar;
+        }
+        if (avatarInput) {
+          avatarInput.value = user.avatar || '';
+        }
+
+        // 更新2FA状态
+        const tfaStatus = $('profile-2fa-enabled');
+        if (tfaStatus) {
+          tfaStatus.textContent = user.tfa_enabled ? '已启用' : '未启用';
+          tfaStatus.className = user.tfa_enabled ? 'text-green-600 font-semibold' : 'text-slate-600';
+        }
+
+        // 更新主题选择
+        const themeSelect = $('profile-theme-select');
+        if (themeSelect && user.theme) {
+          themeSelect.value = user.theme;
+        }
+      } catch (e) {
+        console.error("加载个人信息失败:", e);
+        showModalAlert(`加载失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function updateAvatar() {
+      const avatarInput = $('profile-avatar-input');
+      if (!avatarInput || !avatarInput.value.trim()) {
+        showModalAlert('请输入头像URL', '提示');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/user/update_avatar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            avatar: avatarInput.value.trim()
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('头像更新成功！', '成功');
+          loadPersonalInfo(); // 重新加载显示
+        } else {
+          showModalAlert(`更新失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("更新头像失败:", e);
+        showModalAlert(`更新失败: ${e.message}`, '错误');
+      }
+    }
+
+    function previewAvatar(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // 验证文件类型
+      if (!file.type.startsWith('image/')) {
+        showModalAlert('请选择图片文件', '错误');
+        return;
+      }
+
+      // 预览图片
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const avatarDisplay = $('profile-avatar-display');
+        if (avatarDisplay) {
+          avatarDisplay.src = e.target.result;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function uploadAvatar() {
+      const fileInput = $('profile-avatar-file');
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showModalAlert('请先选择图片文件', '提示');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      try {
+        const response = await fetch('/auth/user/upload_avatar', {
+          method: 'POST',
+          headers: {
+            'X-Session-ID': sessionUUID
+          },
+          body: formData
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('头像上传成功！', '成功');
+          loadPersonalInfo(); // 重新加载显示
+        } else {
+          showModalAlert(`上传失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("上传头像失败:", e);
+        showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
+      }
+    }
+
+    async function updatePassword() {
+      const currentPassword = $('profile-current-password');
+      const newPassword = $('profile-new-password');
+      const confirmPassword = $('profile-confirm-password');
+
+      if (!currentPassword || !newPassword || !confirmPassword) return;
+
+      if (!currentPassword.value || !newPassword.value || !confirmPassword.value) {
+        showModalAlert('请填写所有密码字段', '提示');
+        return;
+      }
+
+      if (newPassword.value !== confirmPassword.value) {
+        showModalAlert('两次输入的密码不一致', '错误');
+        return;
+      }
+
+      if (newPassword.value.length < 6) {
+        showModalAlert('密码长度至少为6个字符', '错误');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/admin/reset_password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: currentUser, // 假设有currentUser全局变量
+            old_password: currentPassword.value,
+            new_password: newPassword.value
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('密码修改成功！', '成功');
+          currentPassword.value = '';
+          newPassword.value = '';
+          confirmPassword.value = '';
+        } else {
+          showModalAlert(`修改失败: ${result.message || '请检查当前密码是否正确'}`, '错误');
+        }
+      } catch (e) {
+        console.error("修改密码失败:", e);
+        showModalAlert(`修改失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function generate2FA() {
+      try {
+        const response = await fetch('/auth/2fa/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          showModalAlert(`生成2FA失败: ${result.message}`, '错误');
+          return;
+        }
+
+        // 显示2FA设置区域
+        const setupDiv = $('profile-2fa-setup');
+        const actionsDiv = $('profile-2fa-actions');
+        if (setupDiv) setupDiv.classList.remove('hidden');
+        if (actionsDiv) actionsDiv.classList.add('hidden');
+
+        // 显示密钥
+        const secretSpan = $('profile-2fa-secret');
+        if (secretSpan && result.secret) {
+          secretSpan.textContent = result.secret;
+        }
+
+        // 使用QRCode.js生成二维码
+        const qrCanvas = $('profile-2fa-qr');
+        if (qrCanvas && result.qr_uri) {
+          if (typeof QRCode !== 'undefined') {
+            QRCode.toCanvas(qrCanvas, result.qr_uri, { width: 200 }, function (error) {
+              if (error) {
+                console.error('QR Code generation error:', error);
+                showModalAlert('二维码生成失败', '错误');
+              }
+            });
+          } else {
+            console.error('QRCode库未加载');
+            showModalAlert('QRCode库未加载，请刷新页面重试', '错误');
+          }
+        }
+      } catch (e) {
+        console.error("生成2FA失败:", e);
+        showModalAlert(`生成失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function enable2FA() {
+      const codeInput = $('profile-2fa-code');
+      if (!codeInput || !codeInput.value) {
+        showModalAlert('请输入验证码', '提示');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/2fa/enable', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            code: codeInput.value
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('2FA启用成功！', '成功');
+          // 隐藏设置区域
+          const setupDiv = $('profile-2fa-setup');
+          const actionsDiv = $('profile-2fa-actions');
+          if (setupDiv) setupDiv.classList.add('hidden');
+          if (actionsDiv) actionsDiv.classList.remove('hidden');
+          // 重新加载个人信息
+          loadPersonalInfo();
+        } else {
+          showModalAlert(`启用失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("启用2FA失败:", e);
+        showModalAlert(`启用失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function updateTheme() {
+      const themeSelect = $('profile-theme-select');
+      if (!themeSelect) return;
+
+      try {
+        const response = await fetch('/auth/user/update_theme', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            theme: themeSelect.value
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('主题更新成功！', '成功');
+        } else {
+          showModalAlert(`更新失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("更新主题失败:", e);
+        showModalAlert(`更新失败: ${e.message}`, '错误');
+      }
+    }
+
+    // ====================
+    // 新增功能：创建用户对话框
+    // ====================
+    function showCreateUserModal() {
+      const modal = $('newUserModal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+    }
+
+    // ====================
+    // 新增功能：创建权限组对话框
+    // ====================
+    let currentEditGroupKey = null;
+    let currentManageUsername = null;
+
+    async function showCreateGroupModal() {
+      const modal = $('create-group-modal');
+      if (!modal) return;
+
+      // 清空输入
+      const keyInput = $('new-group-key');
+      const nameInput = $('new-group-name');
+      if (keyInput) keyInput.value = '';
+      if (nameInput) nameInput.value = '';
+
+      // 加载权限列表
+      try {
+        const response = await fetch('/auth/admin/list_groups', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        if (result.success && result.groups) {
+          // 从第一个权限组获取所有可用权限
+          const firstGroup = Object.values(result.groups)[0];
+          if (firstGroup && firstGroup.permissions) {
+            const permissionsContainer = $('create-group-permissions');
+            if (permissionsContainer) {
+              permissionsContainer.innerHTML = Object.keys(firstGroup.permissions).map(perm => `
+                <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+                  <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}">
+                  <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
+                </label>
+              `).join('');
+            }
+          }
+        }
+      } catch (e) {
+        console.error('加载权限列表失败:', e);
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeCreateGroupModal() {
+      const modal = $('create-group-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    async function submitCreateGroup() {
+      const keyInput = $('new-group-key');
+      const nameInput = $('new-group-name');
+      
+      if (!keyInput || !nameInput) return;
+
+      const groupKey = keyInput.value.trim();
+      const groupName = nameInput.value.trim();
+
+      if (!groupKey || !nameInput) {
+        showModalAlert('请填写权限组键名和名称', '错误');
+        return;
+      }
+
+      // 收集选中的权限
+      const permissionsContainer = $('create-group-permissions');
+      if (!permissionsContainer) return;
+
+      const permissions = {};
+      const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        const perm = cb.getAttribute('data-permission');
+        permissions[perm] = cb.checked;
+      });
+
+      try {
+        const response = await fetch('/auth/admin/create_group', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            group_key: groupKey,
+            group_name: groupName,
+            permissions: permissions
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`权限组 ${groupName} 创建成功`, '成功');
+          closeCreateGroupModal();
+          loadAdminGroups();
+        } else {
+          showModalAlert(result.message || '创建失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
     }
 
     async function loadAdminUsers() {
@@ -2935,6 +3646,8 @@
         listEl.innerHTML = result.users.map(user => {
           const createdDate = new Date(user.created_at * 1000).toLocaleString();
           const lastLoginDate = user.last_login ? new Date(user.last_login * 1000).toLocaleString() : '从未登录';
+          const isBanned = user.banned || false;
+          const bannedBadge = isBanned ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">已封禁</span>' : '';
 
           const groupSelect = `
         <select class="text-sm border border-slate-300 rounded px-2 py-1" onchange="updateUserGroup('${user.auth_username}', this.value)">
@@ -2943,16 +3656,26 @@
       `;
 
           return `
-        <div class="border border-slate-200 rounded-lg p-3">
+        <div class="border border-slate-200 rounded-lg p-3 mb-2">
           <div class="flex justify-between items-start">
             <div class="flex-1">
-              <p class="font-semibold text-slate-800">${user.auth_username}</p>
+              <p class="font-semibold text-slate-800">${user.auth_username}${bannedBadge}</p>
               <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
               <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
+              <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
             </div>
             <div class="flex flex-col items-end gap-1">
               <span class="text-xs text-slate-600">权限组:</span>
               ${groupSelect}
+              <div class="flex gap-1 mt-2">
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
+                ${isBanned ? 
+                  `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
+                  `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
+                }
+                <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${user.auth_username}')">删除</button>
+              </div>
             </div>
           </div>
         </div>
@@ -2990,6 +3713,441 @@
       }
     }
 
+    // ====================
+    // 用户管理功能函数
+    // ====================
+    async function banUser(username) {
+      const confirmed = await jsShowConfirm('确认封禁', `确定要封禁用户 ${username} 吗？`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/ban_user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 已被封禁`, '成功');
+          loadAdminUsers();
+
+        } else {
+          showModalAlert(result.message || '封禁失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function unbanUser(username) {
+      const confirmed = await jsShowConfirm('确认解封', `确定要解封用户 ${username} 吗？`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/unban_user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 已解封`, '成功');
+          loadAdminUsers();
+
+        } else {
+          showModalAlert(result.message || '解封失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function deleteUser(username) {
+      const confirmed = await jsShowConfirm('确认删除', `确定要删除用户 ${username} 吗？\n此操作不可恢复！`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/delete_user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 已删除`, '成功');
+          loadAdminUsers();
+
+        } else {
+          showModalAlert(result.message || '删除失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    function setUserMaxSessions(username, currentMax) {
+      // 填充模态框信息
+      $('sessions-username').textContent = username;
+      $('sessions-current-max').textContent = currentMax === -1 ? '无限制' : currentMax;
+      $('new-max-sessions').value = currentMax === -1 ? 0 : currentMax;
+      
+      // 显示模态框
+      showModal('set-max-sessions-modal');
+    }
+
+    async function submitSetMaxSessions() {
+      const username = $('sessions-username').textContent;
+      const newMaxInput = $('new-max-sessions');
+      const newMax = parseInt(newMaxInput.value);
+
+      if (isNaN(newMax) || newMax < 0) {
+        showModalAlert('请输入有效的数字（0或更大）', '错误');
+        return;
+      }
+
+      // 0表示无限制，转换为-1
+      const maxSessions = newMax === 0 ? -1 : newMax;
+
+      try {
+        const response = await fetch('/auth/admin/update_max_sessions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username, max_sessions: maxSessions })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`已更新用户 ${username} 的最大会话数为: ${maxSessions === -1 ? '无限制' : maxSessions}`, '成功');
+          hideModal('set-max-sessions-modal');
+          loadAdminUsers();
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function manageUserPermissions(username) {
+      currentManageUsername = username;
+      const modal = $('manage-user-permissions-modal');
+      if (!modal) return;
+
+      try {
+        // 获取用户权限信息
+        const response = await fetch('/auth/admin/get_user_permissions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username: username })
+        });
+        const result = await response.json();
+        
+        if (!result.success) {
+          showModalAlert('无法加载用户权限信息', '错误');
+          return;
+        }
+
+        // 设置用户名和权限组
+        const nameEl = $('manage-user-name');
+        const groupEl = $('user-base-group');
+        if (nameEl) nameEl.textContent = username;
+        if (groupEl) groupEl.textContent = result.group || 'guest';
+
+        // 渲染权限列表（显示差分化权限）
+        const permissionsContainer = $('manage-user-permissions-list');
+        if (permissionsContainer && result.all_permissions) {
+          const groupPerms = result.group_permissions || {};
+          const addedPerms = result.added_permissions || {};
+          const removedPerms = result.removed_permissions || {};
+
+          permissionsContainer.innerHTML = Object.keys(result.all_permissions).map(perm => {
+            const groupHas = groupPerms[perm] || false;
+            const isAdded = addedPerms[perm] === true;
+            const isRemoved = removedPerms[perm] === true;
+            const currentValue = result.all_permissions[perm];
+
+            let statusClass = '';
+            let statusText = '';
+            if (isAdded) {
+              statusClass = 'bg-green-50 border-green-200';
+              statusText = '(新增)';
+            } else if (isRemoved) {
+              statusClass = 'bg-red-50 border-red-200';
+              statusText = '(移除)';
+            }
+
+            return `
+              <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer border ${statusClass}">
+                <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" data-group-value="${groupHas}" ${currentValue ? 'checked' : ''}>
+                <span class="text-sm text-slate-700 flex-1">${translatePermission(perm)}</span>
+                ${statusText ? `<span class="text-xs ${isAdded ? 'text-green-600' : 'text-red-600'}">${statusText}</span>` : ''}
+              </label>
+            `;
+          }).join('');
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      } catch (e) {
+        showModalAlert('加载失败: ' + e.message, '错误');
+      }
+    }
+
+    function closeManageUserPermissionsModal() {
+      const modal = $('manage-user-permissions-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      currentManageUsername = null;
+    }
+
+    async function submitManageUserPermissions() {
+      if (!currentManageUsername) return;
+
+      const permissionsContainer = $('manage-user-permissions-list');
+      if (!permissionsContainer) return;
+
+      // 收集差分化权限
+      const addedPermissions = {};
+      const removedPermissions = {};
+      
+      const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        const perm = cb.getAttribute('data-permission');
+        const groupValue = cb.getAttribute('data-group-value') === 'true';
+        const currentValue = cb.checked;
+
+        // 如果当前值与权限组值不同，记录差异
+        if (currentValue !== groupValue) {
+          if (currentValue) {
+            addedPermissions[perm] = true;
+          } else {
+            removedPermissions[perm] = true;
+          }
+        }
+      });
+
+      try {
+        const response = await fetch('/auth/admin/set_user_permission', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: currentManageUsername,
+            added_permissions: addedPermissions,
+            removed_permissions: removedPermissions
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${currentManageUsername} 的权限已更新`, '成功');
+          closeManageUserPermissionsModal();
+          loadAdminUsers();
+
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    function showResetPasswordModal(username) {
+      // 设置目标用户名
+      $('reset-password-username').textContent = username;
+      // 清空输入框
+      $('reset-new-password').value = '';
+      $('reset-confirm-password').value = '';
+      // 显示模态框
+      showModal('reset-user-password-modal');
+    }
+
+    async function submitResetUserPassword() {
+      const username = $('reset-password-username').textContent;
+      const newPassword = $('reset-new-password').value;
+      const confirmPassword = $('reset-confirm-password').value;
+
+      if (!newPassword || !confirmPassword) {
+        showModalAlert('请填写所有密码字段', '提示');
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        showModalAlert('密码长度至少为6个字符', '错误');
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        showModalAlert('两次输入的密码不一致', '错误');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/admin/reset_password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username,
+            new_password: newPassword
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的密码已重置`, '成功');
+          hideModal('reset-user-password-modal');
+        } else {
+          showModalAlert(result.message || '密码重置失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    // ====================
+    // 权限组管理功能函数
+    // ====================
+    async function deleteGroup(groupKey) {
+      const confirmed = await jsShowConfirm('确认删除', `确定要删除权限组 ${groupKey} 吗？\n此操作不可恢复！`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/delete_group', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ group_key: groupKey })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`权限组 ${groupKey} 已删除`, '成功');
+          loadAdminGroups();
+        } else {
+          showModalAlert(result.message || '删除失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function editGroupPermissions(groupKey) {
+      currentEditGroupKey = groupKey;
+      const modal = $('edit-group-permissions-modal');
+      if (!modal) return;
+
+      try {
+        // 获取权限组信息
+        const response = await fetch('/auth/admin/list_groups', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        if (!result.success || !result.groups || !result.groups[groupKey]) {
+          showModalAlert('无法加载权限组信息', '错误');
+          return;
+        }
+
+        const group = result.groups[groupKey];
+        const nameEl = $('edit-group-name');
+        if (nameEl) {
+          nameEl.textContent = `${group.name} (${groupKey})`;
+        }
+
+        // 渲染权限列表
+        const permissionsContainer = $('edit-group-permissions-list');
+        if (permissionsContainer && group.permissions) {
+          permissionsContainer.innerHTML = Object.keys(group.permissions).map(perm => `
+            <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+              <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" ${group.permissions[perm] ? 'checked' : ''}>
+              <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
+            </label>
+          `).join('');
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      } catch (e) {
+        showModalAlert('加载失败: ' + e.message, '错误');
+      }
+    }
+
+    function closeEditGroupPermissionsModal() {
+      const modal = $('edit-group-permissions-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      currentEditGroupKey = null;
+    }
+
+    async function submitEditGroupPermissions() {
+      if (!currentEditGroupKey) return;
+
+      const permissionsContainer = $('edit-group-permissions-list');
+      if (!permissionsContainer) return;
+
+      // 收集权限
+      const permissions = {};
+      const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        const perm = cb.getAttribute('data-permission');
+        permissions[perm] = cb.checked;
+      });
+
+      try {
+        const response = await fetch('/auth/admin/update_group', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            group_key: currentEditGroupKey,
+            permissions: permissions
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`权限组 ${currentEditGroupKey} 已更新`, '成功');
+          closeEditGroupPermissionsModal();
+          loadAdminGroups();
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
     async function loadAdminGroups() {
       try {
         const response = await fetch('/auth/admin/list_groups', {
@@ -3010,15 +4168,23 @@
         listEl.innerHTML = Object.keys(groups).map(groupKey => {
           const group = groups[groupKey];
           const perms = group.permissions;
+          const isSystemGroup = group.system || ['guest', 'user', 'admin', 'super_admin'].includes(groupKey);
+          const systemBadge = isSystemGroup ? '<span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full ml-2">系统预设</span>' : '';
 
           return `
-        <div class="border border-slate-200 rounded-lg p-4">
-          <h5 class="font-semibold text-slate-800 mb-2">${group.name} (${groupKey})</h5>
+        <div class="border border-slate-200 rounded-lg p-4 mb-2">
+          <div class="flex justify-between items-start mb-2">
+            <h5 class="font-semibold text-slate-800">${group.name} (${groupKey})${systemBadge}</h5>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="editGroupPermissions('${groupKey}')">编辑权限</button>
+              ${!isSystemGroup ? `<button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteGroup('${groupKey}')">删除</button>` : ''}
+            </div>
+          </div>
           <div class="grid grid-cols-2 gap-2 text-sm">
             ${Object.keys(perms).map(perm => `
               <div class="flex items-center gap-2">
                 <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'}">${perms[perm] ? '✓' : '✗'}</span>
-                <span class="text-slate-600">${perm}</span>
+                <span class="text-slate-600">${translatePermission(perm)}</span>
               </div>
             `).join('')}
           </div>
@@ -3047,11 +4213,26 @@
 
         listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>'; // <-- 现在可以安全使用
 
-        const response = await fetch('/auth/user/sessions', { // <-- 注意：这里用了特定路由，不再是 /api/...
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
+        // 检查是否开启上帝模式
+        const godModeCheckbox = $('god-mode-checkbox_modal');
+        const isGodMode = godModeCheckbox && godModeCheckbox.checked;
+
+        let response;
+        if (isGodMode) {
+          // 上帝模式：获取所有会话
+          response = await fetch('/auth/admin/all_sessions', {
+            headers: {
+              'X-Session-ID': sessionUUID
+            }
+          });
+        } else {
+          // 普通模式：只获取当前用户的会话
+          response = await fetch('/auth/user/sessions', {
+            headers: {
+              'X-Session-ID': sessionUUID
+            }
+          });
+        }
         const result = await response.json();
 
         if (!result.success) {
@@ -3069,15 +4250,22 @@
         const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
 
         // 更新会话计数显示
-        updateAdminSessionCountDisplay(validSessions.length, maxSessions);
+        if (isGodMode) {
+          updateAdminSessionCountDisplay(validSessions.length, -1); // 上帝模式显示所有会话
+        } else {
+          updateAdminSessionCountDisplay(validSessions.length, maxSessions);
+        }
 
         // 添加创建新会话按钮 (这部分逻辑不变)
-        let html = `
+        let html = '';
+        if (!isGodMode) {
+          html = `
       <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
         <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
         <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
       </div>
     `;
+        }
 
         if (validSessions.length === 0) {
           html += '<p class="text-slate-400 text-center py-10">暂无会话</p>';
@@ -3087,22 +4275,25 @@
             const isCurrent = session.is_current || session.session_id === sessionUUID;
             const sessionHash = session.session_hash || session.session_id.substring(0, 16);
 
+            // 上帝模式显示所有者信息
+            const ownerInfo = isGodMode && session.username ? `<p class="text-xs text-slate-500">所有者: ${session.username}</p>` : '';
+
             return `
           <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
             <div class="flex justify-between items-start">
               <div class="flex-1">
-                <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id}
-                
-                </p>
+                <p class="font-semibold text-slate-800 break-all">会话 ${session.session_id}</p>
                 ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                 <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                 <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
+                ${ownerInfo}
               </div>
               <div class="flex gap-2">
                 ${!isCurrent ? `
                   <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
                   <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
                 ` : ''}
+                ${isGodMode ? `<button class="btn btn-danger !py-1 !px-2 text-xs" onclick="destroySession('${session.session_id}')">销毁</button>` : ''}
               </div>
             </div>
           </div>
@@ -3129,6 +4320,37 @@
         const isAtLimit = currentCount >= maxSessions;
         const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
         countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
+      }
+    }
+
+    // ====================
+    // 上帝模式：销毁会话
+    // ====================
+    async function destroySession(sessionId) {
+      const sessionHash = sessionId.substring(0, 16);
+      const confirmed = await jsShowConfirm('确认销毁', `确定要销毁会话\n${sessionHash}...\n吗？\n此操作将强制终止该会话！`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/destroy_session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ session_id: sessionId })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`会话 ${sessionId} 已销毁`, '成功');
+          loadAdminSessions();
+          loadAdminSessions_inline();
+        } else {
+          showModalAlert(result.message || '销毁失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
       }
     }
 
@@ -3953,8 +5175,12 @@
         $('login-container').classList.remove('hidden');
 
         // 初始化内嵌管理面板，默认显示会话标签页并加载数据
-        setTimeout(() => {
-          switchAdminTab_inline('sessions');
+        setTimeout(async () => {
+          try {
+            await initializeInlineAdminPanel();
+          } catch (e) {
+            console.error('初始化内嵌管理面板失败:', e);
+          }
         }, 100);
 
         // 加载地图API Key

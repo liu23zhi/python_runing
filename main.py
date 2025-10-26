@@ -8220,7 +8220,7 @@ def start_web_server(args):
     
     @app.route('/auth/admin/reset_password', methods=['POST'])
     def auth_admin_reset_password():
-        """重置用户密码（管理员）"""
+        """重置用户密码（管理员）或修改自己的密码"""
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
@@ -8229,23 +8229,37 @@ def start_web_server(args):
         auth_username = getattr(api_instance, 'auth_username', '')
         auth_group = getattr(api_instance, 'auth_group', 'guest')
         
-        # 检查权限
-        if not auth_system.check_permission(auth_username, 'reset_user_password'):
-            return jsonify({"success": False, "message": "权限不足"}), 403
-        
         data = request.json
         target_username = data.get('username', '')
         new_password = data.get('new_password', '')
+        old_password = data.get('old_password', '')  # 可选：用于用户自己修改密码时验证
         
         if not target_username or not new_password:
             return jsonify({"success": False, "message": "参数缺失"})
         
+        # 判断是用户自己修改密码还是管理员重置他人密码
+        is_self_change = (target_username == auth_username)
+        
+        if is_self_change:
+            # 用户修改自己的密码：需要验证原密码
+            if not old_password:
+                return jsonify({"success": False, "message": "请提供当前密码"})
+            
+            # 验证原密码
+            if not auth_system.verify_password(target_username, old_password):
+                return jsonify({"success": False, "message": "当前密码错误"}), 401
+        else:
+            # 管理员重置他人密码：需要管理权限
+            if not auth_system.check_permission(auth_username, 'reset_user_password'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        # 执行密码重置
         result = auth_system.reset_user_password(target_username, new_password)
         return jsonify(result)
     
     @app.route('/auth/user/update_avatar', methods=['POST'])
     def auth_user_update_avatar():
-        """更新用户头像"""
+        """更新用户头像（URL方式）"""
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
@@ -8261,6 +8275,82 @@ def start_web_server(args):
         
         result = auth_system.update_user_avatar(auth_username, avatar_url)
         return jsonify(result)
+    
+    @app.route('/auth/user/upload_avatar', methods=['POST'])
+    def auth_user_upload_avatar():
+        """上传用户头像文件（multipart/form-data）"""
+        import hashlib
+        
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_username or auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客无法上传头像"})
+        
+        # 检查是否有文件上传
+        if 'avatar' not in request.files:
+            return jsonify({"success": False, "message": "未找到头像文件"}), 400
+        
+        file = request.files['avatar']
+        
+        if file.filename == '':
+            return jsonify({"success": False, "message": "未选择文件"}), 400
+        
+        # 检查文件类型
+        allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+        file_ext = os.path.splitext(file.filename)[1].lower()
+        if file_ext not in allowed_extensions:
+            return jsonify({"success": False, "message": "不支持的文件格式，请上传图片文件"}), 400
+        
+        # 读取文件内容
+        file_content = file.read()
+        
+        # 检查文件大小（限制为5MB）
+        max_size = 5 * 1024 * 1024  # 5MB
+        if len(file_content) > max_size:
+            return jsonify({"success": False, "message": "文件过大，请上传小于5MB的图片"}), 400
+        
+        # 计算SHA256哈希
+        sha256_hash = hashlib.sha256(file_content).hexdigest()
+        
+        # 创建存储目录
+        images_dir = os.path.join('system_accounts', 'images')
+        os.makedirs(images_dir, exist_ok=True)
+        
+        # 保存文件
+        filename = f"{sha256_hash}{file_ext}"
+        filepath = os.path.join(images_dir, filename)
+        
+        try:
+            with open(filepath, 'wb') as f:
+                f.write(file_content)
+        except Exception as e:
+            return jsonify({"success": False, "message": f"文件保存失败: {str(e)}"}), 500
+        
+        # 构建头像URL
+        avatar_url = f"/system_accounts/images/{filename}"
+        
+        # 更新用户头像
+        result = auth_system.update_user_avatar(auth_username, avatar_url)
+        
+        if result.get('success'):
+            # 返回新的头像URL
+            return jsonify({
+                "success": True,
+                "avatar_url": avatar_url,
+                "message": "头像上传成功"
+            })
+        else:
+            # 如果更新失败，删除已上传的文件
+            try:
+                os.remove(filepath)
+            except:
+                pass
+            return jsonify(result)
     
     @app.route('/auth/user/update_theme', methods=['POST'])
     def auth_user_update_theme():
