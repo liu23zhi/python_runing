@@ -1246,7 +1246,7 @@
             </div>
           </div>
           <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[60vh]">
-            <pre id="admin-logs-content_modal" class="whitespace-pre-wrap">加载中...</pre>
+            <pre id="admin-logs-content_modal" class="whitespace-pre-wrap overflow-visible">加载中...</pre>
           </div>
         </div>
 
@@ -1273,7 +1273,13 @@
         <div id="admin-health-panel_modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">系统健康状态</h4>
-            <button id="admin-refresh-health_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            <div class="flex items-center gap-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="health-auto-refresh-toggle" class="w-4 h-4 accent-sky-600 rounded cursor-pointer" checked>
+                <span class="text-sm text-slate-600">自动刷新(5秒)</span>
+              </label>
+              <button id="admin-refresh-health_modal" class="btn btn-ghost !py-1 !px-2">手动刷新</button>
+            </div>
           </div>
           <div id="admin-health-content_modal" class="space-y-4">
             <p class="text-slate-400 text-center py-10">加载中...</p>
@@ -1576,6 +1582,7 @@
 
     let currentUserIsGuest = false;
     let currentAuthUsername = null; // 存储当前系统认证的用户名
+    let healthAutoRefreshInterval = null; // 系统健康状态自动刷新定时器
 
     // 会话管理相关变量
     let currentSessionInfo = {
@@ -2745,6 +2752,18 @@
         const godModeCheckboxModal = $('god-mode-checkbox_modal');
         if (godModeCheckbox) godModeCheckbox.addEventListener('change', () => loadAdminSessions_inline());
         if (godModeCheckboxModal) godModeCheckboxModal.addEventListener('change', () => loadAdminSessions());
+        
+        // 健康状态自动刷新开关
+        const healthAutoRefreshToggle = $('health-auto-refresh-toggle');
+        if (healthAutoRefreshToggle) {
+          healthAutoRefreshToggle.addEventListener('change', (e) => {
+            if (e.target.checked) {
+              startHealthAutoRefresh();
+            } else {
+              stopHealthAutoRefresh();
+            }
+          });
+        }
       });
     }
 
@@ -2883,6 +2902,8 @@
         modal.classList.add('hidden');
         modal.classList.remove('flex');
         document.body.classList.remove('modal-visible'); // 移除 body class
+        // 关闭时停止自动刷新
+        stopHealthAutoRefresh();
       }
     }
 
@@ -2945,37 +2966,51 @@
         usersTab.classList.remove('text-slate-400', 'border-transparent');
         usersPanel.classList.remove('hidden');
         loadAdminUsers();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
       } else if (tab === 'groups') {
         groupsTab.classList.add('text-sky-600', 'border-sky-600');
         groupsTab.classList.remove('text-slate-400', 'border-transparent');
         groupsPanel.classList.remove('hidden');
         loadAdminGroups();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
       } else if (tab === 'logs') {
         logsTab.classList.add('text-sky-600', 'border-sky-600');
         logsTab.classList.remove('text-slate-400', 'border-transparent');
         logsPanel.classList.remove('hidden');
         loadAdminLogs();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
       } else if (tab === 'health') {
         healthTab.classList.add('text-sky-600', 'border-sky-600');
         healthTab.classList.remove('text-slate-400', 'border-transparent');
         healthPanel.classList.remove('hidden');
         loadHealthStatus();
+        // 启动健康状态自动刷新
+        startHealthAutoRefresh();
       } else if (tab === 'profile') {
         profileTab.classList.add('text-sky-600', 'border-sky-600');
         profileTab.classList.remove('text-slate-400', 'border-transparent');
         profilePanel.classList.remove('hidden');
         loadPersonalInfo();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
       } else if (tab === 'sessions') {
         sessionsTab.classList.add('text-sky-600', 'border-sky-600');
         sessionsTab.classList.remove('text-slate-400', 'border-transparent');
         sessionsPanel.classList.remove('hidden');
         loadAdminSessions();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
       } else {
         // 默认显示个人信息页面
         profileTab.classList.add('text-sky-600', 'border-sky-600');
         profileTab.classList.remove('text-slate-400', 'border-transparent');
         profilePanel.classList.remove('hidden');
         loadPersonalInfo();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
       }
     }
     // 加载用户列表数据到嵌入式管理面板
@@ -3209,6 +3244,37 @@
       } catch (e) {
         console.error("加载健康状态失败:", e);
         contentEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    // 启动健康状态自动刷新
+    function startHealthAutoRefresh() {
+      // 先清除已有的定时器
+      stopHealthAutoRefresh();
+      
+      // 检查自动刷新开关状态
+      const autoRefreshToggle = $('health-auto-refresh-toggle');
+      if (!autoRefreshToggle || !autoRefreshToggle.checked) {
+        return;
+      }
+      
+      // 设置5秒间隔的定时器
+      healthAutoRefreshInterval = setInterval(() => {
+        // 再次检查开关状态，防止用户关闭后仍在刷新
+        const toggle = $('health-auto-refresh-toggle');
+        if (toggle && toggle.checked) {
+          loadHealthStatus();
+        } else {
+          stopHealthAutoRefresh();
+        }
+      }, 5000);
+    }
+
+    // 停止健康状态自动刷新
+    function stopHealthAutoRefresh() {
+      if (healthAutoRefreshInterval) {
+        clearInterval(healthAutoRefreshInterval);
+        healthAutoRefreshInterval = null;
       }
     }
 
@@ -3728,6 +3794,7 @@
               <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
               <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
               <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
+              <p class="text-xs ${user.tfa_enabled ? 'text-green-600' : 'text-slate-400'}">2FA: ${user.tfa_enabled ? '已启用' : '未启用'}</p>
             </div>
             <div class="flex flex-col items-end gap-1">
               <span class="text-xs text-slate-600">权限组:</span>
@@ -3735,6 +3802,8 @@
               <div class="flex gap-1 mt-2">
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
+                ${user.tfa_enabled ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
                 ${isBanned ? 
                   `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
                   `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
@@ -3829,6 +3898,96 @@
 
         } else {
           showModalAlert(result.message || '解封失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function forceDisable2FA(username) {
+      const confirmed = await jsShowConfirm('强制关闭2FA', `确定要为用户 ${username} 关闭双因素认证吗？`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/force_disable_2fa', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            target_username: username
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的2FA已关闭`, '成功');
+          loadAdminUsers(); // 重新加载用户列表以更新界面
+        } else {
+          showModalAlert(result.message || '操作失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function resetUserPassword(username) {
+      // 使用prompt获取新密码
+      const newPassword = await new Promise((resolve) => {
+        // 创建一个简单的输入对话框
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 flex items-center justify-center z-50';
+        modal.innerHTML = `
+          <div class="fixed inset-0 bg-black bg-opacity-50" onclick="this.parentElement.remove()"></div>
+          <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 relative z-10">
+            <h3 class="text-lg font-semibold text-slate-800 mb-4">重置密码 - ${username}</h3>
+            <div class="mb-4">
+              <label class="block text-sm font-semibold text-slate-700 mb-2">新密码（至少6位）</label>
+              <input type="password" id="reset-password-input" class="input-field w-full" placeholder="输入新密码">
+            </div>
+            <div class="flex gap-2 justify-end">
+              <button class="btn btn-ghost" onclick="this.closest('.fixed').remove()">取消</button>
+              <button class="btn btn-primary" id="confirm-reset-password">确认重置</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const confirmBtn = modal.querySelector('#confirm-reset-password');
+        const passwordInput = modal.querySelector('#reset-password-input');
+        
+        confirmBtn.onclick = () => {
+          const password = passwordInput.value;
+          if (!password || password.length < 6) {
+            showModalAlert('密码长度至少为6个字符', '错误');
+            return;
+          }
+          modal.remove();
+          resolve(password);
+        };
+      });
+      
+      if (!newPassword) return;
+      
+      try {
+        const response = await fetch('/auth/admin/force_reset_password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            target_username: username,
+            new_password: newPassword
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的密码已重置`, '成功');
+        } else {
+          showModalAlert(result.message || '重置失败', '错误');
         }
       } catch (e) {
         showModalAlert('操作失败: ' + e.message, '错误');
