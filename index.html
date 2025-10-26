@@ -4249,7 +4249,7 @@
       // }
       const data = await callPythonAPI('on_user_selected', username);
       if (data && data.password) $('password-entry').value = data.password;
-
+      console.log('获取到的data.ua:', data ? data.ua : 'null');
       const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
       $('ua-label').textContent = ua_data;
       console.log('User ua label set to:', ua_data);
