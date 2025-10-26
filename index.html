@@ -2798,23 +2798,25 @@
         loadAdminUsers(); // (稍后修改此函数)
       }
     }
-    // 加载用户列表数据到嵌入式管理面板
-    async function loadAdminUsers_inline() {
-      const listEl = $('admin-users-list-inline'); // 使用新的列表容器 ID
+    // ====================
+    // 统一的管理面板数据加载函数
+    // ====================
+    
+    // 通用用户列表加载函数
+    async function loadAdminUsersCommon(suffix = '') {
+      const listId = suffix ? `admin-users-list${suffix}` : 'admin-users-list-inline';
+      const listEl = $(listId);
 
       if (!listEl) {
-        console.error("loadAdminUsers_inline: 无法找到用户列表容器 'admin-users-list-inline'。");
+        console.error(`loadAdminUsersCommon: 无法找到用户列表容器 '${listId}'。`);
         return;
       }
 
-      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>'; // 显示加载状态
+      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
-        // 调用后端 API 获取用户列表 (假设 sessionUUID 变量是全局可访问的)
         const response = await fetch('/auth/admin/list_users', {
-          headers: {
-            'X-Session-ID': sessionUUID // 确保 sessionUUID 是当前有效的会话 ID
-          }
+          headers: { 'X-Session-ID': sessionUUID }
         });
         const result = await response.json();
 
@@ -2828,35 +2830,30 @@
           return;
         }
 
-        // 同时获取权限组列表，用于下拉选择框
+        // 获取权限组列表
         const groupsResp = await fetch('/auth/admin/list_groups', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
+          headers: { 'X-Session-ID': sessionUUID }
         });
         const groupsData = await groupsResp.json();
-        const groups = groupsData.success ? Object.keys(groupsData.groups) : ['guest', 'user', 'admin']; // 回退到默认组
+        const groups = groupsData.success ? Object.keys(groupsData.groups) : ['guest', 'user', 'admin'];
 
-        // 清空加载提示，准备渲染列表
         listEl.innerHTML = '';
 
         // 渲染用户列表项
         result.users.forEach(user => {
           const createdDate = user.created_at ? new Date(user.created_at * 1000).toLocaleString() : '未知';
           const lastLoginDate = user.last_login ? new Date(user.last_login * 1000).toLocaleString() : '从未登录';
+          const isBanned = user.banned || false;
+          const bannedBadge = isBanned ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">已封禁</span>' : '';
 
-          // 为每个用户创建权限组下拉选择框
           const groupSelectHtml = `
             <select class="text-sm border border-slate-300 rounded px-2 py-1" onchange="updateUserGroup('${user.auth_username}', this.value)">
               ${groups.map(g => `<option value="${g}" ${g === user.group ? 'selected' : ''}>${g}</option>`).join('')}
             </select>
           `;
 
-          // 创建用户项的 HTML
           const userItem = document.createElement('div');
-          userItem.className = 'border border-slate-200 rounded-lg p-3 mb-2'; // 添加 mb-2 增加间距
-          const isBanned = user.banned || false;
-          const bannedBadge = isBanned ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">已封禁</span>' : '';
+          userItem.className = 'border border-slate-200 rounded-lg p-3 mb-2';
           userItem.innerHTML = `
             <div class="flex justify-between items-start">
               <div class="flex-1 min-w-0 pr-4"> 
@@ -2889,11 +2886,18 @@
       }
     }
 
-    async function loadAdminGroups_inline() {
-      const listEl = $('admin-groups-list-inline');
+    // 向后兼容的包装函数
+    async function loadAdminUsers_inline() {
+      await loadAdminUsersCommon('');
+    }
+
+    // 通用权限组列表加载函数
+    async function loadAdminGroupsCommon(suffix = '') {
+      const listId = suffix ? `admin-groups-list${suffix}` : 'admin-groups-list-inline';
+      const listEl = $(listId);
 
       if (!listEl) {
-        console.error("loadAdminGroups_inline: 无法找到权限组列表容器 'admin-groups-list-inline'。");
+        console.error(`loadAdminGroupsCommon: 无法找到权限组列表容器 '${listId}'。`);
         return;
       }
 
@@ -2901,9 +2905,7 @@
 
       try {
         const response = await fetch('/auth/admin/list_groups', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
+          headers: { 'X-Session-ID': sessionUUID }
         });
         const result = await response.json();
 
@@ -2951,11 +2953,21 @@
       }
     }
 
-    async function loadAdminSessions_inline() {
-      const listEl = $('admin-sessions-list-inline');
+    // 向后兼容的包装函数
+    async function loadAdminGroups_inline() {
+      await loadAdminGroupsCommon('');
+    }
+
+    // 通用会话列表加载函数
+    async function loadAdminSessionsCommon(suffix = '') {
+      const listId = suffix ? `admin-sessions-list${suffix}` : 'admin-sessions-list-inline';
+      const godModeCheckboxId = suffix ? `god-mode-checkbox${suffix}` : 'god-mode-checkbox';
+      const countDisplayId = suffix ? 'admin-session-count-display' : 'admin-session-count-display-inline';
+      
+      const listEl = $(listId);
 
       if (!listEl) {
-        console.error("loadAdminSessions_inline: 无法找到会话列表容器 'admin-sessions-list-inline'。");
+        console.error(`loadAdminSessionsCommon: 无法找到会话列表容器 '${listId}'。`);
         return;
       }
 
@@ -2963,37 +2975,30 @@
 
       try {
         // 检查是否开启上帝模式
-        const godModeCheckbox = $('god-mode-checkbox');
+        const godModeCheckbox = $(godModeCheckboxId);
         const isGodMode = godModeCheckbox && godModeCheckbox.checked;
 
         let response;
         if (isGodMode) {
-          // 上帝模式：获取所有会话
           response = await fetch('/auth/admin/all_sessions', {
-            headers: {
-              'X-Session-ID': sessionUUID
-            }
+            headers: { 'X-Session-ID': sessionUUID }
           });
         } else {
-          // 普通模式：只获取当前用户的会话
           response = await fetch('/auth/user/sessions', {
-            headers: {
-              'X-Session-ID': sessionUUID // 确保 sessionUUID 是当前有效的会话 ID
-            }
+            headers: { 'X-Session-ID': sessionUUID }
           });
         }
 
         if (!response.ok) {
-          // 处理非 OK 响应 (例如 401 未授权, 500 服务器错误)
           let errorMsg = `HTTP error ${response.status}`;
           try {
             const errorData = await response.json();
             errorMsg = errorData.message || errorMsg;
-          } catch (parseError) { /* 如果错误响应体不是 JSON，则忽略 */ }
-          throw new Error(errorMsg); // 抛出错误，由下面的 catch 块处理
+          } catch (parseError) { }
+          throw new Error(errorMsg);
         }
 
-        const result = await response.json()
+        const result = await response.json();
 
         if (!result.success) {
           listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
@@ -3001,36 +3006,28 @@
         }
 
         const sessions = result.sessions || [];
-
-        // 更新会话信息（从后端获取max_sessions信息）
         const maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1;
-
-        // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
         const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
 
         // 更新会话计数显示
-        if (isGodMode) {
-          updateAdminSessionCountDisplayInline(validSessions.length, -1); // 上帝模式显示所有会话
-        } else {
-          updateAdminSessionCountDisplayInline(validSessions.length, maxSessions);
-        }
+        updateSessionCountDisplay(countDisplayId, validSessions.length, isGodMode ? -1 : maxSessions);
 
         let html = '';
-        if (!currentUserIsGuest) { // <-- 检查是否不是游客
-          // 只有非游客才显示创建按钮
-          html += `
-                  <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
-                    <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
-                    <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
-                  </div>
-                `;
-        } else {
-          // 可以给游客一个提示，说明他们只有一个当前会话
-          html += `
-                  <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p class="text-sm text-blue-700">游客模式：当前会话如下。如需使用多个会话，请注册账号。</p>
-                  </div>
-                `;
+        if (!isGodMode) {
+          if (!currentUserIsGuest) {
+            html += `
+              <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
+                <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
+                <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
+              </div>
+            `;
+          } else {
+            html += `
+              <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p class="text-sm text-blue-700">游客模式：当前会话如下。如需使用多个会话，请注册账号。</p>
+              </div>
+            `;
+          }
         }
 
         if (validSessions.length === 0) {
@@ -3039,31 +3036,28 @@
           html += validSessions.map(session => {
             const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
             const isCurrent = session.is_current || session.session_id === sessionUUID;
-            const sessionHash = session.session_hash || session.session_id.substring(0, 16); // Fallback if hash not present
-            
-            // 上帝模式显示所有者信息
             const ownerInfo = isGodMode && session.username ? `<p class="text-xs text-slate-500">所有者: ${session.username}</p>` : '';
 
             return `
-                      <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
-                        <div class="flex justify-between items-start">
-                          <div class="flex-1">
-                            <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id} </p>
-                             ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
-                            <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-                            <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
-                            ${ownerInfo}
-                          </div>
-                          <div class="flex gap-2">
-                            ${!isCurrent ? `
-                              <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
-                              <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
-                            ` : ''}
-                            ${isGodMode ? `<button class="btn btn-danger !py-1 !px-2 text-xs" onclick="destroySession('${session.session_id}')">销毁</button>` : ''}
-                          </div>
-                        </div>
-                      </div>
-                    `;
+              <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <p class="font-semibold text-slate-800 break-all">会话 ${session.session_id}</p>
+                    ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
+                    <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+                    <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
+                    ${ownerInfo}
+                  </div>
+                  <div class="flex gap-2">
+                    ${!isCurrent ? `
+                      <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
+                      <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
+                    ` : ''}
+                    ${isGodMode ? `<button class="btn btn-danger !py-1 !px-2 text-xs" onclick="destroySession('${session.session_id}')">销毁</button>` : ''}
+                  </div>
+                </div>
+              </div>
+            `;
           }).join('');
         }
 
@@ -3074,32 +3068,47 @@
       }
     }
 
-    function updateAdminSessionCountDisplayInline(currentCount, maxSessions) {
-      const countEl = $('admin-session-count-display-inline');
+    // 统一的会话计数显示更新函数
+    function updateSessionCountDisplay(countElId, currentCount, maxSessions) {
+      const countEl = $(countElId);
       if (!countEl) return;
 
-      if(currentUserIsGuest){
-      countEl.innerHTML = `<span class="text-blue-600">会话数: 1 / 游客仅限单会话</span>`;
-      }else {
-      if (maxSessions === -1) {
-        countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+      if (currentUserIsGuest) {
+        countEl.innerHTML = `<span class="text-blue-600">会话数: 1 / 游客仅限单会话</span>`;
       } else {
-        const isNearLimit = currentCount >= maxSessions * 0.8;
-        const isAtLimit = currentCount >= maxSessions;
-        const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
-        countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
-      }}
+        if (maxSessions === -1) {
+          countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+        } else {
+          const isNearLimit = currentCount >= maxSessions * 0.8;
+          const isAtLimit = currentCount >= maxSessions;
+          const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
+          countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
+        }
+      }
+    }
+
+    // 向后兼容的包装函数
+    async function loadAdminSessions_inline() {
+      await loadAdminSessionsCommon('');
+    }
+
+    function updateAdminSessionCountDisplayInline(currentCount, maxSessions) {
+      updateSessionCountDisplay('admin-session-count-display-inline', currentCount, maxSessions);
     }
 
     // ====================
     // 新增功能：日志查看
     // ====================
-    async function loadAdminLogs_inline() {
-      const contentEl = $('admin-logs-content-inline');
-      const linesSelect = $('log-lines-select');
+    // 通用日志加载函数
+    async function loadAdminLogsCommon(suffix = '') {
+      const contentId = suffix ? `admin-logs-content${suffix}` : 'admin-logs-content-inline';
+      const linesSelectId = suffix ? `log-lines-select${suffix}` : 'log-lines-select';
+      
+      const contentEl = $(contentId);
+      const linesSelect = $(linesSelectId);
       
       if (!contentEl) {
-        console.error("loadAdminLogs_inline: 无法找到日志内容容器");
+        console.error(`loadAdminLogsCommon: 无法找到日志内容容器 '${contentId}'`);
         return;
       }
 
@@ -3108,9 +3117,7 @@
       try {
         const lines = linesSelect ? linesSelect.value : 100;
         const response = await fetch(`/logs/view?lines=${lines}`, {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
+          headers: { 'X-Session-ID': sessionUUID }
         });
         const result = await response.json();
 
@@ -3131,38 +3138,14 @@
       }
     }
 
+    // 向后兼容的包装函数
+    async function loadAdminLogs_inline() {
+      await loadAdminLogsCommon('');
+    }
+
     async function loadAdminLogs() {
-      const contentEl = $('admin-logs-content_modal');
-      const linesSelect = $('log-lines-select_modal');
-      
-      if (!contentEl) {
-        console.error("loadAdminLogs: 无法找到日志内容容器");
-        return;
-      }
-
-      contentEl.textContent = '加载中...';
-
-      try {
-        const lines = linesSelect ? linesSelect.value : 100;
-        const response = await fetch(`/logs/view?lines=${lines}`, {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const result = await response.json();
-
-        if (!result.success) {
-          contentEl.textContent = `加载失败: ${result.message}`;
-          return;
-        }
-
-        if (result.logs.length === 0) {
-          contentEl.textContent = '暂无日志';
-          return;
-        }
-
-        contentEl.textContent = result.logs.join('');
-      } catch (e) {
+      await loadAdminLogsCommon('_modal');
+    }
         console.error("加载日志失败:", e);
         contentEl.textContent = `加载失败: ${e.message}`;
       }
@@ -3187,74 +3170,8 @@
     }
 
     async function loadAdminUsers() {
-      try {
-        const response = await fetch('/auth/admin/list_users', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const result = await response.json();
-
-        if (!result.success) {
-          $('admin-users-list').innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
-          return;
-        }
-
-        const listEl = $('admin-users-list_modal');
-        if (result.users.length === 0) {
-          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无用户</p>';
-          return;
-        }
-
-        // 同时获取权限组列表
-        const groupsResp = await fetch('/auth/admin/list_groups', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const groupsData = await groupsResp.json();
-        const groups = groupsData.success ? Object.keys(groupsData.groups) : ['guest', 'user', 'admin'];
-
-        listEl.innerHTML = result.users.map(user => {
-          const createdDate = new Date(user.created_at * 1000).toLocaleString();
-          const lastLoginDate = user.last_login ? new Date(user.last_login * 1000).toLocaleString() : '从未登录';
-          const isBanned = user.banned || false;
-          const bannedBadge = isBanned ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">已封禁</span>' : '';
-
-          const groupSelect = `
-        <select class="text-sm border border-slate-300 rounded px-2 py-1" onchange="updateUserGroup('${user.auth_username}', this.value)">
-          ${groups.map(g => `<option value="${g}" ${g === user.group ? 'selected' : ''}>${g}</option>`).join('')}
-        </select>
-      `;
-
-          return `
-        <div class="border border-slate-200 rounded-lg p-3 mb-2">
-          <div class="flex justify-between items-start">
-            <div class="flex-1">
-              <p class="font-semibold text-slate-800">${user.auth_username}${bannedBadge}</p>
-              <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-              <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
-              <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
-            </div>
-            <div class="flex flex-col items-end gap-1">
-              <span class="text-xs text-slate-600">权限组:</span>
-              ${groupSelect}
-              <div class="flex gap-1 mt-2">
-                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
-                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
-                ${isBanned ? 
-                  `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
-                  `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
-                }
-                <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${user.auth_username}')">删除</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-        }).join('');
-      } catch (e) {
-        $('admin-users-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      await loadAdminUsersCommon('_modal');
+    }
       }
     }
 
@@ -3443,178 +3360,16 @@
     }
 
     async function loadAdminGroups() {
-      try {
-        const response = await fetch('/auth/admin/list_groups', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const result = await response.json();
-
-        if (!result.success) {
-          $('admin-groups-list').innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
-          return;
-        }
-
-        const listEl = $('admin-groups-list_modal');
-        const groups = result.groups;
-
-        listEl.innerHTML = Object.keys(groups).map(groupKey => {
-          const group = groups[groupKey];
-          const perms = group.permissions;
-          const isSystemGroup = group.system || ['guest', 'user', 'admin', 'super_admin'].includes(groupKey);
-          const systemBadge = isSystemGroup ? '<span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full ml-2">系统预设</span>' : '';
-
-          return `
-        <div class="border border-slate-200 rounded-lg p-4 mb-2">
-          <div class="flex justify-between items-start mb-2">
-            <h5 class="font-semibold text-slate-800">${group.name} (${groupKey})${systemBadge}</h5>
-            <div class="flex gap-2">
-              <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="editGroupPermissions('${groupKey}')">编辑权限</button>
-              ${!isSystemGroup ? `<button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteGroup('${groupKey}')">删除</button>` : ''}
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-2 text-sm">
-            ${Object.keys(perms).map(perm => `
-              <div class="flex items-center gap-2">
-                <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'}">${perms[perm] ? '✓' : '✗'}</span>
-                <span class="text-slate-600">${perm}</span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-        }).join('');
-      } catch (e) {
-        $('admin-groups-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
-      }
+      await loadAdminGroupsCommon('_modal');
     }
 
     async function loadAdminSessions() {
-      const listEl = $('admin-sessions-list_modal'); // <-- 将 listEl 定义移到 try 外部的最开始
-
-      // --- 检查 listEl 是否存在，移到 try 外部 ---
-      if (!listEl) {
-        console.error("loadAdminSessions: 无法找到会话列表容器 'admin-sessions-list_modal'。");
-        // 可以选择在这里显示一个通用的错误提示
-        showModalAlert("无法加载会话列表：界面元素丢失。", "错误");
-        return; // 如果元素找不到，直接返回，避免后续错误
-      }
-      // --- 结束移动检查 ---
-
-      try {
-        // listEl 变量现在在外部已定义并检查过
-
-        listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>'; // <-- 现在可以安全使用
-
-        // 检查是否开启上帝模式
-        const godModeCheckbox = $('god-mode-checkbox_modal');
-        const isGodMode = godModeCheckbox && godModeCheckbox.checked;
-
-        let response;
-        if (isGodMode) {
-          // 上帝模式：获取所有会话
-          response = await fetch('/auth/admin/all_sessions', {
-            headers: {
-              'X-Session-ID': sessionUUID
-            }
-          });
-        } else {
-          // 普通模式：只获取当前用户的会话
-          response = await fetch('/auth/user/sessions', {
-            headers: {
-              'X-Session-ID': sessionUUID
-            }
-          });
-        }
-        const result = await response.json();
-
-        if (!result.success) {
-          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`; // <-- 现在可以安全使用
-          return;
-        }
-
-        // const listEl = $('admin-sessions-list_modal'); // <-- 确保这行已删除或注释掉
-        const sessions = result.sessions || [];
-
-        // 更新会话信息（从后端获取max_sessions信息）
-        const maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1;
-
-        // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
-        const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
-
-        // 更新会话计数显示
-        if (isGodMode) {
-          updateAdminSessionCountDisplay(validSessions.length, -1); // 上帝模式显示所有会话
-        } else {
-          updateAdminSessionCountDisplay(validSessions.length, maxSessions);
-        }
-
-        // 添加创建新会话按钮 (这部分逻辑不变)
-        let html = '';
-        if (!isGodMode) {
-          html = `
-      <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
-        <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
-        <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
-      </div>
-    `;
-        }
-
-        if (validSessions.length === 0) {
-          html += '<p class="text-slate-400 text-center py-10">暂无会话</p>';
-        } else {
-          html += validSessions.map(session => {
-            const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
-            const isCurrent = session.is_current || session.session_id === sessionUUID;
-            const sessionHash = session.session_hash || session.session_id.substring(0, 16);
-
-            // 上帝模式显示所有者信息
-            const ownerInfo = isGodMode && session.username ? `<p class="text-xs text-slate-500">所有者: ${session.username}</p>` : '';
-
-            return `
-          <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
-            <div class="flex justify-between items-start">
-              <div class="flex-1">
-                <p class="font-semibold text-slate-800 break-all">会话 ${session.session_id}</p>
-                ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
-                <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-                <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
-                ${ownerInfo}
-              </div>
-              <div class="flex gap-2">
-                ${!isCurrent ? `
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
-                  <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
-                ` : ''}
-                ${isGodMode ? `<button class="btn btn-danger !py-1 !px-2 text-xs" onclick="destroySession('${session.session_id}')">销毁</button>` : ''}
-              </div>
-            </div>
-          </div>
-        `;
-          }).join('');
-        } // <-- 省略不变的成功渲染逻辑...
-
-        listEl.innerHTML = html; // <-- 现在可以安全使用
-
-      } catch (e) {
-        // 现在 catch 块可以安全访问外部定义的 listEl
-        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
-      }
+      await loadAdminSessionsCommon('_modal');
     }
 
     function updateAdminSessionCountDisplay(currentCount, maxSessions) {
-      const countEl = $('admin-session-count-display');
-      if (!countEl) return;
-
-      if (maxSessions === -1) {
-        countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
-      } else {
-        const isNearLimit = currentCount >= maxSessions * 0.8;
-        const isAtLimit = currentCount >= maxSessions;
-        const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
-        countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
-      }
+      updateSessionCountDisplay('admin-session-count-display', currentCount, maxSessions);
+    }
     }
 
     // ====================
