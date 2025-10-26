@@ -2653,9 +2653,9 @@ class Api:
             with open(path, "w", encoding="utf-8") as f:
                 cfg_en.write(f)
 
-    def _save_config(self, username, password=None):
-        """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码。同时更新主 config.ini 的 LastUser 和 AmapJsKey。"""
-        logging.debug(f"Saving config: username={username!r}, password provided: {password is not None}")
+    def _save_config(self, username, password=None, ua=None):
+        """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码；当 ua 为 None 时保留现有 UA。同时更新主 config.ini 的 LastUser 和 AmapJsKey。"""
+        logging.debug(f"Saving config: username={username!r}, password provided: {password is not None}, ua provided: {ua is not None}")
 
         # --- 1. 处理用户独立的 .ini 文件 ---
         user_ini_path = os.path.join(self.user_dir, f"{username}.ini")
@@ -2689,11 +2689,14 @@ class Api:
         # 场景: 未提供新密码 (来自 update_param)
         # 则 *不* 触碰 Password 键，从而保留 cfg_to_save 中已加载的旧密码(或它的缺失状态)。
 
-        # --- 5. UA：从当前实例状态获取 ---
-        ua_to_save = self.device_ua
-        if self.is_multi_account_mode and username in self.accounts:
-            ua_to_save = self.accounts[username].device_ua
-        cfg_to_save.set('System', 'UA', ua_to_save or "")
+        # --- 5. 智能处理 UA ---
+        # 仅当 *提供了新的* ua (非 None) 时，才覆盖 UA
+        # 修复：避免在切换账号时误将当前实例的 UA 覆盖到其他用户的配置文件
+        if ua is not None:
+            # 场景: 明确提供了新 UA (来自 login, generate_new_ua)
+            cfg_to_save.set('System', 'UA', ua)
+        # 场景: 未提供新 UA (来自 update_param 等)
+        # 则 *不* 触碰 UA 键，从而保留 cfg_to_save 中已加载的旧 UA(或它的缺失状态)。
 
         # --- 6. 参数：从当前实例状态获取 ---
         params_to_save = self.params
@@ -3087,7 +3090,7 @@ class Api:
 
         # 至此，ud.username 已经是“用于保存配置的主键”（学号优先）
         # 现在再保存配置（文件名与 LastUser 都用 ud.username）
-        self._save_config(ud.username, password)
+        self._save_config(ud.username, password, self.device_ua)
 
 
         # --- 新增：登录成功后，立即获取并缓存签到半径 ---
@@ -4588,7 +4591,8 @@ class Api:
         ini_path = os.path.join(self.user_dir, f"{username}.ini")
         try:
             # 创建 .ini 或更新现有 .ini，保存 UA 与参数与密码
-            self._save_config(username, self.accounts[username].password)
+            # 修复：在多账号模式添加账号时，应该保存该账号的 UA
+            self._save_config(username, self.accounts[username].password, self.accounts[username].device_ua)
         except Exception:
             logging.warning(f"保存 {ini_path} 失败（将继续运行）：{traceback.format_exc()}")
 
