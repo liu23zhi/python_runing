@@ -1360,6 +1360,7 @@
                 <button onclick="generate2FA()" class="btn btn-primary">生成2FA密钥</button>
               </div>
               <div id="profile-2fa-enabled-actions" class="space-y-2 hidden">
+                <button onclick="test2FA()" class="btn btn-ghost">测试2FA</button>
                 <button onclick="disable2FA()" class="btn btn-warning">关闭2FA</button>
               </div>
             </div>
@@ -1680,6 +1681,34 @@
       let stillVisible = false;
       otherModals.forEach(m => {
         if (m.id !== 'alert-modal' && !m.classList.contains('hidden') && (m.classList.contains('flex') || m.style.display === 'flex')) {
+          stillVisible = true;
+        }
+      });
+      if (!stillVisible) {
+        document.body.classList.remove('modal-visible');
+      }
+    }
+
+    function showModal(modalId) {
+      const modal = $(modalId);
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('modal-visible');
+      }
+    }
+
+    function hideModal(modalId) {
+      const modal = $(modalId);
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      // 检查是否还有其他模态框可见
+      const otherModals = document.querySelectorAll('.modal, [id$="-modal"]');
+      let stillVisible = false;
+      otherModals.forEach(m => {
+        if (!m.classList.contains('hidden') && (m.classList.contains('flex') || m.style.display === 'flex')) {
           stillVisible = true;
         }
       });
@@ -2547,9 +2576,33 @@
             }
           }, 1000);
         } else {
-          setButtonLoading('auth-login-btn', false);
-          showButtonError('auth-login-btn', '登录失败');
-          showAuthError(result.message || '登录失败');
+          // 检查是否需要2FA验证
+          if (result.requires_2fa || result.message === '需要2FA验证' || result.message?.includes('2FA')) {
+            // 保存用户名用于2FA验证
+            window.temp2FAUsername = username;
+            
+            // 清除登录按钮加载状态
+            setButtonLoading('auth-login-btn', false);
+            
+            // 隐藏登录表单，显示2FA表单
+            const loginForm = $('auth-login-form');
+            const tfaForm = $('auth-2fa-form');
+            if (loginForm) loginForm.classList.add('hidden');
+            if (tfaForm) tfaForm.classList.remove('hidden');
+            
+            // 清空并聚焦到2FA输入框
+            const tfaCodeInput = $('auth-2fa-code');
+            if (tfaCodeInput) {
+              tfaCodeInput.value = '';
+              tfaCodeInput.focus();
+            }
+            
+            showAuthSuccess('密码验证成功，请输入2FA验证码');
+          } else {
+            setButtonLoading('auth-login-btn', false);
+            showButtonError('auth-login-btn', '登录失败');
+            showAuthError(result.message || '登录失败');
+          }
         }
       } catch (e) {
         console.error('登录请求失败:', e);
@@ -3447,8 +3500,13 @@
         // 更新头像显示
         const avatarDisplay = $('profile-avatar-display');
         const avatarInput = $('profile-avatar-input');
-        if (avatarDisplay && user.avatar) {
-          avatarDisplay.src = user.avatar;
+        if (avatarDisplay) {
+          if (user.avatar) {
+            avatarDisplay.src = user.avatar;
+          } else {
+            // 如果没有头像，使用默认图标
+            avatarDisplay.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E';
+          }
         }
         if (avatarInput) {
           avatarInput.value = user.avatar || '';
@@ -3661,14 +3719,16 @@
         const qrCanvas = $('profile-2fa-qr');
         if (qrCanvas && result.qr_uri) {
           if (typeof QRCode !== 'undefined') {
-            // 清空canvas以防止重复生成
-            const ctx = qrCanvas.getContext('2d');
-            ctx.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
+            // 设置canvas尺寸
+            qrCanvas.width = 200;
+            qrCanvas.height = 200;
             
             QRCode.toCanvas(qrCanvas, result.qr_uri, { width: 200 }, function (error) {
               if (error) {
                 console.error('QR Code generation error:', error);
                 showModalAlert('二维码生成失败', '错误');
+              } else {
+                console.log('QR Code generated successfully');
               }
             });
           } else {
@@ -3744,6 +3804,67 @@
       } catch (e) {
         console.error("关闭2FA失败:", e);
         showModalAlert(`关闭失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function test2FA() {
+      // 创建测试对话框
+      const testCode = await new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 flex items-center justify-center z-50';
+        modal.innerHTML = `
+          <div class="fixed inset-0 bg-black bg-opacity-50" onclick="this.parentElement.remove()"></div>
+          <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 relative z-10">
+            <h3 class="text-lg font-semibold text-slate-800 mb-4">测试2FA</h3>
+            <div class="mb-4">
+              <label class="block text-sm font-semibold text-slate-700 mb-2">请输入验证器中的6位验证码</label>
+              <input type="text" id="test-2fa-code-input" class="input-field w-full" placeholder="输入6位验证码" maxlength="6" inputmode="numeric">
+            </div>
+            <div class="flex gap-2 justify-end">
+              <button class="btn btn-ghost" onclick="this.closest('.fixed').remove()">取消</button>
+              <button class="btn btn-primary" id="confirm-test-2fa">验证</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        
+        const confirmBtn = modal.querySelector('#confirm-test-2fa');
+        const codeInput = modal.querySelector('#test-2fa-code-input');
+        
+        confirmBtn.onclick = () => {
+          const code = codeInput.value;
+          if (!code || code.length !== 6 || !/^[0-9]{6}$/.test(code)) {
+            showModalAlert('请输入有效的6位数字验证码', '错误');
+            return;
+          }
+          modal.remove();
+          resolve(code);
+        };
+      });
+      
+      if (!testCode) return;
+      
+      try {
+        const response = await fetch('/auth/2fa/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            code: testCode
+          })
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          showModalAlert('2FA验证成功！您的双因素认证工作正常。', '成功');
+        } else {
+          showModalAlert(`验证失败: ${result.message || '验证码错误'}`, '错误');
+        }
+      } catch (e) {
+        console.error("测试2FA失败:", e);
+        showModalAlert(`测试失败: ${e.message}`, '错误');
       }
     }
 
