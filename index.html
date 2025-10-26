@@ -651,10 +651,10 @@
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">会话列表</h4>
             <div class="flex items-center gap-3">
-              <label id="god-mode-toggle" class="flex items-center gap-2 cursor-pointer" style="display:none;">
-                <input type="checkbox" id="god-mode-checkbox" class="w-4 h-4 accent-red-600 rounded cursor-pointer">
-                <span class="text-sm font-semibold text-red-600">上帝模式</span>
-              </label>
+              <label id="god-mode-toggle-inline" class="flex items-center gap-2 cursor-pointer" style="display:none;">
+              <input type="checkbox" id="god-mode-checkbox-inline" class="w-4 h-4 accent-red-600 rounded cursor-pointer">
+              <span class="text-sm font-semibold text-red-600">上帝模式</span>
+            </label>
               <div id="admin-session-count-display-inline" class="text-sm text-slate-600">
                 <!-- 会话计数将由JS动态填充 -->
               </div>
@@ -2732,13 +2732,13 @@
     // 初始化内嵌管理面板的tab可见性
     async function initializeInlineAdminPanel() {
       // 内嵌面板只显示会话管理，直接加载会话数据
-      const godModeToggle = $('god-mode-toggle');
-      
+      const godModeToggle = $('god-mode-toggle-inline'); // <-- 使用 inline 的 ID
+
       // 检查上帝模式权限
       const hasGodMode = await checkAdminPermission('god_mode');
 
       // 控制上帝模式开关可见性
-      if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
+      if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none'; // <-- 控制 inline 的元素
 
       // 加载会话列表
       loadAdminSessions_inline();
@@ -2969,11 +2969,16 @@
         return;
       }
 
+      if (!listEl) {
+        console.error("loadAdminSessions_inline: 无法找到会话列表容器 'admin-sessions-list-inline'。");
+        return;
+      }
+
       listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
-        // 检查是否开启上帝模式
-        const godModeCheckbox = $('god-mode-checkbox');
+        // 检查是否开启上帝模式 (读取 inline 的 checkbox)
+      const godModeCheckbox = $('god-mode-checkbox-inline')
         const isGodMode = godModeCheckbox && godModeCheckbox.checked;
 
         let response;
