@@ -2693,19 +2693,23 @@ class Api:
                 backup_path = f"{user_ini_path}.bak"
                 if os.path.exists(backup_path):
                     try:
-                        # 尝试从备份文件中读取密码
-                        with open(backup_path, "r", encoding="utf-8", errors="ignore") as bf:
-                            for line in bf:
-                                clean_line = line.strip()
-                                temp_line_for_check = clean_line.lower().replace(" ", "")
-                                if temp_line_for_check.startswith("password=") or temp_line_for_check.startswith("密码="):
-                                    parts = clean_line.split("=", 1)
-                                    if len(parts) == 2:
-                                        recovered_password = parts[1].strip()
-                                        if recovered_password:
-                                            cfg_to_save.set('Config', 'Password', recovered_password)
-                                            logging.info(f"已从备份文件恢复用户 {username} 的密码")
-                                            break
+                        # 尝试从备份文件中读取密码，使用robust_decode确保兼容各种编码
+                        with open(backup_path, "rb") as bf:
+                            raw_backup = bf.read()
+                        backup_text = self._robust_decode(raw_backup)
+                        for line in backup_text.splitlines():
+                            clean_line = line.strip()
+                            # 规范化用于匹配
+                            normalized_line = clean_line.lower().replace(" ", "")
+                            if normalized_line.startswith("password=") or normalized_line.startswith("密码="):
+                                # 从原始clean_line中分割（保留原始大小写和值）
+                                parts = clean_line.split("=", 1)
+                                if len(parts) == 2:
+                                    recovered_password = parts[1].strip()
+                                    if recovered_password:
+                                        cfg_to_save.set('Config', 'Password', recovered_password)
+                                        logging.info(f"已从备份文件恢复用户 {username} 的密码")
+                                        break
                     except Exception as e:
                         logging.warning(f"从备份文件恢复密码失败: {e}")
             # 否则保留 cfg_to_save 中已加载的旧密码(或它的缺失状态)。
