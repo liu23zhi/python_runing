@@ -647,61 +647,8 @@
         style="max-height: calc(100vh - 12rem);">
         <h3 class="text-xl font-bold text-sky-600 text-center mb-4">会话管理</h3>
 
-        <!-- Tab bar hidden for inline panel (session-only), but kept in DOM for JS compatibility -->
-        <div class="flex border-b border-slate-200 flex-shrink-0" style="display:none;"> <button id="admin-tab-users"
-            class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">用户管理</button>
-          <button id="admin-tab-groups"
-            class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">权限组管理</button>
-          <button id="admin-tab-logs"
-            class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">日志查看</button>
-          <button id="admin-tab-sessions"
-            class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">会话管理</button>
-        </div>
-
-        <div id="admin-users-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
-          <div class="flex justify-between items-center">
-            <h4 class="font-semibold">用户列表</h4>
-            <div class="flex gap-2">
-              <button id="admin-create-user-inline" class="btn btn-primary !py-1 !px-2">新增用户</button>
-              <button id="admin-refresh-users-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
-            </div>
-          </div>
-          <div id="admin-users-list-inline" class="space-y-2">
-            <p class="text-slate-400 text-center py-10">加载中...</p>
-          </div>
-        </div>
-
-        <div id="admin-groups-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
-          <div class="flex justify-between items-center">
-            <h4 class="font-semibold">权限组列表</h4>
-            <div class="flex gap-2">
-              <button id="admin-create-group-inline" class="btn btn-primary !py-1 !px-2">新增权限组</button>
-              <button id="admin-refresh-groups-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
-            </div>
-          </div>
-          <div id="admin-groups-list-inline" class="space-y-2">
-            <p class="text-slate-400 text-center py-10">加载中...</p>
-          </div>
-        </div>
-
-        <div id="admin-logs-panel" class="hidden space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
-          <div class="flex justify-between items-center">
-            <h4 class="font-semibold">系统日志</h4>
-            <div class="flex gap-2">
-              <select id="log-lines-select" class="text-sm border border-slate-300 rounded px-2 py-1">
-                <option value="100">最近100行</option>
-                <option value="500">最近500行</option>
-                <option value="1000">最近1000行</option>
-              </select>
-              <button id="admin-refresh-logs-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
-            </div>
-          </div>
-          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[60vh]">
-            <pre id="admin-logs-content-inline" class="whitespace-pre-wrap">加载中...</pre>
-          </div>
-        </div>
-
-        <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
+        <!-- Session management panel for inline (login page) -->
+        <div id="admin-sessions-panel-inline" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">会话列表</h4>
             <div class="flex items-center gap-3">
@@ -2582,18 +2529,8 @@
         const adminPanelBtnMulti = $('show-admin-panel-multi');
         if (adminPanelBtnMulti) adminPanelBtnMulti.addEventListener('click', () => toggleAdminPanel(true));
 
-        // 管理面板标签
-        // 注意: 由于存在两组管理面板（登录页内嵌 + 模态框），$() 会返回第一个匹配元素
-        // 第一个匹配的是登录页内嵌面板，所以这里应该调用 switchAdminTab_inline
-        const adminUsersTab = $('admin-tab-users');
-        const adminGroupsTab = $('admin-tab-groups');
-        const adminLogsTab = $('admin-tab-logs');
-        const adminSessionsTab = $('admin-tab-sessions');
-        if (adminUsersTab) adminUsersTab.addEventListener('click', () => switchAdminTab_inline('users'));
-        if (adminGroupsTab) adminGroupsTab.addEventListener('click', () => switchAdminTab_inline('groups'));
-        if (adminLogsTab) adminLogsTab.addEventListener('click', () => switchAdminTab_inline('logs'));
-        if (adminSessionsTab) adminSessionsTab.addEventListener('click', () => switchAdminTab_inline('sessions'));
-        if (adminSessionsTab) adminSessionsTab.addEventListener('click', () => switchAdminTab_inline('sessions'));
+        // Inline panel (login page) no longer has tabs - sessions only
+        // All tab switching is for the modal panel only
 
         const modalAdminPanel = $('admin-panel-modal');
         if (modalAdminPanel) {
@@ -2641,23 +2578,13 @@
           switchAdminTab('sessions');
         });
 
-        // 内嵌登录页面管理面板刷新按钮 (新增)
-        const refreshUsersInlineBtn = $('admin-refresh-users-inline');
-        const refreshGroupsInlineBtn = $('admin-refresh-groups-inline');
-        const refreshLogsInlineBtn = $('admin-refresh-logs-inline');
+        // 内嵌登录页面管理面板刷新按钮 (仅会话管理)
         const refreshSessionsInlineBtn = $('admin-refresh-sessions-inline');
-        if (refreshUsersInlineBtn) refreshUsersInlineBtn.addEventListener('click', loadAdminUsers_inline);
-        if (refreshGroupsInlineBtn) refreshGroupsInlineBtn.addEventListener('click', loadAdminGroups_inline);
-        if (refreshLogsInlineBtn) refreshLogsInlineBtn.addEventListener('click', loadAdminLogs_inline);
         if (refreshSessionsInlineBtn) refreshSessionsInlineBtn.addEventListener('click', loadAdminSessions_inline);
 
-        // 新增用户/权限组按钮
-        const createUserInlineBtn = $('admin-create-user-inline');
-        const createGroupInlineBtn = $('admin-create-group-inline');
+        // 新增用户/权限组按钮 (仅用于模态框)
         const createUserModalBtn = $('admin-create-user_modal');
         const createGroupModalBtn = $('admin-create-group_modal');
-        if (createUserInlineBtn) createUserInlineBtn.addEventListener('click', showCreateUserModal);
-        if (createGroupInlineBtn) createGroupInlineBtn.addEventListener('click', showCreateGroupModal);
         if (createUserModalBtn) createUserModalBtn.addEventListener('click', showCreateUserModal);
         if (createGroupModalBtn) createGroupModalBtn.addEventListener('click', showCreateGroupModal);
 
@@ -2803,91 +2730,21 @@
 
     // 初始化内嵌管理面板的tab可见性
     async function initializeInlineAdminPanel() {
-      const usersTab = $('admin-tab-users');
-      const groupsTab = $('admin-tab-groups');
-      const logsTab = $('admin-tab-logs');
-      const sessionsTab = $('admin-tab-sessions');
+      // 简化版本 - 只处理会话管理和上帝模式
       const godModeToggle = $('god-mode-toggle');
+      const sessionsPanel = $('admin-sessions-panel-inline');
 
-      // 权限检查
-      const canManageUsers = await checkAdminPermission('manage_users');
-      const canManageGroups = await checkAdminPermission('manage_permissions');
-      const canViewLogs = await checkAdminPermission('view_logs');
+      // 检查上帝模式权限
       const hasGodMode = await checkAdminPermission('god_mode');
 
-      // 控制标签页可见性
-      if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
-      if (groupsTab) groupsTab.style.display = canManageGroups ? 'block' : 'none';
-      if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
-      // 会话管理标签页始终可见
-      if (sessionsTab) sessionsTab.style.display = 'block';
-
       // 控制上帝模式开关可见性
-      if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
-
-      // 默认显示会话标签页
-      if (sessionsTab) {
-        switchAdminTab_inline('sessions');
-      }
-    }
-
-    // 处理嵌入式登录页面面板的标签切换
-    function switchAdminTab_inline(tab) {
-      // 获取嵌入式面板内的标签按钮和内容面板的引用
-      // 注意：登录页面内嵌的管理面板与主面板共用相同的ID（没有-inline后缀）
-      const usersTab = $('admin-tab-users');
-      const groupsTab = $('admin-tab-groups');
-      const logsTab = $('admin-tab-logs');
-      const sessionsTab = $('admin-tab-sessions');
-      const usersPanel = $('admin-users-panel');
-      const groupsPanel = $('admin-groups-panel');
-      const logsPanel = $('admin-logs-panel');
-      const sessionsPanel = $('admin-sessions-panel');
-
-      // 防御性编程：检查元素是否存在，避免 null 错误
-      if (!usersTab || !groupsTab || !logsTab || !sessionsTab || !usersPanel || !groupsPanel || !logsPanel || !sessionsPanel) {
-        console.error("switchAdminTab_inline: 无法找到所有必要的管理面板元素。");
-        return;
+      if (godModeToggle) {
+        godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
       }
 
-      // 重置所有标签按钮的样式
-      [usersTab, groupsTab, logsTab, sessionsTab].forEach(t => {
-        t.classList.remove('text-sky-600', 'border-sky-600');
-        t.classList.add('text-slate-400', 'border-transparent');
-      });
-
-      // 隐藏所有内容面板
-      [usersPanel, groupsPanel, logsPanel, sessionsPanel].forEach(p => {
-        p.classList.add('hidden');
-      });
-
-      // 根据传入的 tab 参数，激活对应的标签按钮和内容面板，并调用加载函数
-      if (tab === 'users') {
-        usersTab.classList.add('text-sky-600', 'border-sky-600');
-        usersTab.classList.remove('text-slate-400', 'border-transparent');
-        usersPanel.classList.remove('hidden');
-        loadAdminUsers_inline(); // 加载用户数据
-      } else if (tab === 'groups') {
-        groupsTab.classList.add('text-sky-600', 'border-sky-600');
-        groupsTab.classList.remove('text-slate-400', 'border-transparent');
-        groupsPanel.classList.remove('hidden');
-        loadAdminGroups_inline(); // 加载权限组数据 (你也需要创建这个函数)
-      } else if (tab === 'logs') {
-        logsTab.classList.add('text-sky-600', 'border-sky-600');
-        logsTab.classList.remove('text-slate-400', 'border-transparent');
-        logsPanel.classList.remove('hidden');
-        loadAdminLogs_inline(); // 加载日志数据
-      } else if (tab === 'sessions') {
-        sessionsTab.classList.add('text-sky-600', 'border-sky-600');
-        sessionsTab.classList.remove('text-slate-400', 'border-transparent');
-        sessionsPanel.classList.remove('hidden');
-        loadAdminSessions_inline(); // 加载会话数据 (你也需要创建这个函数)
-      } else {
-        // 默认或回退情况，显示会话标签页
-        sessionsTab.classList.add('text-sky-600', 'border-sky-600');
-        sessionsTab.classList.remove('text-slate-400', 'border-transparent');
-        sessionsPanel.classList.remove('hidden');
-        loadAdminSessions_inline(); // 加载会话数据
+      // 直接加载会话列表
+      if (sessionsPanel) {
+        loadAdminSessions_inline();
       }
     }
 
@@ -2950,158 +2807,6 @@
       }
     }
     // 加载用户列表数据到嵌入式管理面板
-    async function loadAdminUsers_inline() {
-      const listEl = $('admin-users-list-inline'); // 使用新的列表容器 ID
-
-      if (!listEl) {
-        console.error("loadAdminUsers_inline: 无法找到用户列表容器 'admin-users-list-inline'。");
-        return;
-      }
-
-      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>'; // 显示加载状态
-
-      try {
-        // 调用后端 API 获取用户列表 (假设 sessionUUID 变量是全局可访问的)
-        const response = await fetch('/auth/admin/list_users', {
-          headers: {
-            'X-Session-ID': sessionUUID // 确保 sessionUUID 是当前有效的会话 ID
-          }
-        });
-        const result = await response.json();
-
-        if (!result.success) {
-          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
-          return;
-        }
-
-        if (result.users.length === 0) {
-          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无用户</p>';
-          return;
-        }
-
-        // 同时获取权限组列表，用于下拉选择框
-        const groupsResp = await fetch('/auth/admin/list_groups', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const groupsData = await groupsResp.json();
-        const groups = groupsData.success ? Object.keys(groupsData.groups) : ['guest', 'user', 'admin']; // 回退到默认组
-
-        // 清空加载提示，准备渲染列表
-        listEl.innerHTML = '';
-
-        // 渲染用户列表项
-        result.users.forEach(user => {
-          const createdDate = user.created_at ? new Date(user.created_at * 1000).toLocaleString() : '未知';
-          const lastLoginDate = user.last_login ? new Date(user.last_login * 1000).toLocaleString() : '从未登录';
-
-          // 为每个用户创建权限组下拉选择框
-          const groupSelectHtml = `
-            <select class="text-sm border border-slate-300 rounded px-2 py-1" onchange="updateUserGroup('${user.auth_username}', this.value)">
-              ${groups.map(g => `<option value="${g}" ${g === user.group ? 'selected' : ''}>${g}</option>`).join('')}
-            </select>
-          `;
-
-          // 创建用户项的 HTML
-          const userItem = document.createElement('div');
-          userItem.className = 'border border-slate-200 rounded-lg p-3 mb-2'; // 添加 mb-2 增加间距
-          const isBanned = user.banned || false;
-          const bannedBadge = isBanned ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">已封禁</span>' : '';
-          userItem.innerHTML = `
-            <div class="flex justify-between items-start">
-              <div class="flex-1 min-w-0 pr-4"> 
-                <p class="font-semibold text-slate-800 truncate">${user.auth_username}${bannedBadge}</p> 
-                <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-                <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
-                <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
-              </div>
-              <div class="flex flex-col items-end gap-1 flex-shrink-0"> 
-                <span class="text-xs text-slate-600">权限组:</span>
-                ${groupSelectHtml}
-                <div class="flex gap-1 mt-2">
-                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
-                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
-                  ${isBanned ? 
-                    `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
-                    `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
-                  }
-                  <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${user.auth_username}')">删除</button>
-                </div>
-              </div>
-            </div>
-          `;
-          listEl.appendChild(userItem);
-        });
-
-      } catch (e) {
-        console.error("加载用户列表失败:", e);
-        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
-      }
-    }
-
-    async function loadAdminGroups_inline() {
-      const listEl = $('admin-groups-list-inline');
-
-      if (!listEl) {
-        console.error("loadAdminGroups_inline: 无法找到权限组列表容器 'admin-groups-list-inline'。");
-        return;
-      }
-
-      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
-
-      try {
-        const response = await fetch('/auth/admin/list_groups', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const result = await response.json();
-
-        if (!result.success) {
-          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
-          return;
-        }
-
-        const groups = result.groups;
-
-        if (Object.keys(groups).length === 0) {
-          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无权限组</p>';
-          return;
-        }
-
-        listEl.innerHTML = Object.keys(groups).map(groupKey => {
-          const group = groups[groupKey];
-          const perms = group.permissions;
-          const isSystemGroup = group.system || ['guest', 'user', 'admin', 'super_admin'].includes(groupKey);
-          const systemBadge = isSystemGroup ? '<span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full ml-2">系统预设</span>' : '';
-
-          return `
-            <div class="border border-slate-200 rounded-lg p-4 mb-2">
-              <div class="flex justify-between items-start mb-2">
-                <h5 class="font-semibold text-slate-800">${group.name} (${groupKey})${systemBadge}</h5>
-                <div class="flex gap-2">
-                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="editGroupPermissions('${groupKey}')">编辑权限</button>
-                  ${!isSystemGroup ? `<button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteGroup('${groupKey}')">删除</button>` : ''}
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-2 text-sm">
-                ${Object.keys(perms).map(perm => `
-                  <div class="flex items-start gap-2">
-                    <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'} pt-0.5">${perms[perm] ? '✓' : '✗'}</span>
-                    <span class="text-slate-600 break-words">${translatePermission(perm)}</span>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `;
-        }).join('');
-      } catch (e) {
-        console.error("加载权限组列表失败:", e);
-        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
-      }
-    }
-
     async function loadAdminSessions_inline() {
       const listEl = $('admin-sessions-list-inline');
 
@@ -3245,43 +2950,6 @@
     // ====================
     // 新增功能：日志查看
     // ====================
-    async function loadAdminLogs_inline() {
-      const contentEl = $('admin-logs-content-inline');
-      const linesSelect = $('log-lines-select');
-      
-      if (!contentEl) {
-        console.error("loadAdminLogs_inline: 无法找到日志内容容器");
-        return;
-      }
-
-      contentEl.textContent = '加载中...';
-
-      try {
-        const lines = linesSelect ? linesSelect.value : 100;
-        const response = await fetch(`/logs/view?lines=${lines}`, {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const result = await response.json();
-
-        if (!result.success) {
-          contentEl.textContent = `加载失败: ${result.message}`;
-          return;
-        }
-
-        if (result.logs.length === 0) {
-          contentEl.textContent = '暂无日志';
-          return;
-        }
-
-        contentEl.textContent = result.logs.join('');
-      } catch (e) {
-        console.error("加载日志失败:", e);
-        contentEl.textContent = `加载失败: ${e.message}`;
-      }
-    }
-
     async function loadAdminLogs() {
       const contentEl = $('admin-logs-content_modal');
       const linesSelect = $('log-lines-select_modal');
@@ -3427,7 +3095,6 @@
           showModalAlert(`权限组 ${groupName} 创建成功`, '成功');
           closeCreateGroupModal();
           loadAdminGroups();
-          loadAdminGroups_inline();
         } else {
           showModalAlert(result.message || '创建失败', '错误');
         }
@@ -3556,7 +3223,7 @@
         if (result.success) {
           showModalAlert(`用户 ${username} 已被封禁`, '成功');
           loadAdminUsers();
-          loadAdminUsers_inline();
+
         } else {
           showModalAlert(result.message || '封禁失败', '错误');
         }
@@ -3583,7 +3250,7 @@
         if (result.success) {
           showModalAlert(`用户 ${username} 已解封`, '成功');
           loadAdminUsers();
-          loadAdminUsers_inline();
+
         } else {
           showModalAlert(result.message || '解封失败', '错误');
         }
@@ -3610,7 +3277,7 @@
         if (result.success) {
           showModalAlert(`用户 ${username} 已删除`, '成功');
           loadAdminUsers();
-          loadAdminUsers_inline();
+
         } else {
           showModalAlert(result.message || '删除失败', '错误');
         }
@@ -3643,7 +3310,7 @@
         if (result.success) {
           showModalAlert(`已更新用户 ${username} 的最大会话数为: ${maxSessions === -1 ? '无限制' : maxSessions}`, '成功');
           loadAdminUsers();
-          loadAdminUsers_inline();
+
         } else {
           showModalAlert(result.message || '更新失败', '错误');
         }
@@ -3774,7 +3441,7 @@
           showModalAlert(`用户 ${currentManageUsername} 的权限已更新`, '成功');
           closeManageUserPermissionsModal();
           loadAdminUsers();
-          loadAdminUsers_inline();
+
         } else {
           showModalAlert(result.message || '更新失败', '错误');
         }
@@ -3804,7 +3471,6 @@
         if (result.success) {
           showModalAlert(`权限组 ${groupKey} 已删除`, '成功');
           loadAdminGroups();
-          loadAdminGroups_inline();
         } else {
           showModalAlert(result.message || '删除失败', '错误');
         }
@@ -3895,7 +3561,6 @@
           showModalAlert(`权限组 ${currentEditGroupKey} 已更新`, '成功');
           closeEditGroupPermissionsModal();
           loadAdminGroups();
-          loadAdminGroups_inline();
         } else {
           showModalAlert(result.message || '更新失败', '错误');
         }
