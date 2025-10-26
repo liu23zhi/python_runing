@@ -7303,6 +7303,11 @@ def start_web_server(args):
         two_fa_code = data.get('two_fa_code', '').strip()
         session_id = request.headers.get('X-Session-ID', '')
         
+        # 修正：如果没有提供session_id，生成一个新的
+        if not session_id or session_id == 'null':
+            session_id = str(uuid.uuid4())
+            logging.info(f"为新登录用户生成session_id: {session_id[:16]}...")
+        
         # 获取IP和UA
         ip_address = request.remote_addr or ''
         user_agent = request.headers.get('User-Agent', '')
