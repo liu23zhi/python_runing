@@ -2045,8 +2045,55 @@
       $('auth-error-msg').classList.add('hidden');
     }
 
+    // UI反馈辅助函数
+    function setButtonLoading(buttonId, loading, originalText = '') {
+      const btn = $(buttonId);
+      if (!btn) return;
+      
+      if (loading) {
+        btn.dataset.originalText = btn.textContent;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="inline-block animate-spin mr-2">⏳</span>${originalText || '处理中...'}`;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+      } else {
+        btn.disabled = false;
+        btn.textContent = btn.dataset.originalText || originalText;
+        btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        delete btn.dataset.originalText;
+      }
+    }
+
+    function showButtonSuccess(buttonId, message = '成功', duration = 1500) {
+      const btn = $(buttonId);
+      if (!btn) return;
+      
+      const originalText = btn.textContent;
+      btn.innerHTML = `<span class="mr-1">✓</span>${message}`;
+      btn.classList.add('!bg-green-600');
+      
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('!bg-green-600');
+      }, duration);
+    }
+
+    function showButtonError(buttonId, message = '失败', duration = 2000) {
+      const btn = $(buttonId);
+      if (!btn) return;
+      
+      const originalText = btn.textContent;
+      btn.innerHTML = `<span class="mr-1">✗</span>${message}`;
+      btn.classList.add('!bg-red-600');
+      
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('!bg-red-600');
+      }, duration);
+    }
+
     // 用户登录
     async function handleAuthLogin() {
+      const loginBtn = $('auth-login-btn');
       const username = $('auth-username').value.trim();
       const password = $('auth-password').value.trim();
 
@@ -2068,6 +2115,9 @@
         showAuthError('密码长度至少6个字符');
         return;
       }
+
+      // 显示加载状态
+      setButtonLoading('auth-login-btn', true, '登录中...');
 
       try {
         // 构建请求头
@@ -2104,6 +2154,9 @@
           }
 
           showAuthSuccess(successMessage);
+          
+          // 显示成功状态
+          showButtonSuccess('auth-login-btn', '登录成功');
 
           // 如果有token，记录日志（用于调试）
           if (result.token) {
@@ -2155,10 +2208,14 @@
             }
           }, 1000);
         } else {
+          setButtonLoading('auth-login-btn', false);
+          showButtonError('auth-login-btn', '登录失败');
           showAuthError(result.message || '登录失败');
         }
       } catch (e) {
         console.error('登录请求失败:', e);
+        setButtonLoading('auth-login-btn', false);
+        showButtonError('auth-login-btn', '网络错误');
         showAuthError('网络错误，请检查连接后重试');
       }
     }
@@ -2193,6 +2250,9 @@
         return;
       }
 
+      // 显示加载状态
+      setButtonLoading('auth-register-btn', true, '注册中...');
+
       try {
         const response = await fetch('/auth/register', {
           method: 'POST',
@@ -2208,18 +2268,24 @@
         const result = await response.json();
 
         if (result.success) {
+          showButtonSuccess('auth-register-btn', '注册成功');
           showAuthSuccess('注册成功！请登录');
           setTimeout(() => {
+            setButtonLoading('auth-register-btn', false);
             // 切换到登录标签并填充用户名
             switchAuthTab('login');
             $('auth-username').value = username;
             $('auth-password').value = password;
           }, 1500);
         } else {
+          setButtonLoading('auth-register-btn', false);
+          showButtonError('auth-register-btn', '注册失败');
           showAuthError(result.message || '注册失败');
         }
       } catch (e) {
         console.error('注册请求失败:', e);
+        setButtonLoading('auth-register-btn', false);
+        showButtonError('auth-register-btn', '网络错误');
         showAuthError('网络错误，请检查连接后重试');
       }
     }
@@ -4495,10 +4561,14 @@
       const uaOnLoginScreen = $('ua-label')?.textContent || "";
       console.log(`[前端-登录] 当前UA: ${uaOnLoginScreen.substring(0, 50)}...`);
 
+      // 显示加载状态
+      setButtonLoading('login-button', true, '登录中...');
+
       console.log('[前端-登录] 调用后端API进行登录验证...');
       const result = await callPythonAPI('login', user, pass);
       if (result.success) {
         console.log('[前端-登录] ✓ 登录成功！');
+        showButtonSuccess('login-button', '登录成功');
         // 修复Issue 3: 在显示主界面前先加载AMap API Key
         if (result.amap_key) {
           console.log('[前端-登录] 加载高德地图API...');
@@ -4534,6 +4604,8 @@
         console.log('[前端-登录] ✓ 登录流程完成！');
       } else {
         console.log(`[前端-登录] ✗ 登录失败: ${result.message}`);
+        setButtonLoading('login-button', false);
+        showButtonError('login-button', '登录失败');
         showModalAlert(result.message, '登录失败');
       }
     }
