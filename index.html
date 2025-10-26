@@ -1339,6 +1339,9 @@
               <div id="profile-2fa-actions" class="space-y-2">
                 <button onclick="generate2FA()" class="btn btn-primary">生成2FA密钥</button>
               </div>
+              <div id="profile-2fa-enabled-actions" class="space-y-2 hidden">
+                <button onclick="disable2FA()" class="btn btn-warning">关闭2FA</button>
+              </div>
             </div>
 
             <!-- 主题设置 -->
@@ -1572,6 +1575,7 @@
     let appInitialized = false;
 
     let currentUserIsGuest = false;
+    let currentAuthUsername = null; // 存储当前系统认证的用户名
 
     // 会话管理相关变量
     let currentSessionInfo = {
@@ -3065,8 +3069,17 @@
             const isCurrent = session.is_current || session.session_id === sessionUUID;
             const sessionHash = session.session_hash || session.session_id.substring(0, 16); // Fallback if hash not present
             
-            // 上帝模式显示所有者信息
-            const ownerInfo = isGodMode && session.username ? `<p class="text-xs text-slate-500">所有者: ${session.username}</p>` : '';
+            // 上帝模式显示所有者信息，包括游客模式标识
+            let ownerInfo = '';
+            if (isGodMode) {
+              if (session.username) {
+                ownerInfo = `<p class="text-xs text-slate-500">创建者: ${session.username}</p>`;
+              } else if (session.is_guest) {
+                ownerInfo = `<p class="text-xs text-amber-600">创建者: 游客模式</p>`;
+              } else {
+                ownerInfo = `<p class="text-xs text-slate-400">创建者: 未知</p>`;
+              }
+            }
 
             return `
                       <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
@@ -3218,6 +3231,11 @@
 
         const user = result.user;
         
+        // 存储当前认证用户名用于后续操作
+        if (user.auth_username) {
+          currentAuthUsername = user.auth_username;
+        }
+        
         // 更新头像显示
         const avatarDisplay = $('profile-avatar-display');
         const avatarInput = $('profile-avatar-input');
@@ -3230,9 +3248,24 @@
 
         // 更新2FA状态
         const tfaStatus = $('profile-2fa-enabled');
+        const tfaActions = $('profile-2fa-actions');
+        const tfaEnabledActions = $('profile-2fa-enabled-actions');
+        const tfaSetup = $('profile-2fa-setup');
+        
         if (tfaStatus) {
           tfaStatus.textContent = user.tfa_enabled ? '已启用' : '未启用';
           tfaStatus.className = user.tfa_enabled ? 'text-green-600 font-semibold' : 'text-slate-600';
+        }
+        
+        // 根据2FA状态显示不同的操作按钮
+        if (user.tfa_enabled) {
+          if (tfaActions) tfaActions.classList.add('hidden');
+          if (tfaSetup) tfaSetup.classList.add('hidden');
+          if (tfaEnabledActions) tfaEnabledActions.classList.remove('hidden');
+        } else {
+          if (tfaActions) tfaActions.classList.remove('hidden');
+          if (tfaEnabledActions) tfaEnabledActions.classList.add('hidden');
+          if (tfaSetup) tfaSetup.classList.add('hidden');
         }
 
         // 更新主题选择
@@ -3354,6 +3387,11 @@
         return;
       }
 
+      if (!currentAuthUsername) {
+        showModalAlert('无法获取当前用户信息，请重新加载个人信息', '错误');
+        return;
+      }
+
       try {
         const response = await fetch('/auth/admin/reset_password', {
           method: 'POST',
@@ -3362,7 +3400,7 @@
             'X-Session-ID': sessionUUID
           },
           body: JSON.stringify({
-            username: currentUser, // 假设有currentUser全局变量
+            username: currentAuthUsername,
             old_password: currentPassword.value,
             new_password: newPassword.value
           })
@@ -3467,6 +3505,33 @@
       } catch (e) {
         console.error("启用2FA失败:", e);
         showModalAlert(`启用失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function disable2FA() {
+      const confirmed = await jsShowConfirm('确认关闭2FA', '关闭双因素认证后，账号安全性将降低。确定要继续吗？');
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/2fa/disable', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('2FA已关闭', '成功');
+          // 重新加载个人信息以更新界面
+          loadPersonalInfo();
+        } else {
+          showModalAlert(`关闭失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("关闭2FA失败:", e);
+        showModalAlert(`关闭失败: ${e.message}`, '错误');
       }
     }
 
@@ -4275,8 +4340,17 @@
             const isCurrent = session.is_current || session.session_id === sessionUUID;
             const sessionHash = session.session_hash || session.session_id.substring(0, 16);
 
-            // 上帝模式显示所有者信息
-            const ownerInfo = isGodMode && session.username ? `<p class="text-xs text-slate-500">所有者: ${session.username}</p>` : '';
+            // 上帝模式显示所有者信息，包括游客模式标识
+            let ownerInfo = '';
+            if (isGodMode) {
+              if (session.username) {
+                ownerInfo = `<p class="text-xs text-slate-500">创建者: ${session.username}</p>`;
+              } else if (session.is_guest) {
+                ownerInfo = `<p class="text-xs text-amber-600">创建者: 游客模式</p>`;
+              } else {
+                ownerInfo = `<p class="text-xs text-slate-400">创建者: 未知</p>`;
+              }
+            }
 
             return `
           <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
