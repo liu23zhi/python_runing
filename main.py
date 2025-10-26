@@ -7363,9 +7363,17 @@ def start_web_server(args):
                     # 检查并强制执行会话数量限制
                     old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, session_id)
                     
-                    # 清理旧会话（如果超出限制）
-                    for old_sid in old_sessions:
-                        cleanup_session(old_sid, "session_limit_exceeded")
+                    # 清理旧会话（如果超出限制）- 使用后台线程异步清理，不阻塞登录响应
+                    if old_sessions:
+                        def cleanup_old_sessions_async():
+                            for old_sid in old_sessions:
+                                try:
+                                    cleanup_session(old_sid, "session_limit_exceeded")
+                                except Exception as e:
+                                    logging.error(f"后台清理旧会话失败 {old_sid[:16]}...: {e}")
+                        
+                        cleanup_thread = threading.Thread(target=cleanup_old_sessions_async, daemon=True)
+                        cleanup_thread.start()
                     
                     # 关联新会话到用户账号
                     auth_system.link_session_to_user(auth_username, session_id)
@@ -8546,9 +8554,17 @@ def start_web_server(args):
             # 检查并强制执行会话数量限制
             old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, new_session_id)
             
-            # 清理旧会话（如果超出限制）
-            for old_sid in old_sessions:
-                cleanup_session(old_sid, "session_limit_exceeded")
+            # 清理旧会话（如果超出限制）- 使用后台线程异步清理，不阻塞响应
+            if old_sessions:
+                def cleanup_old_sessions_async():
+                    for old_sid in old_sessions:
+                        try:
+                            cleanup_session(old_sid, "session_limit_exceeded")
+                        except Exception as e:
+                            logging.error(f"后台清理旧会话失败 {old_sid[:16]}...: {e}")
+                
+                cleanup_thread = threading.Thread(target=cleanup_old_sessions_async, daemon=True)
+                cleanup_thread.start()
             
             # 关联新会话到用户账号
             auth_system.link_session_to_user(auth_username, new_session_id)
