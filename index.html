@@ -1377,6 +1377,100 @@
     </div>
   </div>
 
+  <!-- 创建权限组模态框 -->
+  <div id="create-group-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeCreateGroupModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-sky-600">创建权限组</h3>
+        <button onclick="closeCreateGroupModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">权限组键名</label>
+          <input type="text" id="new-group-key" class="input-field w-full" placeholder="例如: custom_group">
+          <p class="text-xs text-slate-500 mt-1">英文字母、数字、下划线，用于内部标识</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">权限组名称</label>
+          <input type="text" id="new-group-name" class="input-field w-full" placeholder="例如: 自定义权限组">
+          <p class="text-xs text-slate-500 mt-1">显示名称，用于界面展示</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
+          <div id="create-group-permissions" class="grid grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
+            <!-- 权限列表将由JS动态填充 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeCreateGroupModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitCreateGroup()" class="btn btn-primary">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑权限组权限模态框 -->
+  <div id="edit-group-permissions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeEditGroupPermissionsModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-sky-600">编辑权限组: <span id="edit-group-name"></span></h3>
+        <button onclick="closeEditGroupPermissionsModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
+          <div id="edit-group-permissions-list" class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
+            <!-- 权限列表将由JS动态填充 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeEditGroupPermissionsModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitEditGroupPermissions()" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 管理用户权限模态框 -->
+  <div id="manage-user-permissions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeManageUserPermissionsModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-sky-600">管理用户权限: <span id="manage-user-name"></span></h3>
+        <button onclick="closeManageUserPermissionsModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
+      </div>
+
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+        <p class="text-sm text-blue-700">
+          <strong>权限组:</strong> <span id="user-base-group" class="font-mono"></span>
+        </p>
+        <p class="text-xs text-slate-600 mt-1">
+          💡 以下为用户相对于权限组的差分化权限。绿色表示额外添加的权限，红色表示移除的权限。
+        </p>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">权限调整</label>
+          <div id="manage-user-permissions-list" class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
+            <!-- 权限列表将由JS动态填充 -->
+          </div>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeManageUserPermissionsModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitManageUserPermissions()" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ==============================================================================
     // JavaScript部分
@@ -3181,9 +3275,108 @@
     // ====================
     // 新增功能：创建权限组对话框
     // ====================
-    function showCreateGroupModal() {
-      // TODO: 需要创建一个权限组创建的模态框
-      showModalAlert('权限组创建功能正在开发中', '提示');
+    let currentEditGroupKey = null;
+    let currentManageUsername = null;
+
+    async function showCreateGroupModal() {
+      const modal = $('create-group-modal');
+      if (!modal) return;
+
+      // 清空输入
+      const keyInput = $('new-group-key');
+      const nameInput = $('new-group-name');
+      if (keyInput) keyInput.value = '';
+      if (nameInput) nameInput.value = '';
+
+      // 加载权限列表
+      try {
+        const response = await fetch('/auth/admin/list_groups', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        if (result.success && result.groups) {
+          // 从第一个权限组获取所有可用权限
+          const firstGroup = Object.values(result.groups)[0];
+          if (firstGroup && firstGroup.permissions) {
+            const permissionsContainer = $('create-group-permissions');
+            if (permissionsContainer) {
+              permissionsContainer.innerHTML = Object.keys(firstGroup.permissions).map(perm => `
+                <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+                  <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}">
+                  <span class="text-sm text-slate-700">${perm}</span>
+                </label>
+              `).join('');
+            }
+          }
+        }
+      } catch (e) {
+        console.error('加载权限列表失败:', e);
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeCreateGroupModal() {
+      const modal = $('create-group-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    async function submitCreateGroup() {
+      const keyInput = $('new-group-key');
+      const nameInput = $('new-group-name');
+      
+      if (!keyInput || !nameInput) return;
+
+      const groupKey = keyInput.value.trim();
+      const groupName = nameInput.value.trim();
+
+      if (!groupKey || !nameInput) {
+        showModalAlert('请填写权限组键名和名称', '错误');
+        return;
+      }
+
+      // 收集选中的权限
+      const permissionsContainer = $('create-group-permissions');
+      if (!permissionsContainer) return;
+
+      const permissions = {};
+      const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        const perm = cb.getAttribute('data-permission');
+        permissions[perm] = cb.checked;
+      });
+
+      try {
+        const response = await fetch('/auth/admin/create_group', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            group_key: groupKey,
+            group_name: groupName,
+            permissions: permissions
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`权限组 ${groupName} 创建成功`, '成功');
+          closeCreateGroupModal();
+          loadAdminGroups();
+          loadAdminGroups_inline();
+        } else {
+          showModalAlert(result.message || '创建失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
     }
 
     async function loadAdminUsers() {
@@ -3403,8 +3596,134 @@
     }
 
     async function manageUserPermissions(username) {
-      // TODO: 实现用户权限差分化管理界面
-      showModalAlert(`用户 ${username} 的权限管理功能正在开发中`, '提示');
+      currentManageUsername = username;
+      const modal = $('manage-user-permissions-modal');
+      if (!modal) return;
+
+      try {
+        // 获取用户权限信息
+        const response = await fetch('/auth/admin/get_user_permissions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username: username })
+        });
+        const result = await response.json();
+        
+        if (!result.success) {
+          showModalAlert('无法加载用户权限信息', '错误');
+          return;
+        }
+
+        // 设置用户名和权限组
+        const nameEl = $('manage-user-name');
+        const groupEl = $('user-base-group');
+        if (nameEl) nameEl.textContent = username;
+        if (groupEl) groupEl.textContent = result.group || 'guest';
+
+        // 渲染权限列表（显示差分化权限）
+        const permissionsContainer = $('manage-user-permissions-list');
+        if (permissionsContainer && result.all_permissions) {
+          const groupPerms = result.group_permissions || {};
+          const addedPerms = result.added_permissions || {};
+          const removedPerms = result.removed_permissions || {};
+
+          permissionsContainer.innerHTML = Object.keys(result.all_permissions).map(perm => {
+            const groupHas = groupPerms[perm] || false;
+            const isAdded = addedPerms[perm] === true;
+            const isRemoved = removedPerms[perm] === true;
+            const currentValue = result.all_permissions[perm];
+
+            let statusClass = '';
+            let statusText = '';
+            if (isAdded) {
+              statusClass = 'bg-green-50 border-green-200';
+              statusText = '(新增)';
+            } else if (isRemoved) {
+              statusClass = 'bg-red-50 border-red-200';
+              statusText = '(移除)';
+            }
+
+            return `
+              <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer border ${statusClass}">
+                <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" data-group-value="${groupHas}" ${currentValue ? 'checked' : ''}>
+                <span class="text-sm text-slate-700 flex-1">${perm}</span>
+                ${statusText ? `<span class="text-xs ${isAdded ? 'text-green-600' : 'text-red-600'}">${statusText}</span>` : ''}
+              </label>
+            `;
+          }).join('');
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      } catch (e) {
+        showModalAlert('加载失败: ' + e.message, '错误');
+      }
+    }
+
+    function closeManageUserPermissionsModal() {
+      const modal = $('manage-user-permissions-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      currentManageUsername = null;
+    }
+
+    async function submitManageUserPermissions() {
+      if (!currentManageUsername) return;
+
+      const permissionsContainer = $('manage-user-permissions-list');
+      if (!permissionsContainer) return;
+
+      // 收集差分化权限
+      const addedPermissions = {};
+      const removedPermissions = {};
+      
+      const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        const perm = cb.getAttribute('data-permission');
+        const groupValue = cb.getAttribute('data-group-value') === 'true';
+        const currentValue = cb.checked;
+
+        // 如果当前值与权限组值不同，记录差异
+        if (currentValue !== groupValue) {
+          if (currentValue) {
+            addedPermissions[perm] = true;
+          } else {
+            removedPermissions[perm] = true;
+          }
+        }
+      });
+
+      try {
+        const response = await fetch('/auth/admin/set_user_permission', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: currentManageUsername,
+            added_permissions: addedPermissions,
+            removed_permissions: removedPermissions
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${currentManageUsername} 的权限已更新`, '成功');
+          closeManageUserPermissionsModal();
+          loadAdminUsers();
+          loadAdminUsers_inline();
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
     }
 
     // ====================
@@ -3438,8 +3757,94 @@
     }
 
     async function editGroupPermissions(groupKey) {
-      // TODO: 实现权限组权限编辑界面
-      showModalAlert(`权限组 ${groupKey} 的权限编辑功能正在开发中`, '提示');
+      currentEditGroupKey = groupKey;
+      const modal = $('edit-group-permissions-modal');
+      if (!modal) return;
+
+      try {
+        // 获取权限组信息
+        const response = await fetch('/auth/admin/list_groups', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        if (!result.success || !result.groups || !result.groups[groupKey]) {
+          showModalAlert('无法加载权限组信息', '错误');
+          return;
+        }
+
+        const group = result.groups[groupKey];
+        const nameEl = $('edit-group-name');
+        if (nameEl) {
+          nameEl.textContent = `${group.name} (${groupKey})`;
+        }
+
+        // 渲染权限列表
+        const permissionsContainer = $('edit-group-permissions-list');
+        if (permissionsContainer && group.permissions) {
+          permissionsContainer.innerHTML = Object.keys(group.permissions).map(perm => `
+            <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+              <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" ${group.permissions[perm] ? 'checked' : ''}>
+              <span class="text-sm text-slate-700">${perm}</span>
+            </label>
+          `).join('');
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      } catch (e) {
+        showModalAlert('加载失败: ' + e.message, '错误');
+      }
+    }
+
+    function closeEditGroupPermissionsModal() {
+      const modal = $('edit-group-permissions-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      currentEditGroupKey = null;
+    }
+
+    async function submitEditGroupPermissions() {
+      if (!currentEditGroupKey) return;
+
+      const permissionsContainer = $('edit-group-permissions-list');
+      if (!permissionsContainer) return;
+
+      // 收集权限
+      const permissions = {};
+      const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        const perm = cb.getAttribute('data-permission');
+        permissions[perm] = cb.checked;
+      });
+
+      try {
+        const response = await fetch('/auth/admin/update_group', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            group_key: currentEditGroupKey,
+            permissions: permissions
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`权限组 ${currentEditGroupKey} 已更新`, '成功');
+          closeEditGroupPermissionsModal();
+          loadAdminGroups();
+          loadAdminGroups_inline();
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
     }
 
     async function loadAdminGroups() {
