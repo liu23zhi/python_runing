@@ -7,7 +7,6 @@ __pycache__/
 /logs/
 /.history/
 /system_accounts
-./tokens/
 /tokens
-config.ini
-permissions.json
+/config.ini
+/permissions.json
