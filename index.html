@@ -2290,7 +2290,11 @@
             $('login-container').classList.remove('hidden');
 
             // 初始化内嵌管理面板的tab可见性
-            initializeInlineAdminPanel();
+            try {
+              initializeInlineAdminPanel();
+            } catch (e) {
+              console.error('初始化管理面板失败:', e);
+            }
 
             // 显示管理面板按钮（如果有权限）
             if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
@@ -2671,7 +2675,9 @@
       if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
 
       // 默认显示会话标签页
-      switchAdminTab_inline('sessions');
+      if (sessionsTab) {
+        switchAdminTab_inline('sessions');
+      }
     }
 
     // 处理嵌入式登录页面面板的标签切换
@@ -3570,9 +3576,7 @@
           <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
             <div class="flex justify-between items-start">
               <div class="flex-1">
-                <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id}
-                
-                </p>
+                <p class="font-semibold text-slate-800 break-all">会话 ${session.session_id}</p>
                 ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                 <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                 <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
@@ -3617,7 +3621,8 @@
     // 上帝模式：销毁会话
     // ====================
     async function destroySession(sessionId) {
-      const confirmed = await jsShowConfirm('确认销毁', `确定要销毁会话\n ${sessionId} \n吗？\n此操作将强制终止该会话！`);
+      const sessionHash = sessionId.substring(0, 16);
+      const confirmed = await jsShowConfirm('确认销毁', `确定要销毁会话\n${sessionHash}...\n吗？\n此操作将强制终止该会话！`);
       if (!confirmed) return;
 
       try {
