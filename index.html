@@ -301,7 +301,9 @@
     }
 
     .btn:hover {
-      transform: translateY(-1px);
+      /* transform: translateY(-1px); */
+      /* 按钮没事不要瞎移动 */
+      transform: none;
       box-shadow: 0 12px 28px rgba(2, 132, 199, .22);
     }
 
@@ -477,6 +479,11 @@
     body.modal-visible .amap-logo,
     body.modal-visible .amap-copyright {
       display: none !important;
+    }
+
+    #admin-modal-close-btn:hover {
+      transform: translateY(-50%);
+      /* 强制 hover 时只应用垂直居中 transform */
     }
   </style>
 
@@ -729,7 +736,7 @@
           <p id="user-name-label" class="font-bold text-slate-800 truncate">姓名: NULL</p>
           <p id="user-id-label" class="text-sm text-slate-500">学号: NULL</p>
         </div>
-        <button id="show-sessions-main" class="btn btn-ghost !py-2 !px-3" title="会话管理">会话</button>
+        <button id="show-sessions-main" class="btn btn-ghost !py-2 !px-3 hidden" title="管理面板">管理</button>
         <button id="show-notifications-btn" class="btn btn-ghost !py-2 !px-3 relative" title="查看通知">
           <span>通知</span>
           <span id="notification-badge"
@@ -924,8 +931,8 @@
         <div class="flex justify-between items-center mb-3">
           <h2 class="text-lg font-bold text-slate-800 card-title">多账号控制台</h2>
           <div class="flex gap-2">
-            <button id="show-sessions-multi" class="btn btn-ghost !py-1 !px-3" title="会话管理">会话</button>
-            <button id="show-admin-panel-multi" class="btn btn-ghost !py-1 !px-3 hidden" title="管理面板">管理</button>
+            <!-- <button id="show-sessions-multi" class="btn btn-ghost !py-1 !px-3" title="会话管理">会话</button> -->
+            <button id="show-admin-panel-multi" class="btn btn-ghost !py-1 !px-3 hidden" title="管理面板">管理面板</button>
             <button id="exit-multi-mode-btn" class="btn btn-ghost !py-1 !px-3">返回登录页</button>
           </div>
         </div>
@@ -1192,50 +1199,49 @@
   <div id="admin-panel-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="toggleAdminPanel(false)"></div>
     <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
-      <div class="flex items-center justify-between">
-        <h3 class="text-xl font-bold text-sky-600">管理面板</h3>
-        <button class="btn btn-ghost !py-1 !px-3" onclick="toggleAdminPanel(false)">关闭</button>
-      </div>
 
-      <!-- 管理标签 -->
+      <div class="relative mb-4 text-center">
+        <h3 class="text-2xl font-bold text-sky-600 inline-block">管理面板</h3>
+
+        <button id="admin-modal-close-btn"
+          class="absolute top-1/2 right-0 transform -translate-y-1/2 btn btn-ghost !py-1 !px-3"
+          onclick="toggleAdminPanel(false)">关闭</button>
+      </div>
       <div class="flex border-b border-slate-200">
-        <button id="admin-tab-users"
+        <button id="admin-tab-users_modal"
           class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">用户管理</button>
-        <button id="admin-tab-groups"
+        <button id="admin-tab-groups_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">权限组管理</button>
-        <button id="admin-tab-sessions"
+        <button id="admin-tab-sessions_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
       </div>
 
-      <!-- 用户管理面板 -->
-      <div id="admin-users-panel" class="space-y-4">
+      <div id="admin-users-panel_modal" class="space-y-4">
         <div class="flex justify-between items-center">
           <h4 class="font-semibold">用户列表</h4>
-          <button id="admin-refresh-users" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
         </div>
-        <div id="admin-users-list" class="space-y-2">
+        <div id="admin-users-list_modal" class="space-y-2">
           <p class="text-slate-400 text-center py-10">加载中...</p>
         </div>
       </div>
 
-      <!-- 权限组管理面板 -->
-      <div id="admin-groups-panel" class="hidden space-y-4">
+      <div id="admin-groups-panel_modal" class="hidden space-y-4">
         <div class="flex justify-between items-center">
           <h4 class="font-semibold">权限组列表</h4>
-          <button id="admin-refresh-groups" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
         </div>
-        <div id="admin-groups-list" class="space-y-2">
+        <div id="admin-groups-list_modal" class="space-y-2">
           <p class="text-slate-400 text-center py-10">加载中...</p>
         </div>
       </div>
 
-      <!-- 会话管理面板 -->
-      <div id="admin-sessions-panel" class="hidden space-y-4">
+      <div id="admin-sessions-panel_modal" class="hidden space-y-4">
         <div class="flex justify-between items-center">
           <h4 class="font-semibold">会话列表</h4>
-          <button id="admin-refresh-sessions" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          <button id="admin-refresh-sessions_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
         </div>
-        <div id="admin-sessions-list" class="space-y-2">
+        <div id="admin-sessions-list_modal" class="space-y-2">
           <p class="text-slate-400 text-center py-10">加载中...</p>
         </div>
       </div>
@@ -1280,7 +1286,9 @@
           <h4 class="font-semibold text-slate-700">现有会话</h4>
           <button class="btn btn-ghost !py-1 !px-2" onclick="refreshSessionPicker()">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+              </path>
             </svg>
             刷新
           </button>
@@ -1303,9 +1311,12 @@
 
     // 全局变量
 
+    let refreshUserListInterval = null;
     let cdnErrorCount = 0;
     let cdnErrorTimer = null;
     let appInitialized = false;
+
+    let currentUserIsGuest = false;
 
     function handleCdnError() {
       cdnErrorCount++;
@@ -1490,19 +1501,19 @@
         credentials: 'include',  // 重要：包含cookies
         body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
       });
-      
+
       // 处理token相关错误
       if (!response.ok) {
         console.log(`[API调用] ✗ 响应错误: ${response.status} ${response.statusText}`);
         // 尝试解析JSON错误消息
         try {
           const errorData = await response.json();
-          
+
           // 处理token过期或验证失败
           if (errorData.need_login) {
             let errorMsg = errorData.message || 'API调用失败';
             console.log(`[API调用] ✗ 需要重新登录: ${errorMsg}`);
-            
+
             // 如果是在其他设备登录导致的
             if (errorData.logged_out_elsewhere) {
               showModalAlert(
@@ -1515,12 +1526,12 @@
               showModalAlert(errorMsg, '登录失效');
               logMessage(`[安全提示] ${errorMsg}`);
             }
-            
+
             // 清除本地状态并返回登录页
             setTimeout(() => {
               window.location.href = '/';
             }, 2000);
-            
+
             throw new Error(errorMsg);
           }
         } catch (e) {
@@ -1529,10 +1540,10 @@
             throw e;
           }
         }
-        
+
         throw new Error(`API调用失败: ${response.statusText}`);
       }
-      
+
       console.log(`[API调用] ✓ 请求成功`);
       const result = await response.json();
       console.log(`[API调用] ✓ 返回结果:`, result.success ? '成功' : '失败');
@@ -2018,19 +2029,19 @@
         if (result.success) {
           // 显示成功消息
           let successMessage = '登录成功！';
-          
+
           // 如果有多设备登录警告
           if (result.multi_device_warning) {
             successMessage += '\n' + result.multi_device_warning;
           }
-          
+
           // 如果有会话清理提示
           if (result.cleanup_message) {
             successMessage += '\n' + result.cleanup_message;
           }
-          
+
           showAuthSuccess(successMessage);
-          
+
           // 如果有token，记录日志（用于调试）
           if (result.token) {
             console.log('Received auth token (stored in cookie)');
@@ -2047,7 +2058,7 @@
               // 显示提示信息
               logMessage('[会话选择] 请选择要进入的会话，或创建新会话');
               logMessage('[提示] 每个会话都是独立的学校账号登录状态');
-              
+
               // 如果踢出了其他设备，显示信息
               if (result.kicked_sessions_count > 0) {
                 logMessage(`[多设备检测] 已自动登出该账号在其他 ${result.kicked_sessions_count} 个设备上的会话`);
@@ -2068,6 +2079,8 @@
               if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
               const adminBtnMulti = $('show-admin-panel-multi');
               if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
+              const sessionsBtnMain = $('show-sessions-main');
+              if (sessionsBtnMain) sessionsBtnMain.classList.remove('hidden');
             }
 
             // 如果是游客，显示提示
@@ -2248,13 +2261,30 @@
         if (adminGroupsTab) adminGroupsTab.addEventListener('click', () => switchAdminTab_inline('groups'));
         if (adminSessionsTab) adminSessionsTab.addEventListener('click', () => switchAdminTab_inline('sessions'));
 
+        const modalAdminPanel = $('admin-panel-modal');
+        if (modalAdminPanel) {
+          const modalUsersTab = $('admin-tab-users_modal'); // 直接使用新的唯一 ID
+          const modalGroupsTab = $('admin-tab-groups_modal');
+          const modalSessionsTab = $('admin-tab-sessions_modal');
+
+          if (modalUsersTab) modalUsersTab.addEventListener('click', () => switchAdminTab('users'));
+          if (modalGroupsTab) modalGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
+          if (modalSessionsTab) modalSessionsTab.addEventListener('click', () => switchAdminTab('sessions'));
+          console.log("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
+        } else {
+          console.error("Could not find admin panel modal element to bind tab events.");
+        }
+
         // 模态框刷新按钮（这些ID是唯一的，只存在于模态框中）
-        const refreshUsersBtn = $('admin-refresh-users');
-        const refreshGroupsBtn = $('admin-refresh-groups');
-        const refreshSessionsBtn = $('admin-refresh-sessions');
-        if (refreshUsersBtn) refreshUsersBtn.addEventListener('click', loadAdminUsers);
-        if (refreshGroupsBtn) refreshGroupsBtn.addEventListener('click', loadAdminGroups);
-        if (refreshSessionsBtn) refreshSessionsBtn.addEventListener('click', loadAdminSessions);
+        const refreshUsersBtnModal = $('admin-refresh-users_modal'); // 使用新的唯一 ID
+        const refreshGroupsBtnModal = $('admin-refresh-groups_modal');
+        const refreshSessionsBtnModal = $('admin-refresh-sessions_modal');
+
+        // 确保调用的是正确的加载函数 (它们现在内部会操作 _modal 列表)
+        if (refreshUsersBtnModal) refreshUsersBtnModal.addEventListener('click', loadAdminUsers);
+        if (refreshGroupsBtnModal) refreshGroupsBtnModal.addEventListener('click', loadAdminGroups);
+        if (refreshSessionsBtnModal) refreshSessionsBtnModal.addEventListener('click', loadAdminSessions);
+        console.log("Admin Panel Modal Refresh Buttons event listeners bound (using _modal IDs).");
 
         // 会话管理按钮（多个位置）
         const showSessionsLogin = $('show-sessions-login');
@@ -2326,13 +2356,13 @@
         let canManageUsers = false;
         let canManageGroups = false;
         let isAuthenticated = skipAuthCheck; // 如果跳过检查，假定已认证
-        
+
         if (!skipAuthCheck) {
           canManageUsers = await checkAdminPermission('manage_users');
           canManageGroups = await checkAdminPermission('manage_permissions');
           isAuthenticated = await checkAuthStatus();
         }
-        
+
         const isGuest = currentUserData?.is_guest;
         const canManageSessions = isAuthenticated && !isGuest;
 
@@ -2407,27 +2437,27 @@
 
     // 处理主管理面板模态框的标签切换
     function switchAdminTab(tab) {
-      // 获取主模态框内的标签按钮和内容面板的引用 (没有 -inline 后缀)
-      const usersTab = $('admin-tab-users');
-      const groupsTab = $('admin-tab-groups');
-      const sessionsTab = $('admin-tab-sessions');
-      const usersPanel = $('admin-users-panel');
-      const groupsPanel = $('admin-groups-panel');
-      const sessionsPanel = $('admin-sessions-panel');
+      // 获取主模态框内的标签按钮和内容面板的引用 (使用 _modal 后缀)
+      const usersTab = $('admin-tab-users_modal');
+      const groupsTab = $('admin-tab-groups_modal');
+      const sessionsTab = $('admin-tab-sessions_modal');
+      const usersPanel = $('admin-users-panel_modal');
+      const groupsPanel = $('admin-groups-panel_modal');
+      const sessionsPanel = $('admin-sessions-panel_modal');
 
       // 防御性编程：检查元素是否存在
       if (!usersTab || !groupsTab || !sessionsTab || !usersPanel || !groupsPanel || !sessionsPanel) {
-        console.error("switchAdminTab: 无法找到所有必要的管理面板模态框元素。");
+        console.error("switchAdminTab: 无法找到所有必要的管理面板模态框元素 (带_modal后缀)。");
         return;
       }
 
-      // 重置所有标签按钮的样式
+      // 重置所有标签按钮的样式 (保持不变)
       [usersTab, groupsTab, sessionsTab].forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
-      // 隐藏所有内容面板
+      // 隐藏所有内容面板 (保持不变)
       [usersPanel, groupsPanel, sessionsPanel].forEach(p => {
         p.classList.add('hidden');
       });
@@ -2437,26 +2467,25 @@
         usersTab.classList.add('text-sky-600', 'border-sky-600');
         usersTab.classList.remove('text-slate-400', 'border-transparent');
         usersPanel.classList.remove('hidden');
-        loadAdminUsers(); // 调用加载主面板用户数据的函数
+        loadAdminUsers(); // 调用加载主面板用户数据的函数 (稍后修改此函数)
       } else if (tab === 'groups') {
         groupsTab.classList.add('text-sky-600', 'border-sky-600');
         groupsTab.classList.remove('text-slate-400', 'border-transparent');
         groupsPanel.classList.remove('hidden');
-        loadAdminGroups(); // 调用加载主面板权限组数据的函数
+        loadAdminGroups(); // 调用加载主面板权限组数据的函数 (稍后修改此函数)
       } else if (tab === 'sessions') {
         sessionsTab.classList.add('text-sky-600', 'border-sky-600');
         sessionsTab.classList.remove('text-slate-400', 'border-transparent');
         sessionsPanel.classList.remove('hidden');
-        loadAdminSessions(); // 调用加载主面板会话数据的函数
+        loadAdminSessions(); // 调用加载主面板会话数据的函数 (稍后修改此函数)
       } else {
         // 默认或回退情况，显示用户标签页（或你希望的默认标签）
         usersTab.classList.add('text-sky-600', 'border-sky-600');
         usersTab.classList.remove('text-slate-400', 'border-transparent');
         usersPanel.classList.remove('hidden');
-        loadAdminUsers();
+        loadAdminUsers(); // (稍后修改此函数)
       }
     }
-
     // 加载用户列表数据到嵌入式管理面板
     async function loadAdminUsers_inline() {
       const listEl = $('admin-users-list-inline'); // 使用新的列表容器 ID
@@ -2572,9 +2601,9 @@
               <h5 class="font-semibold text-slate-800 mb-2">${group.name} (${groupKey})</h5>
               <div class="grid grid-cols-2 gap-2 text-sm">
                 ${Object.keys(perms).map(perm => `
-                  <div class="flex items-center gap-2">
-                    <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'}">${perms[perm] ? '✓' : '✗'}</span>
-                    <span class="text-slate-600">${perm}</span>
+                  <div class="flex items-start gap-2">
+                    <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'} pt-0.5">${perms[perm] ? '✓' : '✗'}</span>
+                    <span class="text-slate-600 break-words">${perm}</span>
                   </div>
                 `).join('')}
               </div>
@@ -2598,12 +2627,7 @@
       listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
-        const response = await fetch('/auth/user/sessions', {
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        const result = await response.json();
+        const result = await callPythonAPI('get_user_sessions');
 
         if (!result.success) {
           listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
@@ -2612,12 +2636,23 @@
 
         const sessions = result.sessions || [];
 
-        let html = `
-          <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
-            <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
-            <button class="btn btn-primary w-full" onclick="createNewSession()">创建新会话</button>
-          </div>
-        `;
+        let html = '';
+        if (!currentUserIsGuest) { // <-- 检查是否不是游客
+          // 只有非游客才显示创建按钮
+          html += `
+                  <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
+                    <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
+                    <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
+                  </div>
+                `;
+        } else {
+          // 可以给游客一个提示，说明他们只有一个当前会话
+          html += `
+                  <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p class="text-sm text-blue-700">游客模式：当前会话如下。如需使用多个会话，请注册账号。</p>
+                  </div>
+                `;
+        }
 
         if (sessions.length === 0) {
           html += '<p class="text-slate-400 text-center py-10">暂无会话</p>';
@@ -2671,7 +2706,7 @@
           return;
         }
 
-        const listEl = $('admin-users-list');
+        const listEl = $('admin-users-list_modal');
         if (result.users.length === 0) {
           listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无用户</p>';
           return;
@@ -2758,7 +2793,7 @@
           return;
         }
 
-        const listEl = $('admin-groups-list');
+        const listEl = $('admin-groups-list_modal');
         const groups = result.groups;
 
         listEl.innerHTML = Object.keys(groups).map(groupKey => {
@@ -2785,8 +2820,23 @@
     }
 
     async function loadAdminSessions() {
+      const listEl = $('admin-sessions-list_modal'); // <-- 将 listEl 定义移到 try 外部的最开始
+
+      // --- 检查 listEl 是否存在，移到 try 外部 ---
+      if (!listEl) {
+        console.error("loadAdminSessions: 无法找到会话列表容器 'admin-sessions-list_modal'。");
+        // 可以选择在这里显示一个通用的错误提示
+        showModalAlert("无法加载会话列表：界面元素丢失。", "错误");
+        return; // 如果元素找不到，直接返回，避免后续错误
+      }
+      // --- 结束移动检查 ---
+
       try {
-        const response = await fetch('/auth/user/sessions', {
+        // listEl 变量现在在外部已定义并检查过
+
+        listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>'; // <-- 现在可以安全使用
+
+        const response = await fetch('/auth/user/sessions', { // <-- 注意：这里用了特定路由，不再是 /api/...
           headers: {
             'X-Session-ID': sessionUUID
           }
@@ -2794,18 +2844,18 @@
         const result = await response.json();
 
         if (!result.success) {
-          $('admin-sessions-list').innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`; // <-- 现在可以安全使用
           return;
         }
 
-        const listEl = $('admin-sessions-list');
+        // const listEl = $('admin-sessions-list_modal'); // <-- 确保这行已删除或注释掉
         const sessions = result.sessions || [];
 
-        // 添加创建新会话按钮
+        // 添加创建新会话按钮 (这部分逻辑不变)
         let html = `
       <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
         <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
-        <button class="btn btn-primary w-full" onclick="createNewSession()">创建新会话</button>
+        <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
       </div>
     `;
 
@@ -2838,11 +2888,13 @@
           </div>
         `;
           }).join('');
-        }
+        } // <-- 省略不变的成功渲染逻辑...
 
-        listEl.innerHTML = html;
+        listEl.innerHTML = html; // <-- 现在可以安全使用
+
       } catch (e) {
-        $('admin-sessions-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+        // 现在 catch 块可以安全访问外部定义的 listEl
+        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
       }
     }
 
@@ -2852,15 +2904,6 @@
         window.location.href = `/uuid=${sessionId}`;
       }
     }
-
-    // 创建新会话
-    function createNewSession() {
-      const newUUID = generateUUID();
-      if (confirm('确定要创建新会话吗？\n新会话ID: ' + newUUID.substring(0, 16) + '...')) {
-        window.location.href = `/uuid=${newUUID}`;
-      }
-    }
-
 
     async function deleteSession(sessionId) {
       if (!confirm('确定要删除此会话吗？')) return;
@@ -2896,11 +2939,11 @@
     function showSessionPicker() {
       const modal = $('session-picker-modal');
       if (!modal) return;
-      
+
       modal.classList.remove('hidden');
       modal.classList.add('flex');
       document.body.classList.add('modal-visible');
-      
+
       // 自动加载会话列表
       loadSessionPickerList();
     }
@@ -2908,7 +2951,7 @@
     function closeSessionPicker() {
       const modal = $('session-picker-modal');
       if (!modal) return;
-      
+
       modal.classList.add('hidden');
       modal.classList.remove('flex');
       document.body.classList.remove('modal-visible');
@@ -2917,7 +2960,7 @@
     async function loadSessionPickerList() {
       const listEl = $('session-picker-list');
       if (!listEl) return;
-      
+
       listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
@@ -3003,24 +3046,26 @@
       try {
         logMessage(`正在为目标会话 ${sessionId.substring(0, 16)} 刷新认证令牌...`);
 
-        // 调用新的后端 API 端点来更新 Cookie
-        const response = await fetch('/auth/switch_session', {
+        // --- 修改：调用切换会话的API ---
+        const response = await fetch('/auth/switch_session', { // <--- 正确的API端点
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Session-ID': sessionUUID // 发送当前页面的 session ID
+            'X-Session-ID': sessionUUID // 发送当前会话ID以验证用户身份
           },
-          credentials: 'include', // 确保发送 cookie
+          credentials: 'include', // 包含 Cookie，用于验证当前用户和获取新 Cookie
           body: JSON.stringify({
-            target_session_id: sessionId // 告知后端要切换到的目标 session ID
+            target_session_id: sessionId // <--- 正确的参数：告知后端要切换到的目标会话ID
           })
         });
+        // --- 结束修改 ---
 
         const result = await response.json();
 
+        // 后端 /auth/switch_session 成功后会设置新的 auth_token cookie
         if (response.ok && result.success) {
           logMessage(`令牌更新成功，正在跳转到会话 ${sessionId.substring(0, 16)}...`);
-          // 只有在后端成功更新 Cookie 后才执行跳转
+          // 直接跳转，浏览器会自动带上后端设置的新 Cookie
           window.location.href = `/uuid=${sessionId}`;
         } else {
           // 如果后端返回错误（例如当前认证失效）
@@ -3041,8 +3086,8 @@
     async function createNewSessionFromPicker() {
       const newUUID = generateUUID();
       logMessage(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
-      
-      
+
+
       try {
         // 调用后端API创建会话持久化文件
         const response = await fetch('/auth/user/create_session_persistence', {
@@ -3055,10 +3100,10 @@
             session_id: newUUID
           })
         });
-      
+
 
         const result = await response.json();
-        
+
         if (result.success) {
           logMessage(`会话持久化文件已创建: ${result.message}`);
           if (result.cleanup_message) {
@@ -3164,151 +3209,151 @@
       }
 
       // 检测Web模式并提取UUID
-      
-        const urlPath = window.location.pathname;
-        // 使用标准UUID v4格式的正则表达式
-        const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
 
-        if (match) {
-          // 情况2：访问含UUID的网址
-          sessionUUID = match[1];
+      const urlPath = window.location.pathname;
+      // 使用标准UUID v4格式的正则表达式
+      const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
 
-          // 验证UUID格式
-          if (!isValidUUID(sessionUUID)) {
-            console.error('无效的UUID格式:', sessionUUID);
-            showUserFriendlyError('无效的会话', 'UUID格式不正确，将跳转到登录页面', true);
+      if (match) {
+        // 情况2：访问含UUID的网址
+        sessionUUID = match[1];
+
+        // 验证UUID格式
+        if (!isValidUUID(sessionUUID)) {
+          console.error('无效的UUID格式:', sessionUUID);
+          showUserFriendlyError('无效的会话', 'UUID格式不正确，将跳转到登录页面', true);
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
+          return;
+        }
+
+        console.log('Web模式: 检测到有效UUID =', sessionUUID);
+
+        // 检查UUID类型
+        try {
+          const response = await fetch('/auth/check_uuid_type', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ uuid: sessionUUID })
+          });
+
+          const result = await response.json();
+
+          if (!result.success) {
+            console.error('检查UUID失败:', result.message);
+            showUserFriendlyError('会话验证失败', result.message, true);
+            // 跳转到无UUID网址
             setTimeout(() => {
               window.location.href = '/';
             }, 2000);
             return;
           }
 
-          console.log('Web模式: 检测到有效UUID =', sessionUUID);
+          if (result.uuid_type === 'guest') {
+            // 游客UUID - 直接恢复会话
+            console.log('检测到游客UUID，直接恢复会话');
+            hideLoadingOverlays(); // 确保隐藏加载遮挡
+            // 继续正常初始化流程
+          } else if (result.uuid_type === 'system_account') {
+            // 系统账号UUID - 允许访问，后端会在API调用时验证token
+            // 注意：auth_token是httponly cookie，JavaScript无法访问，所以前端不做检查
+            console.log('检测到系统账号UUID，允许访问（后端将验证token）');
+            hideLoadingOverlays(); // 确保隐藏加载遮挡
+            // 继续正常初始化流程
+            // 如果token无效或过期，后端API调用会返回401错误，前端会处理并重定向到登录
+          } else {
+            // 未知UUID - 弹窗提示后跳转到无UUID网址
+            console.log('检测到未知UUID，准备弹窗提示后跳转到登录页面');
 
-          // 检查UUID类型
-          try {
-            const response = await fetch('/auth/check_uuid_type', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ uuid: sessionUUID })
+            // 强制设置背景、居中并禁用输入框y
+            const loginContainer = document.getElementById('login-container');
+            const mainApp = document.getElementById('main-app');
+            const multiApp = document.getElementById('multi-account-app');
+            const authContainer = document.getElementById('auth-login-container');
+
+            // 1. 强制隐藏其他容器
+            if (loginContainer) loginContainer.classList.add('hidden');
+            if (mainApp) mainApp.classList.add('hidden');
+            if (multiApp) multiApp.classList.add('hidden');
+
+            // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
+            if (authContainer) {
+              authContainer.classList.remove('hidden');
+              // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
+              authContainer.classList.remove('h-full', 'w-full');
+              // 添加 fixed 定位覆盖全屏和 flex 居中
+              authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
+              // 确保背景可见（有时需要 z-index，但通常不需要）
+              // authContainer.style.zIndex = '10'; // 一般不需要
+            }
+
+            // 3. 禁用 auth-login-container 内的输入框
+            const inputsToDisable = [
+              'auth-username',
+              'auth-password',
+              'auth-reg-username',
+              'auth-reg-password',
+              'auth-reg-password-confirm'
+            ];
+            inputsToDisable.forEach(inputId => {
+              const inputElement = document.getElementById(inputId);
+              if (inputElement) {
+                inputElement.disabled = true;
+                // 可选：添加视觉提示，例如降低透明度
+                // inputElement.style.opacity = '0.7';
+                // inputElement.style.cursor = 'not-allowed';
+              }
             });
 
-            const result = await response.json();
-
-            if (!result.success) {
-              console.error('检查UUID失败:', result.message);
-              showUserFriendlyError('会话验证失败', result.message, true);
-              // 跳转到无UUID网址
-              setTimeout(() => {
-                window.location.href = '/';
-              }, 2000);
-              return;
-            }
-
-            if (result.uuid_type === 'guest') {
-              // 游客UUID - 直接恢复会话
-              console.log('检测到游客UUID，直接恢复会话');
-              hideLoadingOverlays(); // 确保隐藏加载遮挡
-              // 继续正常初始化流程
-            } else if (result.uuid_type === 'system_account') {
-              // 系统账号UUID - 允许访问，后端会在API调用时验证token
-              // 注意：auth_token是httponly cookie，JavaScript无法访问，所以前端不做检查
-              console.log('检测到系统账号UUID，允许访问（后端将验证token）');
-              hideLoadingOverlays(); // 确保隐藏加载遮挡
-              // 继续正常初始化流程
-              // 如果token无效或过期，后端API调用会返回401错误，前端会处理并重定向到登录
-            } else {
-              // 未知UUID - 弹窗提示后跳转到无UUID网址
-              console.log('检测到未知UUID，准备弹窗提示后跳转到登录页面');
-
-              // 强制设置背景、居中并禁用输入框y
-              const loginContainer = document.getElementById('login-container');
-              const mainApp = document.getElementById('main-app');
-              const multiApp = document.getElementById('multi-account-app');
-              const authContainer = document.getElementById('auth-login-container');
-
-              // 1. 强制隐藏其他容器
-              if (loginContainer) loginContainer.classList.add('hidden');
-              if (mainApp) mainApp.classList.add('hidden');
-              if (multiApp) multiApp.classList.add('hidden');
-
-              // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
-              if (authContainer) {
-                authContainer.classList.remove('hidden');
-                // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
-                authContainer.classList.remove('h-full', 'w-full');
-                // 添加 fixed 定位覆盖全屏和 flex 居中
-                authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
-                // 确保背景可见（有时需要 z-index，但通常不需要）
-                // authContainer.style.zIndex = '10'; // 一般不需要
-              }
-
-              // 3. 禁用 auth-login-container 内的输入框
-              const inputsToDisable = [
-                'auth-username',
-                'auth-password',
-                'auth-reg-username',
-                'auth-reg-password',
-                'auth-reg-password-confirm'
-              ];
-              inputsToDisable.forEach(inputId => {
-                const inputElement = document.getElementById(inputId);
-                if (inputElement) {
-                  inputElement.disabled = true;
-                  // 可选：添加视觉提示，例如降低透明度
-                  // inputElement.style.opacity = '0.7';
-                  // inputElement.style.cursor = 'not-allowed';
-                }
-              });
-
-              if (authContainer) authContainer.classList.remove('hidden');
-              // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
-              Swal.fire({
-                title: '会话不存在', // 弹窗标题
-                text: '该会话已过期或不存在，请重新登录', // 弹窗消息
-                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-                confirmButtonText: '确定' // 按钮文字
-              }).then(() => {
-                // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-                console.log('用户确认弹窗，正在跳转到登录页面...');
-                window.location.href = '/';
-              });
-              return;
-            }
-          } catch (e) {
-            console.error('检查UUID类型失败:', e);
-            hideLoadingOverlays(); // 确保隐藏加载遮挡
-            showUserFriendlyError('网络错误', '无法验证会话状态，请检查网络连接后重试');
-            // 出错时也跳转到无UUID网址
-            setTimeout(() => {
+            if (authContainer) authContainer.classList.remove('hidden');
+            // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
+            Swal.fire({
+              title: '会话不存在', // 弹窗标题
+              text: '该会话已过期或不存在，请重新登录', // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+            }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              console.log('用户确认弹窗，正在跳转到登录页面...');
               window.location.href = '/';
-            }, 3000);
+            });
             return;
           }
-        } else {
-          // 情况1：访问不含UUID的网址
-          console.log('Web模式: 未检测到UUID，显示认证登录页面');
-          //移除加载提示
-          hideLoadingOverlays();
-
-          // 显示认证登录界面，等待用户登录/游客模式
-          showAuthLogin();
-          return; // 停止初始化，等待认证完成后重新初始化
+        } catch (e) {
+          console.error('检查UUID类型失败:', e);
+          hideLoadingOverlays(); // 确保隐藏加载遮挡
+          showUserFriendlyError('网络错误', '无法验证会话状态，请检查网络连接后重试');
+          // 出错时也跳转到无UUID网址
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 3000);
+          return;
         }
-
-        // 检查认证状态
-        const isAuthenticated = await checkAuthStatus();
-        if (!isAuthenticated) {
-          hideLoadingOverlays(); // 认证失败时隐藏加载遮挡
-          showAuthLogin();
-          return; // 停止初始化，等待认证
-        }
-
-        // 认证成功，继续初始化
+      } else {
+        // 情况1：访问不含UUID的网址
+        console.log('Web模式: 未检测到UUID，显示认证登录页面');
+        //移除加载提示
         hideLoadingOverlays();
-      
+
+        // 显示认证登录界面，等待用户登录/游客模式
+        showAuthLogin();
+        return; // 停止初始化，等待认证完成后重新初始化
+      }
+
+      // 检查认证状态
+      const isAuthenticated = await checkAuthStatus();
+      if (!isAuthenticated) {
+        hideLoadingOverlays(); // 认证失败时隐藏加载遮挡
+        showAuthLogin();
+        return; // 停止初始化，等待认证
+      }
+
+      // 认证成功，继续初始化
+      hideLoadingOverlays();
+
 
       // 标记应用已成功初始化
       appInitialized = true;
@@ -3330,6 +3375,10 @@
       console.log('应用初始化成功，CDN资源状态正常或可用替代方案');
 
       const initialData = await callPythonAPI('get_initial_data');
+
+      currentUserIsGuest = initialData.is_guest || false; // <-- 存储从后端获取的状态
+      console.log(`initializeApp: currentUserIsGuest = ${currentUserIsGuest}`);
+
       const userCombo = $('user-combo');
       userCombo.innerHTML = '<option value="">(新用户)</option>';
       initialData.users.forEach(user => {
@@ -3366,6 +3415,10 @@
           $('amap-key-modal').classList.remove('hidden');
           $('amap-key-modal').classList.add('flex');
         }
+
+        if (refreshUserListInterval) clearInterval(refreshUserListInterval); // 清除旧的（如果存在）
+        refreshUserListInterval = setInterval(refreshUserList, 5000); // <--- 在这里启动
+        console.log('refreshUserList interval started.'); // 添加日志确认启动
 
         showMainApp();
         const name = currentUserData.name || '';
@@ -3460,7 +3513,7 @@
       $('confirm-amap-key-btn').addEventListener('click', onConfirmAmapKey);
 
       // 将定时刷新移动到 API 就绪后再启动
-      setInterval(refreshUserList, 5000);
+      // setInterval(refreshUserList, 5000);
     }
 
     let socket = null; // 全局 socket 变量
@@ -4207,10 +4260,10 @@
       const pass = $('password-entry').value;
 
       console.log(`[前端-登录] 用户名: ${user}`);
-      if (!user) { 
+      if (!user) {
         console.log('[前端-登录] 错误: 用户名为空');
-        showModalAlert('请输入用户名'); 
-        return; 
+        showModalAlert('请输入用户名');
+        return;
       }
 
       // 在线登录前，复位离线标志与 UA 按钮
@@ -4255,7 +4308,7 @@
         console.log('[前端-登录] 获取通知...');
         await fetchNotifications();
 
-        const base = pythonParams.theme_base_color || '#7dd3fc'; 
+        const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
         console.log('[前端-登录] ✓ 登录流程完成！');
       } else {
@@ -4270,6 +4323,13 @@
       await callPythonAPI('logout');
       currentSessionUA = "";
       resetUI();
+
+
+      if (refreshUserListInterval) {
+        clearInterval(refreshUserListInterval);
+        refreshUserListInterval = null;
+        console.log('refreshUserList interval cleared on logout.');
+      }
     }
 
 
@@ -4356,10 +4416,10 @@
     async function selectTask(index) {
       logMessage(`[任务选择] 开始选择任务，索引: ${index}`, 'DEBUG');
       console.log(`[前端-任务选择] 选择任务 #${index}`);
-      
-      if (isDrawing) { 
-        logMessage("请先结束当前路径绘制！", 'WARN'); 
-        return; 
+
+      if (isDrawing) {
+        logMessage("请先结束当前路径绘制！", 'WARN');
+        return;
       }
       if (selectedTaskIndex === index) {
         logMessage(`[任务选择] 任务已选中，无需重复选择: ${index}`, 'DEBUG');
@@ -4565,6 +4625,13 @@
       }
       multiAccountMarkers = {};
       multiAccountMap = null;
+
+      if (refreshUserListInterval) {
+        clearInterval(refreshUserListInterval);
+        refreshUserListInterval = null;
+        console.log('refreshUserList interval cleared on exiting multi mode.');
+      }
+
     }
 
 

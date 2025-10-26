@@ -298,19 +298,6 @@ def auto_init_system():
     except Exception as e:
         logging.error(f"系统初始化失败: {e}", exc_info=True)
         print(f"[系统初始化] 错误: 系统初始化失败 - {e}")
-        
-        # 创建权限配置文件
-        print("[系统初始化] 创建权限配置文件...")
-        _create_permissions_json()
-        
-        # 创建默认管理员账号
-        print("[系统初始化] 创建默认管理员账号...")
-        _create_default_admin()
-        
-        print("[系统初始化] 系统初始化完成！")
-    except Exception as e:
-        logging.error(f"系统初始化失败: {e}", exc_info=True)
-        print(f"[系统初始化] 错误: 系统初始化失败 - {e}")
 
 
 def _create_directories():
@@ -1774,6 +1761,61 @@ class TokenManager:
             logging.error(f"验证令牌时出错: {e}")
             return False, "error"
     
+
+    def get_valid_token_for_session(self, username, session_id):
+            """
+            获取指定用户和会话ID的有效Token（如果存在且未过期）。
+            如果找到有效Token，会刷新其活动时间。
+
+            Args:
+                username: 用户名
+                session_id: 会话UUID
+
+            Returns:
+                str | None: 如果找到有效Token则返回Token字符串，否则返回None。
+            """
+            token_file = self._get_token_file_path(username)
+
+            if not os.path.exists(token_file):
+                return None
+
+            try:
+                # 使用锁确保读取和可能的刷新操作是原子的
+                with self.lock:
+                    with open(token_file, 'r', encoding='utf-8') as f:
+                        all_tokens = json.load(f)
+
+                    if session_id not in all_tokens:
+                        logging.debug(f"get_valid_token_for_session: 会话 {session_id[:8]} 未找到Token记录")
+                        return None
+
+                    token_data = all_tokens[session_id]
+                    current_time = time.time()
+
+                    # 检查是否过期
+                    if current_time > token_data['expires_at']:
+                        logging.debug(f"get_valid_token_for_session: 会话 {session_id[:8]} 的Token已过期")
+                        # (可选) 在这里可以顺便清理掉这个过期的记录，如果需要的话
+                        # del all_tokens[session_id]
+                        # with open(token_file, 'w', encoding='utf-8') as wf:
+                        #     json.dump(all_tokens, wf, indent=2, ensure_ascii=False)
+                        return None
+
+                    # Token有效，刷新活动时间并延长有效期
+                    token_data['last_activity'] = current_time
+                    token_data['expires_at'] = current_time + 3600 # 延长1小时
+
+                    # 写回更新后的Token数据
+                    with open(token_file, 'w', encoding='utf-8') as f:
+                        json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+
+                    logging.info(f"get_valid_token_for_session: 找到并刷新了会话 {session_id[:8]} 的有效Token")
+                    return token_data['token'] # 返回有效的Token字符串
+
+            except Exception as e:
+                logging.error(f"获取会话Token时出错 ({username}, {session_id[:8]}): {e}")
+                return None
+
     def refresh_token(self, username, session_id):
         """刷新令牌的过期时间和最后活动时间
         
@@ -2461,6 +2503,9 @@ class Api:
         elif level == 'ERROR': logging.error(f"{message}")
         else: logging.info(f"[JS-{level}] {message}")
   
+    
+
+
     @staticmethod
     def _robust_decode(raw: bytes) -> str:
         """尽可能兼容所有编码的解码函数"""
@@ -2854,6 +2899,84 @@ class Api:
             "auth_group": auth_group,
             "is_guest": is_guest
         }
+
+
+    def get_user_sessions(self):
+        """获取当前认证用户的会话列表（供前端调用）"""
+        logging.info("API CALL: get_user_sessions")
+        
+        # 检查当前会话是否已认证且非游客
+        auth_username = getattr(self, 'auth_username', None)
+        is_guest = getattr(self, 'is_guest', True)
+        
+        if not auth_username or is_guest:
+            logging.warning("get_user_sessions: 用户未登录或为游客，返回空列表。")
+            # 游客或未登录用户没有关联会话，返回成功但列表为空
+            # 对于游客，特殊处理：只返回当前会话信息
+            if is_guest and hasattr(self, '_web_session_id'):
+                current_session_id = self._web_session_id
+                session_file = get_session_file_path(current_session_id)
+                created_at = 0
+                last_activity = 0
+                if os.path.exists(session_file):
+                    try:
+                        with open(session_file, 'r', encoding='utf-8') as f:
+                            s_data = json.load(f)
+                        created_at = s_data.get('created_at', 0)
+                        last_activity = s_data.get('last_accessed', 0)
+                    except Exception: pass # 忽略读取错误
+                
+                guest_session_info = [{
+                    'session_id': current_session_id,
+                    'session_hash': hashlib.sha256(current_session_id.encode()).hexdigest()[:16],
+                    'created_at': created_at,
+                    'last_activity': last_activity,
+                    'is_current': True,
+                    'login_success': False, # 游客没有学校账号登录状态
+                    'user_data': {"username": "guest"}
+                }]
+                return {"success": True, "sessions": guest_session_info}
+            else:
+                # 非游客但未认证，或游客但无法获取当前session_id
+                 return {"success": True, "sessions": []}
+
+        try:
+            # 调用 AuthSystem 获取该用户关联的所有会话 ID
+            session_ids = auth_system.get_user_sessions(auth_username)
+            logging.debug(f"Found {len(session_ids)} linked session IDs for user {auth_username}")
+            
+            sessions_info = []
+            current_session_id = getattr(self, '_web_session_id', None) # 获取当前请求的会话ID
+
+            for sid in session_ids:
+                # 检查会话是否还存在（文件是否存在）
+                session_file = get_session_file_path(sid)
+                if os.path.exists(session_file):
+                    try:
+                        with open(session_file, 'r', encoding='utf-8') as f:
+                            session_data = json.load(f)
+                        
+                        # 确保加载的数据属于当前用户 (虽然理论上 link_session_to_user 保证了这一点)
+                        if session_data.get('auth_username') == auth_username:
+                            sessions_info.append({
+                                'session_id': sid,
+                                # 添加 session_hash 以便前端显示缩略ID
+                                'session_hash': hashlib.sha256(sid.encode()).hexdigest()[:16], 
+                                'created_at': session_data.get('created_at', 0),
+                                'last_activity': session_data.get('last_accessed', 0), # 使用 last_accessed
+                                'is_current': sid == current_session_id, # 标记哪个是当前会话
+                                'login_success': session_data.get('login_success', False), # 学校账号登录状态
+                                'user_data': session_data.get('user_data', {}) # 包含学号等信息
+                            })
+                    except Exception as e:
+                        logging.warning(f"读取会话文件 {session_file} 失败: {e}, 跳过该会话。")
+                        continue # 跳过损坏或无法读取的文件
+            
+            logging.info(f"成功获取用户 {auth_username} 的 {len(sessions_info)} 个会话信息。")
+            return {"success": True, "sessions": sessions_info}
+        except Exception as e:
+            logging.error(f"获取用户会话列表时发生错误: {e}", exc_info=True)
+            return {"success": False, "message": f"服务器内部错误: {e}"}
 
     def save_amap_key(self, api_key: str):
         """由JS调用，保存高德地图API Key到主配置文件"""
@@ -6605,6 +6728,10 @@ def save_session_state(session_id, api_instance, force_save=False):
         api_instance: Api实例
         force_save: 强制保存，即使距离上次保存时间很短
     """
+    if not session_id or session_id == "null":
+        logging.warning(f"拒绝保存会话：无效的 session_id: '{session_id}'")
+        # 可以在这里根据需要决定是否要抛出异常或返回特定值
+        return # 直接返回，不执行后续保存逻辑
     try:
         # 修复Windows路径长度限制：使用SHA256哈希作为文件名
         # 2048位UUID(512字符)会导致Windows文件名过长错误
@@ -7235,9 +7362,10 @@ def start_web_server(args):
                     # 使token失效
                     token_manager.invalidate_token(auth_username, old_sid)
                     # 清理会话
-                    cleanup_session(old_sid, "logged_in_elsewhere")
+                    # cleanup_session(old_sid, "logged_in_elsewhere")
                 
-                logging.info(f"用户 {auth_username} 从新设备登录，已踢出 {len(kicked_sessions)} 个旧设备")
+                
+                logging.info(f"用户 {auth_username} 从新设备登录，检测到 {len(kicked_sessions)} 个其他活跃会话。")
         
         response_data = {
             "success": True,
@@ -7378,6 +7506,7 @@ def start_web_server(args):
         # 1. 验证当前用户身份 (基于 current_session_id 和 cookie)
         username = None
         is_guest = True
+        auth_username = ''
         with web_sessions_lock:
             if current_session_id in web_sessions:
                 api_instance = web_sessions[current_session_id]
@@ -8115,40 +8244,91 @@ def start_web_server(args):
     def auth_user_sessions():
         """获取用户的所有会话"""
         session_id = request.headers.get('X-Session-ID', '')
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未登录"}), 401
-        
-        api_instance = web_sessions[session_id]
-        auth_username = getattr(api_instance, 'auth_username', '')
-        
-        if not auth_username or auth_username == 'guest':
-            return jsonify({"success": True, "sessions": []})
-        
-        # 获取用户的会话ID列表
-        session_ids = auth_system.get_user_sessions(auth_username)
-        
-        # 获取会话详情
+        api_instance = None
+        is_guest = False
+        auth_username = ''
+
+        with web_sessions_lock:
+            if session_id in web_sessions:
+                api_instance = web_sessions[session_id]
+                is_guest = getattr(api_instance, 'is_guest', False)
+                auth_username = getattr(api_instance, 'auth_username', '')
+            else:
+                # 尝试从文件加载，以应对内存中可能不存在的情况 (例如刚恢复)
+                state = load_session_state(session_id)
+                if state:
+                    # 仅获取必要信息，不创建完整实例
+                    is_guest = state.get('is_guest', False)
+                    auth_username = state.get('auth_username', '')
+                else:
+                    # 如果内存和文件都没有，则视为未登录
+                    return jsonify({"success": False, "message": "会话无效或未登录"}), 401
+
         sessions_info = []
-        for sid in session_ids:
-            # 检查会话是否还存在
-            session_file = get_session_file_path(sid)
+
+        if is_guest:
+            # 游客模式：只显示当前会话
+            logging.debug(f"auth_user_sessions: Handling guest session {session_id[:8]}")
+            session_file = get_session_file_path(session_id)
+            created_at = 0
+            last_activity = 0
+            login_success_status = False # 游客没有学校账号登录状态
+
             if os.path.exists(session_file):
                 try:
                     with open(session_file, 'r', encoding='utf-8') as f:
                         session_data = json.load(f)
-                    
-                    sessions_info.append({
-                        'session_id': sid,
-                        'created_at': session_data.get('created_at', 0),
-                        'last_activity': session_data.get('last_activity', 0),
-                        'is_current': sid == session_id,
-                        'login_success': session_data.get('login_success', False),
-                        'user_data': session_data.get('user_data', {})
-                    })
-                except:
-                    continue
-        
-        return jsonify({"success": True, "sessions": sessions_info})
+                    created_at = session_data.get('created_at', 0)
+                    last_activity = session_data.get('last_accessed', 0) # 使用 last_accessed
+                except Exception as e:
+                    logging.warning(f"Failed to read guest session file {session_file}: {e}")
+
+            sessions_info.append({
+                'session_id': session_id,
+                'session_hash': hashlib.sha256(session_id.encode()).hexdigest()[:16], # 添加哈希用于显示
+                'created_at': created_at,
+                'last_activity': last_activity,
+                'is_current': True, # 游客访问时，这个会话总是当前的
+                'login_success': login_success_status, # 游客的学校登录状态总是 False
+                'user_data': {"username": "guest"} # 简单标识
+            })
+            logging.debug(f"auth_user_sessions: Guest session info prepared: {sessions_info}")
+            return jsonify({"success": True, "sessions": sessions_info})
+
+        elif auth_username:
+            # 注册用户模式：保持原有逻辑
+            logging.debug(f"auth_user_sessions: Handling registered user {auth_username}")
+            session_ids = auth_system.get_user_sessions(auth_username)
+            logging.debug(f"auth_user_sessions: Found linked session IDs for {auth_username}: {session_ids}")
+
+            for sid in session_ids:
+                session_file = get_session_file_path(sid)
+                if os.path.exists(session_file):
+                    try:
+                        with open(session_file, 'r', encoding='utf-8') as f:
+                            session_data = json.load(f)
+
+                        # 确保加载的数据属于当前用户
+                        if session_data.get('auth_username') == auth_username:
+                            sessions_info.append({
+                                'session_id': sid,
+                                'session_hash': hashlib.sha256(sid.encode()).hexdigest()[:16], # 添加哈希
+                                'created_at': session_data.get('created_at', 0),
+                                'last_activity': session_data.get('last_accessed', 0), # 使用 last_accessed
+                                'is_current': sid == session_id,
+                                'login_success': session_data.get('login_success', False),
+                                'user_data': session_data.get('user_data', {})
+                            })
+                    except Exception as e:
+                        logging.warning(f"Failed to read session file {session_file} for user {auth_username}: {e}")
+                        continue # 跳过损坏的文件
+            logging.debug(f"auth_user_sessions: Registered user session info prepared: {len(sessions_info)} sessions")
+            return jsonify({"success": True, "sessions": sessions_info})
+        else:
+             # 既不是游客也不是有效注册用户（理论上不应发生，除非状态异常）
+            logging.warning(f"auth_user_sessions: Invalid state for session {session_id[:8]} - neither guest nor valid user.")
+            return jsonify({"success": False, "message": "会话状态异常"}), 500
+            
     
     @app.route('/auth/user/delete_session', methods=['POST'])
     def auth_user_delete_session():
@@ -8195,8 +8375,34 @@ def start_web_server(args):
     def auth_user_create_session_persistence():
         """创建会话持久化文件（登录状态下）"""
         session_id = request.headers.get('X-Session-ID', '')
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未登录"}), 401
+        
+
+        api_instance = None
+        is_guest = True # 默认假设是游客或未登录
+
+        if session_id:
+            with web_sessions_lock:
+                if session_id in web_sessions:
+                    api_instance = web_sessions[session_id]
+                    is_guest = getattr(api_instance, 'is_guest', True) # 检查内存中的实例
+                else:
+                    # 尝试从文件加载判断是否游客
+                    state = load_session_state(session_id)
+                    if state:
+                        is_guest = state.get('is_guest', True)
+                    # else: # 文件不存在，保持 is_guest = True (视为未登录)
+
+        # 如果是游客或根本没有有效的会话实例，则禁止创建
+        if is_guest:
+            logging.warning(f"Attempt by guest session {session_id[:8]} to create persistent session blocked.")
+            return jsonify({"success": False, "message": "游客不允许创建额外的会话"}), 403
+        
+
+    # （确保 api_instance 在非游客情况下是有效的）
+        if not api_instance: # 双重检查，理论上非游客时 api_instance 应该已加载
+            return jsonify({"success": False, "message": "会话无效或未登录"}), 401
+
+        auth_username = getattr(api_instance, 'auth_username', '')
         
         api_instance = web_sessions[session_id]
         auth_username = getattr(api_instance, 'auth_username', '')
@@ -8283,7 +8489,36 @@ def start_web_server(args):
             response_data['cleanup_message'] = cleanup_message
         
         logging.info(f"用户 {auth_username} 创建新会话持久化: {new_session_id[:32]}...")
-        return jsonify(response_data)
+        # 创建 Flask 响应对象
+        response = make_response(jsonify(response_data))
+
+        # 如果是注册用户（非游客），为其生成新 Token 并设置 Cookie
+        if not is_guest and auth_username:
+            try:
+                # 1. 为新会话生成新 Token
+                new_token = token_manager.create_token(auth_username, new_session_id)
+                logging.info(f"为新会话 {new_session_id[:8]}... 生成了 Token")
+
+                # 2. 设置 Set-Cookie 响应头
+                response.set_cookie(
+                    'auth_token',
+                    value=new_token,
+                    max_age=3600,  # 1 小时
+                    httponly=True, # 关键：防止 JS 访问
+                    secure=False,  # 开发环境 False，生产环境应设为 True (需要 HTTPS)
+                    samesite='Lax' # 推荐的 SameSite 策略
+                )
+                logging.info(f"已为新会话 {new_session_id[:8]}... 设置 auth_token Cookie")
+
+            except Exception as token_err:
+                # 记录 Token 生成或 Cookie 设置错误，但不阻止会话创建本身
+                logging.error(f"为新会话 {new_session_id[:8]} 生成 Token 或设置 Cookie 时出错: {token_err}", exc_info=True)
+                # 可以选择在这里修改 response_data 添加警告信息
+                # response_data['warning'] = "Token未能成功设置，后续操作可能需要重新登录"
+                # response = make_response(jsonify(response_data)) # 如果需要更新响应内容
+
+        # 返回带有 Set-Cookie (如果适用) 的响应对象
+        return response
     
     @app.route('/auth/admin/all_sessions', methods=['GET'])
     def auth_admin_all_sessions():
@@ -8295,6 +8530,50 @@ def start_web_server(args):
         api_instance = web_sessions[session_id]
         auth_username = getattr(api_instance, 'auth_username', '')
         
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少当前会话ID"}), 401
+
+        with web_sessions_lock:
+            if session_id not in web_sessions:
+                # 尝试从文件加载，如果连文件都没有，那肯定没登录
+                state = load_session_state(session_id)
+                if not state:
+                     return jsonify({"success": False, "message": "当前会话无效或已过期"}), 401
+                # 如果文件存在，创建一个临时实例来获取用户名
+                api_instance = Api(args)
+                restore_session_to_api_instance(api_instance, state)
+                web_sessions[session_id] = api_instance # 加载成功后放入内存
+                logging.info(f"创建新会话时，按需恢复了发起请求的会话 {session_id[:8]}")
+            else:
+                 api_instance = web_sessions[session_id]
+
+        auth_username = getattr(api_instance, 'auth_username', None)
+        is_guest = getattr(api_instance, 'is_guest', True)
+
+        # 只对非游客用户验证 Token
+        if not is_guest and auth_username:
+            token_from_cookie = request.cookies.get('auth_token')
+            if not token_from_cookie:
+                logging.warning(f"用户 {auth_username} 尝试创建会话但缺少 auth_token cookie")
+                return jsonify({"success": False, "message": "缺少认证令牌(cookie)，请重新登录", "need_login": True}), 401
+
+            is_valid, reason = token_manager.verify_token(auth_username, session_id, token_from_cookie)
+            if not is_valid:
+                logging.warning(f"用户 {auth_username} 尝试创建会话但令牌无效: {reason}")
+                # 令牌无效，要求重新登录，并清除无效cookie
+                response_data = {"success": False, "message": f"令牌验证失败 ({reason})，请重新登录", "need_login": True}
+                response = make_response(jsonify(response_data), 401)
+                response.set_cookie('auth_token', '', max_age=0)
+                return response
+            else:
+                # Token有效，刷新它
+                token_manager.refresh_token(auth_username, session_id)
+                logging.debug(f"用户 {auth_username} (会话 {session_id[:8]}) Token 验证通过并已刷新")
+        elif not is_guest and not auth_username:
+             # 有会话实例但没有用户名，说明状态异常
+             logging.error(f"会话 {session_id[:8]} 存在但缺少用户名，无法创建新会话")
+             return jsonify({"success": False, "message": "当前会话状态异常，请重新登录", "need_login": True}), 401
+
         # 检查上帝模式权限
         if not auth_system.check_permission(auth_username, 'god_mode'):
             return jsonify({"success": False, "message": "需要上帝模式权限"}), 403
