@@ -3048,7 +3048,12 @@ class Api:
             return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
         password = self._load_config(username)
         
-        ua = self.device_ua or ""
+        # 修复：如果配置文件不存在（password返回None），UA应该返回空字符串
+        # 这样前端会显示"(新用户将在登录时自动生成)"
+        if password is None:
+            ua = ""
+        else:
+            ua = self.device_ua or ""
         logging.debug(f"on_user_selected: username={username}, ua={ua}, password={'***' if password else 'empty'}")
         info = {"name": self.user_data.name, "student_id": self.user_data.student_id}
         return {"password": password or "", "ua": ua, "params": self.params, "userInfo": info}
