@@ -19,6 +19,7 @@
 
   <script src="https://webapi.amap.com/loader.js" onerror="handleCdnError()"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script>
     // 配置TailwindCSS
     tailwind.config = {
@@ -1289,12 +1290,11 @@
             <!-- 头像 -->
             <div class="flex items-center gap-4">
               <img id="profile-avatar-display" src="" alt="用户头像" class="w-20 h-20 rounded-full border-2 border-slate-200" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
-              <div class="flex-1">
-                <label class="block text-sm font-semibold text-slate-700 mb-1">头像URL</label>
-                <div class="flex gap-2">
-                  <input type="text" id="profile-avatar-input" class="input-field flex-1" placeholder="输入头像URL">
-                  <button onclick="updateAvatar()" class="btn btn-primary !py-1 !px-3">更新</button>
-                </div>
+              <div class="flex-1 space-y-2">
+                <label class="block text-sm font-semibold text-slate-700 mb-1">上传头像</label>
+                <input type="file" id="profile-avatar-file" accept="image/*" class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="previewAvatar(event)">
+                <button onclick="uploadAvatar()" class="btn btn-primary !py-1 !px-3">上传</button>
+                <p class="text-xs text-slate-500">⚠️ 图片上传功能需要后端API支持</p>
               </div>
             </div>
 
@@ -1302,6 +1302,10 @@
             <div class="border-t border-slate-200 pt-4">
               <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
               <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">当前密码</label>
+                  <input type="password" id="profile-current-password" class="input-field" placeholder="输入当前密码">
+                </div>
                 <div>
                   <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
                   <input type="password" id="profile-new-password" class="input-field" placeholder="输入新密码">
@@ -1322,8 +1326,9 @@
               </div>
               <div id="profile-2fa-setup" class="space-y-3 hidden">
                 <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
-                  <img id="profile-2fa-qr" src="" alt="2FA QR Code" class="mx-auto max-w-xs">
-                  <p class="text-xs text-slate-600 mt-2">请使用Google Authenticator或类似应用扫描此二维码</p>
+                  <canvas id="profile-2fa-qr" class="mx-auto"></canvas>
+                  <p class="text-xs text-slate-600 mt-2">密钥: <span id="profile-2fa-secret" class="font-mono"></span></p>
+                  <p class="text-xs text-slate-600 mt-1">请使用Google Authenticator或类似应用扫描此二维码</p>
                 </div>
                 <div>
                   <label class="block text-sm font-semibold text-slate-700 mb-1">验证码</label>
@@ -1498,6 +1503,58 @@
       <div class="flex justify-end gap-3 pt-4 border-t">
         <button onclick="closeManageUserPermissionsModal()" class="btn btn-ghost border border-slate-300">取消</button>
         <button onclick="submitManageUserPermissions()" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置会话限制模态框 -->
+  <div id="set-max-sessions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="hideModal('set-max-sessions-modal')"></div>
+    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
+      <h3 class="text-xl font-bold text-sky-600">设置会话限制</h3>
+      
+      <div class="space-y-2">
+        <p class="text-sm text-slate-600">用户: <span id="sessions-username" class="font-semibold text-slate-800"></span></p>
+        <p class="text-sm text-slate-600">当前限制: <span id="sessions-current-max" class="font-semibold text-slate-800"></span></p>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">新会话限制</label>
+        <input type="number" id="new-max-sessions" min="0" class="input-field" placeholder="输入会话数量">
+        <p class="text-xs text-slate-500 mt-1">0 = 无限制</p>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="hideModal('set-max-sessions-modal')" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitSetMaxSessions()" class="btn btn-primary">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 重置用户密码模态框 -->
+  <div id="reset-user-password-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="hideModal('reset-user-password-modal')"></div>
+    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
+      <h3 class="text-xl font-bold text-amber-600">重置用户密码</h3>
+      
+      <div>
+        <p class="text-sm text-slate-600">目标用户: <span id="reset-password-username" class="font-semibold text-slate-800"></span></p>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
+          <input type="password" id="reset-new-password" class="input-field" placeholder="输入新密码">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">确认密码</label>
+          <input type="password" id="reset-confirm-password" class="input-field" placeholder="再次输入新密码">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="hideModal('reset-user-password-modal')" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitResetUserPassword()" class="btn btn-primary">重置密码</button>
       </div>
     </div>
   </div>
@@ -3221,13 +3278,68 @@
       }
     }
 
+    function previewAvatar(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // 验证文件类型
+      if (!file.type.startsWith('image/')) {
+        showModalAlert('请选择图片文件', '错误');
+        return;
+      }
+
+      // 预览图片
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const avatarDisplay = $('profile-avatar-display');
+        if (avatarDisplay) {
+          avatarDisplay.src = e.target.result;
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function uploadAvatar() {
+      const fileInput = $('profile-avatar-file');
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showModalAlert('请先选择图片文件', '提示');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      try {
+        const response = await fetch('/auth/user/upload_avatar', {
+          method: 'POST',
+          headers: {
+            'X-Session-ID': sessionUUID
+          },
+          body: formData
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('头像上传成功！', '成功');
+          loadPersonalInfo(); // 重新加载显示
+        } else {
+          showModalAlert(`上传失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        console.error("上传头像失败:", e);
+        showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
+      }
+    }
+
     async function updatePassword() {
+      const currentPassword = $('profile-current-password');
       const newPassword = $('profile-new-password');
       const confirmPassword = $('profile-confirm-password');
 
-      if (!newPassword || !confirmPassword) return;
+      if (!currentPassword || !newPassword || !confirmPassword) return;
 
-      if (!newPassword.value || !confirmPassword.value) {
+      if (!currentPassword.value || !newPassword.value || !confirmPassword.value) {
         showModalAlert('请填写所有密码字段', '提示');
         return;
       }
@@ -3251,6 +3363,7 @@
           },
           body: JSON.stringify({
             username: currentUser, // 假设有currentUser全局变量
+            old_password: currentPassword.value,
             new_password: newPassword.value
           })
         });
@@ -3258,10 +3371,11 @@
 
         if (result.success) {
           showModalAlert('密码修改成功！', '成功');
+          currentPassword.value = '';
           newPassword.value = '';
           confirmPassword.value = '';
         } else {
-          showModalAlert(`修改失败: ${result.message}`, '错误');
+          showModalAlert(`修改失败: ${result.message || '请检查当前密码是否正确'}`, '错误');
         }
       } catch (e) {
         console.error("修改密码失败:", e);
@@ -3274,6 +3388,7 @@
         const response = await fetch('/auth/2fa/generate', {
           method: 'POST',
           headers: {
+            'Content-Type': 'application/json',
             'X-Session-ID': sessionUUID
           }
         });
@@ -3290,10 +3405,26 @@
         if (setupDiv) setupDiv.classList.remove('hidden');
         if (actionsDiv) actionsDiv.classList.add('hidden');
 
-        // 显示二维码
-        const qrImg = $('profile-2fa-qr');
-        if (qrImg && result.qr_code_uri) {
-          qrImg.src = result.qr_code_uri;
+        // 显示密钥
+        const secretSpan = $('profile-2fa-secret');
+        if (secretSpan && result.secret) {
+          secretSpan.textContent = result.secret;
+        }
+
+        // 使用QRCode.js生成二维码
+        const qrCanvas = $('profile-2fa-qr');
+        if (qrCanvas && result.qr_uri) {
+          if (typeof QRCode !== 'undefined') {
+            QRCode.toCanvas(qrCanvas, result.qr_uri, { width: 200 }, function (error) {
+              if (error) {
+                console.error('QR Code generation error:', error);
+                showModalAlert('二维码生成失败', '错误');
+              }
+            });
+          } else {
+            console.error('QRCode库未加载');
+            showModalAlert('QRCode库未加载，请刷新页面重试', '错误');
+          }
         }
       } catch (e) {
         console.error("生成2FA失败:", e);
@@ -3666,15 +3797,28 @@
       }
     }
 
-    async function setUserMaxSessions(username, currentMax) {
-      const newMax = prompt(`设置用户 ${username} 的最大会话数\n当前: ${currentMax === -1 ? '无限制' : currentMax}\n输入数字或-1表示无限制:`, currentMax);
-      if (newMax === null) return;
+    function setUserMaxSessions(username, currentMax) {
+      // 填充模态框信息
+      $('sessions-username').textContent = username;
+      $('sessions-current-max').textContent = currentMax === -1 ? '无限制' : currentMax;
+      $('new-max-sessions').value = currentMax === -1 ? 0 : currentMax;
+      
+      // 显示模态框
+      showModal('set-max-sessions-modal');
+    }
 
-      const maxSessions = parseInt(newMax);
-      if (isNaN(maxSessions) || (maxSessions < 1 && maxSessions !== -1)) {
-        showModalAlert('无效的会话数量', '错误');
+    async function submitSetMaxSessions() {
+      const username = $('sessions-username').textContent;
+      const newMaxInput = $('new-max-sessions');
+      const newMax = parseInt(newMaxInput.value);
+
+      if (isNaN(newMax) || newMax < 0) {
+        showModalAlert('请输入有效的数字（0或更大）', '错误');
         return;
       }
+
+      // 0表示无限制，转换为-1
+      const maxSessions = newMax === 0 ? -1 : newMax;
 
       try {
         const response = await fetch('/auth/admin/update_max_sessions', {
@@ -3689,8 +3833,8 @@
         const result = await response.json();
         if (result.success) {
           showModalAlert(`已更新用户 ${username} 的最大会话数为: ${maxSessions === -1 ? '无限制' : maxSessions}`, '成功');
+          hideModal('set-max-sessions-modal');
           loadAdminUsers();
-
         } else {
           showModalAlert(result.message || '更新失败', '错误');
         }
@@ -3824,6 +3968,61 @@
 
         } else {
           showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    function showResetPasswordModal(username) {
+      // 设置目标用户名
+      $('reset-password-username').textContent = username;
+      // 清空输入框
+      $('reset-new-password').value = '';
+      $('reset-confirm-password').value = '';
+      // 显示模态框
+      showModal('reset-user-password-modal');
+    }
+
+    async function submitResetUserPassword() {
+      const username = $('reset-password-username').textContent;
+      const newPassword = $('reset-new-password').value;
+      const confirmPassword = $('reset-confirm-password').value;
+
+      if (!newPassword || !confirmPassword) {
+        showModalAlert('请填写所有密码字段', '提示');
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        showModalAlert('密码长度至少为6个字符', '错误');
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        showModalAlert('两次输入的密码不一致', '错误');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/admin/reset_password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username,
+            new_password: newPassword
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的密码已重置`, '成功');
+          hideModal('reset-user-password-modal');
+        } else {
+          showModalAlert(result.message || '密码重置失败', '错误');
         }
       } catch (e) {
         showModalAlert('操作失败: ' + e.message, '错误');
