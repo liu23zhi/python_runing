@@ -7304,9 +7304,9 @@ def start_web_server(args):
         session_id = request.headers.get('X-Session-ID', '')
         
         # 修正：如果没有提供session_id或session_id无效，生成一个新的UUID
-        if not session_id or session_id == 'null' or len(session_id.strip()) == 0:
+        if not session_id or session_id.strip() == 'null':
             session_id = str(uuid.uuid4())
-            logging.info(f"为新登录用户生成新的session_id")
+            logging.info(f"为用户 {auth_username} 生成新的session_id")
         
         # 获取IP和UA
         ip_address = request.remote_addr or ''
