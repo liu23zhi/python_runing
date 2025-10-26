@@ -7379,10 +7379,15 @@ def start_web_server(args):
         user_sessions = []
         max_sessions = 1
         if not auth_result.get('is_guest', False):
-            user_sessions = auth_system.get_user_sessions(auth_username)
-            user_details = auth_system.get_user_details(auth_username)
-            if user_details:
-                max_sessions = user_details.get('max_sessions', 1)
+            try:
+                user_sessions = auth_system.get_user_sessions(auth_username)
+                user_details = auth_system.get_user_details(auth_username)
+                if user_details:
+                    max_sessions = user_details.get('max_sessions', 1)
+            except Exception as e:
+                logging.error(f"获取用户会话信息失败: {e}")
+                user_sessions = []
+                max_sessions = 1
         
         # 生成会话限制提示信息
         session_limit_info = ""
@@ -7423,43 +7428,54 @@ def start_web_server(args):
                 token = None
                 kicked_sessions = []
         
-        response_data = {
-            "success": True,
-            "session_id": session_id,  # 修正：返回session_id给前端
-            "auth_username": auth_result['auth_username'],
-            "group": auth_result['group'],
-            "is_guest": auth_result.get('is_guest', False),
-            "user_sessions": user_sessions,  # 用于状态恢复
-            "max_sessions": max_sessions,
-            "session_limit_info": session_limit_info,
-            "avatar_url": auth_result.get('avatar_url', ''),
-            "theme": auth_result.get('theme', 'light'),
-            "token": token,  # 返回token给前端
-            "kicked_sessions_count": len(kicked_sessions)  # 踢出的设备数量
-        }
-        
-        # 添加清理提示（如果有）
-        if cleanup_message:
-            response_data['cleanup_message'] = cleanup_message
-        
-        # 添加多设备登录提示
-        if kicked_sessions:
-            response_data['multi_device_warning'] = f"检测到该账号在其他 {len(kicked_sessions)} 个设备上登录，已自动登出旧设备"
-        
-        # 创建响应并设置Cookie (仅非游客)
-        response = jsonify(response_data)
-        if token:
-            # 设置1小时过期的httponly cookie
-            response.set_cookie(
-                'auth_token',
-                value=token,
-                max_age=3600,  # 1小时
-                httponly=True,  # 防止JavaScript访问
-                secure=False,  # 开发环境设为False，生产环境应为True
-                samesite='Lax'
-            )
-        
-        return response
+        try:
+            response_data = {
+                "success": True,
+                "session_id": session_id,  # 修正：返回session_id给前端
+                "auth_username": auth_result['auth_username'],
+                "group": auth_result['group'],
+                "is_guest": auth_result.get('is_guest', False),
+                "user_sessions": user_sessions,  # 用于状态恢复
+                "max_sessions": max_sessions,
+                "session_limit_info": session_limit_info,
+                "avatar_url": auth_result.get('avatar_url', ''),
+                "theme": auth_result.get('theme', 'light'),
+                "token": token,  # 返回token给前端
+                "kicked_sessions_count": len(kicked_sessions)  # 踢出的设备数量
+            }
+            
+            # 添加清理提示（如果有）
+            if cleanup_message:
+                response_data['cleanup_message'] = cleanup_message
+            
+            # 添加多设备登录提示
+            if kicked_sessions:
+                response_data['multi_device_warning'] = f"检测到该账号在其他 {len(kicked_sessions)} 个设备上登录，已自动登出旧设备"
+            
+            # 创建响应并设置Cookie (仅非游客)
+            response = jsonify(response_data)
+            if token:
+                # 设置1小时过期的httponly cookie
+                response.set_cookie(
+                    'auth_token',
+                    value=token,
+                    max_age=3600,  # 1小时
+                    httponly=True,  # 防止JavaScript访问
+                    secure=False,  # 开发环境设为False，生产环境应为True
+                    samesite='Lax'
+                )
+            
+            return response
+        except Exception as e:
+            # 最后的安全网：即使响应创建失败，也返回基本的成功响应
+            logging.error(f"创建登录响应失败: {e}")
+            return jsonify({
+                "success": True,
+                "session_id": session_id,
+                "auth_username": auth_result.get('auth_username', auth_username),
+                "group": auth_result.get('group', 'user'),
+                "is_guest": False
+            })
     
     @app.route('/auth/guest_login', methods=['POST'])
     def auth_guest_login():
