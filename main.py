@@ -1313,6 +1313,11 @@ class AuthSystem:
         if auth_username == 'guest':
             return  # 游客不关联会话
         
+        # 跳过无效的session_id
+        if not session_id or session_id == 'null' or session_id.strip() == '':
+            logging.debug(f"跳过关联无效会话ID: '{session_id}' 到用户 {auth_username}")
+            return
+        
         user_file = self.get_user_file_path(auth_username)
         if os.path.exists(user_file):
             with self.lock:
@@ -1570,8 +1575,10 @@ class AuthSystem:
                 with open(user_file, 'w', encoding='utf-8') as f:
                     json.dump(user_data, f, indent=2, ensure_ascii=False)
                 
+                # 过滤掉无效的session_id
+                valid_old_sessions = [s for s in old_sessions if s and s != 'null' and s.strip() != '']
                 message = "单会话模式：已自动清理所有旧会话"
-                return old_sessions, message
+                return valid_old_sessions, message
             
             # 多会话模式：检查是否超出限制
             current_count = len(old_sessions)
@@ -1584,8 +1591,10 @@ class AuthSystem:
                 with open(user_file, 'w', encoding='utf-8') as f:
                     json.dump(user_data, f, indent=2, ensure_ascii=False)
                 
-                message = f"已达到最大会话数量限制({max_sessions}个)，已自动清理{len(sessions_to_remove)}个最旧的会话"
-                return sessions_to_remove, message
+                # 过滤掉无效的session_id
+                valid_sessions_to_remove = [s for s in sessions_to_remove if s and s != 'null' and s.strip() != '']
+                message = f"已达到最大会话数量限制({max_sessions}个)，已自动清理{len(valid_sessions_to_remove)}个最旧的会话"
+                return valid_sessions_to_remove, message
             else:
                 # 未超出限制，正常添加
                 return [], ""
@@ -6622,11 +6631,21 @@ def update_session_activity(session_id):
 
 def cleanup_session(session_id, reason="manual"):
     """清理指定会话（支持指定原因）"""
+    # 跳过无效的session_id
+    if not session_id or session_id == 'null' or session_id.strip() == '':
+        logging.debug(f"跳过清理无效会话ID: '{session_id}'")
+        return
+    
     logging.info(f"清理会话: {session_id[:32]}... (原因: {reason})")
     cleanup_inactive_session(session_id)
 
 def cleanup_inactive_session(session_id):
     """清理不活跃的会话"""
+    # 跳过无效的session_id
+    if not session_id or session_id == 'null' or session_id.strip() == '':
+        logging.debug(f"跳过清理无效会话ID: '{session_id}'")
+        return
+    
     try:
         logging.info(f"清理不活跃会话: {session_id[:32]}...")
         
