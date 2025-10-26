@@ -4596,8 +4596,12 @@
         $('login-container').classList.remove('hidden');
 
         // 初始化内嵌管理面板，默认显示会话标签页并加载数据
-        setTimeout(() => {
-          switchAdminTab_inline('sessions');
+        setTimeout(async () => {
+          try {
+            await initializeInlineAdminPanel();
+          } catch (e) {
+            console.error('初始化内嵌管理面板失败:', e);
+          }
         }, 100);
 
         // 加载地图API Key
