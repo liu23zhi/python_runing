@@ -8784,23 +8784,65 @@ def start_web_server(args):
         if not auth_system.check_permission(auth_username, 'god_mode'):
             return jsonify({"success": False, "message": "需要上帝模式权限"}), 403
         
-        # 获取所有会话信息
+        # 获取所有会话信息（包括内存中的和磁盘上的）
         all_sessions = []
+        session_ids_in_memory = set()
+        
+        # 1. 首先获取内存中的会话
         with web_sessions_lock:
             for sid, api in web_sessions.items():
                 session_info = {
                     'session_id': sid,
                     'session_hash': hashlib.sha256(sid.encode()).hexdigest()[:16],
-                    'auth_username': getattr(api, 'auth_username', 'anonymous'),
+                    'auth_username': getattr(api, 'auth_username', None),
                     'auth_group': getattr(api, 'auth_group', 'guest'),
                     'is_authenticated': getattr(api, 'is_authenticated', False),
                     'is_guest': getattr(api, 'is_guest', False),
                     'created_at': getattr(api, '_session_created_at', 0),
                     'login_success': getattr(api, 'login_success', False),
                     'user_info': getattr(api, 'user_info', {}),
-                    'is_current': sid == session_id
+                    'is_current': sid == session_id,
+                    'username': getattr(api, 'auth_username', None)  # 添加username字段供前端使用
                 }
                 all_sessions.append(session_info)
+                session_ids_in_memory.add(sid)
+        
+        # 2. 然后扫描磁盘上的会话文件，添加未在内存中的会话
+        try:
+            if os.path.exists(SESSION_STORAGE_DIR):
+                for filename in os.listdir(SESSION_STORAGE_DIR):
+                    if filename == '_index.json' or not filename.endswith('.json'):
+                        continue
+                    
+                    session_file = os.path.join(SESSION_STORAGE_DIR, filename)
+                    try:
+                        with open(session_file, 'r', encoding='utf-8') as f:
+                            state = json.load(f)
+                        
+                        sid = state.get('session_id')
+                        if not sid or sid in session_ids_in_memory:
+                            continue  # 跳过已在内存中的会话
+                        
+                        # 从文件中读取会话信息
+                        session_info = {
+                            'session_id': sid,
+                            'session_hash': hashlib.sha256(sid.encode()).hexdigest()[:16],
+                            'auth_username': state.get('auth_username', None),
+                            'auth_group': state.get('auth_group', 'guest'),
+                            'is_authenticated': state.get('is_authenticated', False),
+                            'is_guest': state.get('is_guest', False),
+                            'created_at': state.get('created_at', 0),
+                            'login_success': state.get('login_success', False),
+                            'user_info': state.get('user_info', {}),
+                            'is_current': sid == session_id,
+                            'username': state.get('auth_username', None)  # 添加username字段供前端使用
+                        }
+                        all_sessions.append(session_info)
+                    except Exception as e:
+                        logging.warning(f"读取会话文件 {filename} 失败: {e}")
+                        continue
+        except Exception as e:
+            logging.error(f"扫描会话文件目录失败: {e}")
         
         return jsonify({
             "success": True,
