@@ -749,9 +749,10 @@ class AuthSystem:
     def _save_permissions(self):
         """保存权限配置"""
         logging.debug("_save_permissions: 保存权限配置到文件...")
-        with self.lock:
-            with open(PERMISSIONS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.permissions, f, indent=2, ensure_ascii=False)
+        # 不使用 self.lock，因为调用者可能已经持有锁
+        # 调用者负责确保线程安全
+        with open(PERMISSIONS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(self.permissions, f, indent=2, ensure_ascii=False)
         logging.debug(f"_save_permissions: 权限配置已保存到 {PERMISSIONS_FILE}")
     
     def get_user_file_path(self, auth_username):
@@ -1313,6 +1314,11 @@ class AuthSystem:
         if auth_username == 'guest':
             return  # 游客不关联会话
         
+        # 跳过无效的session_id
+        if not session_id or session_id == 'null' or session_id.strip() == '':
+            logging.debug(f"跳过关联无效会话ID: '{session_id}' 到用户 {auth_username}")
+            return
+        
         user_file = self.get_user_file_path(auth_username)
         if os.path.exists(user_file):
             with self.lock:
@@ -1322,10 +1328,15 @@ class AuthSystem:
                 if 'session_ids' not in user_data:
                     user_data['session_ids'] = []
                 
-                # 只保留最近的5个会话ID
+                # 添加新会话（如果不存在）
                 if session_id not in user_data['session_ids']:
                     user_data['session_ids'].append(session_id)
-                    user_data['session_ids'] = user_data['session_ids'][-5:]
+                    
+                    # 根据max_sessions配置限制会话数量
+                    max_sessions = user_data.get('max_sessions', 1)
+                    if max_sessions > 0:  # 有限制
+                        user_data['session_ids'] = user_data['session_ids'][-max_sessions:]
+                    # max_sessions == -1 时不限制，保留所有会话
                 
                 with open(user_file, 'w', encoding='utf-8') as f:
                     json.dump(user_data, f, indent=2, ensure_ascii=False)
@@ -1563,19 +1574,21 @@ class AuthSystem:
             if max_sessions == -1:
                 return [], ""
             
-            # 单会话模式：移除所有旧会话
-            if max_sessions == 1:
-                user_data['session_ids'] = [new_session_id]
+            # # 单会话模式：移除所有旧会话
+            # if max_sessions == 1:
+            #     user_data['session_ids'] = [new_session_id]
                 
-                with open(user_file, 'w', encoding='utf-8') as f:
-                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+            #     with open(user_file, 'w', encoding='utf-8') as f:
+            #         json.dump(user_data, f, indent=2, ensure_ascii=False)
                 
-                message = "单会话模式：已自动清理所有旧会话"
-                return old_sessions, message
+            #     # 过滤掉无效的session_id
+            #     valid_old_sessions = [s for s in old_sessions if s and s != 'null' and s.strip() != '']
+            #     message = "单会话模式：已自动清理所有旧会话"
+            #     return valid_old_sessions, message
             
             # 多会话模式：检查是否超出限制
             current_count = len(old_sessions)
-            if current_count >= max_sessions:
+            if current_count > max_sessions:
                 # 超出限制，移除最旧的会话
                 sessions_to_remove = old_sessions[:current_count - max_sessions + 1]
                 remaining_sessions = old_sessions[current_count - max_sessions + 1:]
@@ -1584,8 +1597,12 @@ class AuthSystem:
                 with open(user_file, 'w', encoding='utf-8') as f:
                     json.dump(user_data, f, indent=2, ensure_ascii=False)
                 
-                message = f"已达到最大会话数量限制({max_sessions}个)，已自动清理{len(sessions_to_remove)}个最旧的会话"
-                return sessions_to_remove, message
+                # 过滤掉无效的session_id
+                valid_sessions_to_remove = [s for s in sessions_to_remove if s and s != 'null' and s.strip() != '']
+                message = ""
+                if len(valid_sessions_to_remove) > 0:
+                    message = f"已达到最大会话数量限制({max_sessions}个)，已自动清理{len(valid_sessions_to_remove)}个最旧的会话"
+                return valid_sessions_to_remove, message
             else:
                 # 未超出限制，正常添加
                 return [], ""
@@ -1687,7 +1704,8 @@ class TokenManager:
         Returns:
             token: 生成的令牌字符串
         """
-        logging.info(f"create_token: 为用户 {username} 创建令牌，会话: {session_id[:16]}...")
+        session_preview = session_id[:16] if session_id and len(session_id) >= 16 else session_id
+        logging.info(f"create_token: 为用户 {username} 创建令牌，会话: {session_preview}...")
         token = self.generate_token()
         created_at = time.time()
         expires_at = created_at + 3600  # 1小时后过期
@@ -1719,7 +1737,7 @@ class TokenManager:
             with open(token_file, 'w', encoding='utf-8') as f:
                 json.dump(all_tokens, f, indent=2, ensure_ascii=False)
         
-        logging.info(f"为用户 {username} 创建新令牌，会话: {session_id[:16]}...")
+        logging.info(f"为用户 {username} 创建新令牌，会话: {session_preview}...")
         return token
     
     def verify_token(self, username, session_id, token):
@@ -6621,11 +6639,21 @@ def update_session_activity(session_id):
 
 def cleanup_session(session_id, reason="manual"):
     """清理指定会话（支持指定原因）"""
+    # 跳过无效的session_id
+    if not session_id or session_id == 'null' or session_id.strip() == '':
+        logging.debug(f"跳过清理无效会话ID: '{session_id}'")
+        return
+    
     logging.info(f"清理会话: {session_id[:32]}... (原因: {reason})")
     cleanup_inactive_session(session_id)
 
 def cleanup_inactive_session(session_id):
     """清理不活跃的会话"""
+    # 跳过无效的session_id
+    if not session_id or session_id == 'null' or session_id.strip() == '':
+        logging.debug(f"跳过清理无效会话ID: '{session_id}'")
+        return
+    
     try:
         logging.info(f"清理不活跃会话: {session_id[:32]}...")
         
@@ -7303,6 +7331,7 @@ def start_web_server(args):
         two_fa_code = data.get('two_fa_code', '').strip()
         session_id = request.headers.get('X-Session-ID', '')
         
+        
         # 获取IP和UA
         ip_address = request.remote_addr or ''
         user_agent = request.headers.get('User-Agent', '')
@@ -7336,39 +7365,60 @@ def start_web_server(args):
             # 如果是注册用户（非游客），处理会话关联
             cleanup_message = ""
             if not auth_result.get('is_guest', False):
-                # 检查并强制执行会话数量限制
-                old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, session_id)
-                
-                # 清理旧会话（如果超出限制）
-                for old_sid in old_sessions:
-                    cleanup_session(old_sid, "session_limit_exceeded")
-                
-                # 关联新会话到用户账号
-                auth_system.link_session_to_user(auth_username, session_id)
-                
-                # 记录审计日志
-                audit_details = f'登录成功，会话ID: {session_id}'
-                if cleanup_message:
-                    audit_details += f'; {cleanup_message}'
-                
-                auth_system.log_audit(
-                    auth_username,
-                    'user_login',
-                    audit_details,
-                    ip_address,
-                    session_id
-                )
+                try:
+                    # 检查并强制执行会话数量限制
+                    old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, session_id)
+                    
+                    # 清理旧会话（如果超出限制）- 使用后台线程异步清理，不阻塞登录响应
+                    if old_sessions:
+                        def cleanup_old_sessions_async():
+                            for old_sid in old_sessions:
+                                try:
+                                    cleanup_session(old_sid, "session_limit_exceeded")
+                                except Exception as e:
+                                    logging.error(f"后台清理旧会话失败 {old_sid[:16]}...: {e}")
+                        
+                        cleanup_thread = threading.Thread(target=cleanup_old_sessions_async, daemon=True)
+                        cleanup_thread.start()
+                    
+                    # 关联新会话到用户账号
+                    auth_system.link_session_to_user(auth_username, session_id)
+                    
+                    # 记录审计日志
+                    audit_details = f'登录成功，会话ID: {session_id}'
+                    if cleanup_message:
+                        audit_details += f'; {cleanup_message}'
+                    
+                    auth_system.log_audit(
+                        auth_username,
+                        'user_login',
+                        audit_details,
+                        ip_address,
+                        session_id
+                    )
+                except Exception as e:
+                    # 即使会话管理失败，也不应阻止登录
+                    logging.error(f"会话管理过程出错，但继续登录流程: {e}")
+                    cleanup_message = ""
             
-            save_session_state(session_id, api_instance, force_save=True)
+            try:
+                save_session_state(session_id, api_instance, force_save=True)
+            except Exception as e:
+                logging.error(f"保存会话状态失败: {e}")
         
         # 如果是注册用户，返回已保存的会话ID列表
         user_sessions = []
         max_sessions = 1
         if not auth_result.get('is_guest', False):
-            user_sessions = auth_system.get_user_sessions(auth_username)
-            user_details = auth_system.get_user_details(auth_username)
-            if user_details:
-                max_sessions = user_details.get('max_sessions', 1)
+            try:
+                user_sessions = auth_system.get_user_sessions(auth_username)
+                user_details = auth_system.get_user_details(auth_username)
+                if user_details:
+                    max_sessions = user_details.get('max_sessions', 1)
+            except Exception as e:
+                logging.error(f"获取用户会话信息失败: {e}")
+                user_sessions = []
+                max_sessions = 1
         
         # 生成会话限制提示信息
         session_limit_info = ""
@@ -7383,62 +7433,80 @@ def start_web_server(args):
         token = None
         kicked_sessions = []
         if not auth_result.get('is_guest', False) and session_id:
-            # 1. 生成2048位token
-            token = token_manager.create_token(auth_username, session_id)
+            try:
+                # 1. 生成2048位token
+                token = token_manager.create_token(auth_username, session_id)
+                
+                # 2. 检测多设备登录
+                kicked_sessions = token_manager.detect_multi_device_login(auth_username, session_id)
+                
+                # 3. 清理过期token
+                token_manager.cleanup_expired_tokens(auth_username)
+                
+                # 4. 踢出旧设备（使token失效并清理会话）
+                if kicked_sessions:
+                    for old_sid in kicked_sessions:
+                        # 使token失效
+                        token_manager.invalidate_token(auth_username, old_sid)
+                        # 清理会话
+                        # cleanup_session(old_sid, "logged_in_elsewhere")
+                    
+                    
+                    logging.info(f"用户 {auth_username} 从新设备登录，检测到 {len(kicked_sessions)} 个其他活跃会话。")
+            except Exception as e:
+                # 即使token管理失败，也不应阻止登录流程
+                logging.error(f"Token管理过程出错，但继续登录流程: {e}")
+                token = None
+                kicked_sessions = []
+        
+        try:
+            response_data = {
+                "success": True,
+                "session_id": session_id,  # 修正：返回session_id给前端
+                "auth_username": auth_result['auth_username'],
+                "group": auth_result['group'],
+                "is_guest": auth_result.get('is_guest', False),
+                "user_sessions": user_sessions,  # 用于状态恢复
+                "max_sessions": max_sessions,
+                "session_limit_info": session_limit_info,
+                "avatar_url": auth_result.get('avatar_url', ''),
+                "theme": auth_result.get('theme', 'light'),
+                "token": token,  # 返回token给前端
+                "kicked_sessions_count": len(kicked_sessions)  # 踢出的设备数量
+            }
             
-            # 2. 检测多设备登录
-            kicked_sessions = token_manager.detect_multi_device_login(auth_username, session_id)
+            # 添加清理提示（如果有）
+            if cleanup_message:
+                response_data['cleanup_message'] = cleanup_message
             
-            # 3. 清理过期token
-            token_manager.cleanup_expired_tokens(auth_username)
-            
-            # 4. 踢出旧设备（使token失效并清理会话）
+            # 添加多设备登录提示
             if kicked_sessions:
-                for old_sid in kicked_sessions:
-                    # 使token失效
-                    token_manager.invalidate_token(auth_username, old_sid)
-                    # 清理会话
-                    # cleanup_session(old_sid, "logged_in_elsewhere")
-                
-                
-                logging.info(f"用户 {auth_username} 从新设备登录，检测到 {len(kicked_sessions)} 个其他活跃会话。")
-        
-        response_data = {
-            "success": True,
-            "auth_username": auth_result['auth_username'],
-            "group": auth_result['group'],
-            "is_guest": auth_result.get('is_guest', False),
-            "user_sessions": user_sessions,  # 用于状态恢复
-            "max_sessions": max_sessions,
-            "session_limit_info": session_limit_info,
-            "avatar_url": auth_result.get('avatar_url', ''),
-            "theme": auth_result.get('theme', 'light'),
-            "token": token,  # 返回token给前端
-            "kicked_sessions_count": len(kicked_sessions)  # 踢出的设备数量
-        }
-        
-        # 添加清理提示（如果有）
-        if cleanup_message:
-            response_data['cleanup_message'] = cleanup_message
-        
-        # 添加多设备登录提示
-        if kicked_sessions:
-            response_data['multi_device_warning'] = f"检测到该账号在其他 {len(kicked_sessions)} 个设备上登录，已自动登出旧设备"
-        
-        # 创建响应并设置Cookie (仅非游客)
-        response = jsonify(response_data)
-        if token:
-            # 设置1小时过期的httponly cookie
-            response.set_cookie(
-                'auth_token',
-                value=token,
-                max_age=3600,  # 1小时
-                httponly=True,  # 防止JavaScript访问
-                secure=False,  # 开发环境设为False，生产环境应为True
-                samesite='Lax'
-            )
-        
-        return response
+                response_data['multi_device_warning'] = f"检测到该账号在其他 {len(kicked_sessions)} 个设备上登录，已自动登出旧设备"
+            
+            # 创建响应并设置Cookie (仅非游客)
+            response = jsonify(response_data)
+            if token:
+                # 设置1小时过期的httponly cookie
+                response.set_cookie(
+                    'auth_token',
+                    value=token,
+                    max_age=3600,  # 1小时
+                    httponly=True,  # 防止JavaScript访问
+                    secure=False,  # 开发环境设为False，生产环境应为True
+                    samesite='Lax'
+                )
+            
+            return response
+        except Exception as e:
+            # 最后的安全网：即使响应创建失败，也返回基本的成功响应
+            logging.error(f"创建登录响应失败: {e}")
+            return jsonify({
+                "success": True,
+                "session_id": session_id,
+                "auth_username": auth_result.get('auth_username', auth_username),
+                "group": auth_result.get('group', 'user'),
+                "is_guest": False
+            })
     
     @app.route('/auth/guest_login', methods=['POST'])
     def auth_guest_login():
@@ -8329,13 +8397,17 @@ def start_web_server(args):
                 'user_data': {"username": "guest"} # 简单标识
             })
             logging.debug(f"auth_user_sessions: Guest session info prepared: {sessions_info}")
-            return jsonify({"success": True, "sessions": sessions_info})
+            return jsonify({"success": True, "sessions": sessions_info, "max_sessions": -1})
 
         elif auth_username:
             # 注册用户模式：保持原有逻辑
             logging.debug(f"auth_user_sessions: Handling registered user {auth_username}")
             session_ids = auth_system.get_user_sessions(auth_username)
             logging.debug(f"auth_user_sessions: Found linked session IDs for {auth_username}: {session_ids}")
+            
+            # 获取用户的最大会话数设置
+            user_details = auth_system.get_user_details(auth_username)
+            max_sessions = user_details.get('max_sessions', 1) if user_details else 1
 
             for sid in session_ids:
                 session_file = get_session_file_path(sid)
@@ -8359,7 +8431,7 @@ def start_web_server(args):
                         logging.warning(f"Failed to read session file {session_file} for user {auth_username}: {e}")
                         continue # 跳过损坏的文件
             logging.debug(f"auth_user_sessions: Registered user session info prepared: {len(sessions_info)} sessions")
-            return jsonify({"success": True, "sessions": sessions_info})
+            return jsonify({"success": True, "sessions": sessions_info, "max_sessions": max_sessions})
         else:
              # 既不是游客也不是有效注册用户（理论上不应发生，除非状态异常）
             logging.warning(f"auth_user_sessions: Invalid state for session {session_id[:8]} - neither guest nor valid user.")
@@ -8488,9 +8560,17 @@ def start_web_server(args):
             # 检查并强制执行会话数量限制
             old_sessions, cleanup_message = auth_system.check_single_session_enforcement(auth_username, new_session_id)
             
-            # 清理旧会话（如果超出限制）
-            for old_sid in old_sessions:
-                cleanup_session(old_sid, "session_limit_exceeded")
+            # 清理旧会话（如果超出限制）- 使用后台线程异步清理，不阻塞响应
+            if old_sessions:
+                def cleanup_old_sessions_async():
+                    for old_sid in old_sessions:
+                        try:
+                            cleanup_session(old_sid, "session_limit_exceeded")
+                        except Exception as e:
+                            logging.error(f"后台清理旧会话失败 {old_sid[:16]}...: {e}")
+                
+                cleanup_thread = threading.Thread(target=cleanup_old_sessions_async, daemon=True)
+                cleanup_thread.start()
             
             # 关联新会话到用户账号
             auth_system.link_session_to_user(auth_username, new_session_id)
