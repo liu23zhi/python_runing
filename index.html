@@ -3047,8 +3047,8 @@
         // 控制上帝模式开关可见性
         if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
 
-        // --- 默认显示个人信息标签页 ---
-        switchAdminTab('profile'); // 将个人信息设为默认打开的标签
+        // --- 默认显示会话管理标签页 ---
+        switchAdminTab('sessions'); // 将会话管理设为默认打开的标签
 
       } else {
         modal.classList.add('hidden');
@@ -3661,6 +3661,10 @@
         const qrCanvas = $('profile-2fa-qr');
         if (qrCanvas && result.qr_uri) {
           if (typeof QRCode !== 'undefined') {
+            // 清空canvas以防止重复生成
+            const ctx = qrCanvas.getContext('2d');
+            ctx.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
+            
             QRCode.toCanvas(qrCanvas, result.qr_uri, { width: 200 }, function (error) {
               if (error) {
                 console.error('QR Code generation error:', error);
