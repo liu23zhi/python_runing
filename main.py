@@ -1687,7 +1687,8 @@ class TokenManager:
         Returns:
             token: 生成的令牌字符串
         """
-        logging.info(f"create_token: 为用户 {username} 创建令牌，会话: {session_id[:16]}...")
+        session_preview = session_id[:16] if session_id and len(session_id) >= 16 else session_id
+        logging.info(f"create_token: 为用户 {username} 创建令牌，会话: {session_preview}...")
         token = self.generate_token()
         created_at = time.time()
         expires_at = created_at + 3600  # 1小时后过期
@@ -1719,7 +1720,7 @@ class TokenManager:
             with open(token_file, 'w', encoding='utf-8') as f:
                 json.dump(all_tokens, f, indent=2, ensure_ascii=False)
         
-        logging.info(f"为用户 {username} 创建新令牌，会话: {session_id[:16]}...")
+        logging.info(f"为用户 {username} 创建新令牌，会话: {session_preview}...")
         return token
     
     def verify_token(self, username, session_id, token):
@@ -7388,25 +7389,31 @@ def start_web_server(args):
         token = None
         kicked_sessions = []
         if not auth_result.get('is_guest', False) and session_id:
-            # 1. 生成2048位token
-            token = token_manager.create_token(auth_username, session_id)
-            
-            # 2. 检测多设备登录
-            kicked_sessions = token_manager.detect_multi_device_login(auth_username, session_id)
-            
-            # 3. 清理过期token
-            token_manager.cleanup_expired_tokens(auth_username)
-            
-            # 4. 踢出旧设备（使token失效并清理会话）
-            if kicked_sessions:
-                for old_sid in kicked_sessions:
-                    # 使token失效
-                    token_manager.invalidate_token(auth_username, old_sid)
-                    # 清理会话
-                    # cleanup_session(old_sid, "logged_in_elsewhere")
+            try:
+                # 1. 生成2048位token
+                token = token_manager.create_token(auth_username, session_id)
                 
+                # 2. 检测多设备登录
+                kicked_sessions = token_manager.detect_multi_device_login(auth_username, session_id)
                 
-                logging.info(f"用户 {auth_username} 从新设备登录，检测到 {len(kicked_sessions)} 个其他活跃会话。")
+                # 3. 清理过期token
+                token_manager.cleanup_expired_tokens(auth_username)
+                
+                # 4. 踢出旧设备（使token失效并清理会话）
+                if kicked_sessions:
+                    for old_sid in kicked_sessions:
+                        # 使token失效
+                        token_manager.invalidate_token(auth_username, old_sid)
+                        # 清理会话
+                        # cleanup_session(old_sid, "logged_in_elsewhere")
+                    
+                    
+                    logging.info(f"用户 {auth_username} 从新设备登录，检测到 {len(kicked_sessions)} 个其他活跃会话。")
+            except Exception as e:
+                # 即使token管理失败，也不应阻止登录流程
+                logging.error(f"Token管理过程出错，但继续登录流程: {e}")
+                token = None
+                kicked_sessions = []
         
         response_data = {
             "success": True,
