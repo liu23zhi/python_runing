@@ -622,7 +622,7 @@
         </div>
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
-          <input type="text" id="auth-2fa-code" class="input-field mt-1" placeholder="输入6位验证码" maxlength="6" autocomplete="one-time-code">
+          <input type="text" id="auth-2fa-code" class="input-field mt-1" placeholder="输入6位验证码" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code">
         </div>
         <button id="auth-2fa-verify-btn" class="btn btn-primary w-full py-3">验证</button>
         <button id="auth-2fa-back-btn" class="btn btn-ghost w-full">返回登录</button>
@@ -2564,8 +2564,9 @@
       const codeInput = $('auth-2fa-code');
       const code = codeInput ? codeInput.value.trim() : '';
       
-      if (!code || code.length !== 6) {
-        showAuthError('请输入6位验证码');
+      // 验证输入：必须是6位数字
+      if (!code || code.length !== 6 || !/^[0-9]{6}$/.test(code)) {
+        showAuthError('请输入有效的6位数字验证码');
         return;
       }
       
