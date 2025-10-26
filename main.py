@@ -749,9 +749,10 @@ class AuthSystem:
     def _save_permissions(self):
         """保存权限配置"""
         logging.debug("_save_permissions: 保存权限配置到文件...")
-        with self.lock:
-            with open(PERMISSIONS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.permissions, f, indent=2, ensure_ascii=False)
+        # 不使用 self.lock，因为调用者可能已经持有锁
+        # 调用者负责确保线程安全
+        with open(PERMISSIONS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(self.permissions, f, indent=2, ensure_ascii=False)
         logging.debug(f"_save_permissions: 权限配置已保存到 {PERMISSIONS_FILE}")
     
     def get_user_file_path(self, auth_username):
