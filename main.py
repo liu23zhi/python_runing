@@ -8164,7 +8164,9 @@ def start_web_server(args_param):
         
         # 2FA验证成功，创建会话
         session_id = str(uuid.uuid4())
-        api_instance = PythonRunningAPI()
+        api_instance = Api(args)
+        api_instance._session_created_at = time.time()
+        api_instance._web_session_id = session_id
         api_instance.is_authenticated = True
         api_instance.auth_username = auth_username
         
