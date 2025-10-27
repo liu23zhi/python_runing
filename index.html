@@ -8543,21 +8543,15 @@
         console.error('[日志发送异常]', e);
       }
 
-      // 只将必要的日志（WARNING、ERROR、CRITICAL）显示在 log-tab 中
-      // DEBUG 和 INFO 日志仍然发送到控制台和后端，但不显示在界面
-      const shouldShowInUI = (level === 'WARNING' || level === 'ERROR' || level === 'CRITICAL');
-      
-      if (shouldShowInUI) {
-        const single = $('log-text');
-        const multi = $('multi-log-text');
-        if (single) {
-          single.value += fullMessage + '\n'; // 使用组合后的消息
-          single.scrollTop = single.scrollHeight;
-        }
-        if (multi) {
-          multi.value += fullMessage + '\n'; // 使用组合后的消息
-          multi.scrollTop = multi.scrollHeight;
-        }
+      const single = $('log-text');
+      const multi = $('multi-log-text');
+      if (single) {
+        single.value += fullMessage + '\n'; // 使用组合后的消息
+        single.scrollTop = single.scrollHeight;
+      }
+      if (multi) {
+        multi.value += fullMessage + '\n'; // 使用组合后的消息
+        multi.scrollTop = multi.scrollHeight;
       }
     }
 
