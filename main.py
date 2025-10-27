@@ -8280,8 +8280,6 @@ def start_web_server(args):
     def auth_user_upload_avatar():
         """上传用户头像文件（multipart/form-data）"""
         import hashlib
-        from PIL import Image
-        import io
         
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
@@ -8316,7 +8314,11 @@ def start_web_server(args):
         if len(file_content) > max_size:
             return jsonify({"success": False, "message": "文件过大，请上传小于5MB的图片"}), 400
         
+        # 尝试使用PIL转换为PNG格式
         try:
+            from PIL import Image
+            import io
+            
             # 使用PIL打开图片并转换为PNG格式
             img = Image.open(io.BytesIO(file_content))
             
@@ -8346,11 +8348,26 @@ def start_web_server(args):
             with open(filepath, 'wb') as f:
                 f.write(png_content)
             
+            # 构建头像URL
+            avatar_url = f"/api/avatar/{filename}"
+            
+        except ImportError:
+            # 如果PIL未安装，直接保存原始文件
+            sha256_hash = hashlib.sha256(file_content).hexdigest()
+            
+            images_dir = os.path.join('system_accounts', 'images')
+            os.makedirs(images_dir, exist_ok=True)
+            
+            filename = f"{sha256_hash}{file_ext}"
+            filepath = os.path.join(images_dir, filename)
+            
+            with open(filepath, 'wb') as f:
+                f.write(file_content)
+            
+            avatar_url = f"/api/avatar/{filename}"
+            
         except Exception as e:
             return jsonify({"success": False, "message": f"图片处理失败: {str(e)}"}), 500
-        
-        # 构建头像URL
-        avatar_url = f"/api/avatar/{filename}"
         
         # 更新用户头像
         result = auth_system.update_user_avatar(auth_username, avatar_url)
@@ -8382,8 +8399,17 @@ def start_web_server(args):
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权访问"}), 401
         
-        # 验证文件名格式（只允许PNG文件，且文件名为64字符的十六进制哈希值）
-        if not filename.endswith('.png') or len(filename) != 68:  # 64 chars hash + .png (4 chars)
+        # 验证文件名格式
+        # 支持 PNG 和其他常见图片格式（向后兼容）
+        allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
+        file_ext = os.path.splitext(filename)[1].lower()
+        
+        if file_ext not in allowed_extensions:
+            return jsonify({"success": False, "message": "不支持的文件格式"}), 400
+        
+        # 验证文件名是哈希值（64字符）
+        basename = os.path.splitext(filename)[0]
+        if len(basename) != 64 or not all(c in '0123456789abcdef' for c in basename):
             return jsonify({"success": False, "message": "无效的文件名"}), 400
         
         # 构建文件路径
@@ -8395,7 +8421,16 @@ def start_web_server(args):
         
         # 返回图片文件
         try:
-            return send_file(filepath, mimetype='image/png')
+            # 根据扩展名确定MIME类型
+            mime_types = {
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.gif': 'image/gif',
+                '.webp': 'image/webp'
+            }
+            mimetype = mime_types.get(file_ext, 'image/png')
+            return send_file(filepath, mimetype=mimetype)
         except Exception as e:
             return jsonify({"success": False, "message": f"读取文件失败: {str(e)}"}), 500
     
