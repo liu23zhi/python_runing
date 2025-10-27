@@ -6772,6 +6772,8 @@
       updateDashboard();
 
       destroySingleMap();
+
+      onUserChange();
     }
 
 
@@ -7463,6 +7465,7 @@
       multiAccountMarkers = {};
       multiAccountMap = null;
 
+      resetUI();
       if (refreshUserListInterval) {
         clearInterval(refreshUserListInterval);
         refreshUserListInterval = null;
