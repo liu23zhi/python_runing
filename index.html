@@ -1633,6 +1633,7 @@
     // 全局变量
 
     let refreshUserListInterval = null;
+    let isInNetworkErrorState = false; // 跟踪网络错误状态
     let cdnErrorCount = 0;
     let cdnErrorTimer = null;
     let appInitialized = false;
@@ -1681,7 +1682,7 @@
     }
 
 
-    function showModalAlert(message, title = '提示') {
+    function showModalAlert(message, title = '提示', onCloseCallback = null) {
       const modal = $('alert-modal');
       const titleEl = $('alert-modal-title');
       const msgEl = $('alert-modal-message');
@@ -1691,6 +1692,7 @@
         // 模态框DOM不存在，回退到原生 alert
         logMessage_Warning('Alert modal DOM not found, falling back to native alert.');
         alert(`${title}:\n${message}`);
+        if (onCloseCallback) onCloseCallback();
         return;
       }
 
@@ -1707,7 +1709,10 @@
         titleEl.classList.add('text-sky-600');
       }
 
-      closeBtn.onclick = closeModalAlert;
+      closeBtn.onclick = () => {
+        closeModalAlert();
+        if (onCloseCallback) onCloseCallback();
+      };
 
       modal.classList.remove('hidden');
       modal.classList.add('flex');
@@ -1868,14 +1873,31 @@
       } catch (networkError) {
         // 捕获 fetch 本身的网络错误 (例如 DNS 解析失败、服务器无法连接)
         logMessage_Error(`[API调用] ✗ 网络请求失败 (${method}):`, networkError);
-        // 显示通用网络错误提示
-        showModalAlert('无法连接到服务器，请检查您的网络连接或稍后重试。', '网络错误');
+        
         // 停止可能的刷新定时器
         if (refreshUserListInterval) {
           logMessage_Info('[API调用] 停止用户列表刷新定时器 (因网络错误)');
           clearInterval(refreshUserListInterval);
           refreshUserListInterval = null;
+          isInNetworkErrorState = true; // 标记进入网络错误状态
         }
+        
+        // 显示通用网络错误提示，并在用户关闭时尝试恢复定时器
+        showModalAlert('无法连接到服务器，请检查您的网络连接或稍后重试。', '网络错误', () => {
+          // 用户关闭网络错误弹窗时，尝试恢复定时刷新
+          if (isInNetworkErrorState && !refreshUserListInterval) {
+            logMessage_Info('[API调用] 用户关闭网络错误弹窗，尝试恢复用户列表刷新定时器');
+            isInNetworkErrorState = false;
+            // 延迟1秒后重新启动定时器，给网络恢复时间
+            setTimeout(() => {
+              if (!refreshUserListInterval) {
+                refreshUserListInterval = setInterval(refreshUserList, 5000);
+                logMessage_Info('[API调用] 用户列表刷新定时器已恢复');
+              }
+            }, 1000);
+          }
+        });
+        
         throw networkError; // 重新抛出网络错误，中断后续处理
       }
 
