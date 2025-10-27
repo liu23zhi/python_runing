@@ -8496,8 +8496,8 @@
       let orange_callerInfo = getCallerInfo();
       let callerInfo = extractCleanSource(orange_callerInfo.source);
 
-      let new_message = `[${timestamp}][前端日志][${callerInfo}] ${line}`
-      const fullMessage = `[${timestamp}][${callerInfo}] ${line}`; // 组合时间戳和消息
+      let new_message = `${timestamp}[前端日志][${callerInfo}] ${line}`
+      const fullMessage = `${timestamp}[${callerInfo}] ${line}`; // 组合时间戳和消息
 
       if(level==='DEBUG') {
         level_new = 'DEBUG';
