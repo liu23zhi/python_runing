@@ -5974,6 +5974,15 @@
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
 
+        // 初始化内嵌管理面板（恢复会话时需要）
+        setTimeout(async () => {
+          try {
+            await initializeInlineAdminPanel();
+          } catch (e) {
+            console.error('初始化内嵌管理面板失败:', e);
+          }
+        }, 100);
+
         // 检查是否有管理权限，显示管理按钮
         if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
           const adminBtn = $('show-admin-panel');
