@@ -2730,7 +2730,7 @@ class Api:
             cfg_en.write(f)
 
     def _save_config(self, username, password=None, ua=None):
-        """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码；当 ua 为 None 时保留现有 UA。同时更新主 config.ini 的 LastUser 和 AmapJsKey。"""
+        """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码；当 ua 为 None 时保留现有 UA。同时更新主 config.ini 的 LastUser 和 amap_js_key。"""
         logging.debug(
             f"Saving config: username={username!r}, password provided: {password is not None}, ua provided: {ua is not None}")
 
@@ -2742,7 +2742,8 @@ class Api:
 
         # 读取旧密码（仅当需要保留时）
         # --- 1. 创建或读取现有配置 ---
-        cfg_to_save = configparser.ConfigParser()
+        cfg_to_save = configparser.RawConfigParser()
+        cfg_to_save.optionxform = str  # 保持键的大小写
         if os.path.exists(user_ini_path):
             try:
                 cfg_to_save.read(user_ini_path, encoding='utf-8')
@@ -2808,7 +2809,8 @@ class Api:
             params_to_save = self.accounts[username].params
         for k, v in params_to_save.items():
             # 仅保存当前全局参数模板中存在的键
-            if k in self.global_params:
+            # 排除 amap_js_key，因为它应该只保存在主 config.ini 中，不应在用户 .ini 中
+            if k in self.global_params and k != 'amap_js_key':
                 cfg_to_save.set('Config', k, str(v))
 
         # --- 7. 安全写入用户 .ini 文件 ---
@@ -2822,7 +2824,8 @@ class Api:
             # 可以选择在这里向上抛出异常或返回错误状态
 
         # --- 2. 处理主 config.ini 文件 ---
-        main_cfg = configparser.ConfigParser()
+        main_cfg = configparser.RawConfigParser()
+        main_cfg.optionxform = str  # 保持键的大小写
         if os.path.exists(self.config_path):
             try:
                 main_cfg.read(self.config_path, encoding='utf-8')
@@ -2841,25 +2844,21 @@ class Api:
         amap_key_in_memory = self.global_params.get('amap_js_key', '')
         main_cfg.set('Map', 'amap_js_key', amap_key_in_memory)
 
-        # 同时保持 [System] AmapJsKey 以兼容旧版本（可选）
-        if not main_cfg.has_section('System'):
-            main_cfg.add_section('System')
-        main_cfg.set('System', 'AmapJsKey', amap_key_in_memory)
-
         # 安全写入主 config.ini 文件
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 main_cfg.write(f)
             logging.debug(
-                f"Updated main config {self.config_path} with LastUser and AmapJsKey")
+                f"Updated main config {self.config_path} with LastUser and amap_js_key")
         except Exception as e:
             logging.error(f"写入主配置文件 {self.config_path} 失败: {e}", exc_info=True)
 
     def _load_global_config(self):
-        """从主 config.ini 加载全局配置（兼容旧版AmapJsKey和新版Map.amap_js_key）"""
+        """从主 config.ini 加载全局配置（优先读取新版 Map.amap_js_key，兼容旧版 System.AmapJsKey）"""
         if not os.path.exists(self.config_path):
             return
-        cfg = configparser.ConfigParser()
+        cfg = configparser.RawConfigParser()
+        cfg.optionxform = str  # 保持键的大小写
         try:
             cfg.read(self.config_path, encoding='utf-8')
 
@@ -2958,7 +2957,8 @@ class Api:
                        for f in os.listdir(self.user_dir) if f.endswith(".ini")])
 
         # 读取全局配置
-        cfg = configparser.ConfigParser()
+        cfg = configparser.RawConfigParser()
+        cfg.optionxform = str  # 保持键的大小写
         cfg.read(self.config_path, encoding='utf-8')
 
         # 确保有 Config 分段
@@ -3099,7 +3099,8 @@ class Api:
         """由JS调用，保存高德地图API Key到主配置文件"""
         try:
             self.global_params['amap_js_key'] = api_key
-            cfg = configparser.ConfigParser()
+            cfg = configparser.RawConfigParser()
+            cfg.optionxform = str  # 保持键的大小写
             if os.path.exists(self.config_path):
                 cfg.read(self.config_path, encoding='utf-8')
 
@@ -3107,11 +3108,6 @@ class Api:
             if not cfg.has_section('Map'):
                 cfg.add_section('Map')
             cfg.set('Map', 'amap_js_key', api_key)
-
-            # 同时保持 [System] AmapJsKey 以兼容旧版本（可选）
-            if not cfg.has_section('System'):
-                cfg.add_section('System')
-            cfg.set('System', 'AmapJsKey', api_key)
 
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 cfg.write(f)
@@ -3253,7 +3249,16 @@ class Api:
         logging.info(
             f"会话状态已保存: login_success={self.login_success}, user_id={ud.id}")
 
-        return {"success": True, "userInfo": user_info_dict, "ua": self.device_ua, "amap_key": self.global_params.get('amap_js_key', '')}
+        # --- 新增: 在成功登录的返回结果中包含 auth_group ---
+        auth_group = getattr(self, 'auth_group', 'guest') # 从 Api 实例获取认证时确定的组
+
+        return {
+            "success": True,
+            "userInfo": user_info_dict,
+            "ua": self.device_ua,
+            "amap_key": self.global_params.get('amap_js_key', ''),
+            "auth_group": auth_group
+        }
 
     def logout(self):
         """处理注销逻辑"""
@@ -3279,11 +3284,22 @@ class Api:
         return {"success": True}
 
     def load_tasks(self):
-        """加载任务列表（增强：稳健去重 + 并发保护）"""
+        """加载任务列表（增强：稳健去重 + 并发保护 + 离线模式支持）"""
         logging.info("API CALL: load_tasks")
 
+        # 离线模式或无用户ID但有任务数据时，直接返回已加载的任务
         if not self.user_data.id:
-            return {"success": False, "message": "用户未登录"}
+            # 检查是否有已加载的任务（例如从会话恢复或导入的离线文件）
+            if hasattr(self, 'all_run_data') and self.all_run_data:
+                logging.info(f"load_tasks: 离线模式，返回已加载的 {len(self.all_run_data)} 个任务")
+                tasks_for_js = []
+                for run in self.all_run_data:
+                    task_dict = run.__dict__.copy()
+                    task_dict['info_text'] = self._get_task_info_text(run)
+                    tasks_for_js.append(task_dict)
+                return {"success": True, "tasks": tasks_for_js}
+            else:
+                return {"success": False, "message": "用户未登录且无离线任务"}
 
         # 并发保护：避免多次快速点击导致并发刷新交错
         if not hasattr(self, "_load_tasks_lock"):
@@ -4702,6 +4718,42 @@ class Api:
         self.is_multi_account_mode = False
         self.log("进入单账号模式。")
         return {"success": True}
+
+    def get_session_mode_info(self):
+        """获取会话模式信息（单账号/多账号），用于页面刷新时恢复状态"""
+        mode_info = {
+            "success": True,
+            "is_multi_account_mode": getattr(self, 'is_multi_account_mode', False),
+            "school_account_logged_in": getattr(self, 'login_success', False),
+            "is_offline_mode": getattr(self, 'is_offline_mode', False),
+        }
+        
+        # 如果是多账号模式，返回更多信息
+        if getattr(self, 'is_multi_account_mode', False):
+            mode_info["multi_account_count"] = len(getattr(self, 'accounts', {}))
+            mode_info["multi_account_usernames"] = list(getattr(self, 'accounts', {}).keys())
+            mode_info["global_params"] = getattr(self, 'global_params', {})
+        else:
+            # 单账号模式信息
+            mode_info["has_tasks"] = len(getattr(self, 'all_run_data', [])) > 0
+            mode_info["task_count"] = len(getattr(self, 'all_run_data', []))
+            mode_info["selected_task_index"] = getattr(self, 'current_run_idx', -1)
+            
+            # 保存用户数据（用于离线模式恢复）
+            if hasattr(self, 'user_data') and self.user_data:
+                user_data = self.user_data
+                mode_info["user_data"] = {
+                    'name': getattr(user_data, 'name', ''),
+                    'phone': getattr(user_data, 'phone', ''),
+                    'student_id': getattr(user_data, 'student_id', ''),
+                    'id': getattr(user_data, 'id', ''),
+                    'username': getattr(user_data, 'username', ''),
+                    'gender': getattr(user_data, 'gender', ''),
+                    'school_name': getattr(user_data, 'school_name', '')
+                }
+            
+        return mode_info
+
 
     def multi_get_all_config_users(self):
         """获取所有存在配置文件的用户列表，用于前端便捷添加"""
@@ -7041,10 +7093,12 @@ def save_session_state(session_id, api_instance, force_save=False):
             # 基础状态
             state = {
                 'session_id': session_id,  # 在文件内容中保存完整的UUID
-                'login_success': getattr(api_instance, 'login_success', False),
+                'school_account_logged_in': getattr(api_instance, 'login_success', False),  # 更明确的命名：学校账号是否已登录
+                'login_success': getattr(api_instance, 'login_success', False),  # 保留兼容性
                 'user_info': getattr(api_instance, 'user_info', None),
                 'created_at': getattr(api_instance, '_session_created_at', time.time()),
-                'last_accessed': time.time()
+                'last_accessed': time.time(),
+                'last_saved': time.time()  # 最后保存时间
             }
 
             # 增强：保存认证信息
@@ -7117,6 +7171,81 @@ def save_session_state(session_id, api_instance, force_save=False):
             # 增强：保存运行状态
             state['is_offline_mode'] = getattr(
                 api_instance, 'is_offline_mode', False)
+            
+            # 增强：保存多账号模式状态
+            state['is_multi_account_mode'] = getattr(api_instance, 'is_multi_account_mode', False)
+            
+            # 如果是多账号模式，保存多账号相关信息
+            if getattr(api_instance, 'is_multi_account_mode', False):
+                # 保存已加载的账号列表（用户名列表）
+                state['multi_account_usernames'] = list(getattr(api_instance, 'accounts', {}).keys())
+                
+                # 保存全局参数
+                state['multi_global_params'] = getattr(api_instance, 'global_params', {})
+                
+                # 保存每个账号的状态
+                multi_account_states = {}
+                accounts = getattr(api_instance, 'accounts', {})
+                for username, account_session in accounts.items():
+                    try:
+                        account_state = {
+                            'username': username,
+                            'is_running': getattr(account_session, 'is_running', False),
+                            'status_text': getattr(account_session, 'status_text', ''),
+                            'progress': getattr(account_session, 'progress', 0),
+                            'school_account_logged_in': getattr(account_session, 'login_success', False),
+                            'has_tasks': len(getattr(account_session, 'all_run_data', [])) > 0,
+                            'task_count': len(getattr(account_session, 'all_run_data', [])),
+                            'completed_tasks': sum(1 for task in getattr(account_session, 'all_run_data', []) 
+                                                 if getattr(task, 'status', 0) == 1),
+                        }
+                        # 保存账号特定参数（如果有）
+                        if hasattr(account_session, 'params'):
+                            account_state['params'] = account_session.params
+                        multi_account_states[username] = account_state
+                    except Exception as e:
+                        logging.warning(f"保存账号 {username} 状态时出错: {e}")
+                        continue
+                        
+                state['multi_account_states'] = multi_account_states
+                
+                # 保存多账号控制面板信息（仪表盘信息）
+                state['multi_dashboard_info'] = {
+                    'total_accounts': len(accounts),
+                    'running_accounts': sum(1 for acc in accounts.values() if getattr(acc, 'is_running', False)),
+                    'logged_in_accounts': sum(1 for acc in accounts.values() if getattr(acc, 'login_success', False)),
+                    'total_tasks': sum(len(getattr(acc, 'all_run_data', [])) for acc in accounts.values()),
+                    'completed_tasks': sum(
+                        sum(1 for task in getattr(acc, 'all_run_data', []) if getattr(task, 'status', 0) == 1)
+                        for acc in accounts.values()
+                    )
+                }
+            
+            # 单账号模式的仪表盘信息
+            if not getattr(api_instance, 'is_multi_account_mode', False):
+                # 统计任务信息
+                all_tasks = getattr(api_instance, 'all_run_data', [])
+                state['dashboard_info'] = {
+                    'total_tasks': len(all_tasks),
+                    'completed_tasks': sum(1 for task in all_tasks if getattr(task, 'status', 0) == 1),
+                    'pending_tasks': sum(1 for task in all_tasks if getattr(task, 'status', 0) == 0),
+                    'selected_task_index': getattr(api_instance, 'current_run_idx', -1),
+                    'is_offline_mode': getattr(api_instance, 'is_offline_mode', False),
+                    'school_account_logged_in': getattr(api_instance, 'login_success', False)
+                }
+                
+                # 添加当前选中任务的信息（如果有）
+                if hasattr(api_instance, 'current_run_idx') and api_instance.current_run_idx >= 0:
+                    if hasattr(api_instance, 'all_run_data') and api_instance.current_run_idx < len(api_instance.all_run_data):
+                        current_task = api_instance.all_run_data[api_instance.current_run_idx]
+                        state['dashboard_info']['current_task'] = {
+                            'run_name': getattr(current_task, 'run_name', ''),
+                            'status': getattr(current_task, 'status', 0),
+                            'total_distance': getattr(current_task, 'total_run_distance_m', 0.0),
+                            'total_time': getattr(current_task, 'total_run_time_s', 0.0),
+                            'has_path': len(getattr(current_task, 'run_coords', [])) > 0
+                        }
+
 
             # 增强：保存停止标志状态
             if hasattr(api_instance, 'stop_run_flag'):
@@ -7285,6 +7414,21 @@ def restore_session_to_api_instance(api_instance, state):
         # 恢复离线模式标志
         if 'is_offline_mode' in state:
             api_instance.is_offline_mode = state['is_offline_mode']
+        
+        # 恢复多账号模式状态
+        if 'is_multi_account_mode' in state:
+            api_instance.is_multi_account_mode = state['is_multi_account_mode']
+            
+            # 如果是多账号模式，恢复多账号相关数据
+            if state['is_multi_account_mode']:
+                # 恢复全局参数
+                if 'multi_global_params' in state:
+                    api_instance.global_params = state['multi_global_params']
+                
+                # 注意：这里不会完全恢复每个账号的完整状态
+                # 因为账号状态包含复杂的运行时对象（如线程等）
+                # 仅标记模式，前端会重新加载账号列表
+                logging.info(f"会话恢复：检测到多账号模式，账号数: {len(state.get('multi_account_usernames', []))}")
 
         # 恢复停止标志状态
         if 'stop_run_flag_set' in state:
@@ -7302,7 +7446,7 @@ def restore_session_to_api_instance(api_instance, state):
             api_instance.user_settings = state['user_settings']
 
         logging.info(
-            f"会话状态恢复完成: 任务数={len(api_instance.all_run_data)}, 选中索引={api_instance.current_run_idx}")
+            f"会话状态恢复完成: 任务数={len(api_instance.all_run_data)}, 选中索引={api_instance.current_run_idx}, 多账号模式={api_instance.is_multi_account_mode}")
 
     except Exception as e:
         logging.error(f"恢复会话状态失败: {e}", exc_info=True)
@@ -9761,10 +9905,37 @@ def start_web_server(args_param):
             level = data.get('level', 'INFO').upper()
             message = data.get('message', '')
             timestamp = data.get('timestamp', '')
-            source = data.get('source', 'frontend')
+            source = data.get('source', 'unknown')
 
-            # 构造日志消息
-            log_message = f"[前端-{source}] {message}"
+            if (data == None) or (not message):
+                return jsonify({"success": False, "message": "无效的日志数据"}),
+           
+
+            # 获取 Session ID
+            session_id = request.headers.get('X-Session-ID', 'UnknownSession')
+            # session_id_short = session_id[:8] if session_id else None # 取前8位用于日志
+
+            # 获取 IP 地址 (考虑代理)
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+
+            # 获取用户名 (通过 Session ID)
+            username = 'Guest/Unknown' # 默认值
+            with web_sessions_lock:
+                if session_id in web_sessions:
+                    api_instance = web_sessions[session_id]
+                    # 优先使用 auth_username，如果不存在则尝试 user_data.username
+                    username_attr = getattr(api_instance, 'auth_username', None)
+                    if not username_attr and hasattr(api_instance, 'user_data'):
+                         username_attr = getattr(api_instance.user_data, 'username', None)
+
+                    if username_attr: # 确保获取到的用户名非空
+                         username = username_attr
+                    elif getattr(api_instance, 'is_guest', False): # 明确是游客
+                         username = 'Guest'
+                    # 如果 session 存在但无法确定用户名，保留 'Guest/Unknown'
+
+            # 构造新的日志消息，包含 IP、用户名和 Session ID
+            log_message = f"[前端日志][IP:{ip_address}][前端时间:{timestamp}][用户:{username}][Session Id:{session_id}][{source}] {message}"
 
             # 根据级别记录日志
             if level == 'DEBUG':
@@ -9782,9 +9953,12 @@ def start_web_server(args_param):
 
             return jsonify({"success": True})
         except Exception as e:
-            logging.error(f"处理前端日志时出错: {e}", exc_info=True)
+            # 在错误日志中也尝试包含 IP 和 Session ID
+            session_id_err = request.headers.get('X-Session-ID', 'UnknownSession')
+            ip_address_err = request.headers.get('X-Forwarded-For', request.remote_addr)
+            logging.error(f"[前端日志处理错误][IP:{ip_address_err}][Sess:{session_id_err[:8]}] {e}", exc_info=True)
             return jsonify({"success": False, "message": str(e)}), 500
-
+        
     # ====================
     # 应用主路由
     # ====================
@@ -9949,7 +10123,9 @@ def start_web_server(args_param):
                     'start_single_run', 'start_all_runs', 'stop_current_run',
                     'import_offline_file', 'export_offline_file',
                     'record_path', 'auto_generate_path', 'process_path', 'clear_path',
-                    'update_param', 'generate_new_ua'
+                    'update_param', 'generate_new_ua',
+                    'enter_multi_account_mode', 'exit_multi_account_mode', 'enter_single_account_mode',  # 模式切换
+                    'multi_add_account', 'multi_remove_account'  # 多账号操作
                 ]
                 if method in auto_save_methods:
                     save_session_state(session_id, api_instance)
@@ -10142,6 +10318,7 @@ def main():
     # 配置详细的中文日志输出（确保UTF-8编码）
     selected_level_name = 'debug' if args.debug else args.log_level
     log_level = getattr(logging, selected_level_name.upper(), logging.DEBUG)
+
     log_format = "%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s"
 
     # 创建UTF-8编码的StreamHandler
