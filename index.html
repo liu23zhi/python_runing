@@ -4260,18 +4260,23 @@
 
           return `
         <div class="border border-slate-200 rounded-lg p-3 mb-2">
-          <div class="flex justify-between items-start">
-            <div class="flex-1">
-              <p class="font-semibold text-slate-800">${user.auth_username}${bannedBadge}</p>
-              <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-              <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
-              <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
-              <p class="text-xs ${(user['2fa_enabled'] || user.tfa_enabled) ? 'text-green-600' : 'text-slate-400'}">2FA: ${(user['2fa_enabled'] || user.tfa_enabled) ? '已启用' : '未启用'}</p>
+          <div class="flex justify-between items-start gap-3">
+            <div class="flex items-start gap-3 flex-1">
+              <div id="avatar-${user.auth_username}" class="flex-shrink-0 w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden border-2 border-slate-300">
+                <span class="text-2xl text-slate-400">👤</span>
+              </div>
+              <div class="flex-1">
+                <p class="font-semibold text-slate-800">${user.auth_username}${bannedBadge}</p>
+                <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+                <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
+                <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
+                <p class="text-xs ${(user['2fa_enabled'] || user.tfa_enabled) ? 'text-green-600' : 'text-slate-400'}">2FA: ${(user['2fa_enabled'] || user.tfa_enabled) ? '已启用' : '未启用'}</p>
+              </div>
             </div>
             <div class="flex flex-col items-end gap-1">
               <span class="text-xs text-slate-600">权限组:</span>
               ${groupSelect}
-              <div class="flex gap-1 mt-2">
+              <div class="flex gap-1 mt-2 flex-wrap justify-end">
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
@@ -4280,6 +4285,7 @@
                   `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
                   `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
                 }
+                <button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="clearUserAvatar('${user.auth_username}')">清除头像</button>
                 <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${user.auth_username}')">删除</button>
               </div>
             </div>
@@ -4287,6 +4293,11 @@
         </div>
       `;
         }).join('');
+        
+        // 加载每个用户的头像
+        result.users.forEach(user => {
+          loadUserAvatar(user.auth_username);
+        });
       } catch (e) {
         $('admin-users-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
       }
@@ -4487,6 +4498,59 @@
 
         } else {
           showModalAlert(result.message || '删除失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function loadUserAvatar(username) {
+      try {
+        const response = await fetch(`/auth/user/avatar?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const result = await response.json();
+        const avatarDiv = document.getElementById(`avatar-${username}`);
+        
+        if (!avatarDiv) return;
+        
+        if (result.success && result.avatar_url) {
+          avatarDiv.innerHTML = `<img src="${result.avatar_url}" alt="${username}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><span class="text-2xl text-slate-400" style="display:none;">👤</span>`;
+        } else {
+          avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
+        }
+      } catch (e) {
+        console.error(`加载用户头像失败 ${username}:`, e);
+      }
+    }
+
+    async function clearUserAvatar(username) {
+      const confirmed = await jsShowConfirm('确认清除头像', `确定要清除用户 ${username} 的头像吗？`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/clear_user_avatar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`已清除用户 ${username} 的头像`, '成功');
+          // 立即更新头像显示
+          const avatarDiv = document.getElementById(`avatar-${username}`);
+          if (avatarDiv) {
+            avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
+          }
+        } else {
+          showModalAlert(result.message || '清除失败', '错误');
         }
       } catch (e) {
         showModalAlert('操作失败: ' + e.message, '错误');

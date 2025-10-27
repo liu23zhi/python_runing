@@ -8349,6 +8349,43 @@ def start_web_server(args):
             with open(filepath, 'wb') as f:
                 f.write(png_content)
             
+            # 更新索引文件，记录上传信息
+            index_file = os.path.join(images_dir, '_index.json')
+            try:
+                # 读取现有索引
+                if os.path.exists(index_file):
+                    with open(index_file, 'r', encoding='utf-8') as f:
+                        index_data = json.load(f)
+                else:
+                    index_data = {
+                        'version': '1.0',
+                        'description': '用户头像索引文件，记录每个文件的上传信息',
+                        'files': {}
+                    }
+                
+                # 获取客户端IP
+                ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+                
+                # 添加/更新文件信息
+                index_data['files'][filename] = {
+                    'username': auth_username,
+                    'upload_time': time.time(),
+                    'upload_time_str': datetime.datetime.now().isoformat(),
+                    'ip_address': ip_address,
+                    'original_filename': file.filename,
+                    'file_size': len(png_content),
+                    'sha256': sha256_hash
+                }
+                
+                # 保存索引
+                with open(index_file, 'w', encoding='utf-8') as f:
+                    json.dump(index_data, f, indent=2, ensure_ascii=False)
+                    
+                logging.info(f"用户 {auth_username} 从 {ip_address} 上传头像: {filename}")
+            except Exception as e:
+                logging.error(f"更新头像索引失败: {e}", exc_info=True)
+                # 不影响上传流程，继续执行
+            
         except Exception as e:
             return jsonify({"success": False, "message": f"图片处理失败: {str(e)}"}), 500
         
@@ -8366,9 +8403,17 @@ def start_web_server(args):
                 "message": "头像上传成功"
             })
         else:
-            # 如果更新失败，删除已上传的文件
+            # 如果更新失败，删除已上传的文件和索引
             try:
                 os.remove(filepath)
+                # 从索引中移除
+                if os.path.exists(index_file):
+                    with open(index_file, 'r', encoding='utf-8') as f:
+                        index_data = json.load(f)
+                    if filename in index_data.get('files', {}):
+                        del index_data['files'][filename]
+                        with open(index_file, 'w', encoding='utf-8') as f:
+                            json.dump(index_data, f, indent=2, ensure_ascii=False)
             except:
                 pass
             return jsonify(result)
@@ -8401,6 +8446,88 @@ def start_web_server(args):
             return send_file(filepath, mimetype='image/png')
         except Exception as e:
             return jsonify({"success": False, "message": f"读取文件失败: {str(e)}"}), 500
+    
+    @app.route('/auth/admin/clear_user_avatar', methods=['POST'])
+    def auth_admin_clear_user_avatar():
+        """管理员：强制清除用户头像"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查管理权限
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        data = request.json
+        target_username = data.get('username', '')
+        
+        if not target_username:
+            return jsonify({"success": False, "message": "缺少用户名参数"}), 400
+        
+        # 获取目标用户的头像URL
+        user_details = auth_system.get_user_details(target_username)
+        if not user_details:
+            return jsonify({"success": False, "message": "用户不存在"}), 404
+        
+        old_avatar_url = user_details.get('avatar_url', '')
+        
+        # 清除用户头像URL
+        result = auth_system.update_user_avatar(target_username, '')
+        
+        if result.get('success'):
+            # 如果有旧头像，尝试删除文件和索引（但不强制，因为可能被其他用户共享）
+            if old_avatar_url:
+                try:
+                    # 提取文件名
+                    filename = old_avatar_url.split('/')[-1]
+                    filepath = os.path.join('system_accounts', 'images', filename)
+                    index_file = os.path.join('system_accounts', 'images', '_index.json')
+                    
+                    # 检查索引中的文件信息
+                    if os.path.exists(index_file):
+                        with open(index_file, 'r', encoding='utf-8') as f:
+                            index_data = json.load(f)
+                        
+                        file_info = index_data.get('files', {}).get(filename, {})
+                        
+                        # 只有当文件是该用户上传的才删除（避免误删共享头像）
+                        if file_info.get('username') == target_username:
+                            # 删除文件
+                            if os.path.exists(filepath):
+                                os.remove(filepath)
+                                logging.info(f"管理员 {auth_username} 删除了用户 {target_username} 的头像文件: {filename}")
+                            
+                            # 从索引中移除
+                            if filename in index_data.get('files', {}):
+                                del index_data['files'][filename]
+                                with open(index_file, 'w', encoding='utf-8') as f:
+                                    json.dump(index_data, f, indent=2, ensure_ascii=False)
+                        else:
+                            logging.info(f"管理员 {auth_username} 清除了用户 {target_username} 的头像URL，但文件由其他用户上传，未删除文件")
+                    
+                except Exception as e:
+                    logging.error(f"清除头像文件时出错: {e}", exc_info=True)
+                    # 不影响主要功能，继续
+            
+            # 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'clear_user_avatar',
+                f'强制清除用户 {target_username} 的头像',
+                ip_address,
+                session_id
+            )
+            
+            return jsonify({
+                "success": True,
+                "message": f"已清除用户 {target_username} 的头像"
+            })
+        else:
+            return jsonify(result)
     
     @app.route('/auth/user/update_theme', methods=['POST'])
     def auth_user_update_theme():
