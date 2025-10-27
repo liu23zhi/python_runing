@@ -8101,7 +8101,45 @@ def start_web_server(args):
             return jsonify({"success": True, "message": "验证码正确"})
         else:
             return jsonify({"success": False, "message": "验证码错误"})
-
+    
+    @app.route('/auth/2fa/disable', methods=['POST'])
+    def auth_2fa_disable():
+        """关闭2FA"""
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        if not getattr(api_instance, 'is_authenticated', False):
+            return jsonify({"success": False, "message": "未认证"}), 401
+        
+        auth_username = getattr(api_instance, 'auth_username', '')
+        if auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客不支持2FA"}), 403
+        
+        # 禁用2FA
+        user_file = auth_system.get_user_file_path(auth_username)
+        if os.path.exists(user_file):
+            try:
+                with auth_system.lock:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                    
+                    user_data['2fa_enabled'] = False
+                    # 可选：也可以删除2fa_secret，但保留它允许用户稍后重新启用
+                    # user_data['2fa_secret'] = None
+                    
+                    with open(user_file, 'w', encoding='utf-8') as f:
+                        json.dump(user_data, f, indent=2, ensure_ascii=False)
+                
+                logging.info(f"用户 {auth_username} 已关闭2FA")
+                return jsonify({"success": True, "message": "2FA已关闭"})
+            except Exception as e:
+                logging.error(f"关闭2FA失败: {e}", exc_info=True)
+                return jsonify({"success": False, "message": f"关闭失败: {str(e)}"}), 500
+        else:
+            return jsonify({"success": False, "message": "用户不存在"}), 404
     
     @app.route('/auth/admin/create_user', methods=['POST'])
     def auth_admin_create_user():
