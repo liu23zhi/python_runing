@@ -7846,12 +7846,15 @@ def start_web_server(args):
     
     @app.route('/auth/admin/set_user_permission', methods=['POST'])
     def auth_admin_set_user_permission():
-        """管理员：为用户设置自定义权限（差分化存储）"""
+        """管理员：为用户设置自定义权限（差分化存储）
+        
+        支持两种模式：
+        1. 单个权限设置：传递 permission 和 grant 参数
+        2. 批量权限设置：传递 added_permissions 和 removed_permissions 对象
+        """
         session_id = request.headers.get('X-Session-ID', '')
         data = request.get_json() or {}
         target_username = data.get('username', '')
-        permission = data.get('permission', '')
-        grant = data.get('grant', False)
         
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权"}), 401
@@ -7863,19 +7866,59 @@ def start_web_server(args):
         if not auth_system.check_permission(auth_username, 'manage_permissions'):
             return jsonify({"success": False, "message": "权限不足"}), 403
         
-        result = auth_system.set_user_custom_permission(target_username, permission, grant)
+        # 检查是批量更新还是单个更新
+        added_permissions = data.get('added_permissions', {})
+        removed_permissions = data.get('removed_permissions', {})
         
-        # 记录审计日志
-        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
-        auth_system.log_audit(
-            auth_username,
-            'set_user_permission',
-            f'为用户 {target_username} {"授予" if grant else "移除"} 权限: {permission}',
-            ip_address,
-            session_id
-        )
-        
-        return jsonify(result)
+        if added_permissions or removed_permissions:
+            # 批量更新模式
+            try:
+                # 清空用户的差分权限，然后设置新的
+                if 'user_custom_permissions' not in auth_system.permissions:
+                    auth_system.permissions['user_custom_permissions'] = {}
+                
+                auth_system.permissions['user_custom_permissions'][target_username] = {
+                    'added': list(added_permissions.keys()),
+                    'removed': list(removed_permissions.keys())
+                }
+                
+                auth_system._save_permissions()
+                
+                # 记录审计日志
+                ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+                auth_system.log_audit(
+                    auth_username,
+                    'set_user_permissions_batch',
+                    f'批量更新用户 {target_username} 的差分权限: 添加{len(added_permissions)}个, 移除{len(removed_permissions)}个',
+                    ip_address,
+                    session_id
+                )
+                
+                return jsonify({"success": True, "message": "权限已更新"})
+            except Exception as e:
+                logging.error(f"批量更新权限失败: {e}", exc_info=True)
+                return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+        else:
+            # 单个权限更新模式（兼容旧代码）
+            permission = data.get('permission', '')
+            grant = data.get('grant', False)
+            
+            if not permission:
+                return jsonify({"success": False, "message": "缺少permission参数"}), 400
+            
+            result = auth_system.set_user_custom_permission(target_username, permission, grant)
+            
+            # 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'set_user_permission',
+                f'为用户 {target_username} {"授予" if grant else "移除"} 权限: {permission}',
+                ip_address,
+                session_id
+            )
+            
+            return jsonify(result)
     
     @app.route('/auth/get_config', methods=['GET'])
     def auth_get_config():
