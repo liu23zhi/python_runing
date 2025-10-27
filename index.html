@@ -6045,6 +6045,7 @@
       const hasSchoolLogin = initialData.isLoggedIn && initialData.userInfo;
       const hasSystemAuth = initialData.is_authenticated && !initialData.is_guest;
       const isGuestMode = initialData.is_authenticated && initialData.is_guest;
+      const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  // 检查是否有已加载的任务
 
       $('loading-overlay').classList.remove('hidden');
 
@@ -6137,9 +6138,10 @@
 
 
       // 如果是单账号模式，则恢复单账号会话
-      else if (hasSchoolLogin) {
-        // 学校账号已登录，直接显示主界面
-        currentUserData = initialData.userInfo;
+      // 恢复条件：已登录学校账号 或 有已加载的任务（如导入的离线文件）
+      else if (hasSchoolLogin || hasLoadedTasks) {
+        // 学校账号已登录或有已加载任务，直接显示主界面
+        currentUserData = initialData.userInfo || {};  // 如果没有登录，userInfo可能为空
 
         hideLoadingOverlays();
         // 恢复会话时确保API Key已配置并加载地图
@@ -6164,9 +6166,9 @@
         logMessage_Info('refreshUserList interval started.'); // 添加日志确认启动
 
         showMainApp();
-        const name = currentUserData.name || '';
+        const name = currentUserData.name || '离线模式';  // 如果没有用户信息，显示"离线模式"
         $('user-name-label').textContent = `姓名: ${name}`;
-        $('user-id-label').textContent = `学号: ${currentUserData.student_id}`;
+        $('user-id-label').textContent = `学号: ${currentUserData.student_id || '未登录'}`;
         updateDashboard();
         await refreshTasks();
         
