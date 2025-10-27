@@ -6080,6 +6080,21 @@
       if (sessionModeInfo && sessionModeInfo.is_multi_account_mode) {
         logMessage_Info('检测到会话之前处于多账号模式，正在恢复...');
         
+        // 通知后端进入多账号模式（恢复后端状态）
+        try {
+          const result = await callPythonAPI('enter_multi_account_mode');
+          if (!result.success) {
+            logMessage_Error('无法进入多账号模式，返回登录界面');
+            return;
+          }
+          // 使用后端返回的参数（如果会话中没有保存）
+          if (!sessionModeInfo.global_params && result.params) {
+            pythonParams = result.params;
+          }
+        } catch (e) {
+          logMessage_Error('调用 enter_multi_account_mode 失败:', e);
+          return;
+        }
 
         hideLoadingOverlays();
         // 确保API Key已配置并加载地图（多账号模式也需要地图）
