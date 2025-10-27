@@ -6103,6 +6103,58 @@
         $('main-app').classList.add('hidden');
         // hideLoadingOverlays();
         
+        // 创建多账号地图（如果还没有创建）
+        if (!multiAccountMap && AMapInstance) {
+          try {
+            multiAccountMap = new AMapInstance.Map('multi-map-container', {
+              viewMode: '3D',
+              pitch: 55,
+              rotation: 0,
+              zoom: 17,
+              center: [113.390342, 22.527403]
+            });
+
+            // 多账号地图的 3D 控制杆
+            const ctrlBar = new AMapInstance.ControlBar({
+              position: { left: '12px', top: '12px' },
+              showZoomBar: false,
+              showControlButton: true
+            });
+            multiAccountMap.addControl(ctrlBar);
+
+            // 建筑物图层
+            try {
+              const buildings = new AMapInstance.BuildingLayer();
+              buildings.setMap(multiAccountMap);
+            } catch (e) {
+              logMessage_Warning('BuildingLayer not available (multi):', e);
+            }
+
+            multiAccountMap.on('zoomchange', () => {
+              if (!multiAccountMap) return;
+              const z = multiAccountMap.getZoom();
+              const zoomLevelEl = $('multi-zoom-level');
+              if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
+            });
+
+            // 保存清理函数
+            if (window.multiMapCleanup) window.multiMapCleanup();
+            window.multiMapCleanup = enhanceMapInteraction(multiAccountMap);
+
+            multiAccountMap.setStatus({
+              doubleClickZoom: true,
+              dragEnable: true,
+              scrollWheel: true,
+              keyboardEnable: true
+            });
+
+            // 兜底重建并绑定多账号控件
+            ensureMultiControls();
+          } catch (e) {
+            logMessage_Error('初始化多账号地图失败:', e);
+          }
+        }
+        
         // 初始化配置用户下拉列表
         try {
           const configUsers = await callPythonAPI('multi_get_all_config_users');
@@ -6115,13 +6167,6 @@
           });
         } catch (e) {
           logMessage_Error('加载配置用户列表失败:', e);
-        }
-        
-        // 初始化多账号地图
-        try {
-          await initMultiMap();
-        } catch (e) {
-          logMessage_Error('初始化多账号地图失败:', e);
         }
         
         // 恢复全局参数并初始化全局参数UI
@@ -6137,13 +6182,6 @@
           updateParamInputs(container, 'multi-param', pythonParams);
         } catch (e) {
           logMessage_Error('初始化全局参数UI失败:', e);
-        }
-        
-        // 刷新账号列表显示（账号数据会在后端恢复，前端只需要显示）
-        try {
-          await multi_refreshAccountList();
-        } catch (e) {
-          logMessage_Error('刷新多账号列表失败:', e);
         }
         
         // 绑定即时刷新和更新按钮状态
