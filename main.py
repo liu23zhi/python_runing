@@ -4732,6 +4732,19 @@ class Api:
             mode_info["task_count"] = len(getattr(self, 'all_run_data', []))
             mode_info["selected_task_index"] = getattr(self, 'current_run_idx', -1)
             
+            # 保存用户数据（用于离线模式恢复）
+            if hasattr(self, 'user_data') and self.user_data:
+                user_data = self.user_data
+                mode_info["user_data"] = {
+                    'name': getattr(user_data, 'name', ''),
+                    'phone': getattr(user_data, 'phone', ''),
+                    'student_id': getattr(user_data, 'student_id', ''),
+                    'id': getattr(user_data, 'id', ''),
+                    'username': getattr(user_data, 'username', ''),
+                    'gender': getattr(user_data, 'gender', ''),
+                    'school_name': getattr(user_data, 'school_name', '')
+                }
+            
         return mode_info
 
 

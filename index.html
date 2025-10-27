@@ -6145,7 +6145,8 @@
       // 恢复条件：已登录学校账号 或 有已加载的任务（如导入的离线文件）
       else if (hasSchoolLogin || hasLoadedTasks) {
         // 学校账号已登录或有已加载任务，直接显示主界面
-        currentUserData = initialData.userInfo || {};  // 如果没有登录，userInfo可能为空
+        // 优先使用学校登录的用户信息，如果没有则使用会话中保存的离线模式用户数据
+        currentUserData = initialData.userInfo || (sessionModeInfo && sessionModeInfo.user_data) || {};
 
         hideLoadingOverlays();
         // 恢复会话时确保API Key已配置并加载地图
