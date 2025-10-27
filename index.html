@@ -6280,6 +6280,16 @@
         updateDashboard();
         await refreshTasks();
         
+        // 恢复之前选中的任务（如果有）
+        if (sessionModeInfo && sessionModeInfo.selected_task_index !== undefined && sessionModeInfo.selected_task_index >= 0) {
+          try {
+            logMessage_Info(`正在恢复之前选中的任务 (索引: ${sessionModeInfo.selected_task_index})...`);
+            await selectTask(sessionModeInfo.selected_task_index);
+          } catch (e) {
+            logMessage_Error('恢复选中任务失败:', e);
+          }
+        }
+        
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
 
