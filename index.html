@@ -6825,6 +6825,11 @@
         await refreshTasks();
 
         console.log('[前端-登录] 获取通知...');
+        // 在获取通知前，先隐藏通知徽章，直到获得确切数量
+        const notificationBadge = $('notification-badge');
+        if (notificationBadge) {
+          notificationBadge.classList.add('hidden');
+        }
         await fetchNotifications();
 
         const base = pythonParams.theme_base_color || '#7dd3fc';
