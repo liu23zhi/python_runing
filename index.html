@@ -1886,10 +1886,15 @@
             refreshUserListInterval = null;
           }
           
-          // 断开WebSocket连接，避免持续的连接错误
-          if (socket && socket.connected) {
-            socket.disconnect();
-            logMessage_Info('[API调用] 已断开WebSocket连接 (因网络错误)');
+          // 断开WebSocket连接并禁用自动重连，避免持续的连接错误
+          if (socket) {
+            if (socket.io) {
+              socket.io.opts.reconnection = false;  // 禁用自动重连
+            }
+            if (socket.connected) {
+              socket.disconnect();
+            }
+            logMessage_Info('[API调用] 已断开WebSocket连接并禁用自动重连 (因网络错误)');
           }
         }
         
@@ -1910,8 +1915,12 @@
               
               // 重新连接WebSocket
               if (socket && !socket.connected && sessionUUID) {
+                // 重新启用自动重连
+                if (socket.io) {
+                  socket.io.opts.reconnection = true;
+                }
                 socket.connect();
-                logMessage_Info('[API调用] 正在重新连接WebSocket');
+                logMessage_Info('[API调用] 正在重新连接WebSocket（已重新启用自动重连）');
               }
             }, 1000);
           }
@@ -6209,7 +6218,14 @@
       socket = io({
         // 如果部署在非根路径，可能需要指定 path
         // path: '/socket.io'
+        autoConnect: false,  // 手动控制连接，避免自动重连干扰网络错误处理
+        reconnection: true,  // 允许重连（在正常情况下）
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5
       });
+      
+      // 手动连接
+      socket.connect();
 
       socket.on('connect', () => {
         logMessage_Info('WebSocket connected successfully. SID:', socket.id);
