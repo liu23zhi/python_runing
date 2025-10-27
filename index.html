@@ -1315,8 +1315,7 @@
               <div class="flex-1 space-y-2">
                 <label class="block text-sm font-semibold text-slate-700 mb-1">上传头像</label>
                 <input type="file" id="profile-avatar-file" accept="image/*" class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="previewAvatar(event)">
-                <button onclick="uploadAvatar()" class="btn btn-primary !py-1 !px-3">上传</button>
-                <!-- <p class="text-xs text-slate-500">⚠️ 图片上传功能需要后端API支持</p> -->
+                <p class="text-xs text-slate-500">💡 选择图片后会自动打开裁剪界面</p>
               </div>
             </div>
 
@@ -1597,7 +1596,7 @@
 
       <div class="flex gap-2 justify-end">
         <button onclick="closeCropModal()" class="btn btn-ghost border border-slate-300">取消</button>
-        <button onclick="confirmCrop()" class="btn btn-primary">确认裁剪</button>
+        <button onclick="confirmCropAndUpload()" class="btn btn-primary">确认并上传</button>
       </div>
     </div>
   </div>
@@ -3715,7 +3714,7 @@
       hideModal('avatar-crop-modal');
     }
 
-    function confirmCrop() {
+    async function confirmCropAndUpload() {
       if (!avatarCropper) {
         showModalAlert('裁剪器未初始化', '错误');
         return;
@@ -3735,21 +3734,48 @@
       }
       
       // 将canvas转换为blob
-      canvas.toBlob(function(blob) {
+      canvas.toBlob(async function(blob) {
         // 创建文件对象
-        croppedAvatarFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-        
-        // 预览裁剪后的图片
-        const avatarDisplay = $('profile-avatar-display');
-        if (avatarDisplay) {
-          avatarDisplay.src = canvas.toDataURL('image/jpeg');
-        }
+        const avatarFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
         
         // 关闭裁剪模态框
         closeCropModal();
         
-        // 提示用户点击上传
-        showModalAlert('图片已裁剪，请点击"上传头像"按钮完成上传', '提示');
+        // 直接上传
+        const formData = new FormData();
+        formData.append('avatar', avatarFile);
+
+        try {
+          const response = await fetch('/auth/user/upload_avatar', {
+            method: 'POST',
+            headers: {
+              'X-Session-ID': sessionUUID
+            },
+            body: formData
+          });
+          const result = await response.json();
+
+          if (result.success) {
+            showModalAlert('头像上传成功！', '成功');
+            
+            // 清除裁剪后的文件
+            croppedAvatarFile = null;
+            
+            // 清除文件输入
+            const fileInput = $('profile-avatar-file');
+            if (fileInput) {
+              fileInput.value = '';
+            }
+            
+            // 重新加载个人信息以显示新头像
+            await loadPersonalInfo();
+          } else {
+            showModalAlert(`上传失败: ${result.message}`, '错误');
+          }
+        } catch (e) {
+          console.error("上传头像失败:", e);
+          showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
+        }
       }, 'image/jpeg', 0.9);
     }
 
