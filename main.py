@@ -7647,22 +7647,81 @@ class BackgroundTaskManager:
                 # 如果需要自动生成路径
                 if auto_generate and not run_data.run_coords:
                     logging.info(f"Auto-generating path for task: {run_data.run_name}")
-                    # 这里调用自动生成路径的逻辑
-                    # api_instance.auto_generate_path() # 需要根据实际API调整
+                    try:
+                        # 调用自动生成路径
+                        api_instance.current_run_idx = task_idx
+                        result = api_instance.auto_generate_path()
+                        if not result.get('success'):
+                            logging.error(f"Failed to auto-generate path: {result.get('message')}")
+                            # 继续下一个任务
+                            continue
+                    except Exception as e:
+                        logging.error(f"Auto-generate path failed: {e}")
+                        continue
                 
-                # 执行任务
+                # 检查任务是否有路径
+                if not run_data.run_coords:
+                    logging.warning(f"Task {run_data.run_name} has no path, skipping")
+                    continue
+                
+                # 设置当前任务
                 api_instance.current_run_idx = task_idx
+                run_data.target_sequence = 1
+                run_data.is_in_target_zone = False
+                api_instance._first_center_done = False
                 api_instance.stop_run_flag.clear()
                 
-                # 执行提交逻辑（这里简化处理，实际需要调用完整的执行逻辑）
-                # 这里需要调用 _run_submission_thread 或类似的方法
-                # 为了演示，我们模拟任务执行
-                self._simulate_task_execution(session_id, task_state, run_data)
+                # 创建完成事件
+                finished_event = threading.Event()
+                
+                # 执行任务（使用实际的提交线程）
+                try:
+                    # 调用实际的执行逻辑
+                    thread = threading.Thread(
+                        target=api_instance._run_submission_thread,
+                        args=(run_data, task_idx, api_instance.api_client, False, finished_event),
+                        daemon=True
+                    )
+                    thread.start()
+                    
+                    # 等待任务完成或超时（最多等待任务预计时间的2倍）
+                    total_time_s = sum(p[2] for p in run_data.run_coords) / 1000.0
+                    timeout = max(total_time_s * 2, 300)  # 至少5分钟
+                    
+                    # 监控任务进度并更新状态
+                    start_wait = time.time()
+                    while not finished_event.is_set():
+                        if time.time() - start_wait > timeout:
+                            logging.warning(f"Task execution timeout for {run_data.run_name}")
+                            api_instance.stop_run_flag.set()
+                            break
+                        
+                        # 更新当前任务进度
+                        with self.lock:
+                            if hasattr(run_data, 'current_point_index'):
+                                total_points = len(run_data.run_coords)
+                                current_progress = int(run_data.current_point_index / total_points * 100)
+                                task_state['current_task_progress'] = current_progress
+                                task_state['last_update'] = time.time()
+                        
+                        # 每5秒保存一次状态
+                        if int(time.time() - start_wait) % 5 == 0:
+                            with self.lock:
+                                self.save_task_state(session_id, task_state)
+                        
+                        time.sleep(1)
+                    
+                    # 等待线程结束
+                    thread.join(timeout=10)
+                    
+                except Exception as e:
+                    logging.error(f"Task execution failed: {e}", exc_info=True)
                 
                 # 更新完成状态
                 with self.lock:
                     task_state['completed_tasks'] = i + 1
                     task_state['progress_percent'] = int((i + 1) / len(task_indices) * 100)
+                    task_state['current_task_progress'] = 100
                     task_state['last_update'] = time.time()
                     self.save_task_state(session_id, task_state)
                 
@@ -7683,21 +7742,6 @@ class BackgroundTaskManager:
                     self.tasks[session_id]['status'] = 'error'
                     self.tasks[session_id]['error'] = str(e)
                     self.save_task_state(session_id, self.tasks[session_id])
-    
-    def _simulate_task_execution(self, session_id, task_state, run_data):
-        """模拟任务执行（用于测试）"""
-        # 模拟任务执行过程
-        total_points = len(run_data.run_coords) if run_data.run_coords else 100
-        for i in range(total_points):
-            time.sleep(0.1)  # 模拟执行延迟
-            
-            # 更新当前任务进度
-            with self.lock:
-                if session_id in self.tasks:
-                    task_state['current_task_progress'] = int((i + 1) / total_points * 100)
-                    task_state['last_update'] = time.time()
-                    if i % 10 == 0:  # 每10个点保存一次
-                        self.save_task_state(session_id, task_state)
     
     def get_task_status(self, session_id):
         """获取任务状态"""

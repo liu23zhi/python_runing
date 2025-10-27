@@ -793,6 +793,25 @@
               <button id="start-run-button" class="btn btn-primary">开始执行</button>
               <button id="start-all-button" class="btn btn-secondary">执行所有</button>
             </div>
+            
+            <!-- 后台任务按钮 -->
+            <div class="grid grid-cols-2 gap-3">
+              <button id="start-background-button" class="btn btn-success">后台执行所有</button>
+              <button id="stop-background-button" class="btn btn-danger hidden">停止后台任务</button>
+            </div>
+            
+            <!-- 后台任务进度显示 -->
+            <div id="background-task-status" class="hidden mt-2 p-3 rounded-lg border border-sky-200 bg-sky-50">
+              <div class="text-sm font-semibold text-sky-700 mb-2">后台任务进度</div>
+              <div class="text-xs text-slate-600">
+                <div>已完成: <span id="bg-completed-count">0</span> / <span id="bg-total-count">0</span></div>
+                <div>总进度: <span id="bg-overall-progress">0</span>%</div>
+                <div>当前任务: <span id="bg-current-progress">0</span>%</div>
+              </div>
+              <div class="h-2 bg-slate-200 rounded-full overflow-hidden mt-2">
+                <div id="bg-progress-fill" class="h-2 bg-sky-500" style="width:0%"></div>
+              </div>
+            </div>
 
             <div class="flex items-center justify-center space-x-4 pt-1">
               <label class="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer"><input type="checkbox"
@@ -2024,6 +2043,42 @@
       const result = await response.json();
       logMessage_Info(`[API调用] ✓ 返回结果 (${method}):`, result.success ? '成功' : '失败');
       return result;
+    }
+
+    // 原始API调用函数，用于直接调用路径
+    async function callPythonAPI_raw(path, method = 'POST', data = null) {
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      // 添加会话UUID到请求头
+      if (sessionUUID) {
+        headers['X-Session-ID'] = sessionUUID;
+      }
+
+      const options = {
+        method: method,
+        headers: headers,
+        credentials: 'include',
+      };
+
+      if (data && method !== 'GET') {
+        options.body = JSON.stringify(data);
+      }
+
+      try {
+        const response = await fetch(path, options);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        return result;
+      } catch (error) {
+        logMessage_Error(`API调用失败 (${path}):`, error);
+        throw error;
+      }
     }
 
     // 在服务器端Chrome中执行JavaScript
@@ -6013,6 +6068,11 @@
         connectWebSocket();
       }
 
+      // 检查是否有后台任务在运行
+      checkBackgroundTaskOnLoad().catch(err => {
+        logMessage_Warning('检查后台任务失败:', err);
+      });
+
       // 取消CDN错误定时器（如果还在等待）
       if (cdnErrorTimer) {
         clearTimeout(cdnErrorTimer);
@@ -6981,6 +7041,8 @@
     $('process-button').addEventListener('click', processCurrentPath);
     $('start-run-button').addEventListener('click', toggleRun);
     $('start-all-button').addEventListener('click', toggleAllRuns);
+    $('start-background-button').addEventListener('click', startBackgroundTasks);
+    $('stop-background-button').addEventListener('click', stopBackgroundTasks);
     $('export-button').addEventListener('click', exportTask);
     $('import-button').addEventListener('click', importTask);
     // $('zoom-in').addEventListener('click', () => { if (map) map.zoomIn(); });
@@ -8502,6 +8564,170 @@
     function onAllRunsToggled(isRunning) {
       if (isRunning) { onRunStarted(); }
       else { onRunStopped(); }
+    }
+
+    // ========== 后台任务管理函数 ==========
+    let backgroundTaskPollInterval = null;
+    
+    async function startBackgroundTasks() {
+      try {
+        // 获取所有需要执行的任务索引
+        const ignoreCompleted = $('run-completed-check').checked;
+        const autoGenerate = $('auto-gen-all-check').checked;
+        
+        // 筛选任务
+        const taskIndices = [];
+        for (let i = 0; i < allTasksData.length; i++) {
+          const task = allTasksData[i];
+          if (task.status == 1 && !ignoreCompleted) continue;
+          
+          // 检查时间
+          const now = new Date();
+          if (task.end_time) {
+            const endDate = new Date(task.end_time);
+            if (endDate < now) continue;
+          }
+          if (task.start_time) {
+            const startDate = new Date(task.start_time);
+            if (startDate > now) continue;
+          }
+          
+          taskIndices.push(i);
+        }
+        
+        if (taskIndices.length === 0) {
+          showModalAlert('没有可执行的任务');
+          return;
+        }
+        
+        // 启动后台任务
+        const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
+          task_indices: taskIndices,
+          auto_generate: autoGenerate
+        });
+        
+        if (result.success) {
+          logMessage_Info(`后台任务已启动，共${taskIndices.length}个任务`);
+          showModalAlert(`后台任务已启动，共${taskIndices.length}个任务。您可以关闭浏览器，任务将在后台继续执行。`);
+          
+          // 显示后台任务状态
+          $('background-task-status').classList.remove('hidden');
+          $('start-background-button').classList.add('hidden');
+          $('stop-background-button').classList.remove('hidden');
+          
+          // 开始轮询状态
+          startBackgroundTaskPolling();
+        } else {
+          showModalAlert('启动后台任务失败: ' + result.message);
+        }
+      } catch (e) {
+        logMessage_Error('启动后台任务失败:', e);
+        showModalAlert('启动后台任务失败');
+      }
+    }
+    
+    async function stopBackgroundTasks() {
+      try {
+        const result = await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+        
+        if (result.success) {
+          logMessage_Info('后台任务已停止');
+          showModalAlert('后台任务已停止');
+          stopBackgroundTaskPolling();
+        } else {
+          showModalAlert('停止后台任务失败: ' + result.message);
+        }
+      } catch (e) {
+        logMessage_Error('停止后台任务失败:', e);
+        showModalAlert('停止后台任务失败');
+      }
+    }
+    
+    function startBackgroundTaskPolling() {
+      if (backgroundTaskPollInterval) {
+        clearInterval(backgroundTaskPollInterval);
+      }
+      
+      // 立即查询一次
+      pollBackgroundTaskStatus();
+      
+      // 每3秒轮询一次
+      backgroundTaskPollInterval = setInterval(pollBackgroundTaskStatus, 3000);
+    }
+    
+    function stopBackgroundTaskPolling() {
+      if (backgroundTaskPollInterval) {
+        clearInterval(backgroundTaskPollInterval);
+        backgroundTaskPollInterval = null;
+      }
+      
+      // 隐藏后台任务状态
+      $('background-task-status').classList.add('hidden');
+      $('start-background-button').classList.remove('hidden');
+      $('stop-background-button').classList.add('hidden');
+    }
+    
+    async function pollBackgroundTaskStatus() {
+      try {
+        const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+        
+        if (result.success && result.task_status) {
+          const status = result.task_status;
+          
+          // 更新UI
+          $('bg-completed-count').textContent = status.completed_tasks || 0;
+          $('bg-total-count').textContent = status.total_tasks || 0;
+          $('bg-overall-progress').textContent = status.progress_percent || 0;
+          $('bg-current-progress').textContent = status.current_task_progress || 0;
+          
+          // 更新进度条
+          const fillElem = $('bg-progress-fill');
+          if (fillElem) {
+            fillElem.style.width = (status.progress_percent || 0) + '%';
+          }
+          
+          // 检查是否完成
+          if (status.status === 'completed') {
+            logMessage_Info('后台任务全部完成！');
+            showModalAlert('后台任务全部完成！');
+            stopBackgroundTaskPolling();
+            
+            // 刷新任务列表
+            refreshTasks();
+          } else if (status.status === 'error') {
+            logMessage_Error('后台任务执行出错: ' + (status.error || '未知错误'));
+            showModalAlert('后台任务执行出错');
+            stopBackgroundTaskPolling();
+          }
+        }
+      } catch (e) {
+        // 静默失败，避免轮询错误影响主流程
+        logMessage_Debug('轮询后台任务状态失败:', e);
+      }
+    }
+    
+    // 页面加载时检查是否有后台任务在运行
+    async function checkBackgroundTaskOnLoad() {
+      try {
+        const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+        
+        if (result.success && result.task_status) {
+          const status = result.task_status;
+          
+          // 如果有任务在运行，显示状态并开始轮询
+          if (status.status === 'running') {
+            logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
+            $('background-task-status').classList.remove('hidden');
+            $('start-background-button').classList.add('hidden');
+            $('stop-background-button').classList.remove('hidden');
+            
+            startBackgroundTaskPolling();
+          }
+        }
+      } catch (e) {
+        // 静默失败
+        logMessage_Debug('检查后台任务状态失败:', e);
+      }
     }
 
     function ensureRunnerMarker() {
