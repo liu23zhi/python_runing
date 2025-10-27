@@ -8177,34 +8177,40 @@ def start_web_server(args_param):
             permission = data.get('permission', '')
             grant = data.get('grant', False)
 
-            try:
-                # 清空用户的差分权限，然后设置新的
-                if 'user_custom_permissions' not in auth_system.permissions:
-                    auth_system.permissions['user_custom_permissions'] = {}
-
-                auth_system._save_permissions()
-
-                # 记录审计日志
-                ip_address = request.headers.get(
-                    'X-Forwarded-For', request.remote_addr)
-                auth_system.log_audit(
-                    auth_username,
-                    'set_user_permissions_batch',
-                    f'批量更新用户 {target_username} 的差分权限: 清空用户的差分权限',
-                    ip_address,
-                    session_id
-                )
-
-                return jsonify({"success": True, "message": "权限已更新"})
-            except Exception as e:
-                logging.error(f"批量更新权限失败: {e}", exc_info=True)
-                return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+            
 
 
             if not permission:
                 # return jsonify({"success": False, "message": "缺少permission参数"}), 400
                 logging.info(f"管理员 {auth_username} 尝试为用户 {target_username} 设置权限时，缺少 permission 参数")
-                permission = ''  # 避免报错，继续执行
+                try:
+                    # 清空用户的差分权限，然后设置新的
+                    if 'user_custom_permissions' not in auth_system.permissions:
+                        auth_system.permissions['user_custom_permissions'] = {}
+                        
+                    auth_system.permissions['user_custom_permissions'][target_username] = {
+                    'added':  [],
+                    'removed': []
+                    }
+
+                    auth_system._save_permissions()
+
+                    # 记录审计日志
+                    ip_address = request.headers.get(
+                        'X-Forwarded-For', request.remote_addr)
+                    auth_system.log_audit(
+                        auth_username,
+                        'set_user_permissions_batch',
+                        f'批量更新用户 {target_username} 的差分权限: 清空用户的差分权限',
+                        ip_address,
+                        session_id
+                    )
+
+                    return jsonify({"success": True, "message": "权限已更新"})
+                except Exception as e:
+                    logging.error(f"批量更新权限失败: {e}", exc_info=True)
+                    return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+                
 
             result = auth_system.set_user_custom_permission(
                 target_username, permission, grant)
@@ -9825,9 +9831,9 @@ def start_web_server(args_param):
                     restore_session_to_api_instance(api_instance, state)
 
                     logging.info(
-                        f"从文件恢复已登录会话 (2048位UUID): {uuid[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')}, 任务数: {len(api_instance.all_run_data)})")
+                        f"从文件恢复已登录会话 : {uuid[:32]}... (用户: {state.get('user_info', {}).get('username', 'Unknown')}, 任务数: {len(api_instance.all_run_data)})")
                 else:
-                    logging.info(f"创建新会话 (2048位UUID): {uuid[:32]}...")
+                    logging.info(f"创建新会话 : {uuid[:32]}...")
 
                 web_sessions[uuid] = api_instance
                 # save_session_state(uuid, api_instance)

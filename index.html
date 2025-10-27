@@ -541,7 +541,7 @@
   </div>
 
   <!-- 用户认证登录界面 -->
-  <div id="auth-login-container" class="w-full h-full flex items-center justify-center">
+  <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
     <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
       <div class="text-center">
         <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
@@ -5945,7 +5945,7 @@
         // 学校账号已登录，直接显示主界面
         currentUserData = initialData.userInfo;
 
-        // Issue 4修复：恢复会话时确保API Key已配置并加载地图
+        // 恢复会话时确保API Key已配置并加载地图
         AMAP_API_KEY = initialData.amap_key || "";
         if (AMAP_API_KEY) {
           try {
