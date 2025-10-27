@@ -8917,9 +8917,10 @@ def start_web_server(args_param):
         """提供头像图片服务（需要会话认证，管理员可访问）"""
         from flask import send_file
 
-        # 验证会话
-        session_id = request.headers.get(
-            'X-Session-ID', '') or request.cookies.get('session_id', '')
+        # 验证会话 - 支持从header、cookie或query参数获取session_id
+        session_id = request.headers.get('X-Session-ID', '') or \
+                     request.cookies.get('session_id', '') or \
+                     request.args.get('session_id', '')
 
         # 如果没有会话ID或会话无效，返回401
         if not session_id or session_id not in web_sessions:

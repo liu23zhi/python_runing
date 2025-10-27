@@ -4542,7 +4542,9 @@
         if (!avatarDiv) return;
 
         if (result.success && result.avatar_url) {
-          avatarDiv.innerHTML = `<img src="${result.avatar_url}" alt="${username}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><span class="text-2xl text-slate-400" style="display:none;">👤</span>`;
+          // 添加session_id作为查询参数到头像URL
+          const avatarUrlWithSession = `${result.avatar_url}?session_id=${sessionUUID}`;
+          avatarDiv.innerHTML = `<img src="${avatarUrlWithSession}" alt="${username}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><span class="text-2xl text-slate-400" style="display:none;">👤</span>`;
         } else {
           avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
         }
