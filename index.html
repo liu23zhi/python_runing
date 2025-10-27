@@ -3529,13 +3529,18 @@
           const avatarUrl = user.avatar_url || user.avatar || '';
           console.log('[loadPersonalInfo] Processing avatar URL:', avatarUrl);
           if (avatarUrl) {
-            // 添加时间戳避免缓存
-            const timestamp = new Date().getTime();
-            const urlWithTimestamp = avatarUrl.includes('?') 
-              ? `${avatarUrl}&t=${timestamp}` 
-              : `${avatarUrl}?t=${timestamp}`;
-            console.log('[loadPersonalInfo] Setting avatar display src to:', urlWithTimestamp);
-            avatarDisplay.src = urlWithTimestamp;
+            // 如果是API头像URL，需要通过fetch获取并转换为data URL
+            if (avatarUrl.startsWith('/api/avatar/')) {
+              loadAvatarWithAuth(avatarUrl, avatarDisplay);
+            } else {
+              // 旧格式的头像URL或外部URL，直接使用
+              const timestamp = new Date().getTime();
+              const urlWithTimestamp = avatarUrl.includes('?') 
+                ? `${avatarUrl}&t=${timestamp}` 
+                : `${avatarUrl}?t=${timestamp}`;
+              console.log('[loadPersonalInfo] Setting avatar display src to:', urlWithTimestamp);
+              avatarDisplay.src = urlWithTimestamp;
+            }
           } else {
             console.log('[loadPersonalInfo] No avatar URL, using default icon');
             // 如果没有头像，使用默认图标
@@ -3611,6 +3616,40 @@
       } catch (e) {
         console.error("更新头像失败:", e);
         showModalAlert(`更新失败: ${e.message}`, '错误');
+      }
+    }
+
+    // 使用认证加载头像
+    async function loadAvatarWithAuth(avatarUrl, imgElement) {
+      try {
+        console.log('[loadAvatarWithAuth] Fetching avatar:', avatarUrl);
+        const response = await fetch(avatarUrl, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        if (!response.ok) {
+          console.error('[loadAvatarWithAuth] Failed to fetch avatar:', response.status);
+          // 如果获取失败，显示默认头像
+          imgElement.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E';
+          return;
+        }
+        
+        // 获取图片blob
+        const blob = await response.blob();
+        
+        // 转换为data URL
+        const reader = new FileReader();
+        reader.onloadend = function() {
+          console.log('[loadAvatarWithAuth] Avatar loaded successfully');
+          imgElement.src = reader.result;
+        };
+        reader.readAsDataURL(blob);
+      } catch (e) {
+        console.error('[loadAvatarWithAuth] Error loading avatar:', e);
+        // 如果加载失败，显示默认头像
+        imgElement.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E';
       }
     }
 

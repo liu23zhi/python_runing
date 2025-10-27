@@ -8280,6 +8280,8 @@ def start_web_server(args):
     def auth_user_upload_avatar():
         """上传用户头像文件（multipart/form-data）"""
         import hashlib
+        from PIL import Image
+        import io
         
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
@@ -8314,25 +8316,41 @@ def start_web_server(args):
         if len(file_content) > max_size:
             return jsonify({"success": False, "message": "文件过大，请上传小于5MB的图片"}), 400
         
-        # 计算SHA256哈希
-        sha256_hash = hashlib.sha256(file_content).hexdigest()
-        
-        # 创建存储目录
-        images_dir = os.path.join('system_accounts', 'images')
-        os.makedirs(images_dir, exist_ok=True)
-        
-        # 保存文件
-        filename = f"{sha256_hash}{file_ext}"
-        filepath = os.path.join(images_dir, filename)
-        
         try:
+            # 使用PIL打开图片并转换为PNG格式
+            img = Image.open(io.BytesIO(file_content))
+            
+            # 转换为RGB模式（PNG不支持CMYK等模式）
+            if img.mode in ('RGBA', 'LA', 'P'):
+                # 保留透明度
+                pass
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # 将图片转换为PNG格式的字节流
+            png_buffer = io.BytesIO()
+            img.save(png_buffer, format='PNG', optimize=True)
+            png_content = png_buffer.getvalue()
+            
+            # 计算SHA256哈希
+            sha256_hash = hashlib.sha256(png_content).hexdigest()
+            
+            # 创建存储目录
+            images_dir = os.path.join('system_accounts', 'images')
+            os.makedirs(images_dir, exist_ok=True)
+            
+            # 保存为PNG文件
+            filename = f"{sha256_hash}.png"
+            filepath = os.path.join(images_dir, filename)
+            
             with open(filepath, 'wb') as f:
-                f.write(file_content)
+                f.write(png_content)
+            
         except Exception as e:
-            return jsonify({"success": False, "message": f"文件保存失败: {str(e)}"}), 500
+            return jsonify({"success": False, "message": f"图片处理失败: {str(e)}"}), 500
         
         # 构建头像URL
-        avatar_url = f"/system_accounts/images/{filename}"
+        avatar_url = f"/api/avatar/{filename}"
         
         # 更新用户头像
         result = auth_system.update_user_avatar(auth_username, avatar_url)
@@ -8351,6 +8369,35 @@ def start_web_server(args):
             except:
                 pass
             return jsonify(result)
+    
+    @app.route('/api/avatar/<filename>', methods=['GET'])
+    def serve_avatar(filename):
+        """提供头像图片服务（需要会话认证）"""
+        from flask import send_file
+        
+        # 验证会话
+        session_id = request.headers.get('X-Session-ID', '') or request.cookies.get('session_id', '')
+        
+        # 如果没有会话ID或会话无效，返回401
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        # 验证文件名格式（只允许PNG文件，且文件名为64字符的十六进制哈希值）
+        if not filename.endswith('.png') or len(filename) != 68:  # 64 chars hash + .png (4 chars)
+            return jsonify({"success": False, "message": "无效的文件名"}), 400
+        
+        # 构建文件路径
+        filepath = os.path.join('system_accounts', 'images', filename)
+        
+        # 检查文件是否存在
+        if not os.path.exists(filepath):
+            return jsonify({"success": False, "message": "头像不存在"}), 404
+        
+        # 返回图片文件
+        try:
+            return send_file(filepath, mimetype='image/png')
+        except Exception as e:
+            return jsonify({"success": False, "message": f"读取文件失败: {str(e)}"}), 500
     
     @app.route('/auth/user/update_theme', methods=['POST'])
     def auth_user_update_theme():
