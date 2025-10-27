@@ -6080,6 +6080,21 @@
       if (sessionModeInfo && sessionModeInfo.is_multi_account_mode) {
         logMessage_Info('检测到会话之前处于多账号模式，正在恢复...');
         
+        // 通知后端进入多账号模式（恢复后端状态）
+        try {
+          const result = await callPythonAPI('enter_multi_account_mode');
+          if (!result.success) {
+            logMessage_Error('无法进入多账号模式，返回登录界面');
+            return;
+          }
+          // 使用后端返回的参数（如果会话中没有保存）
+          if (!sessionModeInfo.global_params && result.params) {
+            pythonParams = result.params;
+          }
+        } catch (e) {
+          logMessage_Error('调用 enter_multi_account_mode 失败:', e);
+          return;
+        }
 
         hideLoadingOverlays();
         // 确保API Key已配置并加载地图（多账号模式也需要地图）
@@ -6099,29 +6114,117 @@
         
         // 显示多账号界面
         $('multi-account-app').classList.remove('hidden');
+        $('multi-account-app').classList.add('grid');
         $('main-app').classList.add('hidden');
         // hideLoadingOverlays();
         
-        // 初始化多账号地图
-        try {
-          await initMultiMap();
-        } catch (e) {
-          logMessage_Error('初始化多账号地图失败:', e);
+        // 创建多账号地图（如果还没有创建）
+        if (!multiAccountMap && AMapInstance) {
+          try {
+            multiAccountMap = new AMapInstance.Map('multi-map-container', {
+              viewMode: '3D',
+              pitch: 55,
+              rotation: 0,
+              zoom: 17,
+              center: [113.390342, 22.527403]
+            });
+
+            // 多账号地图的 3D 控制杆
+            const ctrlBar = new AMapInstance.ControlBar({
+              position: { left: '12px', top: '12px' },
+              showZoomBar: false,
+              showControlButton: true
+            });
+            multiAccountMap.addControl(ctrlBar);
+
+            // 建筑物图层
+            try {
+              const buildings = new AMapInstance.BuildingLayer();
+              buildings.setMap(multiAccountMap);
+            } catch (e) {
+              logMessage_Warning('BuildingLayer not available (multi):', e);
+            }
+
+            multiAccountMap.on('zoomchange', () => {
+              if (!multiAccountMap) return;
+              const z = multiAccountMap.getZoom();
+              const zoomLevelEl = $('multi-zoom-level');
+              if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
+            });
+
+            // 保存清理函数
+            if (window.multiMapCleanup) window.multiMapCleanup();
+            window.multiMapCleanup = enhanceMapInteraction(multiAccountMap);
+
+            multiAccountMap.setStatus({
+              doubleClickZoom: true,
+              dragEnable: true,
+              scrollWheel: true,
+              keyboardEnable: true
+            });
+
+            // 兜底重建并绑定多账号控件
+            ensureMultiControls();
+          } catch (e) {
+            logMessage_Error('初始化多账号地图失败:', e);
+          }
         }
         
-        // 恢复全局参数
+        // 初始化配置用户下拉列表
+        try {
+          const configUsers = await callPythonAPI('multi_get_all_config_users');
+          const select = $('multi-config-user-select');
+          select.innerHTML = '<option value="">(新用户/手动输入)</option>';
+          configUsers.users.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = opt.textContent = u;
+            select.appendChild(opt);
+          });
+        } catch (e) {
+          logMessage_Error('加载配置用户列表失败:', e);
+        }
+        
+        // 恢复全局参数并初始化全局参数UI
         if (sessionModeInfo.global_params) {
           pythonParams = sessionModeInfo.global_params;
         }
         
-        // 刷新账号列表显示（账号数据会在后端恢复，前端只需要显示）
+        // 初始化全局参数UI容器
         try {
-          await multi_refreshAccountList();
+          const container = $('multi-global-params-container');
+          container.innerHTML = '';
+          createParamInputs(container, 'multi-param', onGlobalParamChange);
+          updateParamInputs(container, 'multi-param', pythonParams);
         } catch (e) {
-          logMessage_Error('刷新多账号列表失败:', e);
+          logMessage_Error('初始化全局参数UI失败:', e);
         }
         
-        logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号`);
+        // 绑定即时刷新和更新按钮状态
+        try {
+          bindImmediateRefreshForUserSelects();
+          updateMultiGlobalButtons(true, true);
+          
+          // 同步"仅执行未完成的任务"选项到后端
+          await callPythonAPI('set_multi_run_only_incomplete',
+            document.getElementById('multi-run-only-incomplete-check').checked
+          );
+        } catch (e) {
+          logMessage_Error('绑定多账号UI事件失败:', e);
+        }
+        
+        // 从后端恢复账号列表
+        try {
+          const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
+          if (accountsResult && accountsResult.accounts) {
+            renderMultiAccountList(accountsResult.accounts);
+            logMessage(`已恢复多账号模式，当前有 ${accountsResult.accounts.length} 个账号`);
+          } else {
+            logMessage(`已恢复多账号模式，当前有 0 个账号`);
+          }
+        } catch (e) {
+          logMessage_Error('恢复账号列表失败:', e);
+          logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号（列表加载失败）`);
+        }
         
         // 初始化内嵌管理面板
         setTimeout(async () => {
@@ -6176,6 +6279,16 @@
         $('user-id-label').textContent = `学号: ${currentUserData.student_id || '未登录'}`;
         updateDashboard();
         await refreshTasks();
+        
+        // 恢复之前选中的任务（如果有）
+        if (sessionModeInfo && sessionModeInfo.selected_task_index !== undefined && sessionModeInfo.selected_task_index >= 0) {
+          try {
+            logMessage_Info(`正在恢复之前选中的任务 (索引: ${sessionModeInfo.selected_task_index})...`);
+            await selectTask(sessionModeInfo.selected_task_index);
+          } catch (e) {
+            logMessage_Error('恢复选中任务失败:', e);
+          }
+        }
         
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
@@ -6772,6 +6885,8 @@
       updateDashboard();
 
       destroySingleMap();
+
+      onUserChange();
     }
 
 
@@ -7463,6 +7578,7 @@
       multiAccountMarkers = {};
       multiAccountMap = null;
 
+      resetUI();
       if (refreshUserListInterval) {
         clearInterval(refreshUserListInterval);
         refreshUserListInterval = null;
