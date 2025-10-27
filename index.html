@@ -6864,6 +6864,11 @@
 
     // 用 get_initial_data 兼容刷新用户列表
     async function refreshUserList() {
+      // 如果处于网络错误状态，跳过刷新避免产生更多错误
+      if (isInNetworkErrorState) {
+        return;
+      }
+      
       // ---检查 sessionUUID 是否有效 ---
       if (!sessionUUID || sessionUUID === 'null' || sessionUUID.trim() === '') {
         logMessage_Info('sessionUUID 尚未分配或无效，无法刷新用户列表。');
