@@ -8389,6 +8389,46 @@ def start_web_server(args):
             return jsonify({"success": True, "user": details})
         return jsonify({"success": False, "message": "用户不存在"})
     
+    @app.route('/auth/user/avatar', methods=['GET'])
+    def auth_get_user_avatar():
+        """根据用户名获取头像URL
+        
+        查询参数:
+        - username: 用户名（可选，不提供则返回当前用户）
+        """
+        session_id = request.headers.get('X-Session-ID', '')
+        target_username = request.args.get('username', '')
+        
+        # 如果没有指定用户名，返回当前用户的头像
+        if not target_username:
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未登录"}), 401
+            
+            api_instance = web_sessions[session_id]
+            target_username = getattr(api_instance, 'auth_username', '')
+            
+            if not target_username or target_username == 'guest':
+                return jsonify({
+                    "success": True, 
+                    "avatar_url": "",
+                    "message": "游客无头像"
+                })
+        
+        # 获取指定用户的头像
+        details = auth_system.get_user_details(target_username)
+        if details:
+            return jsonify({
+                "success": True,
+                "avatar_url": details.get('avatar_url', ''),
+                "username": target_username
+            })
+        
+        return jsonify({
+            "success": False, 
+            "message": "用户不存在",
+            "avatar_url": ""
+        })
+    
     @app.route('/auth/admin/update_max_sessions', methods=['POST'])
     def auth_admin_update_max_sessions():
         """更新用户最大会话数量（管理员）
