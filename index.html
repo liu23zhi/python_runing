@@ -1261,7 +1261,7 @@
               <button id="admin-refresh-logs_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
           </div>
-          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[60vh]">
+          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[55vh]">
             <pre id="admin-logs-content_modal" class="whitespace-pre-wrap overflow-visible">加载中...</pre>
           </div>
         </div>
@@ -1313,9 +1313,9 @@
             <div class="flex items-center gap-4">
               <img id="profile-avatar-display" src="" alt="用户头像" class="w-20 h-20 rounded-full border-2 border-slate-200" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
               <div class="flex-1 space-y-2">
-                <label class="block text-sm font-semibold text-slate-700 mb-1">上传头像</label>
+                <!-- <label class="block text-sm font-semibold text-slate-700 mb-1">用户头像</label> -->
                 <input type="file" id="profile-avatar-file" accept="image/*" class="block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onchange="previewAvatar(event)">
-                <p class="text-xs text-slate-500">💡 选择图片后会自动打开裁剪界面</p>
+                <p class="text-xs text-slate-500">💡 选择图片以更新头像</p>
               </div>
             </div>
 
