@@ -6205,6 +6205,9 @@
         // 系统账号已登录（admin/普通用户）或游客模式，隐藏认证面板，显示学校登录面板
         $('auth-login-container').classList.add('hidden');
         $('login-container').classList.remove('hidden');
+        
+        // 刷新用户选择和 UA 标签
+        await onUserChange();
 
         // 初始化内嵌管理面板，默认显示会话标签页并加载数据
         setTimeout(async () => {

@@ -2808,7 +2808,8 @@ class Api:
             params_to_save = self.accounts[username].params
         for k, v in params_to_save.items():
             # 仅保存当前全局参数模板中存在的键
-            if k in self.global_params:
+            # 排除 amap_js_key，因为它应该只保存在主 config.ini 中，不应在用户 .ini 中
+            if k in self.global_params and k != 'amap_js_key':
                 cfg_to_save.set('Config', k, str(v))
 
         # --- 7. 安全写入用户 .ini 文件 ---
