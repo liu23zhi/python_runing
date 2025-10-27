@@ -28,6 +28,9 @@ import urllib
 import uuid
 import warnings
 import atexit
+import hashlib
+from PIL import Image
+import io
 
 # ===== Flask-SocketIO（必须在 monkey_patch 之后）=====
 from flask_socketio import SocketIO, emit, join_room, leave_room
