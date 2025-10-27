@@ -6197,7 +6197,19 @@
           logMessage_Error('绑定多账号UI事件失败:', e);
         }
         
-        logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号`);
+        // 从后端恢复账号列表
+        try {
+          const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
+          if (accountsResult && accountsResult.accounts) {
+            renderMultiAccountList(accountsResult.accounts);
+            logMessage(`已恢复多账号模式，当前有 ${accountsResult.accounts.length} 个账号`);
+          } else {
+            logMessage(`已恢复多账号模式，当前有 0 个账号`);
+          }
+        } catch (e) {
+          logMessage_Error('恢复账号列表失败:', e);
+          logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号（列表加载失败）`);
+        }
         
         // 初始化内嵌管理面板
         setTimeout(async () => {
