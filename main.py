@@ -8078,6 +8078,31 @@ def start_web_server(args):
         result = auth_system.enable_2fa(auth_username, verification_code)
         return jsonify(result)
     
+    @app.route('/auth/2fa/verify', methods=['POST'])
+    def auth_2fa_verify():
+        """测试验证2FA代码（用于用户测试2FA是否工作正常）"""
+        data = request.get_json() or {}
+        verification_code = data.get('code', '').strip()
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        if not getattr(api_instance, 'is_authenticated', False):
+            return jsonify({"success": False, "message": "未认证"}), 401
+        
+        auth_username = getattr(api_instance, 'auth_username', '')
+        if auth_username == 'guest':
+            return jsonify({"success": False, "message": "游客不支持2FA"}), 403
+        
+        # 验证2FA代码
+        if auth_system.verify_2fa(auth_username, verification_code):
+            return jsonify({"success": True, "message": "验证码正确"})
+        else:
+            return jsonify({"success": False, "message": "验证码错误"})
+
+    
     @app.route('/auth/admin/create_user', methods=['POST'])
     def auth_admin_create_user():
         """管理员：创建新用户"""
