@@ -9876,10 +9876,37 @@ def start_web_server(args_param):
             level = data.get('level', 'INFO').upper()
             message = data.get('message', '')
             timestamp = data.get('timestamp', '')
-            source = data.get('source', 'frontend')
+            source = data.get('source', 'unknown')
 
-            # 构造日志消息
-            log_message = f"[前端-{source}] {message}"
+            if (data == None) or (not message):
+                return jsonify({"success": False, "message": "无效的日志数据"}),
+           
+
+            # 获取 Session ID
+            session_id = request.headers.get('X-Session-ID', 'UnknownSession')
+            # session_id_short = session_id[:8] if session_id else None # 取前8位用于日志
+
+            # 获取 IP 地址 (考虑代理)
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+
+            # 获取用户名 (通过 Session ID)
+            username = 'Guest/Unknown' # 默认值
+            with web_sessions_lock:
+                if session_id in web_sessions:
+                    api_instance = web_sessions[session_id]
+                    # 优先使用 auth_username，如果不存在则尝试 user_data.username
+                    username_attr = getattr(api_instance, 'auth_username', None)
+                    if not username_attr and hasattr(api_instance, 'user_data'):
+                         username_attr = getattr(api_instance.user_data, 'username', None)
+
+                    if username_attr: # 确保获取到的用户名非空
+                         username = username_attr
+                    elif getattr(api_instance, 'is_guest', False): # 明确是游客
+                         username = 'Guest'
+                    # 如果 session 存在但无法确定用户名，保留 'Guest/Unknown'
+
+            # 构造新的日志消息，包含 IP、用户名和 Session ID
+            log_message = f"[前端日志][IP:{ip_address}][前端时间:{timestamp}][用户:{username}][Session Id:{session_id}][{source}] {message}"
 
             # 根据级别记录日志
             if level == 'DEBUG':
@@ -9897,9 +9924,12 @@ def start_web_server(args_param):
 
             return jsonify({"success": True})
         except Exception as e:
-            logging.error(f"处理前端日志时出错: {e}", exc_info=True)
+            # 在错误日志中也尝试包含 IP 和 Session ID
+            session_id_err = request.headers.get('X-Session-ID', 'UnknownSession')
+            ip_address_err = request.headers.get('X-Forwarded-For', request.remote_addr)
+            logging.error(f"[前端日志处理错误][IP:{ip_address_err}][Sess:{session_id_err[:8]}] {e}", exc_info=True)
             return jsonify({"success": False, "message": str(e)}), 500
-
+        
     # ====================
     # 应用主路由
     # ====================
@@ -10259,6 +10289,7 @@ def main():
     # 配置详细的中文日志输出（确保UTF-8编码）
     selected_level_name = 'debug' if args.debug else args.log_level
     log_level = getattr(logging, selected_level_name.upper(), logging.DEBUG)
+
     log_format = "%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s"
 
     # 创建UTF-8编码的StreamHandler
