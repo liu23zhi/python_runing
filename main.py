@@ -8788,13 +8788,19 @@ def start_web_server(args_param):
         session_id = request.headers.get('X-Session-ID', '')
         target_username = request.args.get('username', '')
         
+        # 验证会话
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        if not hasattr(api_instance, 'auth_username'):
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        current_username = getattr(api_instance, 'auth_username', '')
+        
         # 如果没有指定用户名，返回当前用户的头像
         if not target_username:
-            if not session_id or session_id not in web_sessions:
-                return jsonify({"success": False, "message": "未登录"}), 401
-            
-            api_instance = web_sessions[session_id]
-            target_username = getattr(api_instance, 'auth_username', '')
+            target_username = current_username
             
             if not target_username or target_username == 'guest':
                 return jsonify({
