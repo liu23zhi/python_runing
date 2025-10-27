@@ -6885,6 +6885,11 @@
 
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
+        // 检查是否有管理权限，显示管理按钮
+        if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
+          const adminBtn = $('show-admin-panel');
+          if (adminBtn) adminBtn.classList.remove('hidden');
+        }
         console.log('[前端-登录] ✓ 登录流程完成！');
       } else {
         console.log(`[前端-登录] ✗ 登录失败: ${result.message}`);
