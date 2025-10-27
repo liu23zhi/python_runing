@@ -8170,8 +8170,13 @@ def start_web_server(args_param):
         api_instance.is_authenticated = True
         api_instance.auth_username = auth_username
         
+        # 获取用户组信息
+        user_group = auth_system.get_user_group(auth_username)
+        api_instance.auth_group = user_group
+        
         # 检查是否为游客
         is_guest = (auth_username == 'guest')
+        api_instance.is_guest = is_guest
         
         # 保存会话
         web_sessions[session_id] = api_instance
