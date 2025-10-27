@@ -28,6 +28,9 @@ import urllib
 import uuid
 import warnings
 import atexit
+import hashlib
+from PIL import Image
+import io
 
 # ===== Flask-SocketIO（必须在 monkey_patch 之后）=====
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -8280,6 +8283,8 @@ def start_web_server(args):
     def auth_user_upload_avatar():
         """上传用户头像文件（multipart/form-data）"""
         import hashlib
+        from PIL import Image
+        import io
         
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
@@ -8314,25 +8319,41 @@ def start_web_server(args):
         if len(file_content) > max_size:
             return jsonify({"success": False, "message": "文件过大，请上传小于5MB的图片"}), 400
         
-        # 计算SHA256哈希
-        sha256_hash = hashlib.sha256(file_content).hexdigest()
-        
-        # 创建存储目录
-        images_dir = os.path.join('system_accounts', 'images')
-        os.makedirs(images_dir, exist_ok=True)
-        
-        # 保存文件
-        filename = f"{sha256_hash}{file_ext}"
-        filepath = os.path.join(images_dir, filename)
-        
         try:
+            # 使用PIL打开图片并转换为PNG格式
+            img = Image.open(io.BytesIO(file_content))
+            
+            # 转换为RGB模式（PNG不支持CMYK等模式）
+            if img.mode in ('RGBA', 'LA', 'P'):
+                # 保留透明度
+                pass
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # 将图片转换为PNG格式的字节流
+            png_buffer = io.BytesIO()
+            img.save(png_buffer, format='PNG', optimize=True)
+            png_content = png_buffer.getvalue()
+            
+            # 计算SHA256哈希
+            sha256_hash = hashlib.sha256(png_content).hexdigest()
+            
+            # 创建存储目录
+            images_dir = os.path.join('system_accounts', 'images')
+            os.makedirs(images_dir, exist_ok=True)
+            
+            # 保存为PNG文件
+            filename = f"{sha256_hash}.png"
+            filepath = os.path.join(images_dir, filename)
+            
             with open(filepath, 'wb') as f:
-                f.write(file_content)
+                f.write(png_content)
+            
         except Exception as e:
-            return jsonify({"success": False, "message": f"文件保存失败: {str(e)}"}), 500
+            return jsonify({"success": False, "message": f"图片处理失败: {str(e)}"}), 500
         
         # 构建头像URL
-        avatar_url = f"/system_accounts/images/{filename}"
+        avatar_url = f"/api/avatar/{filename}"
         
         # 更新用户头像
         result = auth_system.update_user_avatar(auth_username, avatar_url)
@@ -8351,6 +8372,35 @@ def start_web_server(args):
             except:
                 pass
             return jsonify(result)
+    
+    @app.route('/api/avatar/<filename>', methods=['GET'])
+    def serve_avatar(filename):
+        """提供头像图片服务（需要会话认证）"""
+        from flask import send_file
+        
+        # 验证会话
+        session_id = request.headers.get('X-Session-ID', '') or request.cookies.get('session_id', '')
+        
+        # 如果没有会话ID或会话无效，返回401
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        # 验证文件名格式（只允许PNG文件，且文件名为64字符的十六进制哈希值）
+        if not filename.endswith('.png') or len(filename) != 68:  # 64 chars hash + .png (4 chars)
+            return jsonify({"success": False, "message": "无效的文件名"}), 400
+        
+        # 构建文件路径
+        filepath = os.path.join('system_accounts', 'images', filename)
+        
+        # 检查文件是否存在
+        if not os.path.exists(filepath):
+            return jsonify({"success": False, "message": "头像不存在"}), 404
+        
+        # 返回图片文件
+        try:
+            return send_file(filepath, mimetype='image/png')
+        except Exception as e:
+            return jsonify({"success": False, "message": f"读取文件失败: {str(e)}"}), 500
     
     @app.route('/auth/user/update_theme', methods=['POST'])
     def auth_user_update_theme():
@@ -8388,6 +8438,46 @@ def start_web_server(args):
         if details:
             return jsonify({"success": True, "user": details})
         return jsonify({"success": False, "message": "用户不存在"})
+    
+    @app.route('/auth/user/avatar', methods=['GET'])
+    def auth_get_user_avatar():
+        """根据用户名获取头像URL
+        
+        查询参数:
+        - username: 用户名（可选，不提供则返回当前用户）
+        """
+        session_id = request.headers.get('X-Session-ID', '')
+        target_username = request.args.get('username', '')
+        
+        # 如果没有指定用户名，返回当前用户的头像
+        if not target_username:
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未登录"}), 401
+            
+            api_instance = web_sessions[session_id]
+            target_username = getattr(api_instance, 'auth_username', '')
+            
+            if not target_username or target_username == 'guest':
+                return jsonify({
+                    "success": True, 
+                    "avatar_url": "",
+                    "message": "游客无头像"
+                })
+        
+        # 获取指定用户的头像
+        details = auth_system.get_user_details(target_username)
+        if details:
+            return jsonify({
+                "success": True,
+                "avatar_url": details.get('avatar_url', ''),
+                "username": target_username
+            })
+        
+        return jsonify({
+            "success": False, 
+            "message": "用户不存在",
+            "avatar_url": ""
+        })
     
     @app.route('/auth/admin/update_max_sessions', methods=['POST'])
     def auth_admin_update_max_sessions():
@@ -8784,23 +8874,65 @@ def start_web_server(args):
         if not auth_system.check_permission(auth_username, 'god_mode'):
             return jsonify({"success": False, "message": "需要上帝模式权限"}), 403
         
-        # 获取所有会话信息
+        # 获取所有会话信息（包括内存中的和磁盘上的）
         all_sessions = []
+        session_ids_in_memory = set()
+        
+        # 1. 首先获取内存中的会话
         with web_sessions_lock:
             for sid, api in web_sessions.items():
                 session_info = {
                     'session_id': sid,
                     'session_hash': hashlib.sha256(sid.encode()).hexdigest()[:16],
-                    'auth_username': getattr(api, 'auth_username', 'anonymous'),
+                    'auth_username': getattr(api, 'auth_username', None),
                     'auth_group': getattr(api, 'auth_group', 'guest'),
                     'is_authenticated': getattr(api, 'is_authenticated', False),
                     'is_guest': getattr(api, 'is_guest', False),
                     'created_at': getattr(api, '_session_created_at', 0),
                     'login_success': getattr(api, 'login_success', False),
                     'user_info': getattr(api, 'user_info', {}),
-                    'is_current': sid == session_id
+                    'is_current': sid == session_id,
+                    'username': getattr(api, 'auth_username', None)  # 添加username字段供前端使用
                 }
                 all_sessions.append(session_info)
+                session_ids_in_memory.add(sid)
+        
+        # 2. 然后扫描磁盘上的会话文件，添加未在内存中的会话
+        try:
+            if os.path.exists(SESSION_STORAGE_DIR):
+                for filename in os.listdir(SESSION_STORAGE_DIR):
+                    if filename == '_index.json' or not filename.endswith('.json'):
+                        continue
+                    
+                    session_file = os.path.join(SESSION_STORAGE_DIR, filename)
+                    try:
+                        with open(session_file, 'r', encoding='utf-8') as f:
+                            state = json.load(f)
+                        
+                        sid = state.get('session_id')
+                        if not sid or sid in session_ids_in_memory:
+                            continue  # 跳过已在内存中的会话
+                        
+                        # 从文件中读取会话信息
+                        session_info = {
+                            'session_id': sid,
+                            'session_hash': hashlib.sha256(sid.encode()).hexdigest()[:16],
+                            'auth_username': state.get('auth_username', None),
+                            'auth_group': state.get('auth_group', 'guest'),
+                            'is_authenticated': state.get('is_authenticated', False),
+                            'is_guest': state.get('is_guest', False),
+                            'created_at': state.get('created_at', 0),
+                            'login_success': state.get('login_success', False),
+                            'user_info': state.get('user_info', {}),
+                            'is_current': sid == session_id,
+                            'username': state.get('auth_username', None)  # 添加username字段供前端使用
+                        }
+                        all_sessions.append(session_info)
+                    except Exception as e:
+                        logging.warning(f"读取会话文件 {filename} 失败: {e}")
+                        continue
+        except Exception as e:
+            logging.error(f"扫描会话文件目录失败: {e}")
         
         return jsonify({
             "success": True,
