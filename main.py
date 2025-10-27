@@ -2742,7 +2742,8 @@ class Api:
 
         # 读取旧密码（仅当需要保留时）
         # --- 1. 创建或读取现有配置 ---
-        cfg_to_save = configparser.ConfigParser()
+        cfg_to_save = configparser.RawConfigParser()
+        cfg_to_save.optionxform = str  # 保持键的大小写
         if os.path.exists(user_ini_path):
             try:
                 cfg_to_save.read(user_ini_path, encoding='utf-8')
@@ -2823,7 +2824,8 @@ class Api:
             # 可以选择在这里向上抛出异常或返回错误状态
 
         # --- 2. 处理主 config.ini 文件 ---
-        main_cfg = configparser.ConfigParser()
+        main_cfg = configparser.RawConfigParser()
+        main_cfg.optionxform = str  # 保持键的大小写
         if os.path.exists(self.config_path):
             try:
                 main_cfg.read(self.config_path, encoding='utf-8')
@@ -2860,7 +2862,8 @@ class Api:
         """从主 config.ini 加载全局配置（兼容旧版AmapJsKey和新版Map.amap_js_key）"""
         if not os.path.exists(self.config_path):
             return
-        cfg = configparser.ConfigParser()
+        cfg = configparser.RawConfigParser()
+        cfg.optionxform = str  # 保持键的大小写
         try:
             cfg.read(self.config_path, encoding='utf-8')
 
@@ -2959,7 +2962,8 @@ class Api:
                        for f in os.listdir(self.user_dir) if f.endswith(".ini")])
 
         # 读取全局配置
-        cfg = configparser.ConfigParser()
+        cfg = configparser.RawConfigParser()
+        cfg.optionxform = str  # 保持键的大小写
         cfg.read(self.config_path, encoding='utf-8')
 
         # 确保有 Config 分段
@@ -3100,7 +3104,8 @@ class Api:
         """由JS调用，保存高德地图API Key到主配置文件"""
         try:
             self.global_params['amap_js_key'] = api_key
-            cfg = configparser.ConfigParser()
+            cfg = configparser.RawConfigParser()
+            cfg.optionxform = str  # 保持键的大小写
             if os.path.exists(self.config_path):
                 cfg.read(self.config_path, encoding='utf-8')
 
