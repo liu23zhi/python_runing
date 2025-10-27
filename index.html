@@ -6045,9 +6045,9 @@
       const hasSchoolLogin = initialData.isLoggedIn && initialData.userInfo;
       const hasSystemAuth = initialData.is_authenticated && !initialData.is_guest;
       const isGuestMode = initialData.is_authenticated && initialData.is_guest;
-      const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  // 检查是否有已加载的任务
+      // const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  // 检查是否有已加载的任务
 
-      $('loading-overlay').classList.remove('hidden');
+      // $('loading-overlay').classList.remove('hidden');
 
       // 检查会话模式（单账号/多账号）
       let sessionModeInfo = null;
@@ -6069,6 +6069,10 @@
           });
           return;
       }
+
+      const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  
+
+      $('loading-overlay').classList.remove('hidden');
 
       resetUI();
       
