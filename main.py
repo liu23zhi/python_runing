@@ -8632,7 +8632,7 @@ def start_web_server(args_param):
     
     @app.route('/api/avatar/<filename>', methods=['GET'])
     def serve_avatar(filename):
-        """提供头像图片服务（需要会话认证）"""
+        """提供头像图片服务（需要会话认证，管理员可访问）"""
         from flask import send_file
         
         # 验证会话
@@ -8641,6 +8641,14 @@ def start_web_server(args_param):
         # 如果没有会话ID或会话无效，返回401
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        # 获取当前用户信息，检查是否为管理员
+        api_instance = web_sessions[session_id]
+        current_username = getattr(api_instance, 'auth_username', '')
+        is_admin = auth_system.check_permission(current_username, 'manage_users') if current_username else False
+        
+        # 管理员可以访问所有头像，无需进一步验证
+        # 普通用户也可以访问（因为他们已通过会话验证）
         
         # 验证文件名格式（只允许PNG文件，且文件名为64字符的十六进制哈希值）
         if not filename.endswith('.png') or len(filename) != 68:  # 64 chars hash + .png (4 chars)
@@ -8780,7 +8788,7 @@ def start_web_server(args_param):
     
     @app.route('/auth/user/avatar', methods=['GET'])
     def auth_get_user_avatar():
-        """根据用户名获取头像URL
+        """根据用户名获取头像URL（管理员可查询所有用户）
         
         查询参数:
         - username: 用户名（可选，不提供则返回当前用户）
@@ -8797,6 +8805,7 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": "未登录"}), 401
         
         current_username = getattr(api_instance, 'auth_username', '')
+        is_admin = auth_system.check_permission(current_username, 'manage_users')
         
         # 如果没有指定用户名，返回当前用户的头像
         if not target_username:
@@ -8808,6 +8817,14 @@ def start_web_server(args_param):
                     "avatar_url": "",
                     "message": "游客无头像"
                 })
+        
+        # 管理员可以查询任何用户的头像
+        # 普通用户只能查询自己的头像
+        if not is_admin and target_username != current_username:
+            return jsonify({
+                "success": False,
+                "message": "权限不足，只能查询自己的头像"
+            }), 403
         
         # 获取指定用户的头像
         details = auth_system.get_user_details(target_username)
