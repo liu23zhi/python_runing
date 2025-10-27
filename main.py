@@ -3288,11 +3288,22 @@ class Api:
         return {"success": True}
 
     def load_tasks(self):
-        """加载任务列表（增强：稳健去重 + 并发保护）"""
+        """加载任务列表（增强：稳健去重 + 并发保护 + 离线模式支持）"""
         logging.info("API CALL: load_tasks")
 
+        # 离线模式或无用户ID但有任务数据时，直接返回已加载的任务
         if not self.user_data.id:
-            return {"success": False, "message": "用户未登录"}
+            # 检查是否有已加载的任务（例如从会话恢复或导入的离线文件）
+            if hasattr(self, 'all_run_data') and self.all_run_data:
+                logging.info(f"load_tasks: 离线模式，返回已加载的 {len(self.all_run_data)} 个任务")
+                tasks_for_js = []
+                for run in self.all_run_data:
+                    task_dict = run.__dict__.copy()
+                    task_dict['info_text'] = self._get_task_info_text(run)
+                    tasks_for_js.append(task_dict)
+                return {"success": True, "tasks": tasks_for_js}
+            else:
+                return {"success": False, "message": "用户未登录且无离线任务"}
 
         # 并发保护：避免多次快速点击导致并发刷新交错
         if not hasattr(self, "_load_tasks_lock"):
