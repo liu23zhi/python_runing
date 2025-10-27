@@ -6103,6 +6103,20 @@
         $('main-app').classList.add('hidden');
         // hideLoadingOverlays();
         
+        // 初始化配置用户下拉列表
+        try {
+          const configUsers = await callPythonAPI('multi_get_all_config_users');
+          const select = $('multi-config-user-select');
+          select.innerHTML = '<option value="">(新用户/手动输入)</option>';
+          configUsers.users.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = opt.textContent = u;
+            select.appendChild(opt);
+          });
+        } catch (e) {
+          logMessage_Error('加载配置用户列表失败:', e);
+        }
+        
         // 初始化多账号地图
         try {
           await initMultiMap();
@@ -6110,9 +6124,19 @@
           logMessage_Error('初始化多账号地图失败:', e);
         }
         
-        // 恢复全局参数
+        // 恢复全局参数并初始化全局参数UI
         if (sessionModeInfo.global_params) {
           pythonParams = sessionModeInfo.global_params;
+        }
+        
+        // 初始化全局参数UI容器
+        try {
+          const container = $('multi-global-params-container');
+          container.innerHTML = '';
+          createParamInputs(container, 'multi-param', onGlobalParamChange);
+          updateParamInputs(container, 'multi-param', pythonParams);
+        } catch (e) {
+          logMessage_Error('初始化全局参数UI失败:', e);
         }
         
         // 刷新账号列表显示（账号数据会在后端恢复，前端只需要显示）
@@ -6120,6 +6144,19 @@
           await multi_refreshAccountList();
         } catch (e) {
           logMessage_Error('刷新多账号列表失败:', e);
+        }
+        
+        // 绑定即时刷新和更新按钮状态
+        try {
+          bindImmediateRefreshForUserSelects();
+          updateMultiGlobalButtons(true, true);
+          
+          // 同步"仅执行未完成的任务"选项到后端
+          await callPythonAPI('set_multi_run_only_incomplete',
+            document.getElementById('multi-run-only-incomplete-check').checked
+          );
+        } catch (e) {
+          logMessage_Error('绑定多账号UI事件失败:', e);
         }
         
         logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号`);
