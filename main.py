@@ -4703,6 +4703,29 @@ class Api:
         self.log("进入单账号模式。")
         return {"success": True}
 
+    def get_session_mode_info(self):
+        """获取会话模式信息（单账号/多账号），用于页面刷新时恢复状态"""
+        mode_info = {
+            "success": True,
+            "is_multi_account_mode": getattr(self, 'is_multi_account_mode', False),
+            "school_account_logged_in": getattr(self, 'login_success', False),
+            "is_offline_mode": getattr(self, 'is_offline_mode', False),
+        }
+        
+        # 如果是多账号模式，返回更多信息
+        if getattr(self, 'is_multi_account_mode', False):
+            mode_info["multi_account_count"] = len(getattr(self, 'accounts', {}))
+            mode_info["multi_account_usernames"] = list(getattr(self, 'accounts', {}).keys())
+            mode_info["global_params"] = getattr(self, 'global_params', {})
+        else:
+            # 单账号模式信息
+            mode_info["has_tasks"] = len(getattr(self, 'all_run_data', [])) > 0
+            mode_info["task_count"] = len(getattr(self, 'all_run_data', []))
+            mode_info["selected_task_index"] = getattr(self, 'current_run_idx', -1)
+            
+        return mode_info
+
+
     def multi_get_all_config_users(self):
         """获取所有存在配置文件的用户列表，用于前端便捷添加"""
         users = sorted([os.path.splitext(f)[0]
@@ -7041,10 +7064,12 @@ def save_session_state(session_id, api_instance, force_save=False):
             # 基础状态
             state = {
                 'session_id': session_id,  # 在文件内容中保存完整的UUID
-                'login_success': getattr(api_instance, 'login_success', False),
+                'school_account_logged_in': getattr(api_instance, 'login_success', False),  # 更明确的命名：学校账号是否已登录
+                'login_success': getattr(api_instance, 'login_success', False),  # 保留兼容性
                 'user_info': getattr(api_instance, 'user_info', None),
                 'created_at': getattr(api_instance, '_session_created_at', time.time()),
-                'last_accessed': time.time()
+                'last_accessed': time.time(),
+                'last_saved': time.time()  # 最后保存时间
             }
 
             # 增强：保存认证信息
@@ -7117,6 +7142,81 @@ def save_session_state(session_id, api_instance, force_save=False):
             # 增强：保存运行状态
             state['is_offline_mode'] = getattr(
                 api_instance, 'is_offline_mode', False)
+            
+            # 增强：保存多账号模式状态
+            state['is_multi_account_mode'] = getattr(api_instance, 'is_multi_account_mode', False)
+            
+            # 如果是多账号模式，保存多账号相关信息
+            if getattr(api_instance, 'is_multi_account_mode', False):
+                # 保存已加载的账号列表（用户名列表）
+                state['multi_account_usernames'] = list(getattr(api_instance, 'accounts', {}).keys())
+                
+                # 保存全局参数
+                state['multi_global_params'] = getattr(api_instance, 'global_params', {})
+                
+                # 保存每个账号的状态
+                multi_account_states = {}
+                accounts = getattr(api_instance, 'accounts', {})
+                for username, account_session in accounts.items():
+                    try:
+                        account_state = {
+                            'username': username,
+                            'is_running': getattr(account_session, 'is_running', False),
+                            'status_text': getattr(account_session, 'status_text', ''),
+                            'progress': getattr(account_session, 'progress', 0),
+                            'school_account_logged_in': getattr(account_session, 'login_success', False),
+                            'has_tasks': len(getattr(account_session, 'all_run_data', [])) > 0,
+                            'task_count': len(getattr(account_session, 'all_run_data', [])),
+                            'completed_tasks': sum(1 for task in getattr(account_session, 'all_run_data', []) 
+                                                 if getattr(task, 'status', 0) == 1),
+                        }
+                        # 保存账号特定参数（如果有）
+                        if hasattr(account_session, 'params'):
+                            account_state['params'] = account_session.params
+                        multi_account_states[username] = account_state
+                    except Exception as e:
+                        logging.warning(f"保存账号 {username} 状态时出错: {e}")
+                        continue
+                        
+                state['multi_account_states'] = multi_account_states
+                
+                # 保存多账号控制面板信息（仪表盘信息）
+                state['multi_dashboard_info'] = {
+                    'total_accounts': len(accounts),
+                    'running_accounts': sum(1 for acc in accounts.values() if getattr(acc, 'is_running', False)),
+                    'logged_in_accounts': sum(1 for acc in accounts.values() if getattr(acc, 'login_success', False)),
+                    'total_tasks': sum(len(getattr(acc, 'all_run_data', [])) for acc in accounts.values()),
+                    'completed_tasks': sum(
+                        sum(1 for task in getattr(acc, 'all_run_data', []) if getattr(task, 'status', 0) == 1)
+                        for acc in accounts.values()
+                    )
+                }
+            
+            # 单账号模式的仪表盘信息
+            if not getattr(api_instance, 'is_multi_account_mode', False):
+                # 统计任务信息
+                all_tasks = getattr(api_instance, 'all_run_data', [])
+                state['dashboard_info'] = {
+                    'total_tasks': len(all_tasks),
+                    'completed_tasks': sum(1 for task in all_tasks if getattr(task, 'status', 0) == 1),
+                    'pending_tasks': sum(1 for task in all_tasks if getattr(task, 'status', 0) == 0),
+                    'selected_task_index': getattr(api_instance, 'current_run_idx', -1),
+                    'is_offline_mode': getattr(api_instance, 'is_offline_mode', False),
+                    'school_account_logged_in': getattr(api_instance, 'login_success', False)
+                }
+                
+                # 添加当前选中任务的信息（如果有）
+                if hasattr(api_instance, 'current_run_idx') and api_instance.current_run_idx >= 0:
+                    if hasattr(api_instance, 'all_run_data') and api_instance.current_run_idx < len(api_instance.all_run_data):
+                        current_task = api_instance.all_run_data[api_instance.current_run_idx]
+                        state['dashboard_info']['current_task'] = {
+                            'run_name': getattr(current_task, 'run_name', ''),
+                            'status': getattr(current_task, 'status', 0),
+                            'total_distance': getattr(current_task, 'total_run_distance_m', 0.0),
+                            'total_time': getattr(current_task, 'total_run_time_s', 0.0),
+                            'has_path': len(getattr(current_task, 'run_coords', [])) > 0
+                        }
+
 
             # 增强：保存停止标志状态
             if hasattr(api_instance, 'stop_run_flag'):
@@ -7285,6 +7385,21 @@ def restore_session_to_api_instance(api_instance, state):
         # 恢复离线模式标志
         if 'is_offline_mode' in state:
             api_instance.is_offline_mode = state['is_offline_mode']
+        
+        # 恢复多账号模式状态
+        if 'is_multi_account_mode' in state:
+            api_instance.is_multi_account_mode = state['is_multi_account_mode']
+            
+            # 如果是多账号模式，恢复多账号相关数据
+            if state['is_multi_account_mode']:
+                # 恢复全局参数
+                if 'multi_global_params' in state:
+                    api_instance.global_params = state['multi_global_params']
+                
+                # 注意：这里不会完全恢复每个账号的完整状态
+                # 因为账号状态包含复杂的运行时对象（如线程等）
+                # 仅标记模式，前端会重新加载账号列表
+                logging.info(f"会话恢复：检测到多账号模式，账号数: {len(state.get('multi_account_usernames', []))}")
 
         # 恢复停止标志状态
         if 'stop_run_flag_set' in state:
@@ -7302,7 +7417,7 @@ def restore_session_to_api_instance(api_instance, state):
             api_instance.user_settings = state['user_settings']
 
         logging.info(
-            f"会话状态恢复完成: 任务数={len(api_instance.all_run_data)}, 选中索引={api_instance.current_run_idx}")
+            f"会话状态恢复完成: 任务数={len(api_instance.all_run_data)}, 选中索引={api_instance.current_run_idx}, 多账号模式={api_instance.is_multi_account_mode}")
 
     except Exception as e:
         logging.error(f"恢复会话状态失败: {e}", exc_info=True)
@@ -9949,7 +10064,9 @@ def start_web_server(args_param):
                     'start_single_run', 'start_all_runs', 'stop_current_run',
                     'import_offline_file', 'export_offline_file',
                     'record_path', 'auto_generate_path', 'process_path', 'clear_path',
-                    'update_param', 'generate_new_ua'
+                    'update_param', 'generate_new_ua',
+                    'enter_multi_account_mode', 'exit_multi_account_mode', 'enter_single_account_mode',  # 模式切换
+                    'multi_add_account', 'multi_remove_account'  # 多账号操作
                 ]
                 if method in auto_save_methods:
                     save_session_state(session_id, api_instance)
