@@ -20,6 +20,8 @@
   <script src="https://webapi.amap.com/loader.js" onerror="handleCdnError()"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
   <script>
     // 配置TailwindCSS
     tailwind.config = {
@@ -1583,6 +1585,23 @@
     </div>
   </div>
 
+  <!-- 头像裁剪模态框 -->
+  <div id="avatar-crop-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
+    <div class="absolute inset-0 bg-black/80" onclick="closeCropModal()"></div>
+    <div class="panel rounded-2xl p-6 max-w-2xl w-full mx-4 space-y-4 relative">
+      <h3 class="text-xl font-bold text-sky-600">裁剪头像</h3>
+      
+      <div class="max-h-96 overflow-hidden bg-slate-100 rounded-lg">
+        <img id="crop-image" src="" alt="待裁剪图片" style="max-width: 100%;">
+      </div>
+
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeCropModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="confirmCrop()" class="btn btn-primary">确认裁剪</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ==============================================================================
     // JavaScript部分
@@ -1598,6 +1617,8 @@
     let currentUserIsGuest = false;
     let currentAuthUsername = null; // 存储当前系统认证的用户名
     let healthAutoRefreshInterval = null; // 系统健康状态自动刷新定时器
+    let avatarCropper = null; // 头像裁剪器实例
+    let croppedAvatarFile = null; // 裁剪后的头像文件
 
     // 会话管理相关变量
     let currentSessionInfo = {
@@ -3503,7 +3524,12 @@
         if (avatarDisplay) {
           const avatarUrl = user.avatar_url || user.avatar || '';
           if (avatarUrl) {
-            avatarDisplay.src = avatarUrl;
+            // 添加时间戳避免缓存
+            const timestamp = new Date().getTime();
+            const urlWithTimestamp = avatarUrl.includes('?') 
+              ? `${avatarUrl}&t=${timestamp}` 
+              : `${avatarUrl}?t=${timestamp}`;
+            avatarDisplay.src = urlWithTimestamp;
           } else {
             // 如果没有头像，使用默认图标
             avatarDisplay.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E';
@@ -3585,30 +3611,115 @@
       // 验证文件类型
       if (!file.type.startsWith('image/')) {
         showModalAlert('请选择图片文件', '错误');
+        event.target.value = ''; // 清除选择
         return;
       }
 
-      // 预览图片
+      // 读取文件并打开裁剪模态框
       const reader = new FileReader();
       reader.onload = function(e) {
-        const avatarDisplay = $('profile-avatar-display');
-        if (avatarDisplay) {
-          avatarDisplay.src = e.target.result;
+        const cropImage = $('crop-image');
+        if (cropImage) {
+          cropImage.src = e.target.result;
+          
+          // 销毁旧的裁剪器实例
+          if (avatarCropper) {
+            avatarCropper.destroy();
+          }
+          
+          // 创建新的裁剪器
+          avatarCropper = new Cropper(cropImage, {
+            aspectRatio: 1, // 1:1 正方形
+            viewMode: 1,
+            minContainerWidth: 300,
+            minContainerHeight: 300,
+            autoCropArea: 0.8,
+            responsive: true,
+            guides: true,
+            center: true,
+            highlight: true,
+            cropBoxResizable: true,
+            cropBoxMovable: true,
+            toggleDragModeOnDblclick: false
+          });
+          
+          // 显示裁剪模态框
+          showModal('avatar-crop-modal');
         }
       };
       reader.readAsDataURL(file);
     }
 
-    async function uploadAvatar() {
+    function closeCropModal() {
+      // 销毁裁剪器
+      if (avatarCropper) {
+        avatarCropper.destroy();
+        avatarCropper = null;
+      }
+      
+      // 清除文件输入
       const fileInput = $('profile-avatar-file');
-      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
-        showModalAlert('请先选择图片文件', '提示');
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      
+      hideModal('avatar-crop-modal');
+    }
+
+    function confirmCrop() {
+      if (!avatarCropper) {
+        showModalAlert('裁剪器未初始化', '错误');
         return;
       }
+      
+      // 获取裁剪后的canvas
+      const canvas = avatarCropper.getCroppedCanvas({
+        width: 200,
+        height: 200,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+      });
+      
+      if (!canvas) {
+        showModalAlert('裁剪失败', '错误');
+        return;
+      }
+      
+      // 将canvas转换为blob
+      canvas.toBlob(function(blob) {
+        // 创建文件对象
+        croppedAvatarFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+        
+        // 预览裁剪后的图片
+        const avatarDisplay = $('profile-avatar-display');
+        if (avatarDisplay) {
+          avatarDisplay.src = canvas.toDataURL('image/jpeg');
+        }
+        
+        // 关闭裁剪模态框
+        closeCropModal();
+        
+        // 提示用户点击上传
+        showModalAlert('图片已裁剪，请点击"上传头像"按钮完成上传', '提示');
+      }, 'image/jpeg', 0.9);
+    }
 
-      const file = fileInput.files[0];
+    async function uploadAvatar() {
+      // 优先使用裁剪后的文件
+      let fileToUpload = croppedAvatarFile;
+      
+      // 如果没有裁剪的文件，使用原文件
+      if (!fileToUpload) {
+        const fileInput = $('profile-avatar-file');
+        if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+          showModalAlert('请先选择并裁剪图片文件', '提示');
+          return;
+        }
+        fileToUpload = fileInput.files[0];
+      }
+
       const formData = new FormData();
-      formData.append('avatar', file);
+      formData.append('avatar', fileToUpload);
 
       try {
         const response = await fetch('/auth/user/upload_avatar', {
@@ -3622,7 +3733,18 @@
 
         if (result.success) {
           showModalAlert('头像上传成功！', '成功');
-          loadPersonalInfo(); // 重新加载显示
+          
+          // 清除裁剪后的文件
+          croppedAvatarFile = null;
+          
+          // 清除文件输入
+          const fileInput = $('profile-avatar-file');
+          if (fileInput) {
+            fileInput.value = '';
+          }
+          
+          // 重新加载个人信息以显示新头像
+          await loadPersonalInfo();
         } else {
           showModalAlert(`上传失败: ${result.message}`, '错误');
         }
