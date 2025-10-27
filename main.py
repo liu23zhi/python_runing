@@ -7270,9 +7270,12 @@ def _cleanup_playwright():
         logging.debug("Playwright 池未初始化，无需清理。")
 
 
-def start_web_server(args):
+def start_web_server(args_param):
     """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
-    global chrome_pool, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock
+    global chrome_pool, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
+    
+    # Make args available globally for Flask routes
+    args = args_param
     
 
     # --- 新增：显式初始化/重置内存锁状态 ---
