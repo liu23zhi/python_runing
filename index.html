@@ -8553,15 +8553,52 @@
         console.error('[日志发送异常]', e);
       }
 
-      const single = $('log-text');
-      const multi = $('multi-log-text');
-      if (single) {
-        single.value += fullMessage + '\n'; // 使用组合后的消息
-        single.scrollTop = single.scrollHeight;
-      }
-      if (multi) {
-        multi.value += fullMessage + '\n'; // 使用组合后的消息
-        multi.scrollTop = multi.scrollHeight;
+      // 判断是否为核心日志（路径规划、数据提交、任务执行等核心操作）
+      const isCoreLog = (message, logLevel) => {
+        // 错误和警告始终显示
+        if (logLevel === 'ERROR' || logLevel === 'WARNING' || logLevel === 'CRITICAL') {
+          return true;
+        }
+        
+        // 核心操作关键词
+        const coreKeywords = [
+          // 路径相关
+          '路径规划', '路径生成', '自动生成', '处理路径', '清除路径', '录制路径', '导出路径',
+          // 任务执行相关
+          '开始执行', '执行完成', '执行所有', '停止执行', '任务完成', '任务失败',
+          // 数据提交相关
+          '提交成功', '提交失败', '上传成功', '上传失败', '数据提交',
+          // 登录相关核心操作
+          '登录成功', '登录失败', '登出',
+          // 多账号模式核心操作
+          '进入多账号模式', '退出多账号模式', '账号列表',
+          // 签到相关
+          '签到成功', '签到失败', '补签',
+          // 任务状态
+          '加载任务', '刷新任务', '选择任务',
+          // JS路径规划队列
+          '[JS-Queue]'
+        ];
+        
+        // 检查消息是否包含核心关键词
+        return coreKeywords.some(keyword => message.includes(keyword));
+      };
+
+      // 只将核心日志显示在 log-tab 中
+      // 所有日志仍然发送到控制台和后端，但只有核心日志显示在界面
+      const shouldShowInUI = isCoreLog(line, level);
+      
+      if (shouldShowInUI) {
+        const single = $('log-text');
+        const multi = $('multi-log-text');
+        if (single) {
+          single.value += fullMessage + '\n'; // 使用组合后的消息
+          single.scrollTop = single.scrollHeight;
+        }
+        if (multi) {
+          multi.value += fullMessage + '\n'; // 使用组合后的消息
+          multi.scrollTop = multi.scrollHeight;
+        }
       }
     }
 
