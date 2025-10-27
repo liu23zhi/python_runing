@@ -19,7 +19,7 @@
 
   <script src="https://webapi.amap.com/loader.js" onerror="handleCdnError()"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
   <script>
@@ -541,7 +541,7 @@
   </div>
 
   <!-- 用户认证登录界面 -->
-  <div id="auth-login-container" class="w-full h-full flex items-center justify-center">
+  <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
     <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
       <div class="text-center">
         <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
@@ -624,7 +624,8 @@
         </div>
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
-          <input type="text" id="auth-2fa-code" class="input-field mt-1" placeholder="输入6位验证码" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code">
+          <input type="text" id="auth-2fa-code" class="input-field mt-1" placeholder="输入6位验证码" maxlength="6"
+            inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code">
         </div>
         <button id="auth-2fa-verify-btn" class="btn btn-primary w-full py-3">验证</button>
         <button id="auth-2fa-back-btn" class="btn btn-ghost w-full">返回登录</button>
@@ -659,7 +660,8 @@
     </div>
 
     <div
-      class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50" id="admin-panel-modal-Inline" >
+      class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50"
+      id="admin-panel-modal-Inline">
       <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col overflow-x-hidden"
         style="max-height: calc(100vh - 12rem);">
         <h3 class="text-xl font-bold text-sky-600 text-center mb-4">会话管理</h3>
@@ -1208,14 +1210,14 @@
           onclick="toggleAdminPanel(false)">关闭</button>
       </div>
       <div class="flex border-b border-slate-200 flex-shrink-0">
-        <button id="admin-tab-users_modal"
-          class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600" style="display:none;">用户管理</button>
-        <button id="admin-tab-groups_modal"
-          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">权限组管理</button>
-        <button id="admin-tab-logs_modal"
-          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">日志查看</button>
-        <button id="admin-tab-health_modal"
-          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" style="display:none;">系统状态</button>
+        <button id="admin-tab-users_modal" class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600"
+          style="display:none;">用户管理</button>
+        <button id="admin-tab-groups_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">权限组管理</button>
+        <button id="admin-tab-logs_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">日志查看</button>
+        <button id="admin-tab-health_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">系统状态</button>
         <button id="admin-tab-profile_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">个人信息</button>
         <button id="admin-tab-sessions_modal"
@@ -1271,7 +1273,8 @@
             <h4 class="font-semibold">会话列表</h4>
             <div class="flex items-center gap-3">
               <label id="god-mode-toggle_modal" class="flex items-center gap-2 cursor-pointer" style="display:none;">
-                <input type="checkbox" id="god-mode-checkbox_modal" class="w-4 h-4 accent-red-600 rounded cursor-pointer">
+                <input type="checkbox" id="god-mode-checkbox_modal"
+                  class="w-4 h-4 accent-red-600 rounded cursor-pointer">
                 <span class="text-sm font-semibold text-red-600">上帝模式</span>
               </label>
               <div id="admin-session-count-display" class="text-sm text-slate-600">
@@ -1291,7 +1294,8 @@
             <h4 class="font-semibold">系统健康状态</h4>
             <div class="flex items-center gap-2">
               <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" id="health-auto-refresh-toggle" class="w-4 h-4 accent-sky-600 rounded cursor-pointer" checked>
+                <input type="checkbox" id="health-auto-refresh-toggle"
+                  class="w-4 h-4 accent-sky-600 rounded cursor-pointer" checked>
                 <span class="text-sm text-slate-600">自动刷新(5秒)</span>
               </label>
               <button id="admin-refresh-health_modal" class="btn btn-ghost !py-1 !px-2">手动刷新</button>
@@ -1311,17 +1315,23 @@
           <div id="admin-profile-content_modal" class="space-y-6">
             <!-- 头像 -->
             <div class="flex items-center gap-4">
-              <img id="profile-avatar-display" src="" alt="用户头像" class="w-20 h-20 rounded-full border-2 border-slate-200" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+              <img id="profile-avatar-display" src="" alt="用户头像"
+                class="w-20 h-20 rounded-full border-2 border-slate-200"
+                onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
               <div class="flex-1 space-y-2">
-                <input type="file" id="profile-avatar-file" accept="image/*" class="hidden" onchange="previewAvatar(event)">
-                
-                <button 
-                  class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm" 
+                <input type="file" id="profile-avatar-file" accept="image/*" class="hidden"
+                  onchange="previewAvatar(event)">
+
+                <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm"
                   onclick="document.getElementById('profile-avatar-file').click();">
-                  <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                  <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                  </svg>
                   上传头像
                 </button>
-                
+
                 <!-- <p class="text-xs text-slate-500">💡 点击按钮选择图片以上传并更新头像</p> -->
               </div>
             </div>
@@ -1467,7 +1477,8 @@
         </div>
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
-          <div id="create-group-permissions" class="grid grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
+          <div id="create-group-permissions"
+            class="grid grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
             <!-- 权限列表将由JS动态填充 -->
           </div>
         </div>
@@ -1492,7 +1503,8 @@
       <div class="space-y-3">
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
-          <div id="edit-group-permissions-list" class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
+          <div id="edit-group-permissions-list"
+            class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
             <!-- 权限列表将由JS动态填充 -->
           </div>
         </div>
@@ -1526,7 +1538,8 @@
       <div class="space-y-3">
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-2">权限调整</label>
-          <div id="manage-user-permissions-list" class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
+          <div id="manage-user-permissions-list"
+            class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
             <!-- 权限列表将由JS动态填充 -->
           </div>
         </div>
@@ -1544,10 +1557,12 @@
     <div class="absolute inset-0 bg-black/60" onclick="hideModal('set-max-sessions-modal')"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
       <h3 class="text-xl font-bold text-sky-600">设置会话限制</h3>
-      
+
       <div class="space-y-2">
-        <p class="text-sm text-slate-600">用户: <span id="sessions-username" class="font-semibold text-slate-800"></span></p>
-        <p class="text-sm text-slate-600">当前限制: <span id="sessions-current-max" class="font-semibold text-slate-800"></span></p>
+        <p class="text-sm text-slate-600">用户: <span id="sessions-username" class="font-semibold text-slate-800"></span>
+        </p>
+        <p class="text-sm text-slate-600">当前限制: <span id="sessions-current-max"
+            class="font-semibold text-slate-800"></span></p>
       </div>
 
       <div>
@@ -1568,9 +1583,10 @@
     <div class="absolute inset-0 bg-black/60" onclick="hideModal('reset-user-password-modal')"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
       <h3 class="text-xl font-bold text-amber-600">重置用户密码</h3>
-      
+
       <div>
-        <p class="text-sm text-slate-600">目标用户: <span id="reset-password-username" class="font-semibold text-slate-800"></span></p>
+        <p class="text-sm text-slate-600">目标用户: <span id="reset-password-username"
+            class="font-semibold text-slate-800"></span></p>
       </div>
 
       <div class="space-y-3">
@@ -1585,7 +1601,8 @@
       </div>
 
       <div class="flex justify-end gap-3 pt-4 border-t">
-        <button onclick="hideModal('reset-user-password-modal')" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="hideModal('reset-user-password-modal')"
+          class="btn btn-ghost border border-slate-300">取消</button>
         <button onclick="submitResetUserPassword()" class="btn btn-primary">重置密码</button>
       </div>
     </div>
@@ -1596,7 +1613,7 @@
     <div class="absolute inset-0 bg-black/80" onclick="closeCropModal()"></div>
     <div class="panel rounded-2xl p-6 max-w-2xl w-full mx-4 space-y-4 relative">
       <h3 class="text-xl font-bold text-sky-600">裁剪头像</h3>
-      
+
       <div class="max-h-96 overflow-hidden bg-slate-100 rounded-lg">
         <img id="crop-image" src="" alt="待裁剪图片" style="max-width: 100%;">
       </div>
@@ -1923,10 +1940,16 @@
             refreshUserListInterval = null;
           }
 
-          // 清除本地状态并返回登录页
-          setTimeout(() => {
+          // 清除本地状态并返回登录页 - 等待用户确认
+          Swal.fire({
+            icon: 'warning',
+            title: '需要重新登录',
+            text: errorMsg,
+            confirmButtonText: '返回登录',
+            allowOutsideClick: false
+          }).then(() => {
             window.location.href = '/';
-          }, 2000);
+          });
 
           throw new Error(errorMsg);
         }
@@ -2498,27 +2521,27 @@
           if (result.requires_2fa) {
             // 保存用户名用于2FA验证
             window.temp2FAUsername = username;
-            
+
             // 清除登录按钮加载状态
             setButtonLoading('auth-login-btn', false);
-            
+
             // 隐藏登录表单，显示2FA表单
             const loginForm = $('auth-login-form');
             const tfaForm = $('auth-2fa-form');
             if (loginForm) loginForm.classList.add('hidden');
             if (tfaForm) tfaForm.classList.remove('hidden');
-            
+
             // 清空并聚焦到2FA输入框
             const tfaCodeInput = $('auth-2fa-code');
             if (tfaCodeInput) {
               tfaCodeInput.value = '';
               tfaCodeInput.focus();
             }
-            
+
             showAuthSuccess('密码验证成功，请输入验证码');
             return;
           }
-          
+
           // 修正：设置sessionUUID以便后续API调用
           if (result.session_id) {
             sessionUUID = result.session_id;
@@ -2607,23 +2630,23 @@
           if (result.requires_2fa || result.message === '需要2FA验证' || result.message?.includes('2FA')) {
             // 保存用户名用于2FA验证
             window.temp2FAUsername = username;
-            
+
             // 清除登录按钮加载状态
             setButtonLoading('auth-login-btn', false);
-            
+
             // 隐藏登录表单，显示2FA表单
             const loginForm = $('auth-login-form');
             const tfaForm = $('auth-2fa-form');
             if (loginForm) loginForm.classList.add('hidden');
             if (tfaForm) tfaForm.classList.remove('hidden');
-            
+
             // 清空并聚焦到2FA输入框
             const tfaCodeInput = $('auth-2fa-code');
             if (tfaCodeInput) {
               tfaCodeInput.value = '';
               tfaCodeInput.focus();
             }
-            
+
             showAuthSuccess('密码验证成功，请输入2FA验证码');
           } else {
             setButtonLoading('auth-login-btn', false);
@@ -2643,13 +2666,13 @@
     async function handle2FAVerify() {
       const codeInput = $('auth-2fa-code');
       const code = codeInput ? codeInput.value.trim() : '';
-      
+
       // 验证输入：必须是6位数字
       if (!code || code.length !== 6 || !/^[0-9]{6}$/.test(code)) {
         showAuthError('请输入有效的6位数字验证码');
         return;
       }
-      
+
       if (!window.temp2FAUsername) {
         showAuthError('会话已过期，请重新登录');
         // 返回登录表单
@@ -2659,9 +2682,9 @@
         if (tfaForm) tfaForm.classList.add('hidden');
         return;
       }
-      
+
       setButtonLoading('auth-2fa-verify-btn', true, '验证中...');
-      
+
       try {
         const response = await fetch('/auth/2fa/verify_login', {
           method: 'POST',
@@ -2675,34 +2698,34 @@
             code: code
           })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
           // 清空临时数据
           delete window.temp2FAUsername;
-          
+
           // 设置sessionUUID
           if (result.session_id) {
             sessionUUID = result.session_id;
             console.log('[2FA验证成功] 会话ID已设置:', sessionUUID.substring(0, 16) + '...');
           }
-          
+
           showButtonSuccess('auth-2fa-verify-btn', '验证成功', 800);
           showAuthSuccess('2FA验证成功！');
-          
+
           // 系统账号登录成功后，显示会话选择器
           if (!result.is_guest) {
             setTimeout(() => {
               setButtonLoading('auth-2fa-verify-btn', false);
-              
+
               // 隐藏登录界面，显示会话选择器模态框
               $('auth-login-container').classList.add('hidden');
               showSessionPicker();
-              
+
               logMessage('[会话选择] 请选择要进入的会话，或创建新会话');
               logMessage('[提示] 每个会话都是独立的学校账号登录状态');
-              
+
               // 重置表单
               const loginForm = $('auth-login-form');
               const tfaForm = $('auth-2fa-form');
@@ -2862,11 +2885,11 @@
         // 游客登录按钮
         const guestBtn = $('auth-guest-btn');
         if (guestBtn) guestBtn.addEventListener('click', handleGuestLogin);
-        
+
         // 2FA验证按钮
         const tfa2VerifyBtn = $('auth-2fa-verify-btn');
         if (tfa2VerifyBtn) tfa2VerifyBtn.addEventListener('click', handle2FAVerify);
-        
+
         // 2FA返回按钮
         const tfa2BackBtn = $('auth-2fa-back-btn');
         if (tfa2BackBtn) tfa2BackBtn.addEventListener('click', () => {
@@ -2889,7 +2912,7 @@
         if (authPassword) authPassword.addEventListener('keypress', (e) => {
           if (e.key === 'Enter') handleAuthLogin();
         });
-        
+
         // Enter键2FA验证
         const auth2FACode = $('auth-2fa-code');
         if (auth2FACode) auth2FACode.addEventListener('keypress', (e) => {
@@ -2984,7 +3007,7 @@
         const godModeCheckboxModal = $('god-mode-checkbox_modal');
         if (godModeCheckbox) godModeCheckbox.addEventListener('change', () => loadAdminSessions_inline());
         if (godModeCheckboxModal) godModeCheckboxModal.addEventListener('change', () => loadAdminSessions());
-        
+
         // 健康状态自动刷新开关
         const healthAutoRefreshToggle = $('health-auto-refresh-toggle');
         if (healthAutoRefreshToggle) {
@@ -3010,45 +3033,45 @@
       'view_tasks': '查看任务',
       'execute_tasks': '执行任务',
       'view_history': '查看历史记录',
-      
+
       // 用户管理
       'manage_users': '管理用户',
       'create_users': '创建用户',
       'delete_users': '删除用户',
       'ban_users': '封禁用户',
       'view_users': '查看用户',
-      
+
       // 权限管理
       'manage_permissions': '管理权限',
       'manage_groups': '管理权限组',
       'assign_permissions': '分配权限',
-      
+
       // 会话管理
       'manage_sessions': '管理会话',
       'view_all_sessions': '查看所有会话',
       'delete_sessions': '删除会话',
       'god_mode': '上帝模式',
-      
+
       // 系统管理
       'view_logs': '查看日志',
       'system_settings': '系统设置',
       'manage_api': '管理API',
-      
+
       // 任务相关
       'create_tasks': '创建任务',
       'modify_tasks': '修改任务',
       'delete_tasks': '删除任务',
       'schedule_tasks': '定时任务',
-      
+
       // 数据权限
       'export_data': '导出数据',
       'import_data': '导入数据',
       'backup_data': '备份数据',
-      
+
       // 通知权限
       'send_notifications': '发送通知',
       'manage_notifications': '管理通知',
-      
+
       // 其他
       'admin_panel': '管理面板',
       'debug_mode': '调试模式'
@@ -3123,7 +3146,7 @@
         // 个人信息和会话管理标签页始终可见
         if (profileTab) profileTab.style.display = 'block';
         if (sessionsTab) sessionsTab.style.display = 'block';
-        
+
         // 控制上帝模式开关可见性
         if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
 
@@ -3326,7 +3349,7 @@
             const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
             const isCurrent = session.is_current || session.session_id === sessionUUID;
             const sessionHash = session.session_hash || session.session_id.substring(0, 16); // Fallback if hash not present
-            
+
             // 上帝模式显示所有者信息，包括游客模式标识
             let ownerInfo = '';
             if (isGodMode) {
@@ -3372,17 +3395,18 @@
       const countEl = $('admin-session-count-display-inline');
       if (!countEl) return;
 
-      if(currentUserIsGuest){
-      countEl.innerHTML = `<span class="text-blue-600">会话数: 1 / 游客仅限单会话</span>`;
-      }else {
-      if (maxSessions === -1) {
-        countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+      if (currentUserIsGuest) {
+        countEl.innerHTML = `<span class="text-blue-600">会话数: 1 / 游客仅限单会话</span>`;
       } else {
-        const isNearLimit = currentCount >= maxSessions * 0.8;
-        const isAtLimit = currentCount >= maxSessions;
-        const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
-        countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
-      }}
+        if (maxSessions === -1) {
+          countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+        } else {
+          const isNearLimit = currentCount >= maxSessions * 0.8;
+          const isAtLimit = currentCount >= maxSessions;
+          const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
+          countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
+        }
+      }
     }
 
     // ====================
@@ -3391,7 +3415,7 @@
     async function loadAdminLogs() {
       const contentEl = $('admin-logs-content_modal');
       const linesSelect = $('log-lines-select_modal');
-      
+
       if (!contentEl) {
         console.error("loadAdminLogs: 无法找到日志内容容器");
         return;
@@ -3430,7 +3454,7 @@
     // ====================
     async function loadHealthStatus() {
       const contentEl = $('admin-health-content_modal');
-      
+
       if (!contentEl) {
         console.error("loadHealthStatus: 无法找到健康状态容器");
         return;
@@ -3473,13 +3497,13 @@
     function startHealthAutoRefresh() {
       // 先清除已有的定时器
       stopHealthAutoRefresh();
-      
+
       // 检查自动刷新开关状态
       const autoRefreshToggle = $('health-auto-refresh-toggle');
       if (!autoRefreshToggle || !autoRefreshToggle.checked) {
         return;
       }
-      
+
       // 设置5秒间隔的定时器
       healthAutoRefreshInterval = setInterval(() => {
         // 再次检查开关状态，防止用户关闭后仍在刷新
@@ -3518,16 +3542,16 @@
         }
 
         const user = result.user;
-        
+
         // Debug: log user data to console
         // console.log('[loadPersonalInfo] User data:', user);
         // console.log('[loadPersonalInfo] Avatar URL:', user.avatar_url);
-        
+
         // 存储当前认证用户名用于后续操作
         if (user.auth_username) {
           currentAuthUsername = user.auth_username;
         }
-        
+
         // 更新头像显示
         const avatarDisplay = $('profile-avatar-display');
         const avatarInput = $('profile-avatar-input');
@@ -3541,8 +3565,8 @@
             } else {
               // 旧格式的头像URL或外部URL，直接使用
               const timestamp = new Date().getTime();
-              const urlWithTimestamp = avatarUrl.includes('?') 
-                ? `${avatarUrl}&t=${timestamp}` 
+              const urlWithTimestamp = avatarUrl.includes('?')
+                ? `${avatarUrl}&t=${timestamp}`
                 : `${avatarUrl}?t=${timestamp}`;
               console.log('[loadPersonalInfo] Setting avatar display src to:', urlWithTimestamp);
               avatarDisplay.src = urlWithTimestamp;
@@ -3562,15 +3586,15 @@
         const tfaActions = $('profile-2fa-actions');
         const tfaEnabledActions = $('profile-2fa-enabled-actions');
         const tfaSetup = $('profile-2fa-setup');
-        
+
         // 使用方括号访问带特殊字符的属性名
         const tfaEnabled = user['2fa_enabled'] || user.tfa_enabled || false;
-        
+
         if (tfaStatus) {
           tfaStatus.textContent = tfaEnabled ? '已启用' : '未启用';
           tfaStatus.className = tfaEnabled ? 'text-green-600 font-semibold' : 'text-slate-600';
         }
-        
+
         // 根据2FA状态显示不同的操作按钮
         if (tfaEnabled) {
           if (tfaActions) tfaActions.classList.add('hidden');
@@ -3634,20 +3658,20 @@
             'X-Session-ID': sessionUUID
           }
         });
-        
+
         if (!response.ok) {
           console.error('[loadAvatarWithAuth] Failed to fetch avatar:', response.status);
           // 如果获取失败，显示默认头像
           imgElement.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E';
           return;
         }
-        
+
         // 获取图片blob
         const blob = await response.blob();
-        
+
         // 转换为data URL
         const reader = new FileReader();
-        reader.onloadend = function() {
+        reader.onloadend = function () {
           console.log('[loadAvatarWithAuth] Avatar loaded successfully');
           imgElement.src = reader.result;
         };
@@ -3672,16 +3696,16 @@
 
       // 读取文件并打开裁剪模态框
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = function (e) {
         const cropImage = $('crop-image');
         if (cropImage) {
           cropImage.src = e.target.result;
-          
+
           // 销毁旧的裁剪器实例
           if (avatarCropper) {
             avatarCropper.destroy();
           }
-          
+
           // 创建新的裁剪器
           avatarCropper = new Cropper(cropImage, {
             aspectRatio: 1, // 1:1 正方形
@@ -3697,7 +3721,7 @@
             cropBoxMovable: true,
             toggleDragModeOnDblclick: false
           });
-          
+
           // 显示裁剪模态框
           showModal('avatar-crop-modal');
         }
@@ -3711,13 +3735,13 @@
         avatarCropper.destroy();
         avatarCropper = null;
       }
-      
+
       // 清除文件输入
       const fileInput = $('profile-avatar-file');
       if (fileInput) {
         fileInput.value = '';
       }
-      
+
       hideModal('avatar-crop-modal');
     }
 
@@ -3726,7 +3750,7 @@
         showModalAlert('裁剪器未初始化', '错误');
         return;
       }
-      
+
       // 获取裁剪后的canvas
       const canvas = avatarCropper.getCroppedCanvas({
         width: 200,
@@ -3734,20 +3758,20 @@
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
       });
-      
+
       if (!canvas) {
         showModalAlert('裁剪失败', '错误');
         return;
       }
-      
+
       // 将canvas转换为blob
-      canvas.toBlob(async function(blob) {
+      canvas.toBlob(async function (blob) {
         // 创建文件对象
         const avatarFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-        
+
         // 关闭裁剪模态框
         closeCropModal();
-        
+
         // 直接上传
         const formData = new FormData();
         formData.append('avatar', avatarFile);
@@ -3764,16 +3788,16 @@
 
           if (result.success) {
             showModalAlert('头像上传成功！', '成功');
-            
+
             // 清除裁剪后的文件
             croppedAvatarFile = null;
-            
+
             // 清除文件输入
             const fileInput = $('profile-avatar-file');
             if (fileInput) {
               fileInput.value = '';
             }
-            
+
             // 重新加载个人信息以显示新头像
             await loadPersonalInfo();
           } else {
@@ -3789,7 +3813,7 @@
     async function uploadAvatar() {
       // 优先使用裁剪后的文件
       let fileToUpload = croppedAvatarFile;
-      
+
       // 如果没有裁剪的文件，使用原文件
       if (!fileToUpload) {
         const fileInput = $('profile-avatar-file');
@@ -3815,16 +3839,16 @@
 
         if (result.success) {
           showModalAlert('头像上传成功！', '成功');
-          
+
           // 清除裁剪后的文件
           croppedAvatarFile = null;
-          
+
           // 清除文件输入
           const fileInput = $('profile-avatar-file');
           if (fileInput) {
             fileInput.value = '';
           }
-          
+
           // 重新加载个人信息以显示新头像
           await loadPersonalInfo();
         } else {
@@ -3927,7 +3951,7 @@
             // 设置canvas尺寸
             qrCanvas.width = 200;
             qrCanvas.height = 200;
-            
+
             QRCode.toCanvas(qrCanvas, result.qr_uri, { width: 200 }, function (error) {
               if (error) {
                 console.error('QR Code generation error:', error);
@@ -4032,10 +4056,10 @@
           </div>
         `;
         document.body.appendChild(modal);
-        
+
         const confirmBtn = modal.querySelector('#confirm-test-2fa');
         const codeInput = modal.querySelector('#test-2fa-code-input');
-        
+
         confirmBtn.onclick = () => {
           const code = codeInput.value;
           if (!code || code.length !== 6 || !/^[0-9]{6}$/.test(code)) {
@@ -4046,9 +4070,9 @@
           resolve(code);
         };
       });
-      
+
       if (!testCode) return;
-      
+
       try {
         const response = await fetch('/auth/2fa/verify', {
           method: 'POST',
@@ -4061,7 +4085,7 @@
           })
         });
         const result = await response.json();
-        
+
         if (result.success) {
           showModalAlert('2FA验证成功！您的双因素认证工作正常。', '成功');
         } else {
@@ -4133,7 +4157,7 @@
           headers: { 'X-Session-ID': sessionUUID }
         });
         const result = await response.json();
-        
+
         if (result.success && result.groups) {
           // 从第一个权限组获取所有可用权限
           const firstGroup = Object.values(result.groups)[0];
@@ -4168,7 +4192,7 @@
     async function submitCreateGroup() {
       const keyInput = $('new-group-key');
       const nameInput = $('new-group-name');
-      
+
       if (!keyInput || !nameInput) return;
 
       const groupKey = keyInput.value.trim();
@@ -4260,26 +4284,32 @@
 
           return `
         <div class="border border-slate-200 rounded-lg p-3 mb-2">
-          <div class="flex justify-between items-start">
-            <div class="flex-1">
-              <p class="font-semibold text-slate-800">${user.auth_username}${bannedBadge}</p>
-              <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-              <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
-              <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
-              <p class="text-xs ${(user['2fa_enabled'] || user.tfa_enabled) ? 'text-green-600' : 'text-slate-400'}">2FA: ${(user['2fa_enabled'] || user.tfa_enabled) ? '已启用' : '未启用'}</p>
+          <div class="flex justify-between items-start gap-3">
+            <div class="flex items-start gap-3 flex-1">
+              <div id="avatar-${user.auth_username}" class="flex-shrink-0 w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden border-2 border-slate-300">
+                <span class="text-2xl text-slate-400">👤</span>
+              </div>
+              <div class="flex-1">
+                <p class="font-semibold text-slate-800">${user.auth_username}${bannedBadge}</p>
+                <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+                <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
+                <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
+                <p class="text-xs ${(user['2fa_enabled'] || user.tfa_enabled) ? 'text-green-600' : 'text-slate-400'}">2FA: ${(user['2fa_enabled'] || user.tfa_enabled) ? '已启用' : '未启用'}</p>
+              </div>
             </div>
             <div class="flex flex-col items-end gap-1">
               <span class="text-xs text-slate-600">权限组:</span>
               ${groupSelect}
-              <div class="flex gap-1 mt-2">
+              <div class="flex gap-1 mt-2 flex-wrap justify-end">
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
                 ${(user['2fa_enabled'] || user.tfa_enabled) ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
-                ${isBanned ? 
-                  `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
-                  `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
-                }
+                ${isBanned ?
+              `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
+              `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
+            }
+                <button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="clearUserAvatar('${user.auth_username}')">清除头像</button>
                 <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${user.auth_username}')">删除</button>
               </div>
             </div>
@@ -4287,6 +4317,11 @@
         </div>
       `;
         }).join('');
+
+        // 加载每个用户的头像
+        result.users.forEach(user => {
+          loadUserAvatar(user.auth_username);
+        });
       } catch (e) {
         $('admin-users-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
       }
@@ -4425,10 +4460,10 @@
           </div>
         `;
         document.body.appendChild(modal);
-        
+
         const confirmBtn = modal.querySelector('#confirm-reset-password');
         const passwordInput = modal.querySelector('#reset-password-input');
-        
+
         confirmBtn.onclick = () => {
           const password = passwordInput.value;
           if (!password || password.length < 6) {
@@ -4439,9 +4474,9 @@
           resolve(password);
         };
       });
-      
+
       if (!newPassword) return;
-      
+
       try {
         const response = await fetch('/auth/admin/force_reset_password', {
           method: 'POST',
@@ -4493,12 +4528,67 @@
       }
     }
 
+    async function loadUserAvatar(username) {
+      try {
+        const response = await fetch(`/auth/user/avatar?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+
+        const result = await response.json();
+        const avatarDiv = document.getElementById(`avatar-${username}`);
+
+        if (!avatarDiv) return;
+
+        if (result.success && result.avatar_url) {
+          // 添加session_id作为查询参数到头像URL
+          const avatarUrlWithSession = `${result.avatar_url}?session_id=${sessionUUID}`;
+          avatarDiv.innerHTML = `<img src="${avatarUrlWithSession}" alt="${username}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><span class="text-2xl text-slate-400" style="display:none;">👤</span>`;
+        } else {
+          avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
+        }
+      } catch (e) {
+        console.error(`加载用户头像失败 ${username}:`, e);
+      }
+    }
+
+    async function clearUserAvatar(username) {
+      const confirmed = await jsShowConfirm('确认清除头像', `确定要清除用户 ${username} 的头像吗？`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/clear_user_avatar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`已清除用户 ${username} 的头像`, '成功');
+          // 立即更新头像显示
+          const avatarDiv = document.getElementById(`avatar-${username}`);
+          if (avatarDiv) {
+            avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
+          }
+        } else {
+          showModalAlert(result.message || '清除失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
     function setUserMaxSessions(username, currentMax) {
       // 填充模态框信息
       $('sessions-username').textContent = username;
       $('sessions-current-max').textContent = currentMax === -1 ? '无限制' : currentMax;
       $('new-max-sessions').value = currentMax === -1 ? 0 : currentMax;
-      
+
       // 显示模态框
       showModal('set-max-sessions-modal');
     }
@@ -4555,7 +4645,7 @@
           body: JSON.stringify({ username: username })
         });
         const result = await response.json();
-        
+
         if (!result.success) {
           showModalAlert('无法加载用户权限信息', '错误');
           return;
@@ -4625,7 +4715,7 @@
       // 收集差分化权限
       const addedPermissions = {};
       const removedPermissions = {};
-      
+
       const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
       checkboxes.forEach(cb => {
         const perm = cb.getAttribute('data-permission');
@@ -4765,7 +4855,7 @@
           headers: { 'X-Session-ID': sessionUUID }
         });
         const result = await response.json();
-        
+
         if (!result.success || !result.groups || !result.groups[groupKey]) {
           showModalAlert('无法加载权限组信息', '错误');
           return;
@@ -5124,7 +5214,15 @@
           });
           // 如果后端指示需要重新登录
           if (result.need_login) {
-            setTimeout(() => { window.location.href = '/'; }, 2000);
+            Swal.fire({
+              icon: 'warning',
+              title: '需要重新登录',
+              text: result.message || '认证已失效，请重新登录',
+              confirmButtonText: '返回登录',
+              allowOutsideClick: false
+            }).then(() => {
+              window.location.href = '/';
+            });
           }
         }
       } catch (e) {
@@ -5387,7 +5485,15 @@
           showModalAlert(`无法切换会话: ${result.message}`, '切换失败');
           // 如果后端指示需要重新登录
           if (result.need_login) {
-            setTimeout(() => { window.location.href = '/'; }, 2000);
+            Swal.fire({
+              icon: 'warning',
+              title: '需要重新登录',
+              text: result.message || '认证已失效，请重新登录',
+              confirmButtonText: '返回登录',
+              allowOutsideClick: false
+            }).then(() => {
+              window.location.href = '/';
+            });
           }
         }
       } catch (e) {
@@ -5839,7 +5945,7 @@
         // 学校账号已登录，直接显示主界面
         currentUserData = initialData.userInfo;
 
-        // Issue 4修复：恢复会话时确保API Key已配置并加载地图
+        // 恢复会话时确保API Key已配置并加载地图
         AMAP_API_KEY = initialData.amap_key || "";
         if (AMAP_API_KEY) {
           try {
@@ -5867,6 +5973,15 @@
         await fetchNotifications();
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
+
+        // 初始化内嵌管理面板（恢复会话时需要）
+        setTimeout(async () => {
+          try {
+            await initializeInlineAdminPanel();
+          } catch (e) {
+            console.error('初始化内嵌管理面板失败:', e);
+          }
+        }, 100);
 
         // 检查是否有管理权限，显示管理按钮
         if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
@@ -6761,10 +6876,20 @@
         await refreshTasks();
 
         console.log('[前端-登录] 获取通知...');
+        // 在获取通知前，先隐藏通知徽章，直到获得确切数量
+        const notificationBadge = $('notification-badge');
+        if (notificationBadge) {
+          notificationBadge.classList.add('hidden');
+        }
         await fetchNotifications();
 
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
+        // 检查是否有管理权限，显示管理按钮
+        if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
+          const adminBtn = $('show-admin-panel');
+          if (adminBtn) adminBtn.classList.remove('hidden');
+        }
         console.log('[前端-登录] ✓ 登录流程完成！');
       } else {
         console.log(`[前端-登录] ✗ 登录失败: ${result.message}`);
