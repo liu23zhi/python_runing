@@ -8411,7 +8411,7 @@
 
 
     // --- 尝试获取调用者信息的辅助函数 ---
-    function getCallerInfo() {
+    function getCallerInfo(linesToSkip = null) {
       try {
         const err = new Error();
         const stack = err.stack;
@@ -8420,8 +8420,18 @@
         // 将堆栈信息按行分割
         const lines = stack.split('\n');
 
+        if (linesToSkip !== null){
+          try {
+            let callerLine = lines[linesToSkip + 1] || '';
+          } catch (error) {
+            console.error("Error accessing stack line:", error);
+            let callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // 尝试第4、3、2、1行
+          }
+        }else{
+
         // 不同浏览器堆栈格式不同，尝试几种常见模式
-        let callerLine = lines[3] || lines[2] || lines[1] || ''; // 尝试第3、2、1行
+        let callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // 尝试第4、3、2、1行
+        }
         callerLine = callerLine.trim();
 
         // 尝试匹配 Chrome/V8 格式: "at functionName (file:line:col)" 或 "at file:line:col"
