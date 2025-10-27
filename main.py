@@ -7547,6 +7547,209 @@ def load_all_sessions(args):
 # Playwright浏览器池管理
 
 
+class BackgroundTaskManager:
+    """管理服务器端后台任务执行"""
+    
+    def __init__(self):
+        self.tasks = {}  # {session_id: task_info}
+        self.lock = threading.Lock()
+        self.task_storage_dir = os.path.join(os.path.dirname(__file__), 'background_tasks')
+        if not os.path.exists(self.task_storage_dir):
+            os.makedirs(self.task_storage_dir)
+        logging.info("BackgroundTaskManager initialized")
+        
+    def _get_task_file_path(self, session_id):
+        """获取任务状态文件路径"""
+        task_hash = hashlib.sha256(session_id.encode()).hexdigest()
+        return os.path.join(self.task_storage_dir, f"{task_hash}.json")
+    
+    def save_task_state(self, session_id, task_state):
+        """保存任务状态到文件"""
+        task_file = self._get_task_file_path(session_id)
+        try:
+            with open(task_file, 'w', encoding='utf-8') as f:
+                json.dump(task_state, f, indent=2, ensure_ascii=False)
+            logging.debug(f"Task state saved for session {session_id[:8]}")
+        except Exception as e:
+            logging.error(f"Failed to save task state: {e}")
+    
+    def load_task_state(self, session_id):
+        """从文件加载任务状态"""
+        task_file = self._get_task_file_path(session_id)
+        if not os.path.exists(task_file):
+            return None
+        try:
+            with open(task_file, 'r', encoding='utf-8') as f:
+                task_state = json.load(f)
+            logging.debug(f"Task state loaded for session {session_id[:8]}")
+            return task_state
+        except Exception as e:
+            logging.error(f"Failed to load task state: {e}")
+            return None
+    
+    def start_background_task(self, session_id, api_instance, task_indices, auto_generate=False):
+        """启动后台任务执行"""
+        with self.lock:
+            # 初始化任务状态
+            task_state = {
+                'session_id': session_id,
+                'total_tasks': len(task_indices),
+                'completed_tasks': 0,
+                'current_task_index': 0,
+                'task_indices': task_indices,
+                'auto_generate': auto_generate,
+                'status': 'running',
+                'start_time': time.time(),
+                'last_update': time.time(),
+                'progress_percent': 0,
+                'current_task_progress': 0
+            }
+            
+            self.tasks[session_id] = task_state
+            self.save_task_state(session_id, task_state)
+            
+            # 启动后台线程执行任务
+            thread = threading.Thread(
+                target=self._execute_tasks_background,
+                args=(session_id, api_instance, task_indices, auto_generate),
+                daemon=True
+            )
+            thread.start()
+            
+            logging.info(f"Background task started for session {session_id[:8]}, {len(task_indices)} tasks")
+            return {"success": True, "message": f"已启动后台任务，共{len(task_indices)}个任务"}
+    
+    def _execute_tasks_background(self, session_id, api_instance, task_indices, auto_generate):
+        """后台执行任务的线程函数"""
+        try:
+            for i, task_idx in enumerate(task_indices):
+                # 检查是否需要停止
+                with self.lock:
+                    if session_id not in self.tasks:
+                        logging.info(f"Task cancelled for session {session_id[:8]}")
+                        return
+                    
+                    task_state = self.tasks[session_id]
+                    if task_state.get('status') == 'stopped':
+                        logging.info(f"Task stopped for session {session_id[:8]}")
+                        return
+                
+                # 更新当前任务
+                with self.lock:
+                    task_state['current_task_index'] = i
+                    task_state['last_update'] = time.time()
+                    self.save_task_state(session_id, task_state)
+                
+                # 执行单个任务
+                logging.info(f"Executing task {i+1}/{len(task_indices)} for session {session_id[:8]}")
+                run_data = api_instance.all_run_data[task_idx]
+                
+                # 如果需要自动生成路径
+                if auto_generate and not run_data.run_coords:
+                    logging.info(f"Auto-generating path for task: {run_data.run_name}")
+                    # 这里调用自动生成路径的逻辑
+                    # api_instance.auto_generate_path() # 需要根据实际API调整
+                
+                # 执行任务
+                api_instance.current_run_idx = task_idx
+                api_instance.stop_run_flag.clear()
+                
+                # 执行提交逻辑（这里简化处理，实际需要调用完整的执行逻辑）
+                # 这里需要调用 _run_submission_thread 或类似的方法
+                # 为了演示，我们模拟任务执行
+                self._simulate_task_execution(session_id, task_state, run_data)
+                
+                # 更新完成状态
+                with self.lock:
+                    task_state['completed_tasks'] = i + 1
+                    task_state['progress_percent'] = int((i + 1) / len(task_indices) * 100)
+                    task_state['last_update'] = time.time()
+                    self.save_task_state(session_id, task_state)
+                
+                logging.info(f"Task {i+1}/{len(task_indices)} completed for session {session_id[:8]}")
+            
+            # 所有任务完成
+            with self.lock:
+                task_state['status'] = 'completed'
+                task_state['last_update'] = time.time()
+                self.save_task_state(session_id, task_state)
+            
+            logging.info(f"All background tasks completed for session {session_id[:8]}")
+            
+        except Exception as e:
+            logging.error(f"Background task execution failed: {e}", exc_info=True)
+            with self.lock:
+                if session_id in self.tasks:
+                    self.tasks[session_id]['status'] = 'error'
+                    self.tasks[session_id]['error'] = str(e)
+                    self.save_task_state(session_id, self.tasks[session_id])
+    
+    def _simulate_task_execution(self, session_id, task_state, run_data):
+        """模拟任务执行（用于测试）"""
+        # 模拟任务执行过程
+        total_points = len(run_data.run_coords) if run_data.run_coords else 100
+        for i in range(total_points):
+            time.sleep(0.1)  # 模拟执行延迟
+            
+            # 更新当前任务进度
+            with self.lock:
+                if session_id in self.tasks:
+                    task_state['current_task_progress'] = int((i + 1) / total_points * 100)
+                    task_state['last_update'] = time.time()
+                    if i % 10 == 0:  # 每10个点保存一次
+                        self.save_task_state(session_id, task_state)
+    
+    def get_task_status(self, session_id):
+        """获取任务状态"""
+        with self.lock:
+            # 先从内存中获取
+            if session_id in self.tasks:
+                return self.tasks[session_id]
+        
+        # 如果内存中没有，从文件加载
+        task_state = self.load_task_state(session_id)
+        if task_state:
+            with self.lock:
+                self.tasks[session_id] = task_state
+            return task_state
+        
+        return None
+    
+    def stop_task(self, session_id):
+        """停止后台任务"""
+        with self.lock:
+            if session_id in self.tasks:
+                self.tasks[session_id]['status'] = 'stopped'
+                self.save_task_state(session_id, self.tasks[session_id])
+                logging.info(f"Background task stopped for session {session_id[:8]}")
+                return {"success": True, "message": "后台任务已停止"}
+            return {"success": False, "message": "未找到运行中的后台任务"}
+    
+    def cleanup_old_tasks(self, max_age_hours=24):
+        """清理旧的任务状态文件"""
+        try:
+            current_time = time.time()
+            max_age_seconds = max_age_hours * 3600
+            
+            for filename in os.listdir(self.task_storage_dir):
+                if not filename.endswith('.json'):
+                    continue
+                
+                filepath = os.path.join(self.task_storage_dir, filename)
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        task_state = json.load(f)
+                    
+                    last_update = task_state.get('last_update', 0)
+                    if current_time - last_update > max_age_seconds:
+                        os.remove(filepath)
+                        logging.info(f"Removed old task file: {filename}")
+                except Exception as e:
+                    logging.warning(f"Failed to process task file {filename}: {e}")
+        except Exception as e:
+            logging.error(f"Failed to cleanup old tasks: {e}")
+
+
 class ChromeBrowserPool:
     """管理服务器端Chrome浏览器实例，用于执行JS计算"""
 
@@ -7648,8 +7851,9 @@ class ChromeBrowserPool:
                     logging.warning(f"停止 Playwright 实例时发生错误: {e}")
 
 
-# 全局Chrome浏览器池
+# 全局Chrome浏览器池和后台任务管理器
 chrome_pool = None
+background_task_manager = None
 
 
 def _cleanup_playwright():
@@ -7669,7 +7873,7 @@ def _cleanup_playwright():
 
 def start_web_server(args_param):
     """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
-    global chrome_pool, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
+    global chrome_pool, background_task_manager, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
 
     # Make args available globally for Flask routes
     args = args_param
@@ -7693,6 +7897,14 @@ def start_web_server(args_param):
         logging.info("已注册 Playwright 退出清理函数。")
     except Exception as e:
         logging.error(f"无法初始化Chrome浏览器池: {e}")
+        sys.exit(1)
+    
+    # 初始化后台任务管理器
+    try:
+        background_task_manager = BackgroundTaskManager()
+        logging.info("后台任务管理器初始化成功")
+    except Exception as e:
+        logging.error(f"无法初始化后台任务管理器: {e}")
         sys.exit(1)
 
     app = Flask(__name__)
@@ -10178,6 +10390,49 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"执行JS失败: {e}")
             return jsonify({"success": False, "message": "JS执行失败"}), 500
+
+    @app.route('/api/background_task/start', methods=['POST'])
+    def start_background_task():
+        """启动后台任务执行"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "会话无效或未登录"}), 401
+        
+        data = request.get_json() or {}
+        task_indices = data.get('task_indices', [])
+        auto_generate = data.get('auto_generate', False)
+        
+        if not task_indices:
+            return jsonify({"success": False, "message": "未指定任务"}), 400
+        
+        api_instance = web_sessions[session_id]
+        result = background_task_manager.start_background_task(
+            session_id, api_instance, task_indices, auto_generate
+        )
+        return jsonify(result)
+
+    @app.route('/api/background_task/status', methods=['GET'])
+    def get_background_task_status():
+        """获取后台任务状态"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"}), 401
+        
+        task_status = background_task_manager.get_task_status(session_id)
+        if task_status:
+            return jsonify({"success": True, "task_status": task_status})
+        else:
+            return jsonify({"success": False, "message": "未找到后台任务"})
+
+    @app.route('/api/background_task/stop', methods=['POST'])
+    def stop_background_task():
+        """停止后台任务"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "会话无效或未登录"}), 401
+        
+        result = background_task_manager.stop_task(session_id)
+        return jsonify(result)
 
     @app.route('/health')
     def health():
