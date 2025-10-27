@@ -8141,6 +8141,64 @@ def start_web_server(args):
         else:
             return jsonify({"success": False, "message": "用户不存在"}), 404
     
+    @app.route('/auth/2fa/verify_login', methods=['POST'])
+    def auth_2fa_verify_login():
+        """验证2FA代码并完成登录（用于登录流程中的2FA验证）"""
+        data = request.get_json() or {}
+        auth_username = data.get('auth_username', '').strip()
+        verification_code = data.get('code', '').strip()
+        
+        if not auth_username:
+            return jsonify({"success": False, "message": "缺少用户名"}), 400
+        
+        if not verification_code:
+            return jsonify({"success": False, "message": "缺少验证码"}), 400
+        
+        # 验证2FA代码
+        if not auth_system.verify_2fa(auth_username, verification_code):
+            logging.warning(f"2FA登录验证失败: {auth_username}")
+            return jsonify({"success": False, "message": "验证码错误"})
+        
+        # 2FA验证成功，创建会话
+        session_id = str(uuid.uuid4())
+        api_instance = PythonRunningAPI()
+        api_instance.is_authenticated = True
+        api_instance.auth_username = auth_username
+        
+        # 检查是否为游客
+        is_guest = (auth_username == 'guest')
+        
+        # 保存会话
+        web_sessions[session_id] = api_instance
+        
+        # 更新用户最后登录时间
+        user_file = auth_system.get_user_file_path(auth_username)
+        if os.path.exists(user_file):
+            try:
+                with auth_system.lock:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                    
+                    user_data['last_login'] = time.time()
+                    if 'session_ids' not in user_data:
+                        user_data['session_ids'] = []
+                    if session_id not in user_data['session_ids']:
+                        user_data['session_ids'].append(session_id)
+                    
+                    with open(user_file, 'w', encoding='utf-8') as f:
+                        json.dump(user_data, f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                logging.error(f"更新用户登录信息失败: {e}", exc_info=True)
+        
+        logging.info(f"用户 {auth_username} 通过2FA验证登录成功")
+        
+        return jsonify({
+            "success": True,
+            "message": "2FA验证成功",
+            "session_id": session_id,
+            "is_guest": is_guest
+        })
+    
     @app.route('/auth/admin/create_user', methods=['POST'])
     def auth_admin_create_user():
         """管理员：创建新用户"""
