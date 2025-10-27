@@ -2730,7 +2730,7 @@ class Api:
             cfg_en.write(f)
 
     def _save_config(self, username, password=None, ua=None):
-        """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码；当 ua 为 None 时保留现有 UA。同时更新主 config.ini 的 LastUser 和 AmapJsKey。"""
+        """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码；当 ua 为 None 时保留现有 UA。同时更新主 config.ini 的 LastUser 和 amap_js_key。"""
         logging.debug(
             f"Saving config: username={username!r}, password provided: {password is not None}, ua provided: {ua is not None}")
 
@@ -2844,22 +2844,17 @@ class Api:
         amap_key_in_memory = self.global_params.get('amap_js_key', '')
         main_cfg.set('Map', 'amap_js_key', amap_key_in_memory)
 
-        # 同时保持 [System] AmapJsKey 以兼容旧版本（可选）
-        if not main_cfg.has_section('System'):
-            main_cfg.add_section('System')
-        main_cfg.set('System', 'AmapJsKey', amap_key_in_memory)
-
         # 安全写入主 config.ini 文件
         try:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 main_cfg.write(f)
             logging.debug(
-                f"Updated main config {self.config_path} with LastUser and AmapJsKey")
+                f"Updated main config {self.config_path} with LastUser and amap_js_key")
         except Exception as e:
             logging.error(f"写入主配置文件 {self.config_path} 失败: {e}", exc_info=True)
 
     def _load_global_config(self):
-        """从主 config.ini 加载全局配置（兼容旧版AmapJsKey和新版Map.amap_js_key）"""
+        """从主 config.ini 加载全局配置（优先读取新版 Map.amap_js_key，兼容旧版 System.AmapJsKey）"""
         if not os.path.exists(self.config_path):
             return
         cfg = configparser.RawConfigParser()
@@ -3113,11 +3108,6 @@ class Api:
             if not cfg.has_section('Map'):
                 cfg.add_section('Map')
             cfg.set('Map', 'amap_js_key', api_key)
-
-            # 同时保持 [System] AmapJsKey 以兼容旧版本（可选）
-            if not cfg.has_section('System'):
-                cfg.add_section('System')
-            cfg.set('System', 'AmapJsKey', api_key)
 
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 cfg.write(f)
