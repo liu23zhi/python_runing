@@ -5802,6 +5802,8 @@
         });
       }
 
+      $('loading-overlay').classList.remove('hidden');
+
       // 检测Web模式并提取UUID
 
       const urlPath = window.location.pathname;
@@ -5815,19 +5817,33 @@
         // 验证UUID格式
         if (!isValidUUID(sessionUUID)) {
 
+          hideLoadingOverlays();
           logMessage_Error('无效的UUID格式:', sessionUUID);
 
+          
+          
+          // 使用 Swal.fire 显示错误并等待用户确认
+          Swal.fire({
+            title: '无效的会话', // 弹窗标题
+            text: 'UUID格式不正确\n将跳转到登录页面', // 弹窗消息
+            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+            confirmButtonText: '确定' // 按钮文字
+          }).then(() => {
+            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+            logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
+            window.location.href = '/'; // 执行跳转
+          });
 
-          showUserFriendlyError('无效的会话', 'UUID格式不正确，将跳转到登录页面', true);
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 2000);
+          // showUserFriendlyError('无效的会话', 'UUID格式不正确，将跳转到登录页面', true);
+          // setTimeout(() => {
+          //   window.location.href = '/';
+          // }, 2000);
           
 
           return;
 
         }
-
+        $('loading-overlay').classList.remove('hidden');
         logMessage_Info('Web模式: 检测到有效UUID =', sessionUUID);
 
         // 检查UUID类型
@@ -5844,15 +5860,34 @@
 
           if (!result.success) {
             logMessage_Error('检查UUID失败:', result.message);
+            hideLoadingOverlays();
 
-            showUserFriendlyError('会话验证失败', result.message, true);
-            // 跳转到无UUID网址
-            setTimeout(() => {
-              window.location.href = '/';
-            }, 2000);
+            // showUserFriendlyError('会话验证失败', result.message, true);
+            // // 跳转到无UUID网址
+            // setTimeout(() => {
+            //   window.location.href = '/';
+            // }, 2000);
+
+            let message = "无法通过UUID判断会话列席\n将跳转到登录页面"
+            if (result.message !== '') 
+            {
+              message = "无法通过UUID判断会话列席\n"+result.message+"\n将跳转到登录页面"
+            }
+
+            Swal.fire({
+            title: '无效的会话类型', // 弹窗标题
+            text: message, // 弹窗消息
+            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+            confirmButtonText: '确定' // 按钮文字
+          }).then(() => {
+            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+            logMessage_Info('用户确认检查UUID失败弹窗，正在跳转到登录页面...');
+            window.location.href = '/'; // 执行跳转
+          });
 
             return;
           }
+          $('loading-overlay').classList.remove('hidden');
 
           if (result.uuid_type === 'guest') {
             // 游客UUID - 直接恢复会话
@@ -5927,11 +5962,21 @@
         } catch (e) {
           logMessage_Error('检查UUID类型失败:', e);
           hideLoadingOverlays(); // 确保隐藏加载遮挡
-          showUserFriendlyError('网络错误', '无法验证会话状态，请检查网络连接后重试');
-          // 出错时也跳转到无UUID网址
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 3000);
+          Swal.fire({
+            title: '网络错误', // 弹窗标题
+            text: '无法验证会话状态，请检查网络连接后重试', // 弹窗消息
+            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+            confirmButtonText: '确定' // 按钮文字
+          }).then(() => {
+            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+            logMessage_Info('用户确认检查UUID类型失败弹窗，正在跳转到登录页面...');
+            window.location.href = '/'; // 执行跳转
+          });
+          // showUserFriendlyError('网络错误', '无法验证会话状态，请检查网络连接后重试');
+          // // 出错时也跳转到无UUID网址
+          // setTimeout(() => {
+          //   window.location.href = '/';
+          // }, 3000);
           return;
         }
       } else {
@@ -5945,6 +5990,8 @@
         return; // 停止初始化，等待认证完成后重新初始化
       }
 
+      $('loading-overlay').classList.remove('hidden');
+
       // 检查认证状态
       const isAuthenticated = await checkAuthStatus();
       if (!isAuthenticated) {
@@ -5952,9 +5999,10 @@
         showAuthLogin();
         return; // 停止初始化，等待认证
       }
+      $('loading-overlay').classList.remove('hidden');
 
       // 认证成功，继续初始化
-      hideLoadingOverlays();
+      // hideLoadingOverlays();
 
 
       // 标记应用已成功初始化
@@ -5972,7 +6020,7 @@
       }
 
       //移除加载提示
-      hideLoadingOverlays();
+      // hideLoadingOverlays();
 
       logMessage_Info('应用初始化成功，CDN资源状态正常或可用替代方案');
 
@@ -5993,34 +6041,52 @@
       if (initialData.lastUser) userCombo.value = initialData.lastUser;
       await onUserChange();
 
-      // 修复Issue 5: 检查是否已经登录（会话持久化）
-      // 兼容学校账号登录(isLoggedIn)和系统账号登录(is_authenticated)
+      
       const hasSchoolLogin = initialData.isLoggedIn && initialData.userInfo;
       const hasSystemAuth = initialData.is_authenticated && !initialData.is_guest;
       const isGuestMode = initialData.is_authenticated && initialData.is_guest;
 
-      // 新增：检查会话模式（单账号/多账号）
+      $('loading-overlay').classList.remove('hidden');
+
+      // 检查会话模式（单账号/多账号）
       let sessionModeInfo = null;
       try {
         sessionModeInfo = await callPythonAPI('get_session_mode_info');
-        console.log('会话模式信息:', sessionModeInfo);
+        // logMessage_Info('会话模式信息:', sessionModeInfo);
       } catch (e) {
-        console.error('获取会话模式信息失败:', e);
+        logMessage_Error('获取会话模式信息失败:', e);
+        hideLoadingOverlays();
+        Swal.fire({
+            title: '网络错误', // 弹窗标题
+            text: '获取会话模式信息失败，请检查网络连接后重试', // 弹窗消息
+            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+            confirmButtonText: '确定' // 按钮文字
+          }).then(() => {
+            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+            logMessage_Info('用户确认获取会话模式信息失败弹窗，正在跳转到登录页面...');
+            window.location.href = '/'; // 执行跳转
+          });
+          return;
       }
 
+      resetUI();
+      
       // 如果会话之前是多账号模式，直接恢复到多账号模式
       if (sessionModeInfo && sessionModeInfo.is_multi_account_mode) {
-        console.log('检测到会话之前处于多账号模式，正在恢复...');
+        logMessage_Info('检测到会话之前处于多账号模式，正在恢复...');
         
+
+        hideLoadingOverlays();
         // 确保API Key已配置并加载地图（多账号模式也需要地图）
         AMAP_API_KEY = initialData.amap_key || "";
         if (AMAP_API_KEY) {
           try {
             await loadAMapOnce();
           } catch (e) {
-            console.error('地图加载失败（多账号模式恢复）', e);
+            logMessage_Error('地图加载失败（多账号模式恢复）', e);
           }
         }
+        $('loading-overlay').classList.remove('hidden');
         
         // 隐藏登录界面和认证界面
         $('auth-login-container').classList.add('hidden');
@@ -6029,12 +6095,13 @@
         // 显示多账号界面
         $('multi-account-app').classList.remove('hidden');
         $('main-app').classList.add('hidden');
+        // hideLoadingOverlays();
         
         // 初始化多账号地图
         try {
           await initMultiMap();
         } catch (e) {
-          console.error('初始化多账号地图失败:', e);
+          logMessage_Error('初始化多账号地图失败:', e);
         }
         
         // 恢复全局参数
@@ -6046,7 +6113,7 @@
         try {
           await multi_refreshAccountList();
         } catch (e) {
-          console.error('刷新多账号列表失败:', e);
+          logMessage_Error('刷新多账号列表失败:', e);
         }
         
         logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号`);
@@ -6056,7 +6123,7 @@
           try {
             await initializeInlineAdminPanel();
           } catch (e) {
-            console.error('初始化内嵌管理面板失败:', e);
+            logMessage_Error('初始化内嵌管理面板失败:', e);
           }
         }, 100);
         
@@ -6064,13 +6131,17 @@
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
         
-        return; // 提前返回，不执行后续单账号模式的逻辑
+        hideLoadingOverlays();
+        // return; // 提前返回，不执行后续单账号模式的逻辑
       }
 
-      if (hasSchoolLogin) {
+
+      // 如果是单账号模式，则恢复单账号会话
+      else if (hasSchoolLogin) {
         // 学校账号已登录，直接显示主界面
         currentUserData = initialData.userInfo;
 
+        hideLoadingOverlays();
         // 恢复会话时确保API Key已配置并加载地图
         AMAP_API_KEY = initialData.amap_key || "";
         if (AMAP_API_KEY) {
@@ -6081,10 +6152,12 @@
           }
         } else {
           // 已登录但没有API Key，弹出提示
+          hideLoadingOverlays();
           logMessage_Info("[警告] 未配置高德地图API Key，请在弹窗中输入。");
           $('amap-key-modal').classList.remove('hidden');
           $('amap-key-modal').classList.add('flex');
         }
+        $('loading-overlay').classList.remove('hidden');
 
         if (refreshUserListInterval) clearInterval(refreshUserListInterval); // 清除旧的（如果存在）
         refreshUserListInterval = setInterval(refreshUserList, 5000); // <--- 在这里启动
@@ -6096,7 +6169,7 @@
         $('user-id-label').textContent = `学号: ${currentUserData.student_id}`;
         updateDashboard();
         await refreshTasks();
-        await fetchNotifications();
+        
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
 
@@ -6114,7 +6187,14 @@
           const adminBtn = $('show-admin-panel');
           if (adminBtn) adminBtn.classList.remove('hidden');
         }
-      } else if (hasSystemAuth || isGuestMode) {
+        hideLoadingOverlays();
+        await fetchNotifications();
+        
+      } 
+      // 没有进入多账号模式或者单账号模式
+      else if (hasSystemAuth || isGuestMode) {
+
+        $('loading-overlay').classList.remove('hidden');
         // 系统账号已登录（admin/普通用户）或游客模式，隐藏认证面板，显示学校登录面板
         $('auth-login-container').classList.add('hidden');
         $('login-container').classList.remove('hidden');
@@ -6138,10 +6218,27 @@
           }
         }
 
+        hideLoadingOverlays();
         // 如果是游客模式，显示提示
         if (isGuestMode) {
           logMessage_Info('[游客模式] 部分功能受限，请保存当前地址以便恢复会话');
+
+          Swal.fire({
+            title: '请注意', // 弹窗标题
+            text: '[游客模式] 部分功能受限，请保存当前地址以便恢复会话', // 弹窗消息
+            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+            confirmButtonText: '确定' // 按钮文字
+          }).then(() => {
+            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+            // logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
+            // window.location.href = '/'; // 执行跳转
+          });
+
         }
+
+
+        $('loading-overlay').classList.remove('hidden');
+
 
         // 显示管理面板按钮（如果有权限）
         if (initialData.auth_group !== 'guest') {
@@ -6153,6 +6250,9 @@
           const adminBtnMulti = $('show-admin-panel-multi');
           if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
         }
+
+        hideLoadingOverlays();
+
       } else {
         // 完全未登录，显示认证面板，检查API Key和游客登录选项
         AMAP_API_KEY = initialData.amap_key || "";
@@ -6170,6 +6270,7 @@
 
         // 检查是否允许游客登录并显示按钮
         checkGuestLoginEnabled();
+        hideLoadingOverlays();
       }
 
       if (pythonParams.theme_style) {
@@ -7027,9 +7128,12 @@
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
         // 检查是否有管理权限，显示管理按钮
-        if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
+        if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
           const adminBtn = $('show-admin-panel');
           if (adminBtn) adminBtn.classList.remove('hidden');
+          // --- 同时确保登录页的管理按钮也显示 (如果存在) ---
+          const adminBtnLogin = $('show-admin-panel-login');
+          if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
         }
         logMessage_Info('[前端-登录] ✓ 登录流程完成！');
       } else {
@@ -8489,7 +8593,7 @@
           try {
             let callerLine = lines[linesToSkip + 1] || '';
           } catch (error) {
-            console.error("Error accessing stack line:", error);
+            logMessage_Error("Error accessing stack line:", error);
             let callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // 尝试第4、3、2、1行
           }
         }else{

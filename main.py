@@ -3253,7 +3253,16 @@ class Api:
         logging.info(
             f"会话状态已保存: login_success={self.login_success}, user_id={ud.id}")
 
-        return {"success": True, "userInfo": user_info_dict, "ua": self.device_ua, "amap_key": self.global_params.get('amap_js_key', '')}
+        # --- 新增: 在成功登录的返回结果中包含 auth_group ---
+        auth_group = getattr(self, 'auth_group', 'guest') # 从 Api 实例获取认证时确定的组
+
+        return {
+            "success": True,
+            "userInfo": user_info_dict,
+            "ua": self.device_ua,
+            "amap_key": self.global_params.get('amap_js_key', ''),
+            "auth_group": auth_group
+        }
 
     def logout(self):
         """处理注销逻辑"""
