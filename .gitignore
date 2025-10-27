@@ -10,3 +10,4 @@ __pycache__/
 /tokens
 /config.ini
 /permissions.json
+/background_tasks/
