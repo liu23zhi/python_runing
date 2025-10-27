@@ -8200,14 +8200,39 @@ def start_web_server(args_param):
             except Exception as e:
                 logging.error(f"更新用户登录信息失败: {e}", exc_info=True)
         
+        # 生成token（非游客）
+        token = None
+        if not is_guest:
+            try:
+                token = token_manager.create_token(auth_username, session_id)
+                token_manager.cleanup_expired_tokens(auth_username)
+            except Exception as e:
+                logging.error(f"Token管理过程出错: {e}")
+                token = None
+        
         logging.info(f"用户 {auth_username} 通过2FA验证登录成功")
         
-        return jsonify({
+        response_data = {
             "success": True,
             "message": "2FA验证成功",
             "session_id": session_id,
-            "is_guest": is_guest
-        })
+            "is_guest": is_guest,
+            "token": token
+        }
+        
+        # 创建响应并设置Cookie（非游客）
+        response = jsonify(response_data)
+        if token:
+            response.set_cookie(
+                'auth_token',
+                value=token,
+                max_age=3600,  # 1小时
+                httponly=True,
+                secure=False,
+                samesite='Lax'
+            )
+        
+        return response
     
     @app.route('/auth/admin/create_user', methods=['POST'])
     def auth_admin_create_user():

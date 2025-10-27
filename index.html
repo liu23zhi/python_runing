@@ -1923,10 +1923,16 @@
             refreshUserListInterval = null;
           }
 
-          // 清除本地状态并返回登录页
-          setTimeout(() => {
+          // 清除本地状态并返回登录页 - 等待用户确认
+          Swal.fire({
+            icon: 'warning',
+            title: '需要重新登录',
+            text: errorMsg,
+            confirmButtonText: '返回登录',
+            allowOutsideClick: false
+          }).then(() => {
             window.location.href = '/';
-          }, 2000);
+          });
 
           throw new Error(errorMsg);
         }
@@ -5188,7 +5194,15 @@
           });
           // 如果后端指示需要重新登录
           if (result.need_login) {
-            setTimeout(() => { window.location.href = '/'; }, 2000);
+            Swal.fire({
+              icon: 'warning',
+              title: '需要重新登录',
+              text: result.message || '认证已失效，请重新登录',
+              confirmButtonText: '返回登录',
+              allowOutsideClick: false
+            }).then(() => {
+              window.location.href = '/';
+            });
           }
         }
       } catch (e) {
@@ -5451,7 +5465,15 @@
           showModalAlert(`无法切换会话: ${result.message}`, '切换失败');
           // 如果后端指示需要重新登录
           if (result.need_login) {
-            setTimeout(() => { window.location.href = '/'; }, 2000);
+            Swal.fire({
+              icon: 'warning',
+              title: '需要重新登录',
+              text: result.message || '认证已失效，请重新登录',
+              confirmButtonText: '返回登录',
+              allowOutsideClick: false
+            }).then(() => {
+              window.location.href = '/';
+            });
           }
         }
       } catch (e) {
