@@ -882,8 +882,8 @@ class AuthSystem:
                 
                 # 生成二维码URI
                 totp = pyotp.TOTP(secret)
-                uri = totp.provisioning_uri(name=auth_username, issuer_name="跑步助手")
-                return {"success": True, "secret": secret, "uri": uri}
+                uri = totp.provisioning_uri(name=auth_username, issuer_name="Zelly's Personal Assistant Tools")
+                return {"success": True, "secret": secret, "qr_uri": uri}
             return {"success": False, "message": "用户不存在"}
         except ImportError:
             return {"success": False, "message": "2FA功能需要安装pyotp库：pip install pyotp"}
