@@ -6871,7 +6871,7 @@
       
       // ---检查 sessionUUID 是否有效 ---
       if (!sessionUUID || sessionUUID === 'null' || sessionUUID.trim() === '') {
-        logMessage_Info('sessionUUID 尚未分配或无效，无法刷新用户列表。');
+        // logMessage_Info('sessionUUID 尚未分配或无效，无法刷新用户列表。');
         return; // 如果 UUID 无效，则提前退出，不执行 API 调用
       }
       try {
