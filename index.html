@@ -3513,6 +3513,10 @@
 
         const user = result.user;
         
+        // Debug: log user data to console
+        console.log('[loadPersonalInfo] User data:', user);
+        console.log('[loadPersonalInfo] Avatar URL:', user.avatar_url);
+        
         // 存储当前认证用户名用于后续操作
         if (user.auth_username) {
           currentAuthUsername = user.auth_username;
@@ -3523,14 +3527,17 @@
         const avatarInput = $('profile-avatar-input');
         if (avatarDisplay) {
           const avatarUrl = user.avatar_url || user.avatar || '';
+          console.log('[loadPersonalInfo] Processing avatar URL:', avatarUrl);
           if (avatarUrl) {
             // 添加时间戳避免缓存
             const timestamp = new Date().getTime();
             const urlWithTimestamp = avatarUrl.includes('?') 
               ? `${avatarUrl}&t=${timestamp}` 
               : `${avatarUrl}?t=${timestamp}`;
+            console.log('[loadPersonalInfo] Setting avatar display src to:', urlWithTimestamp);
             avatarDisplay.src = urlWithTimestamp;
           } else {
+            console.log('[loadPersonalInfo] No avatar URL, using default icon');
             // 如果没有头像，使用默认图标
             avatarDisplay.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E';
           }
@@ -3545,13 +3552,16 @@
         const tfaEnabledActions = $('profile-2fa-enabled-actions');
         const tfaSetup = $('profile-2fa-setup');
         
+        // 使用方括号访问带特殊字符的属性名
+        const tfaEnabled = user['2fa_enabled'] || user.tfa_enabled || false;
+        
         if (tfaStatus) {
-          tfaStatus.textContent = user.tfa_enabled ? '已启用' : '未启用';
-          tfaStatus.className = user.tfa_enabled ? 'text-green-600 font-semibold' : 'text-slate-600';
+          tfaStatus.textContent = tfaEnabled ? '已启用' : '未启用';
+          tfaStatus.className = tfaEnabled ? 'text-green-600 font-semibold' : 'text-slate-600';
         }
         
         // 根据2FA状态显示不同的操作按钮
-        if (user.tfa_enabled) {
+        if (tfaEnabled) {
           if (tfaActions) tfaActions.classList.add('hidden');
           if (tfaSetup) tfaSetup.classList.add('hidden');
           if (tfaEnabledActions) tfaEnabledActions.classList.remove('hidden');
@@ -4184,7 +4194,7 @@
               <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
               <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
               <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
-              <p class="text-xs ${user.tfa_enabled ? 'text-green-600' : 'text-slate-400'}">2FA: ${user.tfa_enabled ? '已启用' : '未启用'}</p>
+              <p class="text-xs ${(user['2fa_enabled'] || user.tfa_enabled) ? 'text-green-600' : 'text-slate-400'}">2FA: ${(user['2fa_enabled'] || user.tfa_enabled) ? '已启用' : '未启用'}</p>
             </div>
             <div class="flex flex-col items-end gap-1">
               <span class="text-xs text-slate-600">权限组:</span>
@@ -4193,7 +4203,7 @@
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
-                ${user.tfa_enabled ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
+                ${(user['2fa_enabled'] || user.tfa_enabled) ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
                 ${isBanned ? 
                   `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
                   `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
