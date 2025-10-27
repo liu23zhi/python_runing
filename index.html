@@ -5941,6 +5941,74 @@
       const hasSystemAuth = initialData.is_authenticated && !initialData.is_guest;
       const isGuestMode = initialData.is_authenticated && initialData.is_guest;
 
+      // 新增：检查会话模式（单账号/多账号）
+      let sessionModeInfo = null;
+      try {
+        sessionModeInfo = await callPythonAPI('get_session_mode_info');
+        console.log('会话模式信息:', sessionModeInfo);
+      } catch (e) {
+        console.error('获取会话模式信息失败:', e);
+      }
+
+      // 如果会话之前是多账号模式，直接恢复到多账号模式
+      if (sessionModeInfo && sessionModeInfo.is_multi_account_mode) {
+        console.log('检测到会话之前处于多账号模式，正在恢复...');
+        
+        // 确保API Key已配置并加载地图（多账号模式也需要地图）
+        AMAP_API_KEY = initialData.amap_key || "";
+        if (AMAP_API_KEY) {
+          try {
+            await loadAMapOnce();
+          } catch (e) {
+            console.error('地图加载失败（多账号模式恢复）', e);
+          }
+        }
+        
+        // 隐藏登录界面和认证界面
+        $('auth-login-container').classList.add('hidden');
+        $('login-container').classList.add('hidden');
+        
+        // 显示多账号界面
+        $('multi-account-app').classList.remove('hidden');
+        $('main-app').classList.add('hidden');
+        
+        // 初始化多账号地图
+        try {
+          await initMultiMap();
+        } catch (e) {
+          console.error('初始化多账号地图失败:', e);
+        }
+        
+        // 恢复全局参数
+        if (sessionModeInfo.global_params) {
+          pythonParams = sessionModeInfo.global_params;
+        }
+        
+        // 刷新账号列表显示（账号数据会在后端恢复，前端只需要显示）
+        try {
+          await multi_refreshAccountList();
+        } catch (e) {
+          console.error('刷新多账号列表失败:', e);
+        }
+        
+        logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号`);
+        
+        // 初始化内嵌管理面板
+        setTimeout(async () => {
+          try {
+            await initializeInlineAdminPanel();
+          } catch (e) {
+            console.error('初始化内嵌管理面板失败:', e);
+          }
+        }, 100);
+        
+        // 设置主题色
+        const base = pythonParams.theme_base_color || '#7dd3fc';
+        setBaseColor(base, base);
+        
+        return; // 提前返回，不执行后续单账号模式的逻辑
+      }
+
       if (hasSchoolLogin) {
         // 学校账号已登录，直接显示主界面
         currentUserData = initialData.userInfo;
