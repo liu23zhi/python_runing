@@ -7817,18 +7817,31 @@ def start_web_server(args):
         if not auth_system.check_permission(auth_username, 'manage_permissions'):
             return jsonify({"success": False, "message": "权限不足"}), 403
         
-        permissions = auth_system.get_user_permissions(target_username)
+        # 获取用户的完整权限列表（包含差分化权限）
+        all_permissions = auth_system.get_user_permissions(target_username)
+        
+        # 获取用户所属的权限组
+        group = auth_system.get_user_group(target_username)
+        
+        # 获取权限组的基础权限
+        group_permissions = auth_system.permissions['permission_groups'].get(group, {}).get('permissions', {})
         
         # 获取用户的差分权限信息
         user_custom = auth_system.permissions.get('user_custom_permissions', {}).get(target_username, {})
+        added_list = user_custom.get('added', [])
+        removed_list = user_custom.get('removed', [])
+        
+        # 将差分权限数组转换为对象格式（前端需要）
+        added_permissions = {perm: True for perm in added_list}
+        removed_permissions = {perm: True for perm in removed_list}
         
         return jsonify({
             "success": True,
-            "permissions": permissions,
-            "custom_permissions": {
-                "added": user_custom.get('added', []),
-                "removed": user_custom.get('removed', [])
-            }
+            "group": group,
+            "all_permissions": all_permissions,
+            "group_permissions": group_permissions,
+            "added_permissions": added_permissions,
+            "removed_permissions": removed_permissions
         })
     
     @app.route('/auth/admin/set_user_permission', methods=['POST'])
