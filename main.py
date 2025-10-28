@@ -7714,6 +7714,17 @@ class BackgroundTaskManager:
                                 current_progress = int(run_data.current_point_index / total_points * 100)
                                 task_state['current_task_progress'] = current_progress
                                 task_state['last_update'] = time.time()
+                                
+                                # Add real-time position data
+                                current_idx = run_data.current_point_index
+                                if current_idx > 0 and current_idx <= total_points:
+                                    coord = run_data.run_coords[current_idx - 1]
+                                    task_state['current_position'] = {
+                                        'lon': coord[0],
+                                        'lat': coord[1],
+                                        'distance': getattr(run_data, 'distance_covered_m', 0),
+                                        'target_sequence': getattr(run_data, 'target_sequence', 0)
+                                    }
                         
                         # 每5秒保存一次状态
                         if int(time.time() - start_wait) % 5 == 0:

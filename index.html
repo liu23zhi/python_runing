@@ -793,19 +793,6 @@
               <button id="start-run-button" class="btn btn-primary">开始执行</button>
               <button id="start-all-button" class="btn btn-secondary">执行所有</button>
             </div>
-            
-            <!-- 后台任务进度显示 -->
-            <div id="background-task-status" class="hidden mt-2 p-3 rounded-lg border border-sky-200 bg-sky-50">
-              <div class="text-sm font-semibold text-sky-700 mb-2">任务进度</div>
-              <div class="text-xs text-slate-600">
-                <div>已完成: <span id="bg-completed-count">0</span> / <span id="bg-total-count">0</span></div>
-                <div>总进度: <span id="bg-overall-progress">0</span>%</div>
-                <div>当前任务: <span id="bg-current-progress">0</span>%</div>
-              </div>
-              <div class="h-2 bg-slate-200 rounded-full overflow-hidden mt-2">
-                <div id="bg-progress-fill" class="h-2 bg-sky-500" style="width:0%"></div>
-              </div>
-            </div>
 
             <div class="flex items-center justify-center space-x-4 pt-1">
               <label class="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer"><input type="checkbox"
@@ -8479,16 +8466,8 @@
           btn.classList.remove('btn-primary');
           btn.classList.add('btn-danger');
           
-          // Show background task status and initialize UI
-          $('background-task-status').classList.remove('hidden');
-          $('bg-completed-count').textContent = '0';
-          $('bg-total-count').textContent = '1';
-          $('bg-overall-progress').textContent = '0';
-          $('bg-current-progress').textContent = '0';
-          const fillElem = $('bg-progress-fill');
-          if (fillElem) {
-            fillElem.style.width = '0%';
-          }
+          // Initialize single progress UI
+          updateSingleProgress(0, '0 / ? 点');
           
           // Start polling (with a small delay to let backend initialize)
           setTimeout(() => startBackgroundTaskPolling(), 500);
@@ -8547,16 +8526,8 @@
           btn.classList.remove('btn-secondary');
           btn.classList.add('btn-danger');
           
-          // Show background task status and initialize UI
-          $('background-task-status').classList.remove('hidden');
-          $('bg-completed-count').textContent = '0';
-          $('bg-total-count').textContent = taskIndices.length.toString();
-          $('bg-overall-progress').textContent = '0';
-          $('bg-current-progress').textContent = '0';
-          const fillElem = $('bg-progress-fill');
-          if (fillElem) {
-            fillElem.style.width = '0%';
-          }
+          // Initialize single progress UI
+          updateSingleProgress(0, `0 / ${taskIndices.length} 任务`);
           
           // Start polling (with a small delay to let backend initialize)
           setTimeout(() => startBackgroundTaskPolling(), 500);
@@ -8599,9 +8570,6 @@
       }
       
       backgroundTaskStartTime = 0;
-      
-      // 隐藏后台任务状态
-      $('background-task-status').classList.add('hidden');
     }
     
     async function pollBackgroundTaskStatus() {
@@ -8611,16 +8579,32 @@
         if (result.success && result.task_status) {
           const status = result.task_status;
           
-          // 更新UI
-          $('bg-completed-count').textContent = status.completed_tasks || 0;
-          $('bg-total-count').textContent = status.total_tasks || 0;
-          $('bg-overall-progress').textContent = status.progress_percent || 0;
-          $('bg-current-progress').textContent = status.current_task_progress || 0;
+          // Update existing single progress UI
+          const completedTasks = status.completed_tasks || 0;
+          const totalTasks = status.total_tasks || 0;
+          const progressPercent = status.progress_percent || 0;
+          const currentTaskProgress = status.current_task_progress || 0;
           
-          // 更新进度条
-          const fillElem = $('bg-progress-fill');
-          if (fillElem) {
-            fillElem.style.width = (status.progress_percent || 0) + '%';
+          // Update progress bar and text
+          if (totalTasks === 1) {
+            // Single task - show point progress
+            updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
+          } else {
+            // Multiple tasks - show task progress
+            updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
+          }
+          
+          // Update real-time position on map if available
+          if (status.current_position) {
+            const pos = status.current_position;
+            updateRunnerPosition(
+              pos.lon,
+              pos.lat,
+              pos.distance || 0,
+              pos.target_sequence || 0,
+              0, // duration not needed for display
+              false // don't auto-center
+            );
           }
           
           // Check if this is old data (task started before we began polling)
@@ -8681,7 +8665,6 @@
           // 如果有任务在运行，显示状态并开始轮询
           if (status.status === 'running') {
             logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
-            $('background-task-status').classList.remove('hidden');
             
             // Update button states
             const totalTasks = status.total_tasks || 0;
