@@ -7667,7 +7667,7 @@ class BackgroundTaskManager:
                         logging.info(f"Planning path with {len(waypoints)} waypoints")
                         
                         # 调用Chrome池执行路径规划
-                        from main import chrome_pool
+                        global chrome_pool
                         if chrome_pool:
                             # 使用Chrome池执行AMap路径规划JavaScript
                             path_coords = chrome_pool.execute_js(
