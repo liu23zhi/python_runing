@@ -7664,80 +7664,107 @@ class BackgroundTaskManager:
                         
                         # 使用Chrome池进行服务器端路径规划
                         waypoints = run_data.target_points
-                        logging.info(f"Planning path with {len(waypoints)} waypoints")
+                        logging.info(f"Planning path with {len(waypoints)} waypoints for task: {run_data.run_name}")
                         
                         # 调用Chrome池执行路径规划
                         global chrome_pool
                         if chrome_pool:
-                            # 使用Chrome池执行AMap路径规划JavaScript
-                            path_coords = chrome_pool.execute_js(
-                                session_id,
-                                """
-                                async function planPath(waypoints) {
-                                    // 确保AMap已加载
-                                    if (typeof AMap === 'undefined') {
-                                        return {error: 'AMap not loaded'};
-                                    }
-                                    
-                                    return new Promise((resolve) => {
-                                        AMap.plugin('AMap.Walking', function() {
-                                            const walking = new AMap.Walking({
-                                                map: null  // 不需要地图显示
-                                            });
-                                            
-                                            // 将waypoints转换为AMap.LngLat格式
-                                            const points = waypoints.map(p => new AMap.LngLat(p[0], p[1]));
-                                            
-                                            walking.search(points, function(status, result) {
-                                                if (status === 'complete' && result.routes && result.routes.length > 0) {
-                                                    const route = result.routes[0];
-                                                    const path = [];
-                                                    route.steps.forEach(step => {
-                                                        if (step.path) {
-                                                            step.path.forEach(p => {
-                                                                path.push({lng: p.lng, lat: p.lat});
-                                                            });
-                                                        }
-                                                    });
-                                                    resolve({path: path});
-                                                } else {
-                                                    resolve({error: 'Path planning failed'});
-                                                }
+                            try:
+                                # 获取页面并确保加载了AMap
+                                ctx = chrome_pool.get_context(session_id)
+                                page = ctx['page']
+                                
+                                # 首先加载包含AMap的页面
+                                amap_url = "https://webapi.amap.com/maps?v=1.4.15&key=YOUR_KEY"
+                                # 或者加载一个简单的HTML页面并注入AMap脚本
+                                page.goto("about:blank")
+                                page.set_content("""
+                                <!DOCTYPE html>
+                                <html>
+                                <head>
+                                    <meta charset="utf-8">
+                                    <script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.15&key=f8e9fd5b2fba0b22c6eb3456e0c4c62e"></script>
+                                </head>
+                                <body></body>
+                                </html>
+                                """)
+                                
+                                # 等待AMap加载
+                                page.wait_for_function("typeof AMap !== 'undefined'", timeout=10000)
+                                logging.info("AMap loaded successfully in Chrome context")
+                                
+                                # 使用Chrome池执行AMap路径规划JavaScript
+                                path_coords = chrome_pool.execute_js(
+                                    session_id,
+                                    """
+                                    async function planPath(waypoints) {
+                                        // 确保AMap已加载
+                                        if (typeof AMap === 'undefined') {
+                                            return {error: 'AMap not loaded'};
+                                        }
+                                        
+                                        return new Promise((resolve) => {
+                                            AMap.plugin('AMap.Walking', function() {
+                                                const walking = new AMap.Walking({
+                                                    map: null  // 不需要地图显示
+                                                });
+                                                
+                                                // 将waypoints转换为AMap.LngLat格式
+                                                const points = waypoints.map(p => new AMap.LngLat(p[0], p[1]));
+                                                
+                                                walking.search(points, function(status, result) {
+                                                    if (status === 'complete' && result.routes && result.routes.length > 0) {
+                                                        const route = result.routes[0];
+                                                        const path = [];
+                                                        route.steps.forEach(step => {
+                                                            if (step.path) {
+                                                                step.path.forEach(p => {
+                                                                    path.push({lng: p.lng, lat: p.lat});
+                                                                });
+                                                            }
+                                                        });
+                                                        resolve({path: path});
+                                                    } else {
+                                                        resolve({error: 'Path planning failed: ' + status});
+                                                    }
+                                                });
                                             });
                                         });
-                                    });
-                                }
-                                
-                                return planPath(arguments[0]);
-                                """,
-                                waypoints
-                            )
-                            
-                            if path_coords and 'path' in path_coords:
-                                api_path_coords = path_coords['path']
-                                logging.info(f"Path planned successfully with {len(api_path_coords)} points")
-                                
-                                # 使用后端生成 run_coords
-                                p = api_instance.params
-                                gen_resp = api_instance.auto_generate_path_with_api(
-                                    api_path_coords,
-                                    p.get("min_time_m", 20),
-                                    p.get("max_time_m", 30),
-                                    p.get("min_dist_m", 2000)
+                                    }
+                                    
+                                    return planPath(arguments[0]);
+                                    """,
+                                    waypoints
                                 )
                                 
-                                if gen_resp.get("success"):
-                                    # 将生成结果回填到当前任务
-                                    run_data.run_coords = gen_resp["run_coords"]
-                                    run_data.total_run_distance_m = gen_resp["total_dist"]
-                                    run_data.total_run_time_s = gen_resp["total_time"]
-                                    logging.info(f"Path auto-generated successfully for {run_data.run_name}")
+                                if path_coords and 'path' in path_coords:
+                                    api_path_coords = path_coords['path']
+                                    logging.info(f"Path planned successfully with {len(api_path_coords)} points")
+                                    
+                                    # 使用后端生成 run_coords
+                                    p = api_instance.params
+                                    gen_resp = api_instance.auto_generate_path_with_api(
+                                        api_path_coords,
+                                        p.get("min_time_m", 20),
+                                        p.get("max_time_m", 30),
+                                        p.get("min_dist_m", 2000)
+                                    )
+                                    
+                                    if gen_resp.get("success"):
+                                        # 将生成结果回填到当前任务
+                                        run_data.run_coords = gen_resp["run_coords"]
+                                        run_data.total_run_distance_m = gen_resp["total_dist"]
+                                        run_data.total_run_time_s = gen_resp["total_time"]
+                                        logging.info(f"Path auto-generated successfully for {run_data.run_name}")
+                                    else:
+                                        logging.error(f"Failed to generate run coords: {gen_resp.get('message')}")
+                                        continue
                                 else:
-                                    logging.error(f"Failed to generate run coords: {gen_resp.get('message')}")
+                                    error_msg = path_coords.get('error', 'Unknown error') if path_coords else 'No response'
+                                    logging.error(f"Path planning failed: {error_msg}")
                                     continue
-                            else:
-                                error_msg = path_coords.get('error', 'Unknown error') if path_coords else 'No response'
-                                logging.error(f"Path planning failed: {error_msg}")
+                            except Exception as e:
+                                logging.error(f"Chrome pool path planning failed: {e}", exc_info=True)
                                 continue
                         else:
                             logging.error("Chrome pool not available for path planning")
