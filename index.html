@@ -8479,11 +8479,19 @@
           btn.classList.remove('btn-primary');
           btn.classList.add('btn-danger');
           
-          // Show background task status
+          // Show background task status and initialize UI
           $('background-task-status').classList.remove('hidden');
+          $('bg-completed-count').textContent = '0';
+          $('bg-total-count').textContent = '1';
+          $('bg-overall-progress').textContent = '0';
+          $('bg-current-progress').textContent = '0';
+          const fillElem = $('bg-progress-fill');
+          if (fillElem) {
+            fillElem.style.width = '0%';
+          }
           
-          // Start polling
-          startBackgroundTaskPolling();
+          // Start polling (with a small delay to let backend initialize)
+          setTimeout(() => startBackgroundTaskPolling(), 500);
         } else {
           showModalAlert(result.message);
         }
@@ -8539,11 +8547,19 @@
           btn.classList.remove('btn-secondary');
           btn.classList.add('btn-danger');
           
-          // Show background task status
+          // Show background task status and initialize UI
           $('background-task-status').classList.remove('hidden');
+          $('bg-completed-count').textContent = '0';
+          $('bg-total-count').textContent = taskIndices.length.toString();
+          $('bg-overall-progress').textContent = '0';
+          $('bg-current-progress').textContent = '0';
+          const fillElem = $('bg-progress-fill');
+          if (fillElem) {
+            fillElem.style.width = '0%';
+          }
           
-          // Start polling
-          startBackgroundTaskPolling();
+          // Start polling (with a small delay to let backend initialize)
+          setTimeout(() => startBackgroundTaskPolling(), 500);
         } else {
           showModalAlert(result.message);
         }
@@ -8559,11 +8575,15 @@
 
     // ========== 后台任务管理函数 ==========
     let backgroundTaskPollInterval = null;
+    let backgroundTaskStartTime = 0; // Track when task was started to avoid showing alerts for old data
     
     function startBackgroundTaskPolling() {
       if (backgroundTaskPollInterval) {
         clearInterval(backgroundTaskPollInterval);
       }
+      
+      // Mark the start time
+      backgroundTaskStartTime = Date.now();
       
       // 立即查询一次
       pollBackgroundTaskStatus();
@@ -8577,6 +8597,8 @@
         clearInterval(backgroundTaskPollInterval);
         backgroundTaskPollInterval = null;
       }
+      
+      backgroundTaskStartTime = 0;
       
       // 隐藏后台任务状态
       $('background-task-status').classList.add('hidden');
@@ -8601,10 +8623,16 @@
             fillElem.style.width = (status.progress_percent || 0) + '%';
           }
           
-          // 检查是否完成
+          // Check if this is old data (task started before we began polling)
+          const taskStartTime = (status.start_time || 0) * 1000; // Convert to ms
+          const isOldTask = backgroundTaskStartTime > 0 && taskStartTime < backgroundTaskStartTime - 2000; // 2s buffer
+          
+          // 检查是否完成 - only show alert if this is not old data
           if (status.status === 'completed') {
-            logMessage_Info('后台任务全部完成！');
-            showModalAlert('后台任务全部完成！');
+            if (!isOldTask) {
+              logMessage_Info('后台任务全部完成！');
+              showModalAlert('后台任务全部完成！');
+            }
             stopBackgroundTaskPolling();
             
             // Reset button states
@@ -8616,10 +8644,14 @@
             $('start-all-button').classList.add('btn-secondary');
             
             // 刷新任务列表
-            refreshTasks();
+            if (!isOldTask) {
+              refreshTasks();
+            }
           } else if (status.status === 'error') {
             logMessage_Error('后台任务执行出错: ' + (status.error || '未知错误'));
-            showModalAlert('后台任务执行出错');
+            if (!isOldTask) {
+              showModalAlert('后台任务执行出错');
+            }
             stopBackgroundTaskPolling();
             
             // Reset button states
