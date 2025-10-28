@@ -8680,6 +8680,32 @@
               $('start-all-button').classList.add('btn-danger');
             }
             
+            // Restore progress display
+            const completedTasks = status.completed_tasks || 0;
+            const progressPercent = status.progress_percent || 0;
+            const currentTaskProgress = status.current_task_progress || 0;
+            
+            if (totalTasks === 1) {
+              // Single task - show point progress
+              updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
+            } else {
+              // Multiple tasks - show task progress
+              updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
+            }
+            
+            // Restore runner position on map if available
+            if (status.current_position) {
+              const pos = status.current_position;
+              updateRunnerPosition(
+                pos.lon,
+                pos.lat,
+                pos.distance || 0,
+                pos.target_sequence || 0,
+                0,
+                true // center on first restore
+              );
+            }
+            
             startBackgroundTaskPolling();
           }
         }
