@@ -794,15 +794,9 @@
               <button id="start-all-button" class="btn btn-secondary">执行所有</button>
             </div>
             
-            <!-- 后台任务按钮 -->
-            <div class="grid grid-cols-2 gap-3">
-              <button id="start-background-button" class="btn btn-success">后台执行所有</button>
-              <button id="stop-background-button" class="btn btn-danger hidden">停止后台任务</button>
-            </div>
-            
             <!-- 后台任务进度显示 -->
             <div id="background-task-status" class="hidden mt-2 p-3 rounded-lg border border-sky-200 bg-sky-50">
-              <div class="text-sm font-semibold text-sky-700 mb-2">后台任务进度</div>
+              <div class="text-sm font-semibold text-sky-700 mb-2">任务进度</div>
               <div class="text-xs text-slate-600">
                 <div>已完成: <span id="bg-completed-count">0</span> / <span id="bg-total-count">0</span></div>
                 <div>总进度: <span id="bg-overall-progress">0</span>%</div>
@@ -6941,7 +6935,17 @@
       // 模态全局标记清理
       try { document.body.classList.remove('modal-visible'); } catch (_) { }
 
-      onRunStopped();
+      // Reset button states
+      $('start-run-button').textContent = '开始执行';
+      $('start-run-button').classList.remove('btn-danger');
+      $('start-run-button').classList.add('btn-primary');
+      $('start-all-button').textContent = '执行所有';
+      $('start-all-button').classList.remove('btn-danger');
+      $('start-all-button').classList.add('btn-secondary');
+      
+      // Stop background polling if active
+      stopBackgroundTaskPolling();
+      
       updateDashboard();
 
       destroySingleMap();
@@ -7041,8 +7045,6 @@
     $('process-button').addEventListener('click', processCurrentPath);
     $('start-run-button').addEventListener('click', toggleRun);
     $('start-all-button').addEventListener('click', toggleAllRuns);
-    $('start-background-button').addEventListener('click', startBackgroundTasks);
-    $('stop-background-button').addEventListener('click', stopBackgroundTasks);
     $('export-button').addEventListener('click', exportTask);
     $('import-button').addEventListener('click', importTask);
     // $('zoom-in').addEventListener('click', () => { if (map) map.zoomIn(); });
@@ -8461,127 +8463,53 @@
     async function toggleRun() {
       const btn = $('start-run-button'); runAccumulatedMs = 0;
       if (btn.textContent === '开始执行') {
-        const result = await callPythonAPI('start_single_run');
-        if (result.success) onRunStarted(); else showModalAlert(result.message);
+        // Use background task execution for single task
+        if (selectedTaskIndex < 0) {
+          showModalAlert('请先选择任务');
+          return;
+        }
+        
+        const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
+          task_indices: [selectedTaskIndex],
+          auto_generate: false
+        });
+        
+        if (result.success) {
+          btn.textContent = '停止';
+          btn.classList.remove('btn-primary');
+          btn.classList.add('btn-danger');
+          
+          // Show background task status
+          $('background-task-status').classList.remove('hidden');
+          
+          // Start polling
+          startBackgroundTaskPolling();
+        } else {
+          showModalAlert(result.message);
+        }
       } else {
-        await callPythonAPI('stop_run'); onRunStopped();
+        // Stop the task
+        await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+        btn.textContent = '开始执行';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-primary');
+        stopBackgroundTaskPolling();
       }
     }
+    
     async function toggleAllRuns() {
       const btn = $('start-all-button'); runAccumulatedMs = 0;
       if (btn.textContent === '执行所有') {
         const ignoreCompleted = $('run-completed-check').checked;
         const autoGen = $('auto-gen-all-check').checked;
-        const result = await callPythonAPI('start_all_runs', ignoreCompleted, autoGen);
-        if (!result.success) showModalAlert(result.message);
-      } else await callPythonAPI('stop_run');
-    }
-    // 修复Issue 2: 添加实时状态轮询
-    let statusPollInterval = null;
-
-    async function pollRunStatus() {
-      try {
-        const status = await callPythonAPI('get_run_status');
-        if (status && status.running) {
-          // 更新位置和进度
-          if (status.current_position) {
-            updateRunnerPosition(
-              status.current_position.lon,
-              status.current_position.lat,
-              status.distance_covered || 0,
-              status.target_sequence || 0,
-              status.duration || 0,
-              false // 不自动居中，避免干扰用户操作
-            );
-          }
-          // 更新进度
-          if (status.processed_points !== undefined && status.total_points !== undefined) {
-            singleProcessedPoints = status.processed_points;
-            singleTotalPoints = status.total_points;
-            const pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
-            updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
-          }
-        } else if (status && !status.running && statusPollInterval) {
-          // 任务完成，停止轮询
-          clearInterval(statusPollInterval);
-          statusPollInterval = null;
-          onRunStopped();
-        }
-      } catch (e) {
-        logMessage_Error('轮询状态失败:', e);
-      }
-    }
-
-    function onRunStarted() {
-      $('start-run-button').textContent = '停止';
-      $('start-run-button').classList.remove('btn-primary');
-      $('start-run-button').classList.add('btn-danger');
-      $('start-all-button').textContent = '全部停止';
-      $('start-all-button').classList.remove('btn-secondary');
-      $('start-all-button').classList.add('btn-danger');
-      // 修复逻辑错误：禁用其他控制按钮
-      ['record-button', 'auto-gen-button', 'process-button', 'clear-button', 'export-button', 'refresh-button', 'import-button', 'login-button', 'logout-button'].forEach(id => {
-        if ($(id)) $(id).disabled = true;
-      });
-      // 开始运行时重置进度
-      singleProcessedPoints = 0;
-      singleTotalPoints = (currentRunData.run_coords?.length || 0);
-      updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
-
-      // 修复Issue 2: 启动状态轮询（每2秒）
-      if (statusPollInterval) clearInterval(statusPollInterval);
-      statusPollInterval = setInterval(pollRunStatus, 2000);
-
-    }
-    function onRunStopped() {
-      $('start-run-button').textContent = '开始执行';
-      $('start-run-button').classList.remove('btn-danger');
-      $('start-run-button').classList.add('btn-primary');
-      $('start-all-button').textContent = '执行所有';
-      $('start-all-button').classList.remove('btn-danger');
-      $('start-all-button').classList.add('btn-secondary');
-      runAccumulatedMs = 0;
-      if (runnerMarker) { map.remove(runnerMarker); runnerMarker = null; }
-      if (currentRunData) { currentRunData.target_sequence = 0; updateDashboard(); drawMarkers(); }
-      $('current-location-label').textContent = '当前位置GPS坐标: --, --';
-      // 修复逻辑错误：恢复其他控制按钮
-      ['record-button', 'auto-gen-button', 'process-button', 'clear-button', 'export-button', 'refresh-button', 'import-button', 'login-button', 'logout-button'].forEach(id => {
-        if ($(id)) $(id).disabled = false;
-      });
-      // 停止运行时复位进度
-      singleProcessedPoints = 0;
-      singleTotalPoints = (currentRunData.run_coords?.length || 0);
-      updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
-
-      // 修复Issue 2: 停止状态轮询
-      if (statusPollInterval) {
-        clearInterval(statusPollInterval);
-        statusPollInterval = null;
-      }
-
-    }
-
-    function onAllRunsToggled(isRunning) {
-      if (isRunning) { onRunStarted(); }
-      else { onRunStopped(); }
-    }
-
-    // ========== 后台任务管理函数 ==========
-    let backgroundTaskPollInterval = null;
-    
-    async function startBackgroundTasks() {
-      try {
-        // 获取所有需要执行的任务索引
-        const ignoreCompleted = $('run-completed-check').checked;
-        const autoGenerate = $('auto-gen-all-check').checked;
         
-        // 筛选任务
+        // Filter tasks
         const taskIndices = [];
         for (let i = 0; i < allTasksData.length; i++) {
           const task = allTasksData[i];
           if (task.status == 1 && !ignoreCompleted) continue;
           
-          // 检查时间
+          // Check time
           const now = new Date();
           if (task.end_time) {
             const endDate = new Date(task.end_time);
@@ -8600,48 +8528,37 @@
           return;
         }
         
-        // 启动后台任务
+        // Use background task execution
         const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
           task_indices: taskIndices,
-          auto_generate: autoGenerate
+          auto_generate: autoGen
         });
         
         if (result.success) {
-          logMessage_Info(`后台任务已启动，共${taskIndices.length}个任务`);
-          showModalAlert(`后台任务已启动，共${taskIndices.length}个任务。您可以关闭浏览器，任务将在后台继续执行。`);
+          btn.textContent = '全部停止';
+          btn.classList.remove('btn-secondary');
+          btn.classList.add('btn-danger');
           
-          // 显示后台任务状态
+          // Show background task status
           $('background-task-status').classList.remove('hidden');
-          $('start-background-button').classList.add('hidden');
-          $('stop-background-button').classList.remove('hidden');
           
-          // 开始轮询状态
+          // Start polling
           startBackgroundTaskPolling();
         } else {
-          showModalAlert('启动后台任务失败: ' + result.message);
+          showModalAlert(result.message);
         }
-      } catch (e) {
-        logMessage_Error('启动后台任务失败:', e);
-        showModalAlert('启动后台任务失败');
+      } else {
+        // Stop all tasks
+        await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+        btn.textContent = '执行所有';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-secondary');
+        stopBackgroundTaskPolling();
       }
     }
-    
-    async function stopBackgroundTasks() {
-      try {
-        const result = await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
-        
-        if (result.success) {
-          logMessage_Info('后台任务已停止');
-          showModalAlert('后台任务已停止');
-          stopBackgroundTaskPolling();
-        } else {
-          showModalAlert('停止后台任务失败: ' + result.message);
-        }
-      } catch (e) {
-        logMessage_Error('停止后台任务失败:', e);
-        showModalAlert('停止后台任务失败');
-      }
-    }
+
+    // ========== 后台任务管理函数 ==========
+    let backgroundTaskPollInterval = null;
     
     function startBackgroundTaskPolling() {
       if (backgroundTaskPollInterval) {
@@ -8663,8 +8580,6 @@
       
       // 隐藏后台任务状态
       $('background-task-status').classList.add('hidden');
-      $('start-background-button').classList.remove('hidden');
-      $('stop-background-button').classList.add('hidden');
     }
     
     async function pollBackgroundTaskStatus() {
@@ -8692,12 +8607,28 @@
             showModalAlert('后台任务全部完成！');
             stopBackgroundTaskPolling();
             
+            // Reset button states
+            $('start-run-button').textContent = '开始执行';
+            $('start-run-button').classList.remove('btn-danger');
+            $('start-run-button').classList.add('btn-primary');
+            $('start-all-button').textContent = '执行所有';
+            $('start-all-button').classList.remove('btn-danger');
+            $('start-all-button').classList.add('btn-secondary');
+            
             // 刷新任务列表
             refreshTasks();
           } else if (status.status === 'error') {
             logMessage_Error('后台任务执行出错: ' + (status.error || '未知错误'));
             showModalAlert('后台任务执行出错');
             stopBackgroundTaskPolling();
+            
+            // Reset button states
+            $('start-run-button').textContent = '开始执行';
+            $('start-run-button').classList.remove('btn-danger');
+            $('start-run-button').classList.add('btn-primary');
+            $('start-all-button').textContent = '执行所有';
+            $('start-all-button').classList.remove('btn-danger');
+            $('start-all-button').classList.add('btn-secondary');
           }
         }
       } catch (e) {
@@ -8718,8 +8649,20 @@
           if (status.status === 'running') {
             logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
             $('background-task-status').classList.remove('hidden');
-            $('start-background-button').classList.add('hidden');
-            $('stop-background-button').classList.remove('hidden');
+            
+            // Update button states
+            const totalTasks = status.total_tasks || 0;
+            if (totalTasks === 1) {
+              // Single task running
+              $('start-run-button').textContent = '停止';
+              $('start-run-button').classList.remove('btn-primary');
+              $('start-run-button').classList.add('btn-danger');
+            } else if (totalTasks > 1) {
+              // Multiple tasks running
+              $('start-all-button').textContent = '全部停止';
+              $('start-all-button').classList.remove('btn-secondary');
+              $('start-all-button').classList.add('btn-danger');
+            }
             
             startBackgroundTaskPolling();
           }
