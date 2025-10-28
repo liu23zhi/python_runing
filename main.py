@@ -7652,31 +7652,41 @@ class BackgroundTaskManager:
                     try:
                         # 确保已加载任务详情，拿到打卡点
                         if not run_data.details_fetched:
+                            logging.info(f"Fetching task details for {run_data.run_name}...")
                             details_resp = api_instance.get_task_details(task_idx)
                             if not details_resp.get("success"):
-                                logging.warning(f"Failed to get task details for {run_data.run_name}")
+                                logging.error(f"Failed to get task details for {run_data.run_name}: {details_resp.get('message', 'Unknown error')}")
                                 continue
                             run_data = api_instance.all_run_data[task_idx]
+                            logging.info(f"Task details fetched successfully for {run_data.run_name}")
                         
                         if not run_data.target_points:
-                            logging.warning(f"Task {run_data.run_name} has no target points for auto-generation")
+                            logging.error(f"Task {run_data.run_name} has no target points for auto-generation")
                             continue
+                        
+                        logging.info(f"Task {run_data.run_name} has {len(run_data.target_points)} target points")
                         
                         # 使用Chrome池进行服务器端路径规划
                         waypoints = run_data.target_points
                         logging.info(f"Planning path with {len(waypoints)} waypoints for task: {run_data.run_name}")
+                        logging.info(f"Waypoints: {waypoints[:3]}..." if len(waypoints) > 3 else f"Waypoints: {waypoints}")
                         
                         # 调用Chrome池执行路径规划
                         global chrome_pool
+                        if not chrome_pool:
+                            logging.error("Chrome pool is not available for path planning!")
+                            continue
+                            
                         if chrome_pool:
                             try:
+                                logging.info(f"Getting Chrome context for session {session_id[:8]}...")
                                 # 获取页面并确保加载了AMap
                                 ctx = chrome_pool.get_context(session_id)
                                 page = ctx['page']
+                                logging.info("Chrome context obtained successfully")
                                 
                                 # 首先加载包含AMap的页面
-                                amap_url = "https://webapi.amap.com/maps?v=1.4.15&key=YOUR_KEY"
-                                # 或者加载一个简单的HTML页面并注入AMap脚本
+                                logging.info("Loading AMap SDK into Chrome page...")
                                 page.goto("about:blank")
                                 page.set_content("""
                                 <!DOCTYPE html>
@@ -7690,10 +7700,12 @@ class BackgroundTaskManager:
                                 """)
                                 
                                 # 等待AMap加载
+                                logging.info("Waiting for AMap to load...")
                                 page.wait_for_function("typeof AMap !== 'undefined'", timeout=10000)
                                 logging.info("AMap loaded successfully in Chrome context")
                                 
                                 # 使用Chrome池执行AMap路径规划JavaScript
+                                logging.info("Executing path planning JavaScript in Chrome...")
                                 path_coords = chrome_pool.execute_js(
                                     session_id,
                                     """
@@ -7737,12 +7749,15 @@ class BackgroundTaskManager:
                                     waypoints
                                 )
                                 
+                                logging.info(f"Path planning JavaScript returned: {type(path_coords)}, has 'path' key: {'path' in path_coords if path_coords else 'None'}")
+                                
                                 if path_coords and 'path' in path_coords:
                                     api_path_coords = path_coords['path']
                                     logging.info(f"Path planned successfully with {len(api_path_coords)} points")
                                     
                                     # 使用后端生成 run_coords
                                     p = api_instance.params
+                                    logging.info(f"Generating run simulation with params: min_time={p.get('min_time_m', 20)}, max_time={p.get('max_time_m', 30)}, min_dist={p.get('min_dist_m', 2000)}")
                                     gen_resp = api_instance.auto_generate_path_with_api(
                                         api_path_coords,
                                         p.get("min_time_m", 20),
@@ -7750,21 +7765,23 @@ class BackgroundTaskManager:
                                         p.get("min_dist_m", 2000)
                                     )
                                     
+                                    logging.info(f"auto_generate_path_with_api returned: success={gen_resp.get('success')}")
+                                    
                                     if gen_resp.get("success"):
                                         # 将生成结果回填到当前任务
                                         run_data.run_coords = gen_resp["run_coords"]
                                         run_data.total_run_distance_m = gen_resp["total_dist"]
                                         run_data.total_run_time_s = gen_resp["total_time"]
-                                        logging.info(f"Path auto-generated successfully for {run_data.run_name}")
+                                        logging.info(f"Path auto-generated successfully for {run_data.run_name}: {len(gen_resp['run_coords'])} coords, {gen_resp['total_dist']}m, {gen_resp['total_time']}s")
                                     else:
                                         logging.error(f"Failed to generate run coords: {gen_resp.get('message')}")
                                         continue
                                 else:
-                                    error_msg = path_coords.get('error', 'Unknown error') if path_coords else 'No response'
-                                    logging.error(f"Path planning failed: {error_msg}")
+                                    error_msg = path_coords.get('error', 'Unknown error') if path_coords else 'No response from path planning'
+                                    logging.error(f"Path planning failed for {run_data.run_name}: {error_msg}")
                                     continue
                             except Exception as e:
-                                logging.error(f"Chrome pool path planning failed: {e}", exc_info=True)
+                                logging.error(f"Chrome pool path planning failed for {run_data.run_name}: {e}", exc_info=True)
                                 continue
                         else:
                             logging.error("Chrome pool not available for path planning")
