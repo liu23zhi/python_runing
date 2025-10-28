@@ -7776,14 +7776,9 @@ class BackgroundTaskManager:
                 
                 # 检查任务是否有路径
                 if not run_data.run_coords:
-                    logging.warning(f"Task {run_data.run_name} has no path, skipping")
-                    # Update error status for tasks without paths
-                    with self.lock:
-                        task_state['status'] = 'error'
-                        task_state['error'] = f'任务 "{run_data.run_name}" 没有路径，请先生成路径'
-                        task_state['last_update'] = time.time()
-                        self.save_task_state(session_id, task_state)
-                    return
+                    logging.warning(f"Task {run_data.run_name} has no path, skipping to next task")
+                    # Skip this task and continue with the next one
+                    continue
                 
                 # 设置当前任务
                 api_instance.current_run_idx = task_idx
