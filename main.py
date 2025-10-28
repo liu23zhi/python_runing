@@ -7887,10 +7887,17 @@ class BackgroundTaskManager:
                 with self.lock:
                     if task_state.get('status') != 'error':  # Don't overwrite error status
                         task_state['status'] = 'error'
-                        task_state['error'] = '所有任务都没有路径，请先生成路径'
+                        # Different error message based on whether auto-generate was enabled
+                        if auto_generate:
+                            task_state['error'] = '自动生成路径失败，请查看服务器日志了解详情或手动生成路径'
+                        else:
+                            task_state['error'] = '所有任务都没有路径，请先生成路径'
                         task_state['last_update'] = time.time()
                         self.save_task_state(session_id, task_state)
-                logging.warning(f"No tasks were executed for session {session_id[:8]}")
+                if auto_generate:
+                    logging.error(f"No tasks were executed for session {session_id[:8]} - all auto-generation attempts failed")
+                else:
+                    logging.warning(f"No tasks were executed for session {session_id[:8]} - no paths available")
             
         except Exception as e:
             logging.error(f"Background task execution failed: {e}", exc_info=True)
