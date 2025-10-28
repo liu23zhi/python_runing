@@ -8648,9 +8648,10 @@
               refreshTasks();
             }
           } else if (status.status === 'error') {
-            logMessage_Error('后台任务执行出错: ' + (status.error || '未知错误'));
+            const errorMsg = status.error || '未知错误';
+            logMessage_Error('后台任务执行出错: ' + errorMsg);
             if (!isOldTask) {
-              showModalAlert('后台任务执行出错');
+              showModalAlert('后台任务执行出错: ' + errorMsg);
             }
             stopBackgroundTaskPolling();
             

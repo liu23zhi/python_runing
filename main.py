@@ -7622,6 +7622,8 @@ class BackgroundTaskManager:
     def _execute_tasks_background(self, session_id, api_instance, task_indices, auto_generate):
         """后台执行任务的线程函数"""
         try:
+            tasks_executed = 0  # Track how many tasks were actually executed
+            
             for i, task_idx in enumerate(task_indices):
                 # 检查是否需要停止
                 with self.lock:
@@ -7662,7 +7664,13 @@ class BackgroundTaskManager:
                 # 检查任务是否有路径
                 if not run_data.run_coords:
                     logging.warning(f"Task {run_data.run_name} has no path, skipping")
-                    continue
+                    # Update error status for tasks without paths
+                    with self.lock:
+                        task_state['status'] = 'error'
+                        task_state['error'] = f'任务 "{run_data.run_name}" 没有路径，请先生成路径'
+                        task_state['last_update'] = time.time()
+                        self.save_task_state(session_id, task_state)
+                    return
                 
                 # 设置当前任务
                 api_instance.current_run_idx = task_idx
@@ -7683,6 +7691,9 @@ class BackgroundTaskManager:
                         daemon=True
                     )
                     thread.start()
+                    
+                    # Mark that we're executing this task
+                    tasks_executed += 1
                     
                     # 等待任务完成或超时（最多等待任务预计时间的2倍）
                     total_time_s = sum(p[2] for p in run_data.run_coords) / 1000.0
@@ -7727,13 +7738,23 @@ class BackgroundTaskManager:
                 
                 logging.info(f"Task {i+1}/{len(task_indices)} completed for session {session_id[:8]}")
             
-            # 所有任务完成
-            with self.lock:
-                task_state['status'] = 'completed'
-                task_state['last_update'] = time.time()
-                self.save_task_state(session_id, task_state)
-            
-            logging.info(f"All background tasks completed for session {session_id[:8]}")
+            # 所有任务完成 - only if at least one task was executed
+            if tasks_executed > 0:
+                with self.lock:
+                    task_state['status'] = 'completed'
+                    task_state['last_update'] = time.time()
+                    self.save_task_state(session_id, task_state)
+                
+                logging.info(f"All background tasks completed for session {session_id[:8]}")
+            else:
+                # No tasks were executed
+                with self.lock:
+                    if task_state.get('status') != 'error':  # Don't overwrite error status
+                        task_state['status'] = 'error'
+                        task_state['error'] = '所有任务都没有路径，请先生成路径'
+                        task_state['last_update'] = time.time()
+                        self.save_task_state(session_id, task_state)
+                logging.warning(f"No tasks were executed for session {session_id[:8]}")
             
         except Exception as e:
             logging.error(f"Background task execution failed: {e}", exc_info=True)
