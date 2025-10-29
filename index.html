@@ -2026,6 +2026,42 @@
       return result;
     }
 
+    // 原始API调用函数，用于直接调用路径
+    async function callPythonAPI_raw(path, method = 'POST', data = null) {
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      // 添加会话UUID到请求头
+      if (sessionUUID) {
+        headers['X-Session-ID'] = sessionUUID;
+      }
+
+      const options = {
+        method: method,
+        headers: headers,
+        credentials: 'include',
+      };
+
+      if (data && method !== 'GET') {
+        options.body = JSON.stringify(data);
+      }
+
+      try {
+        const response = await fetch(path, options);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        return result;
+      } catch (error) {
+        logMessage_Error(`API调用失败 (${path}):`, error);
+        throw error;
+      }
+    }
+
     // 在服务器端Chrome中执行JavaScript
     async function executeServerJS(script, ...args) {
       // Web模式：发送到服务器端Chrome执行
@@ -6013,6 +6049,11 @@
         connectWebSocket();
       }
 
+      // 检查是否有后台任务在运行
+      checkBackgroundTaskOnLoad().catch(err => {
+        logMessage_Warning('检查后台任务失败:', err);
+      });
+
       // 取消CDN错误定时器（如果还在等待）
       if (cdnErrorTimer) {
         clearTimeout(cdnErrorTimer);
@@ -6881,7 +6922,17 @@
       // 模态全局标记清理
       try { document.body.classList.remove('modal-visible'); } catch (_) { }
 
-      onRunStopped();
+      // Reset button states
+      $('start-run-button').textContent = '开始执行';
+      $('start-run-button').classList.remove('btn-danger');
+      $('start-run-button').classList.add('btn-primary');
+      $('start-all-button').textContent = '执行所有';
+      $('start-all-button').classList.remove('btn-danger');
+      $('start-all-button').classList.add('btn-secondary');
+      
+      // Stop background polling if active
+      stopBackgroundTaskPolling();
+      
       updateDashboard();
 
       destroySingleMap();
@@ -8399,109 +8450,269 @@
     async function toggleRun() {
       const btn = $('start-run-button'); runAccumulatedMs = 0;
       if (btn.textContent === '开始执行') {
-        const result = await callPythonAPI('start_single_run');
-        if (result.success) onRunStarted(); else showModalAlert(result.message);
+        // Use background task execution for single task
+        if (selectedTaskIndex < 0) {
+          showModalAlert('请先选择任务');
+          return;
+        }
+        
+        const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
+          task_indices: [selectedTaskIndex],
+          auto_generate: false
+        });
+        
+        if (result.success) {
+          btn.textContent = '停止';
+          btn.classList.remove('btn-primary');
+          btn.classList.add('btn-danger');
+          
+          // Initialize single progress UI
+          updateSingleProgress(0, '0 / ? 点');
+          
+          // Start polling (with a small delay to let backend initialize)
+          setTimeout(() => startBackgroundTaskPolling(), 500);
+        } else {
+          showModalAlert(result.message);
+        }
       } else {
-        await callPythonAPI('stop_run'); onRunStopped();
+        // Stop the task
+        await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+        btn.textContent = '开始执行';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-primary');
+        stopBackgroundTaskPolling();
       }
     }
+    
     async function toggleAllRuns() {
       const btn = $('start-all-button'); runAccumulatedMs = 0;
       if (btn.textContent === '执行所有') {
         const ignoreCompleted = $('run-completed-check').checked;
         const autoGen = $('auto-gen-all-check').checked;
-        const result = await callPythonAPI('start_all_runs', ignoreCompleted, autoGen);
-        if (!result.success) showModalAlert(result.message);
-      } else await callPythonAPI('stop_run');
+        
+        // Filter tasks
+        const taskIndices = [];
+        for (let i = 0; i < allTasksData.length; i++) {
+          const task = allTasksData[i];
+          if (task.status == 1 && !ignoreCompleted) continue;
+          
+          // Check time
+          const now = new Date();
+          if (task.end_time) {
+            const endDate = new Date(task.end_time);
+            if (endDate < now) continue;
+          }
+          if (task.start_time) {
+            const startDate = new Date(task.start_time);
+            if (startDate > now) continue;
+          }
+          
+          taskIndices.push(i);
+        }
+        
+        if (taskIndices.length === 0) {
+          showModalAlert('没有可执行的任务');
+          return;
+        }
+        
+        // Use background task execution
+        const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
+          task_indices: taskIndices,
+          auto_generate: autoGen
+        });
+        
+        if (result.success) {
+          btn.textContent = '全部停止';
+          btn.classList.remove('btn-secondary');
+          btn.classList.add('btn-danger');
+          
+          // Initialize single progress UI
+          updateSingleProgress(0, `0 / ${taskIndices.length} 任务`);
+          
+          // Start polling (with a small delay to let backend initialize)
+          setTimeout(() => startBackgroundTaskPolling(), 500);
+        } else {
+          showModalAlert(result.message);
+        }
+      } else {
+        // Stop all tasks
+        await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+        btn.textContent = '执行所有';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-secondary');
+        stopBackgroundTaskPolling();
+      }
     }
-    // 修复Issue 2: 添加实时状态轮询
-    let statusPollInterval = null;
 
-    async function pollRunStatus() {
+    // ========== 后台任务管理函数 ==========
+    let backgroundTaskPollInterval = null;
+    let backgroundTaskStartTime = 0; // Track when task was started to avoid showing alerts for old data
+    
+    function startBackgroundTaskPolling() {
+      if (backgroundTaskPollInterval) {
+        clearInterval(backgroundTaskPollInterval);
+      }
+      
+      // Mark the start time
+      backgroundTaskStartTime = Date.now();
+      
+      // 立即查询一次
+      pollBackgroundTaskStatus();
+      
+      // 每3秒轮询一次
+      backgroundTaskPollInterval = setInterval(pollBackgroundTaskStatus, 3000);
+    }
+    
+    function stopBackgroundTaskPolling() {
+      if (backgroundTaskPollInterval) {
+        clearInterval(backgroundTaskPollInterval);
+        backgroundTaskPollInterval = null;
+      }
+      
+      backgroundTaskStartTime = 0;
+    }
+    
+    async function pollBackgroundTaskStatus() {
       try {
-        const status = await callPythonAPI('get_run_status');
-        if (status && status.running) {
-          // 更新位置和进度
+        const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+        
+        if (result.success && result.task_status) {
+          const status = result.task_status;
+          
+          // Update existing single progress UI
+          const completedTasks = status.completed_tasks || 0;
+          const totalTasks = status.total_tasks || 0;
+          const progressPercent = status.progress_percent || 0;
+          const currentTaskProgress = status.current_task_progress || 0;
+          
+          // Update progress bar and text
+          if (totalTasks === 1) {
+            // Single task - show point progress
+            updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
+          } else {
+            // Multiple tasks - show task progress
+            updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
+          }
+          
+          // Update real-time position on map if available
           if (status.current_position) {
+            const pos = status.current_position;
             updateRunnerPosition(
-              status.current_position.lon,
-              status.current_position.lat,
-              status.distance_covered || 0,
-              status.target_sequence || 0,
-              status.duration || 0,
-              false // 不自动居中，避免干扰用户操作
+              pos.lon,
+              pos.lat,
+              pos.distance || 0,
+              pos.target_sequence || 0,
+              0, // duration not needed for display
+              false // don't auto-center
             );
           }
-          // 更新进度
-          if (status.processed_points !== undefined && status.total_points !== undefined) {
-            singleProcessedPoints = status.processed_points;
-            singleTotalPoints = status.total_points;
-            const pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
-            updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
+          
+          // Check if this is old data (task started before we began polling)
+          const taskStartTime = (status.start_time || 0) * 1000; // Convert to ms
+          const isOldTask = backgroundTaskStartTime > 0 && taskStartTime < backgroundTaskStartTime - 2000; // 2s buffer
+          
+          // 检查是否完成 - only show alert if this is not old data
+          if (status.status === 'completed') {
+            if (!isOldTask) {
+              logMessage_Info('后台任务全部完成！');
+              showModalAlert('后台任务全部完成！');
+            }
+            stopBackgroundTaskPolling();
+            
+            // Reset button states
+            $('start-run-button').textContent = '开始执行';
+            $('start-run-button').classList.remove('btn-danger');
+            $('start-run-button').classList.add('btn-primary');
+            $('start-all-button').textContent = '执行所有';
+            $('start-all-button').classList.remove('btn-danger');
+            $('start-all-button').classList.add('btn-secondary');
+            
+            // 刷新任务列表
+            if (!isOldTask) {
+              refreshTasks();
+            }
+          } else if (status.status === 'error') {
+            const errorMsg = status.error || '未知错误';
+            logMessage_Error('后台任务执行出错: ' + errorMsg);
+            if (!isOldTask) {
+              showModalAlert('后台任务执行出错: ' + errorMsg);
+            }
+            stopBackgroundTaskPolling();
+            
+            // Reset button states
+            $('start-run-button').textContent = '开始执行';
+            $('start-run-button').classList.remove('btn-danger');
+            $('start-run-button').classList.add('btn-primary');
+            $('start-all-button').textContent = '执行所有';
+            $('start-all-button').classList.remove('btn-danger');
+            $('start-all-button').classList.add('btn-secondary');
           }
-        } else if (status && !status.running && statusPollInterval) {
-          // 任务完成，停止轮询
-          clearInterval(statusPollInterval);
-          statusPollInterval = null;
-          onRunStopped();
         }
       } catch (e) {
-        logMessage_Error('轮询状态失败:', e);
+        // 静默失败，避免轮询错误影响主流程
+        logMessage_Debug('轮询后台任务状态失败:', e);
       }
     }
-
-    function onRunStarted() {
-      $('start-run-button').textContent = '停止';
-      $('start-run-button').classList.remove('btn-primary');
-      $('start-run-button').classList.add('btn-danger');
-      $('start-all-button').textContent = '全部停止';
-      $('start-all-button').classList.remove('btn-secondary');
-      $('start-all-button').classList.add('btn-danger');
-      // 修复逻辑错误：禁用其他控制按钮
-      ['record-button', 'auto-gen-button', 'process-button', 'clear-button', 'export-button', 'refresh-button', 'import-button', 'login-button', 'logout-button'].forEach(id => {
-        if ($(id)) $(id).disabled = true;
-      });
-      // 开始运行时重置进度
-      singleProcessedPoints = 0;
-      singleTotalPoints = (currentRunData.run_coords?.length || 0);
-      updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
-
-      // 修复Issue 2: 启动状态轮询（每2秒）
-      if (statusPollInterval) clearInterval(statusPollInterval);
-      statusPollInterval = setInterval(pollRunStatus, 2000);
-
-    }
-    function onRunStopped() {
-      $('start-run-button').textContent = '开始执行';
-      $('start-run-button').classList.remove('btn-danger');
-      $('start-run-button').classList.add('btn-primary');
-      $('start-all-button').textContent = '执行所有';
-      $('start-all-button').classList.remove('btn-danger');
-      $('start-all-button').classList.add('btn-secondary');
-      runAccumulatedMs = 0;
-      if (runnerMarker) { map.remove(runnerMarker); runnerMarker = null; }
-      if (currentRunData) { currentRunData.target_sequence = 0; updateDashboard(); drawMarkers(); }
-      $('current-location-label').textContent = '当前位置GPS坐标: --, --';
-      // 修复逻辑错误：恢复其他控制按钮
-      ['record-button', 'auto-gen-button', 'process-button', 'clear-button', 'export-button', 'refresh-button', 'import-button', 'login-button', 'logout-button'].forEach(id => {
-        if ($(id)) $(id).disabled = false;
-      });
-      // 停止运行时复位进度
-      singleProcessedPoints = 0;
-      singleTotalPoints = (currentRunData.run_coords?.length || 0);
-      updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
-
-      // 修复Issue 2: 停止状态轮询
-      if (statusPollInterval) {
-        clearInterval(statusPollInterval);
-        statusPollInterval = null;
+    
+    // 页面加载时检查是否有后台任务在运行
+    async function checkBackgroundTaskOnLoad() {
+      try {
+        const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+        
+        if (result.success && result.task_status) {
+          const status = result.task_status;
+          
+          // 如果有任务在运行，显示状态并开始轮询
+          if (status.status === 'running') {
+            logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
+            
+            // Update button states
+            const totalTasks = status.total_tasks || 0;
+            if (totalTasks === 1) {
+              // Single task running
+              $('start-run-button').textContent = '停止';
+              $('start-run-button').classList.remove('btn-primary');
+              $('start-run-button').classList.add('btn-danger');
+            } else if (totalTasks > 1) {
+              // Multiple tasks running
+              $('start-all-button').textContent = '全部停止';
+              $('start-all-button').classList.remove('btn-secondary');
+              $('start-all-button').classList.add('btn-danger');
+            }
+            
+            // Restore progress display
+            const completedTasks = status.completed_tasks || 0;
+            const progressPercent = status.progress_percent || 0;
+            const currentTaskProgress = status.current_task_progress || 0;
+            
+            if (totalTasks === 1) {
+              // Single task - show point progress
+              updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
+            } else {
+              // Multiple tasks - show task progress
+              updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
+            }
+            
+            // Restore runner position on map if available
+            if (status.current_position) {
+              const pos = status.current_position;
+              updateRunnerPosition(
+                pos.lon,
+                pos.lat,
+                pos.distance || 0,
+                pos.target_sequence || 0,
+                0,
+                true // center on first restore
+              );
+            }
+            
+            startBackgroundTaskPolling();
+          }
+        }
+      } catch (e) {
+        // 静默失败
+        logMessage_Debug('检查后台任务状态失败:', e);
       }
-
-    }
-
-    function onAllRunsToggled(isRunning) {
-      if (isRunning) { onRunStarted(); }
-      else { onRunStopped(); }
     }
 
     function ensureRunnerMarker() {

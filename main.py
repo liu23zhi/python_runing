@@ -7547,6 +7547,417 @@ def load_all_sessions(args):
 # Playwright浏览器池管理
 
 
+class BackgroundTaskManager:
+    """管理服务器端后台任务执行"""
+    
+    def __init__(self):
+        self.tasks = {}  # {session_id: task_info}
+        self.lock = threading.Lock()
+        self.task_storage_dir = os.path.join(os.path.dirname(__file__), 'background_tasks')
+        if not os.path.exists(self.task_storage_dir):
+            os.makedirs(self.task_storage_dir)
+        logging.info("BackgroundTaskManager initialized")
+        
+    def _get_task_file_path(self, session_id):
+        """获取任务状态文件路径"""
+        task_hash = hashlib.sha256(session_id.encode()).hexdigest()
+        return os.path.join(self.task_storage_dir, f"{task_hash}.json")
+    
+    def save_task_state(self, session_id, task_state):
+        """保存任务状态到文件"""
+        task_file = self._get_task_file_path(session_id)
+        try:
+            with open(task_file, 'w', encoding='utf-8') as f:
+                json.dump(task_state, f, indent=2, ensure_ascii=False)
+            logging.debug(f"Task state saved for session {session_id[:8]}")
+        except Exception as e:
+            logging.error(f"Failed to save task state: {e}")
+    
+    def load_task_state(self, session_id):
+        """从文件加载任务状态"""
+        task_file = self._get_task_file_path(session_id)
+        if not os.path.exists(task_file):
+            return None
+        try:
+            with open(task_file, 'r', encoding='utf-8') as f:
+                task_state = json.load(f)
+            logging.debug(f"Task state loaded for session {session_id[:8]}")
+            return task_state
+        except Exception as e:
+            logging.error(f"Failed to load task state: {e}")
+            return None
+    
+    def start_background_task(self, session_id, api_instance, task_indices, auto_generate=False):
+        """启动后台任务执行"""
+        with self.lock:
+            # 初始化任务状态
+            task_state = {
+                'session_id': session_id,
+                'total_tasks': len(task_indices),
+                'completed_tasks': 0,
+                'current_task_index': 0,
+                'task_indices': task_indices,
+                'auto_generate': auto_generate,
+                'status': 'running',
+                'start_time': time.time(),
+                'last_update': time.time(),
+                'progress_percent': 0,
+                'current_task_progress': 0
+            }
+            
+            self.tasks[session_id] = task_state
+            self.save_task_state(session_id, task_state)
+            
+            # 启动后台线程执行任务
+            thread = threading.Thread(
+                target=self._execute_tasks_background,
+                args=(session_id, api_instance, task_indices, auto_generate),
+                daemon=True
+            )
+            thread.start()
+            
+            logging.info(f"Background task started for session {session_id[:8]}, {len(task_indices)} tasks")
+            return {"success": True, "message": f"已启动后台任务，共{len(task_indices)}个任务"}
+    
+    def _execute_tasks_background(self, session_id, api_instance, task_indices, auto_generate):
+        """后台执行任务的线程函数"""
+        try:
+            tasks_executed = 0  # Track how many tasks were actually executed
+            
+            for i, task_idx in enumerate(task_indices):
+                # 检查是否需要停止
+                with self.lock:
+                    if session_id not in self.tasks:
+                        logging.info(f"Task cancelled for session {session_id[:8]}")
+                        return
+                    
+                    task_state = self.tasks[session_id]
+                    if task_state.get('status') == 'stopped':
+                        logging.info(f"Task stopped for session {session_id[:8]}")
+                        return
+                
+                # 更新当前任务
+                with self.lock:
+                    task_state['current_task_index'] = i
+                    task_state['last_update'] = time.time()
+                    self.save_task_state(session_id, task_state)
+                
+                # 执行单个任务
+                logging.info(f"Executing task {i+1}/{len(task_indices)} for session {session_id[:8]}")
+                run_data = api_instance.all_run_data[task_idx]
+                
+                # 如果需要自动生成路径
+                if auto_generate and not run_data.run_coords:
+                    logging.info(f"Auto-generating path for task: {run_data.run_name}")
+                    try:
+                        # 确保已加载任务详情，拿到打卡点
+                        if not run_data.details_fetched:
+                            logging.info(f"Fetching task details for {run_data.run_name}...")
+                            details_resp = api_instance.get_task_details(task_idx)
+                            if not details_resp.get("success"):
+                                logging.error(f"Failed to get task details for {run_data.run_name}: {details_resp.get('message', 'Unknown error')}")
+                                continue
+                            run_data = api_instance.all_run_data[task_idx]
+                            logging.info(f"Task details fetched successfully for {run_data.run_name}")
+                        
+                        if not run_data.target_points:
+                            logging.error(f"Task {run_data.run_name} has no target points for auto-generation")
+                            continue
+                        
+                        logging.info(f"Task {run_data.run_name} has {len(run_data.target_points)} target points")
+                        
+                        # 使用Chrome池进行服务器端路径规划
+                        waypoints = run_data.target_points
+                        logging.info(f"Planning path with {len(waypoints)} waypoints for task: {run_data.run_name}")
+                        logging.info(f"Waypoints: {waypoints[:3]}..." if len(waypoints) > 3 else f"Waypoints: {waypoints}")
+                        
+                        # 调用Chrome池执行路径规划
+                        global chrome_pool
+                        if not chrome_pool:
+                            logging.error("Chrome pool is not available for path planning!")
+                            continue
+                            
+                        if chrome_pool:
+                            try:
+                                logging.info(f"Getting Chrome context for session {session_id[:8]}...")
+                                # 获取页面并确保加载了AMap
+                                ctx = chrome_pool.get_context(session_id)
+                                page = ctx['page']
+                                logging.info("Chrome context obtained successfully")
+                                
+                                # 首先加载包含AMap的页面
+                                logging.info("Loading AMap SDK into Chrome page...")
+                                page.goto("about:blank")
+                                page.set_content("""
+                                <!DOCTYPE html>
+                                <html>
+                                <head>
+                                    <meta charset="utf-8">
+                                    <script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.15&key=f8e9fd5b2fba0b22c6eb3456e0c4c62e"></script>
+                                </head>
+                                <body></body>
+                                </html>
+                                """)
+                                
+                                # 等待AMap加载
+                                logging.info("Waiting for AMap to load...")
+                                page.wait_for_function("typeof AMap !== 'undefined'", timeout=10000)
+                                logging.info("AMap loaded successfully in Chrome context")
+                                
+                                # 使用Chrome池执行AMap路径规划JavaScript
+                                logging.info("Executing path planning JavaScript in Chrome...")
+                                path_coords = chrome_pool.execute_js(
+                                    session_id,
+                                    """
+                                    async function planPath(waypoints) {
+                                        // 确保AMap已加载
+                                        if (typeof AMap === 'undefined') {
+                                            return {error: 'AMap not loaded'};
+                                        }
+                                        
+                                        return new Promise((resolve) => {
+                                            AMap.plugin('AMap.Walking', function() {
+                                                const walking = new AMap.Walking({
+                                                    map: null  // 不需要地图显示
+                                                });
+                                                
+                                                // 将waypoints转换为AMap.LngLat格式
+                                                const points = waypoints.map(p => new AMap.LngLat(p[0], p[1]));
+                                                
+                                                walking.search(points, function(status, result) {
+                                                    if (status === 'complete' && result.routes && result.routes.length > 0) {
+                                                        const route = result.routes[0];
+                                                        const path = [];
+                                                        route.steps.forEach(step => {
+                                                            if (step.path) {
+                                                                step.path.forEach(p => {
+                                                                    path.push({lng: p.lng, lat: p.lat});
+                                                                });
+                                                            }
+                                                        });
+                                                        resolve({path: path});
+                                                    } else {
+                                                        resolve({error: 'Path planning failed: ' + status});
+                                                    }
+                                                });
+                                            });
+                                        });
+                                    }
+                                    
+                                    return planPath(arguments[0]);
+                                    """,
+                                    waypoints
+                                )
+                                
+                                logging.info(f"Path planning JavaScript returned: {type(path_coords)}, has 'path' key: {'path' in path_coords if path_coords else 'None'}")
+                                
+                                if path_coords and 'path' in path_coords:
+                                    api_path_coords = path_coords['path']
+                                    logging.info(f"Path planned successfully with {len(api_path_coords)} points")
+                                    
+                                    # 使用后端生成 run_coords
+                                    p = api_instance.params
+                                    logging.info(f"Generating run simulation with params: min_time={p.get('min_time_m', 20)}, max_time={p.get('max_time_m', 30)}, min_dist={p.get('min_dist_m', 2000)}")
+                                    gen_resp = api_instance.auto_generate_path_with_api(
+                                        api_path_coords,
+                                        p.get("min_time_m", 20),
+                                        p.get("max_time_m", 30),
+                                        p.get("min_dist_m", 2000)
+                                    )
+                                    
+                                    logging.info(f"auto_generate_path_with_api returned: success={gen_resp.get('success')}")
+                                    
+                                    if gen_resp.get("success"):
+                                        # 将生成结果回填到当前任务
+                                        run_data.run_coords = gen_resp["run_coords"]
+                                        run_data.total_run_distance_m = gen_resp["total_dist"]
+                                        run_data.total_run_time_s = gen_resp["total_time"]
+                                        logging.info(f"Path auto-generated successfully for {run_data.run_name}: {len(gen_resp['run_coords'])} coords, {gen_resp['total_dist']}m, {gen_resp['total_time']}s")
+                                    else:
+                                        logging.error(f"Failed to generate run coords: {gen_resp.get('message')}")
+                                        continue
+                                else:
+                                    error_msg = path_coords.get('error', 'Unknown error') if path_coords else 'No response from path planning'
+                                    logging.error(f"Path planning failed for {run_data.run_name}: {error_msg}")
+                                    continue
+                            except Exception as e:
+                                logging.error(f"Chrome pool path planning failed for {run_data.run_name}: {e}", exc_info=True)
+                                continue
+                        else:
+                            logging.error("Chrome pool not available for path planning")
+                            continue
+                            
+                    except Exception as e:
+                        logging.error(f"Auto-generate path failed: {e}", exc_info=True)
+                        continue
+                
+                # 检查任务是否有路径
+                if not run_data.run_coords:
+                    logging.warning(f"Task {run_data.run_name} has no path, skipping to next task")
+                    # Skip this task and continue with the next one
+                    continue
+                
+                # 设置当前任务
+                api_instance.current_run_idx = task_idx
+                run_data.target_sequence = 1
+                run_data.is_in_target_zone = False
+                api_instance._first_center_done = False
+                api_instance.stop_run_flag.clear()
+                
+                # 创建完成事件
+                finished_event = threading.Event()
+                
+                # 执行任务（使用实际的提交线程）
+                try:
+                    # 调用实际的执行逻辑
+                    thread = threading.Thread(
+                        target=api_instance._run_submission_thread,
+                        args=(run_data, task_idx, api_instance.api_client, False, finished_event),
+                        daemon=True
+                    )
+                    thread.start()
+                    
+                    # Mark that we're executing this task
+                    tasks_executed += 1
+                    
+                    # 等待任务完成或超时（最多等待任务预计时间的2倍）
+                    total_time_s = sum(p[2] for p in run_data.run_coords) / 1000.0
+                    timeout = max(total_time_s * 2, 300)  # 至少5分钟
+                    
+                    # 监控任务进度并更新状态
+                    start_wait = time.time()
+                    while not finished_event.is_set():
+                        if time.time() - start_wait > timeout:
+                            logging.warning(f"Task execution timeout for {run_data.run_name}")
+                            api_instance.stop_run_flag.set()
+                            break
+                        
+                        # 更新当前任务进度
+                        with self.lock:
+                            if hasattr(run_data, 'current_point_index'):
+                                total_points = len(run_data.run_coords)
+                                current_progress = int(run_data.current_point_index / total_points * 100)
+                                task_state['current_task_progress'] = current_progress
+                                task_state['last_update'] = time.time()
+                                
+                                # Add real-time position data
+                                current_idx = run_data.current_point_index
+                                if current_idx > 0 and current_idx <= total_points:
+                                    coord = run_data.run_coords[current_idx - 1]
+                                    task_state['current_position'] = {
+                                        'lon': coord[0],
+                                        'lat': coord[1],
+                                        'distance': getattr(run_data, 'distance_covered_m', 0),
+                                        'target_sequence': getattr(run_data, 'target_sequence', 0)
+                                    }
+                        
+                        # 每5秒保存一次状态
+                        if int(time.time() - start_wait) % 5 == 0:
+                            with self.lock:
+                                self.save_task_state(session_id, task_state)
+                        
+                        time.sleep(1)
+                    
+                    # 等待线程结束
+                    thread.join(timeout=10)
+                    
+                except Exception as e:
+                    logging.error(f"Task execution failed: {e}", exc_info=True)
+                
+                # 更新完成状态
+                with self.lock:
+                    task_state['completed_tasks'] = i + 1
+                    task_state['progress_percent'] = int((i + 1) / len(task_indices) * 100)
+                    task_state['current_task_progress'] = 100
+                    task_state['last_update'] = time.time()
+                    self.save_task_state(session_id, task_state)
+                
+                logging.info(f"Task {i+1}/{len(task_indices)} completed for session {session_id[:8]}")
+            
+            # 所有任务完成 - only if at least one task was executed
+            if tasks_executed > 0:
+                with self.lock:
+                    task_state['status'] = 'completed'
+                    task_state['last_update'] = time.time()
+                    self.save_task_state(session_id, task_state)
+                
+                logging.info(f"All background tasks completed for session {session_id[:8]}")
+            else:
+                # No tasks were executed
+                with self.lock:
+                    if task_state.get('status') != 'error':  # Don't overwrite error status
+                        task_state['status'] = 'error'
+                        # Different error message based on whether auto-generate was enabled
+                        if auto_generate:
+                            task_state['error'] = '自动生成路径失败，请查看服务器日志了解详情或手动生成路径'
+                        else:
+                            task_state['error'] = '所有任务都没有路径，请先生成路径'
+                        task_state['last_update'] = time.time()
+                        self.save_task_state(session_id, task_state)
+                if auto_generate:
+                    logging.error(f"No tasks were executed for session {session_id[:8]} - all auto-generation attempts failed")
+                else:
+                    logging.warning(f"No tasks were executed for session {session_id[:8]} - no paths available")
+            
+        except Exception as e:
+            logging.error(f"Background task execution failed: {e}", exc_info=True)
+            with self.lock:
+                if session_id in self.tasks:
+                    self.tasks[session_id]['status'] = 'error'
+                    self.tasks[session_id]['error'] = str(e)
+                    self.save_task_state(session_id, self.tasks[session_id])
+    
+    def get_task_status(self, session_id):
+        """获取任务状态"""
+        with self.lock:
+            # 先从内存中获取
+            if session_id in self.tasks:
+                return self.tasks[session_id]
+        
+        # 如果内存中没有，从文件加载
+        task_state = self.load_task_state(session_id)
+        if task_state:
+            with self.lock:
+                self.tasks[session_id] = task_state
+            return task_state
+        
+        return None
+    
+    def stop_task(self, session_id):
+        """停止后台任务"""
+        with self.lock:
+            if session_id in self.tasks:
+                self.tasks[session_id]['status'] = 'stopped'
+                self.save_task_state(session_id, self.tasks[session_id])
+                logging.info(f"Background task stopped for session {session_id[:8]}")
+                return {"success": True, "message": "后台任务已停止"}
+            return {"success": False, "message": "未找到运行中的后台任务"}
+    
+    def cleanup_old_tasks(self, max_age_hours=24):
+        """清理旧的任务状态文件"""
+        try:
+            current_time = time.time()
+            max_age_seconds = max_age_hours * 3600
+            
+            for filename in os.listdir(self.task_storage_dir):
+                if not filename.endswith('.json'):
+                    continue
+                
+                filepath = os.path.join(self.task_storage_dir, filename)
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        task_state = json.load(f)
+                    
+                    last_update = task_state.get('last_update', 0)
+                    if current_time - last_update > max_age_seconds:
+                        os.remove(filepath)
+                        logging.info(f"Removed old task file: {filename}")
+                except Exception as e:
+                    logging.warning(f"Failed to process task file {filename}: {e}")
+        except Exception as e:
+            logging.error(f"Failed to cleanup old tasks: {e}")
+
+
 class ChromeBrowserPool:
     """管理服务器端Chrome浏览器实例，用于执行JS计算"""
 
@@ -7648,8 +8059,9 @@ class ChromeBrowserPool:
                     logging.warning(f"停止 Playwright 实例时发生错误: {e}")
 
 
-# 全局Chrome浏览器池
+# 全局Chrome浏览器池和后台任务管理器
 chrome_pool = None
+background_task_manager = None
 
 
 def _cleanup_playwright():
@@ -7669,7 +8081,7 @@ def _cleanup_playwright():
 
 def start_web_server(args_param):
     """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
-    global chrome_pool, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
+    global chrome_pool, background_task_manager, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
 
     # Make args available globally for Flask routes
     args = args_param
@@ -7693,6 +8105,14 @@ def start_web_server(args_param):
         logging.info("已注册 Playwright 退出清理函数。")
     except Exception as e:
         logging.error(f"无法初始化Chrome浏览器池: {e}")
+        sys.exit(1)
+    
+    # 初始化后台任务管理器
+    try:
+        background_task_manager = BackgroundTaskManager()
+        logging.info("后台任务管理器初始化成功")
+    except Exception as e:
+        logging.error(f"无法初始化后台任务管理器: {e}")
         sys.exit(1)
 
     app = Flask(__name__)
@@ -10178,6 +10598,49 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"执行JS失败: {e}")
             return jsonify({"success": False, "message": "JS执行失败"}), 500
+
+    @app.route('/api/background_task/start', methods=['POST'])
+    def start_background_task():
+        """启动后台任务执行"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "会话无效或未登录"}), 401
+        
+        data = request.get_json() or {}
+        task_indices = data.get('task_indices', [])
+        auto_generate = data.get('auto_generate', False)
+        
+        if not task_indices:
+            return jsonify({"success": False, "message": "未指定任务"}), 400
+        
+        api_instance = web_sessions[session_id]
+        result = background_task_manager.start_background_task(
+            session_id, api_instance, task_indices, auto_generate
+        )
+        return jsonify(result)
+
+    @app.route('/api/background_task/status', methods=['GET'])
+    def get_background_task_status():
+        """获取后台任务状态"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id:
+            return jsonify({"success": False, "message": "缺少会话ID"}), 401
+        
+        task_status = background_task_manager.get_task_status(session_id)
+        if task_status:
+            return jsonify({"success": True, "task_status": task_status})
+        else:
+            return jsonify({"success": False, "message": "未找到后台任务"})
+
+    @app.route('/api/background_task/stop', methods=['POST'])
+    def stop_background_task():
+        """停止后台任务"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "会话无效或未登录"}), 401
+        
+        result = background_task_manager.stop_task(session_id)
+        return jsonify(result)
 
     @app.route('/health')
     def health():
