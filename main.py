@@ -9732,7 +9732,62 @@ def start_web_server(args_param):
 
     @app.route('/auth/guest_login', methods=['POST'])
     def auth_guest_login():
-        """游客登录"""
+        """
+        游客登录API - 无需密码的快速访问入口。
+        
+        功能说明：
+        - 为未注册用户提供受限的访问权限
+        - 无需用户名和密码，只需会话ID
+        - 适用于试用、演示或临时访问场景
+        
+        请求格式：
+        - 方法：POST
+        - 路径：/auth/guest_login
+        - 请求头：
+          * X-Session-ID: 会话标识符（必需）
+        - 请求体：无需
+        
+        响应格式：
+        {
+          "success": true/false,
+          "message": "错误信息（仅失败时）",
+          "auth_username": "guest",
+          "group": "guest",
+          "is_guest": true
+        }
+        
+        处理流程：
+        1. 从请求头获取session_id
+        2. 验证session_id存在性
+        3. 更新会话活动时间（防止超时）
+        4. 检查系统是否允许游客登录（从配置文件读取）
+        5. 创建或获取游客的Api实例
+        6. 设置游客属性（auth_username='guest', auth_group='guest', is_guest=True）
+        7. 保存会话状态到磁盘
+        8. 返回成功响应
+        
+        游客权限限制：
+        - 无法使用需要认证的高级功能
+        - 会话不支持多设备同步
+        - 可能无法访问某些敏感API
+        - 数据不会长期保存
+        
+        配置项：
+        - auth.ini [Guest] allow_guest_login：控制是否允许游客登录（默认true）
+        
+        错误情况：
+        - 缺少session_id：返回400错误
+        - 系统不允许游客登录：返回失败消息
+        
+        安全考虑：
+        - 游客会话不受单会话强制限制
+        - 游客不生成token和cookie
+        - 游客数据可能被定期清理
+        
+        注意：
+        - 游客会话不会记录到登录日志
+        - 游客切换到注册用户需要重新登录
+        """
         session_id = request.headers.get('X-Session-ID', '')
 
         if not session_id:
@@ -9771,7 +9826,70 @@ def start_web_server(args_param):
 
     @app.route('/auth/logout', methods=['POST'])
     def auth_logout():
-        """用户登出 - 清除token和cookie"""
+        """
+        用户登出API - 安全退出系统并清理所有会话数据。
+        
+        功能说明：
+        - 终止用户的当前会话
+        - 使token失效（防止重放攻击）
+        - 清除浏览器cookie
+        - 释放服务器端资源
+        
+        请求格式：
+        - 方法：POST
+        - 路径：/auth/logout
+        - 请求头：
+          * X-Session-ID: 要登出的会话标识符（必需）
+        - 请求体：无需
+        
+        响应格式：
+        {
+          "success": true,
+          "message": "登出成功"
+        }
+        
+        响应头：
+        - Set-Cookie: auth_token=; Max-Age=0（清除cookie）
+        
+        处理流程：
+        1. 从请求头获取session_id
+        2. 验证session_id存在性
+        3. 获取用户信息（用户名、是否游客）
+        4. 如果是注册用户，使其token失效：
+           - 调用token_manager.invalidate_token()
+           - 记录登出事件到日志
+        5. 清理服务器端会话：
+           - 从web_sessions移除会话
+           - 关闭Api实例资源
+           - 删除会话持久化文件
+        6. 清除客户端cookie（auth_token）
+        7. 返回成功响应
+        
+        安全特性：
+        - Token失效机制：防止token被重复使用
+        - Cookie清除：防止浏览器自动重新登录
+        - 资源释放：避免会话泄漏
+        - 审计日志：记录登出时间和原因
+        
+        游客处理：
+        - 游客用户没有token，只清理会话即可
+        - 不记录游客的登出事件
+        
+        错误情况：
+        - 缺少session_id：返回400错误
+        - 会话不存在：仍然返回成功（幂等性）
+        
+        注意：
+        - 此接口幂等性强，重复调用不会出错
+        - 登出后前端应导航到登录页
+        - 多标签页的其他标签会话也会失效
+        - 调用cleanup_session时原因设为"user_logout"
+        
+        使用场景：
+        - 用户主动点击"退出"按钮
+        - 会话超时后的强制登出
+        - 安全策略要求的定期重新认证
+        """
         session_id = request.headers.get('X-Session-ID', '')
 
         if not session_id:
@@ -9803,7 +9921,74 @@ def start_web_server(args_param):
 
     @app.route('/auth/check_permission', methods=['POST'])
     def auth_check_permission():
-        """检查权限"""
+        """
+        权限检查API - 验证用户是否拥有特定权限。
+        
+        功能说明：
+        - 基于RBAC（基于角色的访问控制）模型
+        - 检查用户所在组是否有特定权限
+        - 用于前端UI控制（显示/隐藏功能按钮）
+        - 用于API调用前的权限验证
+        
+        请求格式：
+        - 方法：POST
+        - 路径：/auth/check_permission
+        - 请求头：
+          * X-Session-ID: 会话标识符（必需）
+        - 请求体：
+          {
+            "permission": "权限名称"
+          }
+        
+        响应格式：
+        {
+          "success": true/false,
+          "has_permission": true/false
+        }
+        
+        处理流程：
+        1. 从请求头获取session_id
+        2. 从请求体获取permission名称
+        3. 验证session_id存在且有效
+        4. 从web_sessions获取Api实例
+        5. 验证用户已认证（has auth_username）
+        6. 调用auth_system.check_permission()检查权限
+        7. 返回检查结果
+        
+        权限系统：
+        - 权限定义在auth.ini的[Permissions]段
+        - 格式：permission_name = group1,group2,group3
+        - 例如：admin_panel = admin
+        - 支持多组共享同一权限
+        
+        常见权限示例：
+        - "admin_panel"：访问管理面板
+        - "multi_account"：多账号管理
+        - "export_data"：导出数据
+        - "view_logs"：查看日志
+        - "manage_users"：用户管理
+        
+        错误情况：
+        - session_id缺失或无效：返回{"success": false, "has_permission": false}
+        - 用户未认证：返回{"success": false, "has_permission": false}
+        - permission参数缺失：检查空字符串权限（通常返回false）
+        
+        安全考虑：
+        - 不泄露权限系统的内部结构
+        - 失败时统一返回has_permission=false
+        - 不区分"用户不存在"和"无权限"
+        
+        注意：
+        - 此接口只做检查，不执行实际操作
+        - 前端应根据返回值动态调整UI
+        - 后端API仍需在执行前再次验证权限
+        - 游客用户通常无任何特殊权限
+        
+        使用场景：
+        - 页面加载时检查功能可用性
+        - 点击操作前的预先验证
+        - 动态菜单生成
+        """
         session_id = request.headers.get('X-Session-ID', '')
         data = request.get_json() or {}
         permission = data.get('permission', '')
