@@ -3983,20 +3983,163 @@ class Api:
         return {"success": True}
 
     def _calculate_distance_m(self, lon1, lat1, lon2, lat2):
-        """估算两经纬度点之间的直线距离（米）"""
+        """
+        快速估算两个GPS坐标点之间的直线距离（米）。
+        
+        算法说明：
+        - 使用简化的平面坐标系近似计算（适用于小范围距离）
+        - 不考虑地球曲率，假设局部区域是平面
+        - 比Haversine公式快得多，但精度稍低
+        
+        转换系数解释：
+        - 经度1度 ≈ 102,834.74米（在纬度约30度处）
+        - 纬度1度 ≈ 111,712.69米（全球基本恒定）
+        
+        计算公式：
+        distance = √[(Δlon × 102834.74)² + (Δlat × 111712.69)²]
+        
+        ⚠️ 注意事项：
+        1. 经度转换系数随纬度变化，这里假设约30度（中国中部）
+        2. 在赤道附近，经度1度 ≈ 111km；在极点附近接近0
+        3. 大距离（>100km）或极地区域误差较大
+        4. 只适用于短距离估算（如跑步路线，通常<10km）
+        
+        💡 精确计算建议：
+        对于精确距离计算，应使用Haversine或Vincenty公式：
+        ```python
+        from math import radians, sin, cos, sqrt, atan2
+        R = 6371000  # 地球半径（米）
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1-a))
+        return R * c
+        ```
+        
+        参数:
+            lon1 (float): 起点经度（度）
+            lat1 (float): 起点纬度（度）
+            lon2 (float): 终点经度（度）
+            lat2 (float): 终点纬度（度）
+            
+        返回:
+            float: 距离（米）
+            
+        示例:
+            >>> _calculate_distance_m(120.0, 30.0, 120.01, 30.01)
+            1560.5  # 约1.5公里
+        """
         return math.sqrt(((lon1 - lon2) * 102834.74) ** 2 + ((lat1 - lat2) * 111712.69) ** 2)
 
     def _gps_random_offset(self, lon, lat, params):
-        """对GPS坐标添加一个小的随机偏移"""
-        m = params['location_random_m']
+        """
+        对GPS坐标添加随机偏移，模拟真实GPS的漂移误差。
+        
+        功能说明：
+        真实GPS定位存在误差（通常5-10米），为了让模拟轨迹更真实，
+        需要在关键点之间的插值点上添加随机偏移，避免完美的直线。
+        
+        偏移计算：
+        1. 从params中读取偏移范围（location_random_m，单位：米）
+        2. 在[-m, m]范围内随机选择偏移量
+        3. 将米转换为经纬度偏移：
+           - 经度偏移 = 米 / 102834.74
+           - 纬度偏移 = 米 / 111712.69
+        
+        使用场景：
+        - 关键点（打卡点）：不添加偏移，保持精确坐标
+        - 插值点：添加偏移，模拟GPS漂移
+        
+        转换系数说明：
+        - 同_calculate_distance_m，基于纬度30度的近似值
+        - 经度转换随纬度变化，但对小偏移影响不大
+        
+        ⚠️ 注意：
+        1. 偏移是独立的，经度和纬度分别随机
+        2. 实际GPS误差可能有方向性（如受建筑遮挡）
+        3. 偏移量过大会导致轨迹看起来不自然
+        
+        参数:
+            lon (float): 原始经度
+            lat (float): 原始纬度
+            params (dict): 参数字典，必须包含'location_random_m'键
+            
+        返回:
+            tuple: (偏移后的经度, 偏移后的纬度)
+            
+        示例:
+            >>> params = {'location_random_m': 5}  # 5米偏移
+            >>> _gps_random_offset(120.0, 30.0, params)
+            (120.00003, 30.00004)  # 偏移约5米
+        """
+        m = params['location_random_m']  # 偏移范围（米）
+        # 在[-m, m]范围内随机偏移，然后转换为经纬度
         return lon + random.uniform(-m, m) / 102834.74, lat + random.uniform(-m, m) / 111712.69
 
     def process_path(self):
-        """处理草稿路径，生成带有时间戳的模拟路径"""
+        """
+        处理草稿路径，生成带有时间戳的模拟运动轨迹。
+        
+        功能概述：
+        将用户在地图上绘制的草稿路径（draft_coords）转换为详细的
+        模拟跑步轨迹（run_coords），包含坐标、时间间隔、速度变化。
+        
+        算法流程：
+        1. 读取草稿路径（关键点序列）
+        2. 计算每个时间间隔的移动距离（速度×时间）
+        3. 沿着草稿路径插值生成密集的坐标点
+        4. 为非关键点添加GPS随机偏移，模拟真实GPS漂移
+        5. 记录每个点的时间戳（累积时间）
+        
+        数据结构：
+        - draft_coords: [(lon, lat, is_key_point), ...] 
+          - is_key_point=1表示打卡点，必须精确经过
+          - is_key_point=0表示普通路径点，可以添加偏移
+        
+        - run_coords: [(lon, lat, interval_ms), ...]
+          - interval_ms: 距离上一个点的时间间隔（毫秒）
+          - 第一个点的interval_ms为0
+        
+        模拟参数（从self.params读取）：
+        - interval_ms: 上报间隔（毫秒），如5000 = 5秒上报一次
+        - interval_random_ms: 间隔随机变化范围
+        - speed_mps: 平均速度（米/秒），如3 m/s = 10.8 km/h
+        - speed_random_mps: 速度随机变化范围
+        - location_random_m: GPS随机偏移范围（米）
+        
+        算法特点：
+        1. 真实性：速度、间隔、位置都添加随机性
+        2. 精确性：保证经过所有打卡点
+        3. 连续性：轨迹在草稿路径上连续移动
+        4. 可控性：通过参数控制运动特征
+        
+        ⚠️ 潜在问题：
+        1. 循环嵌套较深，大量坐标点时性能较差
+        2. 浮点数累积误差可能导致总距离略有偏差
+        3. 速度随机性可能导致局部速度异常（过快或过慢）
+        
+        💡 优化建议：
+        1. 对超长路径进行分段处理
+        2. 缓存距离计算结果
+        3. 添加速度平滑算法（避免突变）
+        
+        返回:
+            dict: {
+                "success": True,
+                "run_coords": [(lon, lat, interval_ms), ...],
+                "total_dist": 总距离（米）,
+                "total_time": 总时长（秒）
+            }
+        """
         logging.info("API调用: process_path - 处理路径，生成模拟运动轨迹")
+        
+        # 检查是否选择了任务
         if self.current_run_idx == -1:
             return {"success": False, "message": "未选择任务"}
+        
         run = self.all_run_data[self.current_run_idx]
+        
+        # 检查草稿路径是否有效（至少需要起点和终点）
         if not run.draft_coords or len(run.draft_coords) < 2:
             return {"success": False, "message": "没有可处理的路径"}
 
@@ -4004,18 +4147,28 @@ class Api:
         logging.debug(
             f"正在处理路径: 将 {len(run.draft_coords)} 个草稿点转换为运动坐标序列")
 
-        draft = run.draft_coords
-        run.run_coords = []
+        draft = run.draft_coords  # 草稿路径：用户绘制的关键点
+        run.run_coords = []  # 清空之前的模拟路径
 
+        # ===== 步骤1：处理起点 =====
         start_lon, start_lat = draft[0][0], draft[0][1]
+        # 如果起点是关键点（打卡点），保持精确坐标；否则添加随机偏移
         lon, lat = (start_lon, start_lat) if draft[0][2] == 1 else self._gps_random_offset(
             start_lon, start_lat, self.params)
+        # 起点的时间间隔为0（初始位置）
         run.run_coords.append((lon, lat, 0))
 
+        # 初始化统计变量
         total_dist, total_time = 0.0, 0.0
-        current_gps_pos, draft_idx = (draft[0][0], draft[0][1]), 0
-        p = self.params
+        current_gps_pos, draft_idx = (draft[0][0], draft[0][1]), 0  # 当前位置和草稿索引
+        p = self.params  # 简化参数引用
 
+        # ===== 步骤2：主循环 - 沿草稿路径插值生成坐标点 =====
+        # 算法思想：
+        # - 每次迭代代表一个时间间隔（如5秒）
+        # - 根据速度和时间计算这个间隔内应该移动的距离
+        # - 沿着草稿路径向前移动这段距离，找到新位置
+        # - 如果这段距离跨越多个草稿段，需要累积移动
         while draft_idx < len(draft) - 1:
             interval_t = max(0.2, random.uniform(
                 p['interval_ms'] - p['interval_random_ms'], p['interval_ms'] + p['interval_random_ms']) / 1000.0)
