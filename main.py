@@ -143,39 +143,79 @@ def setup_logging():
     return logger
 
 
-# 初始化日志系统
+# ========== 初始化日志系统 ==========
+# 在程序最开始就初始化日志，确保后续所有操作都能被记录
 try:
     setup_logging()
 except Exception as e:
+    # 如果日志系统初始化失败，至少要在控制台输出错误
+    # 这是最后的防线，确保用户能看到问题
     print(f"[错误] 日志系统初始化失败: {e}")
-    import traceback
-    traceback.print_exc()
+    import traceback  # 在这里导入traceback，避免污染全局命名空间
+    traceback.print_exc()  # 打印完整的堆栈跟踪，便于定位问题
 
 # ==============================================================================
 #  2. 依赖检查与第三方库导入
 # ==============================================================================
+# 这一部分采用延迟导入策略：先声明变量为None，然后在函数中动态导入
+# 优点：
+# 1. 提供友好的错误提示，而不是直接ImportError崩溃
+# 2. 可以在程序启动时一次性检查所有依赖
+# 3. 给用户提供完整的安装指令
+# 缺点：
+# 1. 增加了代码复杂度
+# 2. IDE可能无法正确识别这些变量的类型
+# 3. 运行时才能发现导入错误，而不是启动时
 
-# --- 预先声明全局变量 ---
-# 这样做是为了让后续代码（以及IDE）知道这些变量是存在的
-# 它们将在下面的 check_and_import_dependencies() 函数中被真正赋值
+# --- 预先声明全局变量为None ---
+# 这样做的原因：
+# 1. 让后续代码知道这些变量将会存在（避免NameError）
+# 2. 让IDE能够识别这些变量（虽然类型信息会丢失）
+# 3. 在check_and_import_dependencies()中使用global声明修改这些变量
 
-# Flask 及其组件
+# Flask Web框架及其核心组件
+# Flask: Web应用对象
+# render_template_string: 渲染HTML模板字符串
+# session: 会话管理（服务器端）
+# redirect: HTTP重定向
+# url_for: URL生成
+# request: HTTP请求对象
+# jsonify: 将Python字典转为JSON响应
 Flask, render_template_string, session, redirect, url_for, request, jsonify = (
-    None,) * 7
-# Flask 跨域
+    None,) * 7  # 元组乘法创建7个None的技巧
+
+# Flask-CORS: 跨域资源共享支持
+# 如果前端和后端不在同一域名，需要CORS头部
 CORS = None
-# 一次性密码
+
+# pyotp: 一次性密码（OTP）库
+# 用于实现两步验证（2FA），基于时间的TOTP算法
 pyotp = None
-# HTTP 请求
+
+# requests: HTTP客户端库
+# 用于向跑步平台发送API请求
+# 注意：这里requests会覆盖之前导入的标准库中的requests（如果有的话）
 requests = None
-# Excel (xlsx)
+
+# openpyxl: 现代Excel文件(.xlsx)读写库
+# 支持Excel 2007+格式，功能强大但较慢
 openpyxl = None
-# Excel (xls)
+
+# xlrd: 旧版Excel文件(.xls)读取库
+# 只能读取，不能写入，适用于Excel 97-2003格式
 xlrd = None
+
+# xlwt: 旧版Excel文件(.xls)写入库
+# 只能写入，不能读取，与xlrd配套使用
 xlwt = None
-# 编码检测
+
+# chardet: 字符编码检测库
+# 用于自动识别文本文件的编码（如GBK、UTF-8等）
 chardet = None
-# 浏览器自动化
+
+# sync_playwright: Playwright浏览器自动化库的同步API
+# 用于在服务器端运行Chrome进行JavaScript计算（如路径规划）
+# 注意：Playwright还有异步API，但这里使用同步版本
 sync_playwright = None
 
 
@@ -317,33 +357,58 @@ def check_and_import_dependencies():
 # ==============================================================================
 # 自动初始化系统 (整合自 auto_init.py)
 # ==============================================================================
+# 这一部分实现"零配置启动"功能：
+# - 首次运行时自动创建所有必需的目录和文件
+# - 生成默认的配置文件和权限设置
+# - 创建初始管理员账号（admin/admin）
+# 设计理念：让用户只需要main.py和index.html就能启动程序
 
 def auto_init_system():
     """
-    自动初始化系统，创建所有必需的文件和目录
-    确保程序在只有main.py和index.html时仍能正常运行
+    自动初始化系统，创建所有必需的文件和目录。
+    
+    功能清单：
+    1. 创建目录结构（logs、账号存储、会话存储）
+    2. 生成或更新config.ini配置文件
+    3. 创建permissions.json权限配置
+    4. 创建默认管理员账号（用户名：admin，密码：admin）
+    
+    幂等性：多次调用是安全的，已存在的文件不会被覆盖
+    异常处理：任何步骤失败都会记录日志但不会中断程序
+    
+    使用场景：
+    - 程序首次启动
+    - 配置文件丢失后的恢复
+    - 版本升级时的配置补全
     """
     logging.info("="*80)
     logging.info("开始自动初始化系统...")
     print("[系统初始化] 开始自动初始化系统...")
-    # 输出详细的初始化过程，便于调试和监控
+    
     try:
-        # 创建必需的目录
+        # ===== 步骤1：创建目录结构 =====
+        # 必须最先执行，因为后续步骤需要写入文件到这些目录
         logging.info("步骤1: 创建必需的目录...")
         print("[系统初始化] 创建必需的目录...")
         _create_directories()
 
-        # 创建配置文件
+        # ===== 步骤2：配置文件管理 =====
+        # 如果config.ini不存在则创建，如果存在则检查并补全缺失的配置项
+        # 这保证了配置文件的向后兼容性
         logging.info("步骤2: 创建/更新配置文件...")
         print("[系统初始化] 创建/更新配置文件...")
         _create_config_ini()
 
-        # 创建权限配置文件
+        # ===== 步骤3：权限系统初始化 =====
+        # 创建permissions.json，定义权限组（guest、user、admin、super_admin）
+        # 只在文件不存在时创建，避免覆盖用户的权限配置
         logging.info("步骤3: 创建权限配置文件...")
         print("[系统初始化] 创建权限配置文件...")
         _create_permissions_json()
 
-        # 创建默认管理员账号
+        # ===== 步骤4：默认管理员账号 =====
+        # 创建admin账号，确保至少有一个账号可以登录
+        # 密码存储在system_accounts目录下的哈希文件名中
         logging.info("步骤4: 创建默认管理员账号...")
         print("[系统初始化] 创建默认管理员账号...")
         _create_default_admin()
@@ -351,30 +416,74 @@ def auto_init_system():
         logging.info("系统初始化完成！")
         logging.info("="*80)
         print("[系统初始化] 系统初始化完成！")
+        
     except Exception as e:
+        # 捕获所有异常，确保初始化失败不会导致程序崩溃
+        # 但会详细记录错误信息，便于用户排查问题
         logging.error(f"系统初始化失败: {e}", exc_info=True)
         print(f"[系统初始化] 错误: 系统初始化失败 - {e}")
+        # 注意：这里不抛出异常，允许程序继续运行
+        # 因为有些功能可能在部分初始化失败的情况下仍能工作
 
 
 def _create_directories():
-    """创建必需的目录结构"""
+    """
+    创建程序运行所需的目录结构。
+    
+    目录说明：
+    - logs: 日志文件存储目录
+    - school_accounts: 学校账号信息存储（JSON文件）
+    - system_accounts: 系统认证账号存储（与school_accounts分离）
+    - sessions: 用户会话持久化存储（UUID命名的JSON文件）
+    
+    设计特点：
+    - 使用exist_ok=True避免重复创建时出错
+    - 不使用递归创建，所有目录都在根目录下
+    - 每个目录都会输出创建状态，便于监控
+    
+    潜在问题：
+    - 如果目录权限不足，makedirs会失败
+    - 目录名硬编码，迁移时需要同步修改
+    """
     directories = [
-        'logs',
-        'school_accounts',
-        'system_accounts',  # 修正：系统账号独立存储，不在school_accounts下
-        'sessions'
+        'logs',             # 日志文件目录
+        'school_accounts',  # 学校跑步平台的账号数据
+        'system_accounts',  # 本系统的认证账号（admin等）
+        'sessions'          # Web会话持久化存储
     ]
 
     for directory in directories:
         if not os.path.exists(directory):
+            # exist_ok=True: 如果目录已存在不报错（多进程安全）
             os.makedirs(directory, exist_ok=True)
             print(f"[目录创建] 创建目录: {directory}")
         else:
             print(f"[目录创建] 目录已存在: {directory}")
+            # 这里可以考虑检查目录的读写权限
 
 
 def _get_default_config():
-    """获取默认配置项（用于创建新配置和补全旧配置）"""
+    """
+    获取默认配置项字典。
+    
+    此函数返回一个ConfigParser对象，包含所有配置节和默认值。
+    主要用途：
+    1. 创建新的config.ini文件
+    2. 补全旧配置文件中缺失的配置项（版本升级场景）
+    
+    配置结构：
+    - [Admin]: 超级管理员设置
+    - [Guest]: 游客访问控制
+    - [System]: 系统路径和文件配置
+    - [Security]: 安全策略（密码存储、防暴力破解）
+    - [Map]: 地图API配置（高德地图密钥）
+    - [AutoFill]: 自动填充功能开关
+    
+    返回:
+        configparser.ConfigParser: 包含默认配置的对象
+    
+    注意：修改这里的默认值会影响新用户的初始配置
+    """
     config = configparser.ConfigParser()
 
     # [Admin] 管理员配置
