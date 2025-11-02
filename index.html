@@ -8620,22 +8620,30 @@
           let displayText = '';
           
           if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
-            // Use current position to estimate progress
+            // Always use point count format when coords are available
+            singleTotalPoints = currentRunData.run_coords.length;
+            
             if (status.current_position) {
               const currentPointIndex = status.current_position.point_index || 0;
-              singleTotalPoints = currentRunData.run_coords.length;
               singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
-              pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
-              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
             } else {
-              // Fallback to percentage-based progress
-              pct = currentTaskProgress;
-              displayText = `任务进度: ${pct}%`;
+              // Estimate from percentage when position not available
+              singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
             }
+            
+            pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+            displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
           } else {
-            // Multiple tasks or no coords - show task progress
-            pct = progressPercent;
-            displayText = `已完成 ${completedTasks}/${totalTasks} 任务`;
+            // Multiple tasks - also try to use point format if current task has coords
+            if (totalTasks > 0) {
+              // For multiple tasks, show task completion
+              pct = progressPercent;
+              displayText = `已完成 ${completedTasks}/${totalTasks} 任务`;
+            } else {
+              // Fallback for edge cases
+              pct = 0;
+              displayText = `0 / 0 点`;
+            }
           }
           
           updateSingleProgress(pct, displayText);
@@ -8751,22 +8759,30 @@
             let displayText = '';
             
             if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
-              // Use current position to estimate progress
+              // Always use point count format when coords are available
+              singleTotalPoints = currentRunData.run_coords.length;
+              
               if (status.current_position) {
                 const currentPointIndex = status.current_position.point_index || 0;
-                singleTotalPoints = currentRunData.run_coords.length;
                 singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
-                pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
-                displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
               } else {
-                // Fallback to percentage-based progress
-                pct = currentTaskProgress;
-                displayText = `任务进度: ${pct}%`;
+                // Estimate from percentage when position not available
+                singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
               }
+              
+              pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
             } else {
-              // Multiple tasks or no coords - show task progress
-              pct = progressPercent;
-              displayText = `已完成 ${completedTasks}/${totalTasks} 任务`;
+              // Multiple tasks - also try to use point format if current task has coords
+              if (totalTasks > 0) {
+                // For multiple tasks, show task completion
+                pct = progressPercent;
+                displayText = `已完成 ${completedTasks}/${totalTasks} 任务`;
+              } else {
+                // Fallback for edge cases
+                pct = 0;
+                displayText = `0 / 0 点`;
+              }
             }
             
             updateSingleProgress(pct, displayText);
