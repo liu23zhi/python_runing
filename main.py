@@ -6827,9 +6827,9 @@ class Api:
                         except Exception as e:
                             logging.error(f"[_auto_refresh_worker] SocketIO推送通知失败: {e}", exc_info=True)
                     elif not session_id:
-                         logging.warning(f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
+                        logging.warning(f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
                     else:
-                         logging.warning(f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
+                        logging.warning(f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
 
                 # 2. 检查是否启用自动签到，仅在启用时执行
                 is_auto_attendance_enabled = self.params.get("auto_attendance_enabled", False)
