@@ -9245,13 +9245,96 @@ def start_background_auto_attendance(args):
 
 
 def start_web_server(args_param):
-    """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
+    """
+    启动Flask Web服务器主函数，集成SocketIO实时通信和Chrome浏览器自动化。
+    
+    功能说明：
+    - 初始化Flask应用和所有必需的全局组件
+    - 配置跨域请求（CORS）和WebSocket实时通信（SocketIO）
+    - 启动Chrome浏览器池用于服务端JS渲染
+    - 初始化后台任务管理器
+    - 设置会话管理和安全密钥
+    
+    主要组件：
+    
+    **1. Chrome浏览器池（ChromeBrowserPool）**
+    - 管理可重用的浏览器实例
+    - 支持headless模式（无界面运行）
+    - 自动清理和资源回收
+    
+    **2. 后台任务管理器（BackgroundTaskManager）**
+    - 管理长时间运行的任务（如批量任务执行）
+    - 任务状态持久化到文件
+    - 启动时清理历史任务记录
+    
+    **3. 会话管理系统**
+    - web_sessions: 存储用户会话状态（登录信息、Api实例）
+    - session_file_locks: 防止会话文件并发冲突
+    - session_activity: 跟踪会话活跃时间
+    - 所有会话数据都有对应的线程锁保护
+    
+    **4. SocketIO实时通信**
+    - async_mode='threading': 使用线程模式处理异步请求
+    - 支持后台任务进度实时推送
+    - 双向通信（服务器可主动推送消息到客户端）
+    
+    参数说明：
+    - args_param: 命令行参数对象，包含headless、port等配置
+    
+    初始化流程：
+    1. 重置所有内存锁和会话状态（防止重启后的状态污染）
+    2. 初始化Chrome浏览器池并注册退出清理函数
+    3. 初始化后台任务管理器并清理历史任务
+    4. 创建Flask应用并配置CORS、SocketIO
+    5. 配置会话管理（SESSION_TYPE=filesystem，7天有效期）
+    6. 注册所有Flask路由（在后续代码中）
+    7. 启动Flask开发服务器
+    
+    全局变量：
+    - chrome_pool: ChromeBrowserPool实例
+    - background_task_manager: BackgroundTaskManager实例
+    - web_sessions: 用户会话字典 {session_id: {'api': Api实例, ...}}
+    - web_sessions_lock: 保护web_sessions的线程锁
+    - session_file_locks: 会话文件锁字典 {username: Lock}
+    - session_file_locks_lock: 保护session_file_locks的线程锁
+    - session_activity: 会话活跃时间字典 {session_id: timestamp}
+    - session_activity_lock: 保护session_activity的线程锁
+    - socketio: SocketIO实例用于实时通信
+    - args: 命令行参数（全局可访问）
+    
+    安全特性：
+    - 使用secrets.token_hex(32)生成强随机密钥（256位）
+    - 会话数据加密存储在文件系统中
+    - 跨域请求受CORS控制
+    
+    错误处理：
+    - Chrome池或任务管理器初始化失败会sys.exit(1)终止程序
+    - 单个任务文件删除失败只记录错误，不影响整体启动
+    
+    注意事项：
+    - 此函数会阻塞当前线程（Flask服务器运行在主线程）
+    - 需要先调用check_install_dependencies()确保依赖已安装
+    - 建议在后台自动签到服务启动后调用
+    
+    使用示例：
+    ```python
+    if __name__ == "__main__":
+        args = parse_args()
+        check_install_dependencies()
+        initialize_dirs()
+        if not args.no_auto_start:
+            start_background_auto_attendance(args)
+        start_web_server(args)  # 此函数会阻塞
+    ```
+    """
     global chrome_pool, background_task_manager, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
 
     # Make args available globally for Flask routes
+    # 将命令行参数存储为全局变量，供Flask路由函数访问
     args = args_param
 
     # --- 新增：显式初始化/重置内存锁状态 ---
+    # 重置所有会话相关的全局变量，防止程序重启后出现状态污染
     web_sessions = {}
     web_sessions_lock = threading.Lock()
     session_file_locks = {}
