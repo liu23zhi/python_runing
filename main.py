@@ -802,9 +802,11 @@ def _create_default_admin():
 
     if os.path.exists(admin_file):
         print("[管理员账号] 默认管理员账号已存在，跳过创建")
+        logging.info(f"[系统初始化] 管理员账号已存在 --> 文件路径: {admin_file}, 跳过创建流程")
         return
 
     print("[管理员账号] 创建默认管理员账号 (用户名: admin, 密码: admin)...")
+    logging.info(f"[系统初始化] 开始创建默认管理员账号 --> 用户名: admin, 密码: admin (⚠️ 建议首次登录后立即修改), 权限组: super_admin, 文件路径: {admin_file}")
     admin_data = {
         "auth_username": "admin",
         "password": "admin",
@@ -822,6 +824,7 @@ def _create_default_admin():
     with open(admin_file, 'w', encoding='utf-8') as f:
         json.dump(admin_data, f, indent=2, ensure_ascii=False)
     print("[管理员账号] 默认管理员账号创建完成")
+    logging.info(f"[系统初始化] 管理员账号创建成功 --> 文件路径: {admin_file}, 账号信息: 用户名=admin, 权限组=super_admin, 双因素认证=未启用, 最大会话数=无限制, 主题=light")
 
 
 # 在导入完成后立即初始化系统
@@ -831,11 +834,13 @@ auto_init_system()
 SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
 if not os.path.exists(SESSION_STORAGE_DIR):
     os.makedirs(SESSION_STORAGE_DIR)
+    logging.info(f"[系统初始化] 创建会话存储目录 --> 目录路径: {SESSION_STORAGE_DIR}, 用途: 存储用户会话数据和状态信息")
 
 # Token存储目录
 TOKENS_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'tokens')
 if not os.path.exists(TOKENS_STORAGE_DIR):
     os.makedirs(TOKENS_STORAGE_DIR)
+    logging.info(f"[系统初始化] 创建Token存储目录 --> 目录路径: {TOKENS_STORAGE_DIR}, 用途: 存储API访问令牌和临时凭证")
 
 
 def get_session_file_path(session_id: str) -> str:
@@ -852,17 +857,20 @@ SCHOOL_ACCOUNTS_DIR = os.path.join(
     os.path.dirname(__file__), 'school_accounts')
 if not os.path.exists(SCHOOL_ACCOUNTS_DIR):
     os.makedirs(SCHOOL_ACCOUNTS_DIR)
+    logging.info(f"[系统初始化] 创建学校账号数据目录 --> 目录路径: {SCHOOL_ACCOUNTS_DIR}, 用途: 存储学校系统的用户账号信息")
 
 # 系统认证账号目录（修正：独立存储，不在school_accounts下）
 SYSTEM_ACCOUNTS_DIR = os.path.join(
     os.path.dirname(__file__), 'system_accounts')
 if not os.path.exists(SYSTEM_ACCOUNTS_DIR):
     os.makedirs(SYSTEM_ACCOUNTS_DIR)
+    logging.info(f"[系统初始化] 创建系统认证账号目录 --> 目录路径: {SYSTEM_ACCOUNTS_DIR}, 用途: 独立存储系统管理员和普通用户的认证信息")
 
 # 登录日志目录
 LOGIN_LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
 if not os.path.exists(LOGIN_LOGS_DIR):
     os.makedirs(LOGIN_LOGS_DIR)
+    logging.info(f"[系统初始化] 创建登录日志目录 --> 目录路径: {LOGIN_LOGS_DIR}, 用途: 存储登录历史、审计日志和系统运行日志")
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
 PERMISSIONS_FILE = os.path.join(os.path.dirname(__file__), 'permissions.json')
@@ -1153,7 +1161,7 @@ class AuthSystem:
             reason (str): 失败原因描述
         """
         logging.info(
-            f"登录尝试: 用户={auth_username}, 成功={success}, IP={ip_address}, 原因={reason}")
+            f"[登录审计] 登录尝试记录 --> 用户名: {auth_username}, 登录结果: {'✓ 成功' if success else '✗ 失败'}, 客户端IP: {ip_address}, User-Agent: {user_agent[:50]}{'...' if len(user_agent) > 50 else ''}, {'失败原因: ' + reason if not success else '登录成功'}")
         
         # 构建日志条目（字典）
         log_entry = {
@@ -1172,11 +1180,11 @@ class AuthSystem:
             # 每条记录以换行符结束
             with open(LOGIN_LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-            logging.debug(f"_log_login_attempt: 登录日志已写入 {LOGIN_LOG_FILE}")
+            logging.debug(f"[登录审计] 登录日志已写入文件 --> 文件路径: {LOGIN_LOG_FILE}, 用户: {auth_username}, 时间戳: {log_entry['timestamp']}, 格式: JSONL (每行一个JSON对象)")
         except Exception as e:
             # 日志写入失败不应该影响登录流程
             # 只记录错误但不抛出异常
-            logging.error(f"记录登录日志失败: {e}", exc_info=True)
+            logging.error(f"[登录审计] 写入登录日志失败 --> 目标文件: {LOGIN_LOG_FILE}, 用户: {auth_username}, 错误类型: {type(e).__name__}, 错误详情: {e}, 注意: 日志写入失败不影响登录流程继续执行", exc_info=True)
 
     def get_login_history(self, username=None, limit=100):
         """获取登录历史"""
@@ -1194,7 +1202,7 @@ class AuthSystem:
                     except:
                         continue
         except Exception as e:
-            logging.error(f"读取登录历史失败: {e}")
+            logging.error(f"[登录审计] 读取登录历史失败 --> 文件路径: {LOGIN_LOG_FILE}, 查询用户: {username if username else '全部'}, 限制条数: {limit}, 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
 
         # 返回最近的记录
         return history[-limit:]
@@ -1688,7 +1696,7 @@ class AuthSystem:
                         'max_sessions': user_data.get('max_sessions', 1)
                     })
                 except Exception as e:
-                    logging.error(f"读取用户文件失败 {filename}: {e}")
+                    logging.error(f"[用户管理] 读取用户文件失败 --> 文件名: {filename}, 文件路径: {filepath}, 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 文件损坏、JSON格式错误或权限不足", exc_info=True)
         return users
 
     def get_all_groups(self):
@@ -1702,7 +1710,7 @@ class AuthSystem:
 
         # 跳过无效的session_id
         if not session_id or session_id == 'null' or session_id.strip() == '':
-            logging.debug(f"跳过关联无效会话ID: '{session_id}' 到用户 {auth_username}")
+            logging.debug(f"[会话管理] 跳过关联无效会话 --> 会话ID: '{session_id}', 目标用户: {auth_username}, 原因: 会话ID为空、null或仅包含空白字符")
             return
 
         user_file = self.get_user_file_path(auth_username)
