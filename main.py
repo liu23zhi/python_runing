@@ -30,7 +30,6 @@ import urllib  # URL处理库，可能用于HTTP请求
 import uuid  # UUID生成，用于会话ID和唯一标识
 import warnings  # 警告控制，用于抑制第三方库警告
 import atexit  # 程序退出处理，用于资源清理
-import hashlib  # 注意：hashlib被重复导入，这是一个潜在的代码清理点
 from PIL import Image  # 图像处理库，用于头像裁剪和压缩
 import io  # IO流处理，用于内存中的文件操作
 
@@ -1048,14 +1047,14 @@ class AuthSystem:
             # encrypted模式: "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
         """
         method = self._get_password_storage_method()
-        logging.debug(f"_encrypt_password: 使用 {method} 方法加密密码")
+        logging.debug(f"[密码加密] 开始处理密码加密 --> 加密方法: {method}, 密码长度: {len(password)}字符")
         if method == 'encrypted':
             # SHA256哈希：输入任意长度，输出固定64字符十六进制
             # 🐛 安全缺陷：没有加盐，同样的密码总是产生同样的哈希
             encrypted = hashlib.sha256(password.encode()).hexdigest()
-            logging.debug("_encrypt_password: 密码已加密")
+            logging.debug(f"[密码加密] 密码已使用SHA256加密 --> 哈希长度: {len(encrypted)}字符, 哈希值前8位: {encrypted[:8]}... (⚠️ 警告: 未使用盐值，存在安全风险)")
             return encrypted
-        logging.debug("_encrypt_password: 使用明文存储密码")
+        logging.debug(f"[密码加密] 使用明文存储密码 --> ⚠️ 安全警告: 明文密码存储非常不安全，强烈建议启用encrypted模式")
         return password  # 明文返回
 
     def _verify_password(self, input_password, stored_password):
@@ -1094,20 +1093,20 @@ class AuthSystem:
         - 避免通过响应时间泄露密码信息
         """
         method = self._get_password_storage_method()
-        logging.debug(f"_verify_password: 使用 {method} 方法验证密码")
+        logging.debug(f"[密码验证] 开始验证密码 --> 验证方法: {method}, 输入密码长度: {len(input_password)}字符, 存储密码长度: {len(stored_password)}字符")
         if method == 'encrypted':
             # 对输入密码进行相同的哈希运算，然后比较
             # 🐛 时序攻击风险：==运算符不是常量时间比较
             # 💡 建议改为：secrets.compare_digest(...)
-            result = hashlib.sha256(
-                input_password.encode()).hexdigest() == stored_password
+            input_hash = hashlib.sha256(input_password.encode()).hexdigest()
+            result = input_hash == stored_password
             logging.debug(
-                f"_verify_password: 密码验证结果: {'成功' if result else '失败'}")
+                f"[密码验证] SHA256哈希验证完成 --> 输入密码哈希前8位: {input_hash[:8]}..., 存储密码哈希前8位: {stored_password[:8]}..., 验证结果: {'✓ 成功' if result else '✗ 失败'} (⚠️ 警告: 使用==比较存在时序攻击风险)")
             return result
         # 明文模式：直接字符串比较
         # 🐛 同样存在时序攻击风险
         result = input_password == stored_password
-        logging.debug(f"_verify_password: 密码验证结果: {'成功' if result else '失败'}")
+        logging.debug(f"[密码验证] 明文密码验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (⚠️ 警告: 明文比较存在时序攻击风险)")
         return result
 
     def _log_login_attempt(self, auth_username, success, ip_address='', user_agent='', reason=''):
@@ -2517,12 +2516,7 @@ class ApiClient:
     def _request(self, method: str, url: str, data: dict = None, params: dict = None, is_post_str=False, force_content_type: str = None) -> requests.Response | None:
         """统一的网络请求方法（增强：支持取消）"""
 
-        log_func = self.app.log if hasattr(
-            self.app, 'log') else self.app.api_bridge.log
-        is_offline = self.app.is_offline_mode if hasattr(
-            self.app, 'is_offline_mode') else self.app.api_bridge.is_offline_mode
-
-        # 在多账号模式下，app 可能是 AccountSession 实例
+        # 在多账号模式下，app 可能是 AccountSession 实例，需要获取正确的日志函数和离线模式状态
         log_func = self.app.log if hasattr(
             self.app, 'log') else self.app.api_bridge.log
         is_offline = self.app.is_offline_mode if hasattr(
@@ -2545,17 +2539,12 @@ class ApiClient:
 
         if cancel_requested:
             log_func("操作已取消，跳过网络请求。")
-            logging.debug(f"请求已取消 --> 方法:{method.upper()} URL:{url}")
+            logging.debug(f"[网络请求] 请求已取消 --> 请求方法: {method.upper()}, 目标URL: {url}, 取消原因: 用户停止操作或系统取消标志已设置")
             return None
 
         if is_offline:
             log_func("离线模式：网络请求已被禁用。")
-            logging.debug(f"离线模式：已阻止对URL的请求 {url}")
-            return None
-
-        if is_offline:
-            log_func("离线模式：网络请求已被禁用。")
-            logging.debug(f"离线模式：已阻止对URL的请求 {url}")
+            logging.debug(f"[网络请求] 离线模式已启用，已阻止网络请求 --> 请求方法: {method.upper()}, 目标URL: {url}, 说明: 离线模式下所有网络通信将被禁用")
             return None
 
         retries = 3
@@ -2564,9 +2553,9 @@ class ApiClient:
 
         log_data = data
         if is_post_str and isinstance(data, str) and len(data) > 500:
-            log_data = data[:500] + '... (truncated)'
+            log_data = data[:500] + '... (已截断，完整数据长度: ' + str(len(data)) + ' 字节)'
 
-        logging.debug(f"发起网络请求 --> 方法:{method.upper()} URL:{url}\n请求数据: {log_data}")
+        logging.debug(f"[网络请求] 准备发起HTTP请求 --> 请求方法: {method.upper()}, 目标URL: {url}, 重试次数配置: {retries}次, 连接超时: {connect_timeout}秒, 读取超时: {read_timeout}秒\n[请求数据]: {log_data}")
 
         for attempt in range(retries):
             try:
@@ -2624,7 +2613,7 @@ class ApiClient:
                 # --- 成功响应处理 (Bug A 和 B 均在此修复) ---
                 # 修复 Bug B: 这段代码现在位于 try 块内部，但在所有 except 块之前
                 logging.debug(
-                    f"Response <-- {resp.status_code} {resp.reason} from {url}")
+                    f"[网络请求] 收到服务器响应 <-- 状态码: {resp.status_code} ({resp.reason}), 来源URL: {url}, 响应头: {dict(resp.headers)}, 响应内容长度: {len(resp.content)} 字节")
                 resp.raise_for_status() # 如果状态码不是 2xx，会抛出 HTTPError
                 return resp
 
@@ -2632,10 +2621,12 @@ class ApiClient:
                 # --- 新增：专门捕获连接错误和超时 ---
                 log_func(f"网络连接失败 (第{attempt+1}/{retries}次): {net_err}")
                 logging.error(
-                    f"Network connection failed on attempt {attempt+1}/{retries} for {method} {url}. Error: {net_err}", exc_info=False) # exc_info=False 避免过多堆栈
+                    f"[网络请求] 网络连接失败 --> 重试次数: 第{attempt+1}次/共{retries}次, 请求方法: {method.upper()}, 目标URL: {url}, 错误类型: {type(net_err).__name__}, 错误详情: {net_err}, 连接超时配置: {connect_timeout}秒, 读取超时配置: {read_timeout}秒", exc_info=False)
                 if attempt + 1 == retries:
                     log_func(f"网络连接最终失败: 无法连接到服务器 {self.BASE_URL}")
+                    logging.error(f"[网络请求] 网络连接最终失败 --> 已达到最大重试次数({retries}次), 目标服务器: {self.BASE_URL}, 无法建立连接")
                     return None # 连接失败，直接返回 None
+                logging.info(f"[网络请求] 准备重试 --> 等待1.5秒后进行第{attempt+2}次请求尝试")
                 time.sleep(1.5) # 重试前等待
                 continue # 继续下一次重试
 
@@ -2645,12 +2636,14 @@ class ApiClient:
                 # --- 处理非 2xx 状态码的错误 (例如 404, 500) ---
                 log_func(f"服务器返回错误 (第{attempt+1}次): {http_err.response.status_code}")
                 logging.error(
-                    f"HTTP Error on attempt {attempt+1}/{retries} for {method} {url}. Status: {http_err.response.status_code}, Response: {http_err.response.text}", exc_info=False)
+                    f"[网络请求] HTTP错误 --> 重试次数: 第{attempt+1}次/共{retries}次, 请求方法: {method.upper()}, 目标URL: {url}, HTTP状态码: {http_err.response.status_code}, 状态描述: {http_err.response.reason}, 服务器响应内容: {http_err.response.text[:200]}{'...(已截断)' if len(http_err.response.text) > 200 else ''}", exc_info=False)
                 if attempt + 1 == retries:
                     log_func(f"服务器错误: {http_err.response.status_code}")
+                    logging.error(f"[网络请求] HTTP请求最终失败 --> 已达到最大重试次数({retries}次), HTTP状态码: {http_err.response.status_code}, 请求无法成功完成")
                     # 可以考虑返回包含错误信息的 response 对象，或者依然返回 None
                     # return http_err.response # 如果上层需要处理具体错误
                     return None # 保持返回 None
+                logging.info(f"[网络请求] 准备重试 --> 等待1.5秒后进行第{attempt+2}次请求尝试")
                 time.sleep(1.5) # 重试前等待
                 continue # 继续下一次重试
 
@@ -2658,10 +2651,12 @@ class ApiClient:
                 # --- 捕获其他所有 requests 相关的异常 (作为兜底) ---
                 log_func(f"请求发生意外错误 (第{attempt+1}次): {req_err}")
                 logging.error(
-                    f"Unexpected RequestException on attempt {attempt+1}/{retries} for {method} {url}. Error: {req_err}", exc_info=True) # 记录详细堆栈
+                    f"[网络请求] 意外的请求异常 --> 重试次数: 第{attempt+1}次/共{retries}次, 请求方法: {method.upper()}, 目标URL: {url}, 异常类型: {type(req_err).__name__}, 异常详情: {req_err}, 完整堆栈信息如下:", exc_info=True)
                 if attempt + 1 == retries:
                     log_func(f"请求最终失败: {req_err}")
+                    logging.error(f"[网络请求] 请求最终失败 --> 已达到最大重试次数({retries}次), 所有重试均失败, 异常信息: {req_err}")
                     return None # 最终失败返回 None
+                logging.info(f"[网络请求] 准备重试 --> 等待1.5秒后进行第{attempt+2}次请求尝试")
                 time.sleep(1.5) # 重试前等待
                 continue # 继续下一次重试
 
@@ -2674,12 +2669,15 @@ class ApiClient:
             self.app, 'log') else self.app.api_bridge.log
         if resp:
             try:
-                return resp.json()
-            except json.JSONDecodeError:
+                json_data = resp.json()
+                logging.debug(f"[JSON解析] 成功解析JSON响应 --> 响应状态码: {resp.status_code}, JSON数据字段: {list(json_data.keys()) if isinstance(json_data, dict) else type(json_data).__name__}")
+                return json_data
+            except json.JSONDecodeError as e:
                 log_func("服务器响应解析失败。")
                 logging.error(
-                    f"JSON decode error. Response status: {resp.status_code}. Response text: {resp.text}")
+                    f"[JSON解析] JSON解码失败 --> 响应状态码: {resp.status_code}, 响应内容类型: {resp.headers.get('Content-Type', '未知')}, 解码错误位置: 第{e.lineno}行第{e.colno}列, 响应文本内容(前500字符): {resp.text[:500]}{'...(已截断)' if len(resp.text) > 500 else ''}, 错误详情: {e}")
                 return None
+        logging.debug(f"[JSON解析] 响应对象为空，无法解析JSON")
         return None
 
     def login(self, username, password):
