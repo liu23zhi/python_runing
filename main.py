@@ -5739,7 +5739,7 @@ class Api:
             # 修正：使用 SocketIO 向特定会话发送更新，而不是 self.window
             session_id = getattr(self, '_web_session_id', None)
             if not session_id or not socketio:
-                logging.debug(f"Skipping _update_account_status_js for {acc.username}: No session_id or socketio")
+                logging.debug(f"跳过账号状态更新（_update_account_status_js），账号: {acc.username}，原因: 缺少会话ID或socketio未初始化")
                 return  # 如果没有会话ID或socketio未初始化，则无法发送
 
             update_data = {}
@@ -5778,7 +5778,7 @@ class Api:
             # 修正：使用 SocketIO 向特定会话发送更新
             session_id = getattr(self, '_web_session_id', None)
             if not session_id or not socketio:
-                logging.debug("Skipping _update_multi_global_buttons: No session_id or socketio")
+                logging.debug("跳过多账号全局按钮更新（_update_multi_global_buttons），原因: 缺少会话ID或socketio未初始化")
                 return
 
             # 仅统计仍有任务可执行的账号（active）
@@ -6462,7 +6462,7 @@ class Api:
 
         # 检查缓存是否有效
         if time.time() - last_fetch_time < cache_duration_s and current_radius > 0:
-            logging.debug(f"Using cached server radius: {current_radius}m")
+            logging.debug(f"使用缓存的服务器签到半径值: {current_radius}米")
             return current_radius
 
         log_func("正在获取服务器签到半径...")
@@ -6669,7 +6669,7 @@ class Api:
                 return {"success": False, "message": f"签到失败: {msg}"}
         except Exception as e:
             log_func(f"提交签到时出错: {e}")
-            logging.error(f"Error submitting attendance: {e}", exc_info=True)
+            logging.error(f"提交签到请求时发生错误，异常信息: {e}", exc_info=True)
             return {"success": False, "message": f"提交签到时出错: {e}"}
 
     # --- 获取通知功能 ---
@@ -7961,19 +7961,19 @@ class BackgroundTaskManager:
                         # 调用Chrome池执行路径规划
                         global chrome_pool
                         if not chrome_pool:
-                            logging.error("Chrome pool is not available for path planning!")
+                            logging.error("Chrome浏览器池不可用，无法进行路径规划！")
                             continue
                             
                         if chrome_pool:
                             try:
-                                logging.info(f"Getting Chrome context for session {session_id[:8]}...")
+                                logging.info(f"正在获取Chrome浏览器上下文，会话ID前缀: {session_id[:8]}...")
                                 # 获取页面并确保加载了AMap
                                 ctx = chrome_pool.get_context(session_id)
                                 page = ctx['page']
-                                logging.info("Chrome context obtained successfully")
+                                logging.info("Chrome浏览器上下文获取成功")
                                 
                                 # 首先加载包含AMap的页面
-                                logging.info("Loading AMap SDK into Chrome page...")
+                                logging.info("正在向Chrome页面加载高德地图SDK...")
                                 page.goto("about:blank")
                                 page.set_content("""
                                 <!DOCTYPE html>
@@ -7987,12 +7987,12 @@ class BackgroundTaskManager:
                                 """)
                                 
                                 # 等待AMap加载 (修复：等待 AMapLoader 加载完成)
-                                logging.info("Waiting for AMapLoader to load...")
+                                logging.info("等待高德地图加载器(AMapLoader)加载完成...")
                                 page.wait_for_function("typeof AMapLoader !== 'undefined'", timeout=10000)
-                                logging.info("AMapLoader loaded successfully in Chrome context")
+                                logging.info("高德地图加载器在Chrome上下文中加载成功")
                                 
                                 # 使用Chrome池执行AMap路径规划JavaScript
-                                logging.info("Executing path planning JavaScript in Chrome...")
+                                logging.info("正在Chrome浏览器中执行路径规划JavaScript代码...")
                                 path_coords = chrome_pool.execute_js(
                                     session_id,
                                     """
@@ -8057,15 +8057,15 @@ class BackgroundTaskManager:
                                     amap_key  # 修复BUG：传入从Python获取的 amap_key
                                 )
                                 
-                                logging.info(f"Path planning JavaScript returned: {type(path_coords)}, has 'path' key: {'path' in path_coords if path_coords else 'None'}")
+                                logging.info(f"路径规划JavaScript返回结果: 类型={type(path_coords)}, 包含'path'键={'是' if (path_coords and 'path' in path_coords) else '否'}")
                                 
                                 if path_coords and 'path' in path_coords:
                                     api_path_coords = path_coords['path']
-                                    logging.info(f"Path planned successfully with {len(api_path_coords)} points")
+                                    logging.info(f"路径规划成功，包含 {len(api_path_coords)} 个坐标点")
                                     
                                     # 使用后端生成 run_coords
                                     p = api_instance.params
-                                    logging.info(f"Generating run simulation with params: min_time={p.get('min_time_m', 20)}, max_time={p.get('max_time_m', 30)}, min_dist={p.get('min_dist_m', 2000)}")
+                                    logging.info(f"正在生成运动模拟数据，参数: 最小时长={p.get('min_time_m', 20)}分钟, 最大时长={p.get('max_time_m', 30)}分钟, 最小距离={p.get('min_dist_m', 2000)}米")
                                     gen_resp = api_instance.auto_generate_path_with_api(
                                         api_path_coords,
                                         p.get("min_time_m", 20),
@@ -8073,36 +8073,36 @@ class BackgroundTaskManager:
                                         p.get("min_dist_m", 2000)
                                     )
                                     
-                                    logging.info(f"auto_generate_path_with_api returned: success={gen_resp.get('success')}")
+                                    logging.info(f"auto_generate_path_with_api函数返回: 成功={gen_resp.get('success')}")
                                     
                                     if gen_resp.get("success"):
                                         # 将生成结果回填到当前任务
                                         run_data.run_coords = gen_resp["run_coords"]
                                         run_data.total_run_distance_m = gen_resp["total_dist"]
                                         run_data.total_run_time_s = gen_resp["total_time"]
-                                        logging.info(f"Path auto-generated successfully for {run_data.run_name}: {len(gen_resp['run_coords'])} coords, {gen_resp['total_dist']}m, {gen_resp['total_time']}s")
+                                        logging.info(f"路径自动生成成功，任务: {run_data.run_name}，坐标点数: {len(gen_resp['run_coords'])}, 总距离: {gen_resp['total_dist']}米, 总时长: {gen_resp['total_time']}秒")
                                     else:
-                                        logging.error(f"Failed to generate run coords: {gen_resp.get('message')}")
+                                        logging.error(f"生成运动坐标序列失败: {gen_resp.get('message')}")
                                         continue
                                 else:
                                     error_msg = path_coords.get('error', 'Unknown error') if path_coords else 'No response from path planning'
-                                    logging.error(f"Path planning failed for {run_data.run_name}: {error_msg}")
+                                    logging.error(f"任务路径规划失败，任务名称: {run_data.run_name}，错误信息: {error_msg}")
                                     continue
                             except Exception as e:
-                                logging.error(f"Chrome pool path planning failed for {run_data.run_name}: {e}", exc_info=True)
+                                logging.error(f"Chrome浏览器池路径规划失败，任务名称: {run_data.run_name}，异常信息: {e}", exc_info=True)
                                 continue
                         else:
-                            logging.error("Chrome pool not available for path planning")
+                            logging.error("Chrome浏览器池不可用，无法进行路径规划")
                             continue
                             
                     except Exception as e:
-                        logging.error(f"Auto-generate path failed: {e}", exc_info=True)
+                        logging.error(f"自动生成路径失败，异常信息: {e}", exc_info=True)
                         continue
                 
                 # 检查任务是否有路径
                 if not run_data.run_coords:
-                    logging.warning(f"Task {run_data.run_name} has no path, skipping to next task")
-                    # Skip this task and continue with the next one
+                    logging.warning(f"任务没有可用路径，跳过执行: {run_data.run_name}")
+                    # 跳过此任务，继续执行下一个任务
                     continue
                 
                 # 设置当前任务
@@ -8125,7 +8125,7 @@ class BackgroundTaskManager:
                     )
                     thread.start()
                     
-                    # Mark that we're executing this task
+                    # 标记正在执行此任务
                     tasks_executed += 1
                     
                     # 等待任务完成或超时（最多等待任务预计时间的2倍）
@@ -8136,7 +8136,7 @@ class BackgroundTaskManager:
                     start_wait = time.time()
                     while not finished_event.is_set():
                         if time.time() - start_wait > timeout:
-                            logging.warning(f"Task execution timeout for {run_data.run_name}")
+                            logging.warning(f"任务执行超时: {run_data.run_name}")
                             api_instance.stop_run_flag.set()
                             break
                         
@@ -8169,7 +8169,7 @@ class BackgroundTaskManager:
                                 task_state['estimated_total_time_s'] = getattr(run_data, 'total_run_time_s', 0)  # 预计总时间（秒）
                                 task_state['estimated_total_distance_m'] = getattr(run_data, 'total_run_distance_m', 0)  # 预计总距离（米）
                                 
-                                # Add real-time position data
+                                # 添加实时位置数据
                                 if current_idx > 0 and current_idx <= total_points:
                                     coord = run_data.run_coords[current_idx - 1]
                                     task_state['current_position'] = {
@@ -8177,7 +8177,7 @@ class BackgroundTaskManager:
                                         'lat': coord[1],
                                         'distance': getattr(run_data, 'distance_covered_m', 0),
                                         'target_sequence': getattr(run_data, 'target_sequence', 0),
-                                        'point_index': current_idx  # Add point index for frontend progress calculation
+                                        'point_index': current_idx  # 添加点索引用于前端进度计算
                                     }
                         
                         # 每5秒保存一次状态
@@ -8191,7 +8191,7 @@ class BackgroundTaskManager:
                     thread.join(timeout=10)
                     
                 except Exception as e:
-                    logging.error(f"Task execution failed: {e}", exc_info=True)
+                    logging.error(f"任务执行失败，异常信息: {e}", exc_info=True)
                 
                 # 更新完成状态
                 with self.lock:
@@ -8201,22 +8201,22 @@ class BackgroundTaskManager:
                     task_state['last_update'] = time.time()
                     self.save_task_state(session_id, task_state)
                 
-                logging.info(f"Task {i+1}/{len(task_indices)} completed for session {session_id[:8]}")
+                logging.info(f"任务 {i+1}/{len(task_indices)} 已完成，会话ID前缀: {session_id[:8]}")
             
-            # 所有任务完成 - only if at least one task was executed
+            # 所有任务完成 - 仅当至少执行了一个任务时
             if tasks_executed > 0:
                 with self.lock:
                     task_state['status'] = 'completed'
                     task_state['last_update'] = time.time()
                     self.save_task_state(session_id, task_state)
                 
-                logging.info(f"All background tasks completed for session {session_id[:8]}")
+                logging.info(f"所有后台任务已完成，会话ID前缀: {session_id[:8]}")
             else:
-                # No tasks were executed
+                # 没有任务被执行
                 with self.lock:
-                    if task_state.get('status') != 'error':  # Don't overwrite error status
+                    if task_state.get('status') != 'error':  # 不覆盖错误状态
                         task_state['status'] = 'error'
-                        # Different error message based on whether auto-generate was enabled
+                        # 根据是否启用自动生成，设置不同的错误消息
                         if auto_generate:
                             task_state['error'] = '自动生成路径失败，请查看服务器日志了解详情或手动生成路径'
                         else:
@@ -8224,12 +8224,12 @@ class BackgroundTaskManager:
                         task_state['last_update'] = time.time()
                         self.save_task_state(session_id, task_state)
                 if auto_generate:
-                    logging.error(f"No tasks were executed for session {session_id[:8]} - all auto-generation attempts failed")
+                    logging.error(f"没有任务被执行，会话ID前缀: {session_id[:8]} - 所有自动生成路径尝试均失败")
                 else:
-                    logging.warning(f"No tasks were executed for session {session_id[:8]} - no paths available")
+                    logging.warning(f"没有任务被执行，会话ID前缀: {session_id[:8]} - 没有可用的路径")
             
         except Exception as e:
-            logging.error(f"Background task execution failed: {e}", exc_info=True)
+            logging.error(f"后台任务执行失败，异常信息: {e}", exc_info=True)
             with self.lock:
                 if session_id in self.tasks:
                     self.tasks[session_id]['status'] = 'error'
@@ -8258,7 +8258,7 @@ class BackgroundTaskManager:
             if session_id in self.tasks:
                 self.tasks[session_id]['status'] = 'stopped'
                 self.save_task_state(session_id, self.tasks[session_id])
-                logging.info(f"Background task stopped for session {session_id[:8]}")
+                logging.info(f"后台任务已停止，会话ID前缀: {session_id[:8]}")
                 return {"success": True, "message": "后台任务已停止"}
             return {"success": False, "message": "未找到运行中的后台任务"}
     
@@ -8280,11 +8280,11 @@ class BackgroundTaskManager:
                     last_update = task_state.get('last_update', 0)
                     if current_time - last_update > max_age_seconds:
                         os.remove(filepath)
-                        logging.info(f"Removed old task file: {filename}")
+                        logging.info(f"已删除旧的任务状态文件: {filename}")
                 except Exception as e:
-                    logging.warning(f"Failed to process task file {filename}: {e}")
+                    logging.warning(f"处理任务文件失败，文件名: {filename}，错误: {e}")
         except Exception as e:
-            logging.error(f"Failed to cleanup old tasks: {e}")
+            logging.error(f"清理旧任务文件失败，异常信息: {e}")
 
 
 class ChromeBrowserPool:
@@ -8400,7 +8400,7 @@ def _cleanup_playwright():
         logging.info("捕获到程序退出信号，正在清理 Playwright 资源...")
         try:
             chrome_pool.cleanup()
-            logging.info("Playwright 资源清理完成。")
+            logging.info("Playwright浏览器自动化框架资源清理完成")
         except Exception as e:
             # 在退出时尽量不抛出新异常，只记录错误
             logging.error(f"清理 Playwright 资源时发生错误: {e}", exc_info=False)
