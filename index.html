@@ -830,7 +830,7 @@
 
           <div id="attendance-tab" class="hidden pt-2 space-y-2 h-56 flex flex-col">
             <div class="flex-shrink-0 space-y-2 border-b pb-2">
-              <label class="flex items-center gap-2 cursor-pointer" title="开启后，后台将自动检测并执行签到（通知刷新始终在后台运行）">
+              <label class="flex items-center gap-2 cursor-pointer" title="开启后，将在后台自动刷新通知并尝试签到">
                 <input type="checkbox" id="param-auto_attendance_enabled" data-key="auto_attendance_enabled"
                   class="w-5 h-5 accent-sky-600 rounded cursor-pointer flex-shrink-0">
                 <span class="text-slate-700 font-semibold">开启自动签到</span>
@@ -839,7 +839,7 @@
               <div class="flex items-center gap-2">
                 <label class="text-sm text-slate-700 font-semibold flex-shrink-0">刷新间隔(秒)</label>
                 <input type="number" step="30" id="param-auto_attendance_refresh_s" data-key="auto_attendance_refresh_s"
-                  class="input-field !py-1 w-full" title="后台刷新通知和检查签到的间隔时间（秒），建议不低于60">
+                  class="input-field !py-1 w-full" title="自动刷新通知的间隔时间（秒），建议不低于60">
               </div>
               <div class="flex items-center gap-2">
                 <label class="text-sm text-slate-700 font-semibold flex-shrink-0">随机半径(米)</label>
@@ -2239,13 +2239,13 @@
       "auto_attendance_enabled": {
         label: "开启自动签到",
         unit: "",
-        help: "开启后，后台将自动检测并执行签到（通知刷新始终在后台运行）",
+        help: "开启后，将在后台自动刷新通知并尝试签到",
         type: "checkbox"
       },
       "auto_attendance_refresh_s": {
         label: "刷新间隔",
         unit: "秒",
-        help: "后台刷新通知和检查签到的间隔时间（秒），建议不低于60"
+        help: "自动刷新通知的间隔时间（秒），建议不低于60"
       },
       "attendance_user_radius_m": {
         label: "随机半径",

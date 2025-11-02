@@ -4631,16 +4631,19 @@ class Api:
 
                 logging.debug(f"Parameter updated: {key}={target_params[key]}")
 
-                # --- 移除前端控制自动刷新线程的逻辑 ---
-                # 自动刷新线程现在在登录时启动，登出时停止
-                # 参数变化只影响线程内部的行为（是否执行自动签到）
-                # 通知刷新始终在后台执行
+                # --- 响应自动签到参数变化 ---
                 if key in ("auto_attendance_enabled", "auto_attendance_refresh_s") and not self.is_multi_account_mode:
-                    if key == "auto_attendance_enabled":
-                        status = "已启用" if target_params[key] else "已禁用"
-                        self.log(f"自动签到功能{status}，后台线程将自动调整。")
-                    else:
-                        self.log(f"自动刷新间隔已更新为 {target_params[key]} 秒。")
+                    self.stop_auto_refresh.set()  # 停止旧的
+                    if self.auto_refresh_thread and self.auto_refresh_thread.is_alive():
+                        self.auto_refresh_thread.join(timeout=1.0)
+
+                    if self.params.get("auto_attendance_enabled", False):
+                        # 如果是启用，则重启
+                        self.stop_auto_refresh.clear()
+                        self.auto_refresh_thread = threading.Thread(
+                            target=self._auto_refresh_worker, daemon=True)
+                        self.auto_refresh_thread.start()
+                        self.log("自动刷新设置已更新并重启。")
 
                 return {"success": True}
             except (ValueError, TypeError) as e:
@@ -6789,23 +6792,33 @@ class Api:
             return {"success": False, "message": resp.get('message', '标记已读失败')}
 
     def _auto_refresh_worker(self):
-        """(单账号) 后台自动刷新通知和自动签到的线程
-        
-        此线程在用户登录后自动启动，持续运行直到用户登出。
-        - 始终执行通知刷新并推送到前端
-        - 仅在 auto_attendance_enabled=True 时执行自动签到
-        """
-        while not self.stop_auto_refresh.is_set():
+        """(单账号) 后台自动刷新通知的线程"""
+        while not self.stop_auto_refresh.is_set():  # 1秒检查一次停止信号
             try:
+                is_enabled = self.params.get("auto_attendance_enabled", False)
+
                 if (not self.user_data.id or self.is_multi_account_mode):
                     # 如果未登录或在多账号模式，则休眠
                     time.sleep(5)
                     continue
 
-                # 读取刷新间隔（总是使用，无论是否启用自动签到）
-                refresh_interval_s = self.params.get("auto_attendance_refresh_s", 120)
+                # --- 修复 Bug 2: 检查功能是否启用 ---
+                if not is_enabled:
+                    # 如果未启用自动签到，则本线程进入长休眠状态 (300秒)
+                    # 它会等待，直到用户在UI上重新勾选 "auto_attendance_enabled"
+                    # (届时 update_param 会停止并重启此线程)
+                    # 或者等待300秒后再次检查 is_enabled 状态。
+                    if self.stop_auto_refresh.wait(timeout=300):
+                        break  # 收到停止信号
+                    continue  # 继续循环，重新检查 is_enabled
 
-                self.log(f"后台刷新: 等待 {refresh_interval_s} 秒...")
+                # --- 如果代码执行到这里，说明 is_enabled == True ---
+
+                # 读取刷新间隔
+                refresh_interval_s = self.params.get(
+                    "auto_attendance_refresh_s")
+
+                self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
 
                 if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
                     break
@@ -6813,34 +6826,35 @@ class Api:
                 if (self.is_multi_account_mode or not self.user_data.id):
                     continue
 
-                # 1. 获取通知并推送到UI（始终执行）
+                # 1. 执行自动签到
+                self._check_and_trigger_auto_attendance(self)
+
+                # 2. 获取通知并推送到UI
                 self.log("正在自动刷新通知 (后台)...")
                 result = self.get_notifications(is_auto_refresh=False)
 
-                # 使用 SocketIO 向特定会话推送更新
+                # [BUG 修复]：替换 self.window 为 socketio.emit
                 if result.get('success'):
+                    # 修复：使用 SocketIO 向特定会话推送更新，而不是 self.window
                     session_id = getattr(self, '_web_session_id', None)
+                    # 确保 socketio 变量在全局可用 (它在 start_web_server 中定义)
                     if session_id and 'socketio' in globals():
                         try:
+                            # 发送一个自定义事件，前端JS需要监听这个事件
                             globals()['socketio'].emit('onNotificationsUpdated', result, room=session_id)
                             logging.debug(f"[_auto_refresh_worker] 已向会话 {session_id[:8]} 推送通知更新")
                         except Exception as e:
                             logging.error(f"[_auto_refresh_worker] SocketIO推送通知失败: {e}", exc_info=True)
                     elif not session_id:
-                        logging.warning(f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
+                         logging.warning(f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
                     else:
-                        logging.warning(f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
-
-                # 2. 检查是否启用自动签到，仅在启用时执行
-                is_auto_attendance_enabled = self.params.get("auto_attendance_enabled", False)
-                if is_auto_attendance_enabled:
-                    self._check_and_trigger_auto_attendance(self)
-                else:
-                    logging.debug(f"[_auto_refresh_worker] 自动签到未启用，跳过签到检查")
+                         logging.warning(f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
+                
 
             except Exception as e:
                 self.log(f"自动刷新线程出错: {e}")
                 logging.error(f"Auto-refresh worker error: {e}", exc_info=True)
+                # time.sleep(60)
                 # 修复：使用 wait() 替换 time.sleep() 以便能被立即停止
                 if self.stop_auto_refresh.wait(timeout=60):
                     break # 如果在等待时收到停止信号，则退出循环
