@@ -6548,7 +6548,7 @@
       socket.on('log_message', (data) => {
         if (data && data.msg) {
           // 调用现有的 logMessage_Info 函数显示日志
-          logMessage_Info(data.msg);
+          logMessage(data.msg, 'INFO', 'Backend');
         }
       });
     }
@@ -8690,6 +8690,8 @@
           
           // 更新仪表板显示
           updateDashboard();
+
+          drawMarkers();
           
           // Update real-time position on map if available
           if (status.current_position) {
@@ -8811,6 +8813,7 @@
                       child.classList.remove('selected');
                     }
                   });
+                  loadHistory(global_task_index);
                   
                   // 绘制地图
                   updateDashboard();
@@ -9074,11 +9077,6 @@
     }
     async function loadHistory(index) {
 
-      if (backgroundTaskPollInterval) {
-        logMessage_Warning("任务执行中，无法查看历史记录！请先停止当前任务。");
-        showModalAlert("任务执行中，无法查看历史记录！请先停止当前任务。");
-        return;
-      }
       $('history-placeholder').textContent = "正在加载..."; $('history-list').innerHTML = "";
       const result = await callPythonAPI('get_task_history', index);
       if (result.success && result.history.length > 0) {
@@ -9092,6 +9090,11 @@
       } else { $('history-placeholder').textContent = "无历史记录或加载失败"; $('history-placeholder').classList.remove('hidden'); }
     }
     async function showHistoricalTrack(trid) {
+      if (backgroundTaskPollInterval) {
+        logMessage_Warning("任务执行中，无法查看历史记录！请先停止当前任务。");
+        showModalAlert("任务执行中，无法查看历史记录！请先停止当前任务。");
+        return;
+      }
       const result = await callPythonAPI('get_historical_track', trid);
       if (result.success) {
         if (polylines.history) map.remove(polylines.history);
@@ -9124,18 +9127,26 @@
         // 将堆栈信息按行分割
         const lines = stack.split('\n');
 
+        let callerLine; // <-- 修复 #1: 在外部作用域声明变量
+
         if (linesToSkip !== null){
           try {
-            let callerLine = lines[linesToSkip + 1] || '';
+            callerLine = lines[linesToSkip + 1] || ''; // <-- 修复 #2: 移除 'let'，直接赋值
           } catch (error) {
             logMessage_Error("Error accessing stack line:", error);
-            let callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // 尝试第4、3、2、1行
+            callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // <-- 修复 #3: 移除 'let'
           }
         }else{
 
         // 不同浏览器堆栈格式不同，尝试几种常见模式
-        let callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // 尝试第4、3、2、1行
+        callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // <-- 修复 #4: 移除 'let'
         }
+
+        // 修复 #5: 增加健壮性检查，防止 callerLine 为 undefined 时调用 .trim() 出错
+        if (typeof callerLine !== 'string') {
+            callerLine = ''; // 如果堆栈行不存在（例如堆栈太短），提供一个空字符串
+        }
+        
         callerLine = callerLine.trim();
 
         // 尝试匹配 Chrome/V8 格式: "at functionName (file:line:col)" 或 "at file:line:col"
@@ -9193,7 +9204,7 @@
 
     // 日志记录函数，支持不同级别日志
     // level 可选值：'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
-    function logMessage(msg, level = 'INFO') {
+    function logMessage(msg, level = 'INFO', source = null) {
       // 保留原有的时间戳添加逻辑，因为后端 Api.log 未添加时间戳
       const now = new Date();
       const h = String(now.getHours()).padStart(2, '0');
@@ -9207,8 +9218,15 @@
       let level_new = 'INFO';
 
       // 获取调用者信息
-      let orange_callerInfo = getCallerInfo();
-      let callerInfo = extractCleanSource(orange_callerInfo.source);
+      // 检查是否已传入来源 (例如 'Backend')
+      let callerInfo;
+      if (source) {
+        callerInfo = source; // 使用传入的来源
+      } else {
+        // 否则，才尝试获取 JS 调用者
+        let orange_callerInfo = getCallerInfo();
+        callerInfo = extractCleanSource(orange_callerInfo.source);
+      }
 
       let new_message = `${timestamp}[前端日志][${callerInfo}] ${line}`
       const fullMessage = `${timestamp}[${callerInfo}] ${line}`; // 组合时间戳和消息
@@ -9235,7 +9253,7 @@
       
 
       // 发送到后端日志系统（仅在非网络错误状态时发送）
-      if (!isInNetworkErrorState) {
+      if (!isInNetworkErrorState && source !== 'Backend') {
         try {
           fetch('/api/log_frontend', {
             method: 'POST',

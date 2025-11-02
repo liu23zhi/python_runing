@@ -3885,13 +3885,19 @@ class Api:
             "scheduleId": run_data.errand_schedule, "userId": user.id,
             "userName": user.name or "", "runLength": str(int(chunk_total_dist)),
             "runTime": str(chunk_total_dur), "startPoint": "", "endPoint": "",
-            "startTime": start_time, "endTime": str(int(time.time() * 1000)),
+            "startTime": start_time,
+            # endTime 将在下面根据条件添加
             "trid": run_data.trid, "sid": "", "tid": "",
             "speed": f"{(run_data.total_run_distance_m / run_data.total_run_time_s):.2f}" if run_data.total_run_time_s > 0 else "",
             "finishType": "1" if is_finish else "0",
             "coordinate": json.dumps(coords_list, separators=(',', ':')),
             "appVersion": ApiClient.API_VERSION
         }
+
+        # 仅当这是最后一块(is_finish=True)时才添加 endTime
+        if is_finish:
+            payload["endTime"] = str(int(time.time() * 1000))
+            
         payload_str = urllib.parse.urlencode(payload)
 
         # 通过全局串行队列进行提交，保证同一时间只提交一个数据包
@@ -7809,6 +7815,19 @@ class BackgroundTaskManager:
                         logging.info(f"Planning path with {len(waypoints)} waypoints for task: {run_data.run_name}")
                         logging.info(f"Waypoints: {waypoints[:3]}..." if len(waypoints) > 3 else f"Waypoints: {waypoints}")
                         
+                        
+                        # 必须在调用Chrome池之前获取 Key
+                        amap_key = api_instance.global_params.get('amap_js_key', '')
+                        if not amap_key:
+                            logging.error(f"无法为 {run_data.run_name} 自动规划路径：缺少高德地图 API Key")
+                            # 标记任务状态为错误并跳过
+                            with self.lock:
+                                task_state['status'] = 'error'
+                                task_state['error'] = '缺少高德地图API Key'
+                                self.save_task_state(session_id, task_state)
+                            continue # 跳过此任务
+                        
+
                         # 调用Chrome池执行路径规划
                         global chrome_pool
                         if not chrome_pool:
@@ -7831,60 +7850,81 @@ class BackgroundTaskManager:
                                 <html>
                                 <head>
                                     <meta charset="utf-8">
-                                    <script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.15"></script>
+                                    <script type="text/javascript" src="https://webapi.amap.com/loader.js"></script>
                                 </head>
                                 <body></body>
                                 </html>
                                 """)
                                 
-                                # 等待AMap加载
-                                logging.info("Waiting for AMap to load...")
-                                page.wait_for_function("typeof AMap !== 'undefined'", timeout=10000)
-                                logging.info("AMap loaded successfully in Chrome context")
+                                # 等待AMap加载 (修复：等待 AMapLoader 加载完成)
+                                logging.info("Waiting for AMapLoader to load...")
+                                page.wait_for_function("typeof AMapLoader !== 'undefined'", timeout=10000)
+                                logging.info("AMapLoader loaded successfully in Chrome context")
                                 
                                 # 使用Chrome池执行AMap路径规划JavaScript
                                 logging.info("Executing path planning JavaScript in Chrome...")
                                 path_coords = chrome_pool.execute_js(
                                     session_id,
                                     """
-                                    async function planPath(waypoints) {
-                                        // 确保AMap已加载
-                                        if (typeof AMap === 'undefined') {
-                                            return {error: 'AMap not loaded'};
+                                    async function planPath(waypoints, apiKey) {
+                                        // 1. 确保 AMapLoader (来自 loader.js) 存在
+                                        if (typeof AMapLoader === 'undefined') {
+                                            return {error: 'AMapLoader not loaded'};
                                         }
-                                        
+
+                                        // 2. (修复BUG) 调用 AMapLoader.load 并传入 key
+                                        try {
+                                            // 确保 AMap 和 AMap.Walking 插件被加载
+                                            await AMapLoader.load({
+                                                "key": apiKey,
+                                                "version": "2.0",
+                                                "plugins": ["AMap.Walking"]
+                                            });
+                                        } catch (e) {
+                                            // 返回详细的加载错误
+                                            return {error: 'AMapLoader.load failed: ' + (e ? e.message : 'Unknown error')};
+                                        }
+
+                                        // 3. (修复BUG) 检查 AMap.Walking 插件是否真的加载成功
+                                        if (typeof AMap.Walking === 'undefined') {
+                                            return {error: 'AMap.Walking plugin failed to load'};
+                                        }
+
+                                        // 4. (原逻辑) 执行路径规划
                                         return new Promise((resolve) => {
-                                            AMap.plugin('AMap.Walking', function() {
-                                                const walking = new AMap.Walking({
-                                                    map: null  // 不需要地图显示
-                                                });
-                                                
-                                                // 将waypoints转换为AMap.LngLat格式
-                                                const points = waypoints.map(p => new AMap.LngLat(p[0], p[1]));
-                                                
-                                                walking.search(points, function(status, result) {
-                                                    if (status === 'complete' && result.routes && result.routes.length > 0) {
-                                                        const route = result.routes[0];
-                                                        const path = [];
-                                                        route.steps.forEach(step => {
-                                                            if (step.path) {
-                                                                step.path.forEach(p => {
-                                                                    path.push({lng: p.lng, lat: p.lat});
-                                                                });
-                                                            }
-                                                        });
-                                                        resolve({path: path});
-                                                    } else {
-                                                        resolve({error: 'Path planning failed: ' + status});
-                                                    }
-                                                });
+                                            const walking = new AMap.Walking({
+                                                map: null  // 不需要地图显示
+                                            });
+                                            
+                                            // 将waypoints转换为AMap.LngLat格式
+                                            const points = waypoints.map(p => new AMap.LngLat(p[0], p[1]));
+                                            
+                                            walking.search(points, function(status, result) {
+                                                if (status === 'complete' && result.routes && result.routes.length > 0) {
+                                                    const route = result.routes[0];
+                                                    const path = [];
+                                                    route.steps.forEach(step => {
+                                                        if (step.path) {
+                                                            step.path.forEach(p => {
+                                                                path.push({lng: p.lng, lat: p.lat});
+                                                            });
+                                                        }
+                                                    });
+                                                    resolve({path: path});
+                                                } else {
+                                                    // 返回更详细的错误信息
+                                                    const errorInfo = result ? result.info : status;
+                                                    resolve({error: 'Path planning failed: ' + errorInfo});
+                                                }
                                             });
                                         });
                                     }
                                     
-                                    return planPath(arguments[0]);
+                                    // 修复BUG：将 apiKey 作为 arguments[1] 传入
+                                    return planPath(arguments[0], arguments[1]);
                                     """,
-                                    waypoints
+                                    waypoints,
+                                    amap_key  # 修复BUG：传入从Python获取的 amap_key
                                 )
                                 
                                 logging.info(f"Path planning JavaScript returned: {type(path_coords)}, has 'path' key: {'path' in path_coords if path_coords else 'None'}")
