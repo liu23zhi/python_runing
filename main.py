@@ -4010,7 +4010,7 @@ class Api:
         log_func = client.app.log if hasattr(
             client.app, 'log') else client.app.api_bridge.log
         log_func("正在确认任务状态...")
-        logging.debug(f"Finalizing run with trid={run_data.trid}")
+        logging.debug(f"正在确认任务完成状态，任务追踪ID: trid={run_data.trid}")
         for _ in range(3):
             resp = client.get_run_info_by_trid(run_data.trid)
             if resp and resp.get('success'):
@@ -4019,7 +4019,7 @@ class Api:
                     run_data.status = 1
                     log_func("任务已确认完成。")
                     logging.info(
-                        f"Task completed successfully: {run_data.run_name}")
+                        f"任务已成功完成: 任务名称={run_data.run_name}")
                     # 修正：使用 SocketIO 发送 task_completed 事件
                     session_id = getattr(self, '_web_session_id', None)
                     if socketio and session_id and task_index != -1:
@@ -4028,12 +4028,12 @@ class Api:
                                 'task_index': task_index
                             }, room=session_id)
                         except Exception as e:
-                            logging.error(f"SocketIO emit 'task_completed' failed: {e}")
+                            logging.error(f"SocketIO发送'task_completed'事件失败: {e}")
                     return
             time.sleep(1)
         log_func("暂未确认完成，请稍后刷新。")
         logging.warning(
-            f"Finalization check failed for task: {run_data.run_name}")
+            f"任务完成状态确认失败: 任务名称={run_data.run_name}")
 
     # 修正: 添加 client 参数
     def _run_submission_thread(self, run_data: RunData, task_index: int, client: ApiClient, is_all: bool, finished_event: threading.Event | None = None):
@@ -4052,7 +4052,7 @@ class Api:
         try:
             log_func("开始执行任务。")
             logging.info(
-                f"Submission thread started for task: {run_data.run_name}")
+                f"任务提交线程已启动: 任务名称={run_data.run_name}")
 
             run_data.trid = f"{user_data.student_id}{int(time.time() * 1000)}"
             start_time_ms = str(int(time.time() * 1000))
@@ -4064,7 +4064,7 @@ class Api:
             for i in range(0, len(run_data.run_coords), 40):
                 if stop_flag.is_set():
                     log_func("任务已中止。")
-                    logging.info("Stop flag detected, aborting run.")
+                    logging.info("检测到停止标志，正在中止任务运行")
                     break
 
                 chunk = run_data.run_coords[i:i + 40]
@@ -4072,7 +4072,7 @@ class Api:
                 for lon, lat, dur_ms in chunk:
                     if stop_flag.wait(timeout=dur_ms / 1000.0):
                         logging.debug(
-                            "Wait for next point interrupted by stop signal.")
+                            "等待下一个坐标点时被停止信号中断")
                         break
 
                     run_data.distance_covered_m += self._calculate_distance_m(
@@ -4109,7 +4109,7 @@ class Api:
                                 'center_now': center_now
                             }, room=session_id)
                         except Exception as e:
-                            logging.error(f"SocketIO emit 'runner_position_update' failed: {e}")
+                            logging.error(f"SocketIO发送'runner_position_update'位置更新事件失败: {e}")
 
                 if stop_flag.is_set():
                     break
@@ -4141,7 +4141,7 @@ class Api:
 
             if not stop_flag.is_set() and submission_successful:
                 log_func("任务执行完毕，等待确认...")
-                logging.info("Run execution finished, awaiting finalization.")
+                logging.info("任务运行执行完毕，等待最终确认")
                 time.sleep(3)
                 self._finalize_run(run_data, task_index, client)
 
@@ -4175,7 +4175,7 @@ class Api:
                     try:
                         socketio.emit('run_stopped', {}, room=session_id)
                     except Exception as e:
-                        logging.error(f"SocketIO emit 'run_stopped' failed: {e}")
+                        logging.error(f"SocketIO发送'run_stopped'运行停止事件失败: {e}")
             if finished_event:
                 finished_event.set()
             logging.info(
@@ -4474,7 +4474,7 @@ class Api:
                 wait_time = random.uniform(
                     self.params['task_gap_min_s'], self.params['task_gap_max_s'])
                 self.log(f"任务间等待中...")
-                logging.info(f"Waiting for {wait_time:.1f}s before next task.")
+                logging.info(f"等待 {wait_time:.1f}秒 后开始执行下一个任务")
                 if self.stop_run_flag.wait(timeout=wait_time):
                     break
             is_first_task = False
@@ -4493,12 +4493,12 @@ class Api:
 
     def get_task_history(self, index):
         """获取任务的历史跑步记录"""
-        logging.info(f"API CALL: get_task_history for index {index}")
+        logging.info(f"API调用: get_task_history - 获取任务历史跑步记录，任务索引: {index}")
         if not (0 <= index < len(self.all_run_data)):
             return {"success": False, "message": "任务索引无效"}
         run_data = self.all_run_data[index]
         self.log("正在获取历史记录...")
-        logging.debug(f"Getting history for task: {run_data.run_name}")
+        logging.debug(f"正在获取任务的历史记录: 任务名称={run_data.run_name}")
         resp = self.api_client.get_run_history_list(
             self.user_data.id, run_data.errand_schedule)
 
@@ -4522,15 +4522,15 @@ class Api:
                     "trid": rec.get('trid')
                 })
             self.log(f"历史记录已加载。")
-            logging.debug(f"Loaded {len(records)} history records.")
+            logging.debug(f"已成功加载 {len(records)} 条历史记录")
             return {"success": True, "history": history_list}
         return {"success": False, "message": "获取历史记录失败"}
 
     def get_historical_track(self, trid):
         """根据轨迹ID获取历史轨迹坐标点"""
-        logging.info(f"API CALL: get_historical_track for trid {trid}")
+        logging.info(f"API调用: get_historical_track - 根据轨迹ID获取历史轨迹，trid: {trid}")
         self.log("正在加载历史轨迹...")
-        logging.debug(f"Loading historical track for trid={trid}")
+        logging.debug(f"正在加载历史运动轨迹数据，轨迹ID: trid={trid}")
         resp = self.api_client.get_history_track_by_trid(trid)
         if resp and resp.get('success'):
             coords = []
@@ -4546,26 +4546,26 @@ class Api:
                     continue
             self.log("历史轨迹加载成功。")
             logging.debug(
-                f"Historical track loaded with {len(coords)} points.")
+                f"历史轨迹数据加载成功，包含 {len(coords)} 个坐标点")
             return {"success": True, "coords": coords}
         self.log("加载历史轨迹失败。")
-        logging.warning("Failed to load historical track.")
+        logging.warning("加载历史运动轨迹数据失败")
         return {"success": False, "message": "加载历史轨迹失败"}
 
     def open_file_dialog(self, dialog_type, options):
         """打开系统文件对话框（Web模式不支持，返回错误）"""
-        logging.info(f"API CALL: open_file_dialog (type={dialog_type})")
+        logging.info(f"API调用: open_file_dialog - 打开文件对话框，类型: {dialog_type}")
         # Web模式下无法使用文件对话框
         logging.error("文件对话框在Web模式下不可用")
         return None
 
     def show_confirm_dialog(self, title, message):
         """(已修复) 由JS调用，显示一个基于HTML的确认对话框(是/否)"""
-        logging.info(f"API CALL: show_confirm_dialog (title={title})")
+        logging.info(f"API调用: show_confirm_dialog - 显示确认对话框，标题: {title}")
 
         if not self.window:
             logging.error(
-                "Window object is not set. Cannot show confirm dialog.")
+                "窗口对象未设置，无法显示确认对话框")
             return False  # 无法显示，默认返回 "否"
 
         try:
@@ -4582,13 +4582,13 @@ class Api:
         except Exception as e:
             # 如果JS函数不存在、JS执行出错或返回了非预期值
             logging.error(
-                f"Error showing/getting confirm dialog from JS: {e}", exc_info=True)
+                f"从JavaScript显示/获取确认对话框时出错: {e}", exc_info=True)
             # Web模式下无法使用tkinter回退
             return False
 
     def update_param(self, key, value):
         """更新并保存单个参数"""
-        logging.info(f"API CALL: update_param (key={key}, value={value})")
+        logging.info(f"API调用: update_param - 更新参数，键: {key}, 值: {value}")
 
         # 决定要更新哪个参数字典
         username_to_update = None
@@ -4629,7 +4629,7 @@ class Api:
                 if username_to_update and not self.is_multi_account_mode:
                     self._save_config(username_to_update)
 
-                logging.debug(f"Parameter updated: {key}={target_params[key]}")
+                logging.debug(f"参数已更新: 参数名={key}, 新值={target_params[key]}")
 
                 # --- 响应自动签到参数变化 ---
                 if key in ("auto_attendance_enabled", "auto_attendance_refresh_s") and not self.is_multi_account_mode:
@@ -4652,7 +4652,7 @@ class Api:
 
     def export_task_data(self):
         """导出当前任务数据为JSON文件（Web模式：返回JSON数据让前端下载）"""
-        logging.info("API CALL: export_task_data")
+        logging.info("API调用: export_task_data - 导出当前任务数据为JSON格式")
         logging.info("导出任务数据...")
         if self.current_run_idx == -1:
             logging.warning("未选择任务，无法导出")
@@ -4684,11 +4684,11 @@ class Api:
 
     def import_task_data(self, json_data=None):
         """导入JSON任务数据，进入离线调试模式（UA=Null，保留用户信息）"""
-        logging.info("API CALL: import_task_data")
+        logging.info("API调用: import_task_data - 导入JSON任务数据（离线调试模式）")
         logging.info("开始导入任务数据...")
 
         if not json_data:
-            logging.error("未提供JSON数据")
+            logging.error("导入失败：未提供有效的JSON数据")
             return {"success": False, "message": "未提供导入数据"}
 
         try:
@@ -4786,7 +4786,7 @@ class Api:
 
     def clear_current_task_draft(self):
         """清除当前任务的草稿路径和已生成路径"""
-        logging.info("API CALL: clear_current_task_draft")
+        logging.info("API调用: clear_current_task_draft - 清除当前任务的草稿路径和生成路径")
         if self.current_run_idx == -1 or not (0 <= self.current_run_idx < len(self.all_run_data)):
             return {"success": False, "message": "未选择任务"}
         run = self.all_run_data[self.current_run_idx]
@@ -4794,7 +4794,7 @@ class Api:
         run.run_coords = []
         run.total_run_distance_m = 0
         run.total_run_time_s = 0
-        logging.info(f"Cleared draft and run data for task: {run.run_name}")
+        logging.info(f"已清除任务的草稿路径和运行数据: 任务名称={run.run_name}")
         return {"success": True}
 
     def enter_multi_account_mode(self):
@@ -4871,7 +4871,7 @@ class Api:
                 self.multi_auto_refresh_thread.join(timeout=1.0)
             self.multi_auto_refresh_thread = None
         except Exception as e:
-            logging.warning(f"Failed to stop multi-auto-refresh thread: {e}")
+            logging.warning(f"停止多账号自动刷新线程失败: {e}")
 
         # 重置所有状态（包含 accounts 清理）
         self._init_state_variables()
@@ -5046,7 +5046,7 @@ class Api:
                 try:
                     self.window.evaluate_js(js)
                 except Exception:
-                    logging.debug("Open NewUserModal failed (non-fatal).")
+                    logging.debug("打开新用户模态框失败（非致命错误）")
             # 返回当前状态列表（不新增该账号）
             self._update_multi_global_buttons()
             return self.multi_get_all_accounts_status()
@@ -5472,7 +5472,7 @@ class Api:
 
         except Exception as e:
             self.log(f"导入失败: {e}")
-            logging.error(f"Import accounts failed: {traceback.format_exc()}")
+            logging.error(f"导入多账号配置失败，详细错误信息: {traceback.format_exc()}")
             return {"success": False, "message": f"导入失败: {e}"}
 
     def multi_export_accounts_summary(self):
@@ -5709,7 +5709,7 @@ class Api:
 
     def multi_stop_all_accounts(self):
         """停止所有账号的运行"""
-        logging.info("API CALL: multi_stop_all_accounts")
+        logging.info("API调用: multi_stop_all_accounts - 停止所有多账号任务的运行")
         # 账号为空的情况，直接提示，无需切状态
         if not self.accounts:
             self.log("当前无账号，无需停止。")
@@ -6680,7 +6680,7 @@ class Api:
         - 附加基于新逻辑的签到状态。
         - (自动签到逻辑已移至 _check_and_trigger_auto_attendance)
         """
-        logging.info("API CALL: get_notifications")
+        logging.info("API调用: get_notifications - 获取用户通知消息列表")
         if not self.user_data.id or self.is_multi_account_mode:
             return {"success": False, "message": "仅单账号登录模式可用"}
 
@@ -6781,7 +6781,7 @@ class Api:
 
     def mark_notification_read(self, notice_id):
         """(单账号) 将指定ID的通知设为已读"""
-        logging.info(f"API CALL: mark_notification_read (id={notice_id})")
+        logging.info(f"API调用: mark_notification_read - 标记通知为已读，通知ID: {notice_id}")
         if not self.user_data.id or self.is_multi_account_mode:
             return {"success": False, "message": "仅单账号登录模式可用"}
 
@@ -7841,9 +7841,9 @@ class BackgroundTaskManager:
         try:
             with open(task_file, 'w', encoding='utf-8') as f:
                 json.dump(task_state, f, indent=2, ensure_ascii=False)
-            logging.debug(f"Task state saved for session {session_id[:8]}")
+            logging.debug(f"后台任务状态已保存，会话ID前缀: {session_id[:8]}")
         except Exception as e:
-            logging.error(f"Failed to save task state: {e}")
+            logging.error(f"保存后台任务状态失败: {e}")
     
     def load_task_state(self, session_id):
         """从文件加载任务状态"""
@@ -7853,10 +7853,10 @@ class BackgroundTaskManager:
         try:
             with open(task_file, 'r', encoding='utf-8') as f:
                 task_state = json.load(f)
-            logging.debug(f"Task state loaded for session {session_id[:8]}")
+            logging.debug(f"后台任务状态已加载，会话ID前缀: {session_id[:8]}")
             return task_state
         except Exception as e:
-            logging.error(f"Failed to load task state: {e}")
+            logging.error(f"加载后台任务状态失败: {e}")
             return None
     
     def start_background_task(self, session_id, api_instance, task_indices, auto_generate=False):
@@ -7890,24 +7890,24 @@ class BackgroundTaskManager:
             )
             thread.start()
             
-            logging.info(f"Background task started for session {session_id[:8]}, {len(task_indices)} tasks")
+            logging.info(f"后台任务已启动，会话ID前缀: {session_id[:8]}, 总任务数: {len(task_indices)}")
             return {"success": True, "message": f"已启动后台任务，共{len(task_indices)}个任务"}
     
     def _execute_tasks_background(self, session_id, api_instance, task_indices, auto_generate):
         """后台执行任务的线程函数"""
         try:
-            tasks_executed = 0  # Track how many tasks were actually executed
+            tasks_executed = 0  # 追踪实际执行的任务数量
             
             for i, task_idx in enumerate(task_indices):
                 # 检查是否需要停止
                 with self.lock:
                     if session_id not in self.tasks:
-                        logging.info(f"Task cancelled for session {session_id[:8]}")
+                        logging.info(f"后台任务已取消，会话ID前缀: {session_id[:8]}")
                         return
                     
                     task_state = self.tasks[session_id]
                     if task_state.get('status') == 'stopped':
-                        logging.info(f"Task stopped for session {session_id[:8]}")
+                        logging.info(f"后台任务已停止，会话ID前缀: {session_id[:8]}")
                         return
                 
                 # 更新当前任务
@@ -7917,32 +7917,32 @@ class BackgroundTaskManager:
                     self.save_task_state(session_id, task_state)
                 
                 # 执行单个任务
-                logging.info(f"Executing task {i+1}/{len(task_indices)} for session {session_id[:8]}")
+                logging.info(f"正在执行后台任务 {i+1}/{len(task_indices)}，会话ID前缀: {session_id[:8]}")
                 run_data = api_instance.all_run_data[task_idx]
                 
                 # 如果需要自动生成路径
                 if auto_generate and not run_data.run_coords:
-                    logging.info(f"Auto-generating path for task: {run_data.run_name}")
+                    logging.info(f"正在为任务自动生成路径: 任务名称={run_data.run_name}")
                     try:
                         # 确保已加载任务详情，拿到打卡点
                         if not run_data.details_fetched:
-                            logging.info(f"Fetching task details for {run_data.run_name}...")
+                            logging.info(f"正在获取任务详细信息: {run_data.run_name}...")
                             details_resp = api_instance.get_task_details(task_idx)
                             if not details_resp.get("success"):
-                                logging.error(f"Failed to get task details for {run_data.run_name}: {details_resp.get('message', 'Unknown error')}")
+                                logging.error(f"获取任务详情失败，任务名称: {run_data.run_name}，错误信息: {details_resp.get('message', '未知错误')}")
                                 continue
                             run_data = api_instance.all_run_data[task_idx]
-                            logging.info(f"Task details fetched successfully for {run_data.run_name}")
+                            logging.info(f"任务详情获取成功: {run_data.run_name}")
                         
                         if not run_data.target_points:
-                            logging.error(f"Task {run_data.run_name} has no target points for auto-generation")
+                            logging.error(f"任务缺少目标打卡点，无法自动生成路径: {run_data.run_name}")
                             continue
                         
-                        logging.info(f"Task {run_data.run_name} has {len(run_data.target_points)} target points")
+                        logging.info(f"任务包含 {len(run_data.target_points)} 个目标打卡点: {run_data.run_name}")
                         
                         # 使用Chrome池进行服务器端路径规划
                         waypoints = run_data.target_points
-                        logging.info(f"Planning path with {len(waypoints)} waypoints for task: {run_data.run_name}")
+                        logging.info(f"正在规划路径，包含 {len(waypoints)} 个路点，任务名称: {run_data.run_name}")
                         logging.info(f"Waypoints: {waypoints[:3]}..." if len(waypoints) > 3 else f"Waypoints: {waypoints}")
                         
                         
