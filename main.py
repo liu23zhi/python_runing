@@ -8401,81 +8401,119 @@ def _cleanup_playwright():
 def start_background_auto_attendance(args):
     """
     在服务器启动时扫描所有.ini文件，为启用自动签到的账号启动后台工作线程。
-    这将创建一个独立的 "service_api" 实例在后台运行。
+    支持单账号和多账号两种模式：
+    - 单账号模式：每个账号独立的Api实例和_auto_refresh_worker线程
+    - 多账号模式：所有账号共享一个Api实例，由_multi_auto_attendance_worker统一管理
     """
     try:
         logging.info("正在启动后台自动签到服务...")
         
-        # 1. 创建一个专用于后台服务的 Api 实例
-        # 这个实例不与任何 web_session 关联
-        service_api = Api(args)
-        service_api.is_multi_account_mode = True
-        
-        # 2. 加载全局配置（例如，全局刷新间隔）
-        service_api._load_global_config()
-        
-        # 3. 强制启用此服务实例的“全局自动签到”开关
-        # _multi_auto_attendance_worker 会检查这个全局标志
-        service_api.global_params["auto_attendance_enabled"] = True
-        
         accounts_dir = SCHOOL_ACCOUNTS_DIR
-        loaded_count = 0
         
         if not os.path.exists(accounts_dir):
             logging.warning(f"后台签到：未找到账号目录 {accounts_dir}，跳过。")
             return
 
-        # 4. 扫描所有 .ini 配置文件
+        # 收集所有启用自动签到的账号
+        enabled_accounts = []
+        
         for filename in os.listdir(accounts_dir):
             if filename.endswith(".ini"):
                 username = os.path.splitext(filename)[0]
                 try:
-                    # 5. 为每个账号创建会话
-                    # 传入 service_api 作为 api_bridge
-                    acc_session = AccountSession(username, "", service_api)
+                    # 临时创建一个Api实例来加载配置
+                    temp_api = Api(args)
+                    password = temp_api._load_config(username)
                     
-                    # 6. 加载该账号的配置
-                    # _load_config 会自动填充 acc_session.params
-                    password = acc_session.api_bridge._load_config(username)
-                    acc_session.password = password or ""
-
-                    if not acc_session.password:
-                        logging.warning(f"后台签到：跳过账号 {username}，因为未在 {filename} 中找到密码。")
+                    if not password:
+                        logging.debug(f"后台签到：跳过账号 {username}，因为未在 {filename} 中找到密码。")
                         continue
-                        
-                    # 7. 检查该账号自己的参数是否启用了自动签到
-                    if acc_session.params.get("auto_attendance_enabled", False):
+                    
+                    # 检查是否启用了自动签到
+                    if temp_api.params.get("auto_attendance_enabled", False):
+                        enabled_accounts.append({
+                            'username': username,
+                            'password': password,
+                            'params': dict(temp_api.params)
+                        })
                         logging.info(f"后台签到：找到启用自动签到的账号: {username}")
-                        service_api.accounts[username] = acc_session
-                        loaded_count += 1
                     else:
                         logging.debug(f"后台签到：账号 {username} 未启用自动签到，跳过。")
                         
                 except Exception as e:
                     logging.error(f"后台签到：加载账号 {username} 失败: {e}", exc_info=True)
 
-        # 8. 如果有账号需要自动签到，启动服务实例的工作线程
-        if loaded_count > 0:
-            logging.info(f"后台签到：共加载 {loaded_count} 个账号，启动工作线程...")
+        if not enabled_accounts:
+            logging.info("后台签到：未找到启用自动签到的账号。")
+            return
+        
+        # 根据账号数量选择模式
+        if len(enabled_accounts) == 1:
+            # 单账号模式：为该账号创建独立的Api实例
+            account = enabled_accounts[0]
+            logging.info(f"后台签到：使用单账号模式，账号: {account['username']}")
             
-            # 启动 _multi_auto_attendance_worker 线程
+            service_api = Api(args)
+            service_api.is_multi_account_mode = False
+            service_api.params = account['params']
+            
+            # 执行登录
+            try:
+                login_result = service_api.login(account['username'], account['password'])
+                if login_result.get('success'):
+                    logging.info(f"后台签到：账号 {account['username']} 登录成功")
+                    
+                    # 启动单账号自动刷新线程
+                    service_api.stop_auto_refresh.clear()
+                    service_api.auto_refresh_thread = threading.Thread(
+                        target=service_api._auto_refresh_worker,
+                        daemon=True,
+                        name=f"BackgroundAttendance-{account['username']}"
+                    )
+                    service_api.auto_refresh_thread.start()
+                    
+                    # 保持实例存活
+                    globals()['_background_service_api'] = service_api
+                    logging.info(f"后台签到：单账号模式启动成功")
+                else:
+                    logging.error(f"后台签到：账号 {account['username']} 登录失败: {login_result.get('message')}")
+            except Exception as e:
+                logging.error(f"后台签到：账号 {account['username']} 登录时发生错误: {e}", exc_info=True)
+                
+        else:
+            # 多账号模式：所有账号共享一个Api实例
+            logging.info(f"后台签到：使用多账号模式，共 {len(enabled_accounts)} 个账号")
+            
+            service_api = Api(args)
+            service_api.is_multi_account_mode = True
+            service_api._load_global_config()
+            service_api.global_params["auto_attendance_enabled"] = True
+            
+            # 为每个账号创建AccountSession
+            for account in enabled_accounts:
+                try:
+                    acc_session = AccountSession(account['username'], account['password'], service_api)
+                    acc_session.params = account['params']
+                    service_api.accounts[account['username']] = acc_session
+                except Exception as e:
+                    logging.error(f"后台签到：创建账号会话失败 {account['username']}: {e}", exc_info=True)
+            
+            # 启动多账号自动刷新线程
             service_api.stop_multi_auto_refresh.clear()
             service_api.multi_auto_refresh_thread = threading.Thread(
                 target=service_api._multi_auto_attendance_worker,
                 daemon=True,
-                name="BackgroundAttendanceWorker" # 命名线程以便调试
+                name="BackgroundAttendanceWorker-Multi"
             )
             service_api.multi_auto_refresh_thread.start()
             
-            # (重要) 我们必须保持 service_api 实例存活
-            # 我们可以将其附加到一个全局变量，防止它被垃圾回收
+            # 保持实例存活
             globals()['_background_service_api'] = service_api
-            
-        else:
-            logging.info("后台签到：未找到启用自动签到的账号。")
+            logging.info(f"后台签到：多账号模式启动成功，已加载 {len(service_api.accounts)} 个账号")
             
     except Exception as e:
         logging.error(f"启动后台自动签到服务时发生严重错误: {e}", exc_info=True)
+
 
 def start_web_server(args_param):
     """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
