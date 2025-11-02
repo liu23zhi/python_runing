@@ -1,40 +1,45 @@
 # 跑步助手
+# 这是一个基于Flask的Web应用，用于模拟跑步任务的执行
+# 主要功能包括：用户认证、任务管理、路径规划、多账号支持、实时进度追踪
 
 # ===== 导入标准库 =====
-import argparse
-import bisect
-import collections
-import configparser
-import copy
-import csv
-import datetime
-# import fcntl
-import hashlib
-import json
-import logging
-import math
-import os
-import pickle
-import queue
-import random
-import re
-import secrets
-import socket
-import sys
-import threading
-import time
-import traceback
-import urllib
-import uuid
-import warnings
-import atexit
-import hashlib
-from PIL import Image
-import io
+import argparse  # 命令行参数解析，用于启动参数配置
+import bisect  # 二分查找算法，可能用于有序列表操作
+import collections  # 集合数据类型，提供特殊容器如deque、Counter等
+import configparser  # INI配置文件解析，用于读写config.ini
+import copy  # 对象深拷贝，避免引用传递导致的数据污染
+import csv  # CSV文件处理，用于数据导入导出
+import datetime  # 日期时间处理，用于时间戳转换和计算
+# import fcntl  # 文件锁（Unix），当前未使用，可能用于进程间同步
+import hashlib  # 哈希算法，用于密码加密和文件名混淆
+import json  # JSON数据处理，用于配置文件和API数据交换
+import logging  # 日志记录系统，提供分级日志输出
+import math  # 数学函数，用于距离计算和坐标转换
+import os  # 操作系统接口，文件和目录操作
+import pickle  # Python对象序列化，用于会话持久化
+import queue  # 线程安全的队列，用于生产者-消费者模式
+import random  # 随机数生成，用于模拟真实运动轨迹的随机性
+import re  # 正则表达式，用于字符串匹配和验证
+import secrets  # 安全随机数生成，用于token生成
+import socket  # 网络编程，用于端口检查
+import sys  # 系统相关参数和函数，用于程序退出和编码设置
+import threading  # 多线程支持，用于后台任务和并发处理
+import time  # 时间相关函数，用于时间戳获取和延迟
+import traceback  # 异常追踪，用于详细错误信息记录
+import urllib  # URL处理库，可能用于HTTP请求
+import uuid  # UUID生成，用于会话ID和唯一标识
+import warnings  # 警告控制，用于抑制第三方库警告
+import atexit  # 程序退出处理，用于资源清理
+import hashlib  # 注意：hashlib被重复导入，这是一个潜在的代码清理点
+from PIL import Image  # 图像处理库，用于头像裁剪和压缩
+import io  # IO流处理，用于内存中的文件操作
 
 # ===== Flask-SocketIO（必须在 monkey_patch 之后）=====
+# WebSocket通信库，用于实时推送任务进度和状态更新
+# 注意：如果使用gevent，需要先执行monkey_patch才能导入此模块
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
+# Flask Web框架的响应对象，用于自定义HTTP响应（如设置Cookie）
 from flask import make_response
 
 # ==============================================================================
@@ -42,18 +47,40 @@ from flask import make_response
 # ==============================================================================
 
 class NoColorFileFormatter(logging.Formatter):
-    """自定义格式化程序，用于在写入文件前去除ANSI颜色代码。"""
+    """
+    自定义日志格式化程序，用于在写入文件前去除ANSI颜色代码。
     
-    # 用于匹配ANSI转义码的正则表达式
+    某些日志处理器可能会添加颜色代码（如colorlog），这些代码在文件中显示为乱码。
+    此格式化程序确保写入日志文件的内容是纯文本，便于文本编辑器查看。
+    
+    属性:
+        ansi_escape_regex: 编译好的正则表达式，用于匹配和删除ANSI转义序列
+    """
+    
+    # ANSI转义码正则表达式详解：
+    # \x1B 是ESC字符（ASCII 27）
+    # [@-Z\\-_] 匹配单字符转义序列
+    # \[[0-?]*[ -/]*[@-~] 匹配CSI序列（控制序列引导符）
+    # 这个模式可以匹配大多数终端颜色代码和格式化指令
     ansi_escape_regex = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
     def format(self, record):
         """
-        重写format方法。
-        1. 首先，使用父类的format方法生成完整的日志消息（可能包含颜色）。
-        2. 然后，使用正则表达式去除该消息中的所有ANSI颜色代码。
+        格式化日志记录并移除颜色代码。
+        
+        处理流程：
+        1. 调用父类的format方法，生成可能包含ANSI颜色代码的日志消息
+        2. 使用正则表达式替换所有ANSI转义序列为空字符串
+        3. 返回清理后的纯文本消息
+        
+        参数:
+            record: LogRecord对象，包含日志信息（级别、消息、时间等）
+            
+        返回:
+            str: 不含ANSI颜色代码的格式化日志消息
         """
         original_message = super().format(record)
+        # 使用sub方法替换所有匹配的ANSI代码为空字符串
         cleaned_message = self.ansi_escape_regex.sub('', original_message)
         return cleaned_message
 
