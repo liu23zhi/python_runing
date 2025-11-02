@@ -6792,46 +6792,55 @@ class Api:
             return {"success": False, "message": resp.get('message', '标记已读失败')}
 
     def _auto_refresh_worker(self):
-        """(单账号) 后台自动刷新通知的线程"""
-        while not self.stop_auto_refresh.is_set():  # 1秒检查一次停止信号
+        """(单账号) 后台自动刷新通知和签到的线程 (已修复)"""
+        while not self.stop_auto_refresh.is_set():
             try:
-                is_enabled = self.params.get("auto_attendance_enabled", False)
+                # --- 修复：从循环顶部移除 is_enabled 检查 ---
 
+                # 1. 检查是否满足运行条件（已登录 且 处于单账号模式）
                 if (not self.user_data.id or self.is_multi_account_mode):
                     # 如果未登录或在多账号模式，则休眠
-                    time.sleep(5)
-                    continue
-
-                # --- 修复 Bug 2: 检查功能是否启用 ---
-                if not is_enabled:
-                    # 如果未启用自动签到，则本线程进入长休眠状态 (300秒)
-                    # 它会等待，直到用户在UI上重新勾选 "auto_attendance_enabled"
-                    # (届时 update_param 会停止并重启此线程)
-                    # 或者等待300秒后再次检查 is_enabled 状态。
-                    if self.stop_auto_refresh.wait(timeout=300):
+                    # (使用 wait 替代 sleep 以便快速响应停止)
+                    if self.stop_auto_refresh.wait(timeout=5.0):
                         break  # 收到停止信号
-                    continue  # 继续循环，重新检查 is_enabled
+                    continue  # 回去重新检查登录状态
 
-                # --- 如果代码执行到这里，说明 is_enabled == True ---
+                # --- 修复：移除 "Bug 2" 相关的300秒长休眠逻辑 ---
+                # if not is_enabled: ... continue ...
 
-                # 读取刷新间隔
+                # 2. 线程应始终按 'refresh_interval_s' 频率运行
+                
+                # 读取刷新间隔，并设置合理的默认值和最小值
                 refresh_interval_s = self.params.get(
-                    "auto_attendance_refresh_s")
+                    "auto_attendance_refresh_s", 60) # 默认60秒
+                # 确保间隔不小于一个最小值，例如15秒，防止过高频率
+                refresh_interval_s = max(15, refresh_interval_s)
 
-                self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
+                # (修复：将等待日志移到 wait 之前)
+                # self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
 
+                # 使用 wait() 替代 time.sleep()，以便在等待期间可以被 'stop_auto_refresh.set()' 立即中断
                 if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
-                    break
+                    break  # 如果在等待时收到停止信号，则退出循环
 
+                # 再次检查登录状态 (可能在等待时退出了)
                 if (self.is_multi_account_mode or not self.user_data.id):
                     continue
 
-                # 1. 执行自动签到
-                self._check_and_trigger_auto_attendance(self)
+                # --- 关键修复：在执行操作前，才读取最新的 is_enabled 状态 ---
+                is_enabled = self.params.get("auto_attendance_enabled", False)
 
-                # 2. 获取通知并推送到UI
-                self.log("正在自动刷新通知 (后台)...")
-                result = self.get_notifications(is_auto_refresh=False)
+                # 3. 只有在启用时才执行自动签到
+                if is_enabled:
+                    self.log("(后台) 自动签到已启用，正在检查...")
+                    self._check_and_trigger_auto_attendance(self)
+                else:
+                    # 如果未启用，则不执行也不记录日志，保持安静
+                    pass
+
+                # 4. 获取通知并推送到UI (无论是否启用自动签到，都应该执行)
+                self.log("正在自动刷新通知 (后台)...") # <-- 这是您看到的日志
+                result = self.get_notifications(is_auto_refresh=True) # (修复：传入True以避免日志重复)
 
                 # [BUG 修复]：替换 self.window 为 socketio.emit
                 if result.get('success'):
@@ -6849,17 +6858,17 @@ class Api:
                          logging.warning(f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
                     else:
                          logging.warning(f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
-                
+
 
             except Exception as e:
                 self.log(f"自动刷新线程出错: {e}")
                 logging.error(f"Auto-refresh worker error: {e}", exc_info=True)
-                # time.sleep(60)
                 # 修复：使用 wait() 替换 time.sleep() 以便能被立即停止
                 if self.stop_auto_refresh.wait(timeout=60):
                     break # 如果在等待时收到停止信号，则退出循环
 
         logging.info("Auto-refresh worker stopped.")
+
 
     def _check_and_trigger_auto_attendance(self, context: 'Api | AccountSession'):
         """
