@@ -7450,8 +7450,8 @@
       logMessage_Info(`[任务选择] 开始选择任务，索引: ${index}`, 'DEBUG');
       logMessage_Info(`[前端-任务选择] 选择任务 #${index}`);
 
-      // 防止在任务执行过程中切换任务
-      if (backgroundTaskPollInterval) {
+      // 防止在任务执行过程中切换任务（但允许重新选择当前任务）
+      if (backgroundTaskPollInterval && selectedTaskIndex !== index) {
         logMessage_Warning("任务执行中，无法切换任务！请先停止当前任务。");
         showModalAlert("任务执行中，无法切换任务！请先停止当前任务。");
         return;
@@ -8666,6 +8666,16 @@
           }
           
           updateSingleProgress(pct, displayText);
+          
+          // 更新当前任务索引（从后端API同步）
+          if (status.task_indices && status.current_task_index !== undefined) {
+            const task_list = status.task_indices;
+            const current_list_index = status.current_task_index;
+            if (task_list.length > current_list_index) {
+              const global_task_index = task_list[current_list_index];
+              selectedTaskIndex = global_task_index;
+            }
+          }
           
           // 更新实时时间和距离（从后端API获取）
           if (status.elapsed_time_s !== undefined) {
