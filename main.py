@@ -9034,7 +9034,36 @@ background_task_manager = None
 
 
 def _cleanup_playwright():
-    """在程序退出时清理 Playwright 资源"""
+    """
+    在程序退出时清理Playwright资源。
+    
+    功能说明：
+    - 这是一个注册在atexit的清理函数，确保程序退出时正确关闭所有浏览器实例
+    - 防止遗留的浏览器进程占用系统资源
+    
+    清理流程：
+    1. 检查chrome_pool全局实例是否存在
+    2. 调用chrome_pool.cleanup()关闭所有浏览器
+    3. 记录清理结果
+    
+    异常处理：
+    - 使用try-except捕获清理过程中的所有异常
+    - exc_info=False避免在退出时打印完整堆栈（可能引起混淆）
+    - 只记录错误，不重新抛出，确保程序正常退出
+    
+    设计考虑：
+    - 使用global访问chrome_pool而不是参数传递，因为atexit不支持参数
+    - 判空检查避免未初始化时的错误
+    
+    使用场景：
+    - 正常退出（Ctrl+C、关闭终端）
+    - 异常退出（未捕获的异常）
+    - 系统信号（SIGTERM等）
+    
+    注意：
+    - 此函数由atexit.register()自动调用，不需手动调用
+    - 执行时机在Python解释器关闭前
+    """
     global chrome_pool
     if chrome_pool:
         logging.info("捕获到程序退出信号，正在清理 Playwright 资源...")
@@ -9049,10 +9078,61 @@ def _cleanup_playwright():
 
 def start_background_auto_attendance(args):
     """
-    在服务器启动时扫描所有.ini文件，为启用自动签到的账号启动后台工作线程。
-    支持单账号和多账号两种模式：
-    - 单账号模式：每个账号独立的Api实例和_auto_refresh_worker线程
-    - 多账号模式：所有账号共享一个Api实例，由_multi_auto_attendance_worker统一管理
+    在服务器启动时扫描所有.ini配置文件，为启用自动签到的账号启动后台工作线程。
+    
+    功能说明：
+    - 自动发现并加载所有启用了auto_attendance_enabled的账号配置
+    - 根据账号数量智能选择单账号或多账号模式
+    - 在后台守护线程中持续运行，无需用户干预
+    
+    工作模式：
+    
+    **单账号模式**（只有1个启用自动签到的账号）：
+    - 为该账号创建独立的Api实例
+    - 启动单独的_auto_refresh_worker线程
+    - 资源占用更少，适合个人使用
+    
+    **多账号模式**（2个或更多账号）：
+    - 所有账号共享一个Api实例
+    - 启动_multi_auto_attendance_worker统一管理
+    - 更高效的资源利用，适合批量管理
+    
+    执行流程：
+    1. 扫描SCHOOL_ACCOUNTS_DIR目录中的所有.ini文件
+    2. 读取每个文件的配置，检查auto_attendance_enabled参数
+    3. 收集所有启用自动签到的账号信息
+    4. 根据账号数量选择模式并启动相应的后台线程
+    
+    参数说明：
+    - args: 命令行参数对象，包含--no-auto-start等配置
+    
+    异常处理：
+    - 单个账号加载失败不影响其他账号
+    - 登录失败会记录错误但不终止服务
+    - 所有异常都会记录到日志中
+    
+    全局变量：
+    - _background_service_api: 保持Api实例存活的引用（单账号模式）
+    - chrome_pool: 共享的浏览器池（如果需要）
+    
+    设计考虑：
+    - 使用daemon线程确保主程序退出时自动停止
+    - 临时创建Api实例仅用于读取配置，避免资源浪费
+    - 账号信息缓存在内存中，避免重复读取文件
+    
+    注意事项：
+    - 此函数应在Flask服务器启动前调用
+    - 需要确保SCHOOL_ACCOUNTS_DIR目录存在且有读权限
+    - 账号的.ini文件必须包含密码和auto_attendance_enabled配置
+    
+    使用示例：
+    ```python
+    if __name__ == "__main__":
+        args = parse_args()
+        if not args.no_auto_start:
+            start_background_auto_attendance(args)
+        app.run()
+    ```
     """
     try:
         logging.info("正在启动后台自动签到服务...")
