@@ -240,7 +240,7 @@ def check_and_import_dependencies():
 
     # 声明我们将要修改全局变量
     global Flask, render_template_string, session, redirect, url_for, request, jsonify
-    global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright
+    global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
 
     try:
         # --- 尝试导入所有必需的第三方库 ---
@@ -308,6 +308,18 @@ def check_and_import_dependencies():
         logging.info("正在导入 Playwright...")
         print("[依赖检查] 正在导入 Playwright...")
         from playwright.sync_api import sync_playwright
+        
+        # 10. NumPy（可选，用于性能优化）
+        logging.info("正在导入 NumPy（可选）...")
+        print("[依赖检查] 正在导入 NumPy（可选）...")
+        try:
+            import numpy as np
+            logging.info("✓ NumPy 导入成功（性能优化已启用）")
+            print("[依赖检查] ✓ NumPy 导入成功（性能优化已启用）")
+        except ImportError:
+            np = None
+            logging.warning("⚠ NumPy 未安装（将使用纯Python实现，性能较低）")
+            print("[依赖检查] ⚠ NumPy 未安装（将使用纯Python实现）")
         logging.info("✓ Playwright 导入成功")
         print("[依赖检查] ✓ Playwright 导入成功")
 
@@ -2499,7 +2511,7 @@ class RunData:
         self.status: int = 0                # 任务状态 (0: 未完成, 1: 已完成)
 
         # 运行时状态
-        self.target_sequence: int = 0       # 当前目标打卡点序号
+        self.target_sequence: int = 0       # 当前目标打卡点序号（0-based，0表示第一个打卡点）
         self.is_in_target_zone: bool = False  # 是否在当前打卡点范围内
         self.trid: str = ""                 # 本次跑步的唯一轨迹ID
         self.details_fetched: bool = False  # 任务详情是否已加载
@@ -4093,6 +4105,59 @@ class Api:
         
         return distance
 
+    def _calculate_distances_vectorized(self, coords):
+        """
+        ✓ 使用NumPy向量化计算多个坐标点之间的距离（性能优化，问题#11）
+        
+        参数:
+            coords: [(lon, lat, interval_ms), ...] 坐标列表
+            
+        返回:
+            float: 总距离（米）
+            
+        说明:
+            当NumPy可用时，使用向量化操作一次性计算所有相邻点的距离，
+            比逐对计算快10-100倍（取决于点数）。如果NumPy不可用，回退到循环计算。
+        """
+        if len(coords) < 2:
+            return 0.0
+        
+        # 尝试使用numpy向量化计算（如果可用）
+        if np is not None:
+            try:
+                # 提取经纬度到numpy数组
+                lons = np.array([c[0] for c in coords])
+                lats = np.array([c[1] for c in coords])
+                
+                # 计算相邻点的差值
+                delta_lons = np.diff(lons)
+                delta_lats = np.diff(lats)
+                
+                # 转换为弧度（向量化）
+                lat1_rad = np.radians(lats[:-1])
+                lat2_rad = np.radians(lats[1:])
+                delta_lat_rad = np.radians(delta_lats)
+                delta_lon_rad = np.radians(delta_lons)
+                
+                # Haversine公式（向量化）
+                R = 6371000
+                a = (np.sin(delta_lat_rad / 2) ** 2 +
+                     np.cos(lat1_rad) * np.cos(lat2_rad) * 
+                     np.sin(delta_lon_rad / 2) ** 2)
+                c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+                distances = R * c
+                
+                return np.sum(distances)
+            except Exception as e:
+                logging.debug(f"[性能优化] NumPy向量化计算失败，回退到循环: {e}")
+        
+        # 回退到循环计算（当NumPy不可用或失败时）
+        total_dist = 0.0
+        for i in range(len(coords) - 1):
+            total_dist += self._calculate_distance_m(
+                coords[i][0], coords[i][1], coords[i+1][0], coords[i+1][1])
+        return total_dist
+
     def _gps_random_offset(self, lon, lat, params):
         """
         对GPS坐标添加随机偏移，模拟真实GPS的漂移误差。
@@ -4231,11 +4296,26 @@ class Api:
         # - 根据速度和时间计算这个间隔内应该移动的距离
         # - 沿着草稿路径向前移动这段距离，找到新位置
         # - 如果这段距离跨越多个草稿段，需要累积移动
+        
+        # ✓ 速度平滑：使用移动平均避免速度突变（问题#12修复）
+        speed_history = []  # 记录最近的速度值
+        speed_window = 3    # 移动平均窗口大小
+        
         while draft_idx < len(draft) - 1:
             interval_t = max(0.2, random.uniform(
                 p['interval_ms'] - p['interval_random_ms'], p['interval_ms'] + p['interval_random_ms']) / 1000.0)
-            speed = max(0.2, random.uniform(
+            
+            # 生成随机速度
+            raw_speed = max(0.2, random.uniform(
                 p['speed_mps'] - p['speed_random_mps'], p['speed_mps'] + p['speed_random_mps']))
+            
+            # ✓ 应用速度平滑算法
+            speed_history.append(raw_speed)
+            if len(speed_history) > speed_window:
+                speed_history.pop(0)  # 保持窗口大小
+            # 使用移动平均作为实际速度
+            speed = sum(speed_history) / len(speed_history)
+            
             dist_to_go = speed * interval_t
 
             final_pos, temp_draft_idx = current_gps_pos, draft_idx
@@ -4339,8 +4419,6 @@ class Api:
         
         ⚠️ 潜在问题：
         1. 如果两个打卡点非常近（距离 < 2×range），可能跳过中间点
-        2. target_sequence从1开始（不是0），容易混淆
-        3. 数组索引使用target_sequence-1，可能越界
         
         参数:
             run_data (RunData): 任务数据对象，包含打卡点列表和状态
@@ -4348,20 +4426,19 @@ class Api:
             current_lat (float): 当前纬度
         
         修改状态:
-            run_data.target_sequence: 当前应到达的打卡点序号（1-based）
+            run_data.target_sequence: 当前应到达的打卡点序号（✓ 0-based，0表示第一个打卡点）
             run_data.is_in_target_zone: 是否在打卡点范围内
         """
         # 边界检查：确保target_sequence有效
-        # target_sequence从1开始，最大值为打卡点数量
-        # 🐛 如果target_sequence=0或超出范围，说明状态异常，跳过检查
-        if not (0 < run_data.target_sequence <= len(run_data.target_points)):
+        # ✓ target_sequence从0开始（0-based索引），最大值为打卡点数量-1
+        if not (0 <= run_data.target_sequence < len(run_data.target_points)):
             logging.debug(
                 f"打卡点检查跳过: target_sequence={run_data.target_sequence}, total_points={len(run_data.target_points)}")
             return
 
         # 获取当前应到达的打卡点坐标
-        # 注意：target_sequence从1开始，数组索引从0开始，所以要-1
-        tar_lon, tar_lat = run_data.target_points[run_data.target_sequence - 1]
+        # ✓ target_sequence直接作为数组索引使用（0-based）
+        tar_lon, tar_lat = run_data.target_points[run_data.target_sequence]
         
         # 计算当前位置与打卡点的距离
         dist = self._calculate_distance_m(
@@ -4371,9 +4448,9 @@ class Api:
         # target_range_m通常为50-100米，可配置
         is_in_zone = (dist < self.target_range_m)
 
-        # 详细的调试日志，记录检查过程
+        # 详细的调试日志，记录检查过程（显示为1-based给用户看）
         logging.debug(f"打卡点检查: 当前位置=({current_lon:.6f}, {current_lat:.6f}), "
-                      f"目标点{run_data.target_sequence}=({tar_lon:.6f}, {tar_lat:.6f}), "
+                      f"目标点{run_data.target_sequence+1}(索引{run_data.target_sequence})=({tar_lon:.6f}, {tar_lat:.6f}), "
                       f"距离={dist:.2f}米, 范围={self.target_range_m:.2f}米, "
                       f"在范围内={is_in_zone}, 已在区域内={run_data.is_in_target_zone}")
 
@@ -4382,22 +4459,23 @@ class Api:
         if is_in_zone and not run_data.is_in_target_zone:
             # 标记为已在区域内，防止重复打卡
             run_data.is_in_target_zone = True
+            # 日志显示为1-based（用户视角）
             logging.info(
-                f"✓ 到达打卡点 {run_data.target_sequence}/{len(run_data.target_points)}")
+                f"✓ 到达打卡点 {run_data.target_sequence+1}/{len(run_data.target_points)}")
             
             # 如果还有下一个打卡点，移动到下一个
-            if run_data.target_sequence < len(run_data.target_points):
+            if run_data.target_sequence + 1 < len(run_data.target_points):
                 # 递增打卡点序号
                 run_data.target_sequence += 1
-                # 获取下一个打卡点坐标
-                next_lon, next_lat = run_data.target_points[run_data.target_sequence - 1]
+                # 获取下一个打卡点坐标（直接使用0-based索引）
+                next_lon, next_lat = run_data.target_points[run_data.target_sequence]
                 # 检查当前位置是否也在下一个打卡点范围内
                 # 如果不在，重置is_in_target_zone，准备检测下一个
                 # 💡 这个逻辑处理了两个打卡点很近的情况
                 if self._calculate_distance_m(current_lon, current_lat, next_lon, next_lat) >= self.target_range_m:
                     run_data.is_in_target_zone = False
                     logging.debug(
-                        f"移动到下一个打卡点 {run_data.target_sequence}，已离开区域")
+                        f"移动到下一个打卡点 {run_data.target_sequence+1}（索引{run_data.target_sequence}），已离开区域")
                 # else: 当前位置已在下一个打卡点范围内，保持is_in_target_zone=True
                 # 下次调用此函数时会立即触发下一个打卡点的打卡
         
@@ -4416,7 +4494,7 @@ class Api:
 
         self.stop_run_flag.clear()
         run_data = self.all_run_data[self.current_run_idx]
-        run_data.target_sequence = 1
+        run_data.target_sequence = 0  # ✓ 从0开始（0-based索引）
         run_data.is_in_target_zone = False
         self._first_center_done = False
 
@@ -5060,7 +5138,7 @@ class Api:
                     break
             is_first_task = False
 
-            run_data.target_sequence, run_data.is_in_target_zone = 1, False
+            run_data.target_sequence, run_data.is_in_target_zone = 0, False  # ✓ 从0开始
             self._first_center_done = False
             task_finished_event = threading.Event()  # 使用绿化后的 Event
             self._run_submission_thread(
@@ -8880,7 +8958,7 @@ class BackgroundTaskManager:
                 
                 # 设置当前任务
                 api_instance.current_run_idx = task_idx
-                run_data.target_sequence = 1
+                run_data.target_sequence = 0  # ✓ 从0开始（0-based索引）
                 run_data.is_in_target_zone = False
                 api_instance._first_center_done = False
                 api_instance.stop_run_flag.clear()
