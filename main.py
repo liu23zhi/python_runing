@@ -1199,7 +1199,13 @@ class AuthSystem:
                         entry = json.loads(line.strip())
                         if username is None or entry.get('username') == username:
                             history.append(entry)
-                    except:
+                    except json.JSONDecodeError as e:
+                        # 跳过损坏的日志行，继续读取下一行
+                        logging.warning(f"[登录审计] 跳过损坏的日志行 --> 行内容: {line.strip()[:100]}{'...' if len(line.strip()) > 100 else ''}, JSON解析错误: {e}")
+                        continue
+                    except Exception as e:
+                        # 捕获其他意外错误
+                        logging.warning(f"[登录审计] 处理日志行时发生错误 --> 行内容: {line.strip()[:100]}{'...' if len(line.strip()) > 100 else ''}, 错误类型: {type(e).__name__}, 错误详情: {e}")
                         continue
         except Exception as e:
             logging.error(f"[登录审计] 读取登录历史失败 --> 文件路径: {LOGIN_LOG_FILE}, 查询用户: {username if username else '全部'}, 限制条数: {limit}, 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
@@ -1223,10 +1229,15 @@ class AuthSystem:
                                 if entry.get('username') == auth_username or entry.get('ip_address') == ip_address:
                                     if not entry.get('success', False):
                                         recent_attempts.append(entry)
-                        except:
+                        except json.JSONDecodeError as e:
+                            # 跳过损坏的日志行
+                            logging.debug(f"[安全检查] 暴力破解检查时跳过损坏的日志行 --> JSON解析错误: {e}")
+                            continue
+                        except Exception as e:
+                            logging.debug(f"[安全检查] 暴力破解检查时处理日志行错误 --> 错误类型: {type(e).__name__}, 错误详情: {e}")
                             continue
             except Exception as e:
-                logging.error(f"检查暴力破解失败: {e}")
+                logging.error(f"[安全检查] 检查暴力破解失败 --> 目标用户: {auth_username}, IP地址: {ip_address}, 时间窗口: 5分钟, 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
 
         # 如果5分钟内失败超过5次，则锁定
         if len(recent_attempts) >= 5:
