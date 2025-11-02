@@ -2223,7 +2223,7 @@ class ApiClient:
     def __init__(self, owner_instance):
         self.session = requests.Session()
         self.app = owner_instance
-        logging.debug("ApiClient initialized with new requests.Session.")
+        logging.debug("ApiClient已初始化，创建了新的requests.Session会话实例")
 
     def _get_headers(self) -> dict:
         """构建请求头，包含认证信息和设备信息"""
@@ -2238,11 +2238,11 @@ class ApiClient:
         # 仅当存在登录后返回的 shiroCookie 时才携带 Authorization
         auth_token = self.session.cookies.get('shiroCookie')
         if auth_token:
-            logging.debug(f"Using shiroCookie for Authorization: {auth_token}")
+            logging.debug(f"使用shiroCookie作为认证令牌进行Authorization请求头设置: {auth_token}")
             headers['Authorization'] = auth_token
         else:
             logging.debug(
-                "No shiroCookie found; Authorization header will not be set.")
+                "未找到shiroCookie认证令牌，将不会设置Authorization请求头")
         return headers
 
     def _request(self, method: str, url: str, data: dict = None, params: dict = None, is_post_str=False, force_content_type: str = None) -> requests.Response | None:
@@ -2276,17 +2276,17 @@ class ApiClient:
 
         if cancel_requested:
             log_func("操作已取消，跳过网络请求。")
-            logging.debug(f"Canceled request --> {method.upper()} {url}")
+            logging.debug(f"请求已取消 --> 方法:{method.upper()} URL:{url}")
             return None
 
         if is_offline:
             log_func("离线模式：网络请求已被禁用。")
-            logging.debug(f"Blocked request to {url} (offline mode)")
+            logging.debug(f"离线模式：已阻止对URL的请求 {url}")
             return None
 
         if is_offline:
             log_func("离线模式：网络请求已被禁用。")
-            logging.debug(f"Blocked request to {url} (offline mode)")
+            logging.debug(f"离线模式：已阻止对URL的请求 {url}")
             return None
 
         retries = 3
@@ -2297,7 +2297,7 @@ class ApiClient:
         if is_post_str and isinstance(data, str) and len(data) > 500:
             log_data = data[:500] + '... (truncated)'
 
-        logging.debug(f"Request --> {method.upper()} {url}\nData: {log_data}")
+        logging.debug(f"发起网络请求 --> 方法:{method.upper()} URL:{url}\n请求数据: {log_data}")
 
         for attempt in range(retries):
             try:
@@ -2514,7 +2514,7 @@ class ApiClient:
         """获取服务器设定的签到半径"""
         # POST, 空body, application/json, 带URL参数
         params = {"code": "attendanceRadius", "num": 1}
-        logging.debug("Requesting attendance radius from server...")
+        logging.debug("正在从服务器请求签到有效半径配置参数...")
         return self._json(self._request(
             'POST',
             f"{self.BASE_URL}/app/appFind/getDictTips",
@@ -2673,12 +2673,12 @@ class Api:
 
     def set_window(self, window):
         """由主程序调用，设置WebView窗口对象的引用"""
-        logging.info("Python backend: set_window called.")
+        logging.info("Python后端: set_window方法已被调用，准备设置WebView窗口对象引用")
         self.window = window
         if self.args.autologin:
             user, passwd = self.args.autologin
             self.log("收到自动登录指令。")
-            logging.debug(f"Autologin requested for user={user}")
+            logging.debug(f"收到自动登录请求，目标用户: {user}")
             # 使用 threading.Timer（已被绿化）
             timer = threading.Timer(2.0, lambda: self.window.evaluate_js(
                 f'autoLogin("{user}", "{passwd}")'))
@@ -3082,7 +3082,7 @@ class Api:
                     logging.warning(
                         f"Could not parse config value for '{k}' for user {username}. Using default.")
                     pass
-        logging.debug(f"Loaded config for {username}")
+        logging.debug(f"已成功加载用户配置: {username}")
         return password
 
     def _get_full_user_info_dict(self):
@@ -3093,7 +3093,7 @@ class Api:
         """应用启动时由前端调用，获取初始用户列表和最后登录用户"""
         
         try:
-            logging.info("API CALL: get_initial_data")
+            logging.info("API调用: get_initial_data - 获取应用初始数据（用户列表和最后登录用户）")
 
             # 获取当前已有的用户配置文件列表
             users = sorted([os.path.splitext(f)[0]
@@ -3174,7 +3174,7 @@ class Api:
 
     def get_user_sessions(self):
         """获取当前认证用户的会话列表（供前端调用）"""
-        logging.info("API CALL: get_user_sessions")
+        logging.info("API调用: get_user_sessions - 获取当前用户的所有活动会话列表")
 
         # 检查当前会话是否已认证且非游客
         auth_username = getattr(self, 'auth_username', None)
@@ -3274,21 +3274,21 @@ class Api:
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 cfg.write(f)
             self.log("高德地图API Key已保存。")
-            logging.info("Saved new Amap JS Key.")
+            logging.info("已成功保存新的高德地图JavaScript API密钥")
             return {"success": True}
         except Exception as e:
             self.log(f"保存高德地图API Key失败: {e}")
-            logging.error(f"Failed to save Amap JS Key: {e}")
+            logging.error(f"保存高德地图JavaScript API密钥失败: {e}")
             return {"success": False, "message": str(e)}
         except Exception as e:
             self.log(f"API Key保存失败: {e}")
-            logging.error(f"Failed to save Amap JS Key: {e}", exc_info=True)
+            logging.error(f"保存高德地图JavaScript API密钥时发生异常: {e}", exc_info=True)
             return {"success": False, "message": str(e)}
 
     def on_user_selected(self, username):
         # return
         """当用户在登录界面选择一个已有用户时调用"""
-        logging.info(f"API CALL: on_user_selected with username: '{username}'")
+        logging.info(f"API调用: on_user_selected - 用户选择事件触发，选中的用户名: '{username}'")
         if not username:
             return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
         password = self._load_config(username)
@@ -3307,7 +3307,7 @@ class Api:
 
     def generate_new_ua(self):
         """生成一个新的UA并保存"""
-        logging.info("API CALL: generate_new_ua")
+        logging.info("API调用: generate_new_ua - 生成新的随机User-Agent字符串")
         self.device_ua = ApiClient.generate_random_ua()
         cfg = configparser.ConfigParser()
         if os.path.exists(self.user_config_path):
@@ -3317,16 +3317,16 @@ class Api:
             cfg.set('System', 'UA', self.device_ua)
             with open(self.user_config_path, 'w', encoding='utf-8') as f:
                 cfg.write(f)
-        logging.info(f"New UA generated: {self.device_ua}")
+        logging.info(f"已成功生成新的User-Agent字符串: {self.device_ua}")
         return self.device_ua
 
     def login(self, username, password):
-        logging.info(f"API CALL: login for user '{username}'")
+        logging.info(f"API调用: login - 用户登录请求，用户名: '{username}'")
         if not username or not password:
             return {"success": False, "message": "用户名和密码不能为空！"}
 
         self.log("正在登录...")
-        logging.debug(f"Attempting login for username={username}")
+        logging.debug(f"正在尝试为用户进行登录认证: 用户名={username}")
         self.user_data = UserData()
         # 记录“登录时输入的账号”，作为兜底
         input_username = username
@@ -3338,7 +3338,7 @@ class Api:
         if not resp or not resp.get('success'):
             msg = resp.get('message', '未知错误') if resp else '网络连接失败'
             self.log(f"登录失败：{msg}")
-            logging.warning(f"Login failed: {msg}")
+            logging.warning(f"用户登录失败: {msg}")
             return {"success": False, "message": msg}
 
         # 先解析用户信息，再决定用哪个“主键”保存
@@ -3424,9 +3424,9 @@ class Api:
 
     def logout(self):
         """处理注销逻辑"""
-        logging.info("API CALL: logout")
+        logging.info("API调用: logout - 用户注销登出操作")
         self.log("已注销。")
-        logging.info("User logged out, clearing session and state.")
+        logging.info("用户已成功登出，正在清除会话和状态数据")
         # --- 停止自动刷新线程 ---
         try:
             self.stop_auto_refresh.set()
@@ -3434,7 +3434,7 @@ class Api:
                 self.auto_refresh_thread.join(timeout=1.0)
             self.auto_refresh_thread = None
         except Exception as e:
-            logging.warning(f"Failed to stop auto-refresh thread: {e}")
+            logging.warning(f"停止自动刷新线程失败: {e}")
 
         # 修复Issue 5: 清除登录状态标志
         self.login_success = False
@@ -3447,7 +3447,7 @@ class Api:
 
     def load_tasks(self):
         """加载任务列表（增强：稳健去重 + 并发保护 + 离线模式支持）"""
-        logging.info("API CALL: load_tasks")
+        logging.info("API调用: load_tasks - 加载用户任务列表")
 
         # 离线模式或无用户ID但有任务数据时，直接返回已加载的任务
         if not self.user_data.id:
@@ -3484,7 +3484,7 @@ class Api:
             self._load_tasks_inflight = True
             try:
                 self.log("正在获取任务列表...")
-                logging.debug("Fetching run list from server.")
+                logging.debug("正在从服务器获取任务运行列表数据")
 
                 # 重置缓存
                 self.all_run_data = []
@@ -3498,7 +3498,7 @@ class Api:
                         self.user_data.id, offset)
                     if not resp or not resp.get('success'):
                         self.log("获取任务列表失败。")
-                        logging.warning("Failed to fetch task list.")
+                        logging.warning("从服务器获取任务列表失败")
                         break
 
                     tasks = resp.get('data', {}).get('errandList', [])
@@ -3650,7 +3650,7 @@ class Api:
 
     def get_task_details(self, index):
         """获取指定任务的详细信息"""
-        logging.info(f"API CALL: get_task_details for index {index}")
+        logging.info(f"API调用: get_task_details - 获取任务详细信息，任务索引: {index}")
         if not (0 <= index < len(self.all_run_data)):
             return {"success": False, "message": "无效的任务索引"}
 
@@ -3664,7 +3664,7 @@ class Api:
 
         self.log(f"正在加载任务详情...")
         logging.debug(
-            f"Fetching details for task idx={index}, name={run_data.run_name}")
+            f"正在获取任务详细信息: 任务索引={index}, 任务名称={run_data.run_name}")
         resp = self.api_client.get_run_details(
             run_data.errand_id, self.user_data.id, run_data.errand_schedule)
 
@@ -3693,24 +3693,24 @@ class Api:
             run_data.details_fetched = True
             self.log("任务详情加载成功。")
             logging.debug(
-                f"Details fetched: targets={len(run_data.target_points)}, recommended points count={len(run_data.recommended_coords)}")
+                f"任务详情获取成功: 目标点数量={len(run_data.target_points)}, 推荐路径点数量={len(run_data.recommended_coords)}")
             task_dict = run_data.__dict__.copy()
             task_dict['target_range_m'] = self.target_range_m
             return {"success": True, "details": task_dict}
         else:
             self.log("获取任务详情失败。")
-            logging.warning("Failed to fetch task details.")
+            logging.warning("从服务器获取任务详情失败")
             return {"success": False, "message": "获取任务详情失败"}
 
     def set_draft_path(self, coords):
         """接收前端手动绘制的草稿路径"""
-        logging.info(f"API CALL: set_draft_path with {len(coords)} points")
+        logging.info(f"API调用: set_draft_path - 设置草稿路径，点数: {len(coords)}")
         if self.current_run_idx == -1:
             return {"success": False, "message": "未选择任务"}
         run = self.all_run_data[self.current_run_idx]
         run.draft_coords = [(c['lng'], c['lat'], c.get('isKey', 0))
                             for c in coords]
-        logging.debug(f"Set draft path with {len(coords)} points.")
+        logging.debug(f"已成功设置草稿路径，包含 {len(coords)} 个坐标点")
         return {"success": True}
 
     def _calculate_distance_m(self, lon1, lat1, lon2, lat2):
@@ -3724,7 +3724,7 @@ class Api:
 
     def process_path(self):
         """处理草稿路径，生成带有时间戳的模拟路径"""
-        logging.info("API CALL: process_path")
+        logging.info("API调用: process_path - 处理路径，生成模拟运动轨迹")
         if self.current_run_idx == -1:
             return {"success": False, "message": "未选择任务"}
         run = self.all_run_data[self.current_run_idx]
@@ -3733,7 +3733,7 @@ class Api:
 
         self.log("正在处理路径...")
         logging.debug(
-            f"Processing {len(run.draft_coords)} draft points into run coordinates.")
+            f"正在处理路径: 将 {len(run.draft_coords)} 个草稿点转换为运动坐标序列")
 
         draft = run.draft_coords
         run.run_coords = []
@@ -3791,7 +3791,7 @@ class Api:
         run.total_run_time_s, run.total_run_distance_m = total_time, total_dist
         self.log(f"处理完成。")
         logging.info(
-            f"Path processed: points={len(run.run_coords)}, dist={total_dist:.1f}m, time={total_time:.1f}s")
+            f"路径处理完成: 生成坐标点数={len(run.run_coords)}, 总距离={total_dist:.1f}米, 总时长={total_time:.1f}秒")
         return {"success": True, "run_coords": run.run_coords, "total_dist": total_dist, "total_time": total_time}
 
     def check_target_reached_during_run(self, run_data: RunData, current_lon: float, current_lat: float):
@@ -3827,7 +3827,7 @@ class Api:
 
     def start_single_run(self):
         """开始执行单个任务"""
-        logging.info("API CALL: start_single_run")
+        logging.info("API调用: start_single_run - 开始执行单个任务")
         if not self.stop_run_flag.is_set():
             return {"success": False, "message": "已有任务在运行"}
         if self.current_run_idx == -1 or not self.all_run_data[self.current_run_idx].run_coords:
@@ -3839,7 +3839,7 @@ class Api:
         run_data.is_in_target_zone = False
         self._first_center_done = False
 
-        logging.info(f"Starting single run for task: {run_data.run_name}")
+        logging.info(f"正在启动单任务执行: 任务名称={run_data.run_name}")
         # 修正: 为单用户模式传递 self.api_client
         threading.Thread(target=self._run_submission_thread, args=(
             run_data, self.current_run_idx, self.api_client, False), daemon=True).start()
@@ -3847,9 +3847,9 @@ class Api:
 
     def stop_run(self):
         """停止当前所有正在执行的任务"""
-        logging.info("API CALL: stop_run")
+        logging.info("API调用: stop_run - 停止当前所有正在执行的任务")
         self.log("正在停止任务...")
-        logging.info("Stop run signal received.")
+        logging.info("已收到停止运行任务的信号")
         self.stop_run_flag.set()
         return {"success": True}
 
