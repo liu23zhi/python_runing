@@ -8615,15 +8615,30 @@
           const progressPercent = status.progress_percent || 0;
           const currentTaskProgress = status.current_task_progress || 0;
           
-          // // Update progress bar and text
-          // if (totalTasks === 1) {
-          //   // Single task - show point progress
-          //   updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
-          // } else {
-          //   // Multiple tasks - show task progress
-          //   updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
-          // }
-          updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
+          // Calculate progress based on current_position and run_coords
+          let pct = 0;
+          let displayText = '';
+          
+          if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
+            // Use current position to estimate progress
+            if (status.current_position) {
+              const currentPointIndex = status.current_position.point_index || 0;
+              singleTotalPoints = currentRunData.run_coords.length;
+              singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
+              pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+            } else {
+              // Fallback to percentage-based progress
+              pct = currentTaskProgress;
+              displayText = `任务进度: ${pct}%`;
+            }
+          } else {
+            // Multiple tasks or no coords - show task progress
+            pct = progressPercent;
+            displayText = `已完成 ${completedTasks}/${totalTasks} 任务`;
+          }
+          
+          updateSingleProgress(pct, displayText);
           // Update real-time position on map if available
           if (status.current_position) {
             const pos = status.current_position;
@@ -8693,7 +8708,6 @@
           const status = result.task_status;
           
           // 如果有任务在运行，显示状态并开始轮询
-          i// 如果有任务在运行，显示状态并开始轮询
           if (status.status === 'running') {
             logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
             
@@ -8732,14 +8746,30 @@
             const progressPercent = status.progress_percent || 0;
             const currentTaskProgress = status.current_task_progress || 0;
             
-            // if (totalTasks === 1) {
-            //   // Single task - show point progress
-            //   updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
-            // } else {
-            //   // Multiple tasks - show task progress
-            //   updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
-            // }
-            updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
+            // Calculate progress based on current_position and run_coords
+            let pct = 0;
+            let displayText = '';
+            
+            if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
+              // Use current position to estimate progress
+              if (status.current_position) {
+                const currentPointIndex = status.current_position.point_index || 0;
+                singleTotalPoints = currentRunData.run_coords.length;
+                singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
+                pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+                displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+              } else {
+                // Fallback to percentage-based progress
+                pct = currentTaskProgress;
+                displayText = `任务进度: ${pct}%`;
+              }
+            } else {
+              // Multiple tasks or no coords - show task progress
+              pct = progressPercent;
+              displayText = `已完成 ${completedTasks}/${totalTasks} 任务`;
+            }
+            
+            updateSingleProgress(pct, displayText);
             
             // Restore runner position on map if available
             if (status.current_position) {
