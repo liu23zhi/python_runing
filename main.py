@@ -928,12 +928,12 @@ class AuthSystem:
         except configparser.DuplicateOptionError as e:
             # 如果 _create_config_ini 内部读取时就出错，这里无需再做处理，它已经提示
             # 可以选择在这里直接退出或抛出异常
-            logging.error(f"初始化期间配置文件检查失败: {e}")
-            print(f"\n[CRITICAL ERROR] Configuration file ('config.ini') is corrupted. Please fix the duplicate option mentioned above and restart.")
+            logging.error(f"[系统初始化] 配置文件检查失败 --> 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 配置文件损坏或存在重复选项", exc_info=True)
+            print(f"\n[严重错误] 配置文件 ('config.ini') 已损坏。请修复上述提到的重复选项，然后重新启动程序。")
             sys.exit(1) # 强制退出，避免使用损坏的配置
         except Exception as e:
-            logging.error(f"初始化期间配置文件检查时发生未知错误: {e}")
-            print(f"\n[CRITICAL ERROR] An unexpected error occurred while checking 'config.ini': {e}")
+            logging.error(f"[系统初始化] 配置文件检查时发生未知错误 --> 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
+            print(f"\n[严重错误] 检查配置文件 'config.ini' 时发生意外错误: {e}\n请检查文件格式是否正确，然后重新启动程序。")
             sys.exit(1) # 强制退出
 
 
