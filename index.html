@@ -8331,10 +8331,10 @@
     function drawOnMap(){
       drawOnMap_signature();
       setTimeout(() => {
-            if (selectedTaskIndex === index) {
+            // if (selectedTaskIndex === index) {
               logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
               drawOnMap_signature();
-            }
+            // }
           }, 100); // 稍微增加延迟以确保渲染稳定
     }
 
@@ -9073,6 +9073,12 @@
       }
     }
     async function loadHistory(index) {
+
+      if (backgroundTaskPollInterval) {
+        logMessage_Warning("任务执行中，无法查看历史记录！请先停止当前任务。");
+        showModalAlert("任务执行中，无法查看历史记录！请先停止当前任务。");
+        return;
+      }
       $('history-placeholder').textContent = "正在加载..."; $('history-list').innerHTML = "";
       const result = await callPythonAPI('get_task_history', index);
       if (result.success && result.history.length > 0) {
