@@ -6070,11 +6070,68 @@ class Api:
             return {"success": False, "message": f"导出失败: {e}"}
 
     def multi_get_account_params(self, username):
+        """
+        获取指定账号的参数配置。
+        
+        功能说明：
+        在多账号模式下，获取单个账号的完整参数配置字典。
+        用于Web界面显示账号配置或进行参数修改前的查询。
+        
+        参数:
+            username (str): 账号用户名
+            
+        返回:
+            dict: 包含以下字段：
+                - success (bool): 操作是否成功
+                - params (dict): 账号参数字典（成功时）
+                - message (str): 错误信息（失败时）
+        
+        使用示例:
+            result = api.multi_get_account_params("user123")
+            if result["success"]:
+                print(result["params"])
+        """
         if username in self.accounts:
             return {"success": True, "params": self.accounts[username].params}
         return {"success": False, "message": "账号不存在"}
 
     def multi_update_account_param(self, username, key, value):
+        """
+        更新指定账号的单个参数值。
+        
+        功能说明：
+        动态修改账号的配置参数，支持类型自动转换和配置持久化。
+        修改后立即保存到配置文件，确保重启后配置不丢失。
+        
+        类型转换规则：
+        - bool类型：支持多种表示方式（'true', '1', 't', 'yes'等）
+        - 其他类型：根据原始参数类型自动转换（int, float, str等）
+        
+        参数:
+            username (str): 账号用户名
+            key (str): 参数键名（必须是已存在的参数）
+            value: 新的参数值（将自动转换为正确类型）
+            
+        返回:
+            dict: 包含以下字段：
+                - success (bool): 操作是否成功
+                - message (str): 错误信息（失败时）
+        
+        异常处理:
+            - ValueError: 类型转换失败
+            - TypeError: 类型不兼容
+        
+        ⚠️ 注意事项：
+        1. 只能修改已存在的参数，不能添加新参数
+        2. 类型必须与原始参数类型兼容
+        3. 修改会立即保存到磁盘
+        
+        使用示例:
+            # 修改布尔参数
+            api.multi_update_account_param("user1", "auto_run", "true")
+            # 修改数值参数
+            api.multi_update_account_param("user1", "speed", 1.5)
+        """
         if username not in self.accounts:
             return {"success": False, "message": "账号不存在"}
 
@@ -6082,22 +6139,63 @@ class Api:
         target_params = acc.params
         if key in target_params:
             try:
+                # 获取原始参数类型，用于类型转换
                 original_type = type(target_params[key])
+                # 布尔类型特殊处理：支持多种表示方式
                 if original_type is bool:
                     target_params[key] = bool(value) if isinstance(
                         value, bool) else str(value).lower() in ('true', '1', 't', 'yes')
                 else:
+                    # 其他类型：强制转换为原始类型
                     target_params[key] = original_type(value)
 
+                # 保存配置到文件（持久化）
                 self._save_config(
-                    username, self.accounts[username].password)  # 保存此账号的配置
+                    username, self.accounts[username].password)
                 self.log(f"已更新账号 [{username}] 的参数 {key}。")
                 return {"success": True}
             except (ValueError, TypeError) as e:
+                # 类型转换失败，返回错误
                 return {"success": False, "message": str(e)}
+        # 参数不存在
         return {"success": False, "message": "Unknown parameter"}
 
     def multi_start_single_account(self, username, run_only_incomplete: bool = True):
+        """
+        启动指定账号的任务执行线程。
+        
+        功能说明：
+        在多账号模式下启动单个账号的自动任务执行。
+        创建独立的工作线程，不阻塞主线程和其他账号。
+        
+        执行流程：
+        1. 验证账号存在性
+        2. 检查是否已在运行（避免重复启动）
+        3. 清除停止标志，准备运行
+        4. 创建daemon工作线程
+        5. 更新UI状态
+        
+        参数:
+            username (str): 要启动的账号用户名
+            run_only_incomplete (bool): 是否只执行未完成的任务
+                - True: 跳过已完成的任务，只执行新任务或失败任务
+                - False: 执行所有任务，包括已完成的（重新执行）
+                
+        返回:
+            dict: 包含以下字段：
+                - success (bool): 操作是否成功
+                - message (str): 错误信息（失败时）
+        
+        线程安全：
+        - 使用stop_event控制线程生命周期
+        - daemon线程确保主程序退出时自动清理
+        - multi_run_stop_flag全局停止控制
+        
+        ⚠️ 注意事项：
+        1. 重复启动会被拒绝（返回失败）
+        2. 线程异常会被_multi_account_worker内部捕获
+        3. 启动后无法修改run_only_incomplete参数
+        """
         if username not in self.accounts:
             return {"success": False, "message": "账号不存在"}
         acc = self.accounts[username]
