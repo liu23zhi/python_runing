@@ -7501,12 +7501,12 @@
           updateDashboard();
 
           drawOnMap();
-          setTimeout(() => {
-            if (selectedTaskIndex === index) {
-              logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
-              drawOnMap();
-            }
-          }, 100); // 稍微增加延迟以确保渲染稳定
+          // setTimeout(() => {
+          //   if (selectedTaskIndex === index) {
+          //     logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
+          //     drawOnMap();
+          //   }
+          // }, 100); // 稍微增加延迟以确保渲染稳定
 
           loadHistory(index);
           singleProcessedPoints = 0;
@@ -8299,7 +8299,7 @@
 
 
     // 地图绘制相关
-    function drawOnMap() {
+    function drawOnMap_signature() {
       if (!map) return;
       clearMapOverlays();
       const data = currentRunData;
@@ -8326,6 +8326,16 @@
       }
       drawMarkers();
       resetMapView();
+    }
+
+    function drawOnMap(){
+      drawOnMap_signature();
+      setTimeout(() => {
+            if (selectedTaskIndex === index) {
+              logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
+              drawOnMap_signature();
+            }
+          }, 100); // 稍微增加延迟以确保渲染稳定
     }
 
     function drawMarkers() {
