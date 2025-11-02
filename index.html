@@ -7450,6 +7450,13 @@
       logMessage_Info(`[任务选择] 开始选择任务，索引: ${index}`, 'DEBUG');
       logMessage_Info(`[前端-任务选择] 选择任务 #${index}`);
 
+      // 防止在任务执行过程中切换任务
+      if (backgroundTaskPollInterval) {
+        logMessage_Warning("任务执行中，无法切换任务！请先停止当前任务。");
+        showModalAlert("任务执行中，无法切换任务！请先停止当前任务。");
+        return;
+      }
+
       if (isDrawing) {
         logMessage_Info("请先结束当前路径绘制！", 'WARN');
         return;
@@ -8742,10 +8749,43 @@
             if (task_list.length > current_list_index) {
                 const global_task_index = task_list[current_list_index];
                 
-                // 关键：加载任务数据 (这会填充 currentRunData 并调用 drawOnMap)
+                // 使用后端提供的完整任务数据恢复（避免调用selectTask导致任务切换检查失败）
                 logMessage_Info(`正在恢复运行中的任务 (索引: ${global_task_index}) 的地图数据...`);
-                // 必须 await，确保 currentRunData 在 updateRunnerPosition 之前被设置
-                await selectTask(global_task_index); 
+                
+                if (status.run_coords && status.run_coords.length > 0) {
+                  // 直接从API响应构建currentRunData
+                  currentRunData = {
+                    run_coords: status.run_coords || [],
+                    target_points: status.target_points || [],
+                    target_point_names: status.target_point_names || '',
+                    recommended_coords: status.recommended_coords || [],
+                    target_sequence: status.checked_targets_count || 0,
+                    distance_covered_m: status.current_distance_m || 0,
+                    total_run_time_s: status.estimated_total_time_s || 0,
+                    total_run_distance_m: status.estimated_total_distance_m || 0
+                  };
+                  
+                  selectedTaskIndex = global_task_index;
+                  
+                  // 更新任务列表的选中状态
+                  const taskListDiv = $('task-list');
+                  Array.from(taskListDiv.children).forEach((child, idx) => {
+                    if (idx === global_task_index) {
+                      child.classList.add('selected');
+                    } else {
+                      child.classList.remove('selected');
+                    }
+                  });
+                  
+                  // 绘制地图
+                  updateDashboard();
+                  drawOnMap();
+                  
+                  logMessage_Info(`任务数据已从API响应恢复，总点数: ${currentRunData.run_coords.length}`, 'INFO');
+                } else {
+                  // 降级方案：调用selectTask
+                  await selectTask(global_task_index);
+                }
             } else {
                 logMessage_Warning("后台任务状态不一致，无法恢复地图路径。");
             }

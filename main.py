@@ -7983,6 +7983,22 @@ class BackgroundTaskManager:
                                 task_state['singleProcessedPoints'] = current_idx
                                 task_state['singleTotalPoints'] = total_points
                                 
+                                # 添加详细的任务数据（供前端完整恢复任务状态）
+                                task_state['target_points'] = run_data.target_points if hasattr(run_data, 'target_points') else []
+                                task_state['target_point_names'] = run_data.target_point_names if hasattr(run_data, 'target_point_names') else ''
+                                task_state['recommended_coords'] = run_data.recommended_coords if hasattr(run_data, 'recommended_coords') else []
+                                task_state['run_coords'] = run_data.run_coords if hasattr(run_data, 'run_coords') else []
+                                
+                                # 添加打卡点进度信息
+                                task_state['checked_targets_count'] = getattr(run_data, 'target_sequence', 0)  # 已打卡的打卡点数量
+                                task_state['total_targets_count'] = len(run_data.target_points) if hasattr(run_data, 'target_points') else 0
+                                
+                                # 添加时间和距离信息
+                                task_state['elapsed_time_s'] = time.time() - start_wait  # 当前已用时间（秒）
+                                task_state['current_distance_m'] = getattr(run_data, 'distance_covered_m', 0)  # 当前已跑距离（米）
+                                task_state['estimated_total_time_s'] = getattr(run_data, 'total_run_time_s', 0)  # 预计总时间（秒）
+                                task_state['estimated_total_distance_m'] = getattr(run_data, 'total_run_distance_m', 0)  # 预计总距离（米）
+                                
                                 # Add real-time position data
                                 if current_idx > 0 and current_idx <= total_points:
                                     coord = run_data.run_coords[current_idx - 1]
