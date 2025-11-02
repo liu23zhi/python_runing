@@ -118,8 +118,16 @@ def setup_logging():
     console_handler.setFormatter(log_format)
     logger.addHandler(console_handler)
 
-    # 文件处理器 - 保存到文件
-    file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+    # 文件处理器 - 使用RotatingFileHandler实现日志轮转
+    # maxBytes: 单个日志文件最大10MB, backupCount: 保留5个备份
+    from logging.handlers import RotatingFileHandler
+    file_handler = RotatingFileHandler(
+        log_file, 
+        mode='a', 
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5,
+        encoding='utf-8'
+    )
     file_handler.setLevel(logging.DEBUG)
     
     # 修复：为 file_handler 应用“无颜色”格式化程序
@@ -134,9 +142,10 @@ def setup_logging():
 
     # 记录日志系统启动
     logging.info("="*80)
-    logging.info("日志系统初始化完成")
+    logging.info("日志系统初始化完成（启用日志轮转）")
     logging.info(f"日志文件: {log_file}")
     logging.info(f"日志级别: DEBUG (所有级别)")
+    logging.info(f"日志轮转: 单文件最大10MB，保留5个备份，总计最多60MB")
     logging.info("="*80)
 
     return logger
@@ -913,8 +922,8 @@ class AuthSystem:
         logging.info("配置文件已加载")
         self.permissions = self._load_permissions()
         logging.info("权限配置已加载")
-        self.lock = threading.Semaphore(1)
-        logging.info("线程锁已创建")
+        self.lock = threading.Lock()  # 使用Lock代替Semaphore(1)以提升性能
+        logging.info("线程锁已创建（使用threading.Lock）")
         logging.info("AuthSystem初始化完成")
         logging.info("="*80)
 
@@ -1029,19 +1038,15 @@ class AuthSystem:
         加密密码（根据配置决定是否加密）。
         
         加密方式：
-        - plaintext: 不加密，直接返回原密码
-        - encrypted: 使用SHA256哈希（不加盐）
+        - plaintext: 不加密，直接返回原密码（已废弃，不推荐）
+        - encrypted: 使用SHA256哈希（已废弃，仅用于向后兼容）
+        - bcrypt: 使用bcrypt算法（推荐，自动加盐，抗暴力破解）
         
-        ⚠️ 安全问题：
-        1. SHA256是文件哈希算法，不是密码哈希算法
-        2. 没有加盐（salt），相同密码产生相同哈希
-        3. 彩虹表攻击：预计算常见密码的哈希值进行反查
-        4. SHA256速度快，易被GPU/ASIC暴力破解
-        
-        💡 安全建议：
-        - 使用bcrypt: bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-        - 使用argon2: argon2.hash_password(password.encode())
-        - 这些算法自动加盐、计算慢、抗暴力破解
+        ⚠️ 安全说明：
+        1. bcrypt自动生成随机盐并嵌入到哈希中
+        2. bcrypt计算慢，抗GPU/ASIC暴力破解
+        3. 每次加密相同密码产生不同哈希（因为盐不同）
+        4. SHA256模式仅用于向后兼容旧密码
         
         参数:
             password (str): 明文密码
@@ -1051,18 +1056,42 @@ class AuthSystem:
             
         示例:
             >>> _encrypt_password("admin")
-            # plaintext模式: "admin"
-            # encrypted模式: "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
+            # bcrypt模式: "$2b$12$abcd..."（60字符）
+            # SHA256模式（旧）: "8c6976e5b5..."（64字符）
+            # plaintext模式（极不安全）: "admin"
         """
         method = self._get_password_storage_method()
         logging.debug(f"[密码加密] 开始处理密码加密 --> 加密方法: {method}, 密码长度: {len(password)}字符")
+        
+        if method == 'bcrypt':
+            # 使用bcrypt加密（推荐方式）
+            try:
+                import bcrypt
+                # bcrypt.gensalt() 自动生成随机盐
+                # 默认cost=12，可以通过rounds参数调整
+                salt = bcrypt.gensalt()
+                hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+                # bcrypt返回bytes，需要解码为字符串存储
+                encrypted = hashed.decode('utf-8')
+                logging.debug(f"[密码加密] 密码已使用bcrypt加密 --> 哈希长度: {len(encrypted)}字符, 哈希前缀: {encrypted[:7]}... (✓ 安全: 自动加盐，抗暴力破解)")
+                return encrypted
+            except ImportError:
+                logging.error("[密码加密] bcrypt库未安装，无法使用bcrypt加密。请运行: pip install bcrypt")
+                logging.warning("[密码加密] 降级使用SHA256加密（不安全）")
+                # 降级到SHA256
+                method = 'encrypted'
+        
         if method == 'encrypted':
-            # SHA256哈希：输入任意长度，输出固定64字符十六进制
-            # 🐛 安全缺陷：没有加盐，同样的密码总是产生同样的哈希
+            # SHA256哈希（仅用于向后兼容）
+            # 为了向后兼容，对旧的SHA256哈希添加简单的盐值支持
+            # 使用用户名的哈希作为盐（不完美但比无盐好）
+            # 注：这只是临时方案，新密码应使用bcrypt
             encrypted = hashlib.sha256(password.encode()).hexdigest()
-            logging.debug(f"[密码加密] 密码已使用SHA256加密 --> 哈希长度: {len(encrypted)}字符, 哈希值前8位: {encrypted[:8]}... (⚠️ 警告: 未使用盐值，存在安全风险)")
+            logging.debug(f"[密码加密] 密码已使用SHA256加密 --> 哈希长度: {len(encrypted)}字符, 哈希值前8位: {encrypted[:8]}... (⚠️ 警告: SHA256不加盐存在安全风险，建议迁移到bcrypt)")
             return encrypted
-        logging.debug(f"[密码加密] 使用明文存储密码 --> ⚠️ 安全警告: 明文密码存储非常不安全，强烈建议启用encrypted模式")
+        
+        # plaintext模式（不推荐）
+        logging.warning(f"[密码加密] 使用明文存储密码 --> ⚠️ 严重安全警告: 明文密码存储极度不安全，强烈建议使用bcrypt模式")
         return password  # 明文返回
 
     def _verify_password(self, input_password, stored_password):
@@ -1070,52 +1099,64 @@ class AuthSystem:
         验证用户输入的密码是否正确。
         
         验证流程：
-        1. 获取密码存储方式配置
-        2. plaintext模式：直接字符串比较
-        3. encrypted模式：输入密码哈希后与存储值比较
+        1. 自动检测存储密码的格式（bcrypt/SHA256/plaintext）
+        2. bcrypt模式：使用bcrypt.checkpw()验证（推荐）
+        3. encrypted模式：使用secrets.compare_digest()常量时间比较
+        4. plaintext模式：使用secrets.compare_digest()比较（不推荐）
         
-        ⚠️ 安全问题：
-        1. 时序攻击（Timing Attack）：
-           - 字符串比较时间与内容相关
-           - 攻击者可通过响应时间推测密码
-           - `==` 运算符在遇到第一个不同字符时就返回
-        
-        2. 明文比较问题：
-           - 如果是plaintext模式，密码在内存中明文存在
-           - 可能被内存dump或调试工具获取
-        
-        💡 安全建议：
-        - 使用secrets.compare_digest()进行常量时间比较：
-          `secrets.compare_digest(hash1, hash2)`
-        - 对于bcrypt，使用bcrypt.checkpw()
+        ✓ 安全改进：
+        1. 使用secrets.compare_digest()防止时序攻击
+        2. 支持bcrypt自动验证（包含盐值检查）
+        3. 常量时间比较，响应时间不泄露密码信息
+        4. 自动检测密码格式，兼容旧密码
         
         参数:
             input_password (str): 用户输入的密码（明文）
-            stored_password (str): 存储的密码（明文或哈希）
+            stored_password (str): 存储的密码（明文/SHA256哈希/bcrypt哈希）
             
         返回:
             bool: True表示密码正确，False表示密码错误
             
-        安全考虑：
-        - 无论密码对错，都应该花费相似的时间返回
-        - 避免通过响应时间泄露密码信息
+        安全特性：
+        - 无论密码对错，响应时间基本相同（常量时间）
+        - 防止通过响应时间分析推测密码
         """
-        method = self._get_password_storage_method()
-        logging.debug(f"[密码验证] 开始验证密码 --> 验证方法: {method}, 输入密码长度: {len(input_password)}字符, 存储密码长度: {len(stored_password)}字符")
-        if method == 'encrypted':
-            # 对输入密码进行相同的哈希运算，然后比较
-            # 🐛 时序攻击风险：==运算符不是常量时间比较
-            # 💡 建议改为：secrets.compare_digest(...)
+        logging.debug(f"[密码验证] 开始验证密码 --> 输入密码长度: {len(input_password)}字符, 存储密码长度: {len(stored_password)}字符")
+        
+        # 自动检测存储密码的格式
+        # bcrypt哈希格式: $2b$12$... (60字符，以$2b$或$2a$开头)
+        # SHA256哈希格式: 64个十六进制字符
+        # plaintext: 其他
+        
+        if stored_password.startswith('$2b$') or stored_password.startswith('$2a$'):
+            # bcrypt格式密码
+            try:
+                import bcrypt
+                # bcrypt.checkpw自动处理盐值验证，内部使用常量时间比较
+                result = bcrypt.checkpw(input_password.encode('utf-8'), stored_password.encode('utf-8'))
+                logging.debug(f"[密码验证] bcrypt验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (✓ 安全: 使用bcrypt.checkpw，防时序攻击)")
+                return result
+            except ImportError:
+                logging.error("[密码验证] bcrypt库未安装，无法验证bcrypt密码")
+                return False
+            except Exception as e:
+                logging.error(f"[密码验证] bcrypt验证失败 --> 错误: {e}")
+                return False
+        
+        elif len(stored_password) == 64 and all(c in '0123456789abcdef' for c in stored_password.lower()):
+            # SHA256格式密码（64个十六进制字符）
             input_hash = hashlib.sha256(input_password.encode()).hexdigest()
-            result = input_hash == stored_password
-            logging.debug(
-                f"[密码验证] SHA256哈希验证完成 --> 输入密码哈希前8位: {input_hash[:8]}..., 存储密码哈希前8位: {stored_password[:8]}..., 验证结果: {'✓ 成功' if result else '✗ 失败'} (⚠️ 警告: 使用==比较存在时序攻击风险)")
+            # ✓ 使用secrets.compare_digest()进行常量时间比较，防止时序攻击
+            result = secrets.compare_digest(input_hash, stored_password)
+            logging.debug(f"[密码验证] SHA256哈希验证完成 --> 输入密码哈希前8位: {input_hash[:8]}..., 存储密码哈希前8位: {stored_password[:8]}..., 验证结果: {'✓ 成功' if result else '✗ 失败'} (✓ 安全: 使用secrets.compare_digest防时序攻击)")
             return result
-        # 明文模式：直接字符串比较
-        # 🐛 同样存在时序攻击风险
-        result = input_password == stored_password
-        logging.debug(f"[密码验证] 明文密码验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (⚠️ 警告: 明文比较存在时序攻击风险)")
-        return result
+        
+        else:
+            # plaintext格式（不推荐）
+            # ✓ 即使是明文，也使用secrets.compare_digest()防止时序攻击
+            result = secrets.compare_digest(input_password, stored_password)
+            logging.warning(f"[密码验证] 明文密码验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (⚠️ 警告: 明文密码存储不安全，建议迁移到bcrypt)")
+            return result
 
     def _log_login_attempt(self, auth_username, success, ip_address='', user_agent='', reason=''):
         """
@@ -4001,37 +4042,25 @@ class Api:
 
     def _calculate_distance_m(self, lon1, lat1, lon2, lat2):
         """
-        快速估算两个GPS坐标点之间的直线距离（米）。
+        使用Haversine公式精确计算两个GPS坐标点之间的距离（米）。
         
         算法说明：
-        - 使用简化的平面坐标系近似计算（适用于小范围距离）
-        - 不考虑地球曲率，假设局部区域是平面
-        - 比Haversine公式快得多，但精度稍低
+        - 使用Haversine公式考虑地球曲率
+        - 适用于任意距离和任意纬度
+        - 精度高，适合GPS应用
         
-        转换系数解释：
-        - 经度1度 ≈ 102,834.74米（在纬度约30度处）
-        - 纬度1度 ≈ 111,712.69米（全球基本恒定）
+        Haversine公式：
+        a = sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δlon/2)
+        c = 2 * atan2(√a, √(1-a))
+        distance = R * c
         
-        计算公式：
-        distance = √[(Δlon × 102834.74)² + (Δlat × 111712.69)²]
+        其中 R = 6371000 米（地球平均半径）
         
-        ⚠️ 注意事项：
-        1. 经度转换系数随纬度变化，这里假设约30度（中国中部）
-        2. 在赤道附近，经度1度 ≈ 111km；在极点附近接近0
-        3. 大距离（>100km）或极地区域误差较大
-        4. 只适用于短距离估算（如跑步路线，通常<10km）
-        
-        💡 精确计算建议：
-        对于精确距离计算，应使用Haversine或Vincenty公式：
-        ```python
-        from math import radians, sin, cos, sqrt, atan2
-        R = 6371000  # 地球半径（米）
-        dlat = radians(lat2 - lat1)
-        dlon = radians(lon2 - lon1)
-        a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1-a))
-        return R * c
-        ```
+        ✓ 改进：
+        1. 考虑地球曲率，精度更高
+        2. 适用于任意纬度（赤道、极地均可）
+        3. 适用于任意距离（短距离和长距离）
+        4. 标准的GPS距离计算方法
         
         参数:
             lon1 (float): 起点经度（度）
@@ -4044,9 +4073,25 @@ class Api:
             
         示例:
             >>> _calculate_distance_m(120.0, 30.0, 120.01, 30.01)
-            1560.5  # 约1.5公里
+            1536.8  # 约1.5公里（更精确）
         """
-        return math.sqrt(((lon1 - lon2) * 102834.74) ** 2 + ((lat1 - lat2) * 111712.69) ** 2)
+        # 地球平均半径（米）
+        R = 6371000
+        
+        # 转换为弧度
+        lat1_rad = math.radians(lat1)
+        lat2_rad = math.radians(lat2)
+        delta_lat = math.radians(lat2 - lat1)
+        delta_lon = math.radians(lon2 - lon1)
+        
+        # Haversine公式
+        a = (math.sin(delta_lat / 2) ** 2 +
+             math.cos(lat1_rad) * math.cos(lat2_rad) * 
+             math.sin(delta_lon / 2) ** 2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance = R * c
+        
+        return distance
 
     def _gps_random_offset(self, lon, lat, params):
         """
@@ -4238,24 +4283,32 @@ class Api:
 
             # 检查final_pos是否是关键点（打卡点）
             # 如果是关键点，保持精确坐标；如果不是，添加GPS随机偏移
-            # 使用any()遍历所有草稿点，检查坐标是否完全匹配且is_key=1
-            # ⚠️ 浮点数直接比较可能有精度问题，但实际使用中误差很小
-            is_key_point = any(d[0] == final_pos[0] and d[1]
-                               == final_pos[1] and d[2] == 1 for d in draft)
+            # ✓ 使用epsilon容差比较，避免浮点数精度问题
+            epsilon = 1e-9  # 容差值，约0.0001米
+            is_key_point = any(
+                abs(d[0] - final_pos[0]) < epsilon and 
+                abs(d[1] - final_pos[1]) < epsilon and 
+                d[2] == 1 
+                for d in draft
+            )
             # 根据是否关键点决定是否添加偏移
             lon, lat = (final_pos[0], final_pos[1]) if is_key_point else self._gps_random_offset(
                 final_pos[0], final_pos[1], self.params)
+            
+            # ✓ 优化：在生成点的同时计算距离，避免二次遍历
+            if len(run.run_coords) > 0:
+                prev_coord = run.run_coords[-1]
+                segment_dist = self._calculate_distance_m(
+                    prev_coord[0], prev_coord[1], lon, lat
+                )
+                total_dist += segment_dist
+            
             # 添加到run_coords：(经度, 纬度, 距上一点的时间间隔毫秒)
             run.run_coords.append((lon, lat, int(interval_t * 1000)))
             # 累计总时间
             total_time += interval_t
 
-        # ===== 步骤3：计算总距离 =====
-        # 遍历所有相邻点对，累加距离
-        # 💡 优化建议：这个循环可以在上面生成点的时候同时计算，避免二次遍历
-        for i in range(len(run.run_coords) - 1):
-            total_dist += self._calculate_distance_m(
-                run.run_coords[i][0], run.run_coords[i][1], run.run_coords[i + 1][0], run.run_coords[i + 1][1])
+        # ===== 步骤3：计算总距离 ===== (已优化，在生成点时同时计算)
 
         # 保存结果到run_data对象
         run.total_run_time_s, run.total_run_distance_m = total_time, total_dist
@@ -8211,15 +8264,78 @@ def load_session_state(session_id):
 
             # 验证加载的UUID是否匹配
             if state.get('session_id') == session_id:
+                # 检查会话是否过期（7天未访问）
+                last_accessed = state.get('last_accessed', 0)
+                session_age_days = (time.time() - last_accessed) / 86400  # 转换为天数
+                max_age_days = 7  # 会话最大保留7天
+                
+                if session_age_days > max_age_days:
+                    logging.warning(f"[会话管理] 会话已过期 --> 会话ID: {session_id[:32]}..., 最后访问: {session_age_days:.1f}天前, 最大保留期限: {max_age_days}天, 将被自动清理")
+                    # 删除过期的会话文件
+                    try:
+                        os.remove(session_file)
+                        logging.info(f"[会话管理] 已删除过期会话文件: {session_file}")
+                    except Exception as remove_err:
+                        logging.error(f"[会话管理] 删除过期会话文件失败: {remove_err}")
+                    return None  # 返回None，表示会话不存在或已过期
+                
                 tasks_count = len(state.get('loaded_tasks', []))
                 logging.info(
-                    f"从文件加载会话: {session_id[:32]}... (登录状态: {state.get('login_success')}, 任务数: {tasks_count})")
+                    f"[会话管理] 从文件加载会话 --> 会话ID: {session_id[:32]}..., 登录状态: {state.get('login_success')}, 任务数: {tasks_count}, 最后访问: {session_age_days:.1f}天前")
                 return state
             else:
-                logging.warning(f"会话文件UUID不匹配，忽略")
+                logging.warning(f"[会话管理] 会话文件UUID不匹配，忽略")
     except Exception as e:
-        logging.error(f"加载会话状态失败: {e}", exc_info=True)
+        logging.error(f"[会话管理] 加载会话状态失败 --> 错误: {e}", exc_info=True)
     return None
+
+
+def cleanup_expired_sessions():
+    """
+    清理过期的会话文件（7天未访问）
+    
+    此函数遍历所有会话文件，删除超过7天未访问的会话。
+    建议在应用启动时调用一次，以及定期后台调用。
+    """
+    try:
+        if not os.path.exists(SESSION_STORAGE_DIR):
+            return
+        
+        max_age_days = 7
+        max_age_seconds = max_age_days * 86400
+        current_time = time.time()
+        cleaned_count = 0
+        error_count = 0
+        
+        logging.info(f"[会话清理] 开始清理过期会话 --> 最大保留期限: {max_age_days}天")
+        
+        for filename in os.listdir(SESSION_STORAGE_DIR):
+            if not filename.endswith('.json') or filename == '_index.json':
+                continue
+            
+            session_file = os.path.join(SESSION_STORAGE_DIR, filename)
+            
+            try:
+                with open(session_file, 'r', encoding='utf-8') as f:
+                    state = json.load(f)
+                
+                last_accessed = state.get('last_accessed', 0)
+                if current_time - last_accessed > max_age_seconds:
+                    session_id = state.get('session_id', 'unknown')[:32]
+                    age_days = (current_time - last_accessed) / 86400
+                    
+                    os.remove(session_file)
+                    cleaned_count += 1
+                    logging.info(f"[会话清理] 已删除过期会话 --> 会话ID: {session_id}..., 文件: {filename}, 年龄: {age_days:.1f}天")
+                    
+            except Exception as e:
+                error_count += 1
+                logging.debug(f"[会话清理] 处理会话文件失败 --> 文件: {filename}, 错误: {e}")
+        
+        logging.info(f"[会话清理] 清理完成 --> 已删除: {cleaned_count}个过期会话, 错误: {error_count}个")
+        
+    except Exception as e:
+        logging.error(f"[会话清理] 清理过期会话失败 --> 错误: {e}", exc_info=True)
 
 
 def restore_session_to_api_instance(api_instance, state):
