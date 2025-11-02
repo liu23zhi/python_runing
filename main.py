@@ -6850,6 +6850,11 @@ class Api:
     def _check_and_trigger_auto_attendance(self, context: 'Api | AccountSession'):
         """
         (辅助函数) 检查并执行单个上下文(Api或AccountSession)的自动签到。
+        
+        注意：此方法使用多态设计模式，接受两种类型的上下文：
+        - 当从 _auto_refresh_worker 调用时，传入 self (Api实例)
+        - 当从 _multi_auto_attendance_worker 调用时，传入 AccountSession实例
+        这种设计允许代码复用，避免重复逻辑。
         """
         # 1. 确定上下文
         if isinstance(context, AccountSession):
