@@ -8615,35 +8615,31 @@
           const progressPercent = status.progress_percent || 0;
           const currentTaskProgress = status.current_task_progress || 0;
           
-          // Calculate progress based on current_position and run_coords
+          // 根据任务坐标和当前位置计算进度
           let pct = 0;
           let displayText = '';
           
           if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
-            // Always use point count format when coords are available
+            // 当坐标数据可用时，使用点数格式
             singleTotalPoints = currentRunData.run_coords.length;
             
             if (status.current_position) {
+              // 使用精确的点索引
               const currentPointIndex = status.current_position.point_index || 0;
               singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
             } else {
-              // Estimate from percentage when position not available
+              // 从百分比估算点数（当位置数据不可用时）
               singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
             }
             
             pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
             displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
           } else {
-            // Multiple tasks - also try to use point format if current task has coords
-            if (totalTasks > 0) {
-              // For multiple tasks, show task completion
-              pct = progressPercent;
-              displayText = `已完成 ${completedTasks}/${totalTasks} 任务`;
-            } else {
-              // Fallback for edge cases
-              pct = 0;
-              displayText = `0 / 0 点`;
-            }
+            // 坐标数据不可用时，仍然使用点数格式（显示 0 / 0）
+            singleTotalPoints = 0;
+            singleProcessedPoints = 0;
+            pct = 0;
+            displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
           }
           
           updateSingleProgress(pct, displayText);
@@ -8754,35 +8750,31 @@
             const progressPercent = status.progress_percent || 0;
             const currentTaskProgress = status.current_task_progress || 0;
             
-            // Calculate progress based on current_position and run_coords
+            // 根据任务坐标和当前位置计算进度
             let pct = 0;
             let displayText = '';
             
             if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
-              // Always use point count format when coords are available
+              // 当坐标数据可用时，使用点数格式
               singleTotalPoints = currentRunData.run_coords.length;
               
               if (status.current_position) {
+                // 使用精确的点索引
                 const currentPointIndex = status.current_position.point_index || 0;
                 singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
               } else {
-                // Estimate from percentage when position not available
+                // 从百分比估算点数（当位置数据不可用时）
                 singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
               }
               
               pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
               displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
             } else {
-              // Multiple tasks - also try to use point format if current task has coords
-              if (totalTasks > 0) {
-                // For multiple tasks, show task completion
-                pct = progressPercent;
-                displayText = `已完成 ${completedTasks}/${totalTasks} 任务`;
-              } else {
-                // Fallback for edge cases
-                pct = 0;
-                displayText = `0 / 0 点`;
-              }
+              // 坐标数据不可用时，仍然使用点数格式（显示 0 / 0）
+              singleTotalPoints = 0;
+              singleProcessedPoints = 0;
+              pct = 0;
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
             }
             
             updateSingleProgress(pct, displayText);
