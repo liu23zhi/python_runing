@@ -41,6 +41,22 @@ from flask import make_response
 #  1. 日志系统配置
 # ==============================================================================
 
+class NoColorFileFormatter(logging.Formatter):
+    """自定义格式化程序，用于在写入文件前去除ANSI颜色代码。"""
+    
+    # 用于匹配ANSI转义码的正则表达式
+    ansi_escape_regex = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+    def format(self, record):
+        """
+        重写format方法。
+        1. 首先，使用父类的format方法生成完整的日志消息（可能包含颜色）。
+        2. 然后，使用正则表达式去除该消息中的所有ANSI颜色代码。
+        """
+        original_message = super().format(record)
+        cleaned_message = self.ansi_escape_regex.sub('', original_message)
+        return cleaned_message
+
 
 def setup_logging():
     """
@@ -79,7 +95,15 @@ def setup_logging():
     # 文件处理器 - 保存到文件
     file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(log_format)
+    
+    # 修复：为 file_handler 应用“无颜色”格式化程序
+    # 我们从原始 log_format 中提取格式字符串和日期格式
+    no_color_formatter = NoColorFileFormatter(
+        log_format._fmt,
+        datefmt=log_format.datefmt
+    )
+    file_handler.setFormatter(no_color_formatter)
+    
     logger.addHandler(file_handler)
 
     # 记录日志系统启动
@@ -2876,8 +2900,10 @@ class Api:
             cfg_to_save.set('Config', 'Password', password)
         else:
             # 场景: 未提供新密码 (来自 update_param)
-            # 如果当前配置中没有密码，尝试从备份文件中恢复（防止normalize过程丢失）
-            if not cfg_to_save.has_option('Config', 'Password') or not cfg_to_save.get('Config', 'Password'):
+            
+            # 修复：检查密码行是否*完全不存在*于 .ini 文件中
+            if not cfg_to_save.has_option('Config', 'Password'):
+                # 选项不存在，尝试从备份文件中恢复
                 backup_path = f"{user_ini_path}.bak"
                 if os.path.exists(backup_path):
                     try:
@@ -2902,7 +2928,11 @@ class Api:
                                         break
                     except Exception as e:
                         logging.warning(f"从备份文件恢复密码失败: {e}")
-            # 否则保留 cfg_to_save 中已加载的旧密码(或它的缺失状态)。
+            else:
+                # 选项存在 (has_option 为 True)，无论其值是 "mypass" 还是 "" (空字符串)，
+                # 我们都“什么也不做”，以保留 cfg_to_save 对象中已读取的状态。
+                # 这可以防止 configparser 在写回时丢弃该行。
+                pass
 
         # --- 5. 智能处理 UA ---
         # 仅当 *提供了新的* ua (非 None) 时，才覆盖 UA
@@ -4450,8 +4480,12 @@ class Api:
                 km = length_m / 1000 if length_m else 0
                 speed_s_per_km = (run_time_s / km) if km > 0 else 0
                 s_min, s_sec = divmod(speed_s_per_km, 60)
+                total_seconds_int = int(run_time_s)
+                run_minutes, run_seconds = divmod(total_seconds_int, 60)
+                formatted_used_time = f"{run_minutes:02d}:{run_seconds:02d}"
                 history_list.append({
                     "time": rec.get('createTime', 'NULL'),
+                    "used_time": formatted_used_time,
                     "len": f"{length_m}m",
                     "speed": f"{int(s_min)}'{int(s_sec):02d}\"" if km > 0 else "NULL",
                     "trid": rec.get('trid')

@@ -9084,11 +9084,12 @@
         result.history.forEach(rec => {
           const item = document.createElement('div');
           item.className = 'grid grid-cols-3 gap-2 text-xs p-2 border-b border-slate-100 cursor-pointer hover:bg-white/70 rounded';
-          item.innerHTML = `<span class="text-slate-600">${rec.time}</span><span class="font-semibold text-emerald-700">${rec.len}</span><span class="font-semibold text-sky-700">${rec.speed}</span>`;
+          item.innerHTML = `<span class="text-slate-600">${rec.time}</span><span class="font-semibold text-emerald-700">${rec.len}</span><span class="font-semibold text-sky-700">${rec.used_time}</span>`;
           item.addEventListener('click', () => showHistoricalTrack(rec.trid)); $('history-list').appendChild(item);
         });
       } else { $('history-placeholder').textContent = "无历史记录或加载失败"; $('history-placeholder').classList.remove('hidden'); }
     }
+    
     async function showHistoricalTrack(trid) {
       if (backgroundTaskPollInterval) {
         logMessage_Warning("任务执行中，无法查看历史记录！请先停止当前任务。");
