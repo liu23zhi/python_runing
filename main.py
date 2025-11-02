@@ -993,45 +993,173 @@ class AuthSystem:
         return file_path
 
     def _get_password_storage_method(self):
-        """获取密码存储方式"""
+        """
+        获取密码存储方式配置。
+        
+        从config.ini的[Security]节读取password_storage配置项：
+        - 'plaintext': 明文存储（默认，不安全）
+        - 'encrypted': SHA256哈希存储
+        
+        ⚠️ 安全警告：
+        - 默认为plaintext，密码完全可见
+        - encrypted模式使用SHA256但不加盐，仍不够安全
+        
+        💡 建议改进：
+        - 添加bcrypt或argon2选项
+        - 强制encrypted模式，禁止plaintext
+        - 密码哈希应使用慢速算法+随机盐
+        
+        返回:
+            str: 'plaintext' 或 'encrypted'
+        """
         method = self.config.get(
             'Security', 'password_storage', fallback='plaintext')
         logging.debug(f"_get_password_storage_method: 密码存储方式: {method}")
         return method
 
     def _encrypt_password(self, password):
-        """加密密码（可选功能）"""
+        """
+        加密密码（根据配置决定是否加密）。
+        
+        加密方式：
+        - plaintext: 不加密，直接返回原密码
+        - encrypted: 使用SHA256哈希（不加盐）
+        
+        ⚠️ 安全问题：
+        1. SHA256是文件哈希算法，不是密码哈希算法
+        2. 没有加盐（salt），相同密码产生相同哈希
+        3. 彩虹表攻击：预计算常见密码的哈希值进行反查
+        4. SHA256速度快，易被GPU/ASIC暴力破解
+        
+        💡 安全建议：
+        - 使用bcrypt: bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        - 使用argon2: argon2.hash_password(password.encode())
+        - 这些算法自动加盐、计算慢、抗暴力破解
+        
+        参数:
+            password (str): 明文密码
+            
+        返回:
+            str: 加密后的密码（或明文）
+            
+        示例:
+            >>> _encrypt_password("admin")
+            # plaintext模式: "admin"
+            # encrypted模式: "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"
+        """
         method = self._get_password_storage_method()
         logging.debug(f"_encrypt_password: 使用 {method} 方法加密密码")
         if method == 'encrypted':
-            # 使用SHA256加密
+            # SHA256哈希：输入任意长度，输出固定64字符十六进制
+            # 🐛 安全缺陷：没有加盐，同样的密码总是产生同样的哈希
             encrypted = hashlib.sha256(password.encode()).hexdigest()
             logging.debug("_encrypt_password: 密码已加密")
             return encrypted
         logging.debug("_encrypt_password: 使用明文存储密码")
-        return password  # 明文
+        return password  # 明文返回
 
     def _verify_password(self, input_password, stored_password):
-        """验证密码"""
+        """
+        验证用户输入的密码是否正确。
+        
+        验证流程：
+        1. 获取密码存储方式配置
+        2. plaintext模式：直接字符串比较
+        3. encrypted模式：输入密码哈希后与存储值比较
+        
+        ⚠️ 安全问题：
+        1. 时序攻击（Timing Attack）：
+           - 字符串比较时间与内容相关
+           - 攻击者可通过响应时间推测密码
+           - `==` 运算符在遇到第一个不同字符时就返回
+        
+        2. 明文比较问题：
+           - 如果是plaintext模式，密码在内存中明文存在
+           - 可能被内存dump或调试工具获取
+        
+        💡 安全建议：
+        - 使用secrets.compare_digest()进行常量时间比较：
+          `secrets.compare_digest(hash1, hash2)`
+        - 对于bcrypt，使用bcrypt.checkpw()
+        
+        参数:
+            input_password (str): 用户输入的密码（明文）
+            stored_password (str): 存储的密码（明文或哈希）
+            
+        返回:
+            bool: True表示密码正确，False表示密码错误
+            
+        安全考虑：
+        - 无论密码对错，都应该花费相似的时间返回
+        - 避免通过响应时间泄露密码信息
+        """
         method = self._get_password_storage_method()
         logging.debug(f"_verify_password: 使用 {method} 方法验证密码")
         if method == 'encrypted':
+            # 对输入密码进行相同的哈希运算，然后比较
+            # 🐛 时序攻击风险：==运算符不是常量时间比较
+            # 💡 建议改为：secrets.compare_digest(...)
             result = hashlib.sha256(
                 input_password.encode()).hexdigest() == stored_password
             logging.debug(
                 f"_verify_password: 密码验证结果: {'成功' if result else '失败'}")
             return result
-        result = input_password == stored_password  # 明文比较
+        # 明文模式：直接字符串比较
+        # 🐛 同样存在时序攻击风险
+        result = input_password == stored_password
         logging.debug(f"_verify_password: 密码验证结果: {'成功' if result else '失败'}")
         return result
 
     def _log_login_attempt(self, auth_username, success, ip_address='', user_agent='', reason=''):
-        """记录登录尝试"""
+        """
+        记录用户登录尝试到日志文件。
+        
+        记录的信息：
+        - timestamp: Unix时间戳（秒）
+        - datetime: ISO格式的时间字符串
+        - username: 登录的用户名
+        - success: 是否成功（True/False）
+        - ip_address: 客户端IP地址
+        - user_agent: 浏览器User-Agent字符串
+        - reason: 失败原因（如"密码错误"、"账号锁定"）
+        
+        存储格式：
+        - JSONL（JSON Lines）：每行一个完整的JSON对象
+        - 优点：便于流式处理、追加写入、逐行解析
+        - 文件：logs/login_history.jsonl
+        
+        用途：
+        1. 安全审计：追踪异常登录行为
+        2. 入侵检测：识别暴力破解尝试
+        3. 合规要求：满足审计日志要求
+        4. 问题排查：帮助用户找回登录失败原因
+        
+        ⚠️ 潜在问题：
+        1. 日志文件无限增长，没有轮转机制
+        2. 敏感信息（用户名、IP）明文存储
+        3. 文件I/O可能成为性能瓶颈
+        4. 并发写入可能导致行混乱（虽然概率低）
+        
+        💡 改进建议：
+        - 实现日志轮转（按大小或时间）
+        - 使用日志库的RotatingFileHandler
+        - 考虑异步写入（避免阻塞主线程）
+        - 添加日志归档和压缩功能
+        
+        参数:
+            auth_username (str): 尝试登录的用户名
+            success (bool): 登录是否成功
+            ip_address (str): 客户端IP地址
+            user_agent (str): HTTP User-Agent头
+            reason (str): 失败原因描述
+        """
         logging.info(
             f"登录尝试: 用户={auth_username}, 成功={success}, IP={ip_address}, 原因={reason}")
+        
+        # 构建日志条目（字典）
         log_entry = {
-            'timestamp': time.time(),
-            'datetime': datetime.datetime.now().isoformat(),
+            'timestamp': time.time(),  # 精确到毫秒的时间戳
+            'datetime': datetime.datetime.now().isoformat(),  # 可读的时间字符串
             'username': auth_username,
             'success': success,
             'ip_address': ip_address,
@@ -1040,10 +1168,15 @@ class AuthSystem:
         }
 
         try:
+            # 追加模式打开文件，每次写入一行JSON
+            # ensure_ascii=False: 允许中文字符
+            # 每条记录以换行符结束
             with open(LOGIN_LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
             logging.debug(f"_log_login_attempt: 登录日志已写入 {LOGIN_LOG_FILE}")
         except Exception as e:
+            # 日志写入失败不应该影响登录流程
+            # 只记录错误但不抛出异常
             logging.error(f"记录登录日志失败: {e}", exc_info=True)
 
     def get_login_history(self, username=None, limit=100):
