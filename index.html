@@ -6296,6 +6296,14 @@
           // 优先使用学校登录的用户信息，如果没有则使用会话中保存的离线模式用户数据
           currentUserData = initialData.userInfo || (sessionModeInfo && sessionModeInfo.user_data) || {};
 
+          if (initialData.device_ua) {
+            currentSessionUA = initialData.device_ua;
+            logMessage_Info(`[会话恢复] 成功恢复 User-Agent: ${currentSessionUA.substring(0, 50)}...`);
+          } else {
+            logMessage_Warning("[会话恢复] 未能从 initialData 中恢复 User-Agent。");
+            currentSessionUA = "NULL (Restored)"; // 至少提供一个非空值以示区别
+          }
+
           hideLoadingOverlays();
           // 恢复会话时确保API Key已配置并加载地图
           AMAP_API_KEY = initialData.amap_key || "";
@@ -6548,9 +6556,71 @@
       socket.on('log_message', (data) => {
         if (data && data.msg) {
           // 调用现有的 logMessage_Info 函数显示日志
-          logMessage_Info(data.msg);
+          logMessage(data.msg, 'INFO', 'Backend');
         }
       });
+
+      // ===============================================
+      // === 监听后端推送的UI更新事件 ===
+      // ===============================================
+
+      // 监听多账号卡片内容更新
+      socket.on('multi_status_update', (data) => {
+        if (data && data.username && data.data) {
+          // logMessage_Debug(`[Socket] 收到 ${data.username} 状态更新`);
+          multi_updateAccountStatus(data.username, data.data);
+        }
+      });
+
+      // 监听多账号列表结构更新 (例如：添加账号后)
+      socket.on('accounts_updated', (data) => {
+        if (data && data.accounts) {
+          logMessage_Info(`[Socket] 收到账号列表更新，共 ${data.accounts.length} 个账号`);
+          onAccountsUpdated(data.accounts); // onAccountsUpdated 会调用 renderMultiAccountList
+        }
+      });
+
+      // 监听多账号全局按钮状态更新
+      socket.on('multi_global_buttons_update', (data) => {
+        if (data) {
+          // logMessage_Debug(`[Socket] 收到全局按钮状态更新`);
+          updateMultiGlobalButtons(data.start_disabled, data.stop_disabled);
+          // 单独处理退出按钮
+          const exitBtn = document.getElementById("exit-multi-mode-btn");
+          if (exitBtn) {
+              exitBtn.disabled = !!data.exit_disabled;
+          }
+        }
+      });
+
+      // 监听单账号跑步机位置更新
+      socket.on('runner_position_update', (data) => {
+          if (data) {
+              updateRunnerPosition(data.lon, data.lat, data.distance, data.target_sequence, data.duration, data.center_now);
+          }
+      });
+
+      // 监听单账号任务完成
+      socket.on('task_completed', (data) => {
+          if (data && typeof data.task_index !== 'undefined') {
+              onTaskCompleted(data.task_index);
+          }
+      });
+
+      // 监听单账号跑步停止
+      socket.on('run_stopped', () => {
+          onRunStopped();
+      });
+      // 监听后台推送的通知更新
+          socket.on('onNotificationsUpdated', (data) => {
+              logMessage_Info("[Socket] 收到后台推送的通知更新");
+              // data 就是 get_notifications 返回的完整 result 对象
+              if (data && data.success) {
+                  // 调用现有的JS函数来处理数据并更新UI
+                  onNotificationsUpdated(data);
+              }
+          });
+
     }
 
 
@@ -7075,8 +7145,16 @@
       e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
       showTaskDetails();
     });
-    $('auto-gen-button').addEventListener('click', () => $('auto-gen-modal').classList.remove('hidden'));
-    $('cancel-gen-button').addEventListener('click', () => $('auto-gen-modal').classList.add('hidden'));
+    $('auto-gen-button').addEventListener('click', () => {
+      $('auto-gen-modal').classList.remove('hidden');
+      $('auto-gen-modal').classList.add('flex'); // 确保居中
+      document.body.classList.add('modal-visible'); // 隐藏Logo
+    });
+    $('cancel-gen-button').addEventListener('click', () => {
+      $('auto-gen-modal').classList.add('hidden');
+      $('auto-gen-modal').classList.remove('flex'); // 移除居中
+      document.body.classList.remove('modal-visible'); // 恢复Logo
+    });
     $('confirm-gen-button').addEventListener('click', onConfirmAutoGenerate);
 
     // --- 绑定通知按钮 ---
@@ -7450,6 +7528,13 @@
       logMessage_Info(`[任务选择] 开始选择任务，索引: ${index}`, 'DEBUG');
       logMessage_Info(`[前端-任务选择] 选择任务 #${index}`);
 
+      // 防止在任务执行过程中切换任务（但允许重新选择当前任务）
+      if (backgroundTaskPollInterval && selectedTaskIndex !== index) {
+        logMessage_Warning("任务执行中，无法切换任务！请先停止当前任务。");
+        showModalAlert("任务执行中，无法切换任务！请先停止当前任务。");
+        return;
+      }
+
       if (isDrawing) {
         logMessage_Info("请先结束当前路径绘制！", 'WARN');
         return;
@@ -7494,12 +7579,12 @@
           updateDashboard();
 
           drawOnMap();
-          setTimeout(() => {
-            if (selectedTaskIndex === index) {
-              logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
-              drawOnMap();
-            }
-          }, 100); // 稍微增加延迟以确保渲染稳定
+          // setTimeout(() => {
+          //   if (selectedTaskIndex === index) {
+          //     logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
+          //     drawOnMap();
+          //   }
+          // }, 100); // 稍微增加延迟以确保渲染稳定
 
           loadHistory(index);
           singleProcessedPoints = 0;
@@ -8292,7 +8377,7 @@
 
 
     // 地图绘制相关
-    function drawOnMap() {
+    function drawOnMap_signature() {
       if (!map) return;
       clearMapOverlays();
       const data = currentRunData;
@@ -8319,6 +8404,16 @@
       }
       drawMarkers();
       resetMapView();
+    }
+
+    function drawOnMap(){
+      drawOnMap_signature();
+      setTimeout(() => {
+            // if (selectedTaskIndex === index) {
+              logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
+              drawOnMap_signature();
+            // }
+          }, 100); // 稍微增加延迟以确保渲染稳定
     }
 
     function drawMarkers() {
@@ -8615,15 +8710,67 @@
           const progressPercent = status.progress_percent || 0;
           const currentTaskProgress = status.current_task_progress || 0;
           
-          // // Update progress bar and text
-          // if (totalTasks === 1) {
-          //   // Single task - show point progress
-          //   updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
-          // } else {
-          //   // Multiple tasks - show task progress
-          //   updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
-          // }
-          updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
+          // 从后端API获取精确的点数进度
+          let pct = 0;
+          let displayText = '';
+          
+          // 优先使用后端提供的点数数据（更准确）
+          if (status.singleTotalPoints !== undefined && status.singleProcessedPoints !== undefined) {
+            singleTotalPoints = status.singleTotalPoints;
+            singleProcessedPoints = status.singleProcessedPoints;
+            pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+            displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+          } else if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
+            // 降级方案：从前端计算（当后端数据不可用时）
+            singleTotalPoints = currentRunData.run_coords.length;
+            
+            if (status.current_position) {
+              // 使用精确的点索引
+              const currentPointIndex = status.current_position.point_index || 0;
+              singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
+            } else {
+              // 从百分比估算点数（当位置数据不可用时）
+              singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
+            }
+            
+            pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+            displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+          } else {
+            // 坐标数据不可用时，仍然使用点数格式（显示 0 / 0）
+            singleTotalPoints = 0;
+            singleProcessedPoints = 0;
+            pct = 0;
+            displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+          }
+          
+          updateSingleProgress(pct, displayText);
+          
+          // 更新当前任务索引（从后端API同步）
+          if (status.task_indices && status.current_task_index !== undefined) {
+            const task_list = status.task_indices;
+            const current_list_index = status.current_task_index;
+            if (task_list.length > current_list_index) {
+              const global_task_index = task_list[current_list_index];
+              selectedTaskIndex = global_task_index;
+            }
+          }
+          
+          // 更新实时时间和距离（从后端API获取）
+          if (status.elapsed_time_s !== undefined) {
+            runAccumulatedMs = status.elapsed_time_s * 1000;  // 转换为毫秒
+          }
+          if (status.current_distance_m !== undefined && currentRunData) {
+            currentRunData.distance_covered_m = status.current_distance_m;
+          }
+          if (status.checked_targets_count !== undefined && currentRunData) {
+            currentRunData.target_sequence = status.checked_targets_count;
+          }
+          
+          // 更新仪表板显示
+          updateDashboard();
+
+          drawMarkers();
+          
           // Update real-time position on map if available
           if (status.current_position) {
             const pos = status.current_position;
@@ -8693,7 +8840,6 @@
           const status = result.task_status;
           
           // 如果有任务在运行，显示状态并开始轮询
-          i// 如果有任务在运行，显示状态并开始轮询
           if (status.status === 'running') {
             logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
             
@@ -8718,10 +8864,44 @@
             if (task_list.length > current_list_index) {
                 const global_task_index = task_list[current_list_index];
                 
-                // 关键：加载任务数据 (这会填充 currentRunData 并调用 drawOnMap)
+                // 使用后端提供的完整任务数据恢复（避免调用selectTask导致任务切换检查失败）
                 logMessage_Info(`正在恢复运行中的任务 (索引: ${global_task_index}) 的地图数据...`);
-                // 必须 await，确保 currentRunData 在 updateRunnerPosition 之前被设置
-                await selectTask(global_task_index); 
+                
+                if (status.run_coords && status.run_coords.length > 0) {
+                  // 直接从API响应构建currentRunData
+                  currentRunData = {
+                    run_coords: status.run_coords || [],
+                    target_points: status.target_points || [],
+                    target_point_names: status.target_point_names || '',
+                    recommended_coords: status.recommended_coords || [],
+                    target_sequence: status.checked_targets_count || 0,
+                    distance_covered_m: status.current_distance_m || 0,
+                    total_run_time_s: status.estimated_total_time_s || 0,
+                    total_run_distance_m: status.estimated_total_distance_m || 0
+                  };
+                  
+                  selectedTaskIndex = global_task_index;
+                  
+                  // 更新任务列表的选中状态
+                  const taskListDiv = $('task-list');
+                  Array.from(taskListDiv.children).forEach((child, idx) => {
+                    if (idx === global_task_index) {
+                      child.classList.add('selected');
+                    } else {
+                      child.classList.remove('selected');
+                    }
+                  });
+                  loadHistory(global_task_index);
+                  
+                  // 绘制地图
+                  updateDashboard();
+                  drawOnMap();
+                  
+                  logMessage_Info(`任务数据已从API响应恢复，总点数: ${currentRunData.run_coords.length}`, 'INFO');
+                } else {
+                  // 降级方案：调用selectTask
+                  await selectTask(global_task_index);
+                }
             } else {
                 logMessage_Warning("后台任务状态不一致，无法恢复地图路径。");
             }
@@ -8732,14 +8912,54 @@
             const progressPercent = status.progress_percent || 0;
             const currentTaskProgress = status.current_task_progress || 0;
             
-            // if (totalTasks === 1) {
-            //   // Single task - show point progress
-            //   updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
-            // } else {
-            //   // Multiple tasks - show task progress
-            //   updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
-            // }
-            updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
+            // 从后端API获取精确的点数进度
+            let pct = 0;
+            let displayText = '';
+            
+            // 优先使用后端提供的点数数据（更准确）
+            if (status.singleTotalPoints !== undefined && status.singleProcessedPoints !== undefined) {
+              singleTotalPoints = status.singleTotalPoints;
+              singleProcessedPoints = status.singleProcessedPoints;
+              pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+            } else if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
+              // 降级方案：从前端计算（当后端数据不可用时）
+              singleTotalPoints = currentRunData.run_coords.length;
+              
+              if (status.current_position) {
+                // 使用精确的点索引
+                const currentPointIndex = status.current_position.point_index || 0;
+                singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
+              } else {
+                // 从百分比估算点数（当位置数据不可用时）
+                singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
+              }
+              
+              pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+            } else {
+              // 坐标数据不可用时，仍然使用点数格式（显示 0 / 0）
+              singleTotalPoints = 0;
+              singleProcessedPoints = 0;
+              pct = 0;
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+            }
+            
+            updateSingleProgress(pct, displayText);
+            
+            // 更新实时时间和距离（从后端API获取）
+            if (status.elapsed_time_s !== undefined) {
+              runAccumulatedMs = status.elapsed_time_s * 1000;  // 转换为毫秒
+            }
+            if (status.current_distance_m !== undefined && currentRunData) {
+              currentRunData.distance_covered_m = status.current_distance_m;
+            }
+            if (status.checked_targets_count !== undefined && currentRunData) {
+              currentRunData.target_sequence = status.checked_targets_count;
+            }
+            
+            // 更新仪表板显示
+            updateDashboard();
             
             // Restore runner position on map if available
             if (status.current_position) {
@@ -8905,7 +9125,12 @@
     async function onConfirmAutoGenerate() {
       const minTime = parseInt($('min-time-input').value), maxTime = parseInt($('max-time-input').value), minDist = parseInt($('min-dist-input').value);
       if (minTime > maxTime) { showModalAlert("最短时间不能大于最长时间"); return; }
+      // $('auto-gen-modal').classList.add('hidden'); // <-- 旧代码
+      // 修复：使用与“取消”按钮相同的逻辑关闭模态框
       $('auto-gen-modal').classList.add('hidden');
+      $('auto-gen-modal').classList.remove('flex'); // 移除居中
+      document.body.classList.remove('modal-visible'); // 恢复Logo
+
       if (selectedTaskIndex === -1 || !currentRunData.target_points || currentRunData.target_points.length === 0) { showModalAlert("请先选择一个有打卡点的任务"); return; }
       logMessage_Info("正在调用高德地图API进行路径规划...");
       try {
@@ -8934,6 +9159,7 @@
       }
     }
     async function loadHistory(index) {
+
       $('history-placeholder').textContent = "正在加载..."; $('history-list').innerHTML = "";
       const result = await callPythonAPI('get_task_history', index);
       if (result.success && result.history.length > 0) {
@@ -8941,12 +9167,18 @@
         result.history.forEach(rec => {
           const item = document.createElement('div');
           item.className = 'grid grid-cols-3 gap-2 text-xs p-2 border-b border-slate-100 cursor-pointer hover:bg-white/70 rounded';
-          item.innerHTML = `<span class="text-slate-600">${rec.time}</span><span class="font-semibold text-emerald-700">${rec.len}</span><span class="font-semibold text-sky-700">${rec.speed}</span>`;
+          item.innerHTML = `<span class="text-slate-600">${rec.time}</span><span class="font-semibold text-emerald-700">${rec.len}</span><span class="font-semibold text-sky-700">${rec.used_time}</span>`;
           item.addEventListener('click', () => showHistoricalTrack(rec.trid)); $('history-list').appendChild(item);
         });
       } else { $('history-placeholder').textContent = "无历史记录或加载失败"; $('history-placeholder').classList.remove('hidden'); }
     }
+    
     async function showHistoricalTrack(trid) {
+      if (backgroundTaskPollInterval) {
+        logMessage_Warning("任务执行中，无法查看历史记录！请先停止当前任务。");
+        showModalAlert("任务执行中，无法查看历史记录！请先停止当前任务。");
+        return;
+      }
       const result = await callPythonAPI('get_historical_track', trid);
       if (result.success) {
         if (polylines.history) map.remove(polylines.history);
@@ -8979,18 +9211,26 @@
         // 将堆栈信息按行分割
         const lines = stack.split('\n');
 
+        let callerLine; // <-- 修复 #1: 在外部作用域声明变量
+
         if (linesToSkip !== null){
           try {
-            let callerLine = lines[linesToSkip + 1] || '';
+            callerLine = lines[linesToSkip + 1] || ''; // <-- 修复 #2: 移除 'let'，直接赋值
           } catch (error) {
             logMessage_Error("Error accessing stack line:", error);
-            let callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // 尝试第4、3、2、1行
+            callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // <-- 修复 #3: 移除 'let'
           }
         }else{
 
         // 不同浏览器堆栈格式不同，尝试几种常见模式
-        let callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // 尝试第4、3、2、1行
+        callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // <-- 修复 #4: 移除 'let'
         }
+
+        // 修复 #5: 增加健壮性检查，防止 callerLine 为 undefined 时调用 .trim() 出错
+        if (typeof callerLine !== 'string') {
+            callerLine = ''; // 如果堆栈行不存在（例如堆栈太短），提供一个空字符串
+        }
+        
         callerLine = callerLine.trim();
 
         // 尝试匹配 Chrome/V8 格式: "at functionName (file:line:col)" 或 "at file:line:col"
@@ -9048,7 +9288,7 @@
 
     // 日志记录函数，支持不同级别日志
     // level 可选值：'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
-    function logMessage(msg, level = 'INFO') {
+    function logMessage(msg, level = 'INFO', source = null) {
       // 保留原有的时间戳添加逻辑，因为后端 Api.log 未添加时间戳
       const now = new Date();
       const h = String(now.getHours()).padStart(2, '0');
@@ -9062,8 +9302,15 @@
       let level_new = 'INFO';
 
       // 获取调用者信息
-      let orange_callerInfo = getCallerInfo();
-      let callerInfo = extractCleanSource(orange_callerInfo.source);
+      // 检查是否已传入来源 (例如 'Backend')
+      let callerInfo;
+      if (source) {
+        callerInfo = source; // 使用传入的来源
+      } else {
+        // 否则，才尝试获取 JS 调用者
+        let orange_callerInfo = getCallerInfo();
+        callerInfo = extractCleanSource(orange_callerInfo.source);
+      }
 
       let new_message = `${timestamp}[前端日志][${callerInfo}] ${line}`
       const fullMessage = `${timestamp}[${callerInfo}] ${line}`; // 组合时间戳和消息
@@ -9090,7 +9337,7 @@
       
 
       // 发送到后端日志系统（仅在非网络错误状态时发送）
-      if (!isInNetworkErrorState) {
+      if (!isInNetworkErrorState && source !== 'Backend') {
         try {
           fetch('/api/log_frontend', {
             method: 'POST',
