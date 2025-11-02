@@ -10191,7 +10191,38 @@ def start_web_server(args_param):
 
     @app.route('/auth/admin/list_users', methods=['GET'])
     def auth_admin_list_users():
-        """管理员：列出所有用户"""
+        """
+        管理员API - 列出所有用户信息。
+        
+        功能说明：
+        - 获取系统中所有注册用户的列表
+        - 包含用户名、用户组、创建时间等信息
+        - 用于管理员查看和管理用户
+        
+        权限要求：
+        - 必须登录
+        - 必须具有'manage_users'权限
+        
+        请求头：
+        - X-Session-ID: 会话ID（必需）
+        
+        响应格式：
+        成功：{"success": true, "users": [用户列表]}
+        失败：{"success": false, "message": "错误信息"}
+        
+        用户对象结构：
+        {
+            "username": "用户名",
+            "group": "用户组",
+            "created_at": "创建时间",
+            "last_login": "最后登录时间"
+        }
+        
+        使用场景：
+        - 管理员查看所有用户
+        - 用户管理界面的数据源
+        - 审计和统计分析
+        """
         session_id = request.headers.get('X-Session-ID', '')
 
         if not session_id or session_id not in web_sessions:
@@ -10210,7 +10241,41 @@ def start_web_server(args_param):
 
     @app.route('/auth/admin/update_user_group', methods=['POST'])
     def auth_admin_update_user_group():
-        """管理员：更新用户组"""
+        """
+        管理员API - 修改用户所属的权限组。
+        
+        功能说明：
+        - 将指定用户分配到新的权限组
+        - 影响用户的权限范围
+        - 立即生效，无需重新登录
+        
+        权限要求：
+        - 必须登录
+        - 必须具有'manage_users'权限
+        
+        请求头：
+        - X-Session-ID: 会话ID（必需）
+        
+        请求体（JSON）：
+        {
+            "target_username": "目标用户名",
+            "new_group": "新权限组名"
+        }
+        
+        响应格式：
+        成功：{"success": true, "message": "用户组已更新"}
+        失败：{"success": false, "message": "错误信息"}
+        
+        注意事项：
+        - 目标用户组必须存在
+        - 不能修改自己的用户组（防止锁定）
+        - 更改会立即影响用户权限
+        
+        使用场景：
+        - 提升/降低用户权限
+        - 调整用户角色
+        - 权限管理界面
+        """
         session_id = request.headers.get('X-Session-ID', '')
         data = request.get_json() or {}
         target_username = data.get('target_username', '')
@@ -10232,7 +10297,37 @@ def start_web_server(args_param):
 
     @app.route('/auth/admin/list_groups', methods=['GET'])
     def auth_admin_list_groups():
-        """管理员：列出所有权限组"""
+        """
+        管理员API - 列出所有权限组及其权限配置。
+        
+        功能说明：
+        - 获取系统中定义的所有权限组
+        - 包含每个组的权限列表
+        - 用于权限管理和配置
+        
+        权限要求：
+        - 必须登录
+        - 必须具有'manage_permissions'权限
+        
+        请求头：
+        - X-Session-ID: 会话ID（必需）
+        
+        响应格式：
+        成功：{"success": true, "groups": {权限组配置}}
+        失败：{"success": false, "message": "错误信息"}
+        
+        权限组结构示例：
+        {
+            "admin": ["manage_users", "manage_permissions", ...],
+            "user": ["view_data", "edit_own_data"],
+            "guest": ["view_public_data"]
+        }
+        
+        使用场景：
+        - 权限配置界面数据源
+        - 显示可用的权限组列表
+        - 权限分配参考
+        """
         session_id = request.headers.get('X-Session-ID', '')
 
         if not session_id or session_id not in web_sessions:
