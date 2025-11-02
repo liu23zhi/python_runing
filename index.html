@@ -8615,12 +8615,18 @@
           const progressPercent = status.progress_percent || 0;
           const currentTaskProgress = status.current_task_progress || 0;
           
-          // 根据任务坐标和当前位置计算进度
+          // 从后端API获取精确的点数进度
           let pct = 0;
           let displayText = '';
           
-          if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
-            // 当坐标数据可用时，使用点数格式
+          // 优先使用后端提供的点数数据（更准确）
+          if (status.singleTotalPoints !== undefined && status.singleProcessedPoints !== undefined) {
+            singleTotalPoints = status.singleTotalPoints;
+            singleProcessedPoints = status.singleProcessedPoints;
+            pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+            displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+          } else if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
+            // 降级方案：从前端计算（当后端数据不可用时）
             singleTotalPoints = currentRunData.run_coords.length;
             
             if (status.current_position) {
@@ -8750,12 +8756,18 @@
             const progressPercent = status.progress_percent || 0;
             const currentTaskProgress = status.current_task_progress || 0;
             
-            // 根据任务坐标和当前位置计算进度
+            // 从后端API获取精确的点数进度
             let pct = 0;
             let displayText = '';
             
-            if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
-              // 当坐标数据可用时，使用点数格式
+            // 优先使用后端提供的点数数据（更准确）
+            if (status.singleTotalPoints !== undefined && status.singleProcessedPoints !== undefined) {
+              singleTotalPoints = status.singleTotalPoints;
+              singleProcessedPoints = status.singleProcessedPoints;
+              pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+            } else if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
+              // 降级方案：从前端计算（当后端数据不可用时）
               singleTotalPoints = currentRunData.run_coords.length;
               
               if (status.current_position) {

@@ -7738,7 +7738,9 @@ class BackgroundTaskManager:
                 'start_time': time.time(),
                 'last_update': time.time(),
                 'progress_percent': 0,
-                'current_task_progress': 0
+                'current_task_progress': 0,
+                'singleProcessedPoints': 0,  # 已处理的GPS点数
+                'singleTotalPoints': 0  # 总GPS点数
             }
             
             self.tasks[session_id] = task_state
@@ -7976,8 +7978,12 @@ class BackgroundTaskManager:
                                 task_state['current_task_progress'] = current_progress
                                 task_state['last_update'] = time.time()
                                 
-                                # Add real-time position data
+                                # 添加点数进度信息（供前端直接使用）
                                 current_idx = run_data.current_point_index
+                                task_state['singleProcessedPoints'] = current_idx
+                                task_state['singleTotalPoints'] = total_points
+                                
+                                # Add real-time position data
                                 if current_idx > 0 and current_idx <= total_points:
                                     coord = run_data.run_coords[current_idx - 1]
                                     task_state['current_position'] = {
