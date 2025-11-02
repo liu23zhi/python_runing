@@ -7967,7 +7967,8 @@ class BackgroundTaskManager:
                                         'lon': coord[0],
                                         'lat': coord[1],
                                         'distance': getattr(run_data, 'distance_covered_m', 0),
-                                        'target_sequence': getattr(run_data, 'target_sequence', 0)
+                                        'target_sequence': getattr(run_data, 'target_sequence', 0),
+                                        'point_index': current_idx  # Add point index for frontend progress calculation
                                     }
                         
                         # 每5秒保存一次状态
