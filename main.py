@@ -10007,7 +10007,110 @@ def start_web_server(args_param):
     @app.route('/auth/switch_session', methods=['POST'])
     def auth_switch_session():
         """
-        切换会话时，为目标会话刷新/生成 token 并更新 cookie
+        会话切换API - 在多标签页间切换时更新认证token和cookie。
+        
+        功能说明：
+        - 支持同一用户在多个浏览器标签页间无缝切换
+        - 为目标会话生成新的token
+        - 更新浏览器cookie以匹配目标会话
+        - 预加载目标会话状态（如果存在）
+        
+        应用场景：
+        - 用户在标签页A登录后，打开标签页B
+        - 用户从会话列表中选择要切换到的会话
+        - 多窗口协作（如同时查看不同任务）
+        
+        请求格式：
+        - 方法：POST
+        - 路径：/auth/switch_session
+        - 请求头：
+          * X-Session-ID: 当前活动窗口的会话ID（必需）
+          * Cookie: auth_token=...（用于验证身份）
+        - 请求体：
+          {
+            "target_session_id": "目标会话的UUID"
+          }
+        
+        响应格式：
+        {
+          "success": true/false,
+          "message": "成功/错误信息",
+          "need_login": true（仅当token失效时）
+        }
+        
+        响应头：
+        - Set-Cookie: auth_token=新token; Max-Age=3600; HttpOnly; SameSite=Lax
+        
+        处理流程（5步）：
+        1. 验证当前用户身份：
+           - 从current_session_id获取用户名
+           - 检查是否为游客（游客不支持切换）
+           - 验证is_authenticated状态
+        
+        2. 验证当前token有效性：
+           - 从cookie读取auth_token
+           - 调用token_manager.verify_token()验证
+           - 如果失效，返回401并要求重新登录
+        
+        3. 为目标会话生成新token：
+           - 调用token_manager.create_token()
+           - 新token关联到target_session_id
+           - 记录切换事件到日志
+        
+        4. 更新cookie：
+           - 设置新的auth_token cookie
+           - 1小时过期时间
+           - HttpOnly防止XSS攻击
+           - SameSite=Lax防止CSRF
+        
+        5. 预加载目标会话状态（可选但推荐）：
+           - 从文件加载目标会话的历史状态
+           - 如果成功，创建Api实例并恢复
+           - 如果失败，前端访问时会创建新会话
+        
+        安全特性：
+        - **双重验证**：既验证session_id又验证token
+        - **游客限制**：游客用户不允许切换会话
+        - **Token刷新**：即使目标已有token，也生成新的
+        - **自动清理**：无效token会自动清除cookie
+        - **线程安全**：web_sessions_lock保护并发访问
+        
+        错误情况：
+        - 缺少参数：返回400错误
+        - 未登录或游客：返回401错误
+        - Token失效：返回401并清除cookie，设置need_login=true
+        - 目标会话不存在：仍然成功（前端访问时创建）
+        
+        设计考虑：
+        - **为什么生成新token**：
+          * 增强安全性，每次切换都是新的认证
+          * 避免token复用导致的安全问题
+          * 便于追踪用户的会话切换行为
+        
+        - **为什么预加载状态**：
+          * 提升用户体验，减少加载时间
+          * 但即使失败也不影响功能
+          * 前端路由会处理会话创建
+        
+        注意：
+        - 切换后前端应导航到 /uuid=<target_session_id>
+        - 旧标签页的会话不会被销毁（用户可能返回）
+        - 每个会话都有独立的状态和数据
+        - Token有效期1小时，过期需重新登录
+        
+        与单会话强制的关系：
+        - 此功能允许同一用户多会话并存
+        - 单会话强制针对的是"并发登录设备数"
+        - 会话切换是在已允许的设备内切换
+        
+        使用流程示例：
+        1. 用户在标签A登录（会话ID: session-A）
+        2. 用户打开标签B（自动分配会话ID: session-B）
+        3. 用户在标签B点击"切换到会话A"
+        4. 调用此API，target_session_id=session-A
+        5. 服务器生成新token for session-A
+        6. 标签B的cookie更新为新token
+        7. 标签B导航到/uuid=session-A，成功接管会话A的状态
         """
         current_session_id = request.headers.get(
             'X-Session-ID', '')  # 当前活动窗口的 Session ID
