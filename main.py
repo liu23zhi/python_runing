@@ -7564,6 +7564,23 @@ def restore_session_to_api_instance(api_instance, state):
         if 'user_settings' in state:
             api_instance.user_settings = state['user_settings']
 
+        # 恢复自动签到后台线程 (如果启用)
+        # 单账号模式
+        if not api_instance.is_multi_account_mode and api_instance.params.get("auto_attendance_enabled", False):
+            api_instance.stop_auto_refresh.clear()
+            api_instance.auto_refresh_thread = threading.Thread(
+                target=api_instance._auto_refresh_worker, daemon=True)
+            api_instance.auto_refresh_thread.start()
+            logging.info(f"会话恢复: 已重启单账号自动签到后台线程")
+        
+        # 多账号模式
+        if api_instance.is_multi_account_mode and api_instance.global_params.get("auto_attendance_enabled", False):
+            api_instance.stop_multi_auto_refresh.clear()
+            api_instance.multi_auto_refresh_thread = threading.Thread(
+                target=api_instance._multi_auto_attendance_worker, daemon=True)
+            api_instance.multi_auto_refresh_thread.start()
+            logging.info(f"会话恢复: 已重启多账号自动签到后台线程")
+
         logging.info(
             f"会话状态恢复完成: 任务数={len(api_instance.all_run_data)}, 选中索引={api_instance.current_run_idx}, 多账号模式={api_instance.is_multi_account_mode}")
 
