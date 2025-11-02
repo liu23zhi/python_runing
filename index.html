@@ -8666,6 +8666,21 @@
           }
           
           updateSingleProgress(pct, displayText);
+          
+          // 更新实时时间和距离（从后端API获取）
+          if (status.elapsed_time_s !== undefined) {
+            runAccumulatedMs = status.elapsed_time_s * 1000;  // 转换为毫秒
+          }
+          if (status.current_distance_m !== undefined && currentRunData) {
+            currentRunData.distance_covered_m = status.current_distance_m;
+          }
+          if (status.checked_targets_count !== undefined && currentRunData) {
+            currentRunData.target_sequence = status.checked_targets_count;
+          }
+          
+          // 更新仪表板显示
+          updateDashboard();
+          
           // Update real-time position on map if available
           if (status.current_position) {
             const pos = status.current_position;
@@ -8840,6 +8855,20 @@
             }
             
             updateSingleProgress(pct, displayText);
+            
+            // 更新实时时间和距离（从后端API获取）
+            if (status.elapsed_time_s !== undefined) {
+              runAccumulatedMs = status.elapsed_time_s * 1000;  // 转换为毫秒
+            }
+            if (status.current_distance_m !== undefined && currentRunData) {
+              currentRunData.distance_covered_m = status.current_distance_m;
+            }
+            if (status.checked_targets_count !== undefined && currentRunData) {
+              currentRunData.target_sequence = status.checked_targets_count;
+            }
+            
+            // 更新仪表板显示
+            updateDashboard();
             
             // Restore runner position on map if available
             if (status.current_position) {
