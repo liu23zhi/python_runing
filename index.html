@@ -6296,6 +6296,14 @@
           // 优先使用学校登录的用户信息，如果没有则使用会话中保存的离线模式用户数据
           currentUserData = initialData.userInfo || (sessionModeInfo && sessionModeInfo.user_data) || {};
 
+          if (initialData.device_ua) {
+            currentSessionUA = initialData.device_ua;
+            logMessage_Info(`[会话恢复] 成功恢复 User-Agent: ${currentSessionUA.substring(0, 50)}...`);
+          } else {
+            logMessage_Warning("[会话恢复] 未能从 initialData 中恢复 User-Agent。");
+            currentSessionUA = "NULL (Restored)"; // 至少提供一个非空值以示区别
+          }
+
           hideLoadingOverlays();
           // 恢复会话时确保API Key已配置并加载地图
           AMAP_API_KEY = initialData.amap_key || "";
@@ -6551,6 +6559,68 @@
           logMessage(data.msg, 'INFO', 'Backend');
         }
       });
+
+      // ===============================================
+      // === 监听后端推送的UI更新事件 ===
+      // ===============================================
+
+      // 监听多账号卡片内容更新
+      socket.on('multi_status_update', (data) => {
+        if (data && data.username && data.data) {
+          // logMessage_Debug(`[Socket] 收到 ${data.username} 状态更新`);
+          multi_updateAccountStatus(data.username, data.data);
+        }
+      });
+
+      // 监听多账号列表结构更新 (例如：添加账号后)
+      socket.on('accounts_updated', (data) => {
+        if (data && data.accounts) {
+          logMessage_Info(`[Socket] 收到账号列表更新，共 ${data.accounts.length} 个账号`);
+          onAccountsUpdated(data.accounts); // onAccountsUpdated 会调用 renderMultiAccountList
+        }
+      });
+
+      // 监听多账号全局按钮状态更新
+      socket.on('multi_global_buttons_update', (data) => {
+        if (data) {
+          // logMessage_Debug(`[Socket] 收到全局按钮状态更新`);
+          updateMultiGlobalButtons(data.start_disabled, data.stop_disabled);
+          // 单独处理退出按钮
+          const exitBtn = document.getElementById("exit-multi-mode-btn");
+          if (exitBtn) {
+              exitBtn.disabled = !!data.exit_disabled;
+          }
+        }
+      });
+
+      // 监听单账号跑步机位置更新
+      socket.on('runner_position_update', (data) => {
+          if (data) {
+              updateRunnerPosition(data.lon, data.lat, data.distance, data.target_sequence, data.duration, data.center_now);
+          }
+      });
+
+      // 监听单账号任务完成
+      socket.on('task_completed', (data) => {
+          if (data && typeof data.task_index !== 'undefined') {
+              onTaskCompleted(data.task_index);
+          }
+      });
+
+      // 监听单账号跑步停止
+      socket.on('run_stopped', () => {
+          onRunStopped();
+      });
+      // 监听后台推送的通知更新
+          socket.on('onNotificationsUpdated', (data) => {
+              logMessage_Info("[Socket] 收到后台推送的通知更新");
+              // data 就是 get_notifications 返回的完整 result 对象
+              if (data && data.success) {
+                  // 调用现有的JS函数来处理数据并更新UI
+                  onNotificationsUpdated(data);
+              }
+          });
+
     }
 
 
@@ -7075,8 +7145,16 @@
       e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
       showTaskDetails();
     });
-    $('auto-gen-button').addEventListener('click', () => $('auto-gen-modal').classList.remove('hidden'));
-    $('cancel-gen-button').addEventListener('click', () => $('auto-gen-modal').classList.add('hidden'));
+    $('auto-gen-button').addEventListener('click', () => {
+      $('auto-gen-modal').classList.remove('hidden');
+      $('auto-gen-modal').classList.add('flex'); // 确保居中
+      document.body.classList.add('modal-visible'); // 隐藏Logo
+    });
+    $('cancel-gen-button').addEventListener('click', () => {
+      $('auto-gen-modal').classList.add('hidden');
+      $('auto-gen-modal').classList.remove('flex'); // 移除居中
+      document.body.classList.remove('modal-visible'); // 恢复Logo
+    });
     $('confirm-gen-button').addEventListener('click', onConfirmAutoGenerate);
 
     // --- 绑定通知按钮 ---
@@ -9047,7 +9125,12 @@
     async function onConfirmAutoGenerate() {
       const minTime = parseInt($('min-time-input').value), maxTime = parseInt($('max-time-input').value), minDist = parseInt($('min-dist-input').value);
       if (minTime > maxTime) { showModalAlert("最短时间不能大于最长时间"); return; }
+      // $('auto-gen-modal').classList.add('hidden'); // <-- 旧代码
+      // 修复：使用与“取消”按钮相同的逻辑关闭模态框
       $('auto-gen-modal').classList.add('hidden');
+      $('auto-gen-modal').classList.remove('flex'); // 移除居中
+      document.body.classList.remove('modal-visible'); // 恢复Logo
+
       if (selectedTaskIndex === -1 || !currentRunData.target_points || currentRunData.target_points.length === 0) { showModalAlert("请先选择一个有打卡点的任务"); return; }
       logMessage_Info("正在调用高德地图API进行路径规划...");
       try {

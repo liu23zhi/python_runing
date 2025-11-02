@@ -2688,6 +2688,7 @@ class Api:
         """将日志消息通过 WebSocket 发送到前端界面显示"""
         # 尝试获取当前 Api 实例关联的 session_id
         session_id = getattr(self, '_web_session_id', None)
+        logging.info(message)
         if session_id and socketio:
             try:
                 # 使用 session_id 作为房间名，确保消息只发给对应的浏览器标签页
@@ -3139,11 +3140,13 @@ class Api:
             auth_group = getattr(self, 'auth_group', 'guest')
             is_guest = getattr(self, 'is_guest', False)
 
-            return {
+            # [代码片段 2.1：替换掉旧的 return 语句]
+            # 构造返回字典
+            response_data = {
                 "success": True,
                 "users": users,
                 "lastUser": last_user,
-                "amap_key": self.global_params.get('amap_js_key', ''),
+                "amap_key": self.global_params.get('amap_js_key', ''), # 确保使用 amap_js_key
                 "isLoggedIn": is_logged_in,
                 "userInfo": user_info,
                 "is_authenticated": is_authenticated,
@@ -3151,6 +3154,16 @@ class Api:
                 "auth_group": auth_group,
                 "is_guest": is_guest
             }
+
+            # [BUG 2 修复] 如果是已登录状态（会话恢复），则从实例中提取 device_ua
+            # (注意：self.device_ua 是在 restore_session_to_api_instance 中被恢复的)
+            if is_logged_in and hasattr(self, 'device_ua'):
+                response_data['device_ua'] = self.device_ua
+
+            logging.debug(
+                f"Initial data response prepared: users={len(users)}, last user={last_user}, logged_in={is_logged_in}, ua_sent={response_data.get('device_ua') is not None}")
+
+            return response_data
         except Exception as e:
             self.is_offline_mode = True
             return {
@@ -4007,10 +4020,15 @@ class Api:
                     log_func("任务已确认完成。")
                     logging.info(
                         f"Task completed successfully: {run_data.run_name}")
-                    # task_index为-1表示在多账号模式下，不需要更新单用户UI
-                    if self.window and task_index != -1:
-                        self.window.evaluate_js(
-                            f"onTaskCompleted({task_index})")
+                    # 修正：使用 SocketIO 发送 task_completed 事件
+                    session_id = getattr(self, '_web_session_id', None)
+                    if socketio and session_id and task_index != -1:
+                        try:
+                            socketio.emit('task_completed', {
+                                'task_index': task_index
+                            }, room=session_id)
+                        except Exception as e:
+                            logging.error(f"SocketIO emit 'task_completed' failed: {e}")
                     return
             time.sleep(1)
         log_func("暂未确认完成，请稍后刷新。")
@@ -4077,13 +4095,21 @@ class Api:
                         except Exception as e:
                             logging.error(f"任务执行中自动保存会话失败: {e}")
 
-                    if self.window and self.current_run_idx == task_index:
+                    # 修正：使用 SocketIO 发送 runner_position_update 事件
+                    session_id = getattr(self, '_web_session_id', None)
+                    if socketio and session_id and self.current_run_idx == task_index:
                         center_now = False
                         if not self._first_center_done:
                             center_now = True
                             self._first_center_done = True
-                        self.window.evaluate_js(
-                            f'updateRunnerPosition({lon}, {lat}, {run_data.distance_covered_m}, {run_data.target_sequence}, {dur_ms}, {str(center_now).lower()})')
+                        try:
+                            socketio.emit('runner_position_update', {
+                                'lon': lon, 'lat': lat, 'distance': run_data.distance_covered_m,
+                                'target_sequence': run_data.target_sequence, 'duration': dur_ms,
+                                'center_now': center_now
+                            }, room=session_id)
+                        except Exception as e:
+                            logging.error(f"SocketIO emit 'runner_position_update' failed: {e}")
 
                 if stop_flag.is_set():
                     break
@@ -4143,8 +4169,13 @@ class Api:
                     # 正常完成，设置停止标志以允许新任务开始
                     self.stop_run_flag.set()
                     logging.info(f"任务正常完成，重置停止标志")
-                if self.window:
-                    self.window.evaluate_js('onRunStopped()')
+                # 修正：使用 SocketIO 发送 run_stopped 事件
+                session_id = getattr(self, '_web_session_id', None)
+                if socketio and session_id:
+                    try:
+                        socketio.emit('run_stopped', {}, room=session_id)
+                    except Exception as e:
+                        logging.error(f"SocketIO emit 'run_stopped' failed: {e}")
             if finished_event:
                 finished_event.set()
             logging.info(
@@ -5034,15 +5065,18 @@ class Api:
         self.log(f"已添加账号: {username}")
         # 添加账号后立即刷新“全部开始/全部停止”按钮状态
         self._update_multi_global_buttons()
-        try:
-            if self.window:
+        
+        # 修正：使用 SocketIO 向特定会话发送“列表已更新”事件
+        session_id = getattr(self, '_web_session_id', None)
+        if session_id and socketio:
+            try:
                 current_accounts = self.multi_get_all_accounts_status().get("accounts", [])
-                self.window.evaluate_js(
-                    f'onAccountsUpdated({json.dumps(current_accounts)})'
-                )
-        except Exception:
-            logging.debug(
-                "Push accounts update to front-end failed (non-fatal).")
+                # 发送一个自定义事件 'accounts_updated'，前端JS需要监听这个事件
+                socketio.emit('accounts_updated', {
+                    'accounts': current_accounts
+                }, room=session_id)
+            except Exception as e:
+                logging.error(f"SocketIO emit 'accounts_updated' failed: {e}")
 
         # 为“刚添加的账号”立即启动刷新线程（自动登录 + 拉摘要）
         try:
@@ -5700,90 +5734,107 @@ class Api:
         return {"success": True}
 
     def _update_account_status_js(self, acc: AccountSession, status_text: str = None, summary: dict = None, name: str = None,
-                                  progress_pct: int | None = None, progress_text: str | None = None, progress_extra: str | None = None):
-        """一个辅助函数，用于向前端发送状态更新"""
-        if not self.window:
-            return
-        update_data = {}
-        if status_text is not None:
-            acc.status_text = status_text
-            update_data['status_text'] = status_text
-        if summary is not None:
-            acc.summary = summary
-            update_data['summary'] = summary
-        if name is not None:
-            update_data['name'] = name
+                                      progress_pct: int | None = None, progress_text: str | None = None, progress_extra: str | None = None):
+            """一个辅助函数，用于向前端发送状态更新"""
+            # 修正：使用 SocketIO 向特定会话发送更新，而不是 self.window
+            session_id = getattr(self, '_web_session_id', None)
+            if not session_id or not socketio:
+                logging.debug(f"Skipping _update_account_status_js for {acc.username}: No session_id or socketio")
+                return  # 如果没有会话ID或socketio未初始化，则无法发送
 
-        # 进度条更新
-        if progress_pct is not None:
-            update_data['progress_pct'] = int(progress_pct)
-        if progress_text is not None:
-            update_data['progress_text'] = progress_text
-        if progress_extra is not None:
-            update_data['progress_extra'] = progress_extra
+            update_data = {}
+            if status_text is not None:
+                acc.status_text = status_text
+                update_data['status_text'] = status_text
+            if summary is not None:
+                acc.summary = summary
+                update_data['summary'] = summary
+            if name is not None:
+                update_data['name'] = name
 
-        if update_data:
-            self.window.evaluate_js(
-                f'multi_updateAccountStatus("{acc.username}", {json.dumps(update_data)})')
-        self._update_multi_global_buttons()
+            # 进度条更新
+            if progress_pct is not None:
+                update_data['progress_pct'] = int(progress_pct)
+            if progress_text is not None:
+                update_data['progress_text'] = progress_text
+            if progress_extra is not None:
+                update_data['progress_extra'] = progress_extra
+
+            if update_data:
+                try:
+                    # 发送一个自定义事件到该 session_id 对应的房间
+                    socketio.emit('multi_status_update', {
+                        'username': acc.username,
+                        'data': update_data
+                    }, room=session_id)
+                except Exception as e:
+                    logging.error(f"SocketIO emit 'multi_status_update' failed: {e}")
+            
+            # _update_multi_global_buttons 也需要用 socketio
+            self._update_multi_global_buttons()
 
     def _update_multi_global_buttons(self):
-        """根据当前多账号状态刷新“全部开始/全部停止/返回登录页”按钮的可用性"""
-        if not self.window:
-            return
+            """根据当前多账号状态刷新“全部开始/全部停止/返回登录页”按钮的可用性"""
+            # 修正：使用 SocketIO 向特定会话发送更新
+            session_id = getattr(self, '_web_session_id', None)
+            if not session_id or not socketio:
+                logging.debug("Skipping _update_multi_global_buttons: No session_id or socketio")
+                return
 
-        # 仅统计仍有任务可执行的账号（active）
-        active_accounts = []
-        for acc in self.accounts.values():
-            total = acc.summary.get("total", 0)
-            expired = acc.summary.get("expired", 0)
-            not_started = acc.summary.get("not_started", 0)
-            executable = acc.summary.get("executable", 0)
-            # 候选任务：已开始且未截止（无论是否已完成）
-            candidates = max(0, total - expired - not_started)
-            has_tasks = (executable > 0) if self.multi_run_only_incomplete else (
-                candidates > 0)
-            if has_tasks:
-                active_accounts.append(acc)
+            # 仅统计仍有任务可执行的账号（active）
+            active_accounts = []
+            for acc in self.accounts.values():
+                total = acc.summary.get("total", 0)
+                expired = acc.summary.get("expired", 0)
+                not_started = acc.summary.get("not_started", 0)
+                executable = acc.summary.get("executable", 0)
+                # 候选任务：已开始且未截止（无论是否已完成）
+                candidates = max(0, total - expired - not_started)
+                has_tasks = (executable > 0) if self.multi_run_only_incomplete else (
+                    candidates > 0)
+                if has_tasks:
+                    active_accounts.append(acc)
 
-        total_active = len(active_accounts)
-        running_count = sum(
-            1 for acc in active_accounts
-            if acc.worker_thread and acc.worker_thread.is_alive()
-        )
+            total_active = len(active_accounts)
+            running_count = sum(
+                1 for acc in active_accounts
+                if acc.worker_thread and acc.worker_thread.is_alive()
+            )
 
-        # 四种状态规则：
-        # 1) 无账号 或 无active账号：start=禁用, stop=禁用, exit=启用
-        # 2) 有active且不是全部在运行：start=启用, stop=启用, exit=禁用
-        # 3) 全部active都在运行：start=禁用, stop=启用, exit=禁用
-        if total_active == 0:
-            # 无账号或无可执行任务
-            start_disabled = True
-            stop_disabled = True
-            exit_disabled = False
-        elif running_count == 0:
-            # 有账号但没有任何账号在执行任务
-            start_disabled = False
-            stop_disabled = True
-            exit_disabled = False
-        elif running_count == total_active:
-            # 全部 active 账号都在运行
-            start_disabled = True
-            stop_disabled = False
-            exit_disabled = True
-        else:
-            # 部分账号在运行
-            start_disabled = False
-            stop_disabled = False
-            exit_disabled = True
+            # 四种状态规则：
+            # 1) 无账号 或 无active账号：start=禁用, stop=禁用, exit=启用
+            # 2) 有active且不是全部在运行：start=启用, stop=启用, exit=禁用
+            # 3) 全部active都在运行：start=禁用, stop=启用, exit=禁用
+            if total_active == 0:
+                # 无账号或无可执行任务
+                start_disabled = True
+                stop_disabled = True
+                exit_disabled = False
+            elif running_count == 0:
+                # 有账号但没有任何账号在执行任务
+                start_disabled = False
+                stop_disabled = True
+                exit_disabled = False
+            elif running_count == total_active:
+                # 全部 active 账号都在运行
+                start_disabled = True
+                stop_disabled = False
+                exit_disabled = True
+            else:
+                # 部分账号在运行
+                start_disabled = False
+                stop_disabled = False
+                exit_disabled = True
 
-        # 推送到前端
-        self.window.evaluate_js(
-            f'updateMultiGlobalButtons({str(start_disabled).lower()}, {str(stop_disabled).lower()})'
-        )
-        self.window.evaluate_js(
-            f'document.getElementById("exit-multi-mode-btn").disabled = {str(exit_disabled).lower()}'
-        )
+            # 推送到前端
+            try:
+                socketio.emit('multi_global_buttons_update', {
+                    'start_disabled': start_disabled,
+                    'stop_disabled': stop_disabled,
+                    'exit_disabled': exit_disabled
+                }, room=session_id)
+            except Exception as e:
+                logging.error(f"SocketIO emit 'multi_global_buttons_update' failed: {e}")
 
     def _queued_login(self, acc: AccountSession, respect_global_stop: bool = True) -> dict | None:
         """
@@ -6742,7 +6793,7 @@ class Api:
 
     def _auto_refresh_worker(self):
         """(单账号) 后台自动刷新通知的线程"""
-        while not self.stop_auto_refresh.wait(timeout=1.0):  # 1秒检查一次停止信号
+        while not self.stop_auto_refresh.is_set():  # 1秒检查一次停止信号
             try:
                 is_enabled = self.params.get("auto_attendance_enabled", False)
 
@@ -6768,27 +6819,45 @@ class Api:
                     "auto_attendance_refresh_s")
 
                 self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
+
                 if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
                     break
 
                 if (self.is_multi_account_mode or not self.user_data.id):
                     continue
 
-                # 1. 执行自动签到 (不再需要 if is_enabled 检查，因为上面已保证)
+                # 1. 执行自动签到
                 self._check_and_trigger_auto_attendance(self)
 
                 # 2. 获取通知并推送到UI
                 self.log("正在自动刷新通知 (后台)...")
                 result = self.get_notifications(is_auto_refresh=False)
 
-                if result.get('success') and self.window:
-                    self.window.evaluate_js(
-                        f'onNotificationsUpdated({json.dumps(result)})')
+                # [BUG 修复]：替换 self.window 为 socketio.emit
+                if result.get('success'):
+                    # 修复：使用 SocketIO 向特定会话推送更新，而不是 self.window
+                    session_id = getattr(self, '_web_session_id', None)
+                    # 确保 socketio 变量在全局可用 (它在 start_web_server 中定义)
+                    if session_id and 'socketio' in globals():
+                        try:
+                            # 发送一个自定义事件，前端JS需要监听这个事件
+                            globals()['socketio'].emit('onNotificationsUpdated', result, room=session_id)
+                            logging.debug(f"[_auto_refresh_worker] 已向会话 {session_id[:8]} 推送通知更新")
+                        except Exception as e:
+                            logging.error(f"[_auto_refresh_worker] SocketIO推送通知失败: {e}", exc_info=True)
+                    elif not session_id:
+                         logging.warning(f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
+                    else:
+                         logging.warning(f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
+                
 
             except Exception as e:
                 self.log(f"自动刷新线程出错: {e}")
                 logging.error(f"Auto-refresh worker error: {e}", exc_info=True)
-                time.sleep(60)
+                # time.sleep(60)
+                # 修复：使用 wait() 替换 time.sleep() 以便能被立即停止
+                if self.stop_auto_refresh.wait(timeout=60):
+                    break # 如果在等待时收到停止信号，则退出循环
 
         logging.info("Auto-refresh worker stopped.")
 
@@ -7327,11 +7396,19 @@ def save_session_state(session_id, api_instance, force_save=False):
                     loaded_tasks.append(task_dict)
                 state['loaded_tasks'] = loaded_tasks
 
-            # 增强：保存运行状态
+            # 保存运行状态
             state['is_offline_mode'] = getattr(
                 api_instance, 'is_offline_mode', False)
             
-            # 增强：保存多账号模式状态
+            if hasattr(api_instance, 'api_client') and api_instance.api_client.session.cookies:
+                try:
+                    # 将 CookieJar 转换为可序列化的字典
+                    state['api_cookies'] = requests.utils.dict_from_cookiejar(api_instance.api_client.session.cookies)
+                    logging.debug(f"会话保存: 正在保存 {len(state['api_cookies'])} 个 API Cookies...")
+                except Exception as e:
+                    logging.warning(f"会话保存: 保存 API Cookies 失败: {e}")
+            
+            # 保存多账号模式状态
             state['is_multi_account_mode'] = getattr(api_instance, 'is_multi_account_mode', False)
             
             # 如果是多账号模式，保存多账号相关信息
@@ -7603,6 +7680,16 @@ def restore_session_to_api_instance(api_instance, state):
         # 恢复用户设置
         if 'user_settings' in state:
             api_instance.user_settings = state['user_settings']
+
+        # 恢复 API Client Cookies (用于拉取通知等)
+        if 'api_cookies' in state and state['api_cookies']:
+            try:
+                cookies_dict = state['api_cookies']
+                # 将 cookie 字典加载回 session
+                api_instance.api_client.session.cookies = requests.utils.cookiejar_from_dict(cookies_dict)
+                logging.info(f"会话恢复: 成功恢复 {len(cookies_dict)} 个 API Cookies (shiroCookie等)。")
+            except Exception as e:
+                logging.warning(f"会话恢复: 恢复 API Cookies 失败: {e}")
 
         # 恢复自动签到后台线程 (如果启用)
         # 单账号模式
@@ -8311,6 +8398,84 @@ def _cleanup_playwright():
     else:
         logging.debug("Playwright 池未初始化，无需清理。")
 
+def start_background_auto_attendance(args):
+    """
+    在服务器启动时扫描所有.ini文件，为启用自动签到的账号启动后台工作线程。
+    这将创建一个独立的 "service_api" 实例在后台运行。
+    """
+    try:
+        logging.info("正在启动后台自动签到服务...")
+        
+        # 1. 创建一个专用于后台服务的 Api 实例
+        # 这个实例不与任何 web_session 关联
+        service_api = Api(args)
+        service_api.is_multi_account_mode = True
+        
+        # 2. 加载全局配置（例如，全局刷新间隔）
+        service_api._load_global_config()
+        
+        # 3. 强制启用此服务实例的“全局自动签到”开关
+        # _multi_auto_attendance_worker 会检查这个全局标志
+        service_api.global_params["auto_attendance_enabled"] = True
+        
+        accounts_dir = SCHOOL_ACCOUNTS_DIR
+        loaded_count = 0
+        
+        if not os.path.exists(accounts_dir):
+            logging.warning(f"后台签到：未找到账号目录 {accounts_dir}，跳过。")
+            return
+
+        # 4. 扫描所有 .ini 配置文件
+        for filename in os.listdir(accounts_dir):
+            if filename.endswith(".ini"):
+                username = os.path.splitext(filename)[0]
+                try:
+                    # 5. 为每个账号创建会话
+                    # 传入 service_api 作为 api_bridge
+                    acc_session = AccountSession(username, "", service_api)
+                    
+                    # 6. 加载该账号的配置
+                    # _load_config 会自动填充 acc_session.params
+                    password = acc_session.api_bridge._load_config(username)
+                    acc_session.password = password or ""
+
+                    if not acc_session.password:
+                        logging.warning(f"后台签到：跳过账号 {username}，因为未在 {filename} 中找到密码。")
+                        continue
+                        
+                    # 7. 检查该账号自己的参数是否启用了自动签到
+                    if acc_session.params.get("auto_attendance_enabled", False):
+                        logging.info(f"后台签到：找到启用自动签到的账号: {username}")
+                        service_api.accounts[username] = acc_session
+                        loaded_count += 1
+                    else:
+                        logging.debug(f"后台签到：账号 {username} 未启用自动签到，跳过。")
+                        
+                except Exception as e:
+                    logging.error(f"后台签到：加载账号 {username} 失败: {e}", exc_info=True)
+
+        # 8. 如果有账号需要自动签到，启动服务实例的工作线程
+        if loaded_count > 0:
+            logging.info(f"后台签到：共加载 {loaded_count} 个账号，启动工作线程...")
+            
+            # 启动 _multi_auto_attendance_worker 线程
+            service_api.stop_multi_auto_refresh.clear()
+            service_api.multi_auto_refresh_thread = threading.Thread(
+                target=service_api._multi_auto_attendance_worker,
+                daemon=True,
+                name="BackgroundAttendanceWorker" # 命名线程以便调试
+            )
+            service_api.multi_auto_refresh_thread.start()
+            
+            # (重要) 我们必须保持 service_api 实例存活
+            # 我们可以将其附加到一个全局变量，防止它被垃圾回收
+            globals()['_background_service_api'] = service_api
+            
+        else:
+            logging.info("后台签到：未找到启用自动签到的账号。")
+            
+    except Exception as e:
+        logging.error(f"启动后台自动签到服务时发生严重错误: {e}", exc_info=True)
 
 def start_web_server(args_param):
     """启动Flask Web服务器，使用服务器端Chrome进行JS渲染"""
@@ -10965,6 +11130,13 @@ def start_web_server(args_param):
     logging.info("正在启动会话监控...")
     start_session_monitor()
 
+    # 扫描 .ini 文件，为已配置的账号启动服务
+    # 这必须在加载会话之后，但在启动Web服务器（阻塞）之前
+    try:
+        start_background_auto_attendance(args)
+    except Exception as e:
+        logging.error(f"启动后台自动签到服务失败: {e}", exc_info=True)
+
     cleaned_sessions_count = 0
     with web_sessions_lock:
         for session_id, api_instance in web_sessions.items():
@@ -11048,7 +11220,7 @@ def start_web_server(args_param):
         logging.info("后台任务管理器未初始化或存储目录不存在，跳过持久化状态检查。")
 
 
-    # 清理后台任务管理器的内存状态（但不删除持久化文件）
+    # # 清理后台任务管理器的内存状态（但不删除持久化文件）
     if background_task_manager:
         with background_task_manager.lock:
             initial_task_count = len(background_task_manager.tasks)
