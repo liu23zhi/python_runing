@@ -9406,7 +9406,47 @@ def start_web_server(args_param):
 
     @app.route('/auth/register', methods=['POST'])
     def auth_register():
-        """用户注册"""
+        """
+        用户注册API端点。
+        
+        请求方法：POST
+        请求路径：/auth/register
+        Content-Type：application/json
+        
+        请求体（JSON）：
+        {
+            "auth_username": "用户名",  # 必填，会被trim()处理
+            "auth_password": "密码"     # 必填，会被trim()处理
+        }
+        
+        响应体（JSON）：
+        {
+            "success": true/false,
+            "message": "成功/失败信息"
+        }
+        
+        处理流程：
+        1. 解析JSON请求体（使用 or {} 防止None）
+        2. 提取并trim用户名和密码
+        3. 验证非空（两者都必填）
+        4. 调用auth_system.register_user()执行注册逻辑
+        5. 返回注册结果
+        
+        安全特性：
+        - 密码由AuthSystem内部加密存储（SHA256或明文，取决于配置）
+        - 用户名去除首尾空格，防止输入错误
+        - 所有验证逻辑委托给AuthSystem处理
+        
+        错误情况：
+        - 用户名或密码为空：返回 {"success": false, "message": "用户名和密码不能为空"}
+        - 用户名已存在：由auth_system返回相应错误信息
+        - 其他错误：由auth_system捕获并返回
+        
+        注意：
+        - 此接口不需要认证（公开接口）
+        - 注册成功后用户需要再调用 /auth/login 登录
+        - 默认分组由AuthSystem配置决定
+        """
         data = request.get_json() or {}
         auth_username = data.get('auth_username', '').strip()
         auth_password = data.get('auth_password', '').strip()
@@ -9419,7 +9459,82 @@ def start_web_server(args_param):
 
     @app.route('/auth/login', methods=['POST'])
     def auth_login():
-        """用户登录认证"""
+        """
+        用户登录认证API端点。
+        
+        请求方法：POST
+        请求路径：/auth/login
+        Content-Type：application/json
+        请求头：X-Session-ID: <客户端会话ID>（可选）
+        
+        请求体（JSON）：
+        {
+            "auth_username": "用户名",      # 必填
+            "auth_password": "密码",        # 必填
+            "two_fa_code": "双因素认证码"   # 可选，仅在启用2FA时需要
+        }
+        
+        响应体（JSON）：
+        {
+            "success": true/false,
+            "message": "成功/失败信息",
+            "auth_username": "用户名",
+            "group": "用户组",
+            "is_guest": false
+        }
+        
+        处理流程：
+        1. 解析请求体和请求头（session_id、IP、User-Agent）
+        2. 调用auth_system.authenticate()验证用户凭据
+        3. 验证成功后创建或获取Api实例
+        4. 将认证信息附加到web_sessions
+        5. 执行单会话强制策略（可选，非游客用户）
+        6. 返回认证结果
+        
+        会话管理：
+        - 每个客户端通过X-Session-ID标识唯一会话
+        - 如果session_id已存在，复用现有Api实例
+        - 如果session_id不存在，创建新的Api实例
+        - Api实例包含：
+          * auth_username: 认证用户名
+          * auth_group: 用户组
+          * is_guest: 是否为游客
+          * is_authenticated: 认证状态标志
+          * _session_created_at: 会话创建时间戳
+          * _web_session_id: 关联的会话ID
+        
+        单会话强制策略（仅注册用户）：
+        - check_single_session_enforcement()检查同一用户的活跃会话数
+        - 如果超过限制，返回需要清理的旧会话列表
+        - 使用后台线程异步清理旧会话（不阻塞登录响应）
+        - 清理过程：
+          1. 从web_sessions中移除旧会话
+          2. 尝试关闭旧会话的Api实例资源
+          3. 记录清理结果到日志
+        
+        安全特性：
+        - 密码由AuthSystem验证（支持明文或加密存储）
+        - IP地址和User-Agent用于登录日志和安全审计
+        - 双因素认证支持（如果用户启用）
+        - 会话数量限制防止会话劫持
+        - 所有会话操作都有web_sessions_lock保护（线程安全）
+        
+        双因素认证（2FA）：
+        - 如果用户启用了2FA，必须提供正确的two_fa_code
+        - AuthSystem会验证TOTP代码（Time-based One-Time Password）
+        - 验证失败会拒绝登录
+        
+        错误情况：
+        - 用户名或密码错误：由auth_system返回 {"success": false, "message": "..."}
+        - 2FA代码错误：由auth_system返回相应错误
+        - 内部错误：捕获并返回错误信息
+        
+        注意：
+        - 此接口不需要预先认证（公开接口）
+        - 注释掉的session_id检查代码表明曾经需要会话ID，现在已改为可选
+        - 游客用户不受单会话限制
+        - 旧会话清理是异步的，不影响新登录的响应速度
+        """
         data = request.get_json() or {}
         auth_username = data.get('auth_username', '').strip()
         auth_password = data.get('auth_password', '').strip()
@@ -9427,6 +9542,7 @@ def start_web_server(args_param):
         session_id = request.headers.get('X-Session-ID', '')
 
         # 获取IP和UA
+        # 用于安全审计和登录日志记录
         ip_address = request.remote_addr or ''
         user_agent = request.headers.get('User-Agent', '')
 
@@ -9437,12 +9553,18 @@ def start_web_server(args_param):
         # update_session_activity(session_id)
 
         # 验证用户
+        # authenticate()方法会：
+        # 1. 验证密码（明文或加密比较）
+        # 2. 验证2FA代码（如果启用）
+        # 3. 检查账号状态（是否锁定等）
+        # 4. 记录登录日志（IP、UA、时间、结果）
         auth_result = auth_system.authenticate(
             auth_username, auth_password, ip_address, user_agent, two_fa_code)
         if not auth_result['success']:
             return jsonify(auth_result)
 
         # 将认证信息附加到会话
+        # 使用锁保护web_sessions字典的并发访问
         with web_sessions_lock:
             if session_id in web_sessions:
                 api_instance = web_sessions[session_id]
