@@ -488,6 +488,12 @@
       transform: translateY(-50%);
       /* 强制 hover 时只应用垂直居中 transform */
     }
+    
+    /* --- Bug Fix: 防止 SweetAlert2 弹窗导致页面位移 --- */
+    body.swal2-shown:not(.swal2-toast-shown) {
+      overflow: hidden !important; /* 强制保持 overflow: hidden */
+      padding-right: 0 !important; /* 强制移除 SweetAlert 可能添加的 padding */
+    }
   </style>
 
 </head>
@@ -5815,655 +5821,679 @@
 
     // --- 初始化 ---
     async function initializeApp() {
-      // UUID格式验证函数 - 标准UUID v4格式
-      function isValidUUID(uuid) {
-        const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
-        return uuidPattern.test(uuid);
-      }
-
-      // 隐藏加载覆盖层的通用函数
-      function hideLoadingOverlays() {
-        $('loading-overlay').classList.add('hidden');
-        $('cdn-error-overlay').classList.add('hidden');
-      }
-
-      // 显示用户友好的错误提示
-      function showUserFriendlyError(title, message, isWarning = false) {
-        const type = isWarning ? 'warning' : 'error';
-        Swal.fire({
-          title: title,
-          text: message,
-          icon: type,
-          confirmButtonText: '确定'
-        });
-      }
-
-      $('loading-overlay').classList.remove('hidden');
-
-      // 检测Web模式并提取UUID
-
-      const urlPath = window.location.pathname;
-      // 使用标准UUID v4格式的正则表达式
-      const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
-
-      if (match) {
-        // 情况2：访问含UUID的网址
-        sessionUUID = match[1];
-
-        // 验证UUID格式
-        if (!isValidUUID(sessionUUID)) {
-
-          hideLoadingOverlays();
-          logMessage_Error('无效的UUID格式:', sessionUUID);
-
-          
-          
-          // 使用 Swal.fire 显示错误并等待用户确认
-          Swal.fire({
-            title: '无效的会话', // 弹窗标题
-            text: 'UUID格式不正确\n将跳转到登录页面', // 弹窗消息
-            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-            confirmButtonText: '确定' // 按钮文字
-          }).then(() => {
-            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-            logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
-            window.location.href = '/'; // 执行跳转
-          });
-
-          // showUserFriendlyError('无效的会话', 'UUID格式不正确，将跳转到登录页面', true);
-          // setTimeout(() => {
-          //   window.location.href = '/';
-          // }, 2000);
-          
-
-          return;
-
+      try {
+        // UUID格式验证函数 - 标准UUID v4格式
+        function isValidUUID(uuid) {
+          const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+          return uuidPattern.test(uuid);
         }
+
+        // 隐藏加载覆盖层的通用函数
+        function hideLoadingOverlays() {
+          $('loading-overlay').classList.add('hidden');
+          $('cdn-error-overlay').classList.add('hidden');
+        }
+
+        // 显示用户友好的错误提示
+        function showUserFriendlyError(title, message, isWarning = false) {
+          const type = isWarning ? 'warning' : 'error';
+          Swal.fire({
+            title: title,
+            text: message,
+            icon: type,
+            confirmButtonText: '确定'
+          });
+        }
+
         $('loading-overlay').classList.remove('hidden');
-        logMessage_Info('Web模式: 检测到有效UUID =', sessionUUID);
 
-        // 检查UUID类型
-        try {
-          const response = await fetch('/auth/check_uuid_type', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ uuid: sessionUUID })
-          });
+        // 检测Web模式并提取UUID
 
-          const result = await response.json();
+        const urlPath = window.location.pathname;
+        // 使用标准UUID v4格式的正则表达式
+        const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
 
-          if (!result.success) {
-            logMessage_Error('检查UUID失败:', result.message);
+        if (match) {
+          // 情况2：访问含UUID的网址
+          sessionUUID = match[1];
+
+          // 验证UUID格式
+          if (!isValidUUID(sessionUUID)) {
+
             hideLoadingOverlays();
+            logMessage_Error('无效的UUID格式:', sessionUUID);
 
-            // showUserFriendlyError('会话验证失败', result.message, true);
-            // // 跳转到无UUID网址
-            // setTimeout(() => {
-            //   window.location.href = '/';
-            // }, 2000);
-
-            let message = "无法通过UUID判断会话列席\n将跳转到登录页面"
-            if (result.message !== '') 
-            {
-              message = "无法通过UUID判断会话列席\n"+result.message+"\n将跳转到登录页面"
-            }
-
+            
+            
+            // 使用 Swal.fire 显示错误并等待用户确认
             Swal.fire({
-            title: '无效的会话类型', // 弹窗标题
-            text: message, // 弹窗消息
-            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-            confirmButtonText: '确定' // 按钮文字
-          }).then(() => {
-            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-            logMessage_Info('用户确认检查UUID失败弹窗，正在跳转到登录页面...');
-            window.location.href = '/'; // 执行跳转
-          });
-
-            return;
-          }
-          $('loading-overlay').classList.remove('hidden');
-
-          if (result.uuid_type === 'guest') {
-            // 游客UUID - 直接恢复会话
-            logMessage_Info('检测到游客UUID，直接恢复会话');
-            hideLoadingOverlays(); // 确保隐藏加载遮挡
-            // 继续正常初始化流程
-          } else if (result.uuid_type === 'system_account') {
-            // 系统账号UUID - 允许访问，后端会在API调用时验证token
-            // 注意：auth_token是httponly cookie，JavaScript无法访问，所以前端不做检查
-            logMessage_Info('检测到系统账号UUID，允许访问（后端将验证token）');
-            hideLoadingOverlays(); // 确保隐藏加载遮挡
-            // 继续正常初始化流程
-            // 如果token无效或过期，后端API调用会返回401错误，前端会处理并重定向到登录
-          } else {
-            // 未知UUID - 弹窗提示后跳转到无UUID网址
-            logMessage_Info('检测到未知UUID，准备弹窗提示后跳转到登录页面');
-
-            // 强制设置背景、居中并禁用输入框y
-            const loginContainer = document.getElementById('login-container');
-            const mainApp = document.getElementById('main-app');
-            const multiApp = document.getElementById('multi-account-app');
-            const authContainer = document.getElementById('auth-login-container');
-
-            // 1. 强制隐藏其他容器
-            if (loginContainer) loginContainer.classList.add('hidden');
-            if (mainApp) mainApp.classList.add('hidden');
-            if (multiApp) multiApp.classList.add('hidden');
-
-            // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
-            if (authContainer) {
-              authContainer.classList.remove('hidden');
-              // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
-              authContainer.classList.remove('h-full', 'w-full');
-              // 添加 fixed 定位覆盖全屏和 flex 居中
-              authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
-              // 确保背景可见（有时需要 z-index，但通常不需要）
-              // authContainer.style.zIndex = '10'; // 一般不需要
-            }
-
-            // 3. 禁用 auth-login-container 内的输入框
-            const inputsToDisable = [
-              'auth-username',
-              'auth-password',
-              'auth-reg-username',
-              'auth-reg-password',
-              'auth-reg-password-confirm'
-            ];
-            inputsToDisable.forEach(inputId => {
-              const inputElement = document.getElementById(inputId);
-              if (inputElement) {
-                inputElement.disabled = true;
-                // 可选：添加视觉提示，例如降低透明度
-                // inputElement.style.opacity = '0.7';
-                // inputElement.style.cursor = 'not-allowed';
-              }
-            });
-
-            if (authContainer) authContainer.classList.remove('hidden');
-            // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
-            Swal.fire({
-              title: '会话不存在', // 弹窗标题
-              text: '该会话已过期或不存在，请重新登录', // 弹窗消息
+              title: '无效的会话', // 弹窗标题
+              text: 'UUID格式不正确\n将跳转到登录页面', // 弹窗消息
               icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
               confirmButtonText: '确定' // 按钮文字
             }).then(() => {
               // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-              logMessage_Info('用户确认弹窗，正在跳转到登录页面...');
-              window.location.href = '/';
+              logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
+              window.location.href = '/'; // 执行跳转
             });
+
+            // showUserFriendlyError('无效的会话', 'UUID格式不正确，将跳转到登录页面', true);
+            // setTimeout(() => {
+            //   window.location.href = '/';
+            // }, 2000);
+            
+
             return;
+
           }
-        } catch (e) {
-          logMessage_Error('检查UUID类型失败:', e);
-          hideLoadingOverlays(); // 确保隐藏加载遮挡
-          Swal.fire({
-            title: '网络错误', // 弹窗标题
-            text: '无法验证会话状态，请检查网络连接后重试', // 弹窗消息
-            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-            confirmButtonText: '确定' // 按钮文字
-          }).then(() => {
-            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-            logMessage_Info('用户确认检查UUID类型失败弹窗，正在跳转到登录页面...');
-            window.location.href = '/'; // 执行跳转
-          });
-          // showUserFriendlyError('网络错误', '无法验证会话状态，请检查网络连接后重试');
-          // // 出错时也跳转到无UUID网址
-          // setTimeout(() => {
-          //   window.location.href = '/';
-          // }, 3000);
-          return;
-        }
-      } else {
-        // 情况1：访问不含UUID的网址
-        logMessage_Info('Web模式: 未检测到UUID，显示认证登录页面');
-        //移除加载提示
-        hideLoadingOverlays();
+          $('loading-overlay').classList.remove('hidden');
+          logMessage_Info('Web模式: 检测到有效UUID =', sessionUUID);
 
-        // 显示认证登录界面，等待用户登录/游客模式
-        showAuthLogin();
-        return; // 停止初始化，等待认证完成后重新初始化
-      }
-
-      $('loading-overlay').classList.remove('hidden');
-
-      // 检查认证状态
-      const isAuthenticated = await checkAuthStatus();
-      if (!isAuthenticated) {
-        hideLoadingOverlays(); // 认证失败时隐藏加载遮挡
-        showAuthLogin();
-        return; // 停止初始化，等待认证
-      }
-      $('loading-overlay').classList.remove('hidden');
-
-      // 认证成功，继续初始化
-      // hideLoadingOverlays();
-
-
-      // 标记应用已成功初始化
-      appInitialized = true;
-
-      // 在确认 sessionUUID 有效且应用准备就绪后
-      if (sessionUUID /* && 应用准备就绪的条件 */) {
-        connectWebSocket();
-      }
-
-      // 检查是否有后台任务在运行
-      checkBackgroundTaskOnLoad().catch(err => {
-        logMessage_Warning('检查后台任务失败:', err);
-      });
-
-      // 取消CDN错误定时器（如果还在等待）
-      if (cdnErrorTimer) {
-        clearTimeout(cdnErrorTimer);
-        cdnErrorTimer = null;
-      }
-
-      //移除加载提示
-      // hideLoadingOverlays();
-
-      logMessage_Info('应用初始化成功，CDN资源状态正常或可用替代方案');
-
-      const initialData = await callPythonAPI('get_initial_data');
-
-      currentUserIsGuest = initialData.is_guest || false; // <-- 存储从后端获取的状态
-      logMessage_Info(`initializeApp: currentUserIsGuest = ${currentUserIsGuest}`);
-
-      const userCombo = $('user-combo');
-      userCombo.innerHTML = '<option value="">(新用户)</option>';
-      initialData.users.forEach(user => {
-        const option = document.createElement('option');
-        option.value = option.textContent = user;
-        userCombo.appendChild(option);
-      });
-
-      createParamInputs($('params-container'), 'param', onParamChange);
-      if (initialData.lastUser) userCombo.value = initialData.lastUser;
-      await onUserChange();
-
-      
-      const hasSchoolLogin = initialData.isLoggedIn && initialData.userInfo;
-      const hasSystemAuth = initialData.is_authenticated && !initialData.is_guest;
-      const isGuestMode = initialData.is_authenticated && initialData.is_guest;
-      // const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  // 检查是否有已加载的任务
-
-      // $('loading-overlay').classList.remove('hidden');
-
-      // 检查会话模式（单账号/多账号）
-      let sessionModeInfo = null;
-      try {
-        sessionModeInfo = await callPythonAPI('get_session_mode_info');
-        // logMessage_Info('会话模式信息:', sessionModeInfo);
-      } catch (e) {
-        logMessage_Error('获取会话模式信息失败:', e);
-        hideLoadingOverlays();
-        Swal.fire({
-            title: '网络错误', // 弹窗标题
-            text: '获取会话模式信息失败，请检查网络连接后重试', // 弹窗消息
-            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-            confirmButtonText: '确定' // 按钮文字
-          }).then(() => {
-            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-            logMessage_Info('用户确认获取会话模式信息失败弹窗，正在跳转到登录页面...');
-            window.location.href = '/'; // 执行跳转
-          });
-          return;
-      }
-
-      const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  
-
-      $('loading-overlay').classList.remove('hidden');
-
-      resetUI();
-      
-      // 如果会话之前是多账号模式，直接恢复到多账号模式
-      if (sessionModeInfo && sessionModeInfo.is_multi_account_mode) {
-        logMessage_Info('检测到会话之前处于多账号模式，正在恢复...');
-        
-        // 通知后端进入多账号模式（恢复后端状态）
-        try {
-          const result = await callPythonAPI('enter_multi_account_mode');
-          if (!result.success) {
-            logMessage_Error('无法进入多账号模式，返回登录界面');
-            return;
-          }
-          // 使用后端返回的参数（如果会话中没有保存）
-          if (!sessionModeInfo.global_params && result.params) {
-            pythonParams = result.params;
-          }
-        } catch (e) {
-          logMessage_Error('调用 enter_multi_account_mode 失败:', e);
-          return;
-        }
-
-        hideLoadingOverlays();
-        // 确保API Key已配置并加载地图（多账号模式也需要地图）
-        AMAP_API_KEY = initialData.amap_key || "";
-        if (AMAP_API_KEY) {
+          // 检查UUID类型
           try {
-            await loadAMapOnce();
-          } catch (e) {
-            logMessage_Error('地图加载失败（多账号模式恢复）', e);
-          }
-        }
-        $('loading-overlay').classList.remove('hidden');
-        
-        // 隐藏登录界面和认证界面
-        $('auth-login-container').classList.add('hidden');
-        $('login-container').classList.add('hidden');
-        
-        // 显示多账号界面
-        $('multi-account-app').classList.remove('hidden');
-        $('multi-account-app').classList.add('grid');
-        $('main-app').classList.add('hidden');
-        // hideLoadingOverlays();
-        
-        // 创建多账号地图（如果还没有创建）
-        if (!multiAccountMap && AMapInstance) {
-          try {
-            multiAccountMap = new AMapInstance.Map('multi-map-container', {
-              viewMode: '3D',
-              pitch: 55,
-              rotation: 0,
-              zoom: 17,
-              center: [113.390342, 22.527403]
+            const response = await fetch('/auth/check_uuid_type', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ uuid: sessionUUID })
             });
 
-            // 多账号地图的 3D 控制杆
-            const ctrlBar = new AMapInstance.ControlBar({
-              position: { left: '12px', top: '12px' },
-              showZoomBar: false,
-              showControlButton: true
-            });
-            multiAccountMap.addControl(ctrlBar);
+            const result = await response.json();
 
-            // 建筑物图层
-            try {
-              const buildings = new AMapInstance.BuildingLayer();
-              buildings.setMap(multiAccountMap);
-            } catch (e) {
-              logMessage_Warning('BuildingLayer not available (multi):', e);
+            if (!result.success) {
+              logMessage_Error('检查UUID失败:', result.message);
+              hideLoadingOverlays();
+
+              // showUserFriendlyError('会话验证失败', result.message, true);
+              // // 跳转到无UUID网址
+              // setTimeout(() => {
+              //   window.location.href = '/';
+              // }, 2000);
+
+              let message = "无法通过UUID判断会话列席\n将跳转到登录页面"
+              if (result.message !== '') 
+              {
+                message = "无法通过UUID判断会话列席\n"+result.message+"\n将跳转到登录页面"
+              }
+
+              Swal.fire({
+              title: '无效的会话类型', // 弹窗标题
+              text: message, // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+            }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              logMessage_Info('用户确认检查UUID失败弹窗，正在跳转到登录页面...');
+              window.location.href = '/'; // 执行跳转
+            });
+
+              return;
             }
+            $('loading-overlay').classList.remove('hidden');
 
-            multiAccountMap.on('zoomchange', () => {
-              if (!multiAccountMap) return;
-              const z = multiAccountMap.getZoom();
-              const zoomLevelEl = $('multi-zoom-level');
-              if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
+            if (result.uuid_type === 'guest') {
+              // 游客UUID - 直接恢复会话
+              logMessage_Info('检测到游客UUID，直接恢复会话');
+              hideLoadingOverlays(); // 确保隐藏加载遮挡
+              // 继续正常初始化流程
+            } else if (result.uuid_type === 'system_account') {
+              // 系统账号UUID - 允许访问，后端会在API调用时验证token
+              // 注意：auth_token是httponly cookie，JavaScript无法访问，所以前端不做检查
+              logMessage_Info('检测到系统账号UUID，允许访问（后端将验证token）');
+              hideLoadingOverlays(); // 确保隐藏加载遮挡
+              // 继续正常初始化流程
+              // 如果token无效或过期，后端API调用会返回401错误，前端会处理并重定向到登录
+            } else {
+              // 未知UUID - 弹窗提示后跳转到无UUID网址
+              logMessage_Info('检测到未知UUID，准备弹窗提示后跳转到登录页面');
+
+              // 强制设置背景、居中并禁用输入框
+              const loginContainer = document.getElementById('login-container');
+              const mainApp = document.getElementById('main-app');
+              const multiApp = document.getElementById('multi-account-app');
+              const authContainer = document.getElementById('auth-login-container');
+
+              // 1. 强制隐藏其他容器
+              if (loginContainer) loginContainer.classList.add('hidden');
+              if (mainApp) mainApp.classList.add('hidden');
+              if (multiApp) multiApp.classList.add('hidden');
+
+              // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
+              if (authContainer) {
+                authContainer.classList.remove('hidden');
+                // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
+                authContainer.classList.remove('h-full', 'w-full');
+                // 添加 fixed 定位覆盖全屏和 flex 居中
+                authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
+                // 确保背景可见（有时需要 z-index，但通常不需要）
+                // authContainer.style.zIndex = '10'; // 一般不需要
+              }
+
+              // 3. 禁用 auth-login-container 内的输入框
+              const inputsToDisable = [
+                'auth-username',
+                'auth-password',
+                'auth-reg-username',
+                'auth-reg-password',
+                'auth-reg-password-confirm'
+              ];
+              inputsToDisable.forEach(inputId => {
+                const inputElement = document.getElementById(inputId);
+                if (inputElement) {
+                  inputElement.disabled = true;
+                  // 可选：添加视觉提示，例如降低透明度
+                  // inputElement.style.opacity = '0.7';
+                  // inputElement.style.cursor = 'not-allowed';
+                }
+              });
+
+              if (authContainer) authContainer.classList.remove('hidden');
+              // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
+              Swal.fire({
+                title: '会话不存在', // 弹窗标题
+                text: '该会话已过期或不存在，请重新登录', // 弹窗消息
+                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+                confirmButtonText: '确定' // 按钮文字
+              }).then(() => {
+                // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+                logMessage_Info('用户确认弹窗，正在跳转到登录页面...');
+                window.location.href = '/';
+              });
+              return;
+            }
+          } catch (e) {
+            logMessage_Error('检查UUID类型失败:', e);
+            hideLoadingOverlays(); // 确保隐藏加载遮挡
+            Swal.fire({
+              title: '网络错误', // 弹窗标题
+              text: '无法验证会话状态，请检查网络连接后重试', // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+            }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              logMessage_Info('用户确认检查UUID类型失败弹窗，正在跳转到登录页面...');
+              window.location.href = '/'; // 执行跳转
             });
-
-            // 保存清理函数
-            if (window.multiMapCleanup) window.multiMapCleanup();
-            window.multiMapCleanup = enhanceMapInteraction(multiAccountMap);
-
-            multiAccountMap.setStatus({
-              doubleClickZoom: true,
-              dragEnable: true,
-              scrollWheel: true,
-              keyboardEnable: true
-            });
-
-            // 兜底重建并绑定多账号控件
-            ensureMultiControls();
-          } catch (e) {
-            logMessage_Error('初始化多账号地图失败:', e);
-          }
-        }
-        
-        // 初始化配置用户下拉列表
-        try {
-          const configUsers = await callPythonAPI('multi_get_all_config_users');
-          const select = $('multi-config-user-select');
-          select.innerHTML = '<option value="">(新用户/手动输入)</option>';
-          configUsers.users.forEach(u => {
-            const opt = document.createElement('option');
-            opt.value = opt.textContent = u;
-            select.appendChild(opt);
-          });
-        } catch (e) {
-          logMessage_Error('加载配置用户列表失败:', e);
-        }
-        
-        // 恢复全局参数并初始化全局参数UI
-        if (sessionModeInfo.global_params) {
-          pythonParams = sessionModeInfo.global_params;
-        }
-        
-        // 初始化全局参数UI容器
-        try {
-          const container = $('multi-global-params-container');
-          container.innerHTML = '';
-          createParamInputs(container, 'multi-param', onGlobalParamChange);
-          updateParamInputs(container, 'multi-param', pythonParams);
-        } catch (e) {
-          logMessage_Error('初始化全局参数UI失败:', e);
-        }
-        
-        // 绑定即时刷新和更新按钮状态
-        try {
-          bindImmediateRefreshForUserSelects();
-          updateMultiGlobalButtons(true, true);
-          
-          // 同步"仅执行未完成的任务"选项到后端
-          await callPythonAPI('set_multi_run_only_incomplete',
-            document.getElementById('multi-run-only-incomplete-check').checked
-          );
-        } catch (e) {
-          logMessage_Error('绑定多账号UI事件失败:', e);
-        }
-        
-        // 从后端恢复账号列表
-        try {
-          const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
-          if (accountsResult && accountsResult.accounts) {
-            renderMultiAccountList(accountsResult.accounts);
-            logMessage(`已恢复多账号模式，当前有 ${accountsResult.accounts.length} 个账号`);
-          } else {
-            logMessage(`已恢复多账号模式，当前有 0 个账号`);
-          }
-        } catch (e) {
-          logMessage_Error('恢复账号列表失败:', e);
-          logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号（列表加载失败）`);
-        }
-        
-        // 初始化内嵌管理面板
-        setTimeout(async () => {
-          try {
-            await initializeInlineAdminPanel();
-          } catch (e) {
-            logMessage_Error('初始化内嵌管理面板失败:', e);
-          }
-        }, 100);
-        
-        // 设置主题色
-        const base = pythonParams.theme_base_color || '#7dd3fc';
-        setBaseColor(base, base);
-        
-        hideLoadingOverlays();
-        // return; // 提前返回，不执行后续单账号模式的逻辑
-      }
-
-
-      // 如果是单账号模式，则恢复单账号会话
-      // 恢复条件：已登录学校账号 或 有已加载的任务（如导入的离线文件）
-      else if (hasSchoolLogin || hasLoadedTasks) {
-        // 学校账号已登录或有已加载任务，直接显示主界面
-        // 优先使用学校登录的用户信息，如果没有则使用会话中保存的离线模式用户数据
-        currentUserData = initialData.userInfo || (sessionModeInfo && sessionModeInfo.user_data) || {};
-
-        hideLoadingOverlays();
-        // 恢复会话时确保API Key已配置并加载地图
-        AMAP_API_KEY = initialData.amap_key || "";
-        if (AMAP_API_KEY) {
-          try {
-            await loadAMapOnce();
-          } catch (e) {
-            logMessage_Error('地图加载失败（会话恢复）', e);
+            // showUserFriendlyError('网络错误', '无法验证会话状态，请检查网络连接后重试');
+            // // 出错时也跳转到无UUID网址
+            // setTimeout(() => {
+            //   window.location.href = '/';
+            // }, 3000);
+            return;
           }
         } else {
-          // 已登录但没有API Key，弹出提示
+          // 情况1：访问不含UUID的网址
+          logMessage_Info('Web模式: 未检测到UUID，显示认证登录页面');
+          //移除加载提示
           hideLoadingOverlays();
-          logMessage_Info("[警告] 未配置高德地图API Key，请在弹窗中输入。");
-          $('amap-key-modal').classList.remove('hidden');
-          $('amap-key-modal').classList.add('flex');
+
+          // 显示认证登录界面，等待用户登录/游客模式
+          showAuthLogin();
+          return; // 停止初始化，等待认证完成后重新初始化
+        }
+
+        $('loading-overlay').classList.remove('hidden');
+
+        // 检查认证状态
+        const isAuthenticated = await checkAuthStatus();
+        if (!isAuthenticated) {
+          hideLoadingOverlays(); // 认证失败时隐藏加载遮挡
+          showAuthLogin();
+          return; // 停止初始化，等待认证
         }
         $('loading-overlay').classList.remove('hidden');
 
-        if (refreshUserListInterval) clearInterval(refreshUserListInterval); // 清除旧的（如果存在）
-        refreshUserListInterval = setInterval(refreshUserList, 5000); // <--- 在这里启动
-        logMessage_Info('refreshUserList interval started.'); // 添加日志确认启动
+        // 认证成功，继续初始化
+        // hideLoadingOverlays();
 
-        showMainApp();
-        const name = currentUserData.name || '离线模式';  // 如果没有用户信息，显示"离线模式"
-        $('user-name-label').textContent = `姓名: ${name}`;
-        $('user-id-label').textContent = `学号: ${currentUserData.student_id || '未登录'}`;
-        updateDashboard();
-        await refreshTasks();
-        
-        // 恢复之前选中的任务（如果有）
-        if (sessionModeInfo && sessionModeInfo.selected_task_index !== undefined && sessionModeInfo.selected_task_index >= 0) {
-          try {
-            logMessage_Info(`正在恢复之前选中的任务 (索引: ${sessionModeInfo.selected_task_index})...`);
-            await selectTask(sessionModeInfo.selected_task_index);
-          } catch (e) {
-            logMessage_Error('恢复选中任务失败:', e);
-          }
+
+        // 标记应用已成功初始化
+        appInitialized = true;
+
+        // 在确认 sessionUUID 有效且应用准备就绪后
+        if (sessionUUID /* && 应用准备就绪的条件 */) {
+          connectWebSocket();
         }
-        
-        const base = pythonParams.theme_base_color || '#7dd3fc';
-        setBaseColor(base, base);
 
-        // 初始化内嵌管理面板（恢复会话时需要）
-        setTimeout(async () => {
-          try {
-            await initializeInlineAdminPanel();
-          } catch (e) {
-            logMessage_Error('初始化内嵌管理面板失败:', e);
-          }
-        }, 100);
 
-        // 检查是否有管理权限，显示管理按钮
-        if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
-          const adminBtn = $('show-admin-panel');
-          if (adminBtn) adminBtn.classList.remove('hidden');
+
+        // 取消CDN错误定时器（如果还在等待）
+        if (cdnErrorTimer) {
+          clearTimeout(cdnErrorTimer);
+          cdnErrorTimer = null;
         }
-        hideLoadingOverlays();
-        await fetchNotifications();
-        
-      } 
-      // 没有进入多账号模式或者单账号模式
-      else if (hasSystemAuth || isGuestMode) {
 
-        $('loading-overlay').classList.remove('hidden');
-        // 系统账号已登录（admin/普通用户）或游客模式，隐藏认证面板，显示学校登录面板
-        $('auth-login-container').classList.add('hidden');
-        $('login-container').classList.remove('hidden');
-        
-        // 刷新用户选择和 UA 标签
+        //移除加载提示
+        // hideLoadingOverlays();
+
+        logMessage_Info('应用初始化成功，CDN资源状态正常或可用替代方案');
+
+        const initialData = await callPythonAPI('get_initial_data');
+
+        currentUserIsGuest = initialData.is_guest || false; // <-- 存储从后端获取的状态
+        logMessage_Info(`initializeApp: currentUserIsGuest = ${currentUserIsGuest}`);
+
+        const userCombo = $('user-combo');
+        userCombo.innerHTML = '<option value="">(新用户)</option>';
+        initialData.users.forEach(user => {
+          const option = document.createElement('option');
+          option.value = option.textContent = user;
+          userCombo.appendChild(option);
+        });
+
+        createParamInputs($('params-container'), 'param', onParamChange);
+        if (initialData.lastUser) userCombo.value = initialData.lastUser;
         await onUserChange();
 
-        // 初始化内嵌管理面板，默认显示会话标签页并加载数据
-        setTimeout(async () => {
-          try {
-            await initializeInlineAdminPanel();
-          } catch (e) {
-            logMessage_Error('初始化内嵌管理面板失败:', e);
-          }
-        }, 100);
+        
+        const hasSchoolLogin = initialData.isLoggedIn && initialData.userInfo;
+        const hasSystemAuth = initialData.is_authenticated && !initialData.is_guest;
+        const isGuestMode = initialData.is_authenticated && initialData.is_guest;
+        // const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  // 检查是否有已加载的任务
 
-        // 加载地图API Key
-        AMAP_API_KEY = initialData.amap_key || "";
-        if (AMAP_API_KEY) {
-          try {
-            await loadAMapOnce();
-          } catch (e) {
-            logMessage_Error('地图加载失败（系统账号恢复）', e);
-          }
-        }
+        // $('loading-overlay').classList.remove('hidden');
 
-        hideLoadingOverlays();
-        // 如果是游客模式，显示提示
-        if (isGuestMode) {
-          logMessage_Info('[游客模式] 部分功能受限，请保存当前地址以便恢复会话');
-
+        // 检查会话模式（单账号/多账号）
+        let sessionModeInfo = null;
+        try {
+          sessionModeInfo = await callPythonAPI('get_session_mode_info');
+          // logMessage_Info('会话模式信息:', sessionModeInfo);
+        } catch (e) {
+          logMessage_Error('获取会话模式信息失败:', e);
+          hideLoadingOverlays();
           Swal.fire({
-            title: '请注意', // 弹窗标题
-            text: '[游客模式] 部分功能受限，请保存当前地址以便恢复会话', // 弹窗消息
-            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-            confirmButtonText: '确定' // 按钮文字
-          }).then(() => {
-            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-            // logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
-            // window.location.href = '/'; // 执行跳转
-          });
-
+              title: '网络错误', // 弹窗标题
+              text: '获取会话模式信息失败，请检查网络连接后重试', // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+            }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              logMessage_Info('用户确认获取会话模式信息失败弹窗，正在跳转到登录页面...');
+              window.location.href = '/'; // 执行跳转
+            });
+            return;
         }
 
+        const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  
 
         $('loading-overlay').classList.remove('hidden');
 
-
-        // 显示管理面板按钮（如果有权限）
-        if (initialData.auth_group !== 'guest') {
-          const adminBtnLogin = $('show-admin-panel-login'); // 获取登录页的管理按钮
-          if (adminBtnLogin) {
-            adminBtnLogin.classList.remove('hidden'); // 移除 hidden 类使其可见
-          }
-          // 多账号界面的按钮保持原逻辑（如果需要的话，虽然这里主要处理 login-container）
-          const adminBtnMulti = $('show-admin-panel-multi');
-          if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
-        }
-
-        hideLoadingOverlays();
-
-      } else {
-        // 完全未登录，显示认证面板，检查API Key和游客登录选项
-        AMAP_API_KEY = initialData.amap_key || "";
-        if (!AMAP_API_KEY) {
-          logMessage_Info("[警告] 未配置高德地图API Key，请在弹窗中输入。");
-          $('amap-key-modal').classList.remove('hidden');
-          $('amap-key-modal').classList.add('flex');
-        } else {
+        resetUI();
+        
+        // 如果会话之前是多账号模式，直接恢复到多账号模式
+        if (sessionModeInfo && sessionModeInfo.is_multi_account_mode) {
+          logMessage_Info('检测到会话之前处于多账号模式，正在恢复...');
+          
+          // 通知后端进入多账号模式（恢复后端状态）
           try {
-            await loadAMapOnce();
+            const result = await callPythonAPI('enter_multi_account_mode');
+            if (!result.success) {
+              logMessage_Error('无法进入多账号模式，返回登录界面');
+              return;
+            }
+            // 使用后端返回的参数（如果会话中没有保存）
+            if (!sessionModeInfo.global_params && result.params) {
+              pythonParams = result.params;
+            }
           } catch (e) {
-            logMessage_Error('AMap SDK 加载失败（ready 阶段）', e);
+            logMessage_Error('调用 enter_multi_account_mode 失败:', e);
+            return;
           }
+
+          hideLoadingOverlays();
+          // 确保API Key已配置并加载地图（多账号模式也需要地图）
+          AMAP_API_KEY = initialData.amap_key || "";
+          if (AMAP_API_KEY) {
+            try {
+              await loadAMapOnce();
+            } catch (e) {
+              logMessage_Error('地图加载失败（多账号模式恢复）', e);
+            }
+          }
+          $('loading-overlay').classList.remove('hidden');
+          
+          // 隐藏登录界面和认证界面
+          $('auth-login-container').classList.add('hidden');
+          $('login-container').classList.add('hidden');
+          
+          // 显示多账号界面
+          $('multi-account-app').classList.remove('hidden');
+          $('multi-account-app').classList.add('grid');
+          $('main-app').classList.add('hidden');
+          // hideLoadingOverlays();
+          
+          // 创建多账号地图（如果还没有创建）
+          if (!multiAccountMap && AMapInstance) {
+            try {
+              multiAccountMap = new AMapInstance.Map('multi-map-container', {
+                viewMode: '3D',
+                pitch: 55,
+                rotation: 0,
+                zoom: 17,
+                center: [113.390342, 22.527403]
+              });
+
+              // 多账号地图的 3D 控制杆
+              const ctrlBar = new AMapInstance.ControlBar({
+                position: { left: '12px', top: '12px' },
+                showZoomBar: false,
+                showControlButton: true
+              });
+              multiAccountMap.addControl(ctrlBar);
+
+              // 建筑物图层
+              try {
+                const buildings = new AMapInstance.BuildingLayer();
+                buildings.setMap(multiAccountMap);
+              } catch (e) {
+                logMessage_Warning('BuildingLayer not available (multi):', e);
+              }
+
+              multiAccountMap.on('zoomchange', () => {
+                if (!multiAccountMap) return;
+                const z = multiAccountMap.getZoom();
+                const zoomLevelEl = $('multi-zoom-level');
+                if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
+              });
+
+              // 保存清理函数
+              if (window.multiMapCleanup) window.multiMapCleanup();
+              window.multiMapCleanup = enhanceMapInteraction(multiAccountMap);
+
+              multiAccountMap.setStatus({
+                doubleClickZoom: true,
+                dragEnable: true,
+                scrollWheel: true,
+                keyboardEnable: true
+              });
+
+              // 兜底重建并绑定多账号控件
+              ensureMultiControls();
+            } catch (e) {
+              logMessage_Error('初始化多账号地图失败:', e);
+            }
+          }
+          
+          // 初始化配置用户下拉列表
+          try {
+            const configUsers = await callPythonAPI('multi_get_all_config_users');
+            const select = $('multi-config-user-select');
+            select.innerHTML = '<option value="">(新用户/手动输入)</option>';
+            configUsers.users.forEach(u => {
+              const opt = document.createElement('option');
+              opt.value = opt.textContent = u;
+              select.appendChild(opt);
+            });
+          } catch (e) {
+            logMessage_Error('加载配置用户列表失败:', e);
+          }
+          
+          // 恢复全局参数并初始化全局参数UI
+          if (sessionModeInfo.global_params) {
+            pythonParams = sessionModeInfo.global_params;
+          }
+          
+          // 初始化全局参数UI容器
+          try {
+            const container = $('multi-global-params-container');
+            container.innerHTML = '';
+            createParamInputs(container, 'multi-param', onGlobalParamChange);
+            updateParamInputs(container, 'multi-param', pythonParams);
+          } catch (e) {
+            logMessage_Error('初始化全局参数UI失败:', e);
+          }
+          
+          // 绑定即时刷新和更新按钮状态
+          try {
+            bindImmediateRefreshForUserSelects();
+            updateMultiGlobalButtons(true, true);
+            
+            // 同步"仅执行未完成的任务"选项到后端
+            await callPythonAPI('set_multi_run_only_incomplete',
+              document.getElementById('multi-run-only-incomplete-check').checked
+            );
+          } catch (e) {
+            logMessage_Error('绑定多账号UI事件失败:', e);
+          }
+          
+          // 从后端恢复账号列表
+          try {
+            const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
+            if (accountsResult && accountsResult.accounts) {
+              renderMultiAccountList(accountsResult.accounts);
+              logMessage(`已恢复多账号模式，当前有 ${accountsResult.accounts.length} 个账号`);
+            } else {
+              logMessage(`已恢复多账号模式，当前有 0 个账号`);
+            }
+          } catch (e) {
+            logMessage_Error('恢复账号列表失败:', e);
+            logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号（列表加载失败）`);
+          }
+          
+          // 初始化内嵌管理面板
+          setTimeout(async () => {
+            try {
+              await initializeInlineAdminPanel();
+            } catch (e) {
+              logMessage_Error('初始化内嵌管理面板失败:', e);
+            }
+          }, 100);
+          
+          // 设置主题色
+          const base = pythonParams.theme_base_color || '#7dd3fc';
+          setBaseColor(base, base);
+          
+          hideLoadingOverlays();
+          // return; // 提前返回，不执行后续单账号模式的逻辑
         }
 
-        // 检查是否允许游客登录并显示按钮
-        checkGuestLoginEnabled();
-        hideLoadingOverlays();
-      }
 
-      if (pythonParams.theme_style) {
-        setThemeStyle(pythonParams.theme_style);
-      }
+        // 如果是单账号模式，则恢复单账号会话
+        // 恢复条件：已登录学校账号 或 有已加载的任务（如导入的离线文件）
+        else if (hasSchoolLogin || hasLoadedTasks) {
+          // 学校账号已登录或有已加载任务，直接显示主界面
+          // 优先使用学校登录的用户信息，如果没有则使用会话中保存的离线模式用户数据
+          currentUserData = initialData.userInfo || (sessionModeInfo && sessionModeInfo.user_data) || {};
 
-      // 立刻刷新一次用户列表（调用的是新 refreshUserList）
-      await refreshUserList();
+          hideLoadingOverlays();
+          // 恢复会话时确保API Key已配置并加载地图
+          AMAP_API_KEY = initialData.amap_key || "";
+          if (AMAP_API_KEY) {
+            try {
+              await loadAMapOnce();
+            } catch (e) {
+              logMessage_Error('地图加载失败（会话恢复）', e);
+            }
+          } else {
+            // 已登录但没有API Key，弹出提示
+            hideLoadingOverlays();
+            logMessage_Info("[警告] 未配置高德地图API Key，请在弹窗中输入。");
+            $('amap-key-modal').classList.remove('hidden');
+            $('amap-key-modal').classList.add('flex');
+          }
+          $('loading-overlay').classList.remove('hidden');
 
-      const loadingOverlay = $('loading-overlay');
-      loadingOverlay.style.opacity = '0';
-      setTimeout(() => { loadingOverlay.style.display = 'none'; }, 500);
-      bindImmediateRefreshForUserSelects();
+          if (refreshUserListInterval) clearInterval(refreshUserListInterval); // 清除旧的（如果存在）
+          refreshUserListInterval = setInterval(refreshUserList, 5000); // <--- 在这里启动
+          logMessage_Info('refreshUserList interval started.'); // 添加日志确认启动
 
-      // --- 绑定签到Tab内的参数控件 ---
-      const attEnabled = $('param-auto_attendance_enabled');
-      const attRefresh = $('param-auto_attendance_refresh_s');
-      const attRadius = $('param-attendance_user_radius_m');
-      if (attEnabled) attEnabled.addEventListener('change', onParamChange);
-      if (attRefresh) attRefresh.addEventListener('change', onParamChange);
-      if (attRadius) attRadius.addEventListener('change', onParamChange);
+          showMainApp();
+          const name = currentUserData.name || '离线模式';  // 如果没有用户信息，显示"离线模式"
+          $('user-name-label').textContent = `姓名: ${name}`;
+          $('user-id-label').textContent = `学号: ${currentUserData.student_id || '未登录'}`;
+          updateDashboard();
+          await refreshTasks();
 
-      // 绑定API Key模态框的确认按钮事件
-      $('confirm-amap-key-btn').addEventListener('click', onConfirmAmapKey);
+          // 修复：检查是否有后台任务在运行 (从 6730 行移动至此)
+          let isTaskRestored = false;
+          try {
+            isTaskRestored = await checkBackgroundTaskOnLoad();
+          } catch(err) {
+            logMessage_Warning('检查后台任务失败:', err);
+          }
+          // if (isTaskRestored) {
+          //   startBackgroundTaskPolling();
 
-      // 将定时刷新移动到 API 就绪后再启动
-      // setInterval(refreshUserList, 5000);
+          // }
+          
+          // // 恢复之前选中的任务（如果有）
+          // if (sessionModeInfo && sessionModeInfo.selected_task_index !== undefined && sessionModeInfo.selected_task_index >= 0) {
+          //   try {
+          //     logMessage_Info(`正在恢复之前选中的任务 (索引: ${sessionModeInfo.selected_task_index})...`);
+          //     await selectTask(sessionModeInfo.selected_task_index);
+
+
+          //     await pollBackgroundTaskStatus(); // 恢复选中任务后立即更新状态
+          //     const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+              
+          //     // startBackgroundTaskPolling(); // 启动轮询
+          //     // checkBackgroundTaskOnLoad();
+
+          //   } catch (e) {
+          //     logMessage_Error('恢复选中任务失败:', e);
+          //   }
+          // }
+          
+          const base = pythonParams.theme_base_color || '#7dd3fc';
+          setBaseColor(base, base);
+
+          // 初始化内嵌管理面板（恢复会话时需要）
+          setTimeout(async () => {
+            try {
+              await initializeInlineAdminPanel();
+            } catch (e) {
+              logMessage_Error('初始化内嵌管理面板失败:', e);
+            }
+          }, 100);
+
+          // 检查是否有管理权限，显示管理按钮
+          if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
+            const adminBtn = $('show-admin-panel');
+            if (adminBtn) adminBtn.classList.remove('hidden');
+          }
+          hideLoadingOverlays();
+          await fetchNotifications();
+          
+        } 
+        // 没有进入多账号模式或者单账号模式
+        else if (hasSystemAuth || isGuestMode) {
+
+          $('loading-overlay').classList.remove('hidden');
+          // 系统账号已登录（admin/普通用户）或游客模式，隐藏认证面板，显示学校登录面板
+          $('auth-login-container').classList.add('hidden');
+          $('login-container').classList.remove('hidden');
+          
+          // 刷新用户选择和 UA 标签
+          await onUserChange();
+
+          // 初始化内嵌管理面板，默认显示会话标签页并加载数据
+          setTimeout(async () => {
+            try {
+              await initializeInlineAdminPanel();
+            } catch (e) {
+              logMessage_Error('初始化内嵌管理面板失败:', e);
+            }
+          }, 100);
+
+          // 加载地图API Key
+          AMAP_API_KEY = initialData.amap_key || "";
+          if (AMAP_API_KEY) {
+            try {
+              await loadAMapOnce();
+            } catch (e) {
+              logMessage_Error('地图加载失败（系统账号恢复）', e);
+            }
+          }
+
+          hideLoadingOverlays();
+          // 如果是游客模式，显示提示
+          if (isGuestMode) {
+            logMessage_Info('[游客模式] 部分功能受限，请保存当前地址以便恢复会话');
+
+            Swal.fire({
+              title: '请注意', // 弹窗标题
+              text: '[游客模式] 部分功能受限，请保存当前地址以便恢复会话', // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+            }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              // logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
+              // window.location.href = '/'; // 执行跳转
+            });
+
+          }
+
+          
+        
+
+          $('loading-overlay').classList.remove('hidden');
+
+
+          // 显示管理面板按钮（如果有权限）
+          if (initialData.auth_group !== 'guest') {
+            const adminBtnLogin = $('show-admin-panel-login'); // 获取登录页的管理按钮
+            if (adminBtnLogin) {
+              adminBtnLogin.classList.remove('hidden'); // 移除 hidden 类使其可见
+            }
+            // 多账号界面的按钮保持原逻辑（如果需要的话，虽然这里主要处理 login-container）
+            const adminBtnMulti = $('show-admin-panel-multi');
+            if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
+          }
+
+          hideLoadingOverlays();
+
+        } else {
+          // 完全未登录，显示认证面板，检查API Key和游客登录选项
+          AMAP_API_KEY = initialData.amap_key || "";
+          if (!AMAP_API_KEY) {
+            logMessage_Info("[警告] 未配置高德地图API Key，请在弹窗中输入。");
+            $('amap-key-modal').classList.remove('hidden');
+            $('amap-key-modal').classList.add('flex');
+          } else {
+            try {
+              await loadAMapOnce();
+            } catch (e) {
+              logMessage_Error('AMap SDK 加载失败（ready 阶段）', e);
+            }
+          }
+
+          // 检查是否允许游客登录并显示按钮
+          checkGuestLoginEnabled();
+          hideLoadingOverlays();
+        }
+
+        if (pythonParams.theme_style) {
+          setThemeStyle(pythonParams.theme_style);
+        }
+
+        // 立刻刷新一次用户列表（调用的是新 refreshUserList）
+        await refreshUserList();
+
+        const loadingOverlay = $('loading-overlay');
+        loadingOverlay.style.opacity = '0';
+        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 500);
+        bindImmediateRefreshForUserSelects();
+
+        // --- 绑定签到Tab内的参数控件 ---
+        const attEnabled = $('param-auto_attendance_enabled');
+        const attRefresh = $('param-auto_attendance_refresh_s');
+        const attRadius = $('param-attendance_user_radius_m');
+        if (attEnabled) attEnabled.addEventListener('change', onParamChange);
+        if (attRefresh) attRefresh.addEventListener('change', onParamChange);
+        if (attRadius) attRadius.addEventListener('change', onParamChange);
+
+        // 绑定API Key模态框的确认按钮事件
+        $('confirm-amap-key-btn').addEventListener('click', onConfirmAmapKey);
+
+        // 将定时刷新移动到 API 就绪后再启动
+        // setInterval(refreshUserList, 5000);
+      }  catch (err) {
+    hideModal('loading-overlay');
+    showModalAlert('服务器无法连接，请检查网络或稍后重试。', '网络错误');
+    IS_OFFLINE = true;
+  }
     }
-
     let socket = null; // 全局 socket 变量
 
     // 在 initializeApp 成功获取到 sessionUUID 后或者认证成功后调用此函数
@@ -6483,7 +6513,7 @@
       socket = io({
         // 如果部署在非根路径，可能需要指定 path
         // path: '/socket.io'
-        autoConnect: false,  // 手动控制连接，避免自动重连干扰网络错误处理
+        autoConexceptnect: false,  // 手动控制连接，避免自动重连干扰网络错误处理
         reconnection: true,  // 允许重连（在正常情况下）
         reconnectionDelay: 1000,
         reconnectionAttempts: 5
@@ -8585,15 +8615,15 @@
           const progressPercent = status.progress_percent || 0;
           const currentTaskProgress = status.current_task_progress || 0;
           
-          // Update progress bar and text
-          if (totalTasks === 1) {
-            // Single task - show point progress
-            updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
-          } else {
-            // Multiple tasks - show task progress
-            updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
-          }
-          
+          // // Update progress bar and text
+          // if (totalTasks === 1) {
+          //   // Single task - show point progress
+          //   updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
+          // } else {
+          //   // Multiple tasks - show task progress
+          //   updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
+          // }
+          updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
           // Update real-time position on map if available
           if (status.current_position) {
             const pos = status.current_position;
@@ -8663,6 +8693,7 @@
           const status = result.task_status;
           
           // 如果有任务在运行，显示状态并开始轮询
+          i// 如果有任务在运行，显示状态并开始轮询
           if (status.status === 'running') {
             logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
             
@@ -8679,23 +8710,41 @@
               $('start-all-button').classList.remove('btn-secondary');
               $('start-all-button').classList.add('btn-danger');
             }
+
+            // --- 升级：恢复地图路径和打卡点 ---
+            const task_list = status.task_indices || [];
+            const current_list_index = status.current_task_index || 0;
+            
+            if (task_list.length > current_list_index) {
+                const global_task_index = task_list[current_list_index];
+                
+                // 关键：加载任务数据 (这会填充 currentRunData 并调用 drawOnMap)
+                logMessage_Info(`正在恢复运行中的任务 (索引: ${global_task_index}) 的地图数据...`);
+                // 必须 await，确保 currentRunData 在 updateRunnerPosition 之前被设置
+                await selectTask(global_task_index); 
+            } else {
+                logMessage_Warning("后台任务状态不一致，无法恢复地图路径。");
+            }
+            // --- 结束升级 ---
             
             // Restore progress display
             const completedTasks = status.completed_tasks || 0;
             const progressPercent = status.progress_percent || 0;
             const currentTaskProgress = status.current_task_progress || 0;
             
-            if (totalTasks === 1) {
-              // Single task - show point progress
-              updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
-            } else {
-              // Multiple tasks - show task progress
-              updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
-            }
+            // if (totalTasks === 1) {
+            //   // Single task - show point progress
+            //   updateSingleProgress(currentTaskProgress, `任务进度: ${currentTaskProgress}%`);
+            // } else {
+            //   // Multiple tasks - show task progress
+            //   updateSingleProgress(progressPercent, `已完成 ${completedTasks}/${totalTasks} 任务`);
+            // }
+            updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
             
             // Restore runner position on map if available
             if (status.current_position) {
               const pos = status.current_position;
+              // 此时 selectTask 已经加载了 currentRunData，updateRunnerPosition 可以正确更新打卡点状态
               updateRunnerPosition(
                 pos.lon,
                 pos.lat,
@@ -8707,11 +8756,15 @@
             }
             
             startBackgroundTaskPolling();
+            return true;
           }
+
+
         }
       } catch (e) {
         // 静默失败
         logMessage_Debug('检查后台任务状态失败:', e);
+        return false;
       }
     }
 

@@ -369,7 +369,20 @@ def _create_config_ini():
         print("[配置文件] config.ini 已存在，检查是否需要更新...")
         # 读取现有配置
         existing_config = configparser.ConfigParser()
-        existing_config.read('config.ini', encoding='utf-8')
+        try:
+            # 读取配置时保持大小写（如果后续需要区分的话，但主要问题在检查）
+            existing_config.optionxform = str
+            existing_config.read('config.ini', encoding='utf-8')
+        except configparser.DuplicateOptionError as e:
+             # 如果读取时就发现重复，直接提示用户手动修复
+             print(f"\n[错误] 配置文件 'config.ini' 格式错误，请手动修复:")
+             print(f"  - 文件中存在重复的配置项: {e}")
+             print(f"  - 请打开 config.ini 文件，找到 [{e.section}] 部分，确保 '{e.option}' 只出现一次（不区分大小写）。")
+             print(f"  - 修复后重新运行程序。")
+             # 可以选择在这里退出程序 sys.exit(1) 或者继续尝试（可能不准确）
+             logging.error(f"配置文件读取失败，存在重复项: {e}")
+             # 如果选择继续，后面的逻辑可能基于不完整的配置
+             # return # 或者直接返回，让程序启动失败
 
         # 检查并补全缺失的节和参数
         updated = False
@@ -378,19 +391,31 @@ def _create_config_ini():
                 existing_config.add_section(section)
                 updated = True
                 print(f"[配置文件] 添加新的配置节: {section}")
-
-            for key, value in default_config.items(section):
-                if not existing_config.has_option(section, key):
+                # 如果节是新增的，可以直接添加所有默认键值对
+                for key, value in default_config.items(section):
                     existing_config.set(section, key, value)
-                    updated = True
-                    print(f"[配置文件] 添加缺失的配置项: [{section}] {key} = {value}")
+                    print(f"[配置文件] 为新节添加配置项: [{section}] {key} = {value}")
+            else:
+                # 节已存在，检查缺失的键
+                # 获取该节下所有现有 key 的小写形式
+                existing_keys_lower = {k.lower() for k in existing_config.options(section)}
+                for key, value in default_config.items(section):
+                    # 检查默认 key 的小写形式是否已存在
+                    if key.lower() not in existing_keys_lower:
+                        existing_config.set(section, key, value) # 使用默认的大小写添加
+                        updated = True
+                        print(f"[配置文件] 添加缺失的配置项: [{section}] {key} = {value}")
 
         # 如果有更新，保存配置文件
         if updated:
-            with open('config.ini', 'w', encoding='utf-8') as f:
-                existing_config.write(f)
-            logging.info("配置文件已更新：自动补全缺失参数")
-            print("[配置文件] 配置文件已更新并保存")
+            try:
+                with open('config.ini', 'w', encoding='utf-8') as f:
+                    existing_config.write(f)
+                logging.info("配置文件已更新：自动补全缺失参数")
+                print("[配置文件] 配置文件已更新并保存")
+            except Exception as e:
+                print(f"[错误] 保存更新后的 config.ini 失败: {e}")
+                logging.error(f"保存更新后的 config.ini 失败: {e}")
         else:
             print("[配置文件] 配置文件无需更新")
     else:
@@ -727,16 +752,53 @@ class AuthSystem:
         logging.info("="*80)
 
     def _load_config(self):
-        """加载配置文件（兼容旧版本，自动补全缺失参数）"""
+        """加载配置文件（增强：处理重复项错误并提示用户修复）"""
         logging.debug("_load_config: 开始加载配置文件...")
-        # 首先确保配置文件已创建或更新
-        _create_config_ini()
+        # 首先确保配置文件结构是最新的（尝试补全缺失项）
+        # 注意：如果 _create_config_ini 内部读取失败，它应该已打印错误
+        try:
+            _create_config_ini()
+        except configparser.DuplicateOptionError as e:
+            # 如果 _create_config_ini 内部读取时就出错，这里无需再做处理，它已经提示
+            # 可以选择在这里直接退出或抛出异常
+            logging.error(f"初始化期间配置文件检查失败: {e}")
+            print(f"\n[CRITICAL ERROR] Configuration file ('config.ini') is corrupted. Please fix the duplicate option mentioned above and restart.")
+            sys.exit(1) # 强制退出，避免使用损坏的配置
+        except Exception as e:
+            logging.error(f"初始化期间配置文件检查时发生未知错误: {e}")
+            print(f"\n[CRITICAL ERROR] An unexpected error occurred while checking 'config.ini': {e}")
+            sys.exit(1) # 强制退出
 
-        # 然后加载配置
+
+        # 现在尝试正式加载配置供 AuthSystem 使用
         config = configparser.ConfigParser()
-        config.read(CONFIG_FILE, encoding='utf-8')
-        logging.debug(f"_load_config: 配置文件加载完成，配置节: {list(config.sections())}")
-        return config
+        # 尝试保留大小写读取，有助于调试，但 configparser 默认行为仍可能合并
+        config.optionxform = str
+        try:
+            config.read(CONFIG_FILE, encoding='utf-8')
+            logging.debug(f"_load_config: 配置文件加载完成，配置节: {list(config.sections())}")
+            return config
+        except configparser.DuplicateOptionError as e:
+            # !!! 捕获重复项错误 !!!
+            logging.error(f"加载配置文件 '{CONFIG_FILE}' 失败，存在重复的配置项: {e}", exc_info=True)
+            print(f"\n{'='*60}")
+            print(f"[配置文件错误] 无法加载 config.ini 文件！")
+            print(f"  错误原因: 在区域 [{e.section}] 中发现重复的选项 '{e.option}' (不区分大小写).")
+            print(f"  错误位置: 大约在文件的第 {e.lineno} 行附近.")
+            print(f"\n  请手动打开文件 '{CONFIG_FILE}' 并进行以下操作:")
+            print(f"    1. 找到 [{e.section}] 区域.")
+            print(f"    2. 确保选项 '{e.option}' (例如 LastUser 或 lastuser) 只出现一次.")
+            print(f"    3. 删除重复的那一行.")
+            print(f"    4. 保存文件后重新运行程序.")
+            print(f"{'='*60}\n")
+            # 强制退出程序，因为配置无法加载
+            sys.exit(1)
+        except Exception as e:
+            # 捕获其他可能的读取错误
+            logging.error(f"加载配置文件 '{CONFIG_FILE}' 时发生未知错误: {e}", exc_info=True)
+            print(f"\n[配置文件错误] 读取 config.ini 文件时发生意外错误: {e}")
+            print(f"  请检查文件是否存在、是否有读取权限以及格式是否基本正确。")
+            sys.exit(1)
 
     def _load_permissions(self):
         """加载权限配置"""
@@ -2161,6 +2223,12 @@ class ApiClient:
 
     def _request(self, method: str, url: str, data: dict = None, params: dict = None, is_post_str=False, force_content_type: str = None) -> requests.Response | None:
         """统一的网络请求方法（增强：支持取消）"""
+
+        log_func = self.app.log if hasattr(
+            self.app, 'log') else self.app.api_bridge.log
+        is_offline = self.app.is_offline_mode if hasattr(
+            self.app, 'is_offline_mode') else self.app.api_bridge.is_offline_mode
+
         # 在多账号模式下，app 可能是 AccountSession 实例
         log_func = self.app.log if hasattr(
             self.app, 'log') else self.app.api_bridge.log
@@ -2192,7 +2260,15 @@ class ApiClient:
             logging.debug(f"Blocked request to {url} (offline mode)")
             return None
 
+        if is_offline:
+            log_func("离线模式：网络请求已被禁用。")
+            logging.debug(f"Blocked request to {url} (offline mode)")
+            return None
+
         retries = 3
+        connect_timeout = 5  # 连接超时设置为 5 秒
+        read_timeout = 10    # 读取超时设置为 10 秒
+
         log_data = data
         if is_post_str and isinstance(data, str) and len(data) > 500:
             log_data = data[:500] + '... (truncated)'
@@ -2239,31 +2315,65 @@ class ApiClient:
                         # 默认: form-urlencoded
                         post_data_bytes = urllib.parse.urlencode(
                             data or {}).encode('utf-8')
-
+                        
+                    # 修复 Bug A: 移除了在 post 之前的错误日志记录
                     resp = self.session.post(
-                        url, data=post_data_bytes, params=params, headers=headers, timeout=10)
+                        url, data=post_data_bytes, params=params, headers=headers,
+                        timeout=(connect_timeout, read_timeout) # 使用元组分别设置连接和读取超时
+                    )
                 else:
                     # GET 请求 (data 被用作 params)
                     resp = self.session.get(
-                        url, params=data, headers=headers, timeout=10)
-
+                            url, params=data, headers=headers,
+                            timeout=(connect_timeout, read_timeout) # 使用元组分别设置连接和读取超时
+                        )
+                
+                # --- 成功响应处理 (Bug A 和 B 均在此修复) ---
+                # 修复 Bug B: 这段代码现在位于 try 块内部，但在所有 except 块之前
                 logging.debug(
                     f"Response <-- {resp.status_code} {resp.reason} from {url}")
-
-                resp.raise_for_status()
+                resp.raise_for_status() # 如果状态码不是 2xx，会抛出 HTTPError
                 return resp
-            except requests.exceptions.RequestException as e:
-                log_func(f"网络请求失败 (第{attempt+1}次)...")
-                error_response_text = ""
-                if e.response is not None:
-                    error_response_text = e.response.text
+
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as net_err:
+                # --- 新增：专门捕获连接错误和超时 ---
+                log_func(f"网络连接失败 (第{attempt+1}/{retries}次): {net_err}")
                 logging.error(
-                    f"Request failed on attempt {attempt+1}/{retries} for {method} {url}.\nError: {e}\nResponse Body: {error_response_text}")
+                    f"Network connection failed on attempt {attempt+1}/{retries} for {method} {url}. Error: {net_err}", exc_info=False) # exc_info=False 避免过多堆栈
                 if attempt + 1 == retries:
-                    log_func(f"网络请求最终失败: {e}")
-                    return None
-                time.sleep(1.5)
-        return None
+                    log_func(f"网络连接最终失败: 无法连接到服务器 {self.BASE_URL}")
+                    return None # 连接失败，直接返回 None
+                time.sleep(1.5) # 重试前等待
+                continue # 继续下一次重试
+
+                # 修复 Bug B: 原本错误放置在这里的代码已被移到 try 块末尾
+
+            except requests.exceptions.HTTPError as http_err:
+                # --- 处理非 2xx 状态码的错误 (例如 404, 500) ---
+                log_func(f"服务器返回错误 (第{attempt+1}次): {http_err.response.status_code}")
+                logging.error(
+                    f"HTTP Error on attempt {attempt+1}/{retries} for {method} {url}. Status: {http_err.response.status_code}, Response: {http_err.response.text}", exc_info=False)
+                if attempt + 1 == retries:
+                    log_func(f"服务器错误: {http_err.response.status_code}")
+                    # 可以考虑返回包含错误信息的 response 对象，或者依然返回 None
+                    # return http_err.response # 如果上层需要处理具体错误
+                    return None # 保持返回 None
+                time.sleep(1.5) # 重试前等待
+                continue # 继续下一次重试
+
+            except requests.exceptions.RequestException as req_err:
+                # --- 捕获其他所有 requests 相关的异常 (作为兜底) ---
+                log_func(f"请求发生意外错误 (第{attempt+1}次): {req_err}")
+                logging.error(
+                    f"Unexpected RequestException on attempt {attempt+1}/{retries} for {method} {url}. Error: {req_err}", exc_info=True) # 记录详细堆栈
+                if attempt + 1 == retries:
+                    log_func(f"请求最终失败: {req_err}")
+                    return None # 最终失败返回 None
+                time.sleep(1.5) # 重试前等待
+                continue # 继续下一次重试
+
+        return None # 如果循环结束仍未成功
+
 
     def _json(self, resp: requests.Response | None) -> dict | None:
         """安全地将Response对象解析为JSON字典"""
@@ -2692,7 +2802,7 @@ class Api:
         cfg_en.add_section("Config")
         cfg_en.add_section("System")
 
-        # --- BUG修复：只保留当前有效的配置项 ---
+        
         # 1. 定义所有当前有效的Config参数键（白名单）
         valid_config_keys = set(self.global_params.keys())
         valid_config_keys.add("Username")
@@ -2950,65 +3060,74 @@ class Api:
 
     def get_initial_data(self):
         """应用启动时由前端调用，获取初始用户列表和最后登录用户"""
-        logging.info("API CALL: get_initial_data")
+        
+        try:
+            logging.info("API CALL: get_initial_data")
 
-        # 获取当前已有的用户配置文件列表
-        users = sorted([os.path.splitext(f)[0]
-                       for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+            # 获取当前已有的用户配置文件列表
+            users = sorted([os.path.splitext(f)[0]
+                        for f in os.listdir(self.user_dir) if f.endswith(".ini")])
 
-        # 读取全局配置
-        cfg = configparser.RawConfigParser()
-        cfg.optionxform = str  # 保持键的大小写
-        cfg.read(self.config_path, encoding='utf-8')
+            # 读取全局配置
+            cfg = configparser.RawConfigParser()
+            cfg.optionxform = str  # 保持键的大小写
+            cfg.read(self.config_path, encoding='utf-8')
 
-        # 确保有 Config 分段
-        if not cfg.has_section('Config'):
-            cfg.add_section('Config')
+            # 确保有 Config 分段
+            if not cfg.has_section('Config'):
+                cfg.add_section('Config')
 
-        last_user = cfg.get('Config', 'LastUser', fallback="").strip()
+            last_user = cfg.get('Config', 'LastUser', fallback="").strip()
 
-        # 如果 last_user 不为空但对应的 .ini 不存在，则清空并写回
-        if last_user and last_user not in users:
-            logging.warning(f"LastUser '{last_user}' 不存在对应的 .ini，自动清空。")
-            cfg.set('Config', 'LastUser', '')
-            try:
-                with open(self.config_path, 'w', encoding='utf-8') as f:
-                    cfg.write(f)
-            except Exception as e:
-                logging.error(f"写回 config.ini 失败：{e}", exc_info=True)
-            last_user = ""
+            # 如果 last_user 不为空但对应的 .ini 不存在，则清空并写回
+            if last_user and last_user not in users:
+                logging.warning(f"LastUser '{last_user}' 不存在对应的 .ini，自动清空。")
+                cfg.set('Config', 'LastUser', '')
+                try:
+                    with open(self.config_path, 'w', encoding='utf-8') as f:
+                        cfg.write(f)
+                except Exception as e:
+                    logging.error(f"写回 config.ini 失败：{e}", exc_info=True)
+                last_user = ""
 
-        # 在返回数据前，先加载一次全局配置
-        self._load_global_config()
+            # 在返回数据前，先加载一次全局配置
+            self._load_global_config()
 
-        # 修复Issue 5: 检查是否已登录（会话持久化）
-        is_logged_in = hasattr(self, 'login_success') and self.login_success
-        user_info = None
-        if is_logged_in and hasattr(self, 'user_info'):
-            user_info = self.user_info
+            # 修复Issue 5: 检查是否已登录（会话持久化）
+            is_logged_in = hasattr(self, 'login_success') and self.login_success
+            user_info = None
+            if is_logged_in and hasattr(self, 'user_info'):
+                user_info = self.user_info
 
-        logging.debug(
-            f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
+            logging.debug(
+                f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
 
-        # 检查认证状态
-        is_authenticated = hasattr(
-            self, 'is_authenticated') and self.is_authenticated
-        auth_username = getattr(self, 'auth_username', None)
-        auth_group = getattr(self, 'auth_group', 'guest')
-        is_guest = getattr(self, 'is_guest', False)
+            # 检查认证状态
+            is_authenticated = hasattr(
+                self, 'is_authenticated') and self.is_authenticated
+            auth_username = getattr(self, 'auth_username', None)
+            auth_group = getattr(self, 'auth_group', 'guest')
+            is_guest = getattr(self, 'is_guest', False)
 
-        return {
-            "success": True,
-            "users": users,
-            "lastUser": last_user,
-            "amap_key": self.global_params.get('amap_js_key', ''),
-            "isLoggedIn": is_logged_in,
-            "userInfo": user_info,
-            "is_authenticated": is_authenticated,
-            "auth_username": auth_username,
-            "auth_group": auth_group,
-            "is_guest": is_guest
-        }
+            return {
+                "success": True,
+                "users": users,
+                "lastUser": last_user,
+                "amap_key": self.global_params.get('amap_js_key', ''),
+                "isLoggedIn": is_logged_in,
+                "userInfo": user_info,
+                "is_authenticated": is_authenticated,
+                "auth_username": auth_username,
+                "auth_group": auth_group,
+                "is_guest": is_guest
+            }
+        except Exception as e:
+            self.is_offline_mode = True
+            return {
+                "success": False,
+                "offline": True,
+                "message": "后端无法连接服务器，已切换到离线模式"
+            }
 
     def get_user_sessions(self):
         """获取当前认证用户的会话列表（供前端调用）"""
@@ -7693,7 +7812,7 @@ class BackgroundTaskManager:
                                 <html>
                                 <head>
                                     <meta charset="utf-8">
-                                    <script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.15&key=f8e9fd5b2fba0b22c6eb3456e0c4c62e"></script>
+                                    <script type="text/javascript" src="https://webapi.amap.com/maps?v=1.4.15"></script>
                                 </head>
                                 <body></body>
                                 </html>
@@ -8107,10 +8226,33 @@ def start_web_server(args_param):
         logging.error(f"无法初始化Chrome浏览器池: {e}")
         sys.exit(1)
     
+    
     # 初始化后台任务管理器
     try:
         background_task_manager = BackgroundTaskManager()
         logging.info("后台任务管理器初始化成功")
+
+        logging.info("程序启动：正在清理所有历史后台任务记录（内存和文件）...")
+        cleaned_files_count = 0
+        if background_task_manager and hasattr(background_task_manager, 'task_storage_dir'):
+            task_dir = background_task_manager.task_storage_dir
+            if os.path.exists(task_dir):
+                # 清理内存
+                with background_task_manager.lock:
+                    background_task_manager.tasks.clear()
+                # 清理文件
+                for filename in os.listdir(task_dir):
+                    if filename.endswith(".json"):
+                        file_path = os.path.join(task_dir, filename)
+                        try:
+                            os.remove(file_path)
+                            cleaned_files_count += 1
+                        except Exception as e:
+                            logging.error(f"无法删除后台任务文件 {filename}: {e}")
+            logging.info(f"已清空后台任务管理器内存状态，并删除了 {cleaned_files_count} 个任务状态文件。")
+        else:
+            logging.warning("无法清理后台任务文件：BackgroundTaskManager 或其 task_storage_dir 未定义。")
+
     except Exception as e:
         logging.error(f"无法初始化后台任务管理器: {e}")
         sys.exit(1)
@@ -10708,6 +10850,96 @@ def start_web_server(args_param):
     # 启动会话监控线程
     logging.info("正在启动会话监控...")
     start_session_monitor()
+
+    cleaned_sessions_count = 0
+    with web_sessions_lock:
+        for session_id, api_instance in web_sessions.items():
+            try:
+                # 强制设置所有停止标志为 True (停止状态)
+                if hasattr(api_instance, 'stop_run_flag') and isinstance(api_instance.stop_run_flag, threading.Event):
+                    api_instance.stop_run_flag.set()
+                if hasattr(api_instance, 'multi_run_stop_flag') and isinstance(api_instance.multi_run_stop_flag, threading.Event):
+                    api_instance.multi_run_stop_flag.set()
+                if hasattr(api_instance, 'stop_auto_refresh') and isinstance(api_instance.stop_auto_refresh, threading.Event):
+                    api_instance.stop_auto_refresh.set()
+                if hasattr(api_instance, 'stop_multi_auto_refresh') and isinstance(api_instance.stop_multi_auto_refresh, threading.Event):
+                    api_instance.stop_multi_auto_refresh.set()
+
+                # 如果是多账号模式，也停止所有子账号的事件
+                if getattr(api_instance, 'is_multi_account_mode', False) and hasattr(api_instance, 'accounts'):
+                    for acc in api_instance.accounts.values():
+                        if hasattr(acc, 'stop_event') and isinstance(acc.stop_event, threading.Event):
+                            acc.stop_event.set()
+                        # 清理可能存在的 worker_thread 引用（线程已不存在）
+                        acc.worker_thread = None
+                        # 重置状态文本为待命（如果不是错误状态）
+                        if not api_instance._should_preserve_status(acc.status_text, "待命"):
+                             acc.status_text = "待命"
+
+                # 清理 Api 实例可能残留的 worker thread 引用
+                if hasattr(api_instance, 'auto_refresh_thread'):
+                    api_instance.auto_refresh_thread = None
+                if hasattr(api_instance, 'multi_auto_refresh_thread'):
+                    api_instance.multi_auto_refresh_thread = None
+
+                # 重置单账号进度
+                api_instance.current_run_idx = -1
+                api_instance._first_center_done = False
+
+                cleaned_sessions_count += 1
+            except Exception as e:
+                logging.error(f"重置会话 {session_id[:8]}... 状态时出错: {e}")
+
+    logging.info(f"已重置 {cleaned_sessions_count} 个会话的运行状态标志。")
+
+    logging.info("正在检查并修正持久化的后台任务状态...")
+    interrupted_task_files = 0
+    if background_task_manager and os.path.exists(background_task_manager.task_storage_dir):
+        try:
+            for filename in os.listdir(background_task_manager.task_storage_dir):
+                # 只处理该管理器的JSON状态文件
+                if filename.endswith('.json'):
+                    filepath = os.path.join(background_task_manager.task_storage_dir, filename)
+                    try:
+                        # 读取-修改-写回，需要独占访问（使用文件锁或确保单线程启动）
+                        # 这里假设启动阶段是单线程的，直接读写
+                        task_state = None
+                        with open(filepath, 'r', encoding='utf-8') as f:
+                            task_state = json.load(f)
+
+                        # 如果状态是 'running'，则修改为 'stopped' 并添加原因
+                        if task_state and task_state.get('status') == 'running':
+                            task_state['status'] = 'stopped' # 或者 'interrupted' 更准确
+                            task_state['error'] = '程序意外重启导致任务中断。'
+                            task_state['last_update'] = time.time() # 更新时间戳
+
+                            # 写回文件
+                            with open(filepath, 'w', encoding='utf-8') as f:
+                                json.dump(task_state, f, indent=2, ensure_ascii=False)
+                            interrupted_task_files += 1
+                            logging.debug(f"已将持久化的后台任务 {filename} 状态修正为 stopped。")
+
+                    except (IOError, json.JSONDecodeError) as e:
+                        logging.warning(f"处理后台任务状态文件 {filename} 时出错: {e}，跳过此文件。")
+                    except Exception as e: # 捕获其他可能的错误
+                         logging.error(f"更新后台任务状态文件 {filename} 时发生意外错误: {e}", exc_info=True)
+
+            if interrupted_task_files > 0:
+                logging.info(f"已修正 {interrupted_task_files} 个持久化的 'running' 后台任务状态为 stopped。")
+            else:
+                logging.info("未发现需要修正状态的持久化后台任务文件。")
+        except Exception as e:
+            logging.error(f"检查持久化后台任务状态时发生错误: {e}", exc_info=True)
+    else:
+        logging.info("后台任务管理器未初始化或存储目录不存在，跳过持久化状态检查。")
+
+
+    # 清理后台任务管理器的内存状态（但不删除持久化文件）
+    if background_task_manager:
+        with background_task_manager.lock:
+            initial_task_count = len(background_task_manager.tasks)
+            background_task_manager.tasks.clear()
+            logging.info(f"已清空后台任务管理器的内存状态（清理了 {initial_task_count} 个任务记录）。")
 
     # 启动服务器
     print(f"\n{'='*60}")
