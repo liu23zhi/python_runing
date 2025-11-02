@@ -4177,73 +4177,162 @@ class Api:
             dist_to_go = speed * interval_t
 
             final_pos, temp_draft_idx = current_gps_pos, draft_idx
+            # 内层循环：沿着草稿路径移动dist_to_go距离
+            # 如果一条段不够长，就继续下一段，直到移动完成或到达路径终点
             while dist_to_go > 0 and temp_draft_idx < len(draft) - 1:
+                # 当前段：从final_pos到下一个草稿点
                 seg_start_gps, seg_end_gps = final_pos, (
                     draft[temp_draft_idx + 1][0], draft[temp_draft_idx + 1][1])
+                # 计算这一段的长度
                 seg_dist = self._calculate_distance_m(
                     seg_start_gps[0], seg_start_gps[1], seg_end_gps[0], seg_end_gps[1])
 
+                # 情况1：这一段足够长，可以在段内插值
                 if seg_dist >= dist_to_go:
+                    # 线性插值：在段的起点和终点之间按比例找到位置
+                    # ratio = 0 在起点，ratio = 1 在终点
+                    # 🐛 潜在bug：seg_dist为0时会导致除零，已用三元运算符防护
                     ratio = dist_to_go / seg_dist if seg_dist > 0 else 0
+                    # 计算插值位置：起点 + ratio × (终点 - 起点)
                     final_pos = (seg_start_gps[0] + ratio * (seg_end_gps[0] - seg_start_gps[0]),
                                  seg_start_gps[1] + ratio * (seg_end_gps[1] - seg_start_gps[1]))
+                    # 已移动完成，更新索引
                     dist_to_go, draft_idx = 0, temp_draft_idx
+                # 情况2：这一段不够长，移动到段终点后继续下一段
                 else:
+                    # 减去这一段的距离，还需要继续移动
                     dist_to_go -= seg_dist
+                    # 移动到段终点
                     final_pos = seg_end_gps
+                    # 前进到下一个草稿段
                     temp_draft_idx += 1
+                    # 如果下一个点是关键点（打卡点），必须在此停止
+                    # 因为关键点不能跳过，必须精确到达
                     if draft[temp_draft_idx][2] == 1:
                         dist_to_go = 0
 
+            # 边界情况：如果所有草稿段都用完了还没移动够dist_to_go
+            # 说明草稿路径太短，强制移动到终点
+            # 🐛 这种情况理论上不应该发生，可能说明参数配置有问题
             if dist_to_go > 0:
                 final_pos = (draft[-1][0], draft[-1][1])
+            # 更新当前位置和草稿索引，为下一次迭代做准备
             draft_idx, current_gps_pos = temp_draft_idx, final_pos
 
+            # 检查final_pos是否是关键点（打卡点）
+            # 如果是关键点，保持精确坐标；如果不是，添加GPS随机偏移
+            # 使用any()遍历所有草稿点，检查坐标是否完全匹配且is_key=1
+            # ⚠️ 浮点数直接比较可能有精度问题，但实际使用中误差很小
             is_key_point = any(d[0] == final_pos[0] and d[1]
                                == final_pos[1] and d[2] == 1 for d in draft)
+            # 根据是否关键点决定是否添加偏移
             lon, lat = (final_pos[0], final_pos[1]) if is_key_point else self._gps_random_offset(
                 final_pos[0], final_pos[1], self.params)
+            # 添加到run_coords：(经度, 纬度, 距上一点的时间间隔毫秒)
             run.run_coords.append((lon, lat, int(interval_t * 1000)))
+            # 累计总时间
             total_time += interval_t
 
+        # ===== 步骤3：计算总距离 =====
+        # 遍历所有相邻点对，累加距离
+        # 💡 优化建议：这个循环可以在上面生成点的时候同时计算，避免二次遍历
         for i in range(len(run.run_coords) - 1):
             total_dist += self._calculate_distance_m(
                 run.run_coords[i][0], run.run_coords[i][1], run.run_coords[i + 1][0], run.run_coords[i + 1][1])
 
+        # 保存结果到run_data对象
         run.total_run_time_s, run.total_run_distance_m = total_time, total_dist
         self.log(f"处理完成。")
         logging.info(
             f"路径处理完成: 生成坐标点数={len(run.run_coords)}, 总距离={total_dist:.1f}米, 总时长={total_time:.1f}秒")
+        # 返回成功结果，包含生成的坐标序列和统计信息
         return {"success": True, "run_coords": run.run_coords, "total_dist": total_dist, "total_time": total_time}
 
     def check_target_reached_during_run(self, run_data: RunData, current_lon: float, current_lat: float):
-        """在模拟运行时，检查是否到达了打卡点"""
+        """
+        在模拟运行时，检查当前位置是否到达了打卡点。
+        
+        功能说明：
+        跑步任务通常有多个打卡点（如起点、中间点、终点），必须依次经过。
+        此函数在每次位置更新时调用，检测是否进入打卡点范围内。
+        
+        打卡点状态机：
+        1. 未进入区域 (is_in_target_zone=False) → 进入区域后触发打卡
+        2. 已在区域内 (is_in_target_zone=True) → 避免重复打卡
+        3. 离开区域 → 重置状态，准备检测下一个打卡点
+        
+        关键逻辑：
+        - 打卡点必须按顺序(target_sequence)依次到达
+        - 每个打卡点只能打卡一次（通过is_in_target_zone标志防重）
+        - 打卡成功后自动移动到下一个打卡点
+        - 如果当前位置同时在下一个打卡点范围内，自动处理
+        
+        ⚠️ 潜在问题：
+        1. 如果两个打卡点非常近（距离 < 2×range），可能跳过中间点
+        2. target_sequence从1开始（不是0），容易混淆
+        3. 数组索引使用target_sequence-1，可能越界
+        
+        参数:
+            run_data (RunData): 任务数据对象，包含打卡点列表和状态
+            current_lon (float): 当前经度
+            current_lat (float): 当前纬度
+        
+        修改状态:
+            run_data.target_sequence: 当前应到达的打卡点序号（1-based）
+            run_data.is_in_target_zone: 是否在打卡点范围内
+        """
+        # 边界检查：确保target_sequence有效
+        # target_sequence从1开始，最大值为打卡点数量
+        # 🐛 如果target_sequence=0或超出范围，说明状态异常，跳过检查
         if not (0 < run_data.target_sequence <= len(run_data.target_points)):
             logging.debug(
                 f"打卡点检查跳过: target_sequence={run_data.target_sequence}, total_points={len(run_data.target_points)}")
             return
 
+        # 获取当前应到达的打卡点坐标
+        # 注意：target_sequence从1开始，数组索引从0开始，所以要-1
         tar_lon, tar_lat = run_data.target_points[run_data.target_sequence - 1]
+        
+        # 计算当前位置与打卡点的距离
         dist = self._calculate_distance_m(
             current_lon, current_lat, tar_lon, tar_lat)
+        
+        # 判断是否在打卡范围内
+        # target_range_m通常为50-100米，可配置
         is_in_zone = (dist < self.target_range_m)
 
+        # 详细的调试日志，记录检查过程
         logging.debug(f"打卡点检查: 当前位置=({current_lon:.6f}, {current_lat:.6f}), "
                       f"目标点{run_data.target_sequence}=({tar_lon:.6f}, {tar_lat:.6f}), "
                       f"距离={dist:.2f}米, 范围={self.target_range_m:.2f}米, "
                       f"在范围内={is_in_zone}, 已在区域内={run_data.is_in_target_zone}")
 
+        # === 状态转换逻辑 ===
+        # 情况1：进入打卡范围，且之前不在范围内（首次进入，触发打卡）
         if is_in_zone and not run_data.is_in_target_zone:
+            # 标记为已在区域内，防止重复打卡
             run_data.is_in_target_zone = True
             logging.info(
                 f"✓ 到达打卡点 {run_data.target_sequence}/{len(run_data.target_points)}")
+            
+            # 如果还有下一个打卡点，移动到下一个
             if run_data.target_sequence < len(run_data.target_points):
+                # 递增打卡点序号
                 run_data.target_sequence += 1
+                # 获取下一个打卡点坐标
                 next_lon, next_lat = run_data.target_points[run_data.target_sequence - 1]
+                # 检查当前位置是否也在下一个打卡点范围内
+                # 如果不在，重置is_in_target_zone，准备检测下一个
+                # 💡 这个逻辑处理了两个打卡点很近的情况
                 if self._calculate_distance_m(current_lon, current_lat, next_lon, next_lat) >= self.target_range_m:
                     run_data.is_in_target_zone = False
                     logging.debug(
                         f"移动到下一个打卡点 {run_data.target_sequence}，已离开区域")
+                # else: 当前位置已在下一个打卡点范围内，保持is_in_target_zone=True
+                # 下次调用此函数时会立即触发下一个打卡点的打卡
+        
+        # 情况2：不在打卡范围内，重置状态
+        # 这确保了离开区域后可以重新检测（虽然正常流程不会重新检测同一个点）
         elif not is_in_zone:
             run_data.is_in_target_zone = False
 
