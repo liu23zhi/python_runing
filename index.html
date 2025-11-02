@@ -1633,7 +1633,7 @@
 
   <script>
     // ==============================================================================
-    // JavaScript部分
+    // JavaScript代码部分
     // ==============================================================================
 
     // 全局变量
@@ -1853,7 +1853,7 @@
     // 统一的API调用函数
     async function callPythonAPI(method, ...args) {
       logMessage_Info(`[API调用] 方法: ${method}, 参数数量: ${args.length}`);
-      // Web模式：通过HTTP调用后端API，带上会话UUID
+      // Web模式：通过HTTP协议调用后端API接口，请求头中携带会话UUID标识
       const headers = {
         'Content-Type': 'application/json',
       };
@@ -2070,7 +2070,7 @@
 
     // 在服务器端Chrome中执行JavaScript
     async function executeServerJS(script, ...args) {
-      // Web模式：发送到服务器端Chrome执行
+      // Web模式：将JavaScript代码发送到服务器端Chrome浏览器中执行
       const headers = {
         'Content-Type': 'application/json',
       };
@@ -2109,7 +2109,7 @@
     // 统一的 AMap 单例与加载控制
     let AMapInstance, map;
     let amapLoadingPromise = null;   // 保证只触发一次加载
-    let AMapReady = false;           // SDK是否就绪
+    let AMapReady = false;           // 高德地图SDK是否已加载就绪
 
     let currentTasks = [];
     let selectedTaskIndex = -1;
@@ -2183,7 +2183,7 @@
         help: "连续执行任务之间的最长等待时间。"
       },
 
-      // API 重试策略
+      // 路径规划API失败时的重试策略配置
       "api_fallback_line": {
         label: "规划失败时使用直线连接",
         unit: "",
@@ -2995,7 +2995,7 @@
           if (tfaCodeInput) tfaCodeInput.value = '';
         });
 
-        // Enter键登录
+        // 监听Enter键触发登录操作
         const authUsername = $('auth-username');
         const authPassword = $('auth-password');
         if (authUsername) authUsername.addEventListener('keypress', (e) => {
@@ -3005,13 +3005,13 @@
           if (e.key === 'Enter') handleAuthLogin();
         });
 
-        // Enter键2FA验证
+        // 监听Enter键触发两步验证（2FA）
         const auth2FACode = $('auth-2fa-code');
         if (auth2FACode) auth2FACode.addEventListener('keypress', (e) => {
           if (e.key === 'Enter') handle2FAVerify();
         });
 
-        // Enter键注册
+        // 监听Enter键触发用户注册
         const authRegPassword = $('auth-reg-password-confirm');
         if (authRegPassword) authRegPassword.addEventListener('keypress', (e) => {
           if (e.key === 'Enter') handleAuthRegister();
@@ -3027,8 +3027,8 @@
         const adminPanelBtnMulti = $('show-admin-panel-multi');
         if (adminPanelBtnMulti) adminPanelBtnMulti.addEventListener('click', () => toggleAdminPanel(true));
 
-        // Inline panel (login page) no longer has tabs - sessions only
-        // All tab switching is for the modal panel only
+        // 内联面板（登录页面）不再显示标签页 - 仅显示会话信息
+        // 所有标签页切换功能仅用于模态对话框面板
 
         const modalAdminPanel = $('admin-panel-modal');
         if (modalAdminPanel) {
@@ -3440,7 +3440,7 @@
           html += validSessions.map(session => {
             const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
             const isCurrent = session.is_current || session.session_id === sessionUUID;
-            const sessionHash = session.session_hash || session.session_id.substring(0, 16); // Fallback if hash not present
+            const sessionHash = session.session_hash || session.session_id.substring(0, 16); // 如果哈希值不存在，使用会话ID前16位作为备选
 
             // 上帝模式显示所有者信息，包括游客模式标识
             let ownerInfo = '';
@@ -3635,7 +3635,7 @@
 
         const user = result.user;
 
-        // Debug: log user data to console
+        // 调试用：将用户数据输出到控制台
         // logMessage_Info('[loadPersonalInfo] User data:', user);
         // logMessage_Info('[loadPersonalInfo] Avatar URL:', user.avatar_url);
 
@@ -5822,7 +5822,7 @@
     // --- 初始化 ---
     async function initializeApp() {
       try {
-        // UUID格式验证函数 - 标准UUID v4格式
+        // UUID格式验证函数 - 验证是否符合标准的UUID v4格式
         function isValidUUID(uuid) {
           const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
           return uuidPattern.test(uuid);
@@ -5989,7 +5989,7 @@
               });
 
               if (authContainer) authContainer.classList.remove('hidden');
-              // Swal.fire 返回一个 Promise，在用户关闭弹窗后解析
+              // Swal.fire会返回一个Promise对象，在用户关闭提示弹窗后该Promise会被解析
               Swal.fire({
                 title: '会话不存在', // 弹窗标题
                 text: '该会话已过期或不存在，请重新登录', // 弹窗消息
@@ -6541,7 +6541,7 @@
       socket.on('disconnect', (reason) => {
         logMessage_Warning('WebSocket disconnected:', reason);
         logMessage_Info("[System] WebSocket 连接已断开，尝试重连...");
-        // Socket.IO 会自动尝试重连
+        // Socket.IO库会自动尝试重新建立WebSocket连接
       });
 
       socket.on('connect_error', (error) => {
@@ -6624,7 +6624,7 @@
     }
 
 
-    // Web模式初始化
+    // Web模式应用初始化入口
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
         initializeApp().catch(err => {
@@ -6641,7 +6641,7 @@
         });
       });
     } else {
-      // DOM已加载，直接初始化
+      // DOM文档已完成加载，直接执行初始化流程
       initializeApp().catch(err => {
         logMessage_Error('应用初始化失败:', err);
         // 立即显示CDN错误（如果有）
@@ -7030,7 +7030,7 @@
       $('start-all-button').classList.remove('btn-danger');
       $('start-all-button').classList.add('btn-secondary');
       
-      // Stop background polling if active
+      // 如果后台任务轮询正在运行，则停止轮询
       stopBackgroundTaskPolling();
       
       updateDashboard();
@@ -7913,7 +7913,7 @@
             `;
         listDiv.appendChild(item);
       });
-      // Re-bind events for new elements
+      // 为新创建的DOM元素重新绑定事件监听器
 
       document.querySelectorAll('.btn-account-start').forEach(b => b.onclick = (e) => {
         const runOnly = document.getElementById('multi-run-only-incomplete-check')?.checked ?? true;
@@ -8575,7 +8575,7 @@
     async function toggleRun() {
       const btn = $('start-run-button'); runAccumulatedMs = 0;
       if (btn.textContent === '开始执行') {
-        // Use background task execution for single task
+        // 使用后台任务执行模式运行单个任务
         if (selectedTaskIndex < 0) {
           showModalAlert('请先选择任务');
           return;
@@ -8591,7 +8591,7 @@
           btn.classList.remove('btn-primary');
           btn.classList.add('btn-danger');
           
-          // Initialize single progress UI
+          // 初始化单任务进度显示界面
           updateSingleProgress(0, '0 / ? 点');
           
           // Start polling (with a small delay to let backend initialize)
@@ -8600,7 +8600,7 @@
           showModalAlert(result.message);
         }
       } else {
-        // Stop the task
+        // 停止正在执行的任务
         await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
         btn.textContent = '开始执行';
         btn.classList.remove('btn-danger');
@@ -8615,13 +8615,13 @@
         const ignoreCompleted = $('run-completed-check').checked;
         const autoGen = $('auto-gen-all-check').checked;
         
-        // Filter tasks
+        // 筛选符合条件的任务
         const taskIndices = [];
         for (let i = 0; i < allTasksData.length; i++) {
           const task = allTasksData[i];
           if (task.status == 1 && !ignoreCompleted) continue;
           
-          // Check time
+          // 检查任务的时间范围是否有效
           const now = new Date();
           if (task.end_time) {
             const endDate = new Date(task.end_time);
@@ -8640,7 +8640,7 @@
           return;
         }
         
-        // Use background task execution
+        // 使用后台任务执行模式运行多个任务
         const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
           task_indices: taskIndices,
           auto_generate: autoGen
@@ -8651,7 +8651,7 @@
           btn.classList.remove('btn-secondary');
           btn.classList.add('btn-danger');
           
-          // Initialize single progress UI
+          // 初始化进度显示界面
           updateSingleProgress(0, `0 / ${taskIndices.length} 任务`);
           
           // Start polling (with a small delay to let backend initialize)
@@ -8660,7 +8660,7 @@
           showModalAlert(result.message);
         }
       } else {
-        // Stop all tasks
+        // 停止所有正在执行的任务
         await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
         btn.textContent = '执行所有';
         btn.classList.remove('btn-danger');
@@ -8671,14 +8671,14 @@
 
     // ========== 后台任务管理函数 ==========
     let backgroundTaskPollInterval = null;
-    let backgroundTaskStartTime = 0; // Track when task was started to avoid showing alerts for old data
+    let backgroundTaskStartTime = 0; // 记录任务启动时间，用于避免显示旧数据的提示
     
     function startBackgroundTaskPolling() {
       if (backgroundTaskPollInterval) {
         clearInterval(backgroundTaskPollInterval);
       }
       
-      // Mark the start time
+      // 标记任务开始时间戳
       backgroundTaskStartTime = Date.now();
       
       // 立即查询一次
@@ -8704,7 +8704,7 @@
         if (result.success && result.task_status) {
           const status = result.task_status;
           
-          // Update existing single progress UI
+          // 更新现有的进度显示界面
           const completedTasks = status.completed_tasks || 0;
           const totalTasks = status.total_tasks || 0;
           const progressPercent = status.progress_percent || 0;
@@ -8771,7 +8771,7 @@
 
           drawMarkers();
           
-          // Update real-time position on map if available
+          // 如果有实时位置数据，则在地图上更新显示
           if (status.current_position) {
             const pos = status.current_position;
             updateRunnerPosition(
@@ -8784,11 +8784,11 @@
             );
           }
           
-          // Check if this is old data (task started before we began polling)
-          const taskStartTime = (status.start_time || 0) * 1000; // Convert to ms
-          const isOldTask = backgroundTaskStartTime > 0 && taskStartTime < backgroundTaskStartTime - 2000; // 2s buffer
+          // 检查这是否是旧数据（任务在我们开始轮询前就已启动）
+          const taskStartTime = (status.start_time || 0) * 1000; // 转换为毫秒
+          const isOldTask = backgroundTaskStartTime > 0 && taskStartTime < backgroundTaskStartTime - 2000; // 2秒缓冲
           
-          // 检查是否完成 - only show alert if this is not old data
+          // 检查是否完成 - 仅在不是旧数据时显示提示
           if (status.status === 'completed') {
             if (!isOldTask) {
               logMessage_Info('后台任务全部完成！');
@@ -8843,15 +8843,15 @@
           if (status.status === 'running') {
             logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
             
-            // Update button states
+            // 更新按钮状态以反映运行状态
             const totalTasks = status.total_tasks || 0;
             if (totalTasks === 1) {
-              // Single task running
+              // 单个任务正在运行
               $('start-run-button').textContent = '停止';
               $('start-run-button').classList.remove('btn-primary');
               $('start-run-button').classList.add('btn-danger');
             } else if (totalTasks > 1) {
-              // Multiple tasks running
+              // 多个任务正在运行
               $('start-all-button').textContent = '全部停止';
               $('start-all-button').classList.remove('btn-secondary');
               $('start-all-button').classList.add('btn-danger');
@@ -8907,7 +8907,7 @@
             }
             // --- 结束升级 ---
             
-            // Restore progress display
+            // 恢复进度显示
             const completedTasks = status.completed_tasks || 0;
             const progressPercent = status.progress_percent || 0;
             const currentTaskProgress = status.current_task_progress || 0;
@@ -8961,7 +8961,7 @@
             // 更新仪表板显示
             updateDashboard();
             
-            // Restore runner position on map if available
+            // 如果有实时位置数据，在地图上恢复跑步者位置显示
             if (status.current_position) {
               const pos = status.current_position;
               // 此时 selectTask 已经加载了 currentRunData，updateRunnerPosition 可以正确更新打卡点状态
@@ -9022,7 +9022,7 @@
       }
       const result = await callPythonAPI('export_task_data');
       if (result && result.success && result.data) {
-        // Web模式：创建下载链接
+        // Web模式：创建文件下载链接并触发浏览器下载
         const jsonStr = JSON.stringify(result.data, null, 2);
         const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -9040,7 +9040,7 @@
     }
 
     async function importTask() {
-      // Web模式：使用文件输入
+      // Web模式：创建文件选择输入框用于导入
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.json';
@@ -9384,7 +9384,7 @@
           '签到成功', '签到失败', '补签',
           // 任务状态
           '加载任务', '刷新任务', '选择任务',
-          // JS路径规划队列
+          // JavaScript路径规划队列相关
           '[JS-Queue]'
         ];
         
@@ -9866,7 +9866,7 @@
 
                       if (!isNaN(lon) && !isNaN(lat)) {
                         const rollCallId = n.id;
-                        // JS API 需要 [lon, lat] 格式
+                        // JavaScript API接口需要 [经度, 纬度] 格式的坐标
                         const targetCoords = `[${lon}, ${lat}]`;
 
                         // --- 新代码 (case 0, successful parse) ---
