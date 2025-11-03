@@ -45,17 +45,18 @@ from flask import make_response
 #  1. 日志系统配置
 # ==============================================================================
 
+
 class NoColorFileFormatter(logging.Formatter):
     """
     自定义日志格式化程序，用于在写入文件前去除ANSI颜色代码。
-    
+
     某些日志处理器可能会添加颜色代码（如colorlog），这些代码在文件中显示为乱码。
     此格式化程序确保写入日志文件的内容是纯文本，便于文本编辑器查看。
-    
+
     属性:
         ansi_escape_regex: 编译好的正则表达式，用于匹配和删除ANSI转义序列
     """
-    
+
     # ANSI转义码正则表达式详解：
     # \x1B 是ESC字符（ASCII 27）
     # [@-Z\\-_] 匹配单字符转义序列
@@ -66,15 +67,15 @@ class NoColorFileFormatter(logging.Formatter):
     def format(self, record):
         """
         格式化日志记录并移除颜色代码。
-        
+
         处理流程：
         1. 调用父类的format方法，生成可能包含ANSI颜色代码的日志消息
         2. 使用正则表达式替换所有ANSI转义序列为空字符串
         3. 返回清理后的纯文本消息
-        
+
         参数:
             record: LogRecord对象，包含日志信息（级别、消息、时间等）
-            
+
         返回:
             str: 不含ANSI颜色代码的格式化日志消息
         """
@@ -87,21 +88,21 @@ class NoColorFileFormatter(logging.Formatter):
 def archive_old_logs():
     """
     归档旧的日志文件。
-    
+
     在程序启动时调用，将上一次运行的日志文件压缩并移动到归档目录。
     支持归档 zx-slm-tool.log 和 zx-slm-tool-*.log 格式的文件。
     """
     import zipfile
     from datetime import datetime
-    
+
     log_dir = 'logs'
     archive_dir = os.path.join(log_dir, 'archive')
-    
+
     # 确保归档目录存在
     if not os.path.exists(archive_dir):
         os.makedirs(archive_dir, exist_ok=True)
         print(f"[日志归档] 创建归档目录: {archive_dir}")
-    
+
     # 查找所有需要归档的日志文件
     log_files_to_archive = []
     for filename in os.listdir(log_dir):
@@ -110,30 +111,30 @@ def archive_old_logs():
             # 只归档非空文件
             if os.path.isfile(log_path) and os.path.getsize(log_path) > 0:
                 log_files_to_archive.append((log_path, filename))
-    
+
     if not log_files_to_archive:
         print(f"[日志归档] 没有需要归档的日志文件")
         return
-    
+
     # 生成归档文件名（毫秒级时间戳）
     timestamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')[:-3]  # 毫秒级
     archive_filename = f"{timestamp}.zip"
     archive_path = os.path.join(archive_dir, archive_filename)
-    
+
     try:
         # 创建ZIP归档
         with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for log_path, filename in log_files_to_archive:
                 zipf.write(log_path, filename)
                 print(f"[日志归档] 已压缩: {filename}")
-        
+
         # 删除已归档的日志文件
         for log_path, filename in log_files_to_archive:
             os.remove(log_path)
             print(f"[日志归档] 已删除原文件: {filename}")
-        
+
         print(f"[日志归档] 归档完成: {archive_path}")
-        
+
     except Exception as e:
         print(f"[日志归档] 归档失败: {e}")
         import traceback
@@ -143,24 +144,24 @@ def archive_old_logs():
 def cleanup_archive_directory(archive_dir, max_size_mb):
     """
     清理归档目录，确保不超过指定大小。
-    
+
     当归档目录大小超过限制时，删除最早的归档文件。
-    
+
     参数:
         archive_dir: 归档目录路径
         max_size_mb: 最大大小（MB），0表示不限制
     """
     if max_size_mb <= 0:
         return  # 不限制大小
-    
+
     if not os.path.exists(archive_dir):
         return
-    
+
     try:
         # 获取所有归档文件及其大小
         archive_files = []
         total_size = 0
-        
+
         for filename in os.listdir(archive_dir):
             if filename.endswith('.zip'):
                 file_path = os.path.join(archive_dir, filename)
@@ -168,35 +169,40 @@ def cleanup_archive_directory(archive_dir, max_size_mb):
                     file_size = os.path.getsize(file_path)
                     # 获取文件修改时间
                     mtime = os.path.getmtime(file_path)
-                    archive_files.append((file_path, filename, file_size, mtime))
+                    archive_files.append(
+                        (file_path, filename, file_size, mtime))
                     total_size += file_size
-        
+
         max_size_bytes = max_size_mb * 1024 * 1024
         current_size_mb = total_size / (1024 * 1024)
-        
+
         if total_size <= max_size_bytes:
-            print(f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB / {max_size_mb}MB (无需清理)")
+            print(
+                f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB / {max_size_mb}MB (无需清理)")
             return
-        
-        print(f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB 超过限制 {max_size_mb}MB，开始清理...")
-        
+
+        print(
+            f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB 超过限制 {max_size_mb}MB，开始清理...")
+
         # 按时间排序（最早的在前）
         archive_files.sort(key=lambda x: x[3])
-        
+
         # 删除最早的文件直到大小满足要求
         deleted_count = 0
         for file_path, filename, file_size, _ in archive_files:
             if total_size <= max_size_bytes:
                 break
-            
+
             os.remove(file_path)
             total_size -= file_size
             deleted_count += 1
-            print(f"[归档清理] 已删除: {filename} ({file_size / (1024 * 1024):.2f}MB)")
-        
+            print(
+                f"[归档清理] 已删除: {filename} ({file_size / (1024 * 1024):.2f}MB)")
+
         final_size_mb = total_size / (1024 * 1024)
-        print(f"[归档清理] 清理完成，删除了 {deleted_count} 个文件，当前大小: {final_size_mb:.2f}MB")
-        
+        print(
+            f"[归档清理] 清理完成，删除了 {deleted_count} 个文件，当前大小: {final_size_mb:.2f}MB")
+
     except Exception as e:
         print(f"[归档清理] 清理失败: {e}")
         import traceback
@@ -206,18 +212,18 @@ def cleanup_archive_directory(archive_dir, max_size_mb):
 class CustomLogHandler(logging.FileHandler):
     """
     自定义日志处理器，实现文件大小检查和轮转。
-    
+
     当日志文件大小超过阈值时，进行轮转：
     - 重命名 zx-slm-tool.log 为 zx-slm-tool-01.log
     - 如果 zx-slm-tool-01.log 已存在，重命名为 zx-slm-tool-02.log
     - 以此类推
     - 创建新的 zx-slm-tool.log
     """
-    
+
     def __init__(self, filename, mode='a', encoding='utf-8', max_bytes=10*1024*1024):
         """
         初始化自定义日志处理器。
-        
+
         参数:
             filename: 日志文件路径
             mode: 文件打开模式
@@ -227,7 +233,7 @@ class CustomLogHandler(logging.FileHandler):
         self.max_bytes = max_bytes
         self.base_filename = filename
         super().__init__(filename, mode, encoding)
-    
+
     def emit(self, record):
         """
         写入日志记录前检查文件大小。
@@ -238,13 +244,13 @@ class CustomLogHandler(logging.FileHandler):
                 self.stream.flush()
                 if os.path.getsize(self.baseFilename) >= self.max_bytes:
                     self.do_rollover()
-            
+
             # 写入日志
             super().emit(record)
-            
+
         except Exception:
             self.handleError(record)
-    
+
     def do_rollover(self):
         """
         执行日志轮转。
@@ -252,10 +258,10 @@ class CustomLogHandler(logging.FileHandler):
         if self.stream:
             self.stream.close()
             self.stream = None
-        
+
         log_dir = os.path.dirname(self.baseFilename)
         base_name = 'zx-slm-tool'
-        
+
         # 查找已存在的编号文件
         existing_numbers = []
         for filename in os.listdir(log_dir):
@@ -267,22 +273,23 @@ class CustomLogHandler(logging.FileHandler):
                     existing_numbers.append(num)
                 except ValueError:
                     pass
-        
+
         # 确定新的编号
         if existing_numbers:
             next_num = max(existing_numbers) + 1
         else:
             next_num = 1
-        
+
         # 重命名当前文件
         new_name = os.path.join(log_dir, f'{base_name}-{next_num:02d}.log')
-        
+
         try:
             os.rename(self.baseFilename, new_name)
-            print(f"[日志轮转] 已轮转: {os.path.basename(self.baseFilename)} -> {os.path.basename(new_name)}")
+            print(
+                f"[日志轮转] 已轮转: {os.path.basename(self.baseFilename)} -> {os.path.basename(new_name)}")
         except Exception as e:
             print(f"[日志轮转] 轮转失败: {e}")
-        
+
         # 重新打开文件
         self.stream = self._open()
 
@@ -290,12 +297,12 @@ class CustomLogHandler(logging.FileHandler):
 def setup_logging():
     """
     配置详细的日志系统（带自定义轮转逻辑）。
-    
+
     功能：
     1. 启动时归档旧日志文件到 logs/archive（压缩为 zip）
     2. 当 zx-slm-tool.log 大小超过配置限制时自动轮转
     3. 清理归档目录，防止占用过多磁盘空间
-    
+
     配置项（config.ini [Logging]）：
     - log_rotation_size_mb: 单个日志文件最大大小（MB）
     - archive_max_size_mb: 归档目录最大大小（MB），0表示不限制
@@ -305,19 +312,22 @@ def setup_logging():
     archive_max_size_mb = 500  # 默认500MB
     log_dir = 'logs'
     archive_dir = os.path.join(log_dir, 'archive')
-    
+
     try:
         if os.path.exists('config.ini'):
             config = configparser.ConfigParser()
             config.read('config.ini', encoding='utf-8')
             if 'Logging' in config:
-                log_rotation_size_mb = config.getint('Logging', 'log_rotation_size_mb', fallback=10)
-                archive_max_size_mb = config.getint('Logging', 'archive_max_size_mb', fallback=500)
+                log_rotation_size_mb = config.getint(
+                    'Logging', 'log_rotation_size_mb', fallback=10)
+                archive_max_size_mb = config.getint(
+                    'Logging', 'archive_max_size_mb', fallback=500)
                 log_dir = config.get('Logging', 'log_dir', fallback='logs')
-                archive_dir = config.get('Logging', 'archive_dir', fallback='logs/archive')
+                archive_dir = config.get(
+                    'Logging', 'archive_dir', fallback='logs/archive')
     except Exception as e:
         print(f"[日志系统] 读取配置失败，使用默认值: {e}")
-    
+
     # 确保logs目录存在
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
@@ -325,10 +335,10 @@ def setup_logging():
 
     # 步骤1: 归档旧日志文件
     archive_old_logs()
-    
+
     # 步骤2: 清理归档目录
     cleanup_archive_directory(archive_dir, archive_max_size_mb)
-    
+
     log_file = os.path.join(log_dir, 'zx-slm-tool.log')
 
     # 创建logger
@@ -359,7 +369,7 @@ def setup_logging():
         max_bytes=max_bytes
     )
     file_handler.setLevel(logging.DEBUG)
-    
+
     # 修复：为 file_handler 应用“无颜色”格式化程序
     # 我们从原始 log_format 中提取格式字符串和日期格式
     no_color_formatter = NoColorFileFormatter(
@@ -367,7 +377,7 @@ def setup_logging():
         datefmt=log_format.datefmt
     )
     file_handler.setFormatter(no_color_formatter)
-    
+
     logger.addHandler(file_handler)
 
     # 记录日志系统启动
@@ -376,7 +386,8 @@ def setup_logging():
     logging.info(f"日志文件: {log_file}")
     logging.info(f"日志级别: DEBUG (所有级别)")
     logging.info(f"日志轮转: 单文件最大{log_rotation_size_mb}MB")
-    logging.info(f"归档目录: {archive_dir}, 最大{archive_max_size_mb}MB{'（不限制）' if archive_max_size_mb == 0 else ''}")
+    logging.info(
+        f"归档目录: {archive_dir}, 最大{archive_max_size_mb}MB{'（不限制）' if archive_max_size_mb == 0 else ''}")
     logging.info("="*80)
 
     return logger
@@ -539,7 +550,7 @@ def check_and_import_dependencies():
         logging.info("正在导入 Playwright...")
         print("[依赖检查] 正在导入 Playwright...")
         from playwright.sync_api import sync_playwright
-        
+
         # 10. NumPy
         logging.info("正在导入 NumPy（可选）...")
         print("[依赖检查] 正在导入 NumPy（可选）...")
@@ -611,16 +622,16 @@ def check_and_import_dependencies():
 def auto_init_system():
     """
     自动初始化系统，创建所有必需的文件和目录。
-    
+
     功能清单：
     1. 创建目录结构（logs、账号存储、会话存储）
     2. 生成或更新config.ini配置文件
     3. 创建permissions.json权限配置
     4. 创建默认管理员账号（用户名：admin，密码：admin）
-    
+
     幂等性：多次调用是安全的，已存在的文件不会被覆盖
     异常处理：任何步骤失败都会记录日志但不会中断程序
-    
+
     使用场景：
     - 程序首次启动
     - 配置文件丢失后的恢复
@@ -629,7 +640,7 @@ def auto_init_system():
     logging.info("="*80)
     logging.info("开始自动初始化系统...")
     print("[系统初始化] 开始自动初始化系统...")
-    
+
     try:
         # ===== 步骤1：创建目录结构 =====
         # 必须最先执行，因为后续步骤需要写入文件到这些目录
@@ -661,7 +672,7 @@ def auto_init_system():
         logging.info("系统初始化完成！")
         logging.info("="*80)
         print("[系统初始化] 系统初始化完成！")
-        
+
     except Exception as e:
         # 捕获所有异常，确保初始化失败不会导致程序崩溃
         # 但会详细记录错误信息，便于用户排查问题
@@ -674,18 +685,18 @@ def auto_init_system():
 def _create_directories():
     """
     创建程序运行所需的目录结构。
-    
+
     目录说明：
     - logs: 日志文件存储目录
     - school_accounts: 学校账号信息存储（JSON文件）
     - system_accounts: 系统认证账号存储（与school_accounts分离）
     - sessions: 用户会话持久化存储（UUID命名的JSON文件）
-    
+
     设计特点：
     - 使用exist_ok=True避免重复创建时出错
     - 不使用递归创建，所有目录都在根目录下
     - 每个目录都会输出创建状态，便于监控
-    
+
     潜在问题：
     - 如果目录权限不足，makedirs会失败
     - 目录名硬编码，迁移时需要同步修改
@@ -710,12 +721,12 @@ def _create_directories():
 def _get_default_config():
     """
     获取默认配置项字典。
-    
+
     此函数返回一个ConfigParser对象，包含所有配置节和默认值。
     主要用途：
     1. 创建新的config.ini文件
     2. 补全旧配置文件中缺失的配置项（版本升级场景）
-    
+
     配置结构：
     - [Admin]: 超级管理员设置
     - [Guest]: 游客访问控制
@@ -723,10 +734,10 @@ def _get_default_config():
     - [Security]: 安全策略（密码存储、防暴力破解）
     - [Map]: 地图API配置（高德地图密钥）
     - [AutoFill]: 自动填充功能开关
-    
+
     返回:
         configparser.ConfigParser: 包含默认配置的对象
-    
+
     注意：修改这里的默认值会影响新用户的初始配置
     """
     config = configparser.ConfigParser()
@@ -744,7 +755,7 @@ def _get_default_config():
         'system_accounts_dir': 'system_accounts',  # 修正：不应该在school_accounts下
         'permissions_file': 'permissions.json'
     }
-    
+
     # [Logging] 日志配置
     config['Logging'] = {
         'log_rotation_size_mb': '10',  # 单个日志文件最大大小（MB）
@@ -777,7 +788,7 @@ def _get_default_config():
 def _write_config_with_comments(config_obj, filepath):
     """
     将配置写入文件，包含详细的中文注释。
-    
+
     由于ConfigParser不保留注释，这个函数手动写入带注释的配置文件。
     """
     with open(filepath, 'w', encoding='utf-8') as f:
@@ -786,76 +797,92 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# ========================================\n")
         f.write("# 说明：修改配置后需要重启程序生效\n")
         f.write("# ========================================\n\n")
-        
+
         # [Admin] 配置
         f.write("[Admin]\n")
         f.write("# 超级管理员账号名称（有且只有一个）\n")
         f.write("# 注意：super_admin 只能在此配置文件中设置，不能在界面创建\n")
         f.write("# 默认账号: admin，默认密码: admin（首次登录后请立即修改）\n")
-        f.write(f"super_admin = {config_obj.get('Admin', 'super_admin', fallback='admin')}\n\n")
-        
+        f.write(
+            f"super_admin = {config_obj.get('Admin', 'super_admin', fallback='admin')}\n\n")
+
         # [Guest] 配置
         f.write("[Guest]\n")
         f.write("# 是否允许游客登录（true/false）\n")
         f.write("# true：允许未注册用户以游客身份使用系统（权限受限）\n")
         f.write("# false：禁止游客登录，所有用户必须注册\n")
-        f.write(f"allow_guest_login = {config_obj.get('Guest', 'allow_guest_login', fallback='true')}\n\n")
-        
+        f.write(
+            f"allow_guest_login = {config_obj.get('Guest', 'allow_guest_login', fallback='true')}\n\n")
+
         # [System] 配置
         f.write("[System]\n")
         f.write("# 会话过期时间（天）\n")
         f.write("# 超过此时间未访问的会话将自动清理\n")
-        f.write(f"session_expiry_days = {config_obj.get('System', 'session_expiry_days', fallback='7')}\n")
+        f.write(
+            f"session_expiry_days = {config_obj.get('System', 'session_expiry_days', fallback='7')}\n")
         f.write("# 学校账号数据存储目录\n")
-        f.write(f"school_accounts_dir = {config_obj.get('System', 'school_accounts_dir', fallback='school_accounts')}\n")
+        f.write(
+            f"school_accounts_dir = {config_obj.get('System', 'school_accounts_dir', fallback='school_accounts')}\n")
         f.write("# 系统账号数据存储目录（admin等）\n")
-        f.write(f"system_accounts_dir = {config_obj.get('System', 'system_accounts_dir', fallback='system_accounts')}\n")
+        f.write(
+            f"system_accounts_dir = {config_obj.get('System', 'system_accounts_dir', fallback='system_accounts')}\n")
         f.write("# 权限配置文件路径\n")
-        f.write(f"permissions_file = {config_obj.get('System', 'permissions_file', fallback='permissions.json')}\n\n")
-        
+        f.write(
+            f"permissions_file = {config_obj.get('System', 'permissions_file', fallback='permissions.json')}\n\n")
+
         # [Logging] 配置
         f.write("[Logging]\n")
         f.write("# 单个日志文件最大大小（MB）\n")
         f.write("# 超过此大小时会自动轮转到新文件（如 zx-slm-tool-01.log）\n")
-        f.write(f"log_rotation_size_mb = {config_obj.get('Logging', 'log_rotation_size_mb', fallback='10')}\n")
+        f.write(
+            f"log_rotation_size_mb = {config_obj.get('Logging', 'log_rotation_size_mb', fallback='10')}\n")
         f.write("# 归档目录最大大小（MB）\n")
         f.write("# 超过此大小时会删除最早的归档文件，设置为0表示不限制\n")
-        f.write(f"archive_max_size_mb = {config_obj.get('Logging', 'archive_max_size_mb', fallback='500')}\n")
+        f.write(
+            f"archive_max_size_mb = {config_obj.get('Logging', 'archive_max_size_mb', fallback='500')}\n")
         f.write("# 日志文件存储目录\n")
-        f.write(f"log_dir = {config_obj.get('Logging', 'log_dir', fallback='logs')}\n")
+        f.write(
+            f"log_dir = {config_obj.get('Logging', 'log_dir', fallback='logs')}\n")
         f.write("# 日志归档目录（启动时会自动压缩旧日志到此目录）\n")
-        f.write(f"archive_dir = {config_obj.get('Logging', 'archive_dir', fallback='logs/archive')}\n\n")
-        
+        f.write(
+            f"archive_dir = {config_obj.get('Logging', 'archive_dir', fallback='logs/archive')}\n\n")
+
         # [Security] 配置
         f.write("[Security]\n")
         f.write("# 密码存储方式（plaintext/sha256/bcrypt）\n")
         f.write("# plaintext：明文存储（不推荐，仅用于测试）\n")
         f.write("# sha256：SHA256哈希（已弃用，不够安全）\n")
         f.write("# bcrypt：bcrypt加密（推荐，自动加盐，抗暴力破解）\n")
-        f.write(f"password_storage = {config_obj.get('Security', 'password_storage', fallback='plaintext')}\n")
+        f.write(
+            f"password_storage = {config_obj.get('Security', 'password_storage', fallback='plaintext')}\n")
         f.write("# 是否启用暴力破解防护（true/false）\n")
         f.write("# true：启用登录尝试限制和账号临时锁定\n")
-        f.write(f"brute_force_protection = {config_obj.get('Security', 'brute_force_protection', fallback='true')}\n")
+        f.write(
+            f"brute_force_protection = {config_obj.get('Security', 'brute_force_protection', fallback='true')}\n")
         f.write("# 登录日志保留天数\n")
         f.write("# 超过此时间的登录审计日志将被清理\n")
-        f.write(f"login_log_retention_days = {config_obj.get('Security', 'login_log_retention_days', fallback='90')}\n\n")
-        
+        f.write(
+            f"login_log_retention_days = {config_obj.get('Security', 'login_log_retention_days', fallback='90')}\n\n")
+
         # [Map] 配置
         f.write("[Map]\n")
         f.write("# 高德地图 JS API 密钥\n")
         f.write("# 用于前端地图显示，请在高德开放平台申请：https://console.amap.com/\n")
         f.write("# 申请类型：Web端(JS API)，服务平台：Web端\n")
-        f.write(f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
-        
+        f.write(
+            f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
+
         # [AutoFill] 配置
         f.write("[AutoFill]\n")
         f.write("# 游客模式是否自动填充密码（true/false）\n")
         f.write("# true：游客登录时自动填充密码（方便测试）\n")
         f.write("# false：需要手动输入密码\n")
-        f.write(f"guest_auto_fill_password = {config_obj.get('AutoFill', 'guest_auto_fill_password', fallback='false')}\n")
+        f.write(
+            f"guest_auto_fill_password = {config_obj.get('AutoFill', 'guest_auto_fill_password', fallback='false')}\n")
         f.write("# 允许自动填充密码的账号列表（逗号分隔）\n")
         f.write("# 示例：user1,user2,user3\n")
-        f.write(f"auto_fill_accounts = {config_obj.get('AutoFill', 'auto_fill_accounts', fallback='')}\n\n")
+        f.write(
+            f"auto_fill_accounts = {config_obj.get('AutoFill', 'auto_fill_accounts', fallback='')}\n\n")
 
 
 def _create_config_ini():
@@ -871,15 +898,16 @@ def _create_config_ini():
             existing_config.optionxform = str
             existing_config.read('config.ini', encoding='utf-8')
         except configparser.DuplicateOptionError as e:
-             # 如果读取时就发现重复，直接提示用户手动修复
-             print(f"\n[错误] 配置文件 'config.ini' 格式错误，请手动修复:")
-             print(f"  - 文件中存在重复的配置项: {e}")
-             print(f"  - 请打开 config.ini 文件，找到 [{e.section}] 部分，确保 '{e.option}' 只出现一次（不区分大小写）。")
-             print(f"  - 修复后重新运行程序。")
-             # 可以选择在这里退出程序 sys.exit(1) 或者继续尝试（可能不准确）
-             logging.error(f"配置文件读取失败，存在重复项: {e}")
-             # 如果选择继续，后面的逻辑可能基于不完整的配置
-             # return # 或者直接返回，让程序启动失败
+            # 如果读取时就发现重复，直接提示用户手动修复
+            print(f"\n[错误] 配置文件 'config.ini' 格式错误，请手动修复:")
+            print(f"  - 文件中存在重复的配置项: {e}")
+            print(
+                f"  - 请打开 config.ini 文件，找到 [{e.section}] 部分，确保 '{e.option}' 只出现一次（不区分大小写）。")
+            print(f"  - 修复后重新运行程序。")
+            # 可以选择在这里退出程序 sys.exit(1) 或者继续尝试（可能不准确）
+            logging.error(f"配置文件读取失败，存在重复项: {e}")
+            # 如果选择继续，后面的逻辑可能基于不完整的配置
+            # return # 或者直接返回，让程序启动失败
 
         # 检查并补全缺失的节和参数
         updated = False
@@ -895,11 +923,12 @@ def _create_config_ini():
             else:
                 # 节已存在，检查缺失的键
                 # 获取该节下所有现有 key 的小写形式
-                existing_keys_lower = {k.lower() for k in existing_config.options(section)}
+                existing_keys_lower = {k.lower()
+                                       for k in existing_config.options(section)}
                 for key, value in default_config.items(section):
                     # 检查默认 key 的小写形式是否已存在
                     if key.lower() not in existing_keys_lower:
-                        existing_config.set(section, key, value) # 使用默认的大小写添加
+                        existing_config.set(section, key, value)  # 使用默认的大小写添加
                         updated = True
                         print(f"[配置文件] 添加缺失的配置项: [{section}] {key} = {value}")
 
@@ -967,12 +996,12 @@ def _create_permissions_json():
                     "import_offline": True,
                     "export_data": True,
                     "modify_params": True,
-                    
+
                     # UI按钮权限（细粒度控制）
                     "use_login_button": True,  # 登录按钮（游客默认有）
                     "use_multi_account_button": False,  # 多账号控制台按钮（游客默认无）
                     "use_import_button": False,  # 导入离线文件按钮（游客默认无）
-                    
+
                     # 留言板权限
                     "view_messages": True,  # 查看留言
                     "post_messages": True,  # 发表留言（游客需填写邮箱和昵称）
@@ -1018,7 +1047,7 @@ def _create_permissions_json():
                     "export_data": True,
                     "modify_params": True,
                     "manage_own_sessions": True,  # 管理自己的会话
-                    
+
                     # UI按钮权限（细粒度控制）
                     "use_login_button": True,  # 登录按钮
                     "use_multi_account_button": True,  # 多账号控制台按钮
@@ -1073,12 +1102,12 @@ def _create_permissions_json():
                     "manage_own_sessions": True,
                     "manage_user_sessions": True,  # 管理其他用户的会话
                     "view_session_details": True,
-                    
+
                     # UI按钮权限（细粒度控制）
                     "use_login_button": True,  # 登录按钮
                     "use_multi_account_button": True,  # 多账号控制台按钮
                     "use_import_button": True,  # 导入离线文件按钮
-                    
+
                     # 留言板权限
                     "view_messages": True,  # 查看留言
                     "post_messages": True,  # 发表留言
@@ -1139,12 +1168,12 @@ def _create_permissions_json():
                     "manage_user_sessions": True,
                     "view_session_details": True,
                     "god_mode": True,  # 上帝模式：可以查看和销毁所有会话
-                    
+
                     # UI按钮权限（细粒度控制）
                     "use_login_button": True,  # 登录按钮
                     "use_multi_account_button": True,  # 多账号控制台按钮
                     "use_import_button": True,  # 导入离线文件按钮
-                    
+
                     # 留言板权限
                     "view_messages": True,  # 查看留言
                     "post_messages": True,  # 发表留言
@@ -1180,7 +1209,8 @@ def _create_default_admin():
         return
 
     print("[管理员账号] 创建默认管理员账号 (用户名: admin, 密码: admin)...")
-    logging.info(f"[系统初始化] 开始创建默认管理员账号 --> 用户名: admin, 密码: admin (⚠️ 建议首次登录后立即修改), 权限组: super_admin, 文件路径: {admin_file}")
+    logging.info(
+        f"[系统初始化] 开始创建默认管理员账号 --> 用户名: admin, 密码: admin (⚠️ 建议首次登录后立即修改), 权限组: super_admin, 文件路径: {admin_file}")
     admin_data = {
         "auth_username": "admin",
         "password": "admin",
@@ -1198,7 +1228,8 @@ def _create_default_admin():
     with open(admin_file, 'w', encoding='utf-8') as f:
         json.dump(admin_data, f, indent=2, ensure_ascii=False)
     print("[管理员账号] 默认管理员账号创建完成")
-    logging.info(f"[系统初始化] 管理员账号创建成功 --> 文件路径: {admin_file}, 账号信息: 用户名=admin, 权限组=super_admin, 双因素认证=未启用, 最大会话数=无限制, 主题=light")
+    logging.info(
+        f"[系统初始化] 管理员账号创建成功 --> 文件路径: {admin_file}, 账号信息: 用户名=admin, 权限组=super_admin, 双因素认证=未启用, 最大会话数=无限制, 主题=light")
 
 
 # 在导入完成后立即初始化系统
@@ -1208,13 +1239,15 @@ auto_init_system()
 SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
 if not os.path.exists(SESSION_STORAGE_DIR):
     os.makedirs(SESSION_STORAGE_DIR)
-    logging.info(f"[系统初始化] 创建会话存储目录 --> 目录路径: {SESSION_STORAGE_DIR}, 用途: 存储用户会话数据和状态信息")
+    logging.info(
+        f"[系统初始化] 创建会话存储目录 --> 目录路径: {SESSION_STORAGE_DIR}, 用途: 存储用户会话数据和状态信息")
 
 # Token存储目录
 TOKENS_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'tokens')
 if not os.path.exists(TOKENS_STORAGE_DIR):
     os.makedirs(TOKENS_STORAGE_DIR)
-    logging.info(f"[系统初始化] 创建Token存储目录 --> 目录路径: {TOKENS_STORAGE_DIR}, 用途: 存储API访问令牌和临时凭证")
+    logging.info(
+        f"[系统初始化] 创建Token存储目录 --> 目录路径: {TOKENS_STORAGE_DIR}, 用途: 存储API访问令牌和临时凭证")
 
 
 def get_session_file_path(session_id: str) -> str:
@@ -1231,20 +1264,23 @@ SCHOOL_ACCOUNTS_DIR = os.path.join(
     os.path.dirname(__file__), 'school_accounts')
 if not os.path.exists(SCHOOL_ACCOUNTS_DIR):
     os.makedirs(SCHOOL_ACCOUNTS_DIR)
-    logging.info(f"[系统初始化] 创建学校账号数据目录 --> 目录路径: {SCHOOL_ACCOUNTS_DIR}, 用途: 存储学校系统的用户账号信息")
+    logging.info(
+        f"[系统初始化] 创建学校账号数据目录 --> 目录路径: {SCHOOL_ACCOUNTS_DIR}, 用途: 存储学校系统的用户账号信息")
 
 # 系统认证账号目录（修正：独立存储，不在school_accounts下）
 SYSTEM_ACCOUNTS_DIR = os.path.join(
     os.path.dirname(__file__), 'system_accounts')
 if not os.path.exists(SYSTEM_ACCOUNTS_DIR):
     os.makedirs(SYSTEM_ACCOUNTS_DIR)
-    logging.info(f"[系统初始化] 创建系统认证账号目录 --> 目录路径: {SYSTEM_ACCOUNTS_DIR}, 用途: 独立存储系统管理员和普通用户的认证信息")
+    logging.info(
+        f"[系统初始化] 创建系统认证账号目录 --> 目录路径: {SYSTEM_ACCOUNTS_DIR}, 用途: 独立存储系统管理员和普通用户的认证信息")
 
 # 登录日志目录
 LOGIN_LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
 if not os.path.exists(LOGIN_LOGS_DIR):
     os.makedirs(LOGIN_LOGS_DIR)
-    logging.info(f"[系统初始化] 创建登录日志目录 --> 目录路径: {LOGIN_LOGS_DIR}, 用途: 存储登录历史、审计日志和系统运行日志")
+    logging.info(
+        f"[系统初始化] 创建登录日志目录 --> 目录路径: {LOGIN_LOGS_DIR}, 用途: 存储登录历史、审计日志和系统运行日志")
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
 PERMISSIONS_FILE = os.path.join(os.path.dirname(__file__), 'permissions.json')
@@ -1302,14 +1338,16 @@ class AuthSystem:
         except configparser.DuplicateOptionError as e:
             # 如果 _create_config_ini 内部读取时就出错，这里无需再做处理，它已经提示
             # 可以选择在这里直接退出或抛出异常
-            logging.error(f"[系统初始化] 配置文件检查失败 --> 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 配置文件损坏或存在重复选项", exc_info=True)
+            logging.error(
+                f"[系统初始化] 配置文件检查失败 --> 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 配置文件损坏或存在重复选项", exc_info=True)
             print(f"\n[严重错误] 配置文件 ('config.ini') 已损坏。请修复上述提到的重复选项，然后重新启动程序。")
-            sys.exit(1) # 强制退出，避免使用损坏的配置
+            sys.exit(1)  # 强制退出，避免使用损坏的配置
         except Exception as e:
-            logging.error(f"[系统初始化] 配置文件检查时发生未知错误 --> 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
-            print(f"\n[严重错误] 检查配置文件 'config.ini' 时发生意外错误: {e}\n请检查文件格式是否正确，然后重新启动程序。")
-            sys.exit(1) # 强制退出
-
+            logging.error(
+                f"[系统初始化] 配置文件检查时发生未知错误 --> 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
+            print(
+                f"\n[严重错误] 检查配置文件 'config.ini' 时发生意外错误: {e}\n请检查文件格式是否正确，然后重新启动程序。")
+            sys.exit(1)  # 强制退出
 
         # 现在尝试正式加载配置供 AuthSystem 使用
         config = configparser.ConfigParser()
@@ -1317,11 +1355,13 @@ class AuthSystem:
         config.optionxform = str
         try:
             config.read(CONFIG_FILE, encoding='utf-8')
-            logging.debug(f"_load_config: 配置文件加载完成，配置节: {list(config.sections())}")
+            logging.debug(
+                f"_load_config: 配置文件加载完成，配置节: {list(config.sections())}")
             return config
         except configparser.DuplicateOptionError as e:
             # !!! 捕获重复项错误 !!!
-            logging.error(f"加载配置文件 '{CONFIG_FILE}' 失败，存在重复的配置项: {e}", exc_info=True)
+            logging.error(
+                f"加载配置文件 '{CONFIG_FILE}' 失败，存在重复的配置项: {e}", exc_info=True)
             print(f"\n{'='*60}")
             print(f"[配置文件错误] 无法加载 config.ini 文件！")
             print(f"  错误原因: 在区域 [{e.section}] 中发现重复的选项 '{e.option}' (不区分大小写).")
@@ -1336,7 +1376,8 @@ class AuthSystem:
             sys.exit(1)
         except Exception as e:
             # 捕获其他可能的读取错误
-            logging.error(f"加载配置文件 '{CONFIG_FILE}' 时发生未知错误: {e}", exc_info=True)
+            logging.error(
+                f"加载配置文件 '{CONFIG_FILE}' 时发生未知错误: {e}", exc_info=True)
             print(f"\n[配置文件错误] 读取 config.ini 文件时发生意外错误: {e}")
             print(f"  请检查文件是否存在、是否有读取权限以及格式是否基本正确。")
             sys.exit(1)
@@ -1376,20 +1417,20 @@ class AuthSystem:
     def _get_password_storage_method(self):
         """
         获取密码存储方式配置。
-        
+
         从config.ini的[Security]节读取password_storage配置项：
         - 'plaintext': 明文存储（默认，不安全）
         - 'encrypted': SHA256哈希存储
-        
+
         ⚠️ 安全警告：
         - 默认为plaintext，密码完全可见
         - encrypted模式使用SHA256但不加盐，仍不够安全
-        
+
         💡 建议改进：
         - 添加bcrypt或argon2选项
         - 强制encrypted模式，禁止plaintext
         - 密码哈希应使用慢速算法+随机盐
-        
+
         返回:
             str: 'plaintext' 或 'encrypted'
         """
@@ -1401,24 +1442,24 @@ class AuthSystem:
     def _encrypt_password(self, password):
         """
         加密密码（根据配置决定是否加密）。
-        
+
         加密方式：
         - plaintext: 不加密，直接返回原密码（已废弃，不推荐）
         - encrypted: 使用SHA256哈希（已废弃，仅用于向后兼容）
         - bcrypt: 使用bcrypt算法（推荐，自动加盐，抗暴力破解）
-        
+
         ⚠️ 安全说明：
         1. bcrypt自动生成随机盐并嵌入到哈希中
         2. bcrypt计算慢，抗GPU/ASIC暴力破解
         3. 每次加密相同密码产生不同哈希（因为盐不同）
         4. SHA256模式仅用于向后兼容旧密码
-        
+
         参数:
             password (str): 明文密码
-            
+
         返回:
             str: 加密后的密码（或明文）
-            
+
         示例:
             >>> _encrypt_password("admin")
             # bcrypt模式: "$2b$12$abcd..."（60字符）
@@ -1426,8 +1467,9 @@ class AuthSystem:
             # plaintext模式（极不安全）: "admin"
         """
         method = self._get_password_storage_method()
-        logging.debug(f"[密码加密] 开始处理密码加密 --> 加密方法: {method}, 密码长度: {len(password)}字符")
-        
+        logging.debug(
+            f"[密码加密] 开始处理密码加密 --> 加密方法: {method}, 密码长度: {len(password)}字符")
+
         if method == 'bcrypt':
             # 使用bcrypt加密（推荐方式）
             try:
@@ -1438,68 +1480,75 @@ class AuthSystem:
                 hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
                 # bcrypt返回bytes，需要解码为字符串存储
                 encrypted = hashed.decode('utf-8')
-                logging.debug(f"[密码加密] 密码已使用bcrypt加密 --> 哈希长度: {len(encrypted)}字符, 哈希前缀: {encrypted[:7]}... (✓ 安全: 自动加盐，抗暴力破解)")
+                logging.debug(
+                    f"[密码加密] 密码已使用bcrypt加密 --> 哈希长度: {len(encrypted)}字符, 哈希前缀: {encrypted[:7]}... (✓ 安全: 自动加盐，抗暴力破解)")
                 return encrypted
             except ImportError:
-                logging.error("[密码加密] bcrypt库未安装，无法使用bcrypt加密。请运行: pip install bcrypt")
+                logging.error(
+                    "[密码加密] bcrypt库未安装，无法使用bcrypt加密。请运行: pip install bcrypt")
                 logging.warning("[密码加密] 降级使用SHA256加密（不安全）")
                 # 降级到SHA256
                 method = 'encrypted'
-        
+
         if method == 'encrypted':
             # SHA256哈希（仅用于向后兼容）
             # 为了向后兼容，对旧的SHA256哈希添加简单的盐值支持
             # 使用用户名的哈希作为盐（不完美但比无盐好）
             # 注：这只是临时方案，新密码应使用bcrypt
             encrypted = hashlib.sha256(password.encode()).hexdigest()
-            logging.debug(f"[密码加密] 密码已使用SHA256加密 --> 哈希长度: {len(encrypted)}字符, 哈希值前8位: {encrypted[:8]}... (⚠️ 警告: SHA256不加盐存在安全风险，建议迁移到bcrypt)")
+            logging.debug(
+                f"[密码加密] 密码已使用SHA256加密 --> 哈希长度: {len(encrypted)}字符, 哈希值前8位: {encrypted[:8]}... (⚠️ 警告: SHA256不加盐存在安全风险，建议迁移到bcrypt)")
             return encrypted
-        
+
         # plaintext模式（不推荐）
-        logging.warning(f"[密码加密] 使用明文存储密码 --> ⚠️ 严重安全警告: 明文密码存储极度不安全，强烈建议使用bcrypt模式")
+        logging.warning(
+            f"[密码加密] 使用明文存储密码 --> ⚠️ 严重安全警告: 明文密码存储极度不安全，强烈建议使用bcrypt模式")
         return password  # 明文返回
 
     def _verify_password(self, input_password, stored_password):
         """
         验证用户输入的密码是否正确。
-        
+
         验证流程：
         1. 自动检测存储密码的格式（bcrypt/SHA256/plaintext）
         2. bcrypt模式：使用bcrypt.checkpw()验证（推荐）
         3. encrypted模式：使用secrets.compare_digest()常量时间比较
         4. plaintext模式：使用secrets.compare_digest()比较（不推荐）
-        
+
         ✓ 安全改进：
         1. 使用secrets.compare_digest()防止时序攻击
         2. 支持bcrypt自动验证（包含盐值检查）
         3. 常量时间比较，响应时间不泄露密码信息
         4. 自动检测密码格式，兼容旧密码
-        
+
         参数:
             input_password (str): 用户输入的密码（明文）
             stored_password (str): 存储的密码（明文/SHA256哈希/bcrypt哈希）
-            
+
         返回:
             bool: True表示密码正确，False表示密码错误
-            
+
         安全特性：
         - 无论密码对错，响应时间基本相同（常量时间）
         - 防止通过响应时间分析推测密码
         """
-        logging.debug(f"[密码验证] 开始验证密码 --> 输入密码长度: {len(input_password)}字符, 存储密码长度: {len(stored_password)}字符")
-        
+        logging.debug(
+            f"[密码验证] 开始验证密码 --> 输入密码长度: {len(input_password)}字符, 存储密码长度: {len(stored_password)}字符")
+
         # 自动检测存储密码的格式
         # bcrypt哈希格式: $2b$12$... (60字符，以$2b$或$2a$开头)
         # SHA256哈希格式: 64个十六进制字符
         # plaintext: 其他
-        
+
         if stored_password.startswith('$2b$') or stored_password.startswith('$2a$'):
             # bcrypt格式密码
             try:
                 import bcrypt
                 # bcrypt.checkpw自动处理盐值验证，内部使用常量时间比较
-                result = bcrypt.checkpw(input_password.encode('utf-8'), stored_password.encode('utf-8'))
-                logging.debug(f"[密码验证] bcrypt验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (✓ 安全: 使用bcrypt.checkpw，防时序攻击)")
+                result = bcrypt.checkpw(input_password.encode(
+                    'utf-8'), stored_password.encode('utf-8'))
+                logging.debug(
+                    f"[密码验证] bcrypt验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (✓ 安全: 使用bcrypt.checkpw，防时序攻击)")
                 return result
             except ImportError:
                 logging.error("[密码验证] bcrypt库未安装，无法验证bcrypt密码")
@@ -1507,26 +1556,28 @@ class AuthSystem:
             except Exception as e:
                 logging.error(f"[密码验证] bcrypt验证失败 --> 错误: {e}")
                 return False
-        
+
         elif len(stored_password) == 64 and all(c in '0123456789abcdef' for c in stored_password.lower()):
             # SHA256格式密码（64个十六进制字符）
             input_hash = hashlib.sha256(input_password.encode()).hexdigest()
             # ✓ 使用secrets.compare_digest()进行常量时间比较，防止时序攻击
             result = secrets.compare_digest(input_hash, stored_password)
-            logging.debug(f"[密码验证] SHA256哈希验证完成 --> 输入密码哈希前8位: {input_hash[:8]}..., 存储密码哈希前8位: {stored_password[:8]}..., 验证结果: {'✓ 成功' if result else '✗ 失败'} (✓ 安全: 使用secrets.compare_digest防时序攻击)")
+            logging.debug(
+                f"[密码验证] SHA256哈希验证完成 --> 输入密码哈希前8位: {input_hash[:8]}..., 存储密码哈希前8位: {stored_password[:8]}..., 验证结果: {'✓ 成功' if result else '✗ 失败'} (✓ 安全: 使用secrets.compare_digest防时序攻击)")
             return result
-        
+
         else:
             # plaintext格式（不推荐）
             # ✓ 即使是明文，也使用secrets.compare_digest()防止时序攻击
             result = secrets.compare_digest(input_password, stored_password)
-            logging.warning(f"[密码验证] 明文密码验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (⚠️ 警告: 明文密码存储不安全，建议迁移到bcrypt)")
+            logging.warning(
+                f"[密码验证] 明文密码验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (⚠️ 警告: 明文密码存储不安全，建议迁移到bcrypt)")
             return result
 
     def _log_login_attempt(self, auth_username, success, ip_address='', user_agent='', reason=''):
         """
         记录用户登录尝试到日志文件。
-        
+
         记录的信息：
         - timestamp: Unix时间戳（秒）
         - datetime: ISO格式的时间字符串
@@ -1535,30 +1586,30 @@ class AuthSystem:
         - ip_address: 客户端IP地址
         - user_agent: 浏览器User-Agent字符串
         - reason: 失败原因（如"密码错误"、"账号锁定"）
-        
+
         存储格式：
         - JSONL（JSON Lines）：每行一个完整的JSON对象
         - 优点：便于流式处理、追加写入、逐行解析
         - 文件：logs/login_history.jsonl
-        
+
         用途：
         1. 安全审计：追踪异常登录行为
         2. 入侵检测：识别暴力破解尝试
         3. 合规要求：满足审计日志要求
         4. 问题排查：帮助用户找回登录失败原因
-        
+
         ⚠️ 潜在问题：
         1. 日志文件无限增长，没有轮转机制
         2. 敏感信息（用户名、IP）明文存储
         3. 文件I/O可能成为性能瓶颈
         4. 并发写入可能导致行混乱（虽然概率低）
-        
+
         💡 改进建议：
         - 实现日志轮转（按大小或时间）
         - 使用日志库的RotatingFileHandler
         - 考虑异步写入（避免阻塞主线程）
         - 添加日志归档和压缩功能
-        
+
         参数:
             auth_username (str): 尝试登录的用户名
             success (bool): 登录是否成功
@@ -1568,7 +1619,7 @@ class AuthSystem:
         """
         logging.info(
             f"[登录审计] 登录尝试记录 --> 用户名: {auth_username}, 登录结果: {'✓ 成功' if success else '✗ 失败'}, 客户端IP: {ip_address}, User-Agent: {user_agent[:50]}{'...' if len(user_agent) > 50 else ''}, {'失败原因: ' + reason if not success else '登录成功'}")
-        
+
         # 构建日志条目（字典）
         log_entry = {
             'timestamp': time.time(),  # 精确到毫秒的时间戳
@@ -1586,11 +1637,13 @@ class AuthSystem:
             # 每条记录以换行符结束
             with open(LOGIN_LOG_FILE, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-            logging.debug(f"[登录审计] 登录日志已写入文件 --> 文件路径: {LOGIN_LOG_FILE}, 用户: {auth_username}, 时间戳: {log_entry['timestamp']}, 格式: JSONL (每行一个JSON对象)")
+            logging.debug(
+                f"[登录审计] 登录日志已写入文件 --> 文件路径: {LOGIN_LOG_FILE}, 用户: {auth_username}, 时间戳: {log_entry['timestamp']}, 格式: JSONL (每行一个JSON对象)")
         except Exception as e:
             # 日志写入失败不应该影响登录流程
             # 只记录错误但不抛出异常
-            logging.error(f"[登录审计] 写入登录日志失败 --> 目标文件: {LOGIN_LOG_FILE}, 用户: {auth_username}, 错误类型: {type(e).__name__}, 错误详情: {e}, 注意: 日志写入失败不影响登录流程继续执行", exc_info=True)
+            logging.error(
+                f"[登录审计] 写入登录日志失败 --> 目标文件: {LOGIN_LOG_FILE}, 用户: {auth_username}, 错误类型: {type(e).__name__}, 错误详情: {e}, 注意: 日志写入失败不影响登录流程继续执行", exc_info=True)
 
     def get_login_history(self, username=None, limit=100):
         """获取登录历史"""
@@ -1607,14 +1660,17 @@ class AuthSystem:
                             history.append(entry)
                     except json.JSONDecodeError as e:
                         # 跳过损坏的日志行，继续读取下一行
-                        logging.warning(f"[登录审计] 跳过损坏的日志行 --> 行内容: {line.strip()[:100]}{'...' if len(line.strip()) > 100 else ''}, JSON解析错误: {e}")
+                        logging.warning(
+                            f"[登录审计] 跳过损坏的日志行 --> 行内容: {line.strip()[:100]}{'...' if len(line.strip()) > 100 else ''}, JSON解析错误: {e}")
                         continue
                     except Exception as e:
                         # 捕获其他意外错误
-                        logging.warning(f"[登录审计] 处理日志行时发生错误 --> 行内容: {line.strip()[:100]}{'...' if len(line.strip()) > 100 else ''}, 错误类型: {type(e).__name__}, 错误详情: {e}")
+                        logging.warning(
+                            f"[登录审计] 处理日志行时发生错误 --> 行内容: {line.strip()[:100]}{'...' if len(line.strip()) > 100 else ''}, 错误类型: {type(e).__name__}, 错误详情: {e}")
                         continue
         except Exception as e:
-            logging.error(f"[登录审计] 读取登录历史失败 --> 文件路径: {LOGIN_LOG_FILE}, 查询用户: {username if username else '全部'}, 限制条数: {limit}, 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
+            logging.error(
+                f"[登录审计] 读取登录历史失败 --> 文件路径: {LOGIN_LOG_FILE}, 查询用户: {username if username else '全部'}, 限制条数: {limit}, 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
 
         # 返回最近的记录
         return history[-limit:]
@@ -1637,13 +1693,16 @@ class AuthSystem:
                                         recent_attempts.append(entry)
                         except json.JSONDecodeError as e:
                             # 跳过损坏的日志行
-                            logging.debug(f"[安全检查] 暴力破解检查时跳过损坏的日志行 --> JSON解析错误: {e}")
+                            logging.debug(
+                                f"[安全检查] 暴力破解检查时跳过损坏的日志行 --> JSON解析错误: {e}")
                             continue
                         except Exception as e:
-                            logging.debug(f"[安全检查] 暴力破解检查时处理日志行错误 --> 错误类型: {type(e).__name__}, 错误详情: {e}")
+                            logging.debug(
+                                f"[安全检查] 暴力破解检查时处理日志行错误 --> 错误类型: {type(e).__name__}, 错误详情: {e}")
                             continue
             except Exception as e:
-                logging.error(f"[安全检查] 检查暴力破解失败 --> 目标用户: {auth_username}, IP地址: {ip_address}, 时间窗口: 5分钟, 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
+                logging.error(
+                    f"[安全检查] 检查暴力破解失败 --> 目标用户: {auth_username}, IP地址: {ip_address}, 时间窗口: 5分钟, 错误类型: {type(e).__name__}, 错误详情: {e}", exc_info=True)
 
         # 如果5分钟内失败超过5次，则锁定
         if len(recent_attempts) >= 5:
@@ -2113,7 +2172,8 @@ class AuthSystem:
                         'max_sessions': user_data.get('max_sessions', 1)
                     })
                 except Exception as e:
-                    logging.error(f"[用户管理] 读取用户文件失败 --> 文件名: {filename}, 文件路径: {filepath}, 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 文件损坏、JSON格式错误或权限不足", exc_info=True)
+                    logging.error(
+                        f"[用户管理] 读取用户文件失败 --> 文件名: {filename}, 文件路径: {filepath}, 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 文件损坏、JSON格式错误或权限不足", exc_info=True)
         return users
 
     def get_all_groups(self):
@@ -2127,7 +2187,8 @@ class AuthSystem:
 
         # 跳过无效的session_id
         if not session_id or session_id == 'null' or session_id.strip() == '':
-            logging.debug(f"[会话管理] 跳过关联无效会话 --> 会话ID: '{session_id}', 目标用户: {auth_username}, 原因: 会话ID为空、null或仅包含空白字符")
+            logging.debug(
+                f"[会话管理] 跳过关联无效会话 --> 会话ID: '{session_id}', 目标用户: {auth_username}, 原因: 会话ID为空、null或仅包含空白字符")
             return
 
         user_file = self.get_user_file_path(auth_username)
@@ -2931,9 +2992,27 @@ class ApiClient:
             'User-Agent': self.app.device_ua
         }
         # 仅当存在登录后返回的 shiroCookie 时才携带 Authorization
-        auth_token = self.session.cookies.get('shiroCookie')
+
+        # 修复：使用 get_dict() 解决 CookieConflictError
+        # 当服务器为不同路径（如 / 和 /app）设置多个同名 cookie 时
+        # .get() 会失败，而 .get_dict() 会智能选择一个
+        try:
+            auth_token = self.session.cookies.get_dict().get('shiroCookie')
+        except requests.cookies.CookieConflictError:
+            # 极端情况下的回退：如果 get_dict() 仍然失败，尝试手动查找
+            logging.warning(
+                "CookieConflictError 即使在使用 get_dict() 时也发生，尝试手动查找...")
+            auth_token = None
+            for cookie in self.session.cookies:
+                if cookie.name == 'shiroCookie':
+                    auth_token = cookie.value
+                    logging.warning(
+                        f"手动查找到 'shiroCookie': {auth_token[:10]}...")
+                    break
+
         if auth_token:
-            logging.debug(f"使用shiroCookie作为认证令牌进行Authorization请求头设置: {auth_token}")
+            logging.debug(
+                f"使用shiroCookie作为认证令牌进行Authorization请求头设置: {auth_token}")
             headers['Authorization'] = auth_token
         else:
             logging.debug(
@@ -2966,12 +3045,14 @@ class ApiClient:
 
         if cancel_requested:
             log_func("操作已取消，跳过网络请求。")
-            logging.debug(f"[网络请求] 请求已取消 --> 请求方法: {method.upper()}, 目标URL: {url}, 取消原因: 用户停止操作或系统取消标志已设置")
+            logging.debug(
+                f"[网络请求] 请求已取消 --> 请求方法: {method.upper()}, 目标URL: {url}, 取消原因: 用户停止操作或系统取消标志已设置")
             return None
 
         if is_offline:
             log_func("离线模式：网络请求已被禁用。")
-            logging.debug(f"[网络请求] 离线模式已启用，已阻止网络请求 --> 请求方法: {method.upper()}, 目标URL: {url}, 说明: 离线模式下所有网络通信将被禁用")
+            logging.debug(
+                f"[网络请求] 离线模式已启用，已阻止网络请求 --> 请求方法: {method.upper()}, 目标URL: {url}, 说明: 离线模式下所有网络通信将被禁用")
             return None
 
         retries = 3
@@ -2980,9 +3061,11 @@ class ApiClient:
 
         log_data = data
         if is_post_str and isinstance(data, str) and len(data) > 500:
-            log_data = data[:500] + '... (已截断，完整数据长度: ' + str(len(data)) + ' 字节)'
+            log_data = data[:500] + \
+                '... (已截断，完整数据长度: ' + str(len(data)) + ' 字节)'
 
-        logging.debug(f"[网络请求] 准备发起HTTP请求 --> 请求方法: {method.upper()}, 目标URL: {url}, 重试次数配置: {retries}次, 连接超时: {connect_timeout}秒, 读取超时: {read_timeout}秒\n[请求数据]: {log_data}")
+        logging.debug(
+            f"[网络请求] 准备发起HTTP请求 --> 请求方法: {method.upper()}, 目标URL: {url}, 重试次数配置: {retries}次, 连接超时: {connect_timeout}秒, 读取超时: {read_timeout}秒\n[请求数据]: {log_data}")
 
         for attempt in range(retries):
             try:
@@ -3024,24 +3107,26 @@ class ApiClient:
                         # 默认: form-urlencoded
                         post_data_bytes = urllib.parse.urlencode(
                             data or {}).encode('utf-8')
-                        
+
                     # 修复 Bug A: 移除了在 post 之前的错误日志记录
                     resp = self.session.post(
                         url, data=post_data_bytes, params=params, headers=headers,
-                        timeout=(connect_timeout, read_timeout) # 使用元组分别设置连接和读取超时
+                        # 使用元组分别设置连接和读取超时
+                        timeout=(connect_timeout, read_timeout)
                     )
                 else:
                     # GET 请求 (data 被用作 params)
                     resp = self.session.get(
-                            url, params=data, headers=headers,
-                            timeout=(connect_timeout, read_timeout) # 使用元组分别设置连接和读取超时
-                        )
-                
+                        url, params=data, headers=headers,
+                        # 使用元组分别设置连接和读取超时
+                        timeout=(connect_timeout, read_timeout)
+                    )
+
                 # --- 成功响应处理 (Bug A 和 B 均在此修复) ---
                 # 修复 Bug B: 这段代码现在位于 try 块内部，但在所有 except 块之前
                 logging.debug(
                     f"[网络请求] 收到服务器响应 <-- 状态码: {resp.status_code} ({resp.reason}), 来源URL: {url}, 响应头: {dict(resp.headers)}, 响应内容长度: {len(resp.content)} 字节")
-                resp.raise_for_status() # 如果状态码不是 2xx，会抛出 HTTPError
+                resp.raise_for_status()  # 如果状态码不是 2xx，会抛出 HTTPError
                 return resp
 
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as net_err:
@@ -3051,28 +3136,31 @@ class ApiClient:
                     f"[网络请求] 网络连接失败 --> 重试次数: 第{attempt+1}次/共{retries}次, 请求方法: {method.upper()}, 目标URL: {url}, 错误类型: {type(net_err).__name__}, 错误详情: {net_err}, 连接超时配置: {connect_timeout}秒, 读取超时配置: {read_timeout}秒", exc_info=False)
                 if attempt + 1 == retries:
                     log_func(f"网络连接最终失败: 无法连接到服务器 {self.BASE_URL}")
-                    logging.error(f"[网络请求] 网络连接最终失败 --> 已达到最大重试次数({retries}次), 目标服务器: {self.BASE_URL}, 无法建立连接")
-                    return None # 连接失败，直接返回 None
+                    logging.error(
+                        f"[网络请求] 网络连接最终失败 --> 已达到最大重试次数({retries}次), 目标服务器: {self.BASE_URL}, 无法建立连接")
+                    return None  # 连接失败，直接返回 None
                 logging.info(f"[网络请求] 准备重试 --> 等待1.5秒后进行第{attempt+2}次请求尝试")
-                time.sleep(1.5) # 重试前等待
-                continue # 继续下一次重试
+                time.sleep(1.5)  # 重试前等待
+                continue  # 继续下一次重试
 
                 # 修复 Bug B: 原本错误放置在这里的代码已被移到 try 块末尾
 
             except requests.exceptions.HTTPError as http_err:
                 # --- 处理非 2xx 状态码的错误 (例如 404, 500) ---
-                log_func(f"服务器返回错误 (第{attempt+1}次): {http_err.response.status_code}")
+                log_func(
+                    f"服务器返回错误 (第{attempt+1}次): {http_err.response.status_code}")
                 logging.error(
                     f"[网络请求] HTTP错误 --> 重试次数: 第{attempt+1}次/共{retries}次, 请求方法: {method.upper()}, 目标URL: {url}, HTTP状态码: {http_err.response.status_code}, 状态描述: {http_err.response.reason}, 服务器响应内容: {http_err.response.text[:200]}{'...(已截断)' if len(http_err.response.text) > 200 else ''}", exc_info=False)
                 if attempt + 1 == retries:
                     log_func(f"服务器错误: {http_err.response.status_code}")
-                    logging.error(f"[网络请求] HTTP请求最终失败 --> 已达到最大重试次数({retries}次), HTTP状态码: {http_err.response.status_code}, 请求无法成功完成")
+                    logging.error(
+                        f"[网络请求] HTTP请求最终失败 --> 已达到最大重试次数({retries}次), HTTP状态码: {http_err.response.status_code}, 请求无法成功完成")
                     # 可以考虑返回包含错误信息的 response 对象，或者依然返回 None
                     # return http_err.response # 如果上层需要处理具体错误
-                    return None # 保持返回 None
+                    return None  # 保持返回 None
                 logging.info(f"[网络请求] 准备重试 --> 等待1.5秒后进行第{attempt+2}次请求尝试")
-                time.sleep(1.5) # 重试前等待
-                continue # 继续下一次重试
+                time.sleep(1.5)  # 重试前等待
+                continue  # 继续下一次重试
 
             except requests.exceptions.RequestException as req_err:
                 # --- 捕获其他所有 requests 相关的异常 (作为兜底) ---
@@ -3081,14 +3169,14 @@ class ApiClient:
                     f"[网络请求] 意外的请求异常 --> 重试次数: 第{attempt+1}次/共{retries}次, 请求方法: {method.upper()}, 目标URL: {url}, 异常类型: {type(req_err).__name__}, 异常详情: {req_err}, 完整堆栈信息如下:", exc_info=True)
                 if attempt + 1 == retries:
                     log_func(f"请求最终失败: {req_err}")
-                    logging.error(f"[网络请求] 请求最终失败 --> 已达到最大重试次数({retries}次), 所有重试均失败, 异常信息: {req_err}")
-                    return None # 最终失败返回 None
+                    logging.error(
+                        f"[网络请求] 请求最终失败 --> 已达到最大重试次数({retries}次), 所有重试均失败, 异常信息: {req_err}")
+                    return None  # 最终失败返回 None
                 logging.info(f"[网络请求] 准备重试 --> 等待1.5秒后进行第{attempt+2}次请求尝试")
-                time.sleep(1.5) # 重试前等待
-                continue # 继续下一次重试
+                time.sleep(1.5)  # 重试前等待
+                continue  # 继续下一次重试
 
-        return None # 如果循环结束仍未成功
-
+        return None  # 如果循环结束仍未成功
 
     def _json(self, resp: requests.Response | None) -> dict | None:
         """安全地将Response对象解析为JSON字典"""
@@ -3097,7 +3185,8 @@ class ApiClient:
         if resp:
             try:
                 json_data = resp.json()
-                logging.debug(f"[JSON解析] 成功解析JSON响应 --> 响应状态码: {resp.status_code}, JSON数据字段: {list(json_data.keys()) if isinstance(json_data, dict) else type(json_data).__name__}")
+                logging.debug(
+                    f"[JSON解析] 成功解析JSON响应 --> 响应状态码: {resp.status_code}, JSON数据字段: {list(json_data.keys()) if isinstance(json_data, dict) else type(json_data).__name__}")
                 return json_data
             except json.JSONDecodeError as e:
                 log_func("服务器响应解析失败。")
@@ -3521,7 +3610,6 @@ class Api:
         cfg_en.add_section("Config")
         cfg_en.add_section("System")
 
-        
         # 1. 定义所有当前有效的Config参数键（白名单）
         valid_config_keys = set(self.global_params.keys())
         valid_config_keys.add("Username")
@@ -3595,7 +3683,7 @@ class Api:
             cfg_to_save.set('Config', 'Password', password)
         else:
             # 场景: 未提供新密码 (来自 update_param)
-            
+
             # 修复：检查密码行是否*完全不存在*于 .ini 文件中
             if not cfg_to_save.has_option('Config', 'Password'):
                 # 选项不存在，尝试从备份文件中恢复
@@ -3785,13 +3873,13 @@ class Api:
 
     def get_initial_data(self):
         """应用启动时由前端调用，获取初始用户列表和最后登录用户"""
-        
+
         try:
             logging.info("API调用: get_initial_data - 获取应用初始数据（用户列表和最后登录用户）")
 
             # 获取当前已有的用户配置文件列表
             users = sorted([os.path.splitext(f)[0]
-                        for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+                            for f in os.listdir(self.user_dir) if f.endswith(".ini")])
 
             # 读取全局配置
             cfg = configparser.RawConfigParser()
@@ -3819,7 +3907,8 @@ class Api:
             self._load_global_config()
 
             # 修复Issue 5: 检查是否已登录（会话持久化）
-            is_logged_in = hasattr(self, 'login_success') and self.login_success
+            is_logged_in = hasattr(
+                self, 'login_success') and self.login_success
             user_info = None
             if is_logged_in and hasattr(self, 'user_info'):
                 user_info = self.user_info
@@ -3840,7 +3929,8 @@ class Api:
                 "success": True,
                 "users": users,
                 "lastUser": last_user,
-                "amap_key": self.global_params.get('amap_js_key', ''), # 确保使用 amap_js_key
+                # 确保使用 amap_js_key
+                "amap_key": self.global_params.get('amap_js_key', ''),
                 "isLoggedIn": is_logged_in,
                 "userInfo": user_info,
                 "is_authenticated": is_authenticated,
@@ -3982,7 +4072,8 @@ class Api:
     def on_user_selected(self, username):
         # return
         """当用户在登录界面选择一个已有用户时调用"""
-        logging.info(f"API调用: on_user_selected - 用户选择事件触发，选中的用户名: '{username}'")
+        logging.info(
+            f"API调用: on_user_selected - 用户选择事件触发，选中的用户名: '{username}'")
         if not username:
             return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
         password = self._load_config(username)
@@ -4106,7 +4197,7 @@ class Api:
             f"会话状态已保存: login_success={self.login_success}, user_id={ud.id}")
 
         # --- 新增: 在成功登录的返回结果中包含 auth_group ---
-        auth_group = getattr(self, 'auth_group', 'guest') # 从 Api 实例获取认证时确定的组
+        auth_group = getattr(self, 'auth_group', 'guest')  # 从 Api 实例获取认证时确定的组
 
         return {
             "success": True,
@@ -4147,7 +4238,8 @@ class Api:
         if not self.user_data.id:
             # 检查是否有已加载的任务（例如从会话恢复或导入的离线文件）
             if hasattr(self, 'all_run_data') and self.all_run_data:
-                logging.info(f"load_tasks: 离线模式，返回已加载的 {len(self.all_run_data)} 个任务")
+                logging.info(
+                    f"load_tasks: 离线模式，返回已加载的 {len(self.all_run_data)} 个任务")
                 tasks_for_js = []
                 for run in self.all_run_data:
                     task_dict = run.__dict__.copy()
@@ -4398,114 +4490,176 @@ class Api:
 
     def set_draft_path(self, coords):
         """接收前端手动绘制的草稿路径"""
-        logging.info(f"API调用: set_draft_path - 设置草稿路径，点数: {len(coords)}")
-        if self.current_run_idx == -1:
-            return {"success": False, "message": "未选择任务"}
-        run = self.all_run_data[self.current_run_idx]
-        run.draft_coords = [(c['lng'], c['lat'], c.get('isKey', 0))
-                            for c in coords]
-        logging.debug(f"已成功设置草稿路径，包含 {len(coords)} 个坐标点")
-        return {"success": True}
+
+        # 添加对 coords 为 None 的检查，防止 TypeError
+        if coords is None:
+            # coords 可能是 None，例如在清除路径时调用
+            # 这种情况应该被视为空路径，而不是错误
+            coords_len = 0
+            logging.info(f"API调用: set_draft_path - 接收到空的(None)草稿路径")
+        else:
+            try:
+                coords_len = len(coords)
+            except TypeError:
+                # coords 不是一个列表或None，这是一个错误
+                logging.error(
+                    f"set_draft_path 失败：coords 参数不是一个列表: {type(coords)}", exc_info=True)
+                return {"success": False, "message": "无效的路径数据格式"}
+
+        logging.info(f"API调用: set_draft_path - 设置草稿路径，点数: {coords_len}")
+
+        # 修复索引检查：必须检查索引是否在 all_run_data 的当前范围内
+        # 之前的检查 (== -1) 不足以防止索引越界 (IndexError)
+        if not (0 <= self.current_run_idx < len(self.all_run_data)):
+            logging.warning(
+                f"set_draft_path 失败：任务索引无效 (Index: {self.current_run_idx}, List length: {len(self.all_run_data)})")
+            return {"success": False, "message": "未选择任务或任务列表已失效"}
+
+        try:
+            run = self.all_run_data[self.current_run_idx]
+
+            # 修复数据格式错误：
+            # 1. 确保 coords 是一个可迭代对象 (在开头已检查)
+            # 2. 确保 c 是一个字典 (使用 .get 避免 TypeError/KeyError)
+
+            draft_coords_list = []
+            if coords:  # 仅在 coords 不为 None 或空列表时迭代
+                for c in coords:
+                    # 确保 c 是一个字典
+                    if not isinstance(c, dict):
+                        logging.warning(f"set_draft_path: 跳过无效的坐标点（非字典）: {c}")
+                        continue
+
+                    # 使用 .get() 避免 KeyError，如果缺少键则返回 None
+                    lng = c.get('lng')
+                    lat = c.get('lat')
+
+                    # 确保经纬度都存在
+                    if lng is None or lat is None:
+                        logging.warning(
+                            f"set_draft_path: 跳过无效的坐标点（缺少lng或lat）: {c}")
+                        continue
+
+                    draft_coords_list.append((lng, lat, c.get('isKey', 0)))
+
+            run.draft_coords = draft_coords_list
+
+            logging.debug(f"已成功设置草稿路径，包含 {len(run.draft_coords)} 个坐标点")
+            return {"success": True}
+
+        except IndexError:
+            # 捕获万一发生的竞态条件（例如列表在检查后但在访问前被清空）
+            logging.error(
+                f"set_draft_path 发生索引错误: Index {self.current_run_idx}, List length {len(self.all_run_data)}", exc_info=True)
+            return {"success": False, "message": "服务器内部错误：任务列表索引失效"}
+        except (TypeError, KeyError) as e:
+            # 捕获无效的 coords 数据结构
+            logging.error(f"set_draft_path 发生数据结构错误: {e}", exc_info=True)
+            return {"success": False, "message": f"服务器内部错误：路径数据格式无效 ({e})"}
+        except Exception as e:
+            # 捕获所有其他意外错误
+            logging.error(f"set_draft_path 发生未知错误: {e}", exc_info=True)
+            return {"success": False, "message": f"服务器内部错误: {e}"}
 
     def _calculate_distance_m(self, lon1, lat1, lon2, lat2):
         """
         使用Haversine公式精确计算两个GPS坐标点之间的距离（米）。
-        
+
         算法说明：
         - 使用Haversine公式考虑地球曲率
         - 适用于任意距离和任意纬度
         - 精度高，适合GPS应用
-        
+
         Haversine公式：
         a = sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δlon/2)
         c = 2 * atan2(√a, √(1-a))
         distance = R * c
-        
+
         其中 R = 6371000 米（地球平均半径）
-        
+
         ✓ 改进：
         1. 考虑地球曲率，精度更高
         2. 适用于任意纬度（赤道、极地均可）
         3. 适用于任意距离（短距离和长距离）
         4. 标准的GPS距离计算方法
-        
+
         参数:
             lon1 (float): 起点经度（度）
             lat1 (float): 起点纬度（度）
             lon2 (float): 终点经度（度）
             lat2 (float): 终点纬度（度）
-            
+
         返回:
             float: 距离（米）
-            
+
         示例:
             >>> _calculate_distance_m(120.0, 30.0, 120.01, 30.01)
             1536.8  # 约1.5公里（更精确）
         """
         # 地球平均半径（米）
         R = 6371000
-        
+
         # 转换为弧度
         lat1_rad = math.radians(lat1)
         lat2_rad = math.radians(lat2)
         delta_lat = math.radians(lat2 - lat1)
         delta_lon = math.radians(lon2 - lon1)
-        
+
         # Haversine公式
         a = (math.sin(delta_lat / 2) ** 2 +
-             math.cos(lat1_rad) * math.cos(lat2_rad) * 
+             math.cos(lat1_rad) * math.cos(lat2_rad) *
              math.sin(delta_lon / 2) ** 2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         distance = R * c
-        
+
         return distance
 
     def _calculate_distances_vectorized(self, coords):
         """
         ✓ 使用NumPy向量化计算多个坐标点之间的距离（性能优化，问题#11）
-        
+
         参数:
             coords: [(lon, lat, interval_ms), ...] 坐标列表
-            
+
         返回:
             float: 总距离（米）
-            
+
         说明:
             当NumPy可用时，使用向量化操作一次性计算所有相邻点的距离，
             比逐对计算快10-100倍（取决于点数）。如果NumPy不可用，回退到循环计算。
         """
         if len(coords) < 2:
             return 0.0
-        
+
         # 尝试使用numpy向量化计算（如果可用）
         if np is not None:
             try:
                 # 提取经纬度到numpy数组
                 lons = np.array([c[0] for c in coords])
                 lats = np.array([c[1] for c in coords])
-                
+
                 # 计算相邻点的差值
                 delta_lons = np.diff(lons)
                 delta_lats = np.diff(lats)
-                
+
                 # 转换为弧度（向量化）
                 lat1_rad = np.radians(lats[:-1])
                 lat2_rad = np.radians(lats[1:])
                 delta_lat_rad = np.radians(delta_lats)
                 delta_lon_rad = np.radians(delta_lons)
-                
+
                 # Haversine公式（向量化）
                 R = 6371000
                 a = (np.sin(delta_lat_rad / 2) ** 2 +
-                     np.cos(lat1_rad) * np.cos(lat2_rad) * 
+                     np.cos(lat1_rad) * np.cos(lat2_rad) *
                      np.sin(delta_lon_rad / 2) ** 2)
                 c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
                 distances = R * c
-                
+
                 return np.sum(distances)
             except Exception as e:
                 logging.debug(f"[性能优化] NumPy向量化计算失败，回退到循环: {e}")
-        
+
         # 回退到循环计算（当NumPy不可用或失败时）
         total_dist = 0.0
         for i in range(len(coords) - 1):
@@ -4516,39 +4670,39 @@ class Api:
     def _gps_random_offset(self, lon, lat, params):
         """
         对GPS坐标添加随机偏移，模拟真实GPS的漂移误差。
-        
+
         功能说明：
         真实GPS定位存在误差（通常5-10米），为了让模拟轨迹更真实，
         需要在关键点之间的插值点上添加随机偏移，避免完美的直线。
-        
+
         偏移计算：
         1. 从params中读取偏移范围（location_random_m，单位：米）
         2. 在[-m, m]范围内随机选择偏移量
         3. 将米转换为经纬度偏移：
            - 经度偏移 = 米 / 102834.74
            - 纬度偏移 = 米 / 111712.69
-        
+
         使用场景：
         - 关键点（打卡点）：不添加偏移，保持精确坐标
         - 插值点：添加偏移，模拟GPS漂移
-        
+
         转换系数说明：
         - 同_calculate_distance_m，基于纬度30度的近似值
         - 经度转换随纬度变化，但对小偏移影响不大
-        
+
         ⚠️ 注意：
         1. 偏移是独立的，经度和纬度分别随机
         2. 实际GPS误差可能有方向性（如受建筑遮挡）
         3. 偏移量过大会导致轨迹看起来不自然
-        
+
         参数:
             lon (float): 原始经度
             lat (float): 原始纬度
             params (dict): 参数字典，必须包含'location_random_m'键
-            
+
         返回:
             tuple: (偏移后的经度, 偏移后的纬度)
-            
+
         示例:
             >>> params = {'location_random_m': 5}  # 5米偏移
             >>> _gps_random_offset(120.0, 30.0, params)
@@ -4561,50 +4715,50 @@ class Api:
     def process_path(self):
         """
         处理草稿路径，生成带有时间戳的模拟运动轨迹。
-        
+
         功能概述：
         将用户在地图上绘制的草稿路径（draft_coords）转换为详细的
         模拟跑步轨迹（run_coords），包含坐标、时间间隔、速度变化。
-        
+
         算法流程：
         1. 读取草稿路径（关键点序列）
         2. 计算每个时间间隔的移动距离（速度×时间）
         3. 沿着草稿路径插值生成密集的坐标点
         4. 为非关键点添加GPS随机偏移，模拟真实GPS漂移
         5. 记录每个点的时间戳（累积时间）
-        
+
         数据结构：
         - draft_coords: [(lon, lat, is_key_point), ...] 
           - is_key_point=1表示打卡点，必须精确经过
           - is_key_point=0表示普通路径点，可以添加偏移
-        
+
         - run_coords: [(lon, lat, interval_ms), ...]
           - interval_ms: 距离上一个点的时间间隔（毫秒）
           - 第一个点的interval_ms为0
-        
+
         模拟参数（从self.params读取）：
         - interval_ms: 上报间隔（毫秒），如5000 = 5秒上报一次
         - interval_random_ms: 间隔随机变化范围
         - speed_mps: 平均速度（米/秒），如3 m/s = 10.8 km/h
         - speed_random_mps: 速度随机变化范围
         - location_random_m: GPS随机偏移范围（米）
-        
+
         算法特点：
         1. 真实性：速度、间隔、位置都添加随机性
         2. 精确性：保证经过所有打卡点
         3. 连续性：轨迹在草稿路径上连续移动
         4. 可控性：通过参数控制运动特征
-        
+
         ⚠️ 潜在问题：
         1. 循环嵌套较深，大量坐标点时性能较差
         2. 浮点数累积误差可能导致总距离略有偏差
         3. 速度随机性可能导致局部速度异常（过快或过慢）
-        
+
         💡 优化建议：
         1. 对超长路径进行分段处理
         2. 缓存距离计算结果
         3. 添加速度平滑算法（避免突变）
-        
+
         返回:
             dict: {
                 "success": True,
@@ -4614,13 +4768,13 @@ class Api:
             }
         """
         logging.info("API调用: process_path - 处理路径，生成模拟运动轨迹")
-        
+
         # 检查是否选择了任务
         if self.current_run_idx == -1:
             return {"success": False, "message": "未选择任务"}
-        
+
         run = self.all_run_data[self.current_run_idx]
-        
+
         # 检查草稿路径是否有效（至少需要起点和终点）
         if not run.draft_coords or len(run.draft_coords) < 2:
             return {"success": False, "message": "没有可处理的路径"}
@@ -4651,26 +4805,26 @@ class Api:
         # - 根据速度和时间计算这个间隔内应该移动的距离
         # - 沿着草稿路径向前移动这段距离，找到新位置
         # - 如果这段距离跨越多个草稿段，需要累积移动
-        
+
         # ✓ 速度平滑：使用移动平均避免速度突变（问题#12修复）
         speed_history = []  # 记录最近的速度值
         speed_window = 3    # 移动平均窗口大小
-        
+
         while draft_idx < len(draft) - 1:
             interval_t = max(0.2, random.uniform(
                 p['interval_ms'] - p['interval_random_ms'], p['interval_ms'] + p['interval_random_ms']) / 1000.0)
-            
+
             # 生成随机速度
             raw_speed = max(0.2, random.uniform(
                 p['speed_mps'] - p['speed_random_mps'], p['speed_mps'] + p['speed_random_mps']))
-            
+
             # ✓ 应用速度平滑算法
             speed_history.append(raw_speed)
             if len(speed_history) > speed_window:
                 speed_history.pop(0)  # 保持窗口大小
             # 使用移动平均作为实际速度
             speed = sum(speed_history) / len(speed_history)
-            
+
             dist_to_go = speed * interval_t
 
             final_pos, temp_draft_idx = current_gps_pos, draft_idx
@@ -4721,15 +4875,15 @@ class Api:
             # ✓ 使用epsilon容差比较，避免浮点数精度问题
             epsilon = 1e-9  # 容差值，约0.0001米
             is_key_point = any(
-                abs(d[0] - final_pos[0]) < epsilon and 
-                abs(d[1] - final_pos[1]) < epsilon and 
-                d[2] == 1 
+                abs(d[0] - final_pos[0]) < epsilon and
+                abs(d[1] - final_pos[1]) < epsilon and
+                d[2] == 1
                 for d in draft
             )
             # 根据是否关键点决定是否添加偏移
             lon, lat = (final_pos[0], final_pos[1]) if is_key_point else self._gps_random_offset(
                 final_pos[0], final_pos[1], self.params)
-            
+
             # ✓ 优化：在生成点的同时计算距离，避免二次遍历
             if len(run.run_coords) > 0:
                 prev_coord = run.run_coords[-1]
@@ -4737,7 +4891,7 @@ class Api:
                     prev_coord[0], prev_coord[1], lon, lat
                 )
                 total_dist += segment_dist
-            
+
             # 添加到run_coords：(经度, 纬度, 距上一点的时间间隔毫秒)
             run.run_coords.append((lon, lat, int(interval_t * 1000)))
             # 累计总时间
@@ -4756,30 +4910,30 @@ class Api:
     def check_target_reached_during_run(self, run_data: RunData, current_lon: float, current_lat: float):
         """
         在模拟运行时，检查当前位置是否到达了打卡点。
-        
+
         功能说明：
         跑步任务通常有多个打卡点（如起点、中间点、终点），必须依次经过。
         此函数在每次位置更新时调用，检测是否进入打卡点范围内。
-        
+
         打卡点状态机：
         1. 未进入区域 (is_in_target_zone=False) → 进入区域后触发打卡
         2. 已在区域内 (is_in_target_zone=True) → 避免重复打卡
         3. 离开区域 → 重置状态，准备检测下一个打卡点
-        
+
         关键逻辑：
         - 打卡点必须按顺序(target_sequence)依次到达
         - 每个打卡点只能打卡一次（通过is_in_target_zone标志防重）
         - 打卡成功后自动移动到下一个打卡点
         - 如果当前位置同时在下一个打卡点范围内，自动处理
-        
+
         ⚠️ 潜在问题：
         1. 如果两个打卡点非常近（距离 < 2×range），可能跳过中间点
-        
+
         参数:
             run_data (RunData): 任务数据对象，包含打卡点列表和状态
             current_lon (float): 当前经度
             current_lat (float): 当前纬度
-        
+
         修改状态:
             run_data.target_sequence: 当前应到达的打卡点序号（✓ 0-based，0表示第一个打卡点）
             run_data.is_in_target_zone: 是否在打卡点范围内
@@ -4794,11 +4948,11 @@ class Api:
         # 获取当前应到达的打卡点坐标
         # ✓ target_sequence直接作为数组索引使用（0-based）
         tar_lon, tar_lat = run_data.target_points[run_data.target_sequence]
-        
+
         # 计算当前位置与打卡点的距离
         dist = self._calculate_distance_m(
             current_lon, current_lat, tar_lon, tar_lat)
-        
+
         # 判断是否在打卡范围内
         # target_range_m通常为50-100米，可配置
         is_in_zone = (dist < self.target_range_m)
@@ -4809,35 +4963,41 @@ class Api:
                       f"距离={dist:.2f}米, 范围={self.target_range_m:.2f}米, "
                       f"在范围内={is_in_zone}, 已在区域内={run_data.is_in_target_zone}")
 
-        # === 状态转换逻辑 ===
-        # 情况1：进入打卡范围，且之前不在范围内（首次进入，触发打卡）
+        # === 状态转换逻辑 (BUG修复) ===
+
+        # 情况1：刚进入一个打卡区域 (之前在外面，现在在里面)
         if is_in_zone and not run_data.is_in_target_zone:
-            # 标记为已在区域内，防止重复打卡
-            run_data.is_in_target_zone = True
-            # 日志显示为1-based（用户视角）
-            logging.info(
-                f"✓ 到达打卡点 {run_data.target_sequence+1}/{len(run_data.target_points)}")
-            
-            # 如果还有下一个打卡点，移动到下一个
-            if run_data.target_sequence + 1 < len(run_data.target_points):
-                # 递增打卡点序号
-                run_data.target_sequence += 1
-                # 获取下一个打卡点坐标（直接使用0-based索引）
-                next_lon, next_lat = run_data.target_points[run_data.target_sequence]
-                # 检查当前位置是否也在下一个打卡点范围内
-                # 如果不在，重置is_in_target_zone，准备检测下一个
-                # 💡 这个逻辑处理了两个打卡点很近的情况
-                if self._calculate_distance_m(current_lon, current_lat, next_lon, next_lat) >= self.target_range_m:
-                    run_data.is_in_target_zone = False
-                    logging.debug(
-                        f"移动到下一个打卡点 {run_data.target_sequence+1}（索引{run_data.target_sequence}），已离开区域")
-                # else: 当前位置已在下一个打卡点范围内，保持is_in_target_zone=True
-                # 下次调用此函数时会立即触发下一个打卡点的打卡
-        
-        # 情况2：不在打卡范围内，重置状态
-        # 这确保了离开区域后可以重新检测（虽然正常流程不会重新检测同一个点）
-        elif not is_in_zone:
-            run_data.is_in_target_zone = False
+            run_data.is_in_target_zone = True  # 标记为“在区域内”
+
+            # 循环检查所有（可能重叠的）打卡点
+            # 只要我们还在下一个打卡点范围内，就继续打卡
+            while (0 <= run_data.target_sequence < len(run_data.target_points)):
+                # 获取当前要检查的打卡点
+                current_target_lon, current_target_lat = run_data.target_points[
+                    run_data.target_sequence]
+                # 重新计算到这个打卡点的距离
+                current_dist = self._calculate_distance_m(
+                    current_lon, current_lat, current_target_lon, current_target_lat)
+
+                # 检查是否在当前目标点范围内
+                if current_dist < self.target_range_m:
+                    # 命中！记录打卡（1-based）
+                    logging.info(
+                        f"✓ 到达打卡点 {run_data.target_sequence+1}/{len(run_data.target_points)}")
+                    # 移动到下一个目标点
+                    run_data.target_sequence += 1
+                    # 继续循环，检查是否也命中了下一个点（处理重叠区域）
+                else:
+                    # 未命中下一个点，说明已离开重叠区域
+                    # 退出循环，等待下一次“离开区域”事件
+                    break
+
+        # 情况2：刚离开一个打卡区域 (之前在里面，现在在外面)
+        elif not is_in_zone and run_data.is_in_target_zone:
+            run_data.is_in_target_zone = False  # 标记为“在区域外”
+            # target_sequence 此时指向 *下一个* 目标点
+            logging.debug(
+                f"离开打卡点 {run_data.target_sequence}（索引{run_data.target_sequence-1}）区域")
 
     def start_single_run(self):
         """开始执行单个任务"""
@@ -4954,7 +5114,7 @@ class Api:
         # 仅当这是最后一块(is_finish=True)时才添加 endTime
         if is_finish:
             payload["endTime"] = str(int(time.time() * 1000))
-            
+
         payload_str = urllib.parse.urlencode(payload)
 
         # 通过全局串行队列进行提交，保证同一时间只提交一个数据包
@@ -5042,7 +5202,8 @@ class Api:
                                 'task_index': task_index
                             }, room=session_id)
                         except Exception as e:
-                            logging.error(f"SocketIO发送'task_completed'事件失败: {e}")
+                            logging.error(
+                                f"SocketIO发送'task_completed'事件失败: {e}")
                     return
             time.sleep(1)
         log_func("暂未确认完成，请稍后刷新。")
@@ -5123,7 +5284,8 @@ class Api:
                                 'center_now': center_now
                             }, room=session_id)
                         except Exception as e:
-                            logging.error(f"SocketIO发送'runner_position_update'位置更新事件失败: {e}")
+                            logging.error(
+                                f"SocketIO发送'runner_position_update'位置更新事件失败: {e}")
 
                 if stop_flag.is_set():
                     break
@@ -5134,6 +5296,12 @@ class Api:
                 attempt = 1
                 chunk_submitted = False
                 while attempt <= max_attempts:
+                    # # 修复 1：在每次尝试提交前检查停止标志
+                    # if stop_flag.is_set():
+                    #     submission_successful = False
+                    #     log_func("检测到停止信号，已取消数据提交")
+                    #     break # 退出 (while) 循环
+
                     if self._submit_chunk(run_data, chunk, start_time_ms, is_final_chunk, i, client, user_data):
                         chunk_submitted = True
                         break
@@ -5146,7 +5314,11 @@ class Api:
                     else:
                         logging.warning(f"数据提交失败，重试 {attempt}/{max_attempts}")
                         # 短暂等待后重试
-                        time.sleep(1)
+                        # 修复 2：使用 stop_flag.wait() 替代 time.sleep()，以便立即响应停止
+                        if stop_flag.wait(timeout=1.0):
+                            submission_successful = False
+                            log_func("检测到停止信号，已取消重试")
+                            break  # 退出 (while) 循环
                     attempt += 1
 
                 if not chunk_submitted:
@@ -5542,7 +5714,8 @@ class Api:
 
     def get_historical_track(self, trid):
         """根据轨迹ID获取历史轨迹坐标点"""
-        logging.info(f"API调用: get_historical_track - 根据轨迹ID获取历史轨迹，trid: {trid}")
+        logging.info(
+            f"API调用: get_historical_track - 根据轨迹ID获取历史轨迹，trid: {trid}")
         self.log("正在加载历史轨迹...")
         logging.debug(f"正在加载历史运动轨迹数据，轨迹ID: trid={trid}")
         resp = self.api_client.get_history_track_by_trid(trid)
@@ -5931,18 +6104,21 @@ class Api:
             "school_account_logged_in": getattr(self, 'login_success', False),
             "is_offline_mode": getattr(self, 'is_offline_mode', False),
         }
-        
+
         # 如果是多账号模式，返回更多信息
         if getattr(self, 'is_multi_account_mode', False):
-            mode_info["multi_account_count"] = len(getattr(self, 'accounts', {}))
-            mode_info["multi_account_usernames"] = list(getattr(self, 'accounts', {}).keys())
+            mode_info["multi_account_count"] = len(
+                getattr(self, 'accounts', {}))
+            mode_info["multi_account_usernames"] = list(
+                getattr(self, 'accounts', {}).keys())
             mode_info["global_params"] = getattr(self, 'global_params', {})
         else:
             # 单账号模式信息
             mode_info["has_tasks"] = len(getattr(self, 'all_run_data', [])) > 0
             mode_info["task_count"] = len(getattr(self, 'all_run_data', []))
-            mode_info["selected_task_index"] = getattr(self, 'current_run_idx', -1)
-            
+            mode_info["selected_task_index"] = getattr(
+                self, 'current_run_idx', -1)
+
             # 保存用户数据（用于离线模式恢复）
             if hasattr(self, 'user_data') and self.user_data:
                 user_data = self.user_data
@@ -5955,9 +6131,8 @@ class Api:
                     'gender': getattr(user_data, 'gender', ''),
                     'school_name': getattr(user_data, 'school_name', '')
                 }
-            
-        return mode_info
 
+        return mode_info
 
     def multi_get_all_config_users(self):
         """获取所有存在配置文件的用户列表，用于前端便捷添加"""
@@ -6079,7 +6254,7 @@ class Api:
         self.log(f"已添加账号: {username}")
         # 添加账号后立即刷新“全部开始/全部停止”按钮状态
         self._update_multi_global_buttons()
-        
+
         # 修正：使用 SocketIO 向特定会话发送“列表已更新”事件
         session_id = getattr(self, '_web_session_id', None)
         if session_id and socketio:
@@ -6575,20 +6750,20 @@ class Api:
     def multi_get_account_params(self, username):
         """
         获取指定账号的参数配置。
-        
+
         功能说明：
         在多账号模式下，获取单个账号的完整参数配置字典。
         用于Web界面显示账号配置或进行参数修改前的查询。
-        
+
         参数:
             username (str): 账号用户名
-            
+
         返回:
             dict: 包含以下字段：
                 - success (bool): 操作是否成功
                 - params (dict): 账号参数字典（成功时）
                 - message (str): 错误信息（失败时）
-        
+
         使用示例:
             result = api.multi_get_account_params("user123")
             if result["success"]:
@@ -6601,34 +6776,34 @@ class Api:
     def multi_update_account_param(self, username, key, value):
         """
         更新指定账号的单个参数值。
-        
+
         功能说明：
         动态修改账号的配置参数，支持类型自动转换和配置持久化。
         修改后立即保存到配置文件，确保重启后配置不丢失。
-        
+
         类型转换规则：
         - bool类型：支持多种表示方式（'true', '1', 't', 'yes'等）
         - 其他类型：根据原始参数类型自动转换（int, float, str等）
-        
+
         参数:
             username (str): 账号用户名
             key (str): 参数键名（必须是已存在的参数）
             value: 新的参数值（将自动转换为正确类型）
-            
+
         返回:
             dict: 包含以下字段：
                 - success (bool): 操作是否成功
                 - message (str): 错误信息（失败时）
-        
+
         异常处理:
             - ValueError: 类型转换失败
             - TypeError: 类型不兼容
-        
+
         ⚠️ 注意事项：
         1. 只能修改已存在的参数，不能添加新参数
         2. 类型必须与原始参数类型兼容
         3. 修改会立即保存到磁盘
-        
+
         使用示例:
             # 修改布尔参数
             api.multi_update_account_param("user1", "auto_run", "true")
@@ -6666,34 +6841,34 @@ class Api:
     def multi_start_single_account(self, username, run_only_incomplete: bool = True):
         """
         启动指定账号的任务执行线程。
-        
+
         功能说明：
         在多账号模式下启动单个账号的自动任务执行。
         创建独立的工作线程，不阻塞主线程和其他账号。
-        
+
         执行流程：
         1. 验证账号存在性
         2. 检查是否已在运行（避免重复启动）
         3. 清除停止标志，准备运行
         4. 创建daemon工作线程
         5. 更新UI状态
-        
+
         参数:
             username (str): 要启动的账号用户名
             run_only_incomplete (bool): 是否只执行未完成的任务
                 - True: 跳过已完成的任务，只执行新任务或失败任务
                 - False: 执行所有任务，包括已完成的（重新执行）
-                
+
         返回:
             dict: 包含以下字段：
                 - success (bool): 操作是否成功
                 - message (str): 错误信息（失败时）
-        
+
         线程安全：
         - 使用stop_event控制线程生命周期
         - daemon线程确保主程序退出时自动清理
         - multi_run_stop_flag全局停止控制
-        
+
         ⚠️ 注意事项：
         1. 重复启动会被拒绝（返回失败）
         2. 线程异常会被_multi_account_worker内部捕获
@@ -6725,30 +6900,30 @@ class Api:
     def multi_stop_single_account(self, username):
         """
         停止指定账号的任务执行线程。
-        
+
         功能说明：
         向账号的工作线程发送停止信号，优雅地终止任务执行。
         使用异步监视器等待线程完全退出后清理资源。
-        
+
         停止流程：
         1. 验证账号存在性
         2. 检查线程是否在运行
         3. 设置stop_event信号
         4. 启动监视线程等待工作线程退出
         5. 线程退出后更新UI状态为"待命"
-        
+
         设计特点：
         - 非阻塞：使用独立监视线程，不阻塞主线程
         - 优雅停止：通过Event信号，让线程自己退出
         - 资源清理：线程退出后自动清理worker_thread句柄
         - 状态同步：实时更新UI状态显示
-        
+
         监视器(_watch_stop)机制：
         - 每200ms检查一次线程状态
         - 线程退出后立即清理和更新UI
         - daemon线程确保不会阻止程序退出
         - 捕获所有异常，避免监视器崩溃
-        
+
         ⚠️ 注意事项：
         1. 停止是异步的，可能需要几秒钟完成
         2. 如果线程未在运行，返回失败但不报错
@@ -6877,107 +7052,111 @@ class Api:
         return {"success": True}
 
     def _update_account_status_js(self, acc: AccountSession, status_text: str = None, summary: dict = None, name: str = None,
-                                      progress_pct: int | None = None, progress_text: str | None = None, progress_extra: str | None = None):
-            """一个辅助函数，用于向前端发送状态更新"""
-            # 修正：使用 SocketIO 向特定会话发送更新，而不是 self.window
-            session_id = getattr(self, '_web_session_id', None)
-            if not session_id or not socketio:
-                logging.debug(f"跳过账号状态更新（_update_account_status_js），账号: {acc.username}，原因: 缺少会话ID或socketio未初始化")
-                return  # 如果没有会话ID或socketio未初始化，则无法发送
+                                  progress_pct: int | None = None, progress_text: str | None = None, progress_extra: str | None = None):
+        """一个辅助函数，用于向前端发送状态更新"""
+        # 修正：使用 SocketIO 向特定会话发送更新，而不是 self.window
+        session_id = getattr(self, '_web_session_id', None)
+        if not session_id or not socketio:
+            logging.debug(
+                f"跳过账号状态更新（_update_account_status_js），账号: {acc.username}，原因: 缺少会话ID或socketio未初始化")
+            return  # 如果没有会话ID或socketio未初始化，则无法发送
 
-            update_data = {}
-            if status_text is not None:
-                acc.status_text = status_text
-                update_data['status_text'] = status_text
-            if summary is not None:
-                acc.summary = summary
-                update_data['summary'] = summary
-            if name is not None:
-                update_data['name'] = name
+        update_data = {}
+        if status_text is not None:
+            acc.status_text = status_text
+            update_data['status_text'] = status_text
+        if summary is not None:
+            acc.summary = summary
+            update_data['summary'] = summary
+        if name is not None:
+            update_data['name'] = name
 
-            # 进度条更新
-            if progress_pct is not None:
-                update_data['progress_pct'] = int(progress_pct)
-            if progress_text is not None:
-                update_data['progress_text'] = progress_text
-            if progress_extra is not None:
-                update_data['progress_extra'] = progress_extra
+        # 进度条更新
+        if progress_pct is not None:
+            update_data['progress_pct'] = int(progress_pct)
+        if progress_text is not None:
+            update_data['progress_text'] = progress_text
+        if progress_extra is not None:
+            update_data['progress_extra'] = progress_extra
 
-            if update_data:
-                try:
-                    # 发送一个自定义事件到该 session_id 对应的房间
-                    socketio.emit('multi_status_update', {
-                        'username': acc.username,
-                        'data': update_data
-                    }, room=session_id)
-                except Exception as e:
-                    logging.error(f"SocketIO emit 'multi_status_update' failed: {e}")
-            
-            # _update_multi_global_buttons 也需要用 socketio
-            self._update_multi_global_buttons()
-
-    def _update_multi_global_buttons(self):
-            """根据当前多账号状态刷新“全部开始/全部停止/返回登录页”按钮的可用性"""
-            # 修正：使用 SocketIO 向特定会话发送更新
-            session_id = getattr(self, '_web_session_id', None)
-            if not session_id or not socketio:
-                logging.debug("跳过多账号全局按钮更新（_update_multi_global_buttons），原因: 缺少会话ID或socketio未初始化")
-                return
-
-            # 仅统计仍有任务可执行的账号（active）
-            active_accounts = []
-            for acc in self.accounts.values():
-                total = acc.summary.get("total", 0)
-                expired = acc.summary.get("expired", 0)
-                not_started = acc.summary.get("not_started", 0)
-                executable = acc.summary.get("executable", 0)
-                # 候选任务：已开始且未截止（无论是否已完成）
-                candidates = max(0, total - expired - not_started)
-                has_tasks = (executable > 0) if self.multi_run_only_incomplete else (
-                    candidates > 0)
-                if has_tasks:
-                    active_accounts.append(acc)
-
-            total_active = len(active_accounts)
-            running_count = sum(
-                1 for acc in active_accounts
-                if acc.worker_thread and acc.worker_thread.is_alive()
-            )
-
-            # 四种状态规则：
-            # 1) 无账号 或 无active账号：start=禁用, stop=禁用, exit=启用
-            # 2) 有active且不是全部在运行：start=启用, stop=启用, exit=禁用
-            # 3) 全部active都在运行：start=禁用, stop=启用, exit=禁用
-            if total_active == 0:
-                # 无账号或无可执行任务
-                start_disabled = True
-                stop_disabled = True
-                exit_disabled = False
-            elif running_count == 0:
-                # 有账号但没有任何账号在执行任务
-                start_disabled = False
-                stop_disabled = True
-                exit_disabled = False
-            elif running_count == total_active:
-                # 全部 active 账号都在运行
-                start_disabled = True
-                stop_disabled = False
-                exit_disabled = True
-            else:
-                # 部分账号在运行
-                start_disabled = False
-                stop_disabled = False
-                exit_disabled = True
-
-            # 推送到前端
+        if update_data:
             try:
-                socketio.emit('multi_global_buttons_update', {
-                    'start_disabled': start_disabled,
-                    'stop_disabled': stop_disabled,
-                    'exit_disabled': exit_disabled
+                # 发送一个自定义事件到该 session_id 对应的房间
+                socketio.emit('multi_status_update', {
+                    'username': acc.username,
+                    'data': update_data
                 }, room=session_id)
             except Exception as e:
-                logging.error(f"SocketIO emit 'multi_global_buttons_update' failed: {e}")
+                logging.error(
+                    f"SocketIO emit 'multi_status_update' failed: {e}")
+
+        # _update_multi_global_buttons 也需要用 socketio
+        self._update_multi_global_buttons()
+
+    def _update_multi_global_buttons(self):
+        """根据当前多账号状态刷新“全部开始/全部停止/返回登录页”按钮的可用性"""
+        # 修正：使用 SocketIO 向特定会话发送更新
+        session_id = getattr(self, '_web_session_id', None)
+        if not session_id or not socketio:
+            logging.debug(
+                "跳过多账号全局按钮更新（_update_multi_global_buttons），原因: 缺少会话ID或socketio未初始化")
+            return
+
+        # 仅统计仍有任务可执行的账号（active）
+        active_accounts = []
+        for acc in self.accounts.values():
+            total = acc.summary.get("total", 0)
+            expired = acc.summary.get("expired", 0)
+            not_started = acc.summary.get("not_started", 0)
+            executable = acc.summary.get("executable", 0)
+            # 候选任务：已开始且未截止（无论是否已完成）
+            candidates = max(0, total - expired - not_started)
+            has_tasks = (executable > 0) if self.multi_run_only_incomplete else (
+                candidates > 0)
+            if has_tasks:
+                active_accounts.append(acc)
+
+        total_active = len(active_accounts)
+        running_count = sum(
+            1 for acc in active_accounts
+            if acc.worker_thread and acc.worker_thread.is_alive()
+        )
+
+        # 四种状态规则：
+        # 1) 无账号 或 无active账号：start=禁用, stop=禁用, exit=启用
+        # 2) 有active且不是全部在运行：start=启用, stop=启用, exit=禁用
+        # 3) 全部active都在运行：start=禁用, stop=启用, exit=禁用
+        if total_active == 0:
+            # 无账号或无可执行任务
+            start_disabled = True
+            stop_disabled = True
+            exit_disabled = False
+        elif running_count == 0:
+            # 有账号但没有任何账号在执行任务
+            start_disabled = False
+            stop_disabled = True
+            exit_disabled = False
+        elif running_count == total_active:
+            # 全部 active 账号都在运行
+            start_disabled = True
+            stop_disabled = False
+            exit_disabled = True
+        else:
+            # 部分账号在运行
+            start_disabled = False
+            stop_disabled = False
+            exit_disabled = True
+
+        # 推送到前端
+        try:
+            socketio.emit('multi_global_buttons_update', {
+                'start_disabled': start_disabled,
+                'stop_disabled': stop_disabled,
+                'exit_disabled': exit_disabled
+            }, room=session_id)
+        except Exception as e:
+            logging.error(
+                f"SocketIO emit 'multi_global_buttons_update' failed: {e}")
 
     def _queued_login(self, acc: AccountSession, respect_global_stop: bool = True) -> dict | None:
         """
@@ -7924,7 +8103,8 @@ class Api:
 
     def mark_notification_read(self, notice_id):
         """(单账号) 将指定ID的通知设为已读"""
-        logging.info(f"API调用: mark_notification_read - 标记通知为已读，通知ID: {notice_id}")
+        logging.info(
+            f"API调用: mark_notification_read - 标记通知为已读，通知ID: {notice_id}")
         if not self.user_data.id or self.is_multi_account_mode:
             return {"success": False, "message": "仅单账号登录模式可用"}
 
@@ -7952,10 +8132,10 @@ class Api:
                 # if not is_enabled: ... continue ...
 
                 # 2. 线程应始终按 'refresh_interval_s' 频率运行
-                
+
                 # 读取刷新间隔，并设置合理的默认值和最小值
                 refresh_interval_s = self.params.get(
-                    "auto_attendance_refresh_s", 60) # 默认60秒
+                    "auto_attendance_refresh_s", 60)  # 默认60秒
                 # 确保间隔不小于一个最小值，例如15秒，防止过高频率
                 refresh_interval_s = max(15, refresh_interval_s)
 
@@ -7982,8 +8162,9 @@ class Api:
                     pass
 
                 # 4. 获取通知并推送到UI (无论是否启用自动签到，都应该执行)
-                self.log("正在自动刷新通知 (后台)...") # <-- 这是您看到的日志
-                result = self.get_notifications(is_auto_refresh=True) # (修复：传入True以避免日志重复)
+                self.log("正在自动刷新通知 (后台)...")  # <-- 这是您看到的日志
+                result = self.get_notifications(
+                    is_auto_refresh=True)  # (修复：传入True以避免日志重复)
 
                 # [BUG 修复]：替换 self.window 为 socketio.emit
                 if result.get('success'):
@@ -7993,25 +8174,28 @@ class Api:
                     if session_id and 'socketio' in globals():
                         try:
                             # 发送一个自定义事件，前端JS需要监听这个事件
-                            globals()['socketio'].emit('onNotificationsUpdated', result, room=session_id)
-                            logging.debug(f"[_auto_refresh_worker] 已向会话 {session_id[:8]} 推送通知更新")
+                            globals()['socketio'].emit(
+                                'onNotificationsUpdated', result, room=session_id)
+                            logging.debug(
+                                f"[_auto_refresh_worker] 已向会话 {session_id[:8]} 推送通知更新")
                         except Exception as e:
-                            logging.error(f"[_auto_refresh_worker] SocketIO推送通知失败: {e}", exc_info=True)
+                            logging.error(
+                                f"[_auto_refresh_worker] SocketIO推送通知失败: {e}", exc_info=True)
                     elif not session_id:
-                         logging.warning(f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
+                        logging.warning(
+                            f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
                     else:
-                         logging.warning(f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
-
+                        logging.warning(
+                            f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
 
             except Exception as e:
                 self.log(f"自动刷新线程出错: {e}")
                 logging.error(f"Auto-refresh worker error: {e}", exc_info=True)
                 # 修复：使用 wait() 替换 time.sleep() 以便能被立即停止
                 if self.stop_auto_refresh.wait(timeout=60):
-                    break # 如果在等待时收到停止信号，则退出循环
+                    break  # 如果在等待时收到停止信号，则退出循环
 
         logging.info("Auto-refresh worker stopped.")
-
 
     def _check_and_trigger_auto_attendance(self, context: 'Api | AccountSession'):
         """
@@ -8473,8 +8657,10 @@ def save_session_state(session_id, api_instance, force_save=False):
             # 基础状态
             state = {
                 'session_id': session_id,  # 在文件内容中保存完整的UUID
-                'school_account_logged_in': getattr(api_instance, 'login_success', False),  # 更明确的命名：学校账号是否已登录
-                'login_success': getattr(api_instance, 'login_success', False),  # 保留兼容性
+                # 更明确的命名：学校账号是否已登录
+                'school_account_logged_in': getattr(api_instance, 'login_success', False),
+                # 保留兼容性
+                'login_success': getattr(api_instance, 'login_success', False),
                 'user_info': getattr(api_instance, 'user_info', None),
                 'created_at': getattr(api_instance, '_session_created_at', time.time()),
                 'last_accessed': time.time(),
@@ -8551,26 +8737,31 @@ def save_session_state(session_id, api_instance, force_save=False):
             # 保存运行状态
             state['is_offline_mode'] = getattr(
                 api_instance, 'is_offline_mode', False)
-            
+
             if hasattr(api_instance, 'api_client') and api_instance.api_client.session.cookies:
                 try:
                     # 将 CookieJar 转换为可序列化的字典
-                    state['api_cookies'] = requests.utils.dict_from_cookiejar(api_instance.api_client.session.cookies)
-                    logging.debug(f"会话保存: 正在保存 {len(state['api_cookies'])} 个 API Cookies...")
+                    state['api_cookies'] = requests.utils.dict_from_cookiejar(
+                        api_instance.api_client.session.cookies)
+                    logging.debug(
+                        f"会话保存: 正在保存 {len(state['api_cookies'])} 个 API Cookies...")
                 except Exception as e:
                     logging.warning(f"会话保存: 保存 API Cookies 失败: {e}")
-            
+
             # 保存多账号模式状态
-            state['is_multi_account_mode'] = getattr(api_instance, 'is_multi_account_mode', False)
-            
+            state['is_multi_account_mode'] = getattr(
+                api_instance, 'is_multi_account_mode', False)
+
             # 如果是多账号模式，保存多账号相关信息
             if getattr(api_instance, 'is_multi_account_mode', False):
                 # 保存已加载的账号列表（用户名列表）
-                state['multi_account_usernames'] = list(getattr(api_instance, 'accounts', {}).keys())
-                
+                state['multi_account_usernames'] = list(
+                    getattr(api_instance, 'accounts', {}).keys())
+
                 # 保存全局参数
-                state['multi_global_params'] = getattr(api_instance, 'global_params', {})
-                
+                state['multi_global_params'] = getattr(
+                    api_instance, 'global_params', {})
+
                 # 保存每个账号的状态
                 multi_account_states = {}
                 accounts = getattr(api_instance, 'accounts', {})
@@ -8584,8 +8775,8 @@ def save_session_state(session_id, api_instance, force_save=False):
                             'school_account_logged_in': getattr(account_session, 'login_success', False),
                             'has_tasks': len(getattr(account_session, 'all_run_data', [])) > 0,
                             'task_count': len(getattr(account_session, 'all_run_data', [])),
-                            'completed_tasks': sum(1 for task in getattr(account_session, 'all_run_data', []) 
-                                                 if getattr(task, 'status', 0) == 1),
+                            'completed_tasks': sum(1 for task in getattr(account_session, 'all_run_data', [])
+                                                   if getattr(task, 'status', 0) == 1),
                         }
                         # 保存账号特定参数（如果有）
                         if hasattr(account_session, 'params'):
@@ -8594,9 +8785,9 @@ def save_session_state(session_id, api_instance, force_save=False):
                     except Exception as e:
                         logging.warning(f"保存账号 {username} 状态时出错: {e}")
                         continue
-                        
+
                 state['multi_account_states'] = multi_account_states
-                
+
                 # 保存多账号控制面板信息（仪表盘信息）
                 state['multi_dashboard_info'] = {
                     'total_accounts': len(accounts),
@@ -8604,11 +8795,12 @@ def save_session_state(session_id, api_instance, force_save=False):
                     'logged_in_accounts': sum(1 for acc in accounts.values() if getattr(acc, 'login_success', False)),
                     'total_tasks': sum(len(getattr(acc, 'all_run_data', [])) for acc in accounts.values()),
                     'completed_tasks': sum(
-                        sum(1 for task in getattr(acc, 'all_run_data', []) if getattr(task, 'status', 0) == 1)
+                        sum(1 for task in getattr(acc, 'all_run_data', [])
+                            if getattr(task, 'status', 0) == 1)
                         for acc in accounts.values()
                     )
                 }
-            
+
             # 单账号模式的仪表盘信息
             if not getattr(api_instance, 'is_multi_account_mode', False):
                 # 统计任务信息
@@ -8621,7 +8813,7 @@ def save_session_state(session_id, api_instance, force_save=False):
                     'is_offline_mode': getattr(api_instance, 'is_offline_mode', False),
                     'school_account_logged_in': getattr(api_instance, 'login_success', False)
                 }
-                
+
                 # 添加当前选中任务的信息（如果有）
                 if hasattr(api_instance, 'current_run_idx') and api_instance.current_run_idx >= 0:
                     if hasattr(api_instance, 'all_run_data') and api_instance.current_run_idx < len(api_instance.all_run_data):
@@ -8633,7 +8825,6 @@ def save_session_state(session_id, api_instance, force_save=False):
                             'total_time': getattr(current_task, 'total_run_time_s', 0.0),
                             'has_path': len(getattr(current_task, 'run_coords', [])) > 0
                         }
-
 
             # 增强：保存停止标志状态
             if hasattr(api_instance, 'stop_run_flag'):
@@ -8699,11 +8890,13 @@ def load_session_state(session_id):
             if state.get('session_id') == session_id:
                 # 检查会话是否过期（7天未访问）
                 last_accessed = state.get('last_accessed', 0)
-                session_age_days = (time.time() - last_accessed) / 86400  # 转换为天数
+                session_age_days = (
+                    time.time() - last_accessed) / 86400  # 转换为天数
                 max_age_days = 7  # 会话最大保留7天
-                
+
                 if session_age_days > max_age_days:
-                    logging.warning(f"[会话管理] 会话已过期 --> 会话ID: {session_id[:32]}..., 最后访问: {session_age_days:.1f}天前, 最大保留期限: {max_age_days}天, 将被自动清理")
+                    logging.warning(
+                        f"[会话管理] 会话已过期 --> 会话ID: {session_id[:32]}..., 最后访问: {session_age_days:.1f}天前, 最大保留期限: {max_age_days}天, 将被自动清理")
                     # 删除过期的会话文件
                     try:
                         os.remove(session_file)
@@ -8711,7 +8904,7 @@ def load_session_state(session_id):
                     except Exception as remove_err:
                         logging.error(f"[会话管理] 删除过期会话文件失败: {remove_err}")
                     return None  # 返回None，表示会话不存在或已过期
-                
+
                 tasks_count = len(state.get('loaded_tasks', []))
                 logging.info(
                     f"[会话管理] 从文件加载会话 --> 会话ID: {session_id[:32]}..., 登录状态: {state.get('login_success')}, 任务数: {tasks_count}, 最后访问: {session_age_days:.1f}天前")
@@ -8726,47 +8919,49 @@ def load_session_state(session_id):
 def cleanup_expired_sessions():
     """
     清理过期的会话文件（7天未访问）
-    
+
     此函数遍历所有会话文件，删除超过7天未访问的会话。
     建议在应用启动时调用一次，以及定期后台调用。
     """
     try:
         if not os.path.exists(SESSION_STORAGE_DIR):
             return
-        
+
         max_age_days = 7
         max_age_seconds = max_age_days * 86400
         current_time = time.time()
         cleaned_count = 0
         error_count = 0
-        
+
         logging.info(f"[会话清理] 开始清理过期会话 --> 最大保留期限: {max_age_days}天")
-        
+
         for filename in os.listdir(SESSION_STORAGE_DIR):
             if not filename.endswith('.json') or filename == '_index.json':
                 continue
-            
+
             session_file = os.path.join(SESSION_STORAGE_DIR, filename)
-            
+
             try:
                 with open(session_file, 'r', encoding='utf-8') as f:
                     state = json.load(f)
-                
+
                 last_accessed = state.get('last_accessed', 0)
                 if current_time - last_accessed > max_age_seconds:
                     session_id = state.get('session_id', 'unknown')[:32]
                     age_days = (current_time - last_accessed) / 86400
-                    
+
                     os.remove(session_file)
                     cleaned_count += 1
-                    logging.info(f"[会话清理] 已删除过期会话 --> 会话ID: {session_id}..., 文件: {filename}, 年龄: {age_days:.1f}天")
-                    
+                    logging.info(
+                        f"[会话清理] 已删除过期会话 --> 会话ID: {session_id}..., 文件: {filename}, 年龄: {age_days:.1f}天")
+
             except Exception as e:
                 error_count += 1
                 logging.debug(f"[会话清理] 处理会话文件失败 --> 文件: {filename}, 错误: {e}")
-        
-        logging.info(f"[会话清理] 清理完成 --> 已删除: {cleaned_count}个过期会话, 错误: {error_count}个")
-        
+
+        logging.info(
+            f"[会话清理] 清理完成 --> 已删除: {cleaned_count}个过期会话, 错误: {error_count}个")
+
     except Exception as e:
         logging.error(f"[会话清理] 清理过期会话失败 --> 错误: {e}", exc_info=True)
 
@@ -8865,21 +9060,22 @@ def restore_session_to_api_instance(api_instance, state):
         # 恢复离线模式标志
         if 'is_offline_mode' in state:
             api_instance.is_offline_mode = state['is_offline_mode']
-        
+
         # 恢复多账号模式状态
         if 'is_multi_account_mode' in state:
             api_instance.is_multi_account_mode = state['is_multi_account_mode']
-            
+
             # 如果是多账号模式，恢复多账号相关数据
             if state['is_multi_account_mode']:
                 # 恢复全局参数
                 if 'multi_global_params' in state:
                     api_instance.global_params = state['multi_global_params']
-                
+
                 # 注意：这里不会完全恢复每个账号的完整状态
                 # 因为账号状态包含复杂的运行时对象（如线程等）
                 # 仅标记模式，前端会重新加载账号列表
-                logging.info(f"会话恢复：检测到多账号模式，账号数: {len(state.get('multi_account_usernames', []))}")
+                logging.info(
+                    f"会话恢复：检测到多账号模式，账号数: {len(state.get('multi_account_usernames', []))}")
 
         # 恢复停止标志状态
         if 'stop_run_flag_set' in state:
@@ -8901,8 +9097,10 @@ def restore_session_to_api_instance(api_instance, state):
             try:
                 cookies_dict = state['api_cookies']
                 # 将 cookie 字典加载回 session
-                api_instance.api_client.session.cookies = requests.utils.cookiejar_from_dict(cookies_dict)
-                logging.info(f"会话恢复: 成功恢复 {len(cookies_dict)} 个 API Cookies (shiroCookie等)。")
+                api_instance.api_client.session.cookies = requests.utils.cookiejar_from_dict(
+                    cookies_dict)
+                logging.info(
+                    f"会话恢复: 成功恢复 {len(cookies_dict)} 个 API Cookies (shiroCookie等)。")
             except Exception as e:
                 logging.warning(f"会话恢复: 恢复 API Cookies 失败: {e}")
 
@@ -8914,7 +9112,7 @@ def restore_session_to_api_instance(api_instance, state):
                 target=api_instance._auto_refresh_worker, daemon=True)
             api_instance.auto_refresh_thread.start()
             logging.info(f"会话恢复: 已重启单账号自动签到后台线程")
-        
+
         # 多账号模式
         if api_instance.is_multi_account_mode and api_instance.global_params.get("auto_attendance_enabled", False):
             api_instance.stop_multi_auto_refresh.clear()
@@ -9027,20 +9225,21 @@ def load_all_sessions(args):
 
 class BackgroundTaskManager:
     """管理服务器端后台任务执行"""
-    
+
     def __init__(self):
         self.tasks = {}  # {session_id: task_info}
         self.lock = threading.Lock()
-        self.task_storage_dir = os.path.join(os.path.dirname(__file__), 'background_tasks')
+        self.task_storage_dir = os.path.join(
+            os.path.dirname(__file__), 'background_tasks')
         if not os.path.exists(self.task_storage_dir):
             os.makedirs(self.task_storage_dir)
         logging.info("BackgroundTaskManager initialized")
-        
+
     def _get_task_file_path(self, session_id):
         """获取任务状态文件路径"""
         task_hash = hashlib.sha256(session_id.encode()).hexdigest()
         return os.path.join(self.task_storage_dir, f"{task_hash}.json")
-    
+
     def save_task_state(self, session_id, task_state):
         """保存任务状态到文件"""
         task_file = self._get_task_file_path(session_id)
@@ -9050,7 +9249,7 @@ class BackgroundTaskManager:
             logging.debug(f"后台任务状态已保存，会话ID前缀: {session_id[:8]}")
         except Exception as e:
             logging.error(f"保存后台任务状态失败: {e}")
-    
+
     def load_task_state(self, session_id):
         """从文件加载任务状态"""
         task_file = self._get_task_file_path(session_id)
@@ -9064,7 +9263,7 @@ class BackgroundTaskManager:
         except Exception as e:
             logging.error(f"加载后台任务状态失败: {e}")
             return None
-    
+
     def start_background_task(self, session_id, api_instance, task_indices, auto_generate=False):
         """启动后台任务执行"""
         with self.lock:
@@ -9084,10 +9283,10 @@ class BackgroundTaskManager:
                 'singleProcessedPoints': 0,  # 已处理的GPS点数
                 'singleTotalPoints': 0  # 总GPS点数
             }
-            
+
             self.tasks[session_id] = task_state
             self.save_task_state(session_id, task_state)
-            
+
             # 启动后台线程执行任务
             thread = threading.Thread(
                 target=self._execute_tasks_background,
@@ -9095,37 +9294,39 @@ class BackgroundTaskManager:
                 daemon=True
             )
             thread.start()
-            
-            logging.info(f"后台任务已启动，会话ID前缀: {session_id[:8]}, 总任务数: {len(task_indices)}")
+
+            logging.info(
+                f"后台任务已启动，会话ID前缀: {session_id[:8]}, 总任务数: {len(task_indices)}")
             return {"success": True, "message": f"已启动后台任务，共{len(task_indices)}个任务"}
-    
+
     def _execute_tasks_background(self, session_id, api_instance, task_indices, auto_generate):
         """后台执行任务的线程函数"""
         try:
             tasks_executed = 0  # 追踪实际执行的任务数量
-            
+
             for i, task_idx in enumerate(task_indices):
                 # 检查是否需要停止
                 with self.lock:
                     if session_id not in self.tasks:
                         logging.info(f"后台任务已取消，会话ID前缀: {session_id[:8]}")
                         return
-                    
+
                     task_state = self.tasks[session_id]
                     if task_state.get('status') == 'stopped':
                         logging.info(f"后台任务已停止，会话ID前缀: {session_id[:8]}")
                         return
-                
+
                 # 更新当前任务
                 with self.lock:
                     task_state['current_task_index'] = i
                     task_state['last_update'] = time.time()
                     self.save_task_state(session_id, task_state)
-                
+
                 # 执行单个任务
-                logging.info(f"正在执行后台任务 {i+1}/{len(task_indices)}，会话ID前缀: {session_id[:8]}")
+                logging.info(
+                    f"正在执行后台任务 {i+1}/{len(task_indices)}，会话ID前缀: {session_id[:8]}")
                 run_data = api_instance.all_run_data[task_idx]
-                
+
                 # 如果需要自动生成路径
                 if auto_generate and not run_data.run_coords:
                     logging.info(f"正在为任务自动生成路径: 任务名称={run_data.run_name}")
@@ -9133,51 +9334,58 @@ class BackgroundTaskManager:
                         # 确保已加载任务详情，拿到打卡点
                         if not run_data.details_fetched:
                             logging.info(f"正在获取任务详细信息: {run_data.run_name}...")
-                            details_resp = api_instance.get_task_details(task_idx)
+                            details_resp = api_instance.get_task_details(
+                                task_idx)
                             if not details_resp.get("success"):
-                                logging.error(f"获取任务详情失败，任务名称: {run_data.run_name}，错误信息: {details_resp.get('message', '未知错误')}")
+                                logging.error(
+                                    f"获取任务详情失败，任务名称: {run_data.run_name}，错误信息: {details_resp.get('message', '未知错误')}")
                                 continue
                             run_data = api_instance.all_run_data[task_idx]
                             logging.info(f"任务详情获取成功: {run_data.run_name}")
-                        
+
                         if not run_data.target_points:
-                            logging.error(f"任务缺少目标打卡点，无法自动生成路径: {run_data.run_name}")
+                            logging.error(
+                                f"任务缺少目标打卡点，无法自动生成路径: {run_data.run_name}")
                             continue
-                        
-                        logging.info(f"任务包含 {len(run_data.target_points)} 个目标打卡点: {run_data.run_name}")
-                        
+
+                        logging.info(
+                            f"任务包含 {len(run_data.target_points)} 个目标打卡点: {run_data.run_name}")
+
                         # 使用Chrome池进行服务器端路径规划
                         waypoints = run_data.target_points
-                        logging.info(f"正在规划路径，包含 {len(waypoints)} 个路点，任务名称: {run_data.run_name}")
-                        logging.info(f"Waypoints: {waypoints[:3]}..." if len(waypoints) > 3 else f"Waypoints: {waypoints}")
-                        
-                        
+                        logging.info(
+                            f"正在规划路径，包含 {len(waypoints)} 个路点，任务名称: {run_data.run_name}")
+                        logging.info(f"Waypoints: {waypoints[:3]}..." if len(
+                            waypoints) > 3 else f"Waypoints: {waypoints}")
+
                         # 必须在调用Chrome池之前获取 Key
-                        amap_key = api_instance.global_params.get('amap_js_key', '')
+                        amap_key = api_instance.global_params.get(
+                            'amap_js_key', '')
                         if not amap_key:
-                            logging.error(f"无法为 {run_data.run_name} 自动规划路径：缺少高德地图 API Key")
+                            logging.error(
+                                f"无法为 {run_data.run_name} 自动规划路径：缺少高德地图 API Key")
                             # 标记任务状态为错误并跳过
                             with self.lock:
                                 task_state['status'] = 'error'
                                 task_state['error'] = '缺少高德地图API Key'
                                 self.save_task_state(session_id, task_state)
-                            continue # 跳过此任务
-                        
+                            continue  # 跳过此任务
 
                         # 调用Chrome池执行路径规划
                         global chrome_pool
                         if not chrome_pool:
                             logging.error("Chrome浏览器池不可用，无法进行路径规划！")
                             continue
-                            
+
                         if chrome_pool:
                             try:
-                                logging.info(f"正在获取Chrome浏览器上下文，会话ID前缀: {session_id[:8]}...")
+                                logging.info(
+                                    f"正在获取Chrome浏览器上下文，会话ID前缀: {session_id[:8]}...")
                                 # 获取页面并确保加载了AMap
                                 ctx = chrome_pool.get_context(session_id)
                                 page = ctx['page']
                                 logging.info("Chrome浏览器上下文获取成功")
-                                
+
                                 # 首先加载包含AMap的页面
                                 logging.info("正在向Chrome页面加载高德地图SDK...")
                                 page.goto("about:blank")
@@ -9191,153 +9399,282 @@ class BackgroundTaskManager:
                                 <body></body>
                                 </html>
                                 """)
-                                
+
                                 # 等待AMap加载 (修复：等待 AMapLoader 加载完成)
                                 logging.info("等待高德地图加载器(AMapLoader)加载完成...")
-                                page.wait_for_function("typeof AMapLoader !== 'undefined'", timeout=10000)
+                                page.wait_for_function(
+                                    "typeof AMapLoader !== 'undefined'", timeout=10000)
                                 logging.info("高德地图加载器在Chrome上下文中加载成功")
-                                
+
                                 # 使用Chrome池执行AMap路径规划JavaScript
-                                logging.info("正在Chrome浏览器中执行路径规划JavaScript代码...")
+                                logging.info(
+                                    f"正在Chrome浏览器中执行路径规划JavaScript代码...")
+
+                                # BUG修复：将JS代码块包装在 (async (arg) => { ... }) IIFE 中
+                                # 并且使用与 index.html 中 getWalkingPath 相同的“迭代分段请求”逻辑
                                 path_coords = chrome_pool.execute_js(
                                     session_id,
                                     """
-                                    async function planPath(waypoints, apiKey) {
-                                        // 1. 确保 AMapLoader (来自 loader.js) 存在
-                                        if (typeof AMapLoader === 'undefined') {
-                                            return {error: 'AMapLoader not loaded'};
-                                        }
+                                    (async (arg) => {
+                                        const waypointsPy = arg[0]; // 这是Python传入的 [[lon, lat], ...]
+                                        const apiKey = arg[1];
+                                        const pythonParams = arg[2]; // <--- 读取 Python 传入的参数
 
-                                        // 2. (修复BUG) 调用 AMapLoader.load 并传入 key
-                                        try {
-                                            // 确保 AMap 和 AMap.Walking 插件被加载
-                                            await AMapLoader.load({
-                                                "key": apiKey,
-                                                "version": "2.0",
-                                                "plugins": ["AMap.Walking"]
-                                            });
-                                        } catch (e) {
-                                            // 返回详细的加载错误
-                                            return {error: 'AMapLoader.load failed: ' + (e ? e.message : 'Unknown error')};
-                                        }
-
-                                        // 3. (修复BUG) 检查 AMap.Walking 插件是否真的加载成功
-                                        if (typeof AMap.Walking === 'undefined') {
-                                            return {error: 'AMap.Walking plugin failed to load'};
-                                        }
-
-                                        // 4. (原逻辑) 执行路径规划
-                                        return new Promise((resolve) => {
-                                            const walking = new AMap.Walking({
-                                                map: null  // 不需要地图显示
-                                            });
+                                        // 1. 定义辅助函数 (planPath)
+                                        async function planPath(waypointsPy, apiKey, pythonParams) {
                                             
-                                            // 将waypoints转换为AMap.LngLat格式
-                                            const points = waypoints.map(p => new AMap.LngLat(p[0], p[1]));
-                                            
-                                            walking.search(points, function(status, result) {
-                                                if (status === 'complete' && result.routes && result.routes.length > 0) {
-                                                    const route = result.routes[0];
-                                                    const path = [];
-                                                    route.steps.forEach(step => {
-                                                        if (step.path) {
-                                                            step.path.forEach(p => {
-                                                                path.push({lng: p.lng, lat: p.lat});
-                                                            });
+                                            // 1.1 确保 AMapLoader (来自 loader.js) 存在
+                                            if (typeof AMapLoader === 'undefined') {
+                                                return {error: 'AMapLoader not loaded'};
+                                            }
+
+                                            // 1.2 调用 AMapLoader.load 并传入 key
+                                            try {
+                                                await AMapLoader.load({
+                                                    "key": apiKey,
+                                                    "version": "2.0",
+                                                    "plugins": ["AMap.Walking"]
+                                                });
+                                            } catch (e) {
+                                                return {error: 'AMapLoader.load failed: ' + (e ? e.message : 'Unknown error')};
+                                            }
+
+                                            // 1.3 检查 AMap.Walking 插件是否真的加载成功
+                                            if (typeof AMap.Walking === 'undefined') {
+                                                return {error: 'AMap.Walking plugin failed to load'};
+                                            }
+
+                                            // 1.4 ★ 步骤 2 修复：从 pythonParams 读取重试和回退设置
+                                            const useFallback = pythonParams.api_fallback_line ?? false;
+                                            const maxRetries = pythonParams.api_retries ?? 2;
+                                            const retryDelayMs = (pythonParams.api_retry_delay_s ?? 0.5) * 1000;
+                                            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+                                            // 1.5 定义分段搜索函数 (同 index.html)
+                                            const searchSegment = (start, end, walkingInstance) => new Promise((resolve) => {
+                                                walkingInstance.search(start, end, (status, result) => {
+                                                    if (status === 'complete' && result.routes?.length > 0) {
+                                                        const p = []; 
+                                                        result.routes[0].steps.forEach(s => s.path.forEach(pt => p.push({ lng: pt.lng, lat: pt.lat })));
+                                                        resolve({ path: p }); // 返回成功路径
+                                                    } else {
+                                                        let errorInfo = 'Unknown Error';
+                                                        if (status === 'error') {
+                                                            if (result && result.info) {
+                                                                errorInfo = result.info;
+                                                            } else if (result) {
+                                                                try { errorInfo = JSON.stringify(result); } catch (e) { errorInfo = result.toString(); }
+                                                            } else {
+                                                                errorInfo = status;
+                                                            }
+                                                        } else if (status === 'no_data') {
+                                                            errorInfo = 'No path found (no_data)';
+                                                        } else {
+                                                            errorInfo = status; // 如 "CUQPS_HAS_EXCEEDED_THE_LIMIT"
                                                         }
-                                                    });
-                                                    resolve({path: path});
-                                                } else {
-                                                    // 返回更详细的错误信息
-                                                    const errorInfo = result ? result.info : status;
-                                                    resolve({error: 'Path planning failed: ' + errorInfo});
-                                                }
+                                                        resolve({ error: 'Path planning failed: ' + errorInfo }); // 返回错误
+                                                    }
+                                                });
                                             });
-                                        });
-                                    }
-                                    
-                                    // 修复BUG：将 apiKey 作为 arguments[1] 传入
-                                    return planPath(arguments[0], arguments[1]);
+
+                                            // 1.6 ★ 步骤 2 修复：迭代执行路径规划 (增加重试循环)
+                                            const all_path = [];
+                                            const waypoints = waypointsPy.map(p => new AMap.LngLat(p[0], p[1]));
+                                            const walking = new AMap.Walking({ map: null, panel: "", hideMarkers: true });
+
+                                            if (waypoints.length < 2) {
+                                                return {error: 'Waypoints must be at least 2.'};
+                                            }
+
+                                            for (let i = 0; i < waypoints.length - 1; i++) {
+                                                const realStart = waypoints[i];
+                                                const realEnd = waypoints[i + 1];
+                                                
+                                                let attempts = 0;
+                                                let segmentResult = null;
+                                                let segmentPath = null; // 存储成功的路径
+
+                                                // --- 增加重试循环 (来自 index.html) ---
+                                                while (attempts <= maxRetries) {
+                                                    if (attempts > 0) {
+                                                        await sleep(retryDelayMs); // 等待后重试
+                                                    }
+                                                    
+                                                    segmentResult = await searchSegment(realStart, realEnd, walking);
+                                                    
+                                                    if (segmentResult.path) { // 检查 .path 是否存在 (成功)
+                                                        segmentPath = segmentResult.path;
+                                                        break; // 成功，退出重试循环
+                                                    }
+                                                    
+                                                    // 失败，记录最后一次错误 (将在重试用尽时使用)
+                                                    // (不需要 console.log，Python端会记录最终错误)
+                                                    
+                                                    attempts++;
+                                                }
+                                                // --- 结束重试循环 ---
+
+                                                if (segmentPath) {
+                                                    // 成功: 拼接路径
+                                                    const areCoordsEqual = (c1, c2) => Math.abs(c1.lng - c2.lng) < 1e-6 && Math.abs(c1.lat - c2.lat) < 1e-6;
+                                                    if (i > 0) {
+                                                        all_path.push(...segmentPath.slice(1));
+                                                    } else {
+                                                        all_path.push(...segmentPath);
+                                                    }
+                                                    if (i === waypoints.length - 2) { 
+                                                        if (segmentPath.length > 0 && !areCoordsEqual(segmentPath[segmentPath.length - 1], { lng: realEnd.lng, lat: realEnd.lat })) {
+                                                            all_path.push({ lng: realEnd.lng, lat: realEnd.lat });
+                                                        }
+                                                    }
+                                                } else {
+                                                    // 失败: 检查回退
+                                                    if (useFallback) {
+                                                        // 使用直线回退 (确保连接性)
+                                                        const lastPoint = all_path.length > 0 ? all_path[all_path.length - 1] : null;
+                                                        if (!lastPoint || (Math.abs(lastPoint.lng - realStart.lng) > 1e-6 || Math.abs(lastPoint.lat - realStart.lat) > 1e-6)) {
+                                                            all_path.push({ lng: realStart.lng, lat: realStart.lat });
+                                                        }
+                                                        all_path.push({ lng: realEnd.lng, lat: realEnd.lat });
+                                                    } else {
+                                                        // 不回退，整个规划失败
+                                                        return {error: `Segment ${i+1} failed after ${maxRetries+1} attempts: ${segmentResult.error}`};
+                                                    }
+                                                }
+                                            }
+                                            
+                                            // 成功
+                                            return {path: all_path};
+                                        }
+
+                                        // 2. 调用辅助函数并返回结果
+                                        return await planPath(waypointsPy, apiKey, pythonParams);
+                                    })
                                     """,
                                     waypoints,
-                                    amap_key  # 修复BUG：传入从Python获取的 amap_key
+                                    amap_key,
+                                    api_instance.params  # <--- 步骤 1 修复：传入参数
                                 )
-                                
-                                logging.info(f"路径规划JavaScript返回结果: 类型={type(path_coords)}, 包含'path'键={'是' if (path_coords and 'path' in path_coords) else '否'}")
-                                
+
+                                logging.info(
+                                    f"路径规划JavaScript返回结果: 类型={type(path_coords)}, 包含'path'键={'是' if (path_coords and 'path' in path_coords) else '否'}")
+
                                 if path_coords and 'path' in path_coords:
                                     api_path_coords = path_coords['path']
-                                    logging.info(f"路径规划成功，包含 {len(api_path_coords)} 个坐标点")
-                                    
+                                    logging.info(
+                                        f"路径规划成功，包含 {len(api_path_coords)} 个坐标点")
+
                                     # 使用后端生成 run_coords
                                     p = api_instance.params
-                                    logging.info(f"正在生成运动模拟数据，参数: 最小时长={p.get('min_time_m', 20)}分钟, 最大时长={p.get('max_time_m', 30)}分钟, 最小距离={p.get('min_dist_m', 2000)}米")
+                                    logging.info(
+                                        f"正在生成运动模拟数据，参数: 最小时长={p.get('min_time_m', 20)}分钟, 最大时长={p.get('max_time_m', 30)}分钟, 最小距离={p.get('min_dist_m', 2000)}米")
                                     gen_resp = api_instance.auto_generate_path_with_api(
                                         api_path_coords,
                                         p.get("min_time_m", 20),
                                         p.get("max_time_m", 30),
                                         p.get("min_dist_m", 2000)
                                     )
-                                    
-                                    logging.info(f"auto_generate_path_with_api函数返回: 成功={gen_resp.get('success')}")
-                                    
+
+                                    logging.info(
+                                        f"auto_generate_path_with_api函数返回: 成功={gen_resp.get('success')}")
+
                                     if gen_resp.get("success"):
                                         # 将生成结果回填到当前任务
                                         run_data.run_coords = gen_resp["run_coords"]
                                         run_data.total_run_distance_m = gen_resp["total_dist"]
                                         run_data.total_run_time_s = gen_resp["total_time"]
-                                        logging.info(f"路径自动生成成功，任务: {run_data.run_name}，坐标点数: {len(gen_resp['run_coords'])}, 总距离: {gen_resp['total_dist']}米, 总时长: {gen_resp['total_time']}秒")
+                                        logging.info(
+                                            f"路径自动生成成功，任务: {run_data.run_name}，坐标点数: {len(gen_resp['run_coords'])}, 总距离: {gen_resp['total_dist']}米, 总时长: {gen_resp['total_time']}秒")
+
+                                        with self.lock:
+                                            if session_id in self.tasks:
+                                                task_state = self.tasks[session_id]
+                                                task_state['last_update'] = time.time(
+                                                )
+
+                                                # 填充前端 pollBackgroundTaskStatus 所需的关键"总览"数据
+                                                task_state['estimated_total_time_s'] = run_data.total_run_time_s
+                                                task_state['estimated_total_distance_m'] = run_data.total_run_distance_m
+
+                                                # 填充路径和打卡点数据，以便 checkBackgroundTaskOnLoad (页面刷新)
+                                                # 和 pollBackgroundTaskStatus (地图绘制) 可以恢复地图
+                                                task_state['target_points'] = run_data.target_points if hasattr(
+                                                    run_data, 'target_points') else []
+                                                task_state['target_point_names'] = run_data.target_point_names if hasattr(
+                                                    run_data, 'target_point_names') else ''
+                                                task_state['recommended_coords'] = run_data.recommended_coords if hasattr(
+                                                    run_data, 'recommended_coords') else []
+                                                task_state['run_coords'] = run_data.run_coords if hasattr(
+                                                    run_data, 'run_coords') else []
+
+                                                # 填充点数信息
+                                                total_points = len(
+                                                    run_data.run_coords)
+                                                task_state['singleTotalPoints'] = total_points
+                                                # 尚未开始
+                                                task_state['singleProcessedPoints'] = 0
+
+                                                # 立即保存此状态
+                                                self.save_task_state(
+                                                    session_id, task_state)
+
                                     else:
-                                        logging.error(f"生成运动坐标序列失败: {gen_resp.get('message')}")
+                                        logging.error(
+                                            f"生成运动坐标序列失败: {gen_resp.get('message')}")
                                         continue
                                 else:
-                                    error_msg = path_coords.get('error', 'Unknown error') if path_coords else 'No response from path planning'
-                                    logging.error(f"任务路径规划失败，任务名称: {run_data.run_name}，错误信息: {error_msg}")
+                                    error_msg = path_coords.get(
+                                        'error', 'Unknown error') if path_coords else 'No response from path planning'
+                                    logging.error(
+                                        f"任务路径规划失败，任务名称: {run_data.run_name}，错误信息: {error_msg}")
                                     continue
                             except Exception as e:
-                                logging.error(f"Chrome浏览器池路径规划失败，任务名称: {run_data.run_name}，异常信息: {e}", exc_info=True)
+                                logging.error(
+                                    f"Chrome浏览器池路径规划失败，任务名称: {run_data.run_name}，异常信息: {e}", exc_info=True)
                                 continue
                         else:
                             logging.error("Chrome浏览器池不可用，无法进行路径规划")
                             continue
-                            
+
                     except Exception as e:
                         logging.error(f"自动生成路径失败，异常信息: {e}", exc_info=True)
                         continue
-                
+
                 # 检查任务是否有路径
                 if not run_data.run_coords:
                     logging.warning(f"任务没有可用路径，跳过执行: {run_data.run_name}")
                     # 跳过此任务，继续执行下一个任务
                     continue
-                
+
                 # 设置当前任务
                 api_instance.current_run_idx = task_idx
                 run_data.target_sequence = 0  # ✓ 从0开始（0-based索引）
                 run_data.is_in_target_zone = False
                 api_instance._first_center_done = False
                 api_instance.stop_run_flag.clear()
-                
+
                 # 创建完成事件
                 finished_event = threading.Event()
-                
+
                 # 执行任务（使用实际的提交线程）
                 try:
                     # 调用实际的执行逻辑
                     thread = threading.Thread(
                         target=api_instance._run_submission_thread,
-                        args=(run_data, task_idx, api_instance.api_client, False, finished_event),
+                        args=(run_data, task_idx, api_instance.api_client,
+                              False, finished_event),
                         daemon=True
                     )
                     thread.start()
-                    
+
                     # 标记正在执行此任务
                     tasks_executed += 1
-                    
+
                     # 等待任务完成或超时（最多等待任务预计时间的2倍）
-                    total_time_s = sum(p[2] for p in run_data.run_coords) / 1000.0
+                    total_time_s = sum(p[2]
+                                       for p in run_data.run_coords) / 1000.0
                     timeout = max(total_time_s * 2, 300)  # 至少5分钟
-                    
+
                     # 监控任务进度并更新状态
                     start_wait = time.time()
                     while not finished_event.is_set():
@@ -9345,36 +9682,47 @@ class BackgroundTaskManager:
                             logging.warning(f"任务执行超时: {run_data.run_name}")
                             api_instance.stop_run_flag.set()
                             break
-                        
+
                         # 更新当前任务进度
                         with self.lock:
                             if hasattr(run_data, 'current_point_index'):
                                 total_points = len(run_data.run_coords)
-                                current_progress = int(run_data.current_point_index / total_points * 100)
+                                current_progress = int(
+                                    run_data.current_point_index / total_points * 100)
                                 task_state['current_task_progress'] = current_progress
                                 task_state['last_update'] = time.time()
-                                
+
                                 # 添加点数进度信息（供前端直接使用）
                                 current_idx = run_data.current_point_index
                                 task_state['singleProcessedPoints'] = current_idx
                                 task_state['singleTotalPoints'] = total_points
-                                
+
                                 # 添加详细的任务数据（供前端完整恢复任务状态）
-                                task_state['target_points'] = run_data.target_points if hasattr(run_data, 'target_points') else []
-                                task_state['target_point_names'] = run_data.target_point_names if hasattr(run_data, 'target_point_names') else ''
-                                task_state['recommended_coords'] = run_data.recommended_coords if hasattr(run_data, 'recommended_coords') else []
-                                task_state['run_coords'] = run_data.run_coords if hasattr(run_data, 'run_coords') else []
-                                
+                                task_state['target_points'] = run_data.target_points if hasattr(
+                                    run_data, 'target_points') else []
+                                task_state['target_point_names'] = run_data.target_point_names if hasattr(
+                                    run_data, 'target_point_names') else ''
+                                task_state['recommended_coords'] = run_data.recommended_coords if hasattr(
+                                    run_data, 'recommended_coords') else []
+                                task_state['run_coords'] = run_data.run_coords if hasattr(
+                                    run_data, 'run_coords') else []
+
                                 # 添加打卡点进度信息
-                                task_state['checked_targets_count'] = getattr(run_data, 'target_sequence', 0)  # 已打卡的打卡点数量
-                                task_state['total_targets_count'] = len(run_data.target_points) if hasattr(run_data, 'target_points') else 0
-                                
+                                task_state['checked_targets_count'] = getattr(
+                                    run_data, 'target_sequence', 0)  # 已打卡的打卡点数量
+                                task_state['total_targets_count'] = len(
+                                    run_data.target_points) if hasattr(run_data, 'target_points') else 0
+
                                 # 添加时间和距离信息
-                                task_state['elapsed_time_s'] = time.time() - start_wait  # 当前已用时间（秒）
-                                task_state['current_distance_m'] = getattr(run_data, 'distance_covered_m', 0)  # 当前已跑距离（米）
-                                task_state['estimated_total_time_s'] = getattr(run_data, 'total_run_time_s', 0)  # 预计总时间（秒）
-                                task_state['estimated_total_distance_m'] = getattr(run_data, 'total_run_distance_m', 0)  # 预计总距离（米）
-                                
+                                task_state['elapsed_time_s'] = time.time(
+                                ) - start_wait  # 当前已用时间（秒）
+                                task_state['current_distance_m'] = getattr(
+                                    run_data, 'distance_covered_m', 0)  # 当前已跑距离（米）
+                                task_state['estimated_total_time_s'] = getattr(
+                                    run_data, 'total_run_time_s', 0)  # 预计总时间（秒）
+                                task_state['estimated_total_distance_m'] = getattr(
+                                    run_data, 'total_run_distance_m', 0)  # 预计总距离（米）
+
                                 # 添加实时位置数据
                                 if current_idx > 0 and current_idx <= total_points:
                                     coord = run_data.run_coords[current_idx - 1]
@@ -9385,37 +9733,39 @@ class BackgroundTaskManager:
                                         'target_sequence': getattr(run_data, 'target_sequence', 0),
                                         'point_index': current_idx  # 添加点索引用于前端进度计算
                                     }
-                        
+
                         # 每5秒保存一次状态
                         if int(time.time() - start_wait) % 5 == 0:
                             with self.lock:
                                 self.save_task_state(session_id, task_state)
-                        
+
                         time.sleep(1)
-                    
+
                     # 等待线程结束
                     thread.join(timeout=10)
-                    
+
                 except Exception as e:
                     logging.error(f"任务执行失败，异常信息: {e}", exc_info=True)
-                
+
                 # 更新完成状态
                 with self.lock:
                     task_state['completed_tasks'] = i + 1
-                    task_state['progress_percent'] = int((i + 1) / len(task_indices) * 100)
+                    task_state['progress_percent'] = int(
+                        (i + 1) / len(task_indices) * 100)
                     task_state['current_task_progress'] = 100
                     task_state['last_update'] = time.time()
                     self.save_task_state(session_id, task_state)
-                
-                logging.info(f"任务 {i+1}/{len(task_indices)} 已完成，会话ID前缀: {session_id[:8]}")
-            
+
+                logging.info(
+                    f"任务 {i+1}/{len(task_indices)} 已完成，会话ID前缀: {session_id[:8]}")
+
             # 所有任务完成 - 仅当至少执行了一个任务时
             if tasks_executed > 0:
                 with self.lock:
                     task_state['status'] = 'completed'
                     task_state['last_update'] = time.time()
                     self.save_task_state(session_id, task_state)
-                
+
                 logging.info(f"所有后台任务已完成，会话ID前缀: {session_id[:8]}")
             else:
                 # 没有任务被执行
@@ -9424,16 +9774,18 @@ class BackgroundTaskManager:
                         task_state['status'] = 'error'
                         # 根据是否启用自动生成，设置不同的错误消息
                         if auto_generate:
-                            task_state['error'] = '自动生成路径失败，请查看服务器日志了解详情或手动生成路径'
+                            task_state['error'] = '自动生成路径失败，请尝试手动生成路径'
                         else:
                             task_state['error'] = '所有任务都没有路径，请先生成路径'
                         task_state['last_update'] = time.time()
                         self.save_task_state(session_id, task_state)
                 if auto_generate:
-                    logging.error(f"没有任务被执行，会话ID前缀: {session_id[:8]} - 所有自动生成路径尝试均失败")
+                    logging.error(
+                        f"没有任务被执行，会话ID前缀: {session_id[:8]} - 所有自动生成路径尝试均失败")
                 else:
-                    logging.warning(f"没有任务被执行，会话ID前缀: {session_id[:8]} - 没有可用的路径")
-            
+                    logging.warning(
+                        f"没有任务被执行，会话ID前缀: {session_id[:8]} - 没有可用的路径")
+
         except Exception as e:
             logging.error(f"后台任务执行失败，异常信息: {e}", exc_info=True)
             with self.lock:
@@ -9441,23 +9793,23 @@ class BackgroundTaskManager:
                     self.tasks[session_id]['status'] = 'error'
                     self.tasks[session_id]['error'] = str(e)
                     self.save_task_state(session_id, self.tasks[session_id])
-    
+
     def get_task_status(self, session_id):
         """获取任务状态"""
         with self.lock:
             # 先从内存中获取
             if session_id in self.tasks:
                 return self.tasks[session_id]
-        
+
         # 如果内存中没有，从文件加载
         task_state = self.load_task_state(session_id)
         if task_state:
             with self.lock:
                 self.tasks[session_id] = task_state
             return task_state
-        
+
         return None
-    
+
     def stop_task(self, session_id):
         """停止后台任务"""
         with self.lock:
@@ -9467,22 +9819,22 @@ class BackgroundTaskManager:
                 logging.info(f"后台任务已停止，会话ID前缀: {session_id[:8]}")
                 return {"success": True, "message": "后台任务已停止"}
             return {"success": False, "message": "未找到运行中的后台任务"}
-    
+
     def cleanup_old_tasks(self, max_age_hours=24):
         """清理旧的任务状态文件"""
         try:
             current_time = time.time()
             max_age_seconds = max_age_hours * 3600
-            
+
             for filename in os.listdir(self.task_storage_dir):
                 if not filename.endswith('.json'):
                     continue
-                
+
                 filepath = os.path.join(self.task_storage_dir, filename)
                 try:
                     with open(filepath, 'r', encoding='utf-8') as f:
                         task_state = json.load(f)
-                    
+
                     last_update = task_state.get('last_update', 0)
                     if current_time - last_update > max_age_seconds:
                         os.remove(filepath)
@@ -9494,104 +9846,132 @@ class BackgroundTaskManager:
 
 
 class ChromeBrowserPool:
-    """管理服务器端Chrome浏览器实例，用于执行JS计算"""
+    """管理服务器端Chrome浏览器实例，用于执行JS计算 (线程本地安全模式)"""
 
     def __init__(self, headless=True, max_instances=5):
         self.headless = headless
         self.max_instances = max_instances
-        self.playwright = None
-        self.browser = None
-        self.contexts = {}  # {session_id: browser_context}
-        self.lock = threading.Lock()
-        self._initialize()
+        # self.playwright = None # 移除
+        # self.browser = None # 移除
+        # self.contexts = {}  # 移除
+        # self.lock = threading.Lock() # 移除
 
-    def _initialize(self):
-        """初始化Playwright和浏览器"""
-        try:
-            self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(
-                headless=self.headless,
-                args=['--no-sandbox', '--disable-setuid-sandbox']
-            )
-            logging.info(f"Chrome浏览器已启动 (headless={self.headless})")
-        except Exception as e:
-            logging.error(f"启动Chrome失败: {e}")
-            raise
+        # 使用 threading.local() 存储线程私有的资源
+        self.thread_local = threading.local()
+        # _initialize() 将在每个线程首次使用时调用
+        # self._initialize() # 移除
+
+    def _initialize_for_thread(self):
+        """在每个线程中首次使用时初始化Playwright和浏览器"""
+        # 检查当前线程是否已经初始化
+        if not hasattr(self.thread_local, 'playwright'):
+            try:
+                logging.info(
+                    f"正在为线程 {threading.current_thread().name} 初始化 Playwright...")
+                self.thread_local.playwright = sync_playwright().start()
+                self.thread_local.browser = self.thread_local.playwright.chromium.launch(
+                    headless=self.headless,
+                    args=['--no-sandbox', '--disable-setuid-sandbox']
+                )
+                # contexts 也是线程私有的
+                self.thread_local.contexts = {}
+                logging.info(
+                    f"Chrome浏览器已为线程 {threading.current_thread().name} 启动 (headless={self.headless})")
+            except Exception as e:
+                logging.error(
+                    f"为线程 {threading.current_thread().name} 启动Chrome失败: {e}", exc_info=True)
+                raise
 
     def get_context(self, session_id):
-        """获取或创建指定会话的浏览器上下文"""
-        with self.lock:
-            if session_id not in self.contexts:
-                # 创建新的浏览器上下文
-                context = self.browser.new_context(
-                    viewport={'width': 1920, 'height': 1080},
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                )
-                page = context.new_page()
-                self.contexts[session_id] = {'context': context, 'page': page}
-                logging.info(f"为会话 {session_id} 创建Chrome上下文")
-            return self.contexts[session_id]
+        """获取或创建指定会话的浏览器上下文（线程安全）"""
+        # 确保当前线程已初始化
+        self._initialize_for_thread()
+
+        # 从当前线程的存储中获取 contexts
+        contexts = self.thread_local.contexts
+
+        if session_id not in contexts:
+            # 从当前线程的存储中获取 browser
+            browser = self.thread_local.browser
+            # 创建新的浏览器上下文
+            context = browser.new_context(
+                viewport={'width': 1920, 'height': 1080},
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            )
+            page = context.new_page()
+            contexts[session_id] = {'context': context, 'page': page}
+            logging.info(
+                f"为会话 {session_id} 在线程 {threading.current_thread().name} 中创建Chrome上下文")
+        return contexts[session_id]
 
     def execute_js(self, session_id, script, *args):
-        """在指定会话的Chrome中执行JavaScript代码"""
+        """在指定会话的Chrome中执行JavaScript代码（线程安全）"""
         try:
+            # 确保当前线程已初始化（如果尚未初始化）
+            self._initialize_for_thread()
+            # get_context 已经是线程安全的
             ctx = self.get_context(session_id)
             page = ctx['page']
-            result = page.evaluate(script, *args)
+            # 修复BUG：Playwright的evaluate方法只接受一个 'arg' 参数。
+            # 必须将所有Python参数 (*args) 包装成一个列表 (list(args))
+            # 传递给 'arg'，以便在JS中作为 arguments[0], arguments[1] 等访问。
+            result = page.evaluate(script, list(args))
             return result
         except Exception as e:
-            logging.error(f"执行JS失败 (session={session_id}): {e}")
+            logging.error(
+                f"执行JS失败 (session={session_id}, thread={threading.current_thread().name}): {e}", exc_info=True)
             return None
 
     def close_context(self, session_id):
-        """关闭指定会话的浏览器上下文"""
-        with self.lock:
-            if session_id in self.contexts:
-                try:
-                    ctx = self.contexts[session_id]
-                    ctx['context'].close()
-                    del self.contexts[session_id]
-                    logging.info(f"关闭会话 {session_id} 的Chrome上下文")
-                except Exception as e:
-                    logging.error(f"关闭上下文失败: {e}")
+        """关闭指定会话的浏览器上下文（线程安全）"""
+        # 检查当前线程是否有资源
+        if not hasattr(self.thread_local, 'contexts'):
+            return  # 此线程未初始化，无需关闭
 
-    def cleanup(self):
-        """清理所有资源"""
-        with self.lock:
-            # 首先尝试关闭所有上下文
-            for session_id in list(self.contexts.keys()):
-                try:
-                    # 增加日志，明确关闭哪个上下文
-                    logging.debug(
-                        f"正在关闭会话 {session_id[:8]}... 的 Chrome 上下文...")
-                    self.contexts[session_id]['context'].close()
-                    logging.debug(f"会话 {session_id[:8]}... 的上下文已关闭。")
-                except Exception as e:
-                    # 捕获关闭上下文时的错误，记录并继续
-                    logging.warning(f"关闭会话 {session_id[:8]}... 上下文失败: {e}")
-            self.contexts.clear()
-            logging.debug("所有 Chrome 上下文已清理。")
+        contexts = self.thread_local.contexts
+        if session_id in contexts:
+            try:
+                ctx = contexts[session_id]
+                ctx['context'].close()
+                del contexts[session_id]
+                logging.info(
+                    f"关闭会话 {session_id} 在线程 {threading.current_thread().name} 中的Chrome上下文")
+            except Exception as e:
+                logging.error(f"关闭上下文失败: {e}")
 
-            # 然后尝试关闭浏览器
-            if self.browser:
-                try:
-                    logging.debug("正在关闭主 Chrome 浏览器实例...")
-                    self.browser.close()  # <--- 在这里捕获异常
-                    logging.debug("主 Chrome 浏览器实例已关闭。")
-                except Exception as e:
-                    # 捕获关闭浏览器时的错误，记录日志但允许程序继续退出
-                    logging.warning(f"关闭 Chrome 浏览器实例时发生错误: {e}")
-                    # 注意：这里我们只记录警告，因为程序正在退出
+    def cleanup_thread(self):
+        """清理当前线程的所有Playwright资源"""
+        # 检查当前线程是否有资源
+        if hasattr(self.thread_local, 'playwright'):
+            try:
+                logging.info(
+                    f"正在清理线程 {threading.current_thread().name} 的 Playwright 资源...")
+                contexts = getattr(self.thread_local, 'contexts', {})
+                # 1. 关闭所有上下文
+                for session_id, ctx in contexts.items():
+                    try:
+                        ctx['context'].close()
+                    except Exception as e:
+                        logging.warning(f"关闭会话 {session_id} 上下文失败: {e}")
+                self.thread_local.contexts.clear()
 
-            # 最后停止 Playwright 实例
-            if self.playwright:
-                try:
-                    logging.debug("正在停止 Playwright 实例...")
-                    self.playwright.stop()
-                    logging.debug("Playwright 实例已停止。")
-                except Exception as e:
-                    # 捕获停止 Playwright 时的错误
-                    logging.warning(f"停止 Playwright 实例时发生错误: {e}")
+                # 2. 关闭浏览器
+                if hasattr(self.thread_local, 'browser'):
+                    self.thread_local.browser.close()
+
+                # 3. 停止 Playwright
+                self.thread_local.playwright.stop()
+
+                # 4. 清理 thread_local 属性
+                del self.thread_local.playwright
+                del self.thread_local.browser
+                del self.thread_local.contexts
+
+                logging.info(
+                    f"线程 {threading.current_thread().name} 的 Playwright 资源清理完毕。")
+            except Exception as e:
+                logging.error(
+                    f"清理线程 {threading.current_thread().name} 资源时出错: {e}", exc_info=True)
 
 
 # 全局Chrome浏览器池和后台任务管理器
@@ -9602,30 +9982,30 @@ background_task_manager = None
 def _cleanup_playwright():
     """
     在程序退出时清理Playwright资源。
-    
+
     功能说明：
     - 这是一个注册在atexit的清理函数，确保程序退出时正确关闭所有浏览器实例
     - 防止遗留的浏览器进程占用系统资源
-    
+
     清理流程：
     1. 检查chrome_pool全局实例是否存在
     2. 调用chrome_pool.cleanup()关闭所有浏览器
     3. 记录清理结果
-    
+
     异常处理：
     - 使用try-except捕获清理过程中的所有异常
     - exc_info=False避免在退出时打印完整堆栈（可能引起混淆）
     - 只记录错误，不重新抛出，确保程序正常退出
-    
+
     设计考虑：
     - 使用global访问chrome_pool而不是参数传递，因为atexit不支持参数
     - 判空检查避免未初始化时的错误
-    
+
     使用场景：
     - 正常退出（Ctrl+C、关闭终端）
     - 异常退出（未捕获的异常）
     - 系统信号（SIGTERM等）
-    
+
     注意：
     - 此函数由atexit.register()自动调用，不需手动调用
     - 执行时机在Python解释器关闭前
@@ -9642,55 +10022,56 @@ def _cleanup_playwright():
     else:
         logging.debug("Playwright 池未初始化，无需清理。")
 
+
 def start_background_auto_attendance(args):
     """
     在服务器启动时扫描所有.ini配置文件，为启用自动签到的账号启动后台工作线程。
-    
+
     功能说明：
     - 自动发现并加载所有启用了auto_attendance_enabled的账号配置
     - 根据账号数量智能选择单账号或多账号模式
     - 在后台守护线程中持续运行，无需用户干预
-    
+
     工作模式：
-    
+
     **单账号模式**（只有1个启用自动签到的账号）：
     - 为该账号创建独立的Api实例
     - 启动单独的_auto_refresh_worker线程
     - 资源占用更少，适合个人使用
-    
+
     **多账号模式**（2个或更多账号）：
     - 所有账号共享一个Api实例
     - 启动_multi_auto_attendance_worker统一管理
     - 更高效的资源利用，适合批量管理
-    
+
     执行流程：
     1. 扫描SCHOOL_ACCOUNTS_DIR目录中的所有.ini文件
     2. 读取每个文件的配置，检查auto_attendance_enabled参数
     3. 收集所有启用自动签到的账号信息
     4. 根据账号数量选择模式并启动相应的后台线程
-    
+
     参数说明：
     - args: 命令行参数对象，包含--no-auto-start等配置
-    
+
     异常处理：
     - 单个账号加载失败不影响其他账号
     - 登录失败会记录错误但不终止服务
     - 所有异常都会记录到日志中
-    
+
     全局变量：
     - _background_service_api: 保持Api实例存活的引用（单账号模式）
     - chrome_pool: 共享的浏览器池（如果需要）
-    
+
     设计考虑：
     - 使用daemon线程确保主程序退出时自动停止
     - 临时创建Api实例仅用于读取配置，避免资源浪费
     - 账号信息缓存在内存中，避免重复读取文件
-    
+
     注意事项：
     - 此函数应在Flask服务器启动前调用
     - 需要确保SCHOOL_ACCOUNTS_DIR目录存在且有读权限
     - 账号的.ini文件必须包含密码和auto_attendance_enabled配置
-    
+
     使用示例：
     ```python
     if __name__ == "__main__":
@@ -9702,16 +10083,16 @@ def start_background_auto_attendance(args):
     """
     try:
         logging.info("正在启动后台自动签到服务...")
-        
+
         accounts_dir = SCHOOL_ACCOUNTS_DIR
-        
+
         if not os.path.exists(accounts_dir):
             logging.warning(f"后台签到：未找到账号目录 {accounts_dir}，跳过。")
             return
 
         # 收集所有启用自动签到的账号
         enabled_accounts = []
-        
+
         for filename in os.listdir(accounts_dir):
             if filename.endswith(".ini"):
                 username = os.path.splitext(filename)[0]
@@ -9719,11 +10100,12 @@ def start_background_auto_attendance(args):
                     # 临时创建一个Api实例来加载配置
                     temp_api = Api(args)
                     password = temp_api._load_config(username)
-                    
+
                     if not password:
-                        logging.debug(f"后台签到：跳过账号 {username}，因为未在 {filename} 中找到密码。")
+                        logging.debug(
+                            f"后台签到：跳过账号 {username}，因为未在 {filename} 中找到密码。")
                         continue
-                    
+
                     # 检查是否启用了自动签到
                     if temp_api.params.get("auto_attendance_enabled", False):
                         enabled_accounts.append({
@@ -9734,30 +10116,32 @@ def start_background_auto_attendance(args):
                         logging.info(f"后台签到：找到启用自动签到的账号: {username}")
                     else:
                         logging.debug(f"后台签到：账号 {username} 未启用自动签到，跳过。")
-                        
+
                 except Exception as e:
-                    logging.error(f"后台签到：加载账号 {username} 失败: {e}", exc_info=True)
+                    logging.error(
+                        f"后台签到：加载账号 {username} 失败: {e}", exc_info=True)
 
         if not enabled_accounts:
             logging.info("后台签到：未找到启用自动签到的账号。")
             return
-        
+
         # 根据账号数量选择模式
         if len(enabled_accounts) == 1:
             # 单账号模式：为该账号创建独立的Api实例
             account = enabled_accounts[0]
             logging.info(f"后台签到：使用单账号模式，账号: {account['username']}")
-            
+
             service_api = Api(args)
             service_api.is_multi_account_mode = False
             service_api.params = account['params']
-            
+
             # 执行登录
             try:
-                login_result = service_api.login(account['username'], account['password'])
+                login_result = service_api.login(
+                    account['username'], account['password'])
                 if login_result.get('success'):
                     logging.info(f"后台签到：账号 {account['username']} 登录成功")
-                    
+
                     # 启动单账号自动刷新线程
                     service_api.stop_auto_refresh.clear()
                     service_api.auto_refresh_thread = threading.Thread(
@@ -9766,33 +10150,37 @@ def start_background_auto_attendance(args):
                         name=f"BackgroundAttendance-{account['username']}"
                     )
                     service_api.auto_refresh_thread.start()
-                    
+
                     # 保持实例存活
                     globals()['_background_service_api'] = service_api
                     logging.info(f"后台签到：单账号模式启动成功")
                 else:
-                    logging.error(f"后台签到：账号 {account['username']} 登录失败: {login_result.get('message')}")
+                    logging.error(
+                        f"后台签到：账号 {account['username']} 登录失败: {login_result.get('message')}")
             except Exception as e:
-                logging.error(f"后台签到：账号 {account['username']} 登录时发生错误: {e}", exc_info=True)
-                
+                logging.error(
+                    f"后台签到：账号 {account['username']} 登录时发生错误: {e}", exc_info=True)
+
         else:
             # 多账号模式：所有账号共享一个Api实例
             logging.info(f"后台签到：使用多账号模式，共 {len(enabled_accounts)} 个账号")
-            
+
             service_api = Api(args)
             service_api.is_multi_account_mode = True
             service_api._load_global_config()
             service_api.global_params["auto_attendance_enabled"] = True
-            
+
             # 为每个账号创建AccountSession
             for account in enabled_accounts:
                 try:
-                    acc_session = AccountSession(account['username'], account['password'], service_api)
+                    acc_session = AccountSession(
+                        account['username'], account['password'], service_api)
                     acc_session.params = account['params']
                     service_api.accounts[account['username']] = acc_session
                 except Exception as e:
-                    logging.error(f"后台签到：创建账号会话失败 {account['username']}: {e}", exc_info=True)
-            
+                    logging.error(
+                        f"后台签到：创建账号会话失败 {account['username']}: {e}", exc_info=True)
+
             # 启动多账号自动刷新线程
             service_api.stop_multi_auto_refresh.clear()
             service_api.multi_auto_refresh_thread = threading.Thread(
@@ -9801,11 +10189,11 @@ def start_background_auto_attendance(args):
                 name="BackgroundAttendanceWorker-Multi"
             )
             service_api.multi_auto_refresh_thread.start()
-            
+
             # 保持实例存活
             globals()['_background_service_api'] = service_api
             logging.info(f"后台签到：多账号模式启动成功，已加载 {len(service_api.accounts)} 个账号")
-            
+
     except Exception as e:
         logging.error(f"启动后台自动签到服务时发生严重错误: {e}", exc_info=True)
 
@@ -9813,40 +10201,40 @@ def start_background_auto_attendance(args):
 def start_web_server(args_param):
     """
     启动Flask Web服务器主函数，集成SocketIO实时通信和Chrome浏览器自动化。
-    
+
     功能说明：
     - 初始化Flask应用和所有必需的全局组件
     - 配置跨域请求（CORS）和WebSocket实时通信（SocketIO）
     - 启动Chrome浏览器池用于服务端JS渲染
     - 初始化后台任务管理器
     - 设置会话管理和安全密钥
-    
+
     主要组件：
-    
+
     **1. Chrome浏览器池（ChromeBrowserPool）**
     - 管理可重用的浏览器实例
     - 支持headless模式（无界面运行）
     - 自动清理和资源回收
-    
+
     **2. 后台任务管理器（BackgroundTaskManager）**
     - 管理长时间运行的任务（如批量任务执行）
     - 任务状态持久化到文件
     - 启动时清理历史任务记录
-    
+
     **3. 会话管理系统**
     - web_sessions: 存储用户会话状态（登录信息、Api实例）
     - session_file_locks: 防止会话文件并发冲突
     - session_activity: 跟踪会话活跃时间
     - 所有会话数据都有对应的线程锁保护
-    
+
     **4. SocketIO实时通信**
     - async_mode='threading': 使用线程模式处理异步请求
     - 支持后台任务进度实时推送
     - 双向通信（服务器可主动推送消息到客户端）
-    
+
     参数说明：
     - args_param: 命令行参数对象，包含headless、port等配置
-    
+
     初始化流程：
     1. 重置所有内存锁和会话状态（防止重启后的状态污染）
     2. 初始化Chrome浏览器池并注册退出清理函数
@@ -9855,7 +10243,7 @@ def start_web_server(args_param):
     5. 配置会话管理（SESSION_TYPE=filesystem，7天有效期）
     6. 注册所有Flask路由（在后续代码中）
     7. 启动Flask开发服务器
-    
+
     全局变量：
     - chrome_pool: ChromeBrowserPool实例
     - background_task_manager: BackgroundTaskManager实例
@@ -9867,21 +10255,21 @@ def start_web_server(args_param):
     - session_activity_lock: 保护session_activity的线程锁
     - socketio: SocketIO实例用于实时通信
     - args: 命令行参数（全局可访问）
-    
+
     安全特性：
     - 使用secrets.token_hex(32)生成强随机密钥（256位）
     - 会话数据加密存储在文件系统中
     - 跨域请求受CORS控制
-    
+
     错误处理：
     - Chrome池或任务管理器初始化失败会sys.exit(1)终止程序
     - 单个任务文件删除失败只记录错误，不影响整体启动
-    
+
     注意事项：
     - 此函数会阻塞当前线程（Flask服务器运行在主线程）
     - 需要先调用check_install_dependencies()确保依赖已安装
     - 建议在后台自动签到服务启动后调用
-    
+
     使用示例：
     ```python
     if __name__ == "__main__":
@@ -9920,8 +10308,7 @@ def start_web_server(args_param):
     except Exception as e:
         logging.error(f"无法初始化Chrome浏览器池: {e}")
         sys.exit(1)
-    
-    
+
     # 初始化后台任务管理器
     try:
         background_task_manager = BackgroundTaskManager()
@@ -9946,7 +10333,8 @@ def start_web_server(args_param):
                             logging.error(f"无法删除后台任务文件 {filename}: {e}")
             logging.info(f"已清空后台任务管理器内存状态，并删除了 {cleaned_files_count} 个任务状态文件。")
         else:
-            logging.warning("无法清理后台任务文件：BackgroundTaskManager 或其 task_storage_dir 未定义。")
+            logging.warning(
+                "无法清理后台任务文件：BackgroundTaskManager 或其 task_storage_dir 未定义。")
 
     except Exception as e:
         logging.error(f"无法初始化后台任务管理器: {e}")
@@ -9974,40 +10362,40 @@ def start_web_server(args_param):
     def auth_register():
         """
         用户注册API端点。
-        
+
         请求方法：POST
         请求路径：/auth/register
         Content-Type：application/json
-        
+
         请求体（JSON）：
         {
             "auth_username": "用户名",  # 必填，会被trim()处理
             "auth_password": "密码"     # 必填，会被trim()处理
         }
-        
+
         响应体（JSON）：
         {
             "success": true/false,
             "message": "成功/失败信息"
         }
-        
+
         处理流程：
         1. 解析JSON请求体（使用 or {} 防止None）
         2. 提取并trim用户名和密码
         3. 验证非空（两者都必填）
         4. 调用auth_system.register_user()执行注册逻辑
         5. 返回注册结果
-        
+
         安全特性：
         - 密码由AuthSystem内部加密存储（SHA256或明文，取决于配置）
         - 用户名去除首尾空格，防止输入错误
         - 所有验证逻辑委托给AuthSystem处理
-        
+
         错误情况：
         - 用户名或密码为空：返回 {"success": false, "message": "用户名和密码不能为空"}
         - 用户名已存在：由auth_system返回相应错误信息
         - 其他错误：由auth_system捕获并返回
-        
+
         注意：
         - 此接口不需要认证（公开接口）
         - 注册成功后用户需要再调用 /auth/login 登录
@@ -10027,19 +10415,19 @@ def start_web_server(args_param):
     def auth_login():
         """
         用户登录认证API端点。
-        
+
         请求方法：POST
         请求路径：/auth/login
         Content-Type：application/json
         请求头：X-Session-ID: <客户端会话ID>（可选）
-        
+
         请求体（JSON）：
         {
             "auth_username": "用户名",      # 必填
             "auth_password": "密码",        # 必填
             "two_fa_code": "双因素认证码"   # 可选，仅在启用2FA时需要
         }
-        
+
         响应体（JSON）：
         {
             "success": true/false,
@@ -10048,7 +10436,7 @@ def start_web_server(args_param):
             "group": "用户组",
             "is_guest": false
         }
-        
+
         处理流程：
         1. 解析请求体和请求头（session_id、IP、User-Agent）
         2. 调用auth_system.authenticate()验证用户凭据
@@ -10056,7 +10444,7 @@ def start_web_server(args_param):
         4. 将认证信息附加到web_sessions
         5. 执行单会话强制策略（可选，非游客用户）
         6. 返回认证结果
-        
+
         会话管理：
         - 每个客户端通过X-Session-ID标识唯一会话
         - 如果session_id已存在，复用现有Api实例
@@ -10068,7 +10456,7 @@ def start_web_server(args_param):
           * is_authenticated: 认证状态标志
           * _session_created_at: 会话创建时间戳
           * _web_session_id: 关联的会话ID
-        
+
         单会话强制策略（仅注册用户）：
         - check_single_session_enforcement()检查同一用户的活跃会话数
         - 如果超过限制，返回需要清理的旧会话列表
@@ -10077,24 +10465,24 @@ def start_web_server(args_param):
           1. 从web_sessions中移除旧会话
           2. 尝试关闭旧会话的Api实例资源
           3. 记录清理结果到日志
-        
+
         安全特性：
         - 密码由AuthSystem验证（支持明文或加密存储）
         - IP地址和User-Agent用于登录日志和安全审计
         - 双因素认证支持（如果用户启用）
         - 会话数量限制防止会话劫持
         - 所有会话操作都有web_sessions_lock保护（线程安全）
-        
+
         双因素认证（2FA）：
         - 如果用户启用了2FA，必须提供正确的two_fa_code
         - AuthSystem会验证TOTP代码（Time-based One-Time Password）
         - 验证失败会拒绝登录
-        
+
         错误情况：
         - 用户名或密码错误：由auth_system返回 {"success": false, "message": "..."}
         - 2FA代码错误：由auth_system返回相应错误
         - 内部错误：捕获并返回错误信息
-        
+
         注意：
         - 此接口不需要预先认证（公开接口）
         - 注释掉的session_id检查代码表明曾经需要会话ID，现在已改为可选
@@ -10300,19 +10688,19 @@ def start_web_server(args_param):
     def auth_guest_login():
         """
         游客登录API - 无需密码的快速访问入口。
-        
+
         功能说明：
         - 为未注册用户提供受限的访问权限
         - 无需用户名和密码，只需会话ID
         - 适用于试用、演示或临时访问场景
-        
+
         请求格式：
         - 方法：POST
         - 路径：/auth/guest_login
         - 请求头：
           * X-Session-ID: 会话标识符（必需）
         - 请求体：无需
-        
+
         响应格式：
         {
           "success": true/false,
@@ -10321,7 +10709,7 @@ def start_web_server(args_param):
           "group": "guest",
           "is_guest": true
         }
-        
+
         处理流程：
         1. 从请求头获取session_id
         2. 验证session_id存在性
@@ -10331,25 +10719,25 @@ def start_web_server(args_param):
         6. 设置游客属性（auth_username='guest', auth_group='guest', is_guest=True）
         7. 保存会话状态到磁盘
         8. 返回成功响应
-        
+
         游客权限限制：
         - 无法使用需要认证的高级功能
         - 会话不支持多设备同步
         - 可能无法访问某些敏感API
         - 数据不会长期保存
-        
+
         配置项：
         - auth.ini [Guest] allow_guest_login：控制是否允许游客登录（默认true）
-        
+
         错误情况：
         - 缺少session_id：返回400错误
         - 系统不允许游客登录：返回失败消息
-        
+
         安全考虑：
         - 游客会话不受单会话强制限制
         - 游客不生成token和cookie
         - 游客数据可能被定期清理
-        
+
         注意：
         - 游客会话不会记录到登录日志
         - 游客切换到注册用户需要重新登录
@@ -10394,29 +10782,29 @@ def start_web_server(args_param):
     def auth_logout():
         """
         用户登出API - 安全退出系统并清理所有会话数据。
-        
+
         功能说明：
         - 终止用户的当前会话
         - 使token失效（防止重放攻击）
         - 清除浏览器cookie
         - 释放服务器端资源
-        
+
         请求格式：
         - 方法：POST
         - 路径：/auth/logout
         - 请求头：
           * X-Session-ID: 要登出的会话标识符（必需）
         - 请求体：无需
-        
+
         响应格式：
         {
           "success": true,
           "message": "登出成功"
         }
-        
+
         响应头：
         - Set-Cookie: auth_token=; Max-Age=0（清除cookie）
-        
+
         处理流程：
         1. 从请求头获取session_id
         2. 验证session_id存在性
@@ -10430,27 +10818,27 @@ def start_web_server(args_param):
            - 删除会话持久化文件
         6. 清除客户端cookie（auth_token）
         7. 返回成功响应
-        
+
         安全特性：
         - Token失效机制：防止token被重复使用
         - Cookie清除：防止浏览器自动重新登录
         - 资源释放：避免会话泄漏
         - 审计日志：记录登出时间和原因
-        
+
         游客处理：
         - 游客用户没有token，只清理会话即可
         - 不记录游客的登出事件
-        
+
         错误情况：
         - 缺少session_id：返回400错误
         - 会话不存在：仍然返回成功（幂等性）
-        
+
         注意：
         - 此接口幂等性强，重复调用不会出错
         - 登出后前端应导航到登录页
         - 多标签页的其他标签会话也会失效
         - 调用cleanup_session时原因设为"user_logout"
-        
+
         使用场景：
         - 用户主动点击"退出"按钮
         - 会话超时后的强制登出
@@ -10489,13 +10877,13 @@ def start_web_server(args_param):
     def auth_check_permission():
         """
         权限检查API - 验证用户是否拥有特定权限。
-        
+
         功能说明：
         - 基于RBAC（基于角色的访问控制）模型
         - 检查用户所在组是否有特定权限
         - 用于前端UI控制（显示/隐藏功能按钮）
         - 用于API调用前的权限验证
-        
+
         请求格式：
         - 方法：POST
         - 路径：/auth/check_permission
@@ -10505,13 +10893,13 @@ def start_web_server(args_param):
           {
             "permission": "权限名称"
           }
-        
+
         响应格式：
         {
           "success": true/false,
           "has_permission": true/false
         }
-        
+
         处理流程：
         1. 从请求头获取session_id
         2. 从请求体获取permission名称
@@ -10520,36 +10908,36 @@ def start_web_server(args_param):
         5. 验证用户已认证（has auth_username）
         6. 调用auth_system.check_permission()检查权限
         7. 返回检查结果
-        
+
         权限系统：
         - 权限定义在auth.ini的[Permissions]段
         - 格式：permission_name = group1,group2,group3
         - 例如：admin_panel = admin
         - 支持多组共享同一权限
-        
+
         常见权限示例：
         - "admin_panel"：访问管理面板
         - "multi_account"：多账号管理
         - "export_data"：导出数据
         - "view_logs"：查看日志
         - "manage_users"：用户管理
-        
+
         错误情况：
         - session_id缺失或无效：返回{"success": false, "has_permission": false}
         - 用户未认证：返回{"success": false, "has_permission": false}
         - permission参数缺失：检查空字符串权限（通常返回false）
-        
+
         安全考虑：
         - 不泄露权限系统的内部结构
         - 失败时统一返回has_permission=false
         - 不区分"用户不存在"和"无权限"
-        
+
         注意：
         - 此接口只做检查，不执行实际操作
         - 前端应根据返回值动态调整UI
         - 后端API仍需在执行前再次验证权限
         - 游客用户通常无任何特殊权限
-        
+
         使用场景：
         - 页面加载时检查功能可用性
         - 点击操作前的预先验证
@@ -10574,18 +10962,18 @@ def start_web_server(args_param):
     def auth_switch_session():
         """
         会话切换API - 在多标签页间切换时更新认证token和cookie。
-        
+
         功能说明：
         - 支持同一用户在多个浏览器标签页间无缝切换
         - 为目标会话生成新的token
         - 更新浏览器cookie以匹配目标会话
         - 预加载目标会话状态（如果存在）
-        
+
         应用场景：
         - 用户在标签页A登录后，打开标签页B
         - 用户从会话列表中选择要切换到的会话
         - 多窗口协作（如同时查看不同任务）
-        
+
         请求格式：
         - 方法：POST
         - 路径：/auth/switch_session
@@ -10596,79 +10984,79 @@ def start_web_server(args_param):
           {
             "target_session_id": "目标会话的UUID"
           }
-        
+
         响应格式：
         {
           "success": true/false,
           "message": "成功/错误信息",
           "need_login": true（仅当token失效时）
         }
-        
+
         响应头：
         - Set-Cookie: auth_token=新token; Max-Age=3600; HttpOnly; SameSite=Lax
-        
+
         处理流程（5步）：
         1. 验证当前用户身份：
            - 从current_session_id获取用户名
            - 检查是否为游客（游客不支持切换）
            - 验证is_authenticated状态
-        
+
         2. 验证当前token有效性：
            - 从cookie读取auth_token
            - 调用token_manager.verify_token()验证
            - 如果失效，返回401并要求重新登录
-        
+
         3. 为目标会话生成新token：
            - 调用token_manager.create_token()
            - 新token关联到target_session_id
            - 记录切换事件到日志
-        
+
         4. 更新cookie：
            - 设置新的auth_token cookie
            - 1小时过期时间
            - HttpOnly防止XSS攻击
            - SameSite=Lax防止CSRF
-        
+
         5. 预加载目标会话状态（可选但推荐）：
            - 从文件加载目标会话的历史状态
            - 如果成功，创建Api实例并恢复
            - 如果失败，前端访问时会创建新会话
-        
+
         安全特性：
         - **双重验证**：既验证session_id又验证token
         - **游客限制**：游客用户不允许切换会话
         - **Token刷新**：即使目标已有token，也生成新的
         - **自动清理**：无效token会自动清除cookie
         - **线程安全**：web_sessions_lock保护并发访问
-        
+
         错误情况：
         - 缺少参数：返回400错误
         - 未登录或游客：返回401错误
         - Token失效：返回401并清除cookie，设置need_login=true
         - 目标会话不存在：仍然成功（前端访问时创建）
-        
+
         设计考虑：
         - **为什么生成新token**：
           * 增强安全性，每次切换都是新的认证
           * 避免token复用导致的安全问题
           * 便于追踪用户的会话切换行为
-        
+
         - **为什么预加载状态**：
           * 提升用户体验，减少加载时间
           * 但即使失败也不影响功能
           * 前端路由会处理会话创建
-        
+
         注意：
         - 切换后前端应导航到 /uuid=<target_session_id>
         - 旧标签页的会话不会被销毁（用户可能返回）
         - 每个会话都有独立的状态和数据
         - Token有效期1小时，过期需重新登录
-        
+
         与单会话强制的关系：
         - 此功能允许同一用户多会话并存
         - 单会话强制针对的是"并发登录设备数"
         - 会话切换是在已允许的设备内切换
-        
+
         使用流程示例：
         1. 用户在标签A登录（会话ID: session-A）
         2. 用户打开标签B（自动分配会话ID: session-B）
@@ -10759,23 +11147,23 @@ def start_web_server(args_param):
     def auth_admin_list_users():
         """
         管理员API - 列出所有用户信息。
-        
+
         功能说明：
         - 获取系统中所有注册用户的列表
         - 包含用户名、用户组、创建时间等信息
         - 用于管理员查看和管理用户
-        
+
         权限要求：
         - 必须登录
         - 必须具有'manage_users'权限
-        
+
         请求头：
         - X-Session-ID: 会话ID（必需）
-        
+
         响应格式：
         成功：{"success": true, "users": [用户列表]}
         失败：{"success": false, "message": "错误信息"}
-        
+
         用户对象结构：
         {
             "username": "用户名",
@@ -10783,7 +11171,7 @@ def start_web_server(args_param):
             "created_at": "创建时间",
             "last_login": "最后登录时间"
         }
-        
+
         使用场景：
         - 管理员查看所有用户
         - 用户管理界面的数据源
@@ -10809,34 +11197,34 @@ def start_web_server(args_param):
     def auth_admin_update_user_group():
         """
         管理员API - 修改用户所属的权限组。
-        
+
         功能说明：
         - 将指定用户分配到新的权限组
         - 影响用户的权限范围
         - 立即生效，无需重新登录
-        
+
         权限要求：
         - 必须登录
         - 必须具有'manage_users'权限
-        
+
         请求头：
         - X-Session-ID: 会话ID（必需）
-        
+
         请求体（JSON）：
         {
             "target_username": "目标用户名",
             "new_group": "新权限组名"
         }
-        
+
         响应格式：
         成功：{"success": true, "message": "用户组已更新"}
         失败：{"success": false, "message": "错误信息"}
-        
+
         注意事项：
         - 目标用户组必须存在
         - 不能修改自己的用户组（防止锁定）
         - 更改会立即影响用户权限
-        
+
         使用场景：
         - 提升/降低用户权限
         - 调整用户角色
@@ -10865,30 +11253,30 @@ def start_web_server(args_param):
     def auth_admin_list_groups():
         """
         管理员API - 列出所有权限组及其权限配置。
-        
+
         功能说明：
         - 获取系统中定义的所有权限组
         - 包含每个组的权限列表
         - 用于权限管理和配置
-        
+
         权限要求：
         - 必须登录
         - 必须具有'manage_permissions'权限
-        
+
         请求头：
         - X-Session-ID: 会话ID（必需）
-        
+
         响应格式：
         成功：{"success": true, "groups": {权限组配置}}
         失败：{"success": false, "message": "错误信息"}
-        
+
         权限组结构示例：
         {
             "admin": ["manage_users", "manage_permissions", ...],
             "user": ["view_data", "edit_own_data"],
             "guest": ["view_public_data"]
         }
-        
+
         使用场景：
         - 权限配置界面数据源
         - 显示可用的权限组列表
@@ -11083,20 +11471,18 @@ def start_web_server(args_param):
             permission = data.get('permission', '')
             grant = data.get('grant', False)
 
-            
-
-
             if not permission:
                 # return jsonify({"success": False, "message": "缺少permission参数"}), 400
-                logging.info(f"管理员 {auth_username} 尝试为用户 {target_username} 设置权限时，缺少 permission 参数")
+                logging.info(
+                    f"管理员 {auth_username} 尝试为用户 {target_username} 设置权限时，缺少 permission 参数")
                 try:
                     # 清空用户的差分权限，然后设置新的
                     if 'user_custom_permissions' not in auth_system.permissions:
                         auth_system.permissions['user_custom_permissions'] = {}
-                        
+
                     auth_system.permissions['user_custom_permissions'][target_username] = {
-                    'added':  [],
-                    'removed': []
+                        'added':  [],
+                        'removed': []
                     }
 
                     auth_system._save_permissions()
@@ -11116,7 +11502,6 @@ def start_web_server(args_param):
                 except Exception as e:
                     logging.error(f"批量更新权限失败: {e}", exc_info=True)
                     return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
-                
 
             result = auth_system.set_user_custom_permission(
                 target_username, permission, grant)
@@ -11858,8 +12243,8 @@ def start_web_server(args_param):
 
         # 验证会话 - 支持从header、cookie或query参数获取session_id
         session_id = request.headers.get('X-Session-ID', '') or \
-                     request.cookies.get('session_id', '') or \
-                     request.args.get('session_id', '')
+            request.cookies.get('session_id', '') or \
+            request.args.get('session_id', '')
 
         # 如果没有会话ID或会话无效，返回401
         if not session_id or session_id not in web_sessions:
@@ -12672,29 +13057,31 @@ def start_web_server(args_param):
 
             if (data == None) or (not message):
                 return jsonify({"success": False, "message": "无效的日志数据"}),
-           
 
             # 获取 Session ID
             session_id = request.headers.get('X-Session-ID', 'UnknownSession')
             # session_id_short = session_id[:8] if session_id else None # 取前8位用于日志
 
             # 获取 IP 地址 (考虑代理)
-            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            ip_address = request.headers.get(
+                'X-Forwarded-For', request.remote_addr)
 
             # 获取用户名 (通过 Session ID)
-            username = 'Guest/Unknown' # 默认值
+            username = 'Guest/Unknown'  # 默认值
             with web_sessions_lock:
                 if session_id in web_sessions:
                     api_instance = web_sessions[session_id]
                     # 优先使用 auth_username，如果不存在则尝试 user_data.username
-                    username_attr = getattr(api_instance, 'auth_username', None)
+                    username_attr = getattr(
+                        api_instance, 'auth_username', None)
                     if not username_attr and hasattr(api_instance, 'user_data'):
-                         username_attr = getattr(api_instance.user_data, 'username', None)
+                        username_attr = getattr(
+                            api_instance.user_data, 'username', None)
 
-                    if username_attr: # 确保获取到的用户名非空
-                         username = username_attr
-                    elif getattr(api_instance, 'is_guest', False): # 明确是游客
-                         username = 'Guest'
+                    if username_attr:  # 确保获取到的用户名非空
+                        username = username_attr
+                    elif getattr(api_instance, 'is_guest', False):  # 明确是游客
+                        username = 'Guest'
                     # 如果 session 存在但无法确定用户名，保留 'Guest/Unknown'
 
             # 构造新的日志消息，包含 IP、用户名和 Session ID
@@ -12717,11 +13104,14 @@ def start_web_server(args_param):
             return jsonify({"success": True})
         except Exception as e:
             # 在错误日志中也尝试包含 IP 和 Session ID
-            session_id_err = request.headers.get('X-Session-ID', 'UnknownSession')
-            ip_address_err = request.headers.get('X-Forwarded-For', request.remote_addr)
-            logging.error(f"[前端日志处理错误][IP:{ip_address_err}][Sess:{session_id_err[:8]}] {e}", exc_info=True)
+            session_id_err = request.headers.get(
+                'X-Session-ID', 'UnknownSession')
+            ip_address_err = request.headers.get(
+                'X-Forwarded-For', request.remote_addr)
+            logging.error(
+                f"[前端日志处理错误][IP:{ip_address_err}][Sess:{session_id_err[:8]}] {e}", exc_info=True)
             return jsonify({"success": False, "message": str(e)}), 500
-        
+
     # ====================
     # 应用主路由
     # ====================
@@ -12872,10 +13262,30 @@ def start_web_server(args_param):
 
             if hasattr(api_instance, method):
                 func = getattr(api_instance, method)
-                # 将参数展开调用
-                if params:
-                    result = func(**params) if isinstance(params,
-                                                          dict) else func(*params)
+
+                # 调试：记录params类型和内容
+                # logging.debug(f"API call: method={method}, params type={type(params)}, params={str(params)[:200]}")
+                logging.debug(f"API调用: 方法={method}, 参数类型={type(params)}, 参数内容={str(params)[:200]}")
+
+                if method == 'set_draft_path':
+                    # set_draft_path 函数 (def set_draft_path(self, coords)) 总是需要一个 coords 参数。
+
+                    if isinstance(params, list):
+                        # 正常情况：前端发送了 [...] (坐标列表) 或 [] (清空)
+                        result = func(params)
+                    else:
+                        # 异常情况：前端发送了 {} (如日志所示) 或 null/空body (导致 params 变为 {})
+                        # 此时，我们强制将其视为空列表 [] 来调用，以满足函数签名要求。
+                        # logging.warning(f"API call to set_draft_path received non-list params (type: {type(params)}). Coercing to empty list [].")
+                        logging.warning(
+                            f"调用 set_draft_path 时收到非列表参数 (类型: {type(params)})。强制转换为空列表 []。")
+                        result = func([])  # 传递一个空列表
+
+                elif params:
+                    # 保持原有逻辑不变，用于处理其他所有API调用
+                    # (例如 login(user, pass) 会收到 params=[user, pass]，
+                    #  执行 func(*params) 变为 login(self, user, pass)，这是正确的)
+                    result = func(**params) if isinstance(params,dict) else func(*params)
                 else:
                     result = func()
 
@@ -12948,14 +13358,14 @@ def start_web_server(args_param):
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "会话无效或未登录"}), 401
-        
+
         data = request.get_json() or {}
         task_indices = data.get('task_indices', [])
         auto_generate = data.get('auto_generate', False)
-        
+
         if not task_indices:
             return jsonify({"success": False, "message": "未指定任务"}), 400
-        
+
         api_instance = web_sessions[session_id]
         result = background_task_manager.start_background_task(
             session_id, api_instance, task_indices, auto_generate
@@ -12968,7 +13378,7 @@ def start_web_server(args_param):
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id:
             return jsonify({"success": False, "message": "缺少会话ID"}), 401
-        
+
         task_status = background_task_manager.get_task_status(session_id)
         if task_status:
             return jsonify({"success": True, "task_status": task_status})
@@ -12981,12 +13391,33 @@ def start_web_server(args_param):
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "会话无效或未登录"}), 401
-        
+
+        # 停止任务不仅要更新 TaskManager 的状态，
+        # 还必须设置 Api 实例上的 stop_run_flag (threading.Event)，
+        # 否则 _run_submission_thread 线程不会停止。
+        try:
+            with web_sessions_lock:
+                if session_id in web_sessions:
+                    api_instance = web_sessions[session_id]
+                    if hasattr(api_instance, 'stop_run_flag'):
+                        api_instance.stop_run_flag.set()
+                        logging.info(
+                            f"已为会话 {session_id[:8]}... 设置 api_instance.stop_run_flag 停止标志")
+                    else:
+                        logging.warning(
+                            f"会话 {session_id[:8]}... 的 Api 实例缺少 stop_run_flag 属性")
+                else:
+                    logging.warning(
+                        f"无法在 web_sessions 中找到会话 {session_id[:8]}... 来设置停止标志")
+        except Exception as e:
+            logging.error(f"设置 stop_run_flag 时出错: {e}", exc_info=True)
+            # 即使这里出错，也继续尝试停止 TaskManager
+
         result = background_task_manager.stop_task(session_id)
         return jsonify(result)
 
     # ========== 留言板API ========== #
-    
+
     @app.route('/api/messages/list', methods=['GET'])
     def get_messages():
         """获取留言列表"""
@@ -12994,18 +13425,18 @@ def start_web_server(args_param):
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
-        
+
         api_instance = web_sessions[session_id]
         auth_username = getattr(api_instance, 'auth_username', '')
-        
+
         # 检查权限
         if not auth_system.check_permission(auth_username, 'view_messages'):
             return jsonify({"success": False, "message": "无权查看留言"}), 403
-        
+
         # 读取留言文件
         messages_file = 'messages.json'
         messages = []
-        
+
         if os.path.exists(messages_file):
             try:
                 with open(messages_file, 'r', encoding='utf-8') as f:
@@ -13013,12 +13444,12 @@ def start_web_server(args_param):
             except (json.JSONDecodeError, OSError) as e:
                 logging.error(f"[留言板] 读取留言失败: {e}")
                 messages = []
-        
+
         # 按时间倒序排序（最新的在前）
         messages.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
-        
+
         return jsonify({"success": True, "messages": messages})
-    
+
     @app.route('/api/messages/post', methods=['POST'])
     def post_message():
         """发表留言"""
@@ -13026,26 +13457,26 @@ def start_web_server(args_param):
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
-        
+
         api_instance = web_sessions[session_id]
         auth_username = getattr(api_instance, 'auth_username', '')
-        
+
         # 检查权限
         if not auth_system.check_permission(auth_username, 'post_messages'):
             return jsonify({"success": False, "message": "无权发表留言"}), 403
-        
+
         data = request.json
         content = data.get('content', '').strip()
         email = data.get('email', '').strip()
         nickname = data.get('nickname', '').strip()
-        
+
         # 验证内容
         if not content:
             return jsonify({"success": False, "message": "留言内容不能为空"})
-        
+
         if len(content) > 1000:
             return jsonify({"success": False, "message": "留言内容不能超过1000字"})
-        
+
         # 游客必须填写邮箱和昵称
         is_guest = (auth_username == 'guest' or not auth_username)
         if is_guest:
@@ -13058,7 +13489,7 @@ def start_web_server(args_param):
             email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
             if not re.match(email_pattern, email):
                 return jsonify({"success": False, "message": "邮箱格式不正确"})
-        
+
         # 构建留言对象
         import time
         import uuid
@@ -13072,11 +13503,11 @@ def start_web_server(args_param):
             "timestamp": time.time(),
             "ip": request.remote_addr
         }
-        
+
         # 读取现有留言
         messages_file = 'messages.json'
         messages = []
-        
+
         if os.path.exists(messages_file):
             try:
                 with open(messages_file, 'r', encoding='utf-8') as f:
@@ -13084,21 +13515,22 @@ def start_web_server(args_param):
             except (json.JSONDecodeError, OSError) as e:
                 logging.error(f"[留言板] 读取留言失败: {e}")
                 messages = []
-        
+
         # 添加新留言
         messages.append(message)
-        
+
         # 保存留言
         try:
             with open(messages_file, 'w', encoding='utf-8') as f:
                 json.dump(messages, f, indent=2, ensure_ascii=False)
-            
-            logging.info(f"[留言板] 新留言 --> 用户: {auth_username}, 昵称: {nickname}, 内容长度: {len(content)}字")
+
+            logging.info(
+                f"[留言板] 新留言 --> 用户: {auth_username}, 昵称: {nickname}, 内容长度: {len(content)}字")
             return jsonify({"success": True, "message": "留言发表成功", "message_id": message["id"]})
         except OSError as e:
             logging.error(f"[留言板] 保存留言失败: {e}")
             return jsonify({"success": False, "message": "保存留言失败"}), 500
-    
+
     @app.route('/api/messages/delete', methods=['POST'])
     def delete_message():
         """删除留言"""
@@ -13106,20 +13538,20 @@ def start_web_server(args_param):
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
-        
+
         api_instance = web_sessions[session_id]
         auth_username = getattr(api_instance, 'auth_username', '')
-        
+
         data = request.json
         message_id = data.get('message_id', '').strip()
-        
+
         if not message_id:
             return jsonify({"success": False, "message": "留言ID不能为空"})
-        
+
         # 读取留言
         messages_file = 'messages.json'
         messages = []
-        
+
         if os.path.exists(messages_file):
             try:
                 with open(messages_file, 'r', encoding='utf-8') as f:
@@ -13127,22 +13559,25 @@ def start_web_server(args_param):
             except (json.JSONDecodeError, OSError) as e:
                 logging.error(f"[留言板] 读取留言失败: {e}")
                 return jsonify({"success": False, "message": "读取留言失败"}), 500
-        
+
         # 查找要删除的留言
         message_to_delete = None
         for msg in messages:
             if msg.get('id') == message_id:
                 message_to_delete = msg
                 break
-        
+
         if not message_to_delete:
             return jsonify({"success": False, "message": "留言不存在"})
-        
+
         # 检查权限
-        can_delete_any = auth_system.check_permission(auth_username, 'delete_any_messages')
-        can_delete_own = auth_system.check_permission(auth_username, 'delete_own_messages')
-        is_own_message = (message_to_delete.get('username') == auth_username and not message_to_delete.get('is_guest'))
-        
+        can_delete_any = auth_system.check_permission(
+            auth_username, 'delete_any_messages')
+        can_delete_own = auth_system.check_permission(
+            auth_username, 'delete_own_messages')
+        is_own_message = (message_to_delete.get('username') ==
+                          auth_username and not message_to_delete.get('is_guest'))
+
         if can_delete_any:
             # 管理员可以删除任何留言
             pass
@@ -13151,16 +13586,17 @@ def start_web_server(args_param):
             pass
         else:
             return jsonify({"success": False, "message": "无权删除此留言"}), 403
-        
+
         # 删除留言
         messages = [msg for msg in messages if msg.get('id') != message_id]
-        
+
         # 保存留言
         try:
             with open(messages_file, 'w', encoding='utf-8') as f:
                 json.dump(messages, f, indent=2, ensure_ascii=False)
-            
-            logging.info(f"[留言板] 删除留言 --> 操作用户: {auth_username}, 留言ID: {message_id}")
+
+            logging.info(
+                f"[留言板] 删除留言 --> 操作用户: {auth_username}, 留言ID: {message_id}")
             return jsonify({"success": True, "message": "留言已删除"})
         except OSError as e:
             logging.error(f"[留言板] 保存留言失败: {e}")
@@ -13169,10 +13605,19 @@ def start_web_server(args_param):
     @app.route('/health')
     def health():
         """健康检查端点"""
+
+        # 修复：'contexts' 属性已移至 'thread_local' 以实现线程安全
+        # 注意：这只显示当前工作线程的上下文数量，而不是全局总数
+        contexts_count = 0
+        if chrome_pool and hasattr(chrome_pool, 'thread_local'):
+            # 使用 getattr 安全访问，如果 'contexts' 尚未在当前线程创建，则返回空字典 {}
+            contexts_count = len(
+                getattr(chrome_pool.thread_local, 'contexts', {}))
+
         return jsonify({
             "status": "ok",
             "sessions": len(web_sessions),
-            "chrome_contexts": len(chrome_pool.contexts) if chrome_pool else 0
+            "chrome_contexts": contexts_count
         })
 
     @socketio.on('connect')
@@ -13263,7 +13708,7 @@ def start_web_server(args_param):
                         acc.worker_thread = None
                         # 重置状态文本为待命（如果不是错误状态）
                         if not api_instance._should_preserve_status(acc.status_text, "待命"):
-                             acc.status_text = "待命"
+                            acc.status_text = "待命"
 
                 # 清理 Api 实例可能残留的 worker thread 引用
                 if hasattr(api_instance, 'auto_refresh_thread'):
@@ -13288,7 +13733,8 @@ def start_web_server(args_param):
             for filename in os.listdir(background_task_manager.task_storage_dir):
                 # 只处理该管理器的JSON状态文件
                 if filename.endswith('.json'):
-                    filepath = os.path.join(background_task_manager.task_storage_dir, filename)
+                    filepath = os.path.join(
+                        background_task_manager.task_storage_dir, filename)
                     try:
                         # 读取-修改-写回，需要独占访问（使用文件锁或确保单线程启动）
                         # 这里假设启动阶段是单线程的，直接读写
@@ -13298,30 +13744,35 @@ def start_web_server(args_param):
 
                         # 如果状态是 'running'，则修改为 'stopped' 并添加原因
                         if task_state and task_state.get('status') == 'running':
-                            task_state['status'] = 'stopped' # 或者 'interrupted' 更准确
+                            # 或者 'interrupted' 更准确
+                            task_state['status'] = 'stopped'
                             task_state['error'] = '程序意外重启导致任务中断。'
-                            task_state['last_update'] = time.time() # 更新时间戳
+                            task_state['last_update'] = time.time()  # 更新时间戳
 
                             # 写回文件
                             with open(filepath, 'w', encoding='utf-8') as f:
-                                json.dump(task_state, f, indent=2, ensure_ascii=False)
+                                json.dump(task_state, f, indent=2,
+                                          ensure_ascii=False)
                             interrupted_task_files += 1
-                            logging.debug(f"已将持久化的后台任务 {filename} 状态修正为 stopped。")
+                            logging.debug(
+                                f"已将持久化的后台任务 {filename} 状态修正为 stopped。")
 
                     except (IOError, json.JSONDecodeError) as e:
-                        logging.warning(f"处理后台任务状态文件 {filename} 时出错: {e}，跳过此文件。")
-                    except Exception as e: # 捕获其他可能的错误
-                         logging.error(f"更新后台任务状态文件 {filename} 时发生意外错误: {e}", exc_info=True)
+                        logging.warning(
+                            f"处理后台任务状态文件 {filename} 时出错: {e}，跳过此文件。")
+                    except Exception as e:  # 捕获其他可能的错误
+                        logging.error(
+                            f"更新后台任务状态文件 {filename} 时发生意外错误: {e}", exc_info=True)
 
             if interrupted_task_files > 0:
-                logging.info(f"已修正 {interrupted_task_files} 个持久化的 'running' 后台任务状态为 stopped。")
+                logging.info(
+                    f"已修正 {interrupted_task_files} 个持久化的 'running' 后台任务状态为 stopped。")
             else:
                 logging.info("未发现需要修正状态的持久化后台任务文件。")
         except Exception as e:
             logging.error(f"检查持久化后台任务状态时发生错误: {e}", exc_info=True)
     else:
         logging.info("后台任务管理器未初始化或存储目录不存在，跳过持久化状态检查。")
-
 
     # # 清理后台任务管理器的内存状态（但不删除持久化文件）
     if background_task_manager:

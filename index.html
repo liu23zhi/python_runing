@@ -940,7 +940,7 @@
           <h2 class="text-lg font-bold text-slate-800 card-title">多账号控制台</h2>
           <div class="flex gap-2">
             <!-- <button id="show-sessions-multi" class="btn btn-ghost !py-1 !px-3" title="会话管理">会话</button> -->
-            <button id="show-admin-panel-multi" class="btn btn-ghost !py-1 !px-3 hidden" title="管理面板">管理面板</button>
+            <button id="show-admin-panel-multi" class="btn btn-ghost !py-1 !px-3" title="管理面板">管理面板</button>
             <button id="exit-multi-mode-btn" class="btn btn-ghost !py-1 !px-3">返回登录页</button>
           </div>
         </div>
@@ -3266,7 +3266,7 @@
           isAuthenticated = await checkAuthStatus();
         }
 
-        const isGuest = currentUserData?.is_guest;
+        const isGuest = currentUserIsGuest;
         const canManageSessions = isAuthenticated && !isGuest;
 
         // --- 控制标签页可见性 ---
@@ -5197,7 +5197,7 @@
 
         // 添加创建新会话按钮 (游客模式不显示此按钮，参考inline版本)
         let html = '';
-        const isGuest = currentUserData?.is_guest;
+        const isGuest = currentUserIsGuest;
         if (!isGodMode) {
           if (!isGuest) {
             // 只有非游客才显示创建按钮
@@ -5279,7 +5279,7 @@
       }
       
       // 根据用户类型显示/隐藏游客字段
-      const isGuest = currentUserData?.is_guest;
+      const isGuest = currentUserIsGuest;
       if (guestFields) {
         guestFields.style.display = isGuest ? 'block' : 'none';
       }
@@ -5481,7 +5481,10 @@
       const countEl = $('admin-session-count-display');
       if (!countEl) return;
 
-      if (maxSessions === -1) {
+      // 修复：在游客模式下显示特定信息
+      if (currentUserIsGuest) {
+        countEl.innerHTML = `<span class="text-blue-600">会话数: 1 / 游客仅限单会话</span>`;
+      } else if (maxSessions === -1) {
         countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
       } else {
         const isNearLimit = currentCount >= maxSessions * 0.8;
@@ -7526,30 +7529,7 @@
 
 
 
-    async function forceRefreshTaskUI(index) {
-      logMessage_Info(`[Backend] 正在强制刷新任务 #${index} 的界面...`);
-
-      // 1. 从Python获取最新的任务详情
-      const result = await callPythonAPI('get_task_details', index);
-      if (!result.success) {
-        logMessage_Info(`强制刷新失败: ${result.message}`);
-        return;
-      }
-
-      // 2. 更新JS中的核心数据
-      // 更新当前选中的任务数据，用于地图和仪表盘
-      currentRunData = result.details;
-      // 更新任务总列表中的对应项，确保“路径状态”徽章也能刷新
-      if (currentTasks && currentTasks[index]) {
-        Object.assign(currentTasks[index], result.details);
-      }
-
-      // 3. 强制刷新所有相关的UI组件
-      selectedTaskIndex = index; // 确保当前选中索引正确
-      renderTaskList();      // 重新渲染任务列表（更新状态徽章和高亮）
-      updateDashboard();     // 更新仪表盘（路程、时间）
-      drawOnMap();           // 在地图上绘制新的红色折线
-    }
+    
 
 
     // 用 get_initial_data 兼容刷新用户列表
@@ -7677,6 +7657,7 @@
 
         logMessage_Info('[前端-登录] 显示主应用界面...');
         showMainApp();
+        $('loading-overlay').classList.add('hidden');
         currentUserData = result.userInfo;
         currentSessionUA = uaOnLoginScreen;
         const name = currentUserData.name || '';
@@ -7705,6 +7686,7 @@
         if (adminBtn) adminBtn.classList.remove('hidden');
         const adminBtnLogin = $('show-admin-panel-login');
         if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
+        $('loading-overlay').classList.remove('hidden');
         logMessage_Info('[前端-登录] ✓ 登录流程完成！');
       } else {
         logMessage_Info(`[前端-登录] ✗ 登录失败: ${result.message}`);
@@ -7810,7 +7792,7 @@
       });
     }
 
-    async function selectTask(index) {
+    async function selectTask(index,Update_Dashboard=true) {
       logMessage_Info(`[任务选择] 开始选择任务，索引: ${index}`, 'DEBUG');
       logMessage_Info(`[前端-任务选择] 选择任务 #${index}`);
 
@@ -7848,7 +7830,9 @@
         logMessage_Info(`[任务选择] 离线模式任务，使用本地数据`, 'INFO');
         // 离线模式: 直接使用前端已有的完整数据，不再请求后端
         currentRunData = selectedTask;
-        updateDashboard();
+        if(Update_Dashboard)
+        {
+        updateDashboard();}
         drawOnMap();
         loadHistory(index); // 加载历史（离线模式下通常为空）
         singleProcessedPoints = 0;
@@ -8879,6 +8863,7 @@
     async function toggleRun() {
       const btn = $('start-run-button'); runAccumulatedMs = 0;
       if (btn.textContent === '开始执行') {
+        const autoGen = $('auto-gen-all-check').checked;
         // 使用后台任务执行模式运行单个任务
         if (selectedTaskIndex < 0) {
           showModalAlert('请先选择任务');
@@ -8887,7 +8872,7 @@
         
         const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
           task_indices: [selectedTaskIndex],
-          auto_generate: false
+          auto_generate: autoGen
         });
         
         if (result.success) {
@@ -8896,9 +8881,10 @@
           btn.classList.add('btn-danger');
           
           // 初始化单任务进度显示界面
-          updateSingleProgress(0, '0 / ? 点');
+          updateSingleProgress(0, '0 / 0 点');
           
-          // Start polling (with a small delay to let backend initialize)
+          
+          // 500ms后开始轮询任务状态
           setTimeout(() => startBackgroundTaskPolling(), 500);
         } else {
           showModalAlert(result.message);
@@ -8921,8 +8907,8 @@
         
         // 筛选符合条件的任务
         const taskIndices = [];
-        for (let i = 0; i < allTasksData.length; i++) {
-          const task = allTasksData[i];
+        for (let i = 0; i < currentTasks.length; i++) {
+          const task = currentTasks[i];
           if (task.status == 1 && !ignoreCompleted) continue;
           
           // 检查任务的时间范围是否有效
@@ -9007,6 +8993,33 @@
         
         if (result.success && result.task_status) {
           const status = result.task_status;
+          
+          // ---------- [BUG 修复 START] ----------
+          // 检查后端是否在 auto-gen 后发来了完整的路径数据
+          // (这个数据在 currentRunData 中可能不存在，因为 auto-gen 是在后端发生的)
+          if (status.run_coords && status.run_coords.length > 0) {
+            // 检查前端的 currentRunData 是否缺少此路径数据
+            if (!currentRunData || !currentRunData.run_coords || currentRunData.run_coords.length === 0) {
+              logMessage_Info("检测到后端已自动生成路径，正在更新前端地图...");
+              
+              // 将后端发来的路径和打卡点数据同步到前端的 currentRunData
+              currentRunData.run_coords = status.run_coords || [];
+              currentRunData.target_points = status.target_points || [];
+              currentRunData.target_point_names = status.target_point_names || '';
+              currentRunData.recommended_coords = status.recommended_coords || [];
+              
+              // (重要) 同步总览数据
+              currentRunData.total_run_time_s = status.estimated_total_time_s || 0;
+              currentRunData.total_run_distance_m = status.estimated_total_distance_m || 0;
+              
+              // 立即重绘地图（显示路径和打卡点）
+              drawOnMap();
+              
+              // 立即更新仪表盘（显示总览）
+              updateDashboard();
+            }
+          }
+          // ---------- [BUG 修复 END] ----------
           
           // 更新现有的进度显示界面
           const completedTasks = status.completed_tasks || 0;
@@ -9319,6 +9332,36 @@
 
     }
     function onTaskCompleted(taskIndex) { if (currentTasks[taskIndex]) { currentTasks[taskIndex].status = 1; renderTaskList(); } }
+
+    /**
+     * 当后端（通过WebSocket）通知任务已停止时调用
+     * (无论是完成、失败还是手动中止)
+     */
+    function onRunStopped() {
+      logMessage_Info("后台任务已停止（来自服务器推送）。");
+      
+      // 1. 停止前端的轮询
+      stopBackgroundTaskPolling();
+
+      // 2. 重置"开始执行"按钮
+      const startBtn = $('start-run-button');
+      if (startBtn) {
+          startBtn.textContent = '开始执行';
+          startBtn.classList.remove('btn-danger');
+          startBtn.classList.add('btn-primary');
+          startBtn.disabled = false; // 确保按钮可用
+      }
+
+      // 3. 重置"执行所有"按钮
+      const startAllBtn = $('start-all-button');
+      if (startAllBtn) {
+          startAllBtn.textContent = '执行所有';
+          startAllBtn.classList.remove('btn-danger');
+          startAllBtn.classList.add('btn-secondary');
+          startAllBtn.disabled = false; // 确保按钮可用
+      }
+    }
+
     async function exportTask() {
       if (selectedTaskIndex === -1) {
         showModalAlert("请先选择一个要导出的任务！");
@@ -10593,7 +10636,7 @@
       // 补签后刷新通知列表状态
       await fetchNotifications();
       // 重新打开通知模态框以显示最新状态
-      showNotifications();
+      // showNotifications();
     }
 
     // --- 手动选点补签函数 ---
