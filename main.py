@@ -540,7 +540,7 @@ def check_and_import_dependencies():
         print("[依赖检查] 正在导入 Playwright...")
         from playwright.sync_api import sync_playwright
         
-        # 10. NumPy（可选，用于性能优化）
+        # 10. NumPy
         logging.info("正在导入 NumPy（可选）...")
         print("[依赖检查] 正在导入 NumPy（可选）...")
         import numpy as np
@@ -567,7 +567,8 @@ def check_and_import_dependencies():
             'xlrd',
             'xlwt',
             'chardet',
-            'playwright'
+            'playwright',
+            'numpy'
         ]
         all_packages_str = ' '.join(all_packages)
 
