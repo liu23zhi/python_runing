@@ -3276,9 +3276,9 @@
         if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
         if (messagesTab) messagesTab.style.display = canViewMessages ? 'block' : 'none';
         
-        // 游客模式：只显示会话管理和留言板
+        // 游客模式：只显示会话管理和留言板，隐藏个人信息
         if (isGuest) {
-          if (profileTab) profileTab.style.display = 'none';
+          if (profileTab) profileTab.style.display = 'none';  // 游客不显示个人信息标签
           if (sessionsTab) sessionsTab.style.display = 'block';
           if (messagesTab) messagesTab.style.display = 'block';
         } else {
@@ -5195,15 +5195,26 @@
           updateAdminSessionCountDisplay(validSessions.length, maxSessions);
         }
 
-        // 添加创建新会话按钮 (这部分逻辑不变)
+        // 添加创建新会话按钮 (游客模式不显示此按钮，参考inline版本)
         let html = '';
+        const isGuest = currentUserData?.is_guest;
         if (!isGodMode) {
-          html = `
+          if (!isGuest) {
+            // 只有非游客才显示创建按钮
+            html = `
       <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
         <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
         <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
       </div>
     `;
+          } else {
+            // 给游客一个提示，说明他们只有一个当前会话
+            html = `
+      <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <p class="text-sm text-blue-700">游客模式：当前会话如下。如需使用多个会话，请注册账号。</p>
+      </div>
+    `;
+          }
         }
 
         if (validSessions.length === 0) {
