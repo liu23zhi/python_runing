@@ -2737,15 +2737,13 @@
               logMessage_Error('初始化管理面板失败:', e);
             }
 
-            // 显示管理面板按钮（如果有权限）
-            if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
-              const adminBtnLogin = $('show-admin-panel-login');
-              if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
-              const adminBtnMulti = $('show-admin-panel-multi');
-              if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
-              const sessionsBtnMain = $('show-admin-panel');
-              if (sessionsBtnMain) sessionsBtnMain.classList.remove('hidden');
-            }
+            // 显示管理面板按钮（所有用户包括游客都可以访问管理面板）
+            const adminBtnLogin = $('show-admin-panel-login');
+            if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
+            const adminBtnMulti = $('show-admin-panel-multi');
+            if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
+            const sessionsBtnMain = $('show-admin-panel');
+            if (sessionsBtnMain) sessionsBtnMain.classList.remove('hidden');
 
             // 如果是游客，显示提示
             if (result.is_guest) {
@@ -5258,6 +5256,216 @@
       }
     }
 
+    // ========== 留言板功能 ========== //
+    
+    async function loadMessages() {
+      const listEl = $('admin-messages-list_modal');
+      const guestFields = $('message-guest-fields');
+      
+      if (!listEl) {
+        logMessage_Error("loadMessages: 无法找到留言列表容器");
+        return;
+      }
+      
+      // 根据用户类型显示/隐藏游客字段
+      const isGuest = currentUserData?.is_guest;
+      if (guestFields) {
+        guestFields.style.display = isGuest ? 'block' : 'none';
+      }
+      
+      // 字符计数器
+      const contentInput = $('message-content');
+      const charCount = $('message-char-count');
+      if (contentInput && charCount) {
+        contentInput.addEventListener('input', () => {
+          charCount.textContent = contentInput.value.length;
+        });
+      }
+      
+      try {
+        listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+        
+        const response = await fetch('/api/messages/list', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+        
+        if (!result.success) {
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+        
+        const messages = result.messages || [];
+        
+        if (messages.length === 0) {
+          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无留言</p>';
+          return;
+        }
+        
+        // 检查删除权限
+        const canDeleteAny = await checkAdminPermission('delete_any_messages');
+        const canDeleteOwn = await checkAdminPermission('delete_own_messages');
+        const currentUsername = currentUserData?.username;
+        
+        const html = messages.map(msg => {
+          const isOwnMessage = !msg.is_guest && msg.username === currentUsername;
+          const canDelete = canDeleteAny || (canDeleteOwn && isOwnMessage);
+          const displayName = msg.is_guest ? msg.nickname : msg.username;
+          const date = new Date(msg.timestamp * 1000);
+          const dateStr = date.toLocaleString('zh-CN');
+          
+          return `
+            <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-slate-700">${displayName}</span>
+                    ${msg.is_guest ? '<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">游客</span>' : ''}
+                  </div>
+                  ${msg.email ? `<p class="text-xs text-slate-500">${msg.email}</p>` : ''}
+                  <p class="text-xs text-slate-400">${dateStr}</p>
+                </div>
+                ${canDelete ? `
+                  <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" 
+                    onclick="deleteMessage('${msg.id}')">删除</button>
+                ` : ''}
+              </div>
+              <p class="text-slate-700 whitespace-pre-wrap break-words">${escapeHtml(msg.content)}</p>
+            </div>
+          `;
+        }).join('');
+        
+        listEl.innerHTML = html;
+        
+      } catch (e) {
+        logMessage_Error('加载留言失败:', e);
+        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+    
+    async function postMessage() {
+      const contentInput = $('message-content');
+      const nicknameInput = $('message-nickname');
+      const emailInput = $('message-email');
+      const postBtn = $('post-message-btn');
+      
+      if (!contentInput || !postBtn) return;
+      
+      const content = contentInput.value.trim();
+      const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+      const email = emailInput ? emailInput.value.trim() : '';
+      
+      if (!content) {
+        showModalAlert('请输入留言内容', '提示');
+        return;
+      }
+      
+      const isGuest = currentUserData?.is_guest;
+      
+      if (isGuest) {
+        if (!nickname) {
+          showModalAlert('游客必须填写昵称', '提示');
+          return;
+        }
+        if (!email) {
+          showModalAlert('游客必须填写邮箱', '提示');
+          return;
+        }
+      }
+      
+      try {
+        postBtn.disabled = true;
+        postBtn.textContent = '发表中...';
+        
+        const response = await fetch('/api/messages/post', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            content: content,
+            nickname: nickname,
+            email: email
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          contentInput.value = '';
+          if (nicknameInput) nicknameInput.value = '';
+          if (emailInput) emailInput.value = '';
+          const charCount = $('message-char-count');
+          if (charCount) charCount.textContent = '0';
+          
+          showModalAlert('留言发表成功', '成功');
+          await loadMessages();
+        } else {
+          showModalAlert(result.message || '发表留言失败', '错误');
+        }
+      } catch (e) {
+        logMessage_Error('发表留言失败:', e);
+        showModalAlert('发表留言失败: ' + e.message, '错误');
+      } finally {
+        postBtn.disabled = false;
+        postBtn.textContent = '发表留言';
+      }
+    }
+    
+    async function deleteMessage(messageId) {
+      if (!confirm('确定要删除这条留言吗？')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/messages/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            message_id: messageId
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showModalAlert('留言已删除', '成功');
+          await loadMessages();
+        } else {
+          showModalAlert(result.message || '删除留言失败', '错误');
+        }
+      } catch (e) {
+        logMessage_Error('删除留言失败:', e);
+        showModalAlert('删除留言失败: ' + e.message, '错误');
+      }
+    }
+    
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+    
+    // ========== 按钮权限校验 ========== //
+    
+    async function checkButtonPermission(buttonId, permissionName) {
+      const hasPermission = await checkAdminPermission(permissionName);
+      if (!hasPermission) {
+        showModalAlert(`您没有权限使用此功能`, '权限不足');
+        return false;
+      }
+      return true;
+    }
+
     function updateAdminSessionCountDisplay(currentCount, maxSessions) {
       const countEl = $('admin-session-count-display');
       if (!countEl) return;
@@ -6438,11 +6646,9 @@
             }
           }, 100);
 
-          // 检查是否有管理权限，显示管理按钮
-          if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
-            const adminBtn = $('show-admin-panel');
-            if (adminBtn) adminBtn.classList.remove('hidden');
-          }
+          // 显示管理按钮（所有用户包括游客都可以访问）
+          const adminBtn = $('show-admin-panel');
+          if (adminBtn) adminBtn.classList.remove('hidden');
           hideLoadingOverlays();
           await fetchNotifications();
           
@@ -6501,16 +6707,13 @@
           $('loading-overlay').classList.remove('hidden');
 
 
-          // 显示管理面板按钮（如果有权限）
-          if (initialData.auth_group !== 'guest') {
-            const adminBtnLogin = $('show-admin-panel-login'); // 获取登录页的管理按钮
-            if (adminBtnLogin) {
-              adminBtnLogin.classList.remove('hidden'); // 移除 hidden 类使其可见
-            }
-            // 多账号界面的按钮保持原逻辑（如果需要的话，虽然这里主要处理 login-container）
-            const adminBtnMulti = $('show-admin-panel-multi');
-            if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
+          // 显示管理面板按钮（所有用户包括游客都可以访问）
+          const adminBtnLogin = $('show-admin-panel-login');
+          if (adminBtnLogin) {
+            adminBtnLogin.classList.remove('hidden');
           }
+          const adminBtnMulti = $('show-admin-panel-multi');
+          if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
 
           hideLoadingOverlays();
 
@@ -7187,7 +7390,13 @@
       const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
     });
     $('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
-    $('login-button').addEventListener('click', onLogin);
+    $('login-button').addEventListener('click', async (e) => {
+      // 校验登录按钮权限
+      if (!await checkButtonPermission('login-button', 'use_login_button')) {
+        return;
+      }
+      await onLogin();
+    });
     $('logout-button').addEventListener('click', onLogout);
     $('refresh-button').addEventListener('click', refreshTasks);
     $('record-button').addEventListener('click', toggleRecordMode);
@@ -7196,7 +7405,13 @@
     $('start-run-button').addEventListener('click', toggleRun);
     $('start-all-button').addEventListener('click', toggleAllRuns);
     $('export-button').addEventListener('click', exportTask);
-    $('import-button').addEventListener('click', importTask);
+    $('import-button').addEventListener('click', async (e) => {
+      // 校验导入按钮权限
+      if (!await checkButtonPermission('import-button', 'use_import_button')) {
+        return;
+      }
+      await importTask();
+    });
     // $('zoom-in').addEventListener('click', () => { if (map) map.zoomIn(); });
     // $('zoom-out').addEventListener('click', () => { if (map) map.zoomOut(); });
     // $('reset-view-btn').addEventListener('click', resetMapView);
@@ -7474,14 +7689,11 @@
 
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
-        // 检查是否有管理权限，显示管理按钮
-        if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
-          const adminBtn = $('show-admin-panel');
-          if (adminBtn) adminBtn.classList.remove('hidden');
-          // --- 同时确保登录页的管理按钮也显示 (如果存在) ---
-          const adminBtnLogin = $('show-admin-panel-login');
-          if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
-        }
+        // 显示管理按钮（所有用户包括游客都可以访问）
+        const adminBtn = $('show-admin-panel');
+        if (adminBtn) adminBtn.classList.remove('hidden');
+        const adminBtnLogin = $('show-admin-panel-login');
+        if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
         logMessage_Info('[前端-登录] ✓ 登录流程完成！');
       } else {
         logMessage_Info(`[前端-登录] ✗ 登录失败: ${result.message}`);
@@ -7663,7 +7875,13 @@
 
 
     // --- 多账号模式事件监听 ---
-    $('multi-account-btn').addEventListener('click', switchToMultiMode);
+    $('multi-account-btn').addEventListener('click', async (e) => {
+      // 校验多账号控制台按钮权限
+      if (!await checkButtonPermission('multi-account-btn', 'use_multi_account_button')) {
+        return;
+      }
+      await switchToMultiMode();
+    });
     $('exit-multi-mode-btn').addEventListener('click', exitMultiMode);
     $('multi-start-all-btn').addEventListener('click', multi_startAll);
     $('multi-stop-all-btn').addEventListener('click', multi_stopAll);
@@ -7674,6 +7892,18 @@
     // $('multi-zoom-in').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomIn(); });
     // $('multi-zoom-out').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomOut(); });
     // $('multi-reset-view-btn').addEventListener('click', multi_resetMapView);
+
+    // --- 管理面板标签页事件监听 ---
+    $('admin-tab-users_modal')?.addEventListener('click', () => switchAdminTab('users'));
+    $('admin-tab-groups_modal')?.addEventListener('click', () => switchAdminTab('groups'));
+    $('admin-tab-logs_modal')?.addEventListener('click', () => switchAdminTab('logs'));
+    $('admin-tab-health_modal')?.addEventListener('click', () => switchAdminTab('health'));
+    $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
+    $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
+    $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
+    
+    // 留言板刷新按钮
+    $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
 
     // --- 多账号模式核心函数 ---
     async function switchToMultiMode() {
