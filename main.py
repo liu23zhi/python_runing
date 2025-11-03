@@ -773,6 +773,90 @@ def _get_default_config():
     return config
 
 
+def _write_config_with_comments(config_obj, filepath):
+    """
+    将配置写入文件，包含详细的中文注释。
+    
+    由于ConfigParser不保留注释，这个函数手动写入带注释的配置文件。
+    """
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write("# ========================================\n")
+        f.write("# 跑步工具配置文件\n")
+        f.write("# ========================================\n")
+        f.write("# 说明：修改配置后需要重启程序生效\n")
+        f.write("# ========================================\n\n")
+        
+        # [Admin] 配置
+        f.write("[Admin]\n")
+        f.write("# 超级管理员账号名称（有且只有一个）\n")
+        f.write("# 注意：super_admin 只能在此配置文件中设置，不能在界面创建\n")
+        f.write("# 默认账号: admin，默认密码: admin（首次登录后请立即修改）\n")
+        f.write(f"super_admin = {config_obj.get('Admin', 'super_admin', fallback='admin')}\n\n")
+        
+        # [Guest] 配置
+        f.write("[Guest]\n")
+        f.write("# 是否允许游客登录（true/false）\n")
+        f.write("# true：允许未注册用户以游客身份使用系统（权限受限）\n")
+        f.write("# false：禁止游客登录，所有用户必须注册\n")
+        f.write(f"allow_guest_login = {config_obj.get('Guest', 'allow_guest_login', fallback='true')}\n\n")
+        
+        # [System] 配置
+        f.write("[System]\n")
+        f.write("# 会话过期时间（天）\n")
+        f.write("# 超过此时间未访问的会话将自动清理\n")
+        f.write(f"session_expiry_days = {config_obj.get('System', 'session_expiry_days', fallback='7')}\n")
+        f.write("# 学校账号数据存储目录\n")
+        f.write(f"school_accounts_dir = {config_obj.get('System', 'school_accounts_dir', fallback='school_accounts')}\n")
+        f.write("# 系统账号数据存储目录（admin等）\n")
+        f.write(f"system_accounts_dir = {config_obj.get('System', 'system_accounts_dir', fallback='system_accounts')}\n")
+        f.write("# 权限配置文件路径\n")
+        f.write(f"permissions_file = {config_obj.get('System', 'permissions_file', fallback='permissions.json')}\n\n")
+        
+        # [Logging] 配置
+        f.write("[Logging]\n")
+        f.write("# 单个日志文件最大大小（MB）\n")
+        f.write("# 超过此大小时会自动轮转到新文件（如 zx-slm-tool-01.log）\n")
+        f.write(f"log_rotation_size_mb = {config_obj.get('Logging', 'log_rotation_size_mb', fallback='10')}\n")
+        f.write("# 归档目录最大大小（MB）\n")
+        f.write("# 超过此大小时会删除最早的归档文件，设置为0表示不限制\n")
+        f.write(f"archive_max_size_mb = {config_obj.get('Logging', 'archive_max_size_mb', fallback='500')}\n")
+        f.write("# 日志文件存储目录\n")
+        f.write(f"log_dir = {config_obj.get('Logging', 'log_dir', fallback='logs')}\n")
+        f.write("# 日志归档目录（启动时会自动压缩旧日志到此目录）\n")
+        f.write(f"archive_dir = {config_obj.get('Logging', 'archive_dir', fallback='logs/archive')}\n\n")
+        
+        # [Security] 配置
+        f.write("[Security]\n")
+        f.write("# 密码存储方式（plaintext/sha256/bcrypt）\n")
+        f.write("# plaintext：明文存储（不推荐，仅用于测试）\n")
+        f.write("# sha256：SHA256哈希（已弃用，不够安全）\n")
+        f.write("# bcrypt：bcrypt加密（推荐，自动加盐，抗暴力破解）\n")
+        f.write(f"password_storage = {config_obj.get('Security', 'password_storage', fallback='plaintext')}\n")
+        f.write("# 是否启用暴力破解防护（true/false）\n")
+        f.write("# true：启用登录尝试限制和账号临时锁定\n")
+        f.write(f"brute_force_protection = {config_obj.get('Security', 'brute_force_protection', fallback='true')}\n")
+        f.write("# 登录日志保留天数\n")
+        f.write("# 超过此时间的登录审计日志将被清理\n")
+        f.write(f"login_log_retention_days = {config_obj.get('Security', 'login_log_retention_days', fallback='90')}\n\n")
+        
+        # [Map] 配置
+        f.write("[Map]\n")
+        f.write("# 高德地图 JS API 密钥\n")
+        f.write("# 用于前端地图显示，请在高德开放平台申请：https://console.amap.com/\n")
+        f.write("# 申请类型：Web端(JS API)，服务平台：Web端\n")
+        f.write(f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
+        
+        # [AutoFill] 配置
+        f.write("[AutoFill]\n")
+        f.write("# 游客模式是否自动填充密码（true/false）\n")
+        f.write("# true：游客登录时自动填充密码（方便测试）\n")
+        f.write("# false：需要手动输入密码\n")
+        f.write(f"guest_auto_fill_password = {config_obj.get('AutoFill', 'guest_auto_fill_password', fallback='false')}\n")
+        f.write("# 允许自动填充密码的账号列表（逗号分隔）\n")
+        f.write("# 示例：user1,user2,user3\n")
+        f.write(f"auto_fill_accounts = {config_obj.get('AutoFill', 'auto_fill_accounts', fallback='')}\n\n")
+
+
 def _create_config_ini():
     """创建或更新config.ini配置文件（兼容旧版本，自动补全缺失参数）"""
     default_config = _get_default_config()
@@ -818,13 +902,12 @@ def _create_config_ini():
                         updated = True
                         print(f"[配置文件] 添加缺失的配置项: [{section}] {key} = {value}")
 
-        # 如果有更新，保存配置文件
+        # 如果有更新，保存配置文件（使用带注释的版本）
         if updated:
             try:
-                with open('config.ini', 'w', encoding='utf-8') as f:
-                    existing_config.write(f)
+                _write_config_with_comments(existing_config, 'config.ini')
                 logging.info("配置文件已更新：自动补全缺失参数")
-                print("[配置文件] 配置文件已更新并保存")
+                print("[配置文件] 配置文件已更新并保存（包含详细注释）")
             except Exception as e:
                 print(f"[错误] 保存更新后的 config.ini 失败: {e}")
                 logging.error(f"保存更新后的 config.ini 失败: {e}")
@@ -832,10 +915,9 @@ def _create_config_ini():
             print("[配置文件] 配置文件无需更新")
     else:
         print("[配置文件] config.ini 不存在，创建新配置文件...")
-        # 创建新配置文件
-        with open('config.ini', 'w', encoding='utf-8') as f:
-            default_config.write(f)
-        print("[配置文件] 配置文件创建完成")
+        # 创建新配置文件（带详细注释）
+        _write_config_with_comments(default_config, 'config.ini')
+        print("[配置文件] 配置文件创建完成（包含详细注释）")
 
 
 def _create_permissions_json():
@@ -884,6 +966,17 @@ def _create_permissions_json():
                     "import_offline": True,
                     "export_data": True,
                     "modify_params": True,
+                    
+                    # UI按钮权限（细粒度控制）
+                    "use_login_button": True,  # 登录按钮（游客默认有）
+                    "use_multi_account_button": False,  # 多账号控制台按钮（游客默认无）
+                    "use_import_button": False,  # 导入离线文件按钮（游客默认无）
+                    
+                    # 留言板权限
+                    "view_messages": True,  # 查看留言
+                    "post_messages": True,  # 发表留言（游客需填写邮箱和昵称）
+                    "delete_own_messages": False,  # 删除自己的留言（游客不能删除）
+                    "delete_any_messages": False,  # 删除任何人的留言（游客不能）
                 }
             },
             "user": {
@@ -924,6 +1017,11 @@ def _create_permissions_json():
                     "export_data": True,
                     "modify_params": True,
                     "manage_own_sessions": True,  # 管理自己的会话
+                    
+                    # UI按钮权限（细粒度控制）
+                    "use_login_button": True,  # 登录按钮
+                    "use_multi_account_button": True,  # 多账号控制台按钮
+                    "use_import_button": True,  # 导入离线文件按钮
                 }
             },
             "admin": {
@@ -974,6 +1072,17 @@ def _create_permissions_json():
                     "manage_own_sessions": True,
                     "manage_user_sessions": True,  # 管理其他用户的会话
                     "view_session_details": True,
+                    
+                    # UI按钮权限（细粒度控制）
+                    "use_login_button": True,  # 登录按钮
+                    "use_multi_account_button": True,  # 多账号控制台按钮
+                    "use_import_button": True,  # 导入离线文件按钮
+                    
+                    # 留言板权限
+                    "view_messages": True,  # 查看留言
+                    "post_messages": True,  # 发表留言
+                    "delete_own_messages": True,  # 删除自己的留言
+                    "delete_any_messages": True,  # 删除任何人的留言（管理员）
                 }
             },
             "super_admin": {
@@ -1029,6 +1138,17 @@ def _create_permissions_json():
                     "manage_user_sessions": True,
                     "view_session_details": True,
                     "god_mode": True,  # 上帝模式：可以查看和销毁所有会话
+                    
+                    # UI按钮权限（细粒度控制）
+                    "use_login_button": True,  # 登录按钮
+                    "use_multi_account_button": True,  # 多账号控制台按钮
+                    "use_import_button": True,  # 导入离线文件按钮
+                    
+                    # 留言板权限
+                    "view_messages": True,  # 查看留言
+                    "post_messages": True,  # 发表留言
+                    "delete_own_messages": True,  # 删除自己的留言
+                    "delete_any_messages": True,  # 删除任何人的留言（管理员）
                 }
             }
         },
@@ -2334,7 +2454,8 @@ class AuthSystem:
                         if (username is None or entry.get('username') == username) and \
                            (action is None or entry.get('action') == action):
                             logs.append(entry)
-                    except:
+                    except (json.JSONDecodeError, KeyError, ValueError) as e:
+                        logging.debug(f"[审计日志] 跳过无效日志行: {e}")
                         continue
         except Exception as e:
             logging.error(f"读取审计日志失败: {e}")
@@ -2427,7 +2548,8 @@ class TokenManager:
                 try:
                     with open(token_file, 'r', encoding='utf-8') as f:
                         all_tokens = json.load(f)
-                except:
+                except (FileNotFoundError, json.JSONDecodeError) as e:
+                    logging.debug(f"[Token存储] 无法读取token文件，初始化为空: {e}")
                     all_tokens = {}
 
             # 添加新token
@@ -11519,7 +11641,8 @@ def start_web_server(args_param):
                 with open(log_file, 'r', encoding='utf-8') as f:
                     content = f.readlines()
                     log_content.extend(content[-lines:])
-            except:
+            except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
+                logging.debug(f"[日志读取] 无法读取日志文件 {log_file}: {e}")
                 continue
 
         return jsonify({
@@ -11723,8 +11846,8 @@ def start_web_server(args_param):
                         with open(index_file, 'w', encoding='utf-8') as f:
                             json.dump(index_data, f, indent=2,
                                       ensure_ascii=False)
-            except:
-                pass
+            except (OSError, PermissionError) as e:
+                logging.warning(f"[会话索引] 更新索引文件失败: {e}")
             return jsonify(result)
 
     @app.route('/api/avatar/<filename>', methods=['GET'])
@@ -12133,8 +12256,8 @@ def start_web_server(args_param):
         if os.path.exists(session_file):
             try:
                 os.remove(session_file)
-            except:
-                pass
+            except (FileNotFoundError, PermissionError) as e:
+                logging.debug(f"[会话删除] 删除会话文件失败: {e}")
 
         # 从内存中移除
         with web_sessions_lock:
@@ -12483,8 +12606,8 @@ def start_web_server(args_param):
         if os.path.exists(session_file):
             try:
                 os.remove(session_file)
-            except:
-                pass
+            except (FileNotFoundError, PermissionError) as e:
+                logging.debug(f"[会话强制登出] 删除会话文件失败: {e}")
 
         # 从内存中移除
         with web_sessions_lock:
@@ -12860,6 +12983,187 @@ def start_web_server(args_param):
         
         result = background_task_manager.stop_task(session_id)
         return jsonify(result)
+
+    # ========== 留言板API ========== #
+    
+    @app.route('/api/messages/list', methods=['GET'])
+    def get_messages():
+        """获取留言列表"""
+        # 验证会话
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'view_messages'):
+            return jsonify({"success": False, "message": "无权查看留言"}), 403
+        
+        # 读取留言文件
+        messages_file = 'messages.json'
+        messages = []
+        
+        if os.path.exists(messages_file):
+            try:
+                with open(messages_file, 'r', encoding='utf-8') as f:
+                    messages = json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                logging.error(f"[留言板] 读取留言失败: {e}")
+                messages = []
+        
+        # 按时间倒序排序（最新的在前）
+        messages.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+        
+        return jsonify({"success": True, "messages": messages})
+    
+    @app.route('/api/messages/post', methods=['POST'])
+    def post_message():
+        """发表留言"""
+        # 验证会话
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限
+        if not auth_system.check_permission(auth_username, 'post_messages'):
+            return jsonify({"success": False, "message": "无权发表留言"}), 403
+        
+        data = request.json
+        content = data.get('content', '').strip()
+        email = data.get('email', '').strip()
+        nickname = data.get('nickname', '').strip()
+        
+        # 验证内容
+        if not content:
+            return jsonify({"success": False, "message": "留言内容不能为空"})
+        
+        if len(content) > 1000:
+            return jsonify({"success": False, "message": "留言内容不能超过1000字"})
+        
+        # 游客必须填写邮箱和昵称
+        is_guest = (auth_username == 'guest' or not auth_username)
+        if is_guest:
+            if not email:
+                return jsonify({"success": False, "message": "游客必须填写邮箱"})
+            if not nickname:
+                return jsonify({"success": False, "message": "游客必须设置昵称"})
+            # 简单的邮箱格式验证
+            import re
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_pattern, email):
+                return jsonify({"success": False, "message": "邮箱格式不正确"})
+        
+        # 构建留言对象
+        import time
+        import uuid
+        message = {
+            "id": str(uuid.uuid4()),
+            "content": content,
+            "username": auth_username if not is_guest else None,
+            "nickname": nickname if is_guest else None,
+            "email": email if is_guest else None,
+            "is_guest": is_guest,
+            "timestamp": time.time(),
+            "ip": request.remote_addr
+        }
+        
+        # 读取现有留言
+        messages_file = 'messages.json'
+        messages = []
+        
+        if os.path.exists(messages_file):
+            try:
+                with open(messages_file, 'r', encoding='utf-8') as f:
+                    messages = json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                logging.error(f"[留言板] 读取留言失败: {e}")
+                messages = []
+        
+        # 添加新留言
+        messages.append(message)
+        
+        # 保存留言
+        try:
+            with open(messages_file, 'w', encoding='utf-8') as f:
+                json.dump(messages, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"[留言板] 新留言 --> 用户: {auth_username}, 昵称: {nickname}, 内容长度: {len(content)}字")
+            return jsonify({"success": True, "message": "留言发表成功", "message_id": message["id"]})
+        except OSError as e:
+            logging.error(f"[留言板] 保存留言失败: {e}")
+            return jsonify({"success": False, "message": "保存留言失败"}), 500
+    
+    @app.route('/api/messages/delete', methods=['POST'])
+    def delete_message():
+        """删除留言"""
+        # 验证会话
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        data = request.json
+        message_id = data.get('message_id', '').strip()
+        
+        if not message_id:
+            return jsonify({"success": False, "message": "留言ID不能为空"})
+        
+        # 读取留言
+        messages_file = 'messages.json'
+        messages = []
+        
+        if os.path.exists(messages_file):
+            try:
+                with open(messages_file, 'r', encoding='utf-8') as f:
+                    messages = json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                logging.error(f"[留言板] 读取留言失败: {e}")
+                return jsonify({"success": False, "message": "读取留言失败"}), 500
+        
+        # 查找要删除的留言
+        message_to_delete = None
+        for msg in messages:
+            if msg.get('id') == message_id:
+                message_to_delete = msg
+                break
+        
+        if not message_to_delete:
+            return jsonify({"success": False, "message": "留言不存在"})
+        
+        # 检查权限
+        can_delete_any = auth_system.check_permission(auth_username, 'delete_any_messages')
+        can_delete_own = auth_system.check_permission(auth_username, 'delete_own_messages')
+        is_own_message = (message_to_delete.get('username') == auth_username and not message_to_delete.get('is_guest'))
+        
+        if can_delete_any:
+            # 管理员可以删除任何留言
+            pass
+        elif can_delete_own and is_own_message:
+            # 普通用户可以删除自己的留言
+            pass
+        else:
+            return jsonify({"success": False, "message": "无权删除此留言"}), 403
+        
+        # 删除留言
+        messages = [msg for msg in messages if msg.get('id') != message_id]
+        
+        # 保存留言
+        try:
+            with open(messages_file, 'w', encoding='utf-8') as f:
+                json.dump(messages, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"[留言板] 删除留言 --> 操作用户: {auth_username}, 留言ID: {message_id}")
+            return jsonify({"success": True, "message": "留言已删除"})
+        except OSError as e:
+            logging.error(f"[留言板] 保存留言失败: {e}")
+            return jsonify({"success": False, "message": "保存留言失败"}), 500
 
     @app.route('/health')
     def health():
