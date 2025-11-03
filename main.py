@@ -312,14 +312,7 @@ def check_and_import_dependencies():
         # 10. NumPy（可选，用于性能优化）
         logging.info("正在导入 NumPy（可选）...")
         print("[依赖检查] 正在导入 NumPy（可选）...")
-        try:
-            import numpy as np
-            logging.info("✓ NumPy 导入成功（性能优化已启用）")
-            print("[依赖检查] ✓ NumPy 导入成功（性能优化已启用）")
-        except ImportError:
-            np = None
-            logging.warning("⚠ NumPy 未安装（将使用纯Python实现，性能较低）")
-            print("[依赖检查] ⚠ NumPy 未安装（将使用纯Python实现）")
+        import numpy as np
         logging.info("✓ Playwright 导入成功")
         print("[依赖检查] ✓ Playwright 导入成功")
 
