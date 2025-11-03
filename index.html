@@ -1228,6 +1228,8 @@
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">个人信息</button>
         <button id="admin-tab-sessions_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
+        <button id="admin-tab-messages_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">留言板</button>
       </div>
 
       <div class="overflow-y-auto overflow-x-hidden flex-grow min-h-0">
@@ -1397,6 +1399,42 @@
                 <option value="dark">深色主题</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        <!-- 留言板面板 -->
+        <div id="admin-messages-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">留言板</h4>
+            <button id="admin-refresh-messages_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          
+          <!-- 发表留言表单 -->
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+            <h5 class="font-semibold text-slate-700">发表留言</h5>
+            <div id="message-guest-fields" class="space-y-2 hidden">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">昵称 <span class="text-red-500">*</span></label>
+                <input type="text" id="message-nickname" class="input-field" placeholder="请输入您的昵称" maxlength="50">
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">邮箱 <span class="text-red-500">*</span></label>
+                <input type="email" id="message-email" class="input-field" placeholder="请输入您的邮箱">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">留言内容 <span class="text-red-500">*</span></label>
+              <textarea id="message-content" class="input-field" rows="4" placeholder="请输入留言内容（最多1000字）" maxlength="1000"></textarea>
+              <div class="text-xs text-slate-500 mt-1 text-right">
+                <span id="message-char-count">0</span> / 1000
+              </div>
+            </div>
+            <button id="post-message-btn" onclick="postMessage()" class="btn btn-primary w-full">发表留言</button>
+          </div>
+
+          <!-- 留言列表 -->
+          <div id="admin-messages-list_modal" class="space-y-3 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
           </div>
         </div>
       </div>
@@ -3202,6 +3240,7 @@
       const healthTab = $('admin-tab-health_modal');
       const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal'); // 会话标签页按钮
+      const messagesTab = $('admin-tab-messages_modal'); // 留言板标签页按钮
       const godModeToggle = $('god-mode-toggle_modal');
 
       if (show) {
@@ -3216,6 +3255,7 @@
         let canViewLogs = false;
         let canViewHealth = false;
         let hasGodMode = false;
+        let canViewMessages = false;
         let isAuthenticated = skipAuthCheck; // 如果跳过检查，假定已认证
 
         if (!skipAuthCheck) {
@@ -3224,6 +3264,7 @@
           canViewLogs = await checkAdminPermission('view_logs');
           canViewHealth = await checkAdminPermission('manage_users'); // 管理员可以查看健康状态
           hasGodMode = await checkAdminPermission('god_mode');
+          canViewMessages = await checkAdminPermission('view_messages');
           isAuthenticated = await checkAuthStatus();
         }
 
@@ -3235,9 +3276,18 @@
         if (groupsTab) groupsTab.style.display = canManageGroups ? 'block' : 'none';
         if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
         if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
-        // 个人信息和会话管理标签页始终可见
-        if (profileTab) profileTab.style.display = 'block';
-        if (sessionsTab) sessionsTab.style.display = 'block';
+        if (messagesTab) messagesTab.style.display = canViewMessages ? 'block' : 'none';
+        
+        // 游客模式：只显示会话管理和留言板
+        if (isGuest) {
+          if (profileTab) profileTab.style.display = 'none';
+          if (sessionsTab) sessionsTab.style.display = 'block';
+          if (messagesTab) messagesTab.style.display = 'block';
+        } else {
+          // 非游客：个人信息和会话管理标签页始终可见
+          if (profileTab) profileTab.style.display = 'block';
+          if (sessionsTab) sessionsTab.style.display = 'block';
+        }
 
         // 控制上帝模式开关可见性
         if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
@@ -3274,27 +3324,29 @@
       const healthTab = $('admin-tab-health_modal');
       const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal');
+      const messagesTab = $('admin-tab-messages_modal');
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
       const logsPanel = $('admin-logs-panel_modal');
       const healthPanel = $('admin-health-panel_modal');
       const profilePanel = $('admin-profile-panel_modal');
       const sessionsPanel = $('admin-sessions-panel_modal');
+      const messagesPanel = $('admin-messages-panel_modal');
 
-      // 防御性编程：检查元素是否存在
-      if (!usersTab || !groupsTab || !logsTab || !healthTab || !profileTab || !sessionsTab || !usersPanel || !groupsPanel || !logsPanel || !healthPanel || !profilePanel || !sessionsPanel) {
-        logMessage_Error("switchAdminTab: 无法找到所有必要的管理面板模态框元素 (带_modal后缀)。");
+      // 防御性编程：检查核心元素是否存在
+      if (!sessionsTab || !sessionsPanel) {
+        logMessage_Error("switchAdminTab: 无法找到必要的管理面板元素");
         return;
       }
 
       // 重置所有标签按钮的样式
-      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab].forEach(t => {
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab].filter(t => t).forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
       // 隐藏所有内容面板
-      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel].forEach(p => {
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel].filter(p => p).forEach(p => {
         p.classList.add('hidden');
       });
 
@@ -3341,12 +3393,23 @@
         loadAdminSessions();
         // 停止健康状态自动刷新
         stopHealthAutoRefresh();
+      } else if (tab === 'messages') {
+        if (messagesTab && messagesPanel) {
+          messagesTab.classList.add('text-sky-600', 'border-sky-600');
+          messagesTab.classList.remove('text-slate-400', 'border-transparent');
+          messagesPanel.classList.remove('hidden');
+          loadMessages();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
       } else {
         // 默认显示个人信息页面
-        profileTab.classList.add('text-sky-600', 'border-sky-600');
-        profileTab.classList.remove('text-slate-400', 'border-transparent');
-        profilePanel.classList.remove('hidden');
-        loadPersonalInfo();
+        if (profileTab && profilePanel) {
+          profileTab.classList.add('text-sky-600', 'border-sky-600');
+          profileTab.classList.remove('text-slate-400', 'border-transparent');
+          profilePanel.classList.remove('hidden');
+          loadPersonalInfo();
+        }
         // 停止健康状态自动刷新
         stopHealthAutoRefresh();
       }
