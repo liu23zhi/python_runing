@@ -84,19 +84,251 @@ class NoColorFileFormatter(logging.Formatter):
         return cleaned_message
 
 
+def archive_old_logs():
+    """
+    归档旧的日志文件。
+    
+    在程序启动时调用，将上一次运行的日志文件压缩并移动到归档目录。
+    支持归档 zx-slm-tool.log 和 zx-slm-tool-*.log 格式的文件。
+    """
+    import zipfile
+    from datetime import datetime
+    
+    log_dir = 'logs'
+    archive_dir = os.path.join(log_dir, 'archive')
+    
+    # 确保归档目录存在
+    if not os.path.exists(archive_dir):
+        os.makedirs(archive_dir, exist_ok=True)
+        print(f"[日志归档] 创建归档目录: {archive_dir}")
+    
+    # 查找所有需要归档的日志文件
+    log_files_to_archive = []
+    for filename in os.listdir(log_dir):
+        if filename == 'zx-slm-tool.log' or (filename.startswith('zx-slm-tool-') and filename.endswith('.log')):
+            log_path = os.path.join(log_dir, filename)
+            # 只归档非空文件
+            if os.path.isfile(log_path) and os.path.getsize(log_path) > 0:
+                log_files_to_archive.append((log_path, filename))
+    
+    if not log_files_to_archive:
+        print(f"[日志归档] 没有需要归档的日志文件")
+        return
+    
+    # 生成归档文件名（毫秒级时间戳）
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')[:-3]  # 毫秒级
+    archive_filename = f"{timestamp}.zip"
+    archive_path = os.path.join(archive_dir, archive_filename)
+    
+    try:
+        # 创建ZIP归档
+        with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for log_path, filename in log_files_to_archive:
+                zipf.write(log_path, filename)
+                print(f"[日志归档] 已压缩: {filename}")
+        
+        # 删除已归档的日志文件
+        for log_path, filename in log_files_to_archive:
+            os.remove(log_path)
+            print(f"[日志归档] 已删除原文件: {filename}")
+        
+        print(f"[日志归档] 归档完成: {archive_path}")
+        
+    except Exception as e:
+        print(f"[日志归档] 归档失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def cleanup_archive_directory(archive_dir, max_size_mb):
+    """
+    清理归档目录，确保不超过指定大小。
+    
+    当归档目录大小超过限制时，删除最早的归档文件。
+    
+    参数:
+        archive_dir: 归档目录路径
+        max_size_mb: 最大大小（MB），0表示不限制
+    """
+    if max_size_mb <= 0:
+        return  # 不限制大小
+    
+    if not os.path.exists(archive_dir):
+        return
+    
+    try:
+        # 获取所有归档文件及其大小
+        archive_files = []
+        total_size = 0
+        
+        for filename in os.listdir(archive_dir):
+            if filename.endswith('.zip'):
+                file_path = os.path.join(archive_dir, filename)
+                if os.path.isfile(file_path):
+                    file_size = os.path.getsize(file_path)
+                    # 获取文件修改时间
+                    mtime = os.path.getmtime(file_path)
+                    archive_files.append((file_path, filename, file_size, mtime))
+                    total_size += file_size
+        
+        max_size_bytes = max_size_mb * 1024 * 1024
+        current_size_mb = total_size / (1024 * 1024)
+        
+        if total_size <= max_size_bytes:
+            print(f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB / {max_size_mb}MB (无需清理)")
+            return
+        
+        print(f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB 超过限制 {max_size_mb}MB，开始清理...")
+        
+        # 按时间排序（最早的在前）
+        archive_files.sort(key=lambda x: x[3])
+        
+        # 删除最早的文件直到大小满足要求
+        deleted_count = 0
+        for file_path, filename, file_size, _ in archive_files:
+            if total_size <= max_size_bytes:
+                break
+            
+            os.remove(file_path)
+            total_size -= file_size
+            deleted_count += 1
+            print(f"[归档清理] 已删除: {filename} ({file_size / (1024 * 1024):.2f}MB)")
+        
+        final_size_mb = total_size / (1024 * 1024)
+        print(f"[归档清理] 清理完成，删除了 {deleted_count} 个文件，当前大小: {final_size_mb:.2f}MB")
+        
+    except Exception as e:
+        print(f"[归档清理] 清理失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+class CustomLogHandler(logging.FileHandler):
+    """
+    自定义日志处理器，实现文件大小检查和轮转。
+    
+    当日志文件大小超过阈值时，进行轮转：
+    - 重命名 zx-slm-tool.log 为 zx-slm-tool-01.log
+    - 如果 zx-slm-tool-01.log 已存在，重命名为 zx-slm-tool-02.log
+    - 以此类推
+    - 创建新的 zx-slm-tool.log
+    """
+    
+    def __init__(self, filename, mode='a', encoding='utf-8', max_bytes=10*1024*1024):
+        """
+        初始化自定义日志处理器。
+        
+        参数:
+            filename: 日志文件路径
+            mode: 文件打开模式
+            encoding: 编码
+            max_bytes: 最大文件大小（字节）
+        """
+        self.max_bytes = max_bytes
+        self.base_filename = filename
+        super().__init__(filename, mode, encoding)
+    
+    def emit(self, record):
+        """
+        写入日志记录前检查文件大小。
+        """
+        try:
+            # 检查文件大小
+            if self.stream and os.path.exists(self.baseFilename):
+                self.stream.flush()
+                if os.path.getsize(self.baseFilename) >= self.max_bytes:
+                    self.do_rollover()
+            
+            # 写入日志
+            super().emit(record)
+            
+        except Exception:
+            self.handleError(record)
+    
+    def do_rollover(self):
+        """
+        执行日志轮转。
+        """
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+        
+        log_dir = os.path.dirname(self.baseFilename)
+        base_name = 'zx-slm-tool'
+        
+        # 查找已存在的编号文件
+        existing_numbers = []
+        for filename in os.listdir(log_dir):
+            if filename.startswith(f'{base_name}-') and filename.endswith('.log'):
+                try:
+                    # 提取编号
+                    num_str = filename[len(base_name)+1:-4]  # 去掉前缀和.log
+                    num = int(num_str)
+                    existing_numbers.append(num)
+                except ValueError:
+                    pass
+        
+        # 确定新的编号
+        if existing_numbers:
+            next_num = max(existing_numbers) + 1
+        else:
+            next_num = 1
+        
+        # 重命名当前文件
+        new_name = os.path.join(log_dir, f'{base_name}-{next_num:02d}.log')
+        
+        try:
+            os.rename(self.baseFilename, new_name)
+            print(f"[日志轮转] 已轮转: {os.path.basename(self.baseFilename)} -> {os.path.basename(new_name)}")
+        except Exception as e:
+            print(f"[日志轮转] 轮转失败: {e}")
+        
+        # 重新打开文件
+        self.stream = self._open()
+
+
 def setup_logging():
     """
-    配置详细的日志系统
-    - 所有日志输出到控制台
-    - 所有日志保存到 logs/zx-slm-tool.log
-    - 使用中文友好的格式
+    配置详细的日志系统（带自定义轮转逻辑）。
+    
+    功能：
+    1. 启动时归档旧日志文件到 logs/archive（压缩为 zip）
+    2. 当 zx-slm-tool.log 大小超过配置限制时自动轮转
+    3. 清理归档目录，防止占用过多磁盘空间
+    
+    配置项（config.ini [Logging]）：
+    - log_rotation_size_mb: 单个日志文件最大大小（MB）
+    - archive_max_size_mb: 归档目录最大大小（MB），0表示不限制
     """
-    # 确保logs目录存在
+    # 读取配置（如果配置文件存在）
+    log_rotation_size_mb = 10  # 默认10MB
+    archive_max_size_mb = 500  # 默认500MB
     log_dir = 'logs'
+    archive_dir = os.path.join(log_dir, 'archive')
+    
+    try:
+        if os.path.exists('config.ini'):
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            if 'Logging' in config:
+                log_rotation_size_mb = config.getint('Logging', 'log_rotation_size_mb', fallback=10)
+                archive_max_size_mb = config.getint('Logging', 'archive_max_size_mb', fallback=500)
+                log_dir = config.get('Logging', 'log_dir', fallback='logs')
+                archive_dir = config.get('Logging', 'archive_dir', fallback='logs/archive')
+    except Exception as e:
+        print(f"[日志系统] 读取配置失败，使用默认值: {e}")
+    
+    # 确保logs目录存在
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
         print(f"[日志系统] 创建日志目录: {log_dir}")
 
+    # 步骤1: 归档旧日志文件
+    archive_old_logs()
+    
+    # 步骤2: 清理归档目录
+    cleanup_archive_directory(archive_dir, archive_max_size_mb)
+    
     log_file = os.path.join(log_dir, 'zx-slm-tool.log')
 
     # 创建logger
@@ -118,15 +350,13 @@ def setup_logging():
     console_handler.setFormatter(log_format)
     logger.addHandler(console_handler)
 
-    # 文件处理器 - 使用RotatingFileHandler实现日志轮转
-    # maxBytes: 单个日志文件最大10MB, backupCount: 保留5个备份
-    from logging.handlers import RotatingFileHandler
-    file_handler = RotatingFileHandler(
-        log_file, 
-        mode='a', 
-        maxBytes=10*1024*1024,  # 10MB
-        backupCount=5,
-        encoding='utf-8'
+    # 文件处理器 - 使用自定义轮转处理器
+    max_bytes = log_rotation_size_mb * 1024 * 1024
+    file_handler = CustomLogHandler(
+        log_file,
+        mode='a',
+        encoding='utf-8',
+        max_bytes=max_bytes
     )
     file_handler.setLevel(logging.DEBUG)
     
@@ -142,10 +372,11 @@ def setup_logging():
 
     # 记录日志系统启动
     logging.info("="*80)
-    logging.info("日志系统初始化完成（启用日志轮转）")
+    logging.info("日志系统初始化完成（启用自定义轮转）")
     logging.info(f"日志文件: {log_file}")
     logging.info(f"日志级别: DEBUG (所有级别)")
-    logging.info(f"日志轮转: 单文件最大10MB，保留5个备份，总计最多60MB")
+    logging.info(f"日志轮转: 单文件最大{log_rotation_size_mb}MB")
+    logging.info(f"归档目录: {archive_dir}, 最大{archive_max_size_mb}MB{'（不限制）' if archive_max_size_mb == 0 else ''}")
     logging.info("="*80)
 
     return logger
@@ -511,6 +742,14 @@ def _get_default_config():
         'school_accounts_dir': 'school_accounts',
         'system_accounts_dir': 'system_accounts',  # 修正：不应该在school_accounts下
         'permissions_file': 'permissions.json'
+    }
+    
+    # [Logging] 日志配置
+    config['Logging'] = {
+        'log_rotation_size_mb': '10',  # 单个日志文件最大大小（MB）
+        'archive_max_size_mb': '500',  # 归档目录最大大小（MB），0表示不限制
+        'log_dir': 'logs',
+        'archive_dir': 'logs/archive'
     }
 
     # [Security] 安全配置
