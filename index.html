@@ -744,7 +744,7 @@
           <p id="user-name-label" class="font-bold text-slate-800 truncate">姓名: NULL</p>
           <p id="user-id-label" class="text-sm text-slate-500">学号: NULL</p>
         </div>
-        <button id="show-sessions-main" class="btn btn-ghost !py-2 !px-3 hidden" title="管理面板">管理</button>
+        
         <button id="show-notifications-btn" class="btn btn-ghost !py-2 !px-3 relative" title="查看通知">
           <span>通知</span>
           <span id="notification-badge"
@@ -2705,7 +2705,7 @@
               if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
               const adminBtnMulti = $('show-admin-panel-multi');
               if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
-              const sessionsBtnMain = $('show-sessions-main');
+              const sessionsBtnMain = $('show-admin-panel');
               if (sessionsBtnMain) sessionsBtnMain.classList.remove('hidden');
             }
 
@@ -3069,7 +3069,7 @@
 
         // 会话管理按钮（多个位置）
         const showSessionsLogin = $('show-sessions-login');
-        const showSessionsMain = $('show-sessions-main');
+        const showSessionsMain = $('show-admin-panel');
         const showSessionsMulti = $('show-sessions-multi');
         if (showSessionsLogin) showSessionsLogin.addEventListener('click', () => {
           toggleAdminPanel(true);
