@@ -1325,6 +1325,8 @@ class AuthSystem:
         logging.info("权限配置已加载")
         self.lock = threading.Lock()  # 使用Lock代替Semaphore(1)以提升性能
         logging.info("线程锁已创建（使用threading.Lock）")
+        # 在系统初始化时，立即同步超级管理员权限
+        self._synchronize_super_admin_permissions()
         logging.info("AuthSystem初始化完成")
         logging.info("="*80)
 
@@ -1413,6 +1415,32 @@ class AuthSystem:
         logging.debug(
             f"get_user_file_path: 用户 {auth_username} 的文件路径: {file_path}")
         return file_path
+    
+    def _update_user_file_group(self, username, new_group):
+        """
+        (辅助函数) 更新 system_accounts 中用户JSON文件内的 group 字段。
+        这确保了 permissions.json 和用户文件之间的数据一致性。
+        """
+        user_file = self.get_user_file_path(username)
+        if os.path.exists(user_file):
+            try:
+                # 注意：这里在 AuthSystem 的 self.lock 锁内部调用，
+                # 但文件IO本身是原子的，为避免死锁风险，不重复获取锁。
+                # 或者，更安全的做法是要求调用者必须持有 self.lock。
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                if user_data.get('group') != new_group:
+                    user_data['group'] = new_group
+                    with open(user_file, 'w', encoding='utf-8') as f:
+                        json.dump(user_data, f, indent=2, ensure_ascii=False)
+                    logging.debug(f"[权限同步] 已更新用户文件 {os.path.basename(user_file)} 的权限组为 {new_group}")
+                    return True
+            except Exception as e:
+                logging.error(f"[权限同步] 更新用户文件 {os.path.basename(user_file)} 失败: {e}", exc_info=True)
+        else:
+            logging.warning(f"[权限同步] 找不到用户 {username} 的文件，无法更新其文件内的权限组。")
+        return False
 
     def _get_password_storage_method(self):
         """
@@ -2076,8 +2104,11 @@ class AuthSystem:
             return 'super_admin'
         return self.permissions['user_groups'].get(auth_username, 'guest')
 
+
     def update_user_group(self, auth_username, new_group):
         """更新用户组（需要管理员权限）"""
+        if new_group == 'super_admin':
+            return {"success": False, "message": "不允许将用户设置为超级管理员"}
         with self.lock:
             if new_group not in self.permissions['permission_groups']:
                 return {"success": False, "message": "权限组不存在"}
@@ -2525,6 +2556,74 @@ class AuthSystem:
         # 返回最近的记录
         return logs[-limit:]
 
+
+
+    def _synchronize_super_admin_permissions(self):
+        """
+        [启动检查] 同步 config.ini 中的 super_admin 与 permissions.json 中的权限组。
+        
+        逻辑:
+        1. (降级) 如果用户在 permissions.json 中是 super_admin，但与 config.ini 不符，则降级为 admin。
+        2. (升级) 如果 config.ini 中指定的用户在 permissions.json 中不是 super_admin，则升级为 super_admin。
+        3. (添加) 如果 config.ini 中指定的用户不在 permissions.json 中，则添加。
+        """
+        logging.info("[权限同步] 开始检查 config.ini 与 permissions.json 的 super_admin 一致性...")
+        
+        try:
+            # 1. 从 config.ini 获取配置的超级管理员用户名
+            super_admin_username = self.config.get('Admin', 'super_admin', fallback='admin')
+            if not super_admin_username:
+                logging.error("[权限同步] config.ini 中 [Admin]super_admin 未配置，同步中止。")
+                return
+
+            # 2. 获取锁，准备修改权限数据
+            with self.lock: #
+                changes_made = False
+                
+                if 'user_groups' not in self.permissions:
+                    self.permissions['user_groups'] = {}
+                    
+                user_groups = self.permissions['user_groups']
+
+                # 3. 遍历所有已知的用户权限组
+                #    使用 .copy().items() 允许在迭代时修改字典
+                for username, group in user_groups.copy().items():
+                    
+                    # 规则1 (降级): 该用户是超管，但他不是配置中的超管
+                    if group == 'super_admin' and username != super_admin_username:
+                        user_groups[username] = 'admin' # 降级为 admin
+                        self._update_user_file_group(username, 'admin') #
+                        logging.warning(f"[权限同步] 用户 '{username}' 在 permissions.json 中是 super_admin，"
+                                      f"但他不是 config.ini 中指定的超管 ('{super_admin_username}')。"
+                                      f"已自动降级为 'admin'。")
+                        changes_made = True
+                    
+                    # 规则2 (升级): 该用户是配置中的超管，但他当前的组不是 super_admin
+                    elif username == super_admin_username and group != 'super_admin':
+                        user_groups[username] = 'super_admin' # 升级
+                        self._update_user_file_group(username, 'super_admin') #
+                        logging.info(f"[权限同步] 用户 '{username}' 是 config.ini 指定的超管，"
+                                     f"但在 permissions.json 中是 '{group}'。已自动升级为 'super_admin'。")
+                        changes_made = True
+
+                # 规则3 (添加): 配置中的超管在 permissions.json 中完全不存在
+                if super_admin_username not in user_groups:
+                    user_groups[super_admin_username] = 'super_admin'
+                    # 尝试更新用户文件（如果文件已存在）
+                    self._update_user_file_group(super_admin_username, 'super_admin') #
+                    logging.info(f"[权限同步] config.ini 指定的超管 '{super_admin_username}' "
+                                 f"不在 permissions.json 中。已自动添加为 'super_admin'。")
+                    changes_made = True
+
+                # 4. 如果有变动，保存回 permissions.json
+                if changes_made:
+                    self._save_permissions() #
+                    logging.info("[权限同步] 权限数据已更新并保存。")
+                else:
+                    logging.info("[权限同步] 权限一致，无需更新。")
+
+        except Exception as e:
+            logging.error(f"[权限同步] 同步 super_admin 权限时发生严重错误: {e}", exc_info=True)
 
 # 创建全局认证系统实例
 auth_system = AuthSystem()
@@ -3769,10 +3868,13 @@ class Api:
 
         # 安全写入主 config.ini 文件
         try:
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                main_cfg.write(f)
+            # with open(self.config_path, 'w', encoding='utf-8') as f:
+            #     main_cfg.write(f)
+            _write_config_with_comments(main_cfg, self.config_path)
+            # logging.debug(
+                # f"Updated main config {self.config_path} with LastUser and amap_js_key")
             logging.debug(
-                f"Updated main config {self.config_path} with LastUser and amap_js_key")
+                f"更新主配置文件 {self.config_path} 成功")
         except Exception as e:
             logging.error(f"写入主配置文件 {self.config_path} 失败: {e}", exc_info=True)
 
@@ -4055,8 +4157,8 @@ class Api:
                 cfg.add_section('Map')
             cfg.set('Map', 'amap_js_key', api_key)
 
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                cfg.write(f)
+            _write_config_with_comments(cfg, self.config_path)
+            
             self.log("高德地图API Key已保存。")
             logging.info("已成功保存新的高德地图JavaScript API密钥")
             return {"success": True}
@@ -10072,14 +10174,6 @@ def start_background_auto_attendance(args):
     - 需要确保SCHOOL_ACCOUNTS_DIR目录存在且有读权限
     - 账号的.ini文件必须包含密码和auto_attendance_enabled配置
 
-    使用示例：
-    ```python
-    if __name__ == "__main__":
-        args = parse_args()
-        if not args.no_auto_start:
-            start_background_auto_attendance(args)
-        app.run()
-    ```
     """
     try:
         logging.info("正在启动后台自动签到服务...")
@@ -10271,15 +10365,6 @@ def start_web_server(args_param):
     - 建议在后台自动签到服务启动后调用
 
     使用示例：
-    ```python
-    if __name__ == "__main__":
-        args = parse_args()
-        check_install_dependencies()
-        initialize_dirs()
-        if not args.no_auto_start:
-            start_background_auto_attendance(args)
-        start_web_server(args)  # 此函数会阻塞
-    ```
     """
     global chrome_pool, background_task_manager, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
 
@@ -11235,6 +11320,9 @@ def start_web_server(args_param):
         target_username = data.get('target_username', '')
         new_group = data.get('new_group', '')
 
+        if new_group == 'super_admin':
+            return jsonify({"success": False, "message": "不能分配超级管理员组"})
+
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权"})
 
@@ -11963,6 +12051,48 @@ def start_web_server(args_param):
                 auth_username,
                 'delete_user',
                 f'删除用户: {target_username}',
+                ip_address,
+                session_id
+            )
+
+        return jsonify(result)
+
+    @app.route('/auth/admin/force_reset_password', methods=['POST'])
+    def auth_admin_force_reset_password():
+        """
+        管理员API：强制重置用户密码。
+        """
+        # 1. 验证会话
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+
+        # 2. 检查权限 (假设重置密码需要 'manage_users' 权限)
+        if not auth_system.check_permission(auth_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+
+        # 3. 获取参数 (匹配 index.html L7158 的调用)
+        data = request.json
+        target_username = data.get('target_username', '')
+        new_password = data.get('new_password', '')
+
+        if not target_username or not new_password:
+            return jsonify({"success": False, "message": "缺少用户名或新密码"}), 400
+
+        # 4. 执行重置 (调用 main.py L2174 中已定义的 auth_system.reset_user_password)
+        result = auth_system.reset_user_password(target_username, new_password)
+
+        # 5. 记录审计日志
+        if result.get('success'):
+            ip_address = request.headers.get(
+                'X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                'force_reset_password', # 审计动作
+                f'强制重置了用户 {target_username} 的密码',
                 ip_address,
                 session_id
             )
@@ -13684,6 +13814,8 @@ def start_web_server(args_param):
         start_background_auto_attendance(args)
     except Exception as e:
         logging.error(f"启动后台自动签到服务失败: {e}", exc_info=True)
+    
+
 
     cleaned_sessions_count = 0
     with web_sessions_lock:

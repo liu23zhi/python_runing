@@ -465,6 +465,11 @@
     }
 
     /* 模态框显示时，隐藏地图logo和版权 */
+    #amap-key-modal:not(.hidden)~#map-container .amap-logo,
+    #amap-key-modal:not(.hidden)~#map-container .amap-copyright,
+    #amap-key-modal:not(.hidden)~main>#multi-map-container .amap-logo,
+    #amap-key-modal:not(.hidden)~main>#multi-map-container .amap-copyright,
+    
     #user-details-modal:not(.hidden)~#map-container .amap-logo,
     #user-details-modal:not(.hidden)~#map-container .amap-copyright,
     #task-details-modal:not(.hidden)~#map-container .amap-logo,
@@ -4284,7 +4289,65 @@
     function showCreateUserModal() {
       const modal = $('newUserModal');
       if (modal) {
+        // 清空旧输入
+        $('newUsername').value = "";
+        $('newPassword').value = "";
+        
+        // 显示模态框
         modal.style.display = 'flex';
+        
+        // [BUG 修复] 绑定 "确认" 按钮事件
+        // 此函数被 Admin Panel 的 "新增用户" 按钮调用，
+        // 但原代码未绑定 newUserConfirm 的 onclick 事件，导致按钮无效。
+        // 我们在此处添加绑定，使其调用后端的 admin/create_user API。
+        $('newUserConfirm').onclick = async () => {
+          const inputUsername = $('newUsername').value.trim();
+          const inputPassword = $('newPassword').value;
+          
+          if (!inputUsername || !inputPassword) {
+            showModalAlert("账号和密码均不能为空");
+            return;
+          }
+          if (!inputPassword || inputPassword.length < 6) {
+            showModalAlert('密码长度至少为6个字符', '错误');
+            return;
+          }
+          
+          // 默认 group 为 'user'，因为此模态框没有组选择器
+          const group = 'user'; 
+
+          try {
+            // 调用后端管理员创建用户的API
+            const response = await fetch('/auth/admin/create_user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionUUID 
+              },
+              body: JSON.stringify({
+                username: inputUsername,
+                password: inputPassword,
+                group: group
+              })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              showModalAlert("用户创建成功！");
+              closeNewUserModal();
+              // 刷新管理面板中的用户列表
+              if (typeof loadAdminUsers === 'function') {
+                loadAdminUsers();
+              }
+            } else {
+              showModalAlert(`创建失败: ${result.message || '未知错误'}`);
+            }
+          } catch (e) {
+            showModalAlert(`创建时发生错误: ${e.message}`);
+            logMessage_Error("创建用户时发生错误:", e);
+          }
+        };
       }
     }
 
@@ -6604,6 +6667,7 @@
             logMessage_Info("[警告] 未配置高德地图API Key，请在弹窗中输入。");
             $('amap-key-modal').classList.remove('hidden');
             $('amap-key-modal').classList.add('flex');
+            document.body.classList.add('modal-visible');
           }
           $('loading-overlay').classList.remove('hidden');
 
@@ -6855,7 +6919,7 @@
       // 监听多账号列表结构更新 (例如：添加账号后)
       socket.on('accounts_updated', (data) => {
         if (data && data.accounts) {
-          logMessage_Info(`[Socket] 收到账号列表更新，共 ${data.accounts.length} 个账号`);
+          logMessage(`[Socket] 收到账号列表更新，共 ${data.accounts.length} 个账号`,INFO,'Socket');
           onAccountsUpdated(data.accounts); // onAccountsUpdated 会调用 renderMultiAccountList
         }
       });
@@ -7473,31 +7537,45 @@
         return;
       }
 
-      const result = await callPythonAPI('save_amap_key', newKey);
-      if (result.success) {
-        AMAP_API_KEY = newKey;
-        const modal = $('amap-key-modal');
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        logMessage_Info("API Key已更新，正在尝试重新加载地图...");
+      const btn = $('confirm-amap-key-btn');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="inline-block animate-spin mr-2">⏳</span>保存中...`;
 
-        // 关键：保存成功后，重新触发地图加载
-        try {
-          await loadAMapOnce();
-          // 如果地图加载成功，可能需要初始化一些依赖地图的UI
-          // 例如，如果已经进入了主界面，则需要确保地图被创建
-          ensureSingleMap();
-          // ... 其他可能需要地图的初始化逻辑 ...
-        } catch (e) {
-          logMessage_Error('保存Key后加载AMap SDK失败', e);
-          logMessage_Info("[错误] 新的API Key似乎无效，地图加载失败。请检查后重试。");
-          // 如果加载失败，可以再次弹出窗口
-          modal.classList.remove('hidden');
-          modal.classList.add('flex');
+      try {
+        const result = await callPythonAPI('save_amap_key', newKey);
+        if (result.success) {
+          AMAP_API_KEY = newKey;
+          const modal = $('amap-key-modal');
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+          document.body.classList.remove('modal-visible');
+          logMessage_Info("API Key已更新，正在尝试重新加载地图...");
+
+          // 关键：保存成功后，重新触发地图加载
+          try {
+            await loadAMapOnce();
+            // 如果地图加载成功，可能需要初始化一些依赖地图的UI
+            // 例如，如果已经进入了主界面，则需要确保地图被创建
+            ensureSingleMap();
+          } catch (e) {
+            logMessage_Error('保存Key后加载AMap SDK失败', e);
+            logMessage_Info("[错误] 新的API Key似乎无效，地图加载失败。请检查后重试。");
+            // 如果加载失败，可以再次弹出窗口
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.classList.add('modal-visible');
+          }
+
+        } else {
+          showModalAlert(`保存失败: ${result.message}`);
         }
-
-      } else {
-        showModalAlert(`保存失败: ${result.message}`);
+      } catch (e) { // [新代码] 捕获API调用本身的错误
+          logMessage_Error("保存API Key时发生网络错误:", e);
+          showModalAlert(`保存失败: ${e.message}`);
+      } finally { // [新代码] 无论成功失败，都恢复按钮状态
+          btn.disabled = false;
+          btn.innerHTML = originalText;
       }
     }
 
@@ -8087,8 +8165,72 @@
 
 
     async function multi_importFromExcel() {
-      const result = await callPythonAPI('multi_import_accounts');
-      if (result && result.accounts) renderMultiAccountList(result.accounts);
+      // [BUG 修复] 后端 open_file_dialog 在 Web 模式下无效 (main.py L3605)。
+      // 必须由前端创建文件输入框来读取文件。
+      
+      const input = document.createElement('input');
+      input.type = 'file';
+      // 限制文件类型为 Excel 和 CSV
+      input.accept = '.xlsx, .xls, .csv'; 
+
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+          logMessage_Info("未选择文件。");
+          return;
+        }
+
+        // 验证文件扩展名
+        const fileName = file.name;
+        const fileExt = fileName.split('.').pop().toLowerCase();
+        if (!['xlsx', 'xls', 'csv'].includes(fileExt)) {
+          showModalAlert("文件格式不支持，请选择 .xlsx, .xls, 或 .csv 文件。");
+          return;
+        }
+
+        logMessage_Info(`正在读取文件: ${fileName}`);
+        
+        // 我们将文件内容作为 Base64 字符串发送到后端
+        // 这是处理二进制 (xls/xlsx) 和文本 (csv) 文件的最可靠方法
+        const reader = new FileReader();
+        reader.readAsDataURL(file); // 读取为 Data URL (包含了 Base64)
+
+        reader.onload = async () => {
+          try {
+            // reader.result 格式为 "data:application/vnd.ms-excel;base64,UEsD..."
+            // 我们需要去掉 "data:..."
+            const base64Content = reader.result.split(',')[1];
+            
+            // 调用一个[新]的API，将文件名和Base64内容发送到后端
+            const result = await callPythonAPI('multi_import_accounts', fileName, base64Content);
+            
+            if (result && result.success) {
+              logMessage_Info(`成功导入 ${result.imported_count || 0} 个账号。`);
+              if (result.skipped_count > 0) {
+                 // 如果有跳过的（例如缺密码），显示后端返回的提示信息
+                 showModalAlert(`导入完成：\n成功 ${result.imported_count} 个。\n跳过 ${result.skipped_count} 个（缺少密码）。\n\n详情：${result.message}`, "导入提示");
+              }
+              // 刷新账号列表
+              if (result.accounts) {
+                renderMultiAccountList(result.accounts);
+              }
+            } else {
+              showModalAlert(`导入失败: ${result.message || '未知错误'}`);
+            }
+          } catch (err) {
+            logMessage_Error("导入文件时出错:", err);
+            showModalAlert(`导入失败: ${err.message}`);
+          }
+        };
+
+        reader.onerror = () => {
+          logMessage_Error("读取文件失败。");
+          showModalAlert("读取文件失败。");
+        };
+      };
+      
+      // 触发文件选择框
+      input.click();
     }
 
     async function multi_exportToExcel() {
@@ -8828,6 +8970,7 @@
       }
       await callPythonAPI('clear_current_task_draft')
       if (polylines.draft) { map.remove(polylines.draft); polylines.draft = null; }
+      if (polylines.history) { map.remove(polylines.history); polylines.history = null; }
       if (polylines.run) { map.remove(polylines.run); polylines.run = null; }
       if (drawingInfoMarker) drawingInfoMarker.hide();
       draftPath = []; draftPathLngLat = []; draftTotalDist = 0;
@@ -9088,18 +9231,18 @@
 
           drawMarkers();
           
-          // 如果有实时位置数据，则在地图上更新显示
-          if (status.current_position) {
-            const pos = status.current_position;
-            updateRunnerPosition(
-              pos.lon,
-              pos.lat,
-              pos.distance || 0,
-              pos.target_sequence || 0,
-              0, // duration not needed for display
-              false // don't auto-center
-            );
-          }
+          // // 如果有实时位置数据，则在地图上更新显示
+          // if (status.current_position) {
+          //   const pos = status.current_position;
+          //   updateRunnerPosition(
+          //     pos.lon,
+          //     pos.lat,
+          //     pos.distance || 0,
+          //     pos.target_sequence || 0,
+          //     0, // duration not needed for display
+          //     false // don't auto-center
+          //   );
+          // }
           
           // 检查这是否是旧数据（任务在我们开始轮询前就已启动）
           const taskStartTime = (status.start_time || 0) * 1000; // 转换为毫秒
