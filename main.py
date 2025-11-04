@@ -3060,6 +3060,10 @@ class AccountSession:
 
         # 标记信息
         self.tag: str = tag if tag else ""  # 账号标记（备注/标签）
+        
+        # 首次登录验证状态
+        self.is_first_login_verified: bool = False  # 是否已完成首次登录验证
+        self.is_verifying: bool = False  # 是否正在进行首次验证
 
         self.status_text: str = "待命"  # UI上显示的状态
         self.summary = {"total": 0, "completed": 0, "pending": 0,
@@ -6405,16 +6409,39 @@ class Api:
             self._update_multi_global_buttons()
             return self.multi_get_all_accounts_status()
 
-        # 若密码已确定，保存到 .ini（避免刷新后丢失）
+        # 检查是否需要首次验证
+        # 如果导入的密码与已有配置文件中的密码不同，或者配置文件不存在，则需要首次验证
         ini_path = os.path.join(self.user_dir, f"{username}.ini")
-        try:
-            # 创建 .ini 或更新现有 .ini，保存 UA 与参数与密码
-            # 修复：在多账号模式添加账号时，应该保存该账号的 UA
-            self._save_config(
-                username, self.accounts[username].password, self.accounts[username].device_ua)
-        except Exception:
-            logging.warning(
-                f"保存 {ini_path} 失败（将继续运行）：{traceback.format_exc()}")
+        needs_verification = False
+        
+        if password and loaded_password and password != loaded_password:
+            # 密码冲突：导入的密码与配置文件中的密码不同
+            needs_verification = True
+            self.log(f"账号 {username} 密码与配置文件不一致，需要首次登录验证。")
+        elif password and not loaded_password:
+            # 新账号：配置文件不存在或没有密码
+            needs_verification = True
+            self.log(f"账号 {username} 是新添加的账号，需要首次登录验证。")
+        
+        if needs_verification:
+            # 标记为需要验证，不保存密码到配置文件
+            self.accounts[username].is_first_login_verified = False
+            self.accounts[username].is_verifying = True
+            # 只保存 UA 和参数，不保存密码
+            try:
+                self._save_config(username, password=None, ua=self.accounts[username].device_ua)
+            except Exception:
+                logging.warning(f"保存配置失败（将继续运行）：{traceback.format_exc()}")
+        else:
+            # 使用已有的密码，直接标记为已验证
+            self.accounts[username].is_first_login_verified = True
+            self.accounts[username].is_verifying = False
+            # 保存完整配置
+            try:
+                self._save_config(
+                    username, self.accounts[username].password, self.accounts[username].device_ua)
+            except Exception:
+                logging.warning(f"保存配置失败（将继续运行）：{traceback.format_exc()}")
 
         self.log(f"已添加账号: {username}")
         # 添加账号后立即刷新“全部开始/全部停止”按钮状态
@@ -6511,12 +6538,29 @@ class Api:
             if not acc.user_data.id:
                 if not acc.device_ua:
                     acc.device_ua = ApiClient.generate_random_ua()
+                
+                # 标记正在验证
+                if not acc.is_first_login_verified:
+                    acc.is_verifying = True
+                    if not preserve_now:
+                        self._update_account_status_js(acc, status_text="首次验证中...")
+                
                 login_resp = self._queued_login(acc, respect_global_stop=False)
                 if not login_resp or not login_resp.get('success'):
-                    # 登录失败：仅在不保留状态时才更新状态文案
-                    if not preserve_now:
-                        self._update_account_status_js(
-                            acc, status_text="刷新失败(登录错误)")
+                    # 登录失败
+                    if not acc.is_first_login_verified:
+                        # 首次验证失败
+                        acc.is_verifying = False
+                        acc.is_first_login_verified = False
+                        if not preserve_now:
+                            self._update_account_status_js(
+                                acc, status_text="验证失败(密码错误)")
+                        acc.log(f"首次登录验证失败，密码可能不正确。")
+                    else:
+                        # 已验证账号的登录失败
+                        if not preserve_now:
+                            self._update_account_status_js(
+                                acc, status_text="刷新失败(登录错误)")
                     return
 
                 data = login_resp.get('data', {})
@@ -6525,10 +6569,21 @@ class Api:
                 acc.user_data.id = user_info.get('id', '')
                 acc.user_data.student_id = user_info.get('account', '')
 
-                # 写回 UA/参数（如有）
-                ini_path = os.path.join(self.user_dir, f"{acc.username}.ini")
-                if os.path.exists(ini_path):
-                    self._save_config(acc.username)
+                # 首次登录验证成功，保存密码到配置文件
+                if not acc.is_first_login_verified:
+                    acc.is_first_login_verified = True
+                    acc.is_verifying = False
+                    try:
+                        # 保存密码、UA和参数到配置文件
+                        self._save_config(acc.username, acc.password, acc.device_ua)
+                        acc.log(f"首次登录验证成功，密码已保存到配置文件。")
+                    except Exception as e:
+                        logging.error(f"保存密码到配置文件失败: {e}", exc_info=True)
+                else:
+                    # 写回 UA/参数（如有）
+                    ini_path = os.path.join(self.user_dir, f"{acc.username}.ini")
+                    if os.path.exists(ini_path):
+                        self._save_config(acc.username)
 
                 # 更新名字（允许）
                 self._update_account_status_js(acc, name=acc.user_data.name)
