@@ -734,7 +734,6 @@ def _get_default_config():
     - [System]: 系统路径和文件配置
     - [Security]: 安全策略（密码存储、防暴力破解）
     - [Map]: 地图API配置（高德地图密钥）
-    - [AutoFill]: 自动填充功能开关
 
     返回:
         configparser.ConfigParser: 包含默认配置的对象
@@ -775,12 +774,6 @@ def _get_default_config():
     # [Map] 地图配置
     config['Map'] = {
         'amap_js_key': '',  # 高德地图JS API密钥
-    }
-
-    # [AutoFill] 自动填充配置
-    config['AutoFill'] = {
-        'guest_auto_fill_password': 'false',  # 游客模式是否自动填充密码
-        'auto_fill_accounts': '',  # 允许自动填充密码的账号列表（逗号分隔）
     }
 
     return config
@@ -872,18 +865,6 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 申请类型：Web端(JS API)，服务平台：Web端\n")
         f.write(
             f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
-
-        # [AutoFill] 配置
-        f.write("[AutoFill]\n")
-        f.write("# 游客模式是否自动填充密码（true/false）\n")
-        f.write("# true：游客登录时自动填充密码（方便测试）\n")
-        f.write("# false：需要手动输入密码\n")
-        f.write(
-            f"guest_auto_fill_password = {config_obj.get('AutoFill', 'guest_auto_fill_password', fallback='false')}\n")
-        f.write("# 允许自动填充密码的账号列表（逗号分隔）\n")
-        f.write("# 示例：user1,user2,user3\n")
-        f.write(
-            f"auto_fill_accounts = {config_obj.get('AutoFill', 'auto_fill_accounts', fallback='')}\n\n")
 
 
 def _create_config_ini():
@@ -1043,7 +1024,7 @@ def _create_permissions_json():
                     "clear_logs": False,
 
                     # 新增细分权限
-                    "auto_fill_password": True,  # 自动填充密码
+                    "auto_fill_password": False,  # 自动填充密码（普通用户默认无此权限）
                     "import_offline": True,
                     "export_data": True,
                     "modify_params": True,
@@ -2660,10 +2641,9 @@ class TokenManager:
 
     def _get_token_file_path(self, username):
         """获取用户的token文件路径"""
-        # 使用用户名的哈希作为文件名
-        username_hash = hashlib.sha256(username.encode()).hexdigest()
+        # 直接使用用户名作为文件名（简化格式）
         file_path = os.path.join(
-            self.tokens_dir, f"{username_hash}_tokens.json")
+            self.tokens_dir, f"{username}.json")
         logging.debug(
             f"_get_token_file_path: 用户 {username} 的令牌文件: {file_path}")
         return file_path
@@ -2675,27 +2655,27 @@ class TokenManager:
         logging.debug(f"generate_token: 生成新令牌，长度: {len(token)} 字符")
         return token
 
-    def create_token(self, username, session_id):
+    def create_token(self, username, session_id=None):
         """为用户创建新令牌并存储
+        
+        新的简化设计：一个用户只有一个token，不再关联session_id
+        session信息由./sessions目录管理，token只负责认证
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容现有调用，但不再存储）
 
         Returns:
             token: 生成的令牌字符串
         """
-        session_preview = session_id[:16] if session_id and len(
-            session_id) >= 16 else session_id
-        logging.info(
-            f"create_token: 为用户 {username} 创建令牌，会话: {session_preview}...")
+        logging.info(f"create_token: 为用户 {username} 创建令牌...")
         token = self.generate_token()
         created_at = time.time()
         expires_at = created_at + 3600  # 1小时后过期
 
+        # 简化的token数据：只存储token本身和时间信息，不存储session_id
         token_data = {
             'token': token,
-            'session_id': session_id,
             'created_at': created_at,
             'expires_at': expires_at,
             'last_activity': created_at
@@ -2704,32 +2684,22 @@ class TokenManager:
         with self.lock:
             token_file = self._get_token_file_path(username)
 
-            # 读取现有tokens
-            all_tokens = {}
-            if os.path.exists(token_file):
-                try:
-                    with open(token_file, 'r', encoding='utf-8') as f:
-                        all_tokens = json.load(f)
-                except (FileNotFoundError, json.JSONDecodeError) as e:
-                    logging.debug(f"[Token存储] 无法读取token文件，初始化为空: {e}")
-                    all_tokens = {}
-
-            # 添加新token
-            all_tokens[session_id] = token_data
-
-            # 保存到文件
+            # 直接覆盖写入，一个用户只有一个token
             with open(token_file, 'w', encoding='utf-8') as f:
-                json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+                json.dump(token_data, f, indent=2, ensure_ascii=False)
 
-        logging.info(f"为用户 {username} 创建新令牌，会话: {session_preview}...")
+        logging.info(f"为用户 {username} 创建新令牌完成")
         return token
 
     def verify_token(self, username, session_id, token):
         """验证令牌是否有效
+        
+        新的简化设计：只验证用户名和token，不再关联session_id
+        session_id参数保留以兼容现有调用
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容，不再使用）
             token: 要验证的令牌
 
         Returns:
@@ -2742,19 +2712,14 @@ class TokenManager:
 
         try:
             with open(token_file, 'r', encoding='utf-8') as f:
-                all_tokens = json.load(f)
-
-            if session_id not in all_tokens:
-                return False, "session_not_found"
-
-            token_data = all_tokens[session_id]
+                token_data = json.load(f)
 
             # 检查令牌是否匹配
-            if token_data['token'] != token:
+            if token_data.get('token') != token:
                 return False, "token_mismatch"
 
             # 检查是否过期
-            if time.time() > token_data['expires_at']:
+            if time.time() > token_data.get('expires_at', 0):
                 return False, "token_expired"
 
             return True, "valid"
@@ -2763,14 +2728,16 @@ class TokenManager:
             logging.error(f"验证令牌时出错: {e}")
             return False, "error"
 
-    def get_valid_token_for_session(self, username, session_id):
+    def get_valid_token_for_session(self, username, session_id=None):
         """
-        获取指定用户和会话ID的有效Token（如果存在且未过期）。
+        获取指定用户的有效Token（如果存在且未过期）。
         如果找到有效Token，会刷新其活动时间。
+        
+        新的简化设计：不再关联session_id，每个用户只有一个token
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容，不再使用）
 
         Returns:
             str | None: 如果找到有效Token则返回Token字符串，否则返回None。
@@ -2784,24 +2751,13 @@ class TokenManager:
             # 使用锁确保读取和可能的刷新操作是原子的
             with self.lock:
                 with open(token_file, 'r', encoding='utf-8') as f:
-                    all_tokens = json.load(f)
+                    token_data = json.load(f)
 
-                if session_id not in all_tokens:
-                    logging.debug(
-                        f"get_valid_token_for_session: 会话 {session_id[:8]} 未找到Token记录")
-                    return None
-
-                token_data = all_tokens[session_id]
                 current_time = time.time()
 
                 # 检查是否过期
-                if current_time > token_data['expires_at']:
-                    logging.debug(
-                        f"get_valid_token_for_session: 会话 {session_id[:8]} 的Token已过期")
-                    # (可选) 在这里可以顺便清理掉这个过期的记录，如果需要的话
-                    # del all_tokens[session_id]
-                    # with open(token_file, 'w', encoding='utf-8') as wf:
-                    #     json.dump(all_tokens, wf, indent=2, ensure_ascii=False)
+                if current_time > token_data.get('expires_at', 0):
+                    logging.debug(f"get_valid_token_for_session: 用户 {username} 的Token已过期")
                     return None
 
                 # Token有效，刷新活动时间并延长有效期
@@ -2810,22 +2766,23 @@ class TokenManager:
 
                 # 写回更新后的Token数据
                 with open(token_file, 'w', encoding='utf-8') as f:
-                    json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+                    json.dump(token_data, f, indent=2, ensure_ascii=False)
 
-                logging.info(
-                    f"get_valid_token_for_session: 找到并刷新了会话 {session_id[:8]} 的有效Token")
-                return token_data['token']  # 返回有效的Token字符串
+                logging.info(f"get_valid_token_for_session: 找到并刷新了用户 {username} 的有效Token")
+                return token_data.get('token')  # 返回有效的Token字符串
 
         except Exception as e:
-            logging.error(f"获取会话Token时出错 ({username}, {session_id[:8]}): {e}")
+            logging.error(f"获取Token时出错 (用户: {username}): {e}")
             return None
 
-    def refresh_token(self, username, session_id):
+    def refresh_token(self, username, session_id=None):
         """刷新令牌的过期时间和最后活动时间
+        
+        新的简化设计：不再关联session_id
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容，不再使用）
 
         Returns:
             bool: 是否刷新成功
@@ -2838,20 +2795,16 @@ class TokenManager:
 
             try:
                 with open(token_file, 'r', encoding='utf-8') as f:
-                    all_tokens = json.load(f)
-
-                if session_id not in all_tokens:
-                    return False
+                    token_data = json.load(f)
 
                 # 更新过期时间和最后活动时间
                 current_time = time.time()
-                # 延长1小时
-                all_tokens[session_id]['expires_at'] = current_time + 3600
-                all_tokens[session_id]['last_activity'] = current_time
+                token_data['expires_at'] = current_time + 3600  # 延长1小时
+                token_data['last_activity'] = current_time
 
                 # 保存
                 with open(token_file, 'w', encoding='utf-8') as f:
-                    json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+                    json.dump(token_data, f, indent=2, ensure_ascii=False)
 
                 return True
 
@@ -2859,68 +2812,46 @@ class TokenManager:
                 logging.error(f"刷新令牌时出错: {e}")
                 return False
 
-    def invalidate_token(self, username, session_id):
+    def invalidate_token(self, username, session_id=None):
         """使令牌失效（用于登出）
+        
+        新的简化设计：直接删除用户的token文件
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容，不再使用）
         """
         with self.lock:
             token_file = self._get_token_file_path(username)
 
-            if not os.path.exists(token_file):
-                return
-
-            try:
-                with open(token_file, 'r', encoding='utf-8') as f:
-                    all_tokens = json.load(f)
-
-                if session_id in all_tokens:
-                    del all_tokens[session_id]
-
-                    # 保存
-                    with open(token_file, 'w', encoding='utf-8') as f:
-                        json.dump(all_tokens, f, indent=2, ensure_ascii=False)
-
-                    logging.info(
-                        f"令牌已失效: {username}, 会话: {session_id[:16]}...")
-            except Exception as e:
-                logging.error(f"使令牌失效时出错: {e}")
+            if os.path.exists(token_file):
+                try:
+                    os.remove(token_file)
+                    logging.info(f"令牌已失效: {username}")
+                except Exception as e:
+                    logging.error(f"删除令牌文件时出错: {e}")
 
     def get_active_sessions(self, username):
         """获取用户所有有效的会话
+        
+        新的简化设计：不再由token文件管理session列表
+        session信息应从./sessions目录获取
 
         Args:
             username: 用户名
 
         Returns:
-            list: 有效会话ID列表
+            list: 空列表（session管理已移至./sessions目录）
         """
-        token_file = self._get_token_file_path(username)
-
-        if not os.path.exists(token_file):
-            return []
-
-        try:
-            with open(token_file, 'r', encoding='utf-8') as f:
-                all_tokens = json.load(f)
-
-            current_time = time.time()
-            active_sessions = []
-
-            for session_id, token_data in all_tokens.items():
-                if current_time <= token_data['expires_at']:
-                    active_sessions.append(session_id)
-
-            return active_sessions
-
-        except Exception as e:
-            logging.error(f"获取活跃会话时出错: {e}")
-            return []
+        # Token文件不再存储session信息，返回空列表
+        # 如需获取活跃会话，应查询./sessions目录
+        logging.debug(f"get_active_sessions: token文件不再管理session列表，请使用session管理功能")
+        return []
 
     def cleanup_expired_tokens(self, username):
         """清理过期的令牌
+        
+        新的简化设计：如果token过期，直接删除整个token文件
 
         Args:
             username: 用户名
@@ -2933,22 +2864,14 @@ class TokenManager:
 
             try:
                 with open(token_file, 'r', encoding='utf-8') as f:
-                    all_tokens = json.load(f)
+                    token_data = json.load(f)
 
                 current_time = time.time()
-                valid_tokens = {}
-
-                for session_id, token_data in all_tokens.items():
-                    if current_time <= token_data['expires_at']:
-                        valid_tokens[session_id] = token_data
-
-                # 保存清理后的tokens
-                with open(token_file, 'w', encoding='utf-8') as f:
-                    json.dump(valid_tokens, f, indent=2, ensure_ascii=False)
-
-                removed_count = len(all_tokens) - len(valid_tokens)
-                if removed_count > 0:
-                    logging.info(f"清理了 {removed_count} 个过期令牌: {username}")
+                
+                # 如果token已过期，删除文件
+                if current_time > token_data.get('expires_at', 0):
+                    os.remove(token_file)
+                    logging.info(f"清理了过期令牌: {username}")
 
             except Exception as e:
                 logging.error(f"清理过期令牌时出错: {e}")
@@ -4486,6 +4409,56 @@ class Api:
             finally:
                 self._load_tasks_inflight = False
 
+    def _try_parse_dt(self, s):
+        """
+        (已重构为类方法)
+        尝试将不同格式的时间字符串解析为 datetime，支持多种常见格式和值类型。失败返回 None。
+        """
+        if not s:
+            return None
+        # 若为数字字符串或数字（可能是时间戳毫秒/秒）
+        try:
+            if isinstance(s, (int, float)):
+                # 判断是秒还是毫秒（如果大于 10^12 认为是毫秒）
+                ts = int(s)
+                if ts > 1e12:
+                    return datetime.datetime.fromtimestamp(ts / 1000.0)
+                if ts > 1e9:
+                    return datetime.datetime.fromtimestamp(ts / 1000.0)
+                return datetime.datetime.fromtimestamp(ts)
+            if s.isdigit():
+                ts = int(s)
+                if ts > 1e12:
+                    return datetime.datetime.fromtimestamp(ts / 1000.0)
+                if ts > 1e9:
+                    return datetime.datetime.fromtimestamp(ts / 1000.0)
+                return datetime.datetime.fromtimestamp(ts)
+        except Exception:
+            pass
+
+        # 尝试多种常见格式
+        fmts = [
+            "%Y-%m-%d %H:%M:%S",
+            "%Y/%m/%d %H:%M:%S",
+            "%Y-%m-%d",
+            "%Y/%m/%d",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S.%f",
+            "%Y-%m-%d %H:%M"
+        ]
+        for f in fmts:
+            try:
+                return datetime.datetime.strptime(s, f)
+            except Exception:
+                continue
+        # 尝试 ISO 解析的简易回退（去掉时区 Z）
+        try:
+            txt = s.rstrip('Z').split('+')[0]
+            return datetime.datetime.fromisoformat(txt)
+        except Exception:
+            pass
+        return None
+
     def _get_task_info_text(self, run: RunData) -> str:
         """根据任务状态生成一个简短的信息文本（增强：多格式时间解析、稳健回退）"""
         if run.status == 1:
@@ -4543,14 +4516,14 @@ class Api:
 
         # 检查是否已过期
         if run.end_time:
-            end_dt = try_parse_dt(run.end_time)
+            end_dt = self._try_parse_dt(run.end_time)
             if end_dt:
                 if (ignore_time and end_dt.date() < now.date()) or (not ignore_time and end_dt < now):
                     return "已过期"
 
         # 检查是否未开始
         if run.start_time:
-            start_dt = try_parse_dt(run.start_time)
+            start_dt = self._try_parse_dt(run.start_time)
             if start_dt:
                 if (ignore_time and now.date() < start_dt.date()) or (not ignore_time and now < start_dt):
                     # 返回更简洁的未开始标记，便于前端直接判断显示“未开始”
@@ -4570,7 +4543,7 @@ class Api:
         if run.end_time:
             try:
                 # 优先以可解析的 end_time 的日期部分显示
-                end_dt = try_parse_dt(run.end_time)
+                end_dt = self._try_parse_dt(run.end_time)
                 if end_dt:
                     return f"截止: {end_dt.strftime('%Y-%m-%d')}"
             except Exception:
@@ -4604,6 +4577,12 @@ class Api:
                 'geoCoorList', []) if p.get('lon') is not None and p.get('lat') is not None]
             run_data.target_point_names = "|".join(
                 [p.get('name', '') for p in details.get('geoCoorList', [])])
+
+
+            if not run_data.target_points:
+                logging.warning(
+                    f"[警告] 任务 '{run_data.run_name}' (ScheduleID: {run_data.errand_schedule}) 未包含任何打卡点 (geoCoorList为空)。")
+
 
             temp_coords = []
             walk_paths = details.get('walkPaths', [])
@@ -5425,7 +5404,8 @@ class Api:
                             socketio.emit('runner_position_update', {
                                 'lon': lon, 'lat': lat, 'distance': run_data.distance_covered_m,
                                 'target_sequence': run_data.target_sequence, 'duration': dur_ms,
-                                'center_now': center_now
+                                'center_now': center_now,
+                                'task_index': task_index  # <-- 新增：将当前任务索引发送给前端
                             }, room=session_id)
                         except Exception as e:
                             logging.error(
@@ -5648,8 +5628,7 @@ class Api:
 
             try:
                 if d.end_time:
-                    end_dt = datetime.datetime.strptime(
-                        d.end_time, '%Y-%m-%d %H:%M:%S')
+                    end_dt = self._try_parse_dt(d.end_time)
                     if ignore_time:
                         is_expired = end_dt.date() < now.date()
                     else:
@@ -5659,8 +5638,7 @@ class Api:
 
             try:
                 if d.start_time:
-                    start_dt = datetime.datetime.strptime(
-                        d.start_time, '%Y-%m-%d %H:%M:%S')
+                    start_dt = self._try_parse_dt(d.start_time)
                     if ignore_time:
                         is_not_started = now.date() < start_dt.date()
                     else:
@@ -8304,40 +8282,40 @@ class Api:
                 # --- 关键修复：在执行操作前，才读取最新的 is_enabled 状态 ---
                 is_enabled = self.params.get("auto_attendance_enabled", False)
 
-                # 3. 只有在启用时才执行自动签到
+                # 3. 只有在启用时才执行自动签到和通知刷新
                 if is_enabled:
                     self.log("(后台) 自动签到已启用，正在检查...")
                     self._check_and_trigger_auto_attendance(self)
+                    
+                    # 4. 获取通知并推送到UI (仅在启用自动签到时执行)
+                    self.log("正在自动刷新通知 (后台)...")
+                    result = self.get_notifications(
+                        is_auto_refresh=True)  # (修复：传入True以避免日志重复)
+
+                    # [BUG 修复]：替换 self.window 为 socketio.emit
+                    if result.get('success'):
+                        # 修复：使用 SocketIO 向特定会话推送更新，而不是 self.window
+                        session_id = getattr(self, '_web_session_id', None)
+                        # 确保 socketio 变量在全局可用 (它在 start_web_server 中定义)
+                        if session_id and 'socketio' in globals():
+                            try:
+                                # 发送一个自定义事件，前端JS需要监听这个事件
+                                globals()['socketio'].emit(
+                                    'onNotificationsUpdated', result, room=session_id)
+                                logging.debug(
+                                    f"[_auto_refresh_worker] 已向会话 {session_id[:8]} 推送通知更新")
+                            except Exception as e:
+                                logging.error(
+                                    f"[_auto_refresh_worker] SocketIO推送通知失败: {e}", exc_info=True)
+                        elif not session_id:
+                            logging.warning(
+                                f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
+                        else:
+                            logging.warning(
+                                f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
                 else:
-                    # 如果未启用，则不执行也不记录日志，保持安静
+                    # 如果未启用，则不执行任何操作也不记录日志，保持安静
                     pass
-
-                # 4. 获取通知并推送到UI (无论是否启用自动签到，都应该执行)
-                self.log("正在自动刷新通知 (后台)...")  # <-- 这是您看到的日志
-                result = self.get_notifications(
-                    is_auto_refresh=True)  # (修复：传入True以避免日志重复)
-
-                # [BUG 修复]：替换 self.window 为 socketio.emit
-                if result.get('success'):
-                    # 修复：使用 SocketIO 向特定会话推送更新，而不是 self.window
-                    session_id = getattr(self, '_web_session_id', None)
-                    # 确保 socketio 变量在全局可用 (它在 start_web_server 中定义)
-                    if session_id and 'socketio' in globals():
-                        try:
-                            # 发送一个自定义事件，前端JS需要监听这个事件
-                            globals()['socketio'].emit(
-                                'onNotificationsUpdated', result, room=session_id)
-                            logging.debug(
-                                f"[_auto_refresh_worker] 已向会话 {session_id[:8]} 推送通知更新")
-                        except Exception as e:
-                            logging.error(
-                                f"[_auto_refresh_worker] SocketIO推送通知失败: {e}", exc_info=True)
-                    elif not session_id:
-                        logging.warning(
-                            f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
-                    else:
-                        logging.warning(
-                            f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
 
             except Exception as e:
                 self.log(f"自动刷新线程出错: {e}")
@@ -9495,9 +9473,11 @@ class BackgroundTaskManager:
                             logging.info(f"任务详情获取成功: {run_data.run_name}")
 
                         if not run_data.target_points:
-                            logging.error(
-                                f"任务缺少目标打卡点，无法自动生成路径: {run_data.run_name}")
-                            continue
+                                
+                                logging.warning(
+                                    f"[跳过任务] 任务 '{run_data.run_name}' 因缺少打卡点 (0个) 而无法自动生成路径。请检查学校平台任务设置。")
+                                
+                                continue
 
                         logging.info(
                             f"任务包含 {len(run_data.target_points)} 个目标打卡点: {run_data.run_name}")
@@ -9510,17 +9490,36 @@ class BackgroundTaskManager:
                             waypoints) > 3 else f"Waypoints: {waypoints}")
 
                         # 必须在调用Chrome池之前获取 Key
-                        amap_key = api_instance.global_params.get(
-                            'amap_js_key', '')
-                        if not amap_key:
-                            logging.error(
-                                f"无法为 {run_data.run_name} 自动规划路径：缺少高德地图 API Key")
-                            # 标记任务状态为错误并跳过
+                        amap_key = ''
+                        try:
+                            # 确保 configparser 和 os 已在文件顶部导入
+                            if os.path.exists(CONFIG_FILE):
+                                cfg = configparser.ConfigParser()
+                                cfg.read(CONFIG_FILE, encoding='utf-8')
+                                amap_key = cfg.get('Map', 'amap_js_key', fallback="")
+                                if not amap_key:
+                                    # 兼容旧版配置
+                                    amap_key = cfg.get('System', 'AmapJsKey', fallback="")
+                            
+                            if amap_key:
+                                logging.info(f"已从 {CONFIG_FILE} 实时加载 AMap Key。")
+                            else:
+                                logging.error(
+                                    f"无法为 {run_data.run_name} 自动规划路径：实时读取 {CONFIG_FILE} 失败，[Map] -> amap_js_key 缺失或为空。")
+                                # 标记任务状态为错误并跳过
+                                with self.lock:
+                                    task_state['status'] = 'error'
+                                    task_state['error'] = '缺少高德地图API Key (实时读取失败)'
+                                    self.save_task_state(session_id, task_state)
+                                continue # 跳过此任务
+
+                        except Exception as e:
+                            logging.error(f"实时读取 AMap Key 时发生错误: {e}", exc_info=True)
                             with self.lock:
                                 task_state['status'] = 'error'
-                                task_state['error'] = '缺少高德地图API Key'
+                                task_state['error'] = f'读取Config.ini失败: {e}'
                                 self.save_task_state(session_id, task_state)
-                            continue  # 跳过此任务
+                            continue
 
                         # 调用Chrome池执行路径规划
                         global chrome_pool
@@ -11666,7 +11665,6 @@ def start_web_server(args_param):
         return jsonify({
             "success": True,
             "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True),
-            "guest_auto_fill_password": auth_system.config.getboolean('AutoFill', 'guest_auto_fill_password', fallback=False),
             "amap_js_key": auth_system.config.get('Map', 'amap_js_key', fallback='')
         })
 
@@ -12178,7 +12176,7 @@ def start_web_server(args_param):
 
     @app.route('/logs/view', methods=['GET'])
     def view_logs():
-        """查看应用日志（管理员）"""
+        """查看应用日志（管理员）- 分页模式"""
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
@@ -12190,33 +12188,69 @@ def start_web_server(args_param):
         if auth_group not in ['admin', 'super_admin']:
             return jsonify({"success": False, "message": "权限不足"}), 403
 
-        # 读取最近的日志（最多1000行）
-        lines = int(request.args.get('lines', 100))
-        lines = min(lines, 1000)  # 限制最多1000行
+        # --- [修复] 分页参数 ---
+        try:
+            page = int(request.args.get('page', 1))
+            limit = int(request.args.get('limit', 100))
+            if page < 1:
+                page = 1
+            if limit < 1:
+                limit = 100
+            if limit > 2000:  # 限制每页最多2000行
+                limit = 2000
+        except ValueError:
+            page = 1
+            limit = 100
 
-        log_content = []
-        # 尝试读取日志文件
+        all_log_content = []
         log_files = []
 
         # 查找日志目录中的日志文件
         if os.path.exists(LOGIN_LOGS_DIR):
-            for f in os.listdir(LOGIN_LOGS_DIR):
-                if f.endswith('.log') or f.endswith('.jsonl'):
-                    log_files.append(os.path.join(LOGIN_LOGS_DIR, f))
+            # [修复] 确保按名称排序，以便'zx-slm-tool.log'在'zx-slm-tool-01.log'之前
+            files = sorted([f for f in os.listdir(LOGIN_LOGS_DIR) if f.endswith('.log') or f.endswith('.jsonl')])
+            for f in files:
+                log_files.append(os.path.join(LOGIN_LOGS_DIR, f))
 
-        # 读取最近的日志
-        for log_file in log_files[:5]:  # 最多读取5个日志文件
+        # [修复] 读取所有日志文件内容
+        # (注意：如果日志文件非常大，这里可能会消耗大量内存)
+        for log_file in log_files:
             try:
                 with open(log_file, 'r', encoding='utf-8') as f:
-                    content = f.readlines()
-                    log_content.extend(content[-lines:])
+                    all_log_content.extend(f.readlines())
             except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
                 logging.debug(f"[日志读取] 无法读取日志文件 {log_file}: {e}")
                 continue
+        
+        # --- [修复] 分页计算 ---
+        total_lines = len(all_log_content)
+        total_pages = (total_lines + limit - 1) // limit  # 向上取整
+        if page > total_pages and total_pages > 0:
+            page = total_pages
+
+        # 计算切片索引 (注意：日志是倒序显示的，所以我们从末尾开始取)
+        # 例如：共 1000 行, 每页 100.
+        # 第1页 (page=1): lines[900:1000] (索引 -100 到末尾)
+        # 第2页 (page=2): lines[800:900] (索引 -200 到 -100)
+        
+        start_index = max(0, total_lines - (page * limit))
+        end_index = total_lines - ((page - 1) * limit)
+        
+        # 获取当前页的日志 (从旧到新)
+        paginated_logs = all_log_content[start_index:end_index]
+        
+        # [修复] 反转列表，使最新的日志在最上面
+        paginated_logs.reverse()
 
         return jsonify({
             "success": True,
-            "logs": log_content[-lines:]  # 返回最近的N行
+            "logs": paginated_logs, # 返回当前页的行
+            "pagination": {
+                "current_page": page,
+                "total_pages": total_pages,
+                "total_lines": total_lines,
+                "limit": limit
+            }
         })
 
     @app.route('/auth/admin/reset_password', methods=['POST'])
@@ -13471,6 +13505,18 @@ def start_web_server(args_param):
                     result = func(**params) if isinstance(params,dict) else func(*params)
                 else:
                     result = func()
+
+                # 权限过滤：on_user_selected需要检查auto_fill_password权限
+                if method == 'on_user_selected' and result and isinstance(result, dict):
+                    # 检查用户是否有auto_fill_password权限
+                    has_auto_fill = False
+                    if hasattr(api_instance, 'auth_username'):
+                        has_auto_fill = auth_system.check_permission(
+                            api_instance.auth_username, 'auto_fill_password')
+                    
+                    # 如果没有权限，清空密码字段
+                    if not has_auto_fill:
+                        result['password'] = ""
 
                 # 关键改进：对于会改变会话状态的API调用，保存会话状态
                 # 扩展自动保存的方法列表，包括所有可能改变状态的操作
