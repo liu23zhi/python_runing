@@ -4,6 +4,7 @@
 
 # ===== 导入标准库 =====
 import argparse  # 命令行参数解析，用于启动参数配置
+import base64  # Base64编解码，用于处理二进制文件内容传输
 import bisect  # 二分查找算法，可能用于有序列表操作
 import collections  # 集合数据类型，提供特殊容器如deque、Counter等
 import configparser  # INI配置文件解析，用于读写config.ini
@@ -6629,32 +6630,66 @@ class Api:
                 read_only=True
             )
 
-    def multi_import_accounts(self):
-        """从文件导入账号密码，支持 .xlsx/.xls/.csv"""
-        filepath = self.open_file_dialog('open', {
-            'filetypes': [
-                ('Excel 文件 (*.xlsx;*.xls)', '*.xlsx;*.xls'),
-                ('CSV 文件 (*.csv)', '*.csv'),
-                ('所有文件 (*.*)', '*.*')
-            ]
-        })
-        if not filepath:
-            return {"success": False, "message": "用户取消操作"}
+    def multi_import_accounts(self, filename=None, base64_content=None):
+        """从文件导入账号密码，支持 .xlsx/.xls/.csv
+        
+        Args:
+            filename: 文件名（可选，Web模式时从前端传入）
+            base64_content: Base64编码的文件内容（可选，Web模式时从前端传入）
+        """
+        # Web模式：使用前端传入的文件名和Base64内容（直接从内存处理，不写磁盘）
+        if filename and base64_content:
+            try:
+                # 解码Base64内容到内存
+                file_data = base64.b64decode(base64_content)
+                file_stream = io.BytesIO(file_data)
+                
+                # 确定文件扩展名
+                ext = os.path.splitext(filename)[1].lower()
+                
+                logging.info(f"Web模式：正在从内存处理上传的文件 {filename}（大小：{len(file_data)} 字节）")
+                
+                # 使用内存流而不是文件路径
+                use_memory_stream = True
+            except Exception as e:
+                logging.error(f"解码Base64内容失败: {e}")
+                return {"success": False, "message": f"文件处理失败: {e}"}
+        else:
+            # 桌面模式：使用文件对话框
+            filepath = self.open_file_dialog('open', {
+                'filetypes': [
+                    ('Excel 文件 (*.xlsx;*.xls)', '*.xlsx;*.xls'),
+                    ('CSV 文件 (*.csv)', '*.csv'),
+                    ('所有文件 (*.*)', '*.*')
+                ]
+            })
+            if not filepath:
+                return {"success": False, "message": "用户取消操作"}
+            
+            ext = os.path.splitext(filepath)[1].lower()
+            use_memory_stream = False
 
         try:
             imported = 0
-            ext = os.path.splitext(filepath)[1].lower()
             seen_usernames: set[str] = set()  # 本次导入会话内去重，避免同一文件重复账号多次导入
 
             if ext == ".xlsx":
                 # 使用只读模式安全加载工作簿
                 try:
-                    wb = self.safe_load_workbook(filepath, keep_links=False)
+                    if use_memory_stream:
+                        # 从内存流加载
+                        wb = openpyxl.load_workbook(file_stream, data_only=True, read_only=True, keep_links=False)
+                    else:
+                        # 从文件路径加载
+                        wb = self.safe_load_workbook(filepath, keep_links=False)
                 except TypeError as e:
                     # 针对个别环境样式解析异常的兜底
                     warnings.warn(f"样式解析失败，已忽略样式: {e}")
-                    wb = self.safe_load_workbook(
-                        filepath, keep_links=False, keep_vba=False)
+                    if use_memory_stream:
+                        file_stream.seek(0)  # 重置流位置
+                        wb = openpyxl.load_workbook(file_stream, data_only=True, read_only=True, keep_links=False, keep_vba=False)
+                    else:
+                        wb = self.safe_load_workbook(filepath, keep_links=False, keep_vba=False)
 
                 sh = wb.active
                 skipped_no_password = []  # 收集无密码且 .ini 无密码的账号
@@ -6687,7 +6722,12 @@ class Api:
                     imported += 1
 
             elif ext == ".xls":
-                book = xlrd.open_workbook(filepath)
+                if use_memory_stream:
+                    # xlrd支持从内存流读取
+                    file_stream.seek(0)  # 重置流位置
+                    book = xlrd.open_workbook(file_contents=file_stream.read())
+                else:
+                    book = xlrd.open_workbook(filepath)
                 sh = book.sheet_by_index(0)
                 skipped_no_password = []
                 for r in range(1, sh.nrows):
@@ -6711,8 +6751,18 @@ class Api:
 
             elif ext == ".csv":
                 skipped_no_password = []
-                with open(filepath, "r", encoding="utf-8-sig", newline="") as f:
-                    reader = csv.reader(f)
+                if use_memory_stream:
+                    # 从内存流读取CSV
+                    file_stream.seek(0)  # 重置流位置
+                    # 将字节流转换为文本流
+                    text_stream = io.TextIOWrapper(file_stream, encoding="utf-8-sig", newline="")
+                    reader = csv.reader(text_stream)
+                else:
+                    # 从文件读取CSV
+                    text_stream = open(filepath, "r", encoding="utf-8-sig", newline="")
+                    reader = csv.reader(text_stream)
+                
+                try:
                     first_row = True
                     for row in reader:
                         if not row or len(row) < 1:
@@ -6739,6 +6789,9 @@ class Api:
 
                             self.multi_add_account(username, final_password)
                             imported += 1
+                finally:
+                    if not use_memory_stream:
+                        text_stream.close()
 
             else:
                 return {"success": False, "message": f"不支持的导入格式: {ext}"}
