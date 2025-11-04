@@ -7605,6 +7605,7 @@ class Api:
             tasks_to_run_candidates = []
             now = datetime.datetime.now()
             ignore_time = acc.params.get("ignore_task_time", True)
+            acc.log(f"分析任务参数: ignore_task_time={ignore_time}, run_only_incomplete={run_only_incomplete}")
             for r in acc.all_run_data:
                 # 解析时间
                 start_dt = None
@@ -7638,6 +7639,8 @@ class Api:
 
             tasks_to_run = [t for t in tasks_to_run_candidates if t.status ==
                             0] if run_only_incomplete else tasks_to_run_candidates
+            
+            acc.log(f"任务筛选结果: 候选任务={len(tasks_to_run_candidates)}, 待执行任务={len(tasks_to_run)}")
 
             if not tasks_to_run:
                 self._update_account_status_js(acc, status_text="无任务可执行")
