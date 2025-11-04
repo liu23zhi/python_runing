@@ -11370,8 +11370,12 @@ def start_web_server(args_param):
         new_group = data.get('new_group', '')
 
         if new_group == 'super_admin':
-            return jsonify({"success": False, "message": "不能分配超级管理员组"})
+            return jsonify({"success": False, "message": "不允许分配超级管理员组"})
 
+        super_admin = auth_system.config.get('Admin', 'super_admin', fallback='admin')
+        if target_username == super_admin:
+            return jsonify({"success": False, "message": "不允许修改超级管理员用户组的用户"})
+            
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权"})
 
