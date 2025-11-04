@@ -7896,7 +7896,21 @@
         if (notificationBadge) {
           notificationBadge.classList.add('hidden');
         }
-        await fetchNotifications();
+        
+        // 【优化】登录返回的结果中已经包含预加载的通知，无需再次请求
+        if (result.cached_notifications && result.cached_notifications.notices.length > 0) {
+          logMessage_Info(`使用登录时预加载的 ${result.cached_notifications.notices.length} 条通知`);
+          // 更新徽章
+          if (result.cached_notifications.unreadCount > 0) {
+            notificationBadge.textContent = result.cached_notifications.unreadCount > 9 ? '9+' : result.cached_notifications.unreadCount;
+            notificationBadge.classList.remove('hidden');
+          }
+          // 缓存到全局变量
+          window.currentNotifications = result.cached_notifications.notices;
+        } else {
+          // 如果登录响应中没有预加载通知，则主动获取
+          await fetchNotifications();
+        }
 
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
@@ -10503,7 +10517,7 @@
       }
       return result; // <-- 4. 现在可以安全返回
     }
-    async function refreshNotificationsUI() {
+    async function refreshNotificationsUI(useCache = true) {
       // --- BUG修复：防止重复点击 ---
       if (isRefreshingNotifications) {
         logMessage_Info("Notification refresh already in progress. Skipping.");
@@ -10522,10 +10536,51 @@
         refreshBtn.textContent = '刷新中...';
       }
       if (markReadBtn) markReadBtn.disabled = true;
-      content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载前5条通知...</p>';
-
+      
       try {
-        // 【优化】渐进式分段加载：每次加载5条，立即显示
+        // 【优化】步骤1：如果启用缓存，先尝试显示缓存的通知
+        let cachedDisplayed = false;
+        if (useCache) {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载缓存通知...</p>';
+          
+          try {
+            const cachedResult = await callPythonAPI('get_cached_notifications');
+            if (cachedResult && cachedResult.success && cachedResult.cached && cachedResult.notices.length > 0) {
+              logMessage_Info(`显示缓存的 ${cachedResult.notices.length} 条通知`);
+              content.innerHTML = '';
+              renderNotificationBatch(cachedResult.notices, content);
+              cachedDisplayed = true;
+              
+              // 更新徽章
+              const badge = $('notification-badge');
+              if (cachedResult.unreadCount > 0) {
+                badge.textContent = cachedResult.unreadCount > 9 ? '9+' : cachedResult.unreadCount;
+                badge.classList.remove('hidden');
+              } else {
+                badge.classList.add('hidden');
+              }
+              
+              // 更新按钮状态
+              const hasUnread = cachedResult.notices.some(n => n.isRead == 0 || n.isRead === false);
+              if (markReadBtn) markReadBtn.disabled = !hasUnread;
+              
+              // 显示"正在刷新"提示
+              const refreshingIndicator = document.createElement('div');
+              refreshingIndicator.id = 'refreshing-indicator';
+              refreshingIndicator.className = 'p-3 text-center text-slate-400 text-sm';
+              refreshingIndicator.innerHTML = '正在刷新最新通知...';
+              content.appendChild(refreshingIndicator);
+            }
+          } catch (e) {
+            logMessage_Warning("获取缓存通知失败，将直接加载最新通知", e);
+          }
+        }
+        
+        if (!cachedDisplayed) {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载前5条通知...</p>';
+        }
+
+        // 【优化】步骤2：渐进式分段加载最新通知
         let currentOffset = 0;
         const batchSize = 5;
         let hasMore = true;
@@ -10541,7 +10596,7 @@
           const result = await fetchNotifications(batchSize, currentOffset);
           
           if (!result || !result.success) {
-            if (firstLoad) {
+            if (firstLoad && !cachedDisplayed) {
               content.innerHTML = '<p class="text-red-500 text-center py-10">加载失败，请稍后重试</p>';
             }
             return;
@@ -10550,9 +10605,10 @@
           const notices = result.notices || [];
           
           if (firstLoad) {
-            // 首次加载，清空"正在加载"提示
+            // 首次加载新数据，清空之前的内容（包括缓存或"正在加载"提示）
             content.innerHTML = '';
             firstLoad = false;
+            logMessage_Info(`首批新通知加载完成，${cachedDisplayed ? '已替换' : '正在显示'}缓存数据`);
           }
           
           if (notices.length === 0 && currentOffset === 0) {

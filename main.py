@@ -4263,6 +4263,24 @@ class Api:
         logging.info(
             f"会话状态已保存: login_success={self.login_success}, user_id={ud.id}")
 
+        # --- 新增：预加载前5条通知并缓存到会话 ---
+        cached_notifications = None
+        try:
+            logging.info("登录成功后预加载前5条通知...")
+            notif_result = self.get_notifications(is_auto_refresh=False, request_limit=5, request_offset=0)
+            if notif_result and notif_result.get('success'):
+                cached_notifications = {
+                    'notices': notif_result.get('notices', []),
+                    'unreadCount': notif_result.get('unreadCount', 0),
+                    'cached_at': time.time()
+                }
+                # 保存到实例属性中，后续会被 save_session_state 保存
+                self.cached_notifications = cached_notifications
+                logging.info(f"成功预加载并缓存 {len(cached_notifications['notices'])} 条通知")
+        except Exception as e:
+            logging.warning(f"预加载通知失败（非致命错误）: {e}")
+        # --- 结束预加载通知 ---
+
         # --- 新增: 在成功登录的返回结果中包含 auth_group ---
         auth_group = getattr(self, 'auth_group', 'guest')  # 从 Api 实例获取认证时确定的组
 
@@ -4271,7 +4289,8 @@ class Api:
             "userInfo": user_info_dict,
             "ua": self.device_ua,
             "amap_key": self.global_params.get('amap_js_key', ''),
-            "auth_group": auth_group
+            "auth_group": auth_group,
+            "cached_notifications": cached_notifications  # 返回缓存的通知给前端
         }
 
     def logout(self):
@@ -8269,6 +8288,15 @@ class Api:
             if not is_auto_refresh:
                 self.log(f"获取到 {unread_count} 条未读通知，本次返回 {len(notices)} 条通知。")
 
+            # 【新增】如果这是首次加载（offset=0）且获取了5条或更多通知，更新缓存
+            if request_offset == 0 and len(notices) >= 5:
+                self.cached_notifications = {
+                    'notices': notices[:5],  # 只缓存前5条
+                    'unreadCount': unread_count,
+                    'cached_at': time.time()
+                }
+                logging.debug(f"已更新缓存通知：{len(self.cached_notifications['notices'])} 条")
+
             return {
                 "success": True,
                 "unreadCount": unread_count,
@@ -8281,6 +8309,33 @@ class Api:
             self.log(f"获取通知失败: {e}")
             logging.error(f"get_notifications failed: {e}", exc_info=True)
             return {"success": False, "message": str(e)}
+
+    def get_cached_notifications(self):
+        """获取缓存的通知（用于快速显示）"""
+        logging.info("API调用: get_cached_notifications - 获取缓存的通知")
+        
+        if hasattr(self, 'cached_notifications') and self.cached_notifications:
+            # 检查缓存是否过期（超过5分钟）
+            cached_at = self.cached_notifications.get('cached_at', 0)
+            age_seconds = time.time() - cached_at
+            
+            if age_seconds < 300:  # 5分钟内的缓存有效
+                logging.debug(f"返回缓存的通知，缓存年龄: {age_seconds:.1f}秒")
+                return {
+                    "success": True,
+                    "cached": True,
+                    "unreadCount": self.cached_notifications.get('unreadCount', 0),
+                    "notices": self.cached_notifications.get('notices', []),
+                    "cached_at": cached_at
+                }
+            else:
+                logging.debug(f"缓存已过期（{age_seconds:.1f}秒），返回空")
+        
+        return {
+            "success": True,
+            "cached": False,
+            "notices": []
+        }
 
     def mark_notification_read(self, notice_id):
         """(单账号) 将指定ID的通知设为已读"""
@@ -8865,6 +8920,10 @@ def save_session_state(session_id, api_instance, force_save=False):
             if hasattr(api_instance, 'device_ua'):
                 state['device_ua'] = api_instance.device_ua
 
+            # 增强：保存缓存的通知（用于快速显示）
+            if hasattr(api_instance, 'cached_notifications'):
+                state['cached_notifications'] = api_instance.cached_notifications
+
             # 增强：保存用户数据
             if hasattr(api_instance, 'user_data') and api_instance.user_data:
                 user_data = api_instance.user_data
@@ -9177,6 +9236,10 @@ def restore_session_to_api_instance(api_instance, state):
         # 恢复User-Agent
         if 'device_ua' in state:
             api_instance.device_ua = state['device_ua']
+
+        # 恢复缓存的通知
+        if 'cached_notifications' in state:
+            api_instance.cached_notifications = state['cached_notifications']
 
         # 恢复用户数据
         if 'user_data' in state:
