@@ -2655,32 +2655,27 @@ class TokenManager:
         logging.debug(f"generate_token: 生成新令牌，长度: {len(token)} 字符")
         return token
 
-    def create_token(self, username, session_id):
+    def create_token(self, username, session_id=None):
         """为用户创建新令牌并存储
+        
+        新的简化设计：一个用户只有一个token，不再关联session_id
+        session信息由./sessions目录管理，token只负责认证
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容现有调用，但不再存储）
 
         Returns:
             token: 生成的令牌字符串
         """
-        # 验证session_id有效性，拒绝null、空字符串或无效的UUID
-        if not session_id or session_id == 'null' or session_id.strip() == '':
-            logging.warning(f"create_token: 拒绝为无效session_id创建token (session_id={session_id})")
-            return None
-        
-        session_preview = session_id[:16] if session_id and len(
-            session_id) >= 16 else session_id
-        logging.info(
-            f"create_token: 为用户 {username} 创建令牌，会话: {session_preview}...")
+        logging.info(f"create_token: 为用户 {username} 创建令牌...")
         token = self.generate_token()
         created_at = time.time()
         expires_at = created_at + 3600  # 1小时后过期
 
+        # 简化的token数据：只存储token本身和时间信息，不存储session_id
         token_data = {
             'token': token,
-            'session_id': session_id,
             'created_at': created_at,
             'expires_at': expires_at,
             'last_activity': created_at
@@ -2689,39 +2684,22 @@ class TokenManager:
         with self.lock:
             token_file = self._get_token_file_path(username)
 
-            # 读取现有tokens
-            all_tokens = {}
-            if os.path.exists(token_file):
-                try:
-                    with open(token_file, 'r', encoding='utf-8') as f:
-                        all_tokens = json.load(f)
-                except (FileNotFoundError, json.JSONDecodeError) as e:
-                    logging.debug(f"[Token存储] 无法读取token文件，初始化为空: {e}")
-                    all_tokens = {}
-
-            # 清理无效的session_id (null, 空字符串)
-            invalid_sessions = [sid for sid in all_tokens.keys() 
-                              if not sid or sid == 'null' or sid.strip() == '']
-            for invalid_sid in invalid_sessions:
-                del all_tokens[invalid_sid]
-                logging.info(f"[Token清理] 删除无效session_id: {invalid_sid}")
-
-            # 添加新token
-            all_tokens[session_id] = token_data
-
-            # 保存到文件
+            # 直接覆盖写入，一个用户只有一个token
             with open(token_file, 'w', encoding='utf-8') as f:
-                json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+                json.dump(token_data, f, indent=2, ensure_ascii=False)
 
-        logging.info(f"为用户 {username} 创建新令牌，会话: {session_preview}...")
+        logging.info(f"为用户 {username} 创建新令牌完成")
         return token
 
     def verify_token(self, username, session_id, token):
         """验证令牌是否有效
+        
+        新的简化设计：只验证用户名和token，不再关联session_id
+        session_id参数保留以兼容现有调用
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容，不再使用）
             token: 要验证的令牌
 
         Returns:
@@ -2734,19 +2712,14 @@ class TokenManager:
 
         try:
             with open(token_file, 'r', encoding='utf-8') as f:
-                all_tokens = json.load(f)
-
-            if session_id not in all_tokens:
-                return False, "session_not_found"
-
-            token_data = all_tokens[session_id]
+                token_data = json.load(f)
 
             # 检查令牌是否匹配
-            if token_data['token'] != token:
+            if token_data.get('token') != token:
                 return False, "token_mismatch"
 
             # 检查是否过期
-            if time.time() > token_data['expires_at']:
+            if time.time() > token_data.get('expires_at', 0):
                 return False, "token_expired"
 
             return True, "valid"
@@ -2755,14 +2728,16 @@ class TokenManager:
             logging.error(f"验证令牌时出错: {e}")
             return False, "error"
 
-    def get_valid_token_for_session(self, username, session_id):
+    def get_valid_token_for_session(self, username, session_id=None):
         """
-        获取指定用户和会话ID的有效Token（如果存在且未过期）。
+        获取指定用户的有效Token（如果存在且未过期）。
         如果找到有效Token，会刷新其活动时间。
+        
+        新的简化设计：不再关联session_id，每个用户只有一个token
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容，不再使用）
 
         Returns:
             str | None: 如果找到有效Token则返回Token字符串，否则返回None。
@@ -2776,24 +2751,13 @@ class TokenManager:
             # 使用锁确保读取和可能的刷新操作是原子的
             with self.lock:
                 with open(token_file, 'r', encoding='utf-8') as f:
-                    all_tokens = json.load(f)
+                    token_data = json.load(f)
 
-                if session_id not in all_tokens:
-                    logging.debug(
-                        f"get_valid_token_for_session: 会话 {session_id[:8]} 未找到Token记录")
-                    return None
-
-                token_data = all_tokens[session_id]
                 current_time = time.time()
 
                 # 检查是否过期
-                if current_time > token_data['expires_at']:
-                    logging.debug(
-                        f"get_valid_token_for_session: 会话 {session_id[:8]} 的Token已过期")
-                    # (可选) 在这里可以顺便清理掉这个过期的记录，如果需要的话
-                    # del all_tokens[session_id]
-                    # with open(token_file, 'w', encoding='utf-8') as wf:
-                    #     json.dump(all_tokens, wf, indent=2, ensure_ascii=False)
+                if current_time > token_data.get('expires_at', 0):
+                    logging.debug(f"get_valid_token_for_session: 用户 {username} 的Token已过期")
                     return None
 
                 # Token有效，刷新活动时间并延长有效期
@@ -2802,22 +2766,23 @@ class TokenManager:
 
                 # 写回更新后的Token数据
                 with open(token_file, 'w', encoding='utf-8') as f:
-                    json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+                    json.dump(token_data, f, indent=2, ensure_ascii=False)
 
-                logging.info(
-                    f"get_valid_token_for_session: 找到并刷新了会话 {session_id[:8]} 的有效Token")
-                return token_data['token']  # 返回有效的Token字符串
+                logging.info(f"get_valid_token_for_session: 找到并刷新了用户 {username} 的有效Token")
+                return token_data.get('token')  # 返回有效的Token字符串
 
         except Exception as e:
-            logging.error(f"获取会话Token时出错 ({username}, {session_id[:8]}): {e}")
+            logging.error(f"获取Token时出错 (用户: {username}): {e}")
             return None
 
-    def refresh_token(self, username, session_id):
+    def refresh_token(self, username, session_id=None):
         """刷新令牌的过期时间和最后活动时间
+        
+        新的简化设计：不再关联session_id
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容，不再使用）
 
         Returns:
             bool: 是否刷新成功
@@ -2830,20 +2795,16 @@ class TokenManager:
 
             try:
                 with open(token_file, 'r', encoding='utf-8') as f:
-                    all_tokens = json.load(f)
-
-                if session_id not in all_tokens:
-                    return False
+                    token_data = json.load(f)
 
                 # 更新过期时间和最后活动时间
                 current_time = time.time()
-                # 延长1小时
-                all_tokens[session_id]['expires_at'] = current_time + 3600
-                all_tokens[session_id]['last_activity'] = current_time
+                token_data['expires_at'] = current_time + 3600  # 延长1小时
+                token_data['last_activity'] = current_time
 
                 # 保存
                 with open(token_file, 'w', encoding='utf-8') as f:
-                    json.dump(all_tokens, f, indent=2, ensure_ascii=False)
+                    json.dump(token_data, f, indent=2, ensure_ascii=False)
 
                 return True
 
@@ -2851,68 +2812,46 @@ class TokenManager:
                 logging.error(f"刷新令牌时出错: {e}")
                 return False
 
-    def invalidate_token(self, username, session_id):
+    def invalidate_token(self, username, session_id=None):
         """使令牌失效（用于登出）
+        
+        新的简化设计：直接删除用户的token文件
 
         Args:
             username: 用户名
-            session_id: 会话UUID
+            session_id: 会话UUID（保留参数以兼容，不再使用）
         """
         with self.lock:
             token_file = self._get_token_file_path(username)
 
-            if not os.path.exists(token_file):
-                return
-
-            try:
-                with open(token_file, 'r', encoding='utf-8') as f:
-                    all_tokens = json.load(f)
-
-                if session_id in all_tokens:
-                    del all_tokens[session_id]
-
-                    # 保存
-                    with open(token_file, 'w', encoding='utf-8') as f:
-                        json.dump(all_tokens, f, indent=2, ensure_ascii=False)
-
-                    logging.info(
-                        f"令牌已失效: {username}, 会话: {session_id[:16]}...")
-            except Exception as e:
-                logging.error(f"使令牌失效时出错: {e}")
+            if os.path.exists(token_file):
+                try:
+                    os.remove(token_file)
+                    logging.info(f"令牌已失效: {username}")
+                except Exception as e:
+                    logging.error(f"删除令牌文件时出错: {e}")
 
     def get_active_sessions(self, username):
         """获取用户所有有效的会话
+        
+        新的简化设计：不再由token文件管理session列表
+        session信息应从./sessions目录获取
 
         Args:
             username: 用户名
 
         Returns:
-            list: 有效会话ID列表
+            list: 空列表（session管理已移至./sessions目录）
         """
-        token_file = self._get_token_file_path(username)
-
-        if not os.path.exists(token_file):
-            return []
-
-        try:
-            with open(token_file, 'r', encoding='utf-8') as f:
-                all_tokens = json.load(f)
-
-            current_time = time.time()
-            active_sessions = []
-
-            for session_id, token_data in all_tokens.items():
-                if current_time <= token_data['expires_at']:
-                    active_sessions.append(session_id)
-
-            return active_sessions
-
-        except Exception as e:
-            logging.error(f"获取活跃会话时出错: {e}")
-            return []
+        # Token文件不再存储session信息，返回空列表
+        # 如需获取活跃会话，应查询./sessions目录
+        logging.debug(f"get_active_sessions: token文件不再管理session列表，请使用session管理功能")
+        return []
 
     def cleanup_expired_tokens(self, username):
         """清理过期的令牌
+        
+        新的简化设计：如果token过期，直接删除整个token文件
 
         Args:
             username: 用户名
@@ -2925,22 +2864,14 @@ class TokenManager:
 
             try:
                 with open(token_file, 'r', encoding='utf-8') as f:
-                    all_tokens = json.load(f)
+                    token_data = json.load(f)
 
                 current_time = time.time()
-                valid_tokens = {}
-
-                for session_id, token_data in all_tokens.items():
-                    if current_time <= token_data['expires_at']:
-                        valid_tokens[session_id] = token_data
-
-                # 保存清理后的tokens
-                with open(token_file, 'w', encoding='utf-8') as f:
-                    json.dump(valid_tokens, f, indent=2, ensure_ascii=False)
-
-                removed_count = len(all_tokens) - len(valid_tokens)
-                if removed_count > 0:
-                    logging.info(f"清理了 {removed_count} 个过期令牌: {username}")
+                
+                # 如果token已过期，删除文件
+                if current_time > token_data.get('expires_at', 0):
+                    os.remove(token_file)
+                    logging.info(f"清理了过期令牌: {username}")
 
             except Exception as e:
                 logging.error(f"清理过期令牌时出错: {e}")
