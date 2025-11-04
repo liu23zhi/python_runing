@@ -1024,7 +1024,7 @@ def _create_permissions_json():
                     "clear_logs": False,
 
                     # 新增细分权限
-                    "auto_fill_password": True,  # 自动填充密码
+                    "auto_fill_password": False,  # 自动填充密码（普通用户默认无此权限）
                     "import_offline": True,
                     "export_data": True,
                     "modify_params": True,
@@ -2665,6 +2665,11 @@ class TokenManager:
         Returns:
             token: 生成的令牌字符串
         """
+        # 验证session_id有效性，拒绝null、空字符串或无效的UUID
+        if not session_id or session_id == 'null' or session_id.strip() == '':
+            logging.warning(f"create_token: 拒绝为无效session_id创建token (session_id={session_id})")
+            return None
+        
         session_preview = session_id[:16] if session_id and len(
             session_id) >= 16 else session_id
         logging.info(
@@ -2693,6 +2698,13 @@ class TokenManager:
                 except (FileNotFoundError, json.JSONDecodeError) as e:
                     logging.debug(f"[Token存储] 无法读取token文件，初始化为空: {e}")
                     all_tokens = {}
+
+            # 清理无效的session_id (null, 空字符串)
+            invalid_sessions = [sid for sid in all_tokens.keys() 
+                              if not sid or sid == 'null' or sid.strip() == '']
+            for invalid_sid in invalid_sessions:
+                del all_tokens[invalid_sid]
+                logging.info(f"[Token清理] 删除无效session_id: {invalid_sid}")
 
             # 添加新token
             all_tokens[session_id] = token_data
@@ -8284,40 +8296,40 @@ class Api:
                 # --- 关键修复：在执行操作前，才读取最新的 is_enabled 状态 ---
                 is_enabled = self.params.get("auto_attendance_enabled", False)
 
-                # 3. 只有在启用时才执行自动签到
+                # 3. 只有在启用时才执行自动签到和通知刷新
                 if is_enabled:
                     self.log("(后台) 自动签到已启用，正在检查...")
                     self._check_and_trigger_auto_attendance(self)
+                    
+                    # 4. 获取通知并推送到UI (仅在启用自动签到时执行)
+                    self.log("正在自动刷新通知 (后台)...")
+                    result = self.get_notifications(
+                        is_auto_refresh=True)  # (修复：传入True以避免日志重复)
+
+                    # [BUG 修复]：替换 self.window 为 socketio.emit
+                    if result.get('success'):
+                        # 修复：使用 SocketIO 向特定会话推送更新，而不是 self.window
+                        session_id = getattr(self, '_web_session_id', None)
+                        # 确保 socketio 变量在全局可用 (它在 start_web_server 中定义)
+                        if session_id and 'socketio' in globals():
+                            try:
+                                # 发送一个自定义事件，前端JS需要监听这个事件
+                                globals()['socketio'].emit(
+                                    'onNotificationsUpdated', result, room=session_id)
+                                logging.debug(
+                                    f"[_auto_refresh_worker] 已向会话 {session_id[:8]} 推送通知更新")
+                            except Exception as e:
+                                logging.error(
+                                    f"[_auto_refresh_worker] SocketIO推送通知失败: {e}", exc_info=True)
+                        elif not session_id:
+                            logging.warning(
+                                f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
+                        else:
+                            logging.warning(
+                                f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
                 else:
-                    # 如果未启用，则不执行也不记录日志，保持安静
+                    # 如果未启用，则不执行任何操作也不记录日志，保持安静
                     pass
-
-                # 4. 获取通知并推送到UI (无论是否启用自动签到，都应该执行)
-                self.log("正在自动刷新通知 (后台)...")  # <-- 这是您看到的日志
-                result = self.get_notifications(
-                    is_auto_refresh=True)  # (修复：传入True以避免日志重复)
-
-                # [BUG 修复]：替换 self.window 为 socketio.emit
-                if result.get('success'):
-                    # 修复：使用 SocketIO 向特定会话推送更新，而不是 self.window
-                    session_id = getattr(self, '_web_session_id', None)
-                    # 确保 socketio 变量在全局可用 (它在 start_web_server 中定义)
-                    if session_id and 'socketio' in globals():
-                        try:
-                            # 发送一个自定义事件，前端JS需要监听这个事件
-                            globals()['socketio'].emit(
-                                'onNotificationsUpdated', result, room=session_id)
-                            logging.debug(
-                                f"[_auto_refresh_worker] 已向会话 {session_id[:8]} 推送通知更新")
-                        except Exception as e:
-                            logging.error(
-                                f"[_auto_refresh_worker] SocketIO推送通知失败: {e}", exc_info=True)
-                    elif not session_id:
-                        logging.warning(
-                            f"[_auto_refresh_worker] 无法推送通知：未找到 _web_session_id")
-                    else:
-                        logging.warning(
-                            f"[_auto_refresh_worker] 无法推送通知：socketio 实例不可用")
 
             except Exception as e:
                 self.log(f"自动刷新线程出错: {e}")
