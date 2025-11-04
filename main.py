@@ -6119,6 +6119,25 @@ class Api:
         self.is_multi_account_mode = True
         self._update_multi_global_buttons()
 
+        # 发送账号列表到前端（修复：页面刷新后账号列表丢失的问题）
+        session_id = getattr(self, '_web_session_id', None)
+        if session_id and socketio:
+            try:
+                accounts_data = []
+                for username, acc in self.accounts.items():
+                    accounts_data.append({
+                        'username': username,
+                        'name': acc.user_data.name if acc.user_data.name else username,
+                        'status_text': acc.status_text,
+                        'summary': acc.summary,
+                        'params': acc.params
+                    })
+                socketio.emit('accounts_updated', {
+                    'accounts': accounts_data
+                }, room=session_id)
+            except Exception as e:
+                logging.error(f"Failed to emit accounts_updated on mode entry: {e}")
+
         try:
             self.stop_multi_auto_refresh.clear()
             if self.multi_auto_refresh_thread is None or not self.multi_auto_refresh_thread.is_alive():
@@ -6219,6 +6238,18 @@ class Api:
             mode_info["multi_account_usernames"] = list(
                 getattr(self, 'accounts', {}).keys())
             mode_info["global_params"] = getattr(self, 'global_params', {})
+            
+            # 返回账号详细信息（修复：页面刷新时恢复账号列表）
+            accounts_data = []
+            for username, acc in getattr(self, 'accounts', {}).items():
+                accounts_data.append({
+                    'username': username,
+                    'name': acc.user_data.name if acc.user_data.name else username,
+                    'status_text': acc.status_text,
+                    'summary': acc.summary,
+                    'params': acc.params
+                })
+            mode_info["accounts"] = accounts_data
         else:
             # 单账号模式信息
             mode_info["has_tasks"] = len(getattr(self, 'all_run_data', [])) > 0
@@ -7950,6 +7981,18 @@ class Api:
                             submission_successful = False
                             break
 
+                        # 位置与前端地图更新（使用 SocketIO）
+                        session_id = getattr(self, '_web_session_id', None)
+                        if session_id and socketio:
+                            try:
+                                socketio.emit('multi_position_update', {
+                                    'username': acc.username,
+                                    'lon': lon,
+                                    'lat': lat,
+                                    'name': acc.user_data.name
+                                }, room=session_id)
+                            except Exception as e:
+                                logging.debug(f"Failed to emit multi_position_update: {e}")
 
 
                         # 等待当前点的“上报时长”（保持原有逻辑）
@@ -9482,11 +9525,32 @@ def restore_session_to_api_instance(api_instance, state):
                 if 'multi_global_params' in state:
                     api_instance.global_params = state['multi_global_params']
 
-                # 注意：这里不会完全恢复每个账号的完整状态
-                # 因为账号状态包含复杂的运行时对象（如线程等）
-                # 仅标记模式，前端会重新加载账号列表
+                # 恢复账号列表的基本信息（修复：页面刷新后账号列表丢失）
+                if 'multi_account_states' in state:
+                    multi_account_states = state['multi_account_states']
+                    for username, account_state in multi_account_states.items():
+                        if username not in api_instance.accounts:
+                            # 重新创建账号会话对象（仅基本信息）
+                            from collections import namedtuple
+                            UserData = namedtuple(
+                                'UserData', ['name', 'id', 'student_id'])
+                            
+                            acc = api_instance.AccountSession()
+                            acc.username = username
+                            acc.user_data = UserData(
+                                name=username, id='', student_id='')
+                            acc.status_text = account_state.get('status_text', '待命')
+                            acc.params = account_state.get('params', api_instance.global_params.copy())
+                            acc.summary = {
+                                'total': 0, 'completed': 0, 'not_started': 0,
+                                'executable': 0, 'expired': 0,
+                                'att_pending': 0, 'att_completed': 0, 'att_expired': 0
+                            }
+                            api_instance.accounts[username] = acc
+                            logging.info(f"会话恢复：重建账号 {username} 的基本信息")
+
                 logging.info(
-                    f"会话恢复：检测到多账号模式，账号数: {len(state.get('multi_account_usernames', []))}")
+                    f"会话恢复：检测到多账号模式，账号数: {len(api_instance.accounts)}")
 
         # 恢复停止标志状态
         if 'stop_run_flag_set' in state:
