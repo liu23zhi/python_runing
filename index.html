@@ -3292,10 +3292,12 @@
           if (profileTab) profileTab.style.display = 'none';  // 游客不显示个人信息标签
           if (sessionsTab) sessionsTab.style.display = 'block';
           if (messagesTab) messagesTab.style.display = 'block';
+          if (healthTab) healthTab.style.display = 'block'; // 游客可以查看健康状态
         } else {
           // 非游客：个人信息和会话管理标签页始终可见
           if (profileTab) profileTab.style.display = 'block';
           if (sessionsTab) sessionsTab.style.display = 'block';
+          if (groupsTab) groupsTab.style.display = 'block';
         }
 
         // 控制上帝模式开关可见性
@@ -6964,7 +6966,7 @@
       });
       // 监听后台推送的通知更新
       socket.on('onNotificationsUpdated', (data) => {
-        logMessage_Info("[Socket] 收到后台推送的通知更新");
+        logMessage("收到后台推送的通知更新",'INFO','Socket');
         // data 就是 get_notifications 返回的完整 result 对象
         if (data && data.success) {
           // 调用现有的JS函数来处理数据并更新UI
