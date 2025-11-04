@@ -3039,7 +3039,7 @@ class RunData:
 class AccountSession:
     """封装单个账号的所有运行时数据、状态和操作"""
 
-    def __init__(self, username, password, api_bridge):
+    def __init__(self, username, password, api_bridge, tag=None):
         self.username: str = username
         self.password: str = password
         self.api_bridge = api_bridge  # Api 类的实例引用
@@ -3057,6 +3057,9 @@ class AccountSession:
         # --- 账号独立的签到半径缓存 ---
         self.server_attendance_radius_m = 0.0
         self.last_radius_fetch_time = 0
+
+        # 标记信息
+        self.tag: str = tag if tag else ""  # 账号标记（备注/标签）
 
         self.status_text: str = "待命"  # UI上显示的状态
         self.summary = {"total": 0, "completed": 0, "pending": 0,
@@ -3969,6 +3972,50 @@ class Api:
                     pass
         logging.debug(f"已成功加载用户配置: {username}")
         return password
+
+    def _save_account_tag(self, username, tag):
+        """保存账号标记到用户配置文件"""
+        user_ini_path = os.path.join(self.user_dir, f"{username}.ini")
+        
+        cfg = configparser.RawConfigParser()
+        cfg.optionxform = str  # 保持键的大小写
+        if os.path.exists(user_ini_path):
+            try:
+                cfg.read(user_ini_path, encoding='utf-8')
+            except Exception as e:
+                logging.warning(f"读取配置文件 {user_ini_path} 失败: {e}")
+        
+        # 确保分区存在
+        if not cfg.has_section('Account'):
+            cfg.add_section('Account')
+        
+        # 设置标记
+        cfg.set('Account', 'Tag', str(tag))
+        
+        # 写入文件
+        try:
+            with open(user_ini_path, 'w', encoding='utf-8') as f:
+                cfg.write(f)
+            logging.debug(f"已保存账号 {username} 的标记: {tag}")
+        except Exception as e:
+            logging.error(f"保存账号标记失败 {user_ini_path}: {e}", exc_info=True)
+
+    def _load_account_tag(self, username):
+        """从用户配置文件加载账号标记"""
+        user_ini_path = os.path.join(self.user_dir, f"{username}.ini")
+        if not os.path.exists(user_ini_path):
+            return None
+        
+        cfg = configparser.ConfigParser()
+        try:
+            cfg.read(user_ini_path, encoding='utf-8')
+            if cfg.has_option('Account', 'Tag'):
+                tag_str = cfg.get('Account', 'Tag')
+                return tag_str
+        except Exception as e:
+            logging.warning(f"加载账号标记失败 {username}: {e}")
+        
+        return None
 
     def _get_full_user_info_dict(self):
         """获取当前用户所有信息的字典"""
@@ -6264,8 +6311,14 @@ class Api:
 
         return self.multi_get_all_accounts_status()
 
-    def multi_add_account(self, username, password):
-        """模式二：手动或选择性添加账号"""
+    def multi_add_account(self, username, password, tag=None):
+        """模式二：手动或选择性添加账号
+        
+        Args:
+            username: 账号用户名
+            password: 账号密码
+            tag: 账号标记（备注/标签），可选
+        """
         if username in self.accounts:
             # 如果账号已存在，智能处理密码更新或从文件刷新
             acc = self.accounts[username]
@@ -6283,6 +6336,12 @@ class Api:
                 reloaded_password = self._load_config(username)
                 if reloaded_password:
                     acc.password = reloaded_password
+            
+            # 更新标记（如果提供了新的标记）
+            if tag is not None:
+                acc.tag = str(tag)
+                self._save_account_tag(username, acc.tag)
+                self.log(f"已更新账号 [{username}] 的标记：{acc.tag}。")
 
             # 统一执行后续的强制刷新逻辑，以新密码或从文件加载的最新密码来重新验证
             try:
@@ -6307,7 +6366,10 @@ class Api:
             return self.multi_get_all_accounts_status()
 
         # 创建账号会话（注意：若稍后判定密码为空，将撤销）
-        self.accounts[username] = AccountSession(username, password, self)
+        # 加载已保存的标记（如果有）
+        loaded_tag = self._load_account_tag(username)
+        final_tag = tag if tag is not None else (loaded_tag if loaded_tag else "")
+        self.accounts[username] = AccountSession(username, password, self, tag=final_tag)
 
         # 尝试从 .ini 加载 UA/参数/密码（如果存在）
         loaded_password = self._load_config(username)
@@ -6550,6 +6612,7 @@ class Api:
                 "name": acc.user_data.name or "---",
                 "status_text": acc.status_text,
                 "summary": acc.summary,
+                "tag": acc.tag,  # 添加标记字段
             })
         return {"accounts": status_list}
 
@@ -6671,8 +6734,12 @@ class Api:
                     if not row or len(row) < 1:
                         continue
                     username = str(row[0] or '').strip()
-                    password = str(row[1] or '').strip() if len(
-                        row) > 1 else ''
+                    password = str(row[1] or '').strip() if len(row) > 1 else ''
+                    # 支持第三列：标记（可选）
+                    tag = None
+                    if len(row) > 2 and row[2]:
+                        tag = str(row[2]).strip()
+                    
                     if not username:
                         continue
                     # 本次导入内去重
@@ -6690,8 +6757,8 @@ class Api:
                         skipped_no_password.append(username)
                         continue  # 跳过本账号，留给用户手动补密码
 
-                    # 4. 使用 final_password 添加
-                    self.multi_add_account(username, final_password)
+                    # 4. 使用 final_password 和 tag 添加
+                    self.multi_add_account(username, final_password, tag=tag)
                     imported += 1
 
             elif ext == ".xls":
@@ -6705,6 +6772,13 @@ class Api:
                     password = ""
                     if sh.ncols >= 2:
                         password = str(sh.cell_value(r, 1) or '').strip()
+                    # 支持第三列：标记（可选）
+                    tag = None
+                    if sh.ncols >= 3:
+                        tag_val = sh.cell_value(r, 2)
+                        if tag_val:
+                            tag = str(tag_val).strip()
+                    
                     if username:
                         if username in seen_usernames:
                             continue
@@ -6716,7 +6790,7 @@ class Api:
                             skipped_no_password.append(username)
                             continue
 
-                        self.multi_add_account(username, final_password)
+                        self.multi_add_account(username, final_password, tag=tag)
                         imported += 1
 
             elif ext == ".csv":
@@ -6737,8 +6811,12 @@ class Api:
                         continue
                     first_row = False
                     username = (row[0] or '').strip()
-                    password = (row[1] or '').strip() if len(
-                        row) > 1 else ''
+                    password = (row[1] or '').strip() if len(row) > 1 else ''
+                    # 支持第三列：标记（可选）
+                    tag = None
+                    if len(row) > 2 and row[2]:
+                        tag = row[2].strip()
+                    
                     if username:
                         if username in seen_usernames:
                             continue
@@ -6751,7 +6829,7 @@ class Api:
                             skipped_no_password.append(username)
                             continue
 
-                        self.multi_add_account(username, final_password)
+                        self.multi_add_account(username, final_password, tag=tag)
                         imported += 1
 
             else:
