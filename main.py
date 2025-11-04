@@ -7680,37 +7680,54 @@ class Api:
                     # 获取会话ID（用于chrome_pool）
                     session_id = getattr(self, '_web_session_id', None)
                     if not session_id:
-                        acc.log("错误: 无法获取会话ID，跳过任务。")
+                        acc.log("错误: 无法获取会话ID（_web_session_id 属性不存在），跳过任务。")
+                        logging.error(f"多账号模式缺少 _web_session_id 属性，账号: {acc.username}")
                         continue
                     
-                    # 获取高德地图API密钥
-                    config = configparser.ConfigParser()
-                    config.read(CONFIG_FILE, encoding='utf-8')
-                    amap_key = config.get('Map', 'amap_js_key', fallback='')
+                    # 获取高德地图API密钥（优化：使用全局缓存）
+                    if not hasattr(self, '_amap_key_cached'):
+                        config = configparser.ConfigParser()
+                        config.read(CONFIG_FILE, encoding='utf-8')
+                        self._amap_key_cached = config.get('Map', 'amap_js_key', fallback='')
+                        logging.info(f"已加载高德地图API密钥配置（缓存至实例）")
                     
+                    amap_key = self._amap_key_cached
                     if not amap_key:
                         acc.log("错误: 未配置高德地图API密钥，请在config.ini中设置。")
                         continue
                     
-                    # 获取Chrome上下文并加载高德地图
+                    # 获取Chrome上下文
                     ctx = chrome_pool.get_context(session_id)
                     page = ctx['page']
                     
-                    # 加载高德地图SDK
-                    page.goto("about:blank")
-                    page.set_content("""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta charset="utf-8">
-                        <script type="text/javascript" src="https://webapi.amap.com/loader.js"></script>
-                    </head>
-                    <body></body>
-                    </html>
-                    """)
+                    # 检查是否已加载AMap SDK（优化：避免重复加载）
+                    amap_loaded = False
+                    try:
+                        amap_loaded = page.evaluate("typeof AMapLoader !== 'undefined'")
+                    except Exception as e:
+                        # 可能是页面刚创建，AMapLoader 还未定义，这是正常情况
+                        logging.debug(f"检查AMap SDK时出错（可能尚未加载）: {e}")
                     
-                    # 等待AMap加载
-                    page.wait_for_function("typeof AMapLoader !== 'undefined'", timeout=10000)
+                    if not amap_loaded:
+                        # 加载高德地图SDK
+                        page.goto("about:blank")
+                        page.set_content("""
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <meta charset="utf-8">
+                            <script type="text/javascript" src="https://webapi.amap.com/loader.js"></script>
+                        </head>
+                        <body></body>
+                        </html>
+                        """)
+                        
+                        # 等待AMap加载（优化：添加明确的错误处理）
+                        try:
+                            page.wait_for_function("typeof AMapLoader !== 'undefined'", timeout=10000)
+                        except Exception as e:
+                            acc.log(f"错误: 加载高德地图SDK超时或失败: {str(e)}")
+                            continue
                     
                     # 执行路径规划JavaScript
                     path_coords = chrome_pool.execute_js(
