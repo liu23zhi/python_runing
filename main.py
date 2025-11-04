@@ -4409,6 +4409,56 @@ class Api:
             finally:
                 self._load_tasks_inflight = False
 
+    def _try_parse_dt(self, s):
+        """
+        (已重构为类方法)
+        尝试将不同格式的时间字符串解析为 datetime，支持多种常见格式和值类型。失败返回 None。
+        """
+        if not s:
+            return None
+        # 若为数字字符串或数字（可能是时间戳毫秒/秒）
+        try:
+            if isinstance(s, (int, float)):
+                # 判断是秒还是毫秒（如果大于 10^12 认为是毫秒）
+                ts = int(s)
+                if ts > 1e12:
+                    return datetime.datetime.fromtimestamp(ts / 1000.0)
+                if ts > 1e9:
+                    return datetime.datetime.fromtimestamp(ts / 1000.0)
+                return datetime.datetime.fromtimestamp(ts)
+            if s.isdigit():
+                ts = int(s)
+                if ts > 1e12:
+                    return datetime.datetime.fromtimestamp(ts / 1000.0)
+                if ts > 1e9:
+                    return datetime.datetime.fromtimestamp(ts / 1000.0)
+                return datetime.datetime.fromtimestamp(ts)
+        except Exception:
+            pass
+
+        # 尝试多种常见格式
+        fmts = [
+            "%Y-%m-%d %H:%M:%S",
+            "%Y/%m/%d %H:%M:%S",
+            "%Y-%m-%d",
+            "%Y/%m/%d",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S.%f",
+            "%Y-%m-%d %H:%M"
+        ]
+        for f in fmts:
+            try:
+                return datetime.datetime.strptime(s, f)
+            except Exception:
+                continue
+        # 尝试 ISO 解析的简易回退（去掉时区 Z）
+        try:
+            txt = s.rstrip('Z').split('+')[0]
+            return datetime.datetime.fromisoformat(txt)
+        except Exception:
+            pass
+        return None
+
     def _get_task_info_text(self, run: RunData) -> str:
         """根据任务状态生成一个简短的信息文本（增强：多格式时间解析、稳健回退）"""
         if run.status == 1:
@@ -4466,14 +4516,14 @@ class Api:
 
         # 检查是否已过期
         if run.end_time:
-            end_dt = try_parse_dt(run.end_time)
+            end_dt = self._try_parse_dt(run.end_time)
             if end_dt:
                 if (ignore_time and end_dt.date() < now.date()) or (not ignore_time and end_dt < now):
                     return "已过期"
 
         # 检查是否未开始
         if run.start_time:
-            start_dt = try_parse_dt(run.start_time)
+            start_dt = self._try_parse_dt(run.start_time)
             if start_dt:
                 if (ignore_time and now.date() < start_dt.date()) or (not ignore_time and now < start_dt):
                     # 返回更简洁的未开始标记，便于前端直接判断显示“未开始”
@@ -4493,7 +4543,7 @@ class Api:
         if run.end_time:
             try:
                 # 优先以可解析的 end_time 的日期部分显示
-                end_dt = try_parse_dt(run.end_time)
+                end_dt = self._try_parse_dt(run.end_time)
                 if end_dt:
                     return f"截止: {end_dt.strftime('%Y-%m-%d')}"
             except Exception:
@@ -4527,6 +4577,12 @@ class Api:
                 'geoCoorList', []) if p.get('lon') is not None and p.get('lat') is not None]
             run_data.target_point_names = "|".join(
                 [p.get('name', '') for p in details.get('geoCoorList', [])])
+
+
+            if not run_data.target_points:
+                logging.warning(
+                    f"[警告] 任务 '{run_data.run_name}' (ScheduleID: {run_data.errand_schedule}) 未包含任何打卡点 (geoCoorList为空)。")
+
 
             temp_coords = []
             walk_paths = details.get('walkPaths', [])
@@ -5348,7 +5404,8 @@ class Api:
                             socketio.emit('runner_position_update', {
                                 'lon': lon, 'lat': lat, 'distance': run_data.distance_covered_m,
                                 'target_sequence': run_data.target_sequence, 'duration': dur_ms,
-                                'center_now': center_now
+                                'center_now': center_now,
+                                'task_index': task_index  # <-- 新增：将当前任务索引发送给前端
                             }, room=session_id)
                         except Exception as e:
                             logging.error(
@@ -5571,8 +5628,7 @@ class Api:
 
             try:
                 if d.end_time:
-                    end_dt = datetime.datetime.strptime(
-                        d.end_time, '%Y-%m-%d %H:%M:%S')
+                    end_dt = self._try_parse_dt(d.end_time)
                     if ignore_time:
                         is_expired = end_dt.date() < now.date()
                     else:
@@ -5582,8 +5638,7 @@ class Api:
 
             try:
                 if d.start_time:
-                    start_dt = datetime.datetime.strptime(
-                        d.start_time, '%Y-%m-%d %H:%M:%S')
+                    start_dt = self._try_parse_dt(d.start_time)
                     if ignore_time:
                         is_not_started = now.date() < start_dt.date()
                     else:
@@ -9418,9 +9473,11 @@ class BackgroundTaskManager:
                             logging.info(f"任务详情获取成功: {run_data.run_name}")
 
                         if not run_data.target_points:
-                            logging.error(
-                                f"任务缺少目标打卡点，无法自动生成路径: {run_data.run_name}")
-                            continue
+                                
+                                logging.warning(
+                                    f"[跳过任务] 任务 '{run_data.run_name}' 因缺少打卡点 (0个) 而无法自动生成路径。请检查学校平台任务设置。")
+                                
+                                continue
 
                         logging.info(
                             f"任务包含 {len(run_data.target_points)} 个目标打卡点: {run_data.run_name}")
@@ -9433,17 +9490,36 @@ class BackgroundTaskManager:
                             waypoints) > 3 else f"Waypoints: {waypoints}")
 
                         # 必须在调用Chrome池之前获取 Key
-                        amap_key = api_instance.global_params.get(
-                            'amap_js_key', '')
-                        if not amap_key:
-                            logging.error(
-                                f"无法为 {run_data.run_name} 自动规划路径：缺少高德地图 API Key")
-                            # 标记任务状态为错误并跳过
+                        amap_key = ''
+                        try:
+                            # 确保 configparser 和 os 已在文件顶部导入
+                            if os.path.exists(CONFIG_FILE):
+                                cfg = configparser.ConfigParser()
+                                cfg.read(CONFIG_FILE, encoding='utf-8')
+                                amap_key = cfg.get('Map', 'amap_js_key', fallback="")
+                                if not amap_key:
+                                    # 兼容旧版配置
+                                    amap_key = cfg.get('System', 'AmapJsKey', fallback="")
+                            
+                            if amap_key:
+                                logging.info(f"已从 {CONFIG_FILE} 实时加载 AMap Key。")
+                            else:
+                                logging.error(
+                                    f"无法为 {run_data.run_name} 自动规划路径：实时读取 {CONFIG_FILE} 失败，[Map] -> amap_js_key 缺失或为空。")
+                                # 标记任务状态为错误并跳过
+                                with self.lock:
+                                    task_state['status'] = 'error'
+                                    task_state['error'] = '缺少高德地图API Key (实时读取失败)'
+                                    self.save_task_state(session_id, task_state)
+                                continue # 跳过此任务
+
+                        except Exception as e:
+                            logging.error(f"实时读取 AMap Key 时发生错误: {e}", exc_info=True)
                             with self.lock:
                                 task_state['status'] = 'error'
-                                task_state['error'] = '缺少高德地图API Key'
+                                task_state['error'] = f'读取Config.ini失败: {e}'
                                 self.save_task_state(session_id, task_state)
-                            continue  # 跳过此任务
+                            continue
 
                         # 调用Chrome池执行路径规划
                         global chrome_pool
@@ -12100,7 +12176,7 @@ def start_web_server(args_param):
 
     @app.route('/logs/view', methods=['GET'])
     def view_logs():
-        """查看应用日志（管理员）"""
+        """查看应用日志（管理员）- 分页模式"""
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
@@ -12112,33 +12188,69 @@ def start_web_server(args_param):
         if auth_group not in ['admin', 'super_admin']:
             return jsonify({"success": False, "message": "权限不足"}), 403
 
-        # 读取最近的日志（最多1000行）
-        lines = int(request.args.get('lines', 100))
-        lines = min(lines, 1000)  # 限制最多1000行
+        # --- [修复] 分页参数 ---
+        try:
+            page = int(request.args.get('page', 1))
+            limit = int(request.args.get('limit', 100))
+            if page < 1:
+                page = 1
+            if limit < 1:
+                limit = 100
+            if limit > 2000:  # 限制每页最多2000行
+                limit = 2000
+        except ValueError:
+            page = 1
+            limit = 100
 
-        log_content = []
-        # 尝试读取日志文件
+        all_log_content = []
         log_files = []
 
         # 查找日志目录中的日志文件
         if os.path.exists(LOGIN_LOGS_DIR):
-            for f in os.listdir(LOGIN_LOGS_DIR):
-                if f.endswith('.log') or f.endswith('.jsonl'):
-                    log_files.append(os.path.join(LOGIN_LOGS_DIR, f))
+            # [修复] 确保按名称排序，以便'zx-slm-tool.log'在'zx-slm-tool-01.log'之前
+            files = sorted([f for f in os.listdir(LOGIN_LOGS_DIR) if f.endswith('.log') or f.endswith('.jsonl')])
+            for f in files:
+                log_files.append(os.path.join(LOGIN_LOGS_DIR, f))
 
-        # 读取最近的日志
-        for log_file in log_files[:5]:  # 最多读取5个日志文件
+        # [修复] 读取所有日志文件内容
+        # (注意：如果日志文件非常大，这里可能会消耗大量内存)
+        for log_file in log_files:
             try:
                 with open(log_file, 'r', encoding='utf-8') as f:
-                    content = f.readlines()
-                    log_content.extend(content[-lines:])
+                    all_log_content.extend(f.readlines())
             except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
                 logging.debug(f"[日志读取] 无法读取日志文件 {log_file}: {e}")
                 continue
+        
+        # --- [修复] 分页计算 ---
+        total_lines = len(all_log_content)
+        total_pages = (total_lines + limit - 1) // limit  # 向上取整
+        if page > total_pages and total_pages > 0:
+            page = total_pages
+
+        # 计算切片索引 (注意：日志是倒序显示的，所以我们从末尾开始取)
+        # 例如：共 1000 行, 每页 100.
+        # 第1页 (page=1): lines[900:1000] (索引 -100 到末尾)
+        # 第2页 (page=2): lines[800:900] (索引 -200 到 -100)
+        
+        start_index = max(0, total_lines - (page * limit))
+        end_index = total_lines - ((page - 1) * limit)
+        
+        # 获取当前页的日志 (从旧到新)
+        paginated_logs = all_log_content[start_index:end_index]
+        
+        # [修复] 反转列表，使最新的日志在最上面
+        paginated_logs.reverse()
 
         return jsonify({
             "success": True,
-            "logs": log_content[-lines:]  # 返回最近的N行
+            "logs": paginated_logs, # 返回当前页的行
+            "pagination": {
+                "current_page": page,
+                "total_pages": total_pages,
+                "total_lines": total_lines,
+                "limit": limit
+            }
         })
 
     @app.route('/auth/admin/reset_password', methods=['POST'])

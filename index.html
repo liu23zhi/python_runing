@@ -1270,16 +1270,22 @@
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">系统日志</h4>
             <div class="flex gap-2">
-              <select id="log-lines-select_modal" class="text-sm border border-slate-300 rounded px-2 py-1">
-                <option value="100">最近100行</option>
-                <option value="500">最近500行</option>
-                <option value="1000">最近1000行</option>
+              <select id="log-limit-select_modal" class="text-sm border border-slate-300 rounded px-2 py-1">
+                <option value="100">每页100行</option>
+                <option value="200">每页200行</option>
+                <option value="500">每页500行</option>
+                <option value="1000">每页1000行</option>
               </select>
               <button id="admin-refresh-logs_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
           </div>
-          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[55vh]">
+          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[49vh]">
             <pre id="admin-logs-content_modal" class="whitespace-pre-wrap overflow-visible">加载中...</pre>
+          </div>
+          <div id="admin-logs-pagination" class="flex justify-between items-center text-sm text-slate-600 pt-2 border-t border-slate-200">
+            <button id="log-prev-page" class="btn btn-ghost !py-1 !px-3 disabled:opacity-50 disabled:cursor-not-allowed">上一页</button>
+            <span id="log-page-info">第 1 / 1 页 (共 0 行)</span>
+            <button id="log-next-page" class="btn btn-ghost !py-1 !px-3 disabled:opacity-50 disabled:cursor-not-allowed">下一页</button>
           </div>
         </div>
 
@@ -1697,6 +1703,7 @@
     let currentAuthUsername = null; // 存储当前系统认证的用户名
     let healthAutoRefreshInterval = null; // 系统健康状态自动刷新定时器
     let avatarCropper = null; // 头像裁剪器实例
+    let currentLogPage = 1; // 用于日志分页的当前页码
     let croppedAvatarFile = null; // 裁剪后的头像文件
 
     // 会话管理相关变量
@@ -3108,7 +3115,36 @@
         // 确保调用的是正确的加载函数 (它们现在内部会操作 _modal 列表)
         if (refreshUsersBtnModal) refreshUsersBtnModal.addEventListener('click', loadAdminUsers);
         if (refreshGroupsBtnModal) refreshGroupsBtnModal.addEventListener('click', loadAdminGroups);
-        if (refreshLogsBtnModal) refreshLogsBtnModal.addEventListener('click', loadAdminLogs);
+        // [修复] 绑定日志刷新和分页按钮
+        if (refreshLogsBtnModal) {
+            refreshLogsBtnModal.addEventListener('click', () => {
+                loadAdminLogs(1); // 刷新总是回到第1页
+            });
+        }
+        const logPrevPageBtn = $('log-prev-page');
+        const logNextPageBtn = $('log-next-page');
+        const logLimitSelect = $('log-limit-select_modal');
+        
+        if (logPrevPageBtn) {
+            logPrevPageBtn.addEventListener('click', () => {
+                if (currentLogPage > 1) {
+                    loadAdminLogs(currentLogPage - 1);
+                }
+            });
+        }
+        if (logNextPageBtn) {
+            logNextPageBtn.addEventListener('click', () => {
+                // (后端已处理了页码溢出，但前端也简单检查一下)
+                loadAdminLogs(currentLogPage + 1);
+            });
+        }
+        if (logLimitSelect) {
+            // 当"每页行数"变化时，回到第1页
+            logLimitSelect.addEventListener('change', () => {
+                loadAdminLogs(1);
+            });
+        }
+
         if (refreshHealthBtnModal) refreshHealthBtnModal.addEventListener('click', loadHealthStatus);
         if (refreshProfileBtnModal) refreshProfileBtnModal.addEventListener('click', loadPersonalInfo);
         if (refreshSessionsBtnModal) refreshSessionsBtnModal.addEventListener('click', loadAdminSessions);
@@ -3380,7 +3416,7 @@
         logsTab.classList.add('text-sky-600', 'border-sky-600');
         logsTab.classList.remove('text-slate-400', 'border-transparent');
         logsPanel.classList.remove('hidden');
-        loadAdminLogs();
+        loadAdminLogs(1); // [修复] 确保切换到标签页时总是加载第1页
         // 停止健康状态自动刷新
         stopHealthAutoRefresh();
       } else if (tab === 'health') {
@@ -3576,22 +3612,30 @@
     }
 
     // ====================
-    // 新增功能：日志查看
+    // 日志查看
     // ====================
-    async function loadAdminLogs() {
-      const contentEl = $('admin-logs-content_modal');
-      const linesSelect = $('log-lines-select_modal');
+    async function loadAdminLogs(newPage = 1) {
+      currentLogPage = newPage; // 更新当前页码
 
-      if (!contentEl) {
-        logMessage_Error("loadAdminLogs: 无法找到日志内容容器");
+      const contentEl = $('admin-logs-content_modal');
+      const limitSelect = $('log-limit-select_modal'); // [修复] 更改ID
+      const pageInfo = $('log-page-info');
+      const prevBtn = $('log-prev-page');
+      const nextBtn = $('log-next-page');
+
+      if (!contentEl || !limitSelect || !pageInfo || !prevBtn || !nextBtn) {
+        logMessage_Error("loadAdminLogs: 无法找到日志面板的必要DOM元素");
         return;
       }
 
       contentEl.textContent = '加载中...';
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
 
       try {
-        const lines = linesSelect ? linesSelect.value : 100;
-        const response = await fetch(`/logs/view?lines=${lines}`, {
+        const limit = limitSelect ? limitSelect.value : 100;
+        // [修复] 发送 page 和 limit 参数
+        const response = await fetch(`/logs/view?page=${currentLogPage}&limit=${limit}`, {
           headers: {
             'X-Session-ID': sessionUUID
           }
@@ -3600,18 +3644,32 @@
 
         if (!result.success) {
           contentEl.textContent = `加载失败: ${result.message}`;
+          pageInfo.textContent = '加载失败';
           return;
         }
 
         if (result.logs.length === 0) {
           contentEl.textContent = '暂无日志';
+          pageInfo.textContent = '第 1 / 1 页 (共 0 行)';
           return;
         }
 
+        // [修复] 日志内容是倒序的（最新的在前面），直接 join
         contentEl.textContent = result.logs.join('');
+
+        // [修复] 更新分页信息和按钮状态
+        const pagination = result.pagination;
+        pageInfo.textContent = `第 ${pagination.current_page} / ${pagination.total_pages} 页 (共 ${pagination.total_lines} 行)`;
+        
+        // 只有当前页 > 1 时才启用 "上一页"
+        prevBtn.disabled = pagination.current_page <= 1;
+        // 只有当前页 < 总页数 时才启用 "下一页"
+        nextBtn.disabled = pagination.current_page >= pagination.total_pages;
+
       } catch (e) {
         logMessage_Error("加载日志失败:", e);
         contentEl.textContent = `加载失败: ${e.message}`;
+        pageInfo.textContent = '加载失败';
       }
     }
 
@@ -4304,10 +4362,7 @@
         // 显示模态框
         modal.style.display = 'flex';
 
-        // [BUG 修复] 绑定 "确认" 按钮事件
-        // 此函数被 Admin Panel 的 "新增用户" 按钮调用，
-        // 但原代码未绑定 newUserConfirm 的 onclick 事件，导致按钮无效。
-        // 我们在此处添加绑定，使其调用后端的 admin/create_user API。
+        
         $('newUserConfirm').onclick = async () => {
           const inputUsername = $('newUsername').value.trim();
           const inputPassword = $('newPassword').value;
@@ -6946,9 +7001,22 @@
         }
       });
 
-      // 监听单账号跑步机位置更新
+      // 监听单账号当前位置位置更新
       socket.on('runner_position_update', (data) => {
         if (data) {
+          // 检查后端发来的任务索引 (data.task_index)
+          if (data.task_index !== undefined && data.task_index !== selectedTaskIndex) {
+            logMessage_Info(`[Socket] 任务切换: 正在执行任务 #${data.task_index}`);
+            // 1. 更新全局的 selectedTaskIndex
+            selectedTaskIndex = data.task_index;
+            
+            // 2. 重新渲染任务列表以高亮显示当前任务 
+            renderTaskList(); 
+
+            return; 
+          }
+
+          // 只有当 task_index 匹配时，才更新位置
           updateRunnerPosition(data.lon, data.lat, data.distance, data.target_sequence, data.duration, data.center_now);
         }
       });
@@ -7897,6 +7965,33 @@
         item.addEventListener('click', () => selectTask(index));
         taskListDiv.appendChild(item);
       });
+    }
+
+    async function forceLoadTaskDataForPolling(taskIndex) {
+      if (taskIndex < 0 || taskIndex >= currentTasks.length) return;
+      // 避免重复加载
+      if (currentRunData && currentRunData.task_index === taskIndex) return; 
+
+      logMessage_Info(`[Polling] 强制加载任务 #${taskIndex} 的数据...`);
+      try {
+        const result = await callPythonAPI('get_task_details', taskIndex);
+        if (result.success) {
+          currentRunData = result.details;
+          currentRunData.task_index = taskIndex; // 标记已加载
+          updateDashboard();
+          drawOnMap(); 
+          loadHistory(taskIndex);
+          
+          // 重置该任务的进度跟踪
+          singleProcessedPoints = 0; 
+          singleTotalPoints = (currentRunData.run_coords?.length || 0);
+          updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+        } else {
+          logMessage_Error(`[Polling] 强制加载任务数据失败: ${result.message}`);
+        }
+      } catch (e) {
+        logMessage_Error(`[Polling] 强制加载任务时出错: ${e}`);
+      }
     }
 
     async function selectTask(index, Update_Dashboard = true) {
@@ -9104,17 +9199,21 @@
           const task = currentTasks[i];
           if (task.status == 1 && !ignoreCompleted) continue;
 
-          // 检查任务的时间范围是否有效
-          const now = new Date();
-          if (task.end_time) {
-            const endDate = new Date(task.end_time);
-            if (endDate < now) continue;
-          }
-          if (task.start_time) {
-            const startDate = new Date(task.start_time);
-            if (startDate > now) continue;
-          }
+          // 检查任务的时间范围是否有效 (JS)
+          // 修复：使用 task.info_text...
+          const infoText = task.info_text || "";
+          
+          
+          
+            if (infoText === '已过期') {
+              continue; // 任务已过期
+            }
+            if (infoText.startsWith('开始于')) {
+              continue; // 任务未开始
+            }
+          
 
+        
           taskIndices.push(i);
         }
 
@@ -9261,7 +9360,19 @@
             const current_list_index = status.current_task_index;
             if (task_list.length > current_list_index) {
               const global_task_index = task_list[current_list_index];
-              selectedTaskIndex = global_task_index;
+
+              if (global_task_index !== selectedTaskIndex || (currentRunData && currentRunData.task_index !== global_task_index) ) {
+                logMessage_Info(`[Polling] 检测到任务切换: ${selectedTaskIndex} -> ${global_task_index}`);
+                selectedTaskIndex = global_task_index;
+                
+                // 1. 重新渲染列表以高亮显示新任务 (你提到的 renderTaskList)
+                renderTaskList(); 
+                
+                // 2. 强制加载新任务的地图数据
+                // (我们调用新创建的辅助函数)
+                await forceLoadTaskDataForPolling(global_task_index); 
+              }
+              
             }
           }
 
@@ -10136,7 +10247,14 @@
       let value;
       if (event.target.type === 'checkbox') value = event.target.checked;
       else value = event.target.value;
-      pythonParams[key] = value; callPythonAPI('update_param', key, value);
+      pythonParams[key] = value; 
+      callPythonAPI('update_param', key, value);
+
+      // 修复：如果“忽略时间”参数被更改，立即刷新任务列表以更新 info_text
+      if (key === 'ignore_task_time') {
+        logMessage_Info("参数 'ignore_task_time' 已更改，正在自动刷新任务列表...");
+        refreshTasks();
+      }
     }
 
     function onGlobalParamChange(event) {
