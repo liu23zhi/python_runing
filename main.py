@@ -6678,54 +6678,35 @@ class Api:
         return {"accounts": status_list}
 
     def multi_download_import_template(self):
-        """下载导入模板（账号、密码），支持 xlsx/xls/csv"""
-        # 选择保存位置与格式
-        filepath = self.open_file_dialog('save', {
-            'initialfile': f"账号导入模板_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx",
-            'filetypes': [
-                ('Excel 模板 (*.xlsx)', '*.xlsx'),
-                ('Excel 97-2003 模板 (*.xls)', '*.xls'),
-                ('CSV 模板 (*.csv)', '*.csv'),
-                ('所有文件 (*.*)', '*.*')
-            ],
-            'defaultextension': ".xlsx"
-        })
-        if not filepath:
-            return {"success": False, "message": "用户取消操作"}
-
+        """下载导入模板（账号、密码、标记），支持 Web模式直接返回文件内容"""
         try:
-            ext = os.path.splitext(filepath)[1].lower()
-            headers = ["账号", "密码"]
-
-            if ext == ".xlsx":
-                wb = openpyxl.Workbook()
-                sh = wb.active
-                sh.title = "模板"
-                sh.append(headers)
-
-                wb.save(filepath)
-            elif ext == ".xls":
-                wb = xlwt.Workbook()
-                sh = wb.add_sheet("模板")
-                for col, val in enumerate(headers):
-                    sh.write(0, col, val)
-
-                wb.save(filepath)
-            elif ext == ".csv":
-
-                with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(headers)
-
-            else:
-                return {"success": False, "message": f"不支持的模板格式: {ext}"}
-
-            self.log(f"模板已生成：{os.path.basename(filepath)}")
-            return {"success": True}
+            headers = ["账号", "密码", "标记"]
+            
+            # Web模式：生成xlsx文件到内存，返回base64编码的内容
+            wb = openpyxl.Workbook()
+            sh = wb.active
+            sh.title = "模板"
+            sh.append(headers)
+            
+            # 保存到内存流
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            
+            # 转换为base64
+            file_content = base64.b64encode(output.read()).decode('utf-8')
+            filename = f"账号导入模板_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx"
+            
+            self.log(f"模板已生成：{filename}")
+            return {
+                "success": True,
+                "filename": filename,
+                "content": file_content,
+                "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            }
         except Exception as e:
             self.log(f"模板生成失败：{e}")
-            logging.error(
-                f"Template generation failed: {traceback.format_exc()}")
+            logging.error(f"Template generation failed: {traceback.format_exc()}")
             return {"success": False, "message": f"生成失败: {e}"}
 
     def safe_load_workbook(self, filepath, **kwargs):
@@ -6920,24 +6901,10 @@ class Api:
             return {"success": False, "message": f"导入失败: {e}"}
 
     def multi_export_accounts_summary(self):
-        """导出多账号汇总，支持 .xlsx/.xls/.csv"""
-        filepath = self.open_file_dialog('save', {
-            'initialfile': f"跑步任务汇总_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx",
-            'filetypes': [
-                ('Excel 文件 (*.xlsx)', '*.xlsx'),
-                ('Excel 97-2003 文件 (*.xls)', '*.xls'),
-                ('CSV 文件 (*.csv)', '*.csv'),
-                ('所有文件 (*.*)', '*.*')
-            ],
-            'defaultextension': ".xlsx"
-        })
-        if not filepath:
-            return {"success": False, "message": "用户取消操作"}
-
+        """导出多账号汇总，支持 Web模式直接返回文件内容"""
         try:
-
             headers = ["账号", "姓名", "状态", "总任务数",
-                       "已完成完成", "未开始任务数", "可执行任务数", "已过期任务数"]
+                       "已完成", "未开始任务数", "可执行任务数", "已过期任务数"]
 
             rows = []
             for acc in sorted(self.accounts.values(), key=lambda x: x.username):
@@ -6948,54 +6915,44 @@ class Api:
                     acc.status_text,
                     s.get('total', 0),
                     s.get('completed', 0),
-                    s.get('not_started', 0),  # <- 使用 not_started
+                    s.get('not_started', 0),
                     s.get('executable', 0),
                     s.get('expired', 0)
                 ])
 
-            ext = os.path.splitext(filepath)[1].lower()
-
-            if ext == ".xlsx":
-                wb = openpyxl.Workbook()
-                sh = wb.active
-                sh.title = "任务汇总"
-                sh.append(headers)
-                for r in rows:
-                    sh.append(r)
-                # 自动列宽
-                for col in sh.columns:
-                    max_len = 0
-                    col_letter = col[0].column_letter
-                    for cell in col:
-                        v = '' if cell.value is None else str(cell.value)
-                        max_len = max(max_len, len(v))
-                    sh.column_dimensions[col_letter].width = max_len + 2
-                wb.save(filepath)
-
-            elif ext == ".xls":
-                wb = xlwt.Workbook()
-                sh = wb.add_sheet("任务汇总")
-                # 写表头
-                for c, v in enumerate(headers):
-                    sh.write(0, c, v)
-                # 写数据
-                for r_idx, r in enumerate(rows, start=1):
-                    for c_idx, v in enumerate(r):
-                        sh.write(r_idx, c_idx, v)
-                wb.save(filepath)
-
-            elif ext == ".csv":
-
-                with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(headers)
-                    writer.writerows(rows)
-
-            else:
-                return {"success": False, "message": f"不支持的导出格式: {ext}"}
-
-            self.log(f"汇总信息已导出到 {os.path.basename(filepath)}")
-            return {"success": True}
+            # Web模式：生成xlsx文件到内存，返回base64编码的内容
+            wb = openpyxl.Workbook()
+            sh = wb.active
+            sh.title = "任务汇总"
+            sh.append(headers)
+            for r in rows:
+                sh.append(r)
+            
+            # 自动列宽
+            for col in sh.columns:
+                max_len = 0
+                col_letter = col[0].column_letter
+                for cell in col:
+                    v = '' if cell.value is None else str(cell.value)
+                    max_len = max(max_len, len(v))
+                sh.column_dimensions[col_letter].width = max_len + 2
+            
+            # 保存到内存流
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            
+            # 转换为base64
+            file_content = base64.b64encode(output.read()).decode('utf-8')
+            filename = f"跑步任务汇总_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx"
+            
+            self.log(f"汇总信息已导出到 {filename}")
+            return {
+                "success": True,
+                "filename": filename,
+                "content": file_content,
+                "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            }
         except Exception as e:
             self.log(f"导出失败: {e}")
             logging.error(

@@ -7602,6 +7602,26 @@
       const result = await callPythonAPI('multi_download_import_template');
       if (!result || !result.success) {
         showModalAlert(result?.message || '模板下载失败');
+        return;
+      }
+      
+      // Web模式：从返回的base64内容创建下载
+      if (result.content && result.filename) {
+        const binaryString = atob(result.content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: result.mimetype || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logMessage_Info(`模板已下载：${result.filename}`);
       }
     }
 
@@ -8234,11 +8254,31 @@
     }
 
     async function multi_exportToExcel() {
-      await callPythonAPI('multi_export_accounts_summary');
+      const result = await callPythonAPI('multi_export_accounts_summary');
+      if (!result || !result.success) {
+        showModalAlert(result?.message || '导出失败');
+        return;
+      }
+      
+      // Web模式：从返回的base64内容创建下载
+      if (result.content && result.filename) {
+        const binaryString = atob(result.content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: result.mimetype || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logMessage_Info(`汇总已导出：${result.filename}`);
+      }
     }
-
-
-    async function multi_exportToExcel() { await callPythonAPI('multi_export_accounts_summary'); }
 
     async function multi_startAll() {
 
@@ -8450,7 +8490,7 @@
             // 轻量延迟，不阻塞 UI
             await new Promise(res => setTimeout(res, d * 10)); // 缩短一个数量级，避免过长等待
           }
-          await callPythonAPI('multi_start_single_account', u);
+          await callPythonAPI('multi_start_single_account', u, run_only_incomplete);
         } catch (e) {
           logMessage_Error(`开始账号 ${u} 失败`, e);
         }
