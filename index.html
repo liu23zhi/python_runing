@@ -465,6 +465,11 @@
     }
 
     /* 模态框显示时，隐藏地图logo和版权 */
+    #amap-key-modal:not(.hidden)~#map-container .amap-logo,
+    #amap-key-modal:not(.hidden)~#map-container .amap-copyright,
+    #amap-key-modal:not(.hidden)~main>#multi-map-container .amap-logo,
+    #amap-key-modal:not(.hidden)~main>#multi-map-container .amap-copyright,
+    
     #user-details-modal:not(.hidden)~#map-container .amap-logo,
     #user-details-modal:not(.hidden)~#map-container .amap-copyright,
     #task-details-modal:not(.hidden)~#map-container .amap-logo,
@@ -744,7 +749,7 @@
           <p id="user-name-label" class="font-bold text-slate-800 truncate">姓名: NULL</p>
           <p id="user-id-label" class="text-sm text-slate-500">学号: NULL</p>
         </div>
-        <button id="show-sessions-main" class="btn btn-ghost !py-2 !px-3 hidden" title="管理面板">管理</button>
+        
         <button id="show-notifications-btn" class="btn btn-ghost !py-2 !px-3 relative" title="查看通知">
           <span>通知</span>
           <span id="notification-badge"
@@ -940,7 +945,7 @@
           <h2 class="text-lg font-bold text-slate-800 card-title">多账号控制台</h2>
           <div class="flex gap-2">
             <!-- <button id="show-sessions-multi" class="btn btn-ghost !py-1 !px-3" title="会话管理">会话</button> -->
-            <button id="show-admin-panel-multi" class="btn btn-ghost !py-1 !px-3 hidden" title="管理面板">管理面板</button>
+            <button id="show-admin-panel-multi" class="btn btn-ghost !py-1 !px-3" title="管理面板">管理面板</button>
             <button id="exit-multi-mode-btn" class="btn btn-ghost !py-1 !px-3">返回登录页</button>
           </div>
         </div>
@@ -1228,6 +1233,8 @@
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">个人信息</button>
         <button id="admin-tab-sessions_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
+        <button id="admin-tab-messages_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">留言板</button>
       </div>
 
       <div class="overflow-y-auto overflow-x-hidden flex-grow min-h-0">
@@ -1397,6 +1404,42 @@
                 <option value="dark">深色主题</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        <!-- 留言板面板 -->
+        <div id="admin-messages-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">留言板</h4>
+            <button id="admin-refresh-messages_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          
+          <!-- 发表留言表单 -->
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+            <h5 class="font-semibold text-slate-700">发表留言</h5>
+            <div id="message-guest-fields" class="space-y-2 hidden">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">昵称 <span class="text-red-500">*</span></label>
+                <input type="text" id="message-nickname" class="input-field" placeholder="请输入您的昵称" maxlength="50">
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">邮箱 <span class="text-red-500">*</span></label>
+                <input type="email" id="message-email" class="input-field" placeholder="请输入您的邮箱">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">留言内容 <span class="text-red-500">*</span></label>
+              <textarea id="message-content" class="input-field" rows="4" placeholder="请输入留言内容（最多1000字）" maxlength="1000"></textarea>
+              <div class="text-xs text-slate-500 mt-1 text-right">
+                <span id="message-char-count">0</span> / 1000
+              </div>
+            </div>
+            <button id="post-message-btn" onclick="postMessage()" class="btn btn-primary w-full">发表留言</button>
+          </div>
+
+          <!-- 留言列表 -->
+          <div id="admin-messages-list_modal" class="space-y-3 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
           </div>
         </div>
       </div>
@@ -2699,15 +2742,13 @@
               logMessage_Error('初始化管理面板失败:', e);
             }
 
-            // 显示管理面板按钮（如果有权限）
-            if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
-              const adminBtnLogin = $('show-admin-panel-login');
-              if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
-              const adminBtnMulti = $('show-admin-panel-multi');
-              if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
-              const sessionsBtnMain = $('show-sessions-main');
-              if (sessionsBtnMain) sessionsBtnMain.classList.remove('hidden');
-            }
+            // 显示管理面板按钮（所有用户包括游客都可以访问管理面板）
+            const adminBtnLogin = $('show-admin-panel-login');
+            if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
+            const adminBtnMulti = $('show-admin-panel-multi');
+            if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
+            const sessionsBtnMain = $('show-admin-panel');
+            if (sessionsBtnMain) sessionsBtnMain.classList.remove('hidden');
 
             // 如果是游客，显示提示
             if (result.is_guest) {
@@ -3069,7 +3110,7 @@
 
         // 会话管理按钮（多个位置）
         const showSessionsLogin = $('show-sessions-login');
-        const showSessionsMain = $('show-sessions-main');
+        const showSessionsMain = $('show-admin-panel');
         const showSessionsMulti = $('show-sessions-multi');
         if (showSessionsLogin) showSessionsLogin.addEventListener('click', () => {
           toggleAdminPanel(true);
@@ -3202,6 +3243,7 @@
       const healthTab = $('admin-tab-health_modal');
       const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal'); // 会话标签页按钮
+      const messagesTab = $('admin-tab-messages_modal'); // 留言板标签页按钮
       const godModeToggle = $('god-mode-toggle_modal');
 
       if (show) {
@@ -3216,6 +3258,7 @@
         let canViewLogs = false;
         let canViewHealth = false;
         let hasGodMode = false;
+        let canViewMessages = false;
         let isAuthenticated = skipAuthCheck; // 如果跳过检查，假定已认证
 
         if (!skipAuthCheck) {
@@ -3224,10 +3267,11 @@
           canViewLogs = await checkAdminPermission('view_logs');
           canViewHealth = await checkAdminPermission('manage_users'); // 管理员可以查看健康状态
           hasGodMode = await checkAdminPermission('god_mode');
+          canViewMessages = await checkAdminPermission('view_messages');
           isAuthenticated = await checkAuthStatus();
         }
 
-        const isGuest = currentUserData?.is_guest;
+        const isGuest = currentUserIsGuest;
         const canManageSessions = isAuthenticated && !isGuest;
 
         // --- 控制标签页可见性 ---
@@ -3235,9 +3279,18 @@
         if (groupsTab) groupsTab.style.display = canManageGroups ? 'block' : 'none';
         if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
         if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
-        // 个人信息和会话管理标签页始终可见
-        if (profileTab) profileTab.style.display = 'block';
-        if (sessionsTab) sessionsTab.style.display = 'block';
+        if (messagesTab) messagesTab.style.display = canViewMessages ? 'block' : 'none';
+        
+        // 游客模式：只显示会话管理和留言板，隐藏个人信息
+        if (isGuest) {
+          if (profileTab) profileTab.style.display = 'none';  // 游客不显示个人信息标签
+          if (sessionsTab) sessionsTab.style.display = 'block';
+          if (messagesTab) messagesTab.style.display = 'block';
+        } else {
+          // 非游客：个人信息和会话管理标签页始终可见
+          if (profileTab) profileTab.style.display = 'block';
+          if (sessionsTab) sessionsTab.style.display = 'block';
+        }
 
         // 控制上帝模式开关可见性
         if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
@@ -3274,27 +3327,29 @@
       const healthTab = $('admin-tab-health_modal');
       const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal');
+      const messagesTab = $('admin-tab-messages_modal');
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
       const logsPanel = $('admin-logs-panel_modal');
       const healthPanel = $('admin-health-panel_modal');
       const profilePanel = $('admin-profile-panel_modal');
       const sessionsPanel = $('admin-sessions-panel_modal');
+      const messagesPanel = $('admin-messages-panel_modal');
 
-      // 防御性编程：检查元素是否存在
-      if (!usersTab || !groupsTab || !logsTab || !healthTab || !profileTab || !sessionsTab || !usersPanel || !groupsPanel || !logsPanel || !healthPanel || !profilePanel || !sessionsPanel) {
-        logMessage_Error("switchAdminTab: 无法找到所有必要的管理面板模态框元素 (带_modal后缀)。");
+      // 防御性编程：检查核心元素是否存在
+      if (!sessionsTab || !sessionsPanel) {
+        logMessage_Error("switchAdminTab: 无法找到必要的管理面板元素");
         return;
       }
 
       // 重置所有标签按钮的样式
-      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab].forEach(t => {
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab].filter(t => t).forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
       // 隐藏所有内容面板
-      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel].forEach(p => {
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel].filter(p => p).forEach(p => {
         p.classList.add('hidden');
       });
 
@@ -3341,12 +3396,23 @@
         loadAdminSessions();
         // 停止健康状态自动刷新
         stopHealthAutoRefresh();
+      } else if (tab === 'messages') {
+        if (messagesTab && messagesPanel) {
+          messagesTab.classList.add('text-sky-600', 'border-sky-600');
+          messagesTab.classList.remove('text-slate-400', 'border-transparent');
+          messagesPanel.classList.remove('hidden');
+          loadMessages();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
       } else {
         // 默认显示个人信息页面
-        profileTab.classList.add('text-sky-600', 'border-sky-600');
-        profileTab.classList.remove('text-slate-400', 'border-transparent');
-        profilePanel.classList.remove('hidden');
-        loadPersonalInfo();
+        if (profileTab && profilePanel) {
+          profileTab.classList.add('text-sky-600', 'border-sky-600');
+          profileTab.classList.remove('text-slate-400', 'border-transparent');
+          profilePanel.classList.remove('hidden');
+          loadPersonalInfo();
+        }
         // 停止健康状态自动刷新
         stopHealthAutoRefresh();
       }
@@ -4223,7 +4289,65 @@
     function showCreateUserModal() {
       const modal = $('newUserModal');
       if (modal) {
+        // 清空旧输入
+        $('newUsername').value = "";
+        $('newPassword').value = "";
+        
+        // 显示模态框
         modal.style.display = 'flex';
+        
+        // [BUG 修复] 绑定 "确认" 按钮事件
+        // 此函数被 Admin Panel 的 "新增用户" 按钮调用，
+        // 但原代码未绑定 newUserConfirm 的 onclick 事件，导致按钮无效。
+        // 我们在此处添加绑定，使其调用后端的 admin/create_user API。
+        $('newUserConfirm').onclick = async () => {
+          const inputUsername = $('newUsername').value.trim();
+          const inputPassword = $('newPassword').value;
+          
+          if (!inputUsername || !inputPassword) {
+            showModalAlert("账号和密码均不能为空");
+            return;
+          }
+          if (!inputPassword || inputPassword.length < 6) {
+            showModalAlert('密码长度至少为6个字符', '错误');
+            return;
+          }
+          
+          // 默认 group 为 'user'，因为此模态框没有组选择器
+          const group = 'user'; 
+
+          try {
+            // 调用后端管理员创建用户的API
+            const response = await fetch('/auth/admin/create_user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionUUID 
+              },
+              body: JSON.stringify({
+                username: inputUsername,
+                password: inputPassword,
+                group: group
+              })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              showModalAlert("用户创建成功！");
+              closeNewUserModal();
+              // 刷新管理面板中的用户列表
+              if (typeof loadAdminUsers === 'function') {
+                loadAdminUsers();
+              }
+            } else {
+              showModalAlert(`创建失败: ${result.message || '未知错误'}`);
+            }
+          } catch (e) {
+            showModalAlert(`创建时发生错误: ${e.message}`);
+            logMessage_Error("创建用户时发生错误:", e);
+          }
+        };
       }
     }
 
@@ -5134,15 +5258,26 @@
           updateAdminSessionCountDisplay(validSessions.length, maxSessions);
         }
 
-        // 添加创建新会话按钮 (这部分逻辑不变)
+        // 添加创建新会话按钮 (游客模式不显示此按钮，参考inline版本)
         let html = '';
+        const isGuest = currentUserIsGuest;
         if (!isGodMode) {
-          html = `
+          if (!isGuest) {
+            // 只有非游客才显示创建按钮
+            html = `
       <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
         <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
         <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
       </div>
     `;
+          } else {
+            // 给游客一个提示，说明他们只有一个当前会话
+            html = `
+      <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <p class="text-sm text-blue-700">游客模式：当前会话如下。如需使用多个会话，请注册账号。</p>
+      </div>
+    `;
+          }
         }
 
         if (validSessions.length === 0) {
@@ -5195,11 +5330,224 @@
       }
     }
 
+    // ========== 留言板功能 ========== //
+    
+    async function loadMessages() {
+      const listEl = $('admin-messages-list_modal');
+      const guestFields = $('message-guest-fields');
+      
+      if (!listEl) {
+        logMessage_Error("loadMessages: 无法找到留言列表容器");
+        return;
+      }
+      
+      // 根据用户类型显示/隐藏游客字段
+      const isGuest = currentUserIsGuest;
+      if (guestFields) {
+        guestFields.style.display = isGuest ? 'block' : 'none';
+      }
+      
+      // 字符计数器
+      const contentInput = $('message-content');
+      const charCount = $('message-char-count');
+      if (contentInput && charCount) {
+        contentInput.addEventListener('input', () => {
+          charCount.textContent = contentInput.value.length;
+        });
+      }
+      
+      try {
+        listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+        
+        const response = await fetch('/api/messages/list', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+        
+        if (!result.success) {
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+        
+        const messages = result.messages || [];
+        
+        if (messages.length === 0) {
+          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无留言</p>';
+          return;
+        }
+        
+        // 检查删除权限
+        const canDeleteAny = await checkAdminPermission('delete_any_messages');
+        const canDeleteOwn = await checkAdminPermission('delete_own_messages');
+        const currentUsername = currentUserData?.username;
+        
+        const html = messages.map(msg => {
+          const isOwnMessage = !msg.is_guest && msg.username === currentUsername;
+          const canDelete = canDeleteAny || (canDeleteOwn && isOwnMessage);
+          const displayName = msg.is_guest ? msg.nickname : msg.username;
+          const date = new Date(msg.timestamp * 1000);
+          const dateStr = date.toLocaleString('zh-CN');
+          
+          return `
+            <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-slate-700">${displayName}</span>
+                    ${msg.is_guest ? '<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">游客</span>' : ''}
+                  </div>
+                  ${msg.email ? `<p class="text-xs text-slate-500">${msg.email}</p>` : ''}
+                  <p class="text-xs text-slate-400">${dateStr}</p>
+                </div>
+                ${canDelete ? `
+                  <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" 
+                    onclick="deleteMessage('${msg.id}')">删除</button>
+                ` : ''}
+              </div>
+              <p class="text-slate-700 whitespace-pre-wrap break-words">${escapeHtml(msg.content)}</p>
+            </div>
+          `;
+        }).join('');
+        
+        listEl.innerHTML = html;
+        
+      } catch (e) {
+        logMessage_Error('加载留言失败:', e);
+        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+    
+    async function postMessage() {
+      const contentInput = $('message-content');
+      const nicknameInput = $('message-nickname');
+      const emailInput = $('message-email');
+      const postBtn = $('post-message-btn');
+      
+      if (!contentInput || !postBtn) return;
+      
+      const content = contentInput.value.trim();
+      const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+      const email = emailInput ? emailInput.value.trim() : '';
+      
+      if (!content) {
+        showModalAlert('请输入留言内容', '提示');
+        return;
+      }
+      
+      const isGuest = currentUserData?.is_guest;
+      
+      if (isGuest) {
+        if (!nickname) {
+          showModalAlert('游客必须填写昵称', '提示');
+          return;
+        }
+        if (!email) {
+          showModalAlert('游客必须填写邮箱', '提示');
+          return;
+        }
+      }
+      
+      try {
+        postBtn.disabled = true;
+        postBtn.textContent = '发表中...';
+        
+        const response = await fetch('/api/messages/post', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            content: content,
+            nickname: nickname,
+            email: email
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          contentInput.value = '';
+          if (nicknameInput) nicknameInput.value = '';
+          if (emailInput) emailInput.value = '';
+          const charCount = $('message-char-count');
+          if (charCount) charCount.textContent = '0';
+          
+          showModalAlert('留言发表成功', '成功');
+          await loadMessages();
+        } else {
+          showModalAlert(result.message || '发表留言失败', '错误');
+        }
+      } catch (e) {
+        logMessage_Error('发表留言失败:', e);
+        showModalAlert('发表留言失败: ' + e.message, '错误');
+      } finally {
+        postBtn.disabled = false;
+        postBtn.textContent = '发表留言';
+      }
+    }
+    
+    async function deleteMessage(messageId) {
+      if (!confirm('确定要删除这条留言吗？')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/messages/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            message_id: messageId
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showModalAlert('留言已删除', '成功');
+          await loadMessages();
+        } else {
+          showModalAlert(result.message || '删除留言失败', '错误');
+        }
+      } catch (e) {
+        logMessage_Error('删除留言失败:', e);
+        showModalAlert('删除留言失败: ' + e.message, '错误');
+      }
+    }
+    
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+    
+    // ========== 按钮权限校验 ========== //
+    
+    async function checkButtonPermission(buttonId, permissionName) {
+      const hasPermission = await checkAdminPermission(permissionName);
+      if (!hasPermission) {
+        showModalAlert(`您没有权限使用此功能`, '权限不足');
+        return false;
+      }
+      return true;
+    }
+
     function updateAdminSessionCountDisplay(currentCount, maxSessions) {
       const countEl = $('admin-session-count-display');
       if (!countEl) return;
 
-      if (maxSessions === -1) {
+      // 修复：在游客模式下显示特定信息
+      if (currentUserIsGuest) {
+        countEl.innerHTML = `<span class="text-blue-600">会话数: 1 / 游客仅限单会话</span>`;
+      } else if (maxSessions === -1) {
         countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
       } else {
         const isNearLimit = currentCount >= maxSessions * 0.8;
@@ -6319,6 +6667,7 @@
             logMessage_Info("[警告] 未配置高德地图API Key，请在弹窗中输入。");
             $('amap-key-modal').classList.remove('hidden');
             $('amap-key-modal').classList.add('flex');
+            document.body.classList.add('modal-visible');
           }
           $('loading-overlay').classList.remove('hidden');
 
@@ -6375,11 +6724,9 @@
             }
           }, 100);
 
-          // 检查是否有管理权限，显示管理按钮
-          if (initialData.auth_group === 'admin' || initialData.auth_group === 'super_admin') {
-            const adminBtn = $('show-admin-panel');
-            if (adminBtn) adminBtn.classList.remove('hidden');
-          }
+          // 显示管理按钮（所有用户包括游客都可以访问）
+          const adminBtn = $('show-admin-panel');
+          if (adminBtn) adminBtn.classList.remove('hidden');
           hideLoadingOverlays();
           await fetchNotifications();
           
@@ -6438,16 +6785,13 @@
           $('loading-overlay').classList.remove('hidden');
 
 
-          // 显示管理面板按钮（如果有权限）
-          if (initialData.auth_group !== 'guest') {
-            const adminBtnLogin = $('show-admin-panel-login'); // 获取登录页的管理按钮
-            if (adminBtnLogin) {
-              adminBtnLogin.classList.remove('hidden'); // 移除 hidden 类使其可见
-            }
-            // 多账号界面的按钮保持原逻辑（如果需要的话，虽然这里主要处理 login-container）
-            const adminBtnMulti = $('show-admin-panel-multi');
-            if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
+          // 显示管理面板按钮（所有用户包括游客都可以访问）
+          const adminBtnLogin = $('show-admin-panel-login');
+          if (adminBtnLogin) {
+            adminBtnLogin.classList.remove('hidden');
           }
+          const adminBtnMulti = $('show-admin-panel-multi');
+          if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
 
           hideLoadingOverlays();
 
@@ -6575,7 +6919,7 @@
       // 监听多账号列表结构更新 (例如：添加账号后)
       socket.on('accounts_updated', (data) => {
         if (data && data.accounts) {
-          logMessage_Info(`[Socket] 收到账号列表更新，共 ${data.accounts.length} 个账号`);
+          logMessage(`[Socket] 收到账号列表更新，共 ${data.accounts.length} 个账号`,INFO,'Socket');
           onAccountsUpdated(data.accounts); // onAccountsUpdated 会调用 renderMultiAccountList
         }
       });
@@ -7124,7 +7468,13 @@
       const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
     });
     $('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
-    $('login-button').addEventListener('click', onLogin);
+    $('login-button').addEventListener('click', async (e) => {
+      // 校验登录按钮权限
+      if (!await checkButtonPermission('login-button', 'use_login_button')) {
+        return;
+      }
+      await onLogin();
+    });
     $('logout-button').addEventListener('click', onLogout);
     $('refresh-button').addEventListener('click', refreshTasks);
     $('record-button').addEventListener('click', toggleRecordMode);
@@ -7133,7 +7483,13 @@
     $('start-run-button').addEventListener('click', toggleRun);
     $('start-all-button').addEventListener('click', toggleAllRuns);
     $('export-button').addEventListener('click', exportTask);
-    $('import-button').addEventListener('click', importTask);
+    $('import-button').addEventListener('click', async (e) => {
+      // 校验导入按钮权限
+      if (!await checkButtonPermission('import-button', 'use_import_button')) {
+        return;
+      }
+      await importTask();
+    });
     // $('zoom-in').addEventListener('click', () => { if (map) map.zoomIn(); });
     // $('zoom-out').addEventListener('click', () => { if (map) map.zoomOut(); });
     // $('reset-view-btn').addEventListener('click', resetMapView);
@@ -7181,31 +7537,45 @@
         return;
       }
 
-      const result = await callPythonAPI('save_amap_key', newKey);
-      if (result.success) {
-        AMAP_API_KEY = newKey;
-        const modal = $('amap-key-modal');
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        logMessage_Info("API Key已更新，正在尝试重新加载地图...");
+      const btn = $('confirm-amap-key-btn');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="inline-block animate-spin mr-2">⏳</span>保存中...`;
 
-        // 关键：保存成功后，重新触发地图加载
-        try {
-          await loadAMapOnce();
-          // 如果地图加载成功，可能需要初始化一些依赖地图的UI
-          // 例如，如果已经进入了主界面，则需要确保地图被创建
-          ensureSingleMap();
-          // ... 其他可能需要地图的初始化逻辑 ...
-        } catch (e) {
-          logMessage_Error('保存Key后加载AMap SDK失败', e);
-          logMessage_Info("[错误] 新的API Key似乎无效，地图加载失败。请检查后重试。");
-          // 如果加载失败，可以再次弹出窗口
-          modal.classList.remove('hidden');
-          modal.classList.add('flex');
+      try {
+        const result = await callPythonAPI('save_amap_key', newKey);
+        if (result.success) {
+          AMAP_API_KEY = newKey;
+          const modal = $('amap-key-modal');
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+          document.body.classList.remove('modal-visible');
+          logMessage_Info("API Key已更新，正在尝试重新加载地图...");
+
+          // 关键：保存成功后，重新触发地图加载
+          try {
+            await loadAMapOnce();
+            // 如果地图加载成功，可能需要初始化一些依赖地图的UI
+            // 例如，如果已经进入了主界面，则需要确保地图被创建
+            ensureSingleMap();
+          } catch (e) {
+            logMessage_Error('保存Key后加载AMap SDK失败', e);
+            logMessage_Info("[错误] 新的API Key似乎无效，地图加载失败。请检查后重试。");
+            // 如果加载失败，可以再次弹出窗口
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.classList.add('modal-visible');
+          }
+
+        } else {
+          showModalAlert(`保存失败: ${result.message}`);
         }
-
-      } else {
-        showModalAlert(`保存失败: ${result.message}`);
+      } catch (e) { // [新代码] 捕获API调用本身的错误
+          logMessage_Error("保存API Key时发生网络错误:", e);
+          showModalAlert(`保存失败: ${e.message}`);
+      } finally { // [新代码] 无论成功失败，都恢复按钮状态
+          btn.disabled = false;
+          btn.innerHTML = originalText;
       }
     }
 
@@ -7237,30 +7607,7 @@
 
 
 
-    async function forceRefreshTaskUI(index) {
-      logMessage_Info(`[Backend] 正在强制刷新任务 #${index} 的界面...`);
-
-      // 1. 从Python获取最新的任务详情
-      const result = await callPythonAPI('get_task_details', index);
-      if (!result.success) {
-        logMessage_Info(`强制刷新失败: ${result.message}`);
-        return;
-      }
-
-      // 2. 更新JS中的核心数据
-      // 更新当前选中的任务数据，用于地图和仪表盘
-      currentRunData = result.details;
-      // 更新任务总列表中的对应项，确保“路径状态”徽章也能刷新
-      if (currentTasks && currentTasks[index]) {
-        Object.assign(currentTasks[index], result.details);
-      }
-
-      // 3. 强制刷新所有相关的UI组件
-      selectedTaskIndex = index; // 确保当前选中索引正确
-      renderTaskList();      // 重新渲染任务列表（更新状态徽章和高亮）
-      updateDashboard();     // 更新仪表盘（路程、时间）
-      drawOnMap();           // 在地图上绘制新的红色折线
-    }
+    
 
 
     // 用 get_initial_data 兼容刷新用户列表
@@ -7388,6 +7735,7 @@
 
         logMessage_Info('[前端-登录] 显示主应用界面...');
         showMainApp();
+        $('loading-overlay').classList.add('hidden');
         currentUserData = result.userInfo;
         currentSessionUA = uaOnLoginScreen;
         const name = currentUserData.name || '';
@@ -7411,14 +7759,12 @@
 
         const base = pythonParams.theme_base_color || '#7dd3fc';
         setBaseColor(base, base);
-        // 检查是否有管理权限，显示管理按钮
-        if (result.auth_group === 'admin' || result.auth_group === 'super_admin') {
-          const adminBtn = $('show-admin-panel');
-          if (adminBtn) adminBtn.classList.remove('hidden');
-          // --- 同时确保登录页的管理按钮也显示 (如果存在) ---
-          const adminBtnLogin = $('show-admin-panel-login');
-          if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
-        }
+        // 显示管理按钮（所有用户包括游客都可以访问）
+        const adminBtn = $('show-admin-panel');
+        if (adminBtn) adminBtn.classList.remove('hidden');
+        const adminBtnLogin = $('show-admin-panel-login');
+        if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
+        $('loading-overlay').classList.remove('hidden');
         logMessage_Info('[前端-登录] ✓ 登录流程完成！');
       } else {
         logMessage_Info(`[前端-登录] ✗ 登录失败: ${result.message}`);
@@ -7524,7 +7870,7 @@
       });
     }
 
-    async function selectTask(index) {
+    async function selectTask(index,Update_Dashboard=true) {
       logMessage_Info(`[任务选择] 开始选择任务，索引: ${index}`, 'DEBUG');
       logMessage_Info(`[前端-任务选择] 选择任务 #${index}`);
 
@@ -7562,7 +7908,9 @@
         logMessage_Info(`[任务选择] 离线模式任务，使用本地数据`, 'INFO');
         // 离线模式: 直接使用前端已有的完整数据，不再请求后端
         currentRunData = selectedTask;
-        updateDashboard();
+        if(Update_Dashboard)
+        {
+        updateDashboard();}
         drawOnMap();
         loadHistory(index); // 加载历史（离线模式下通常为空）
         singleProcessedPoints = 0;
@@ -7600,7 +7948,13 @@
 
 
     // --- 多账号模式事件监听 ---
-    $('multi-account-btn').addEventListener('click', switchToMultiMode);
+    $('multi-account-btn').addEventListener('click', async (e) => {
+      // 校验多账号控制台按钮权限
+      if (!await checkButtonPermission('multi-account-btn', 'use_multi_account_button')) {
+        return;
+      }
+      await switchToMultiMode();
+    });
     $('exit-multi-mode-btn').addEventListener('click', exitMultiMode);
     $('multi-start-all-btn').addEventListener('click', multi_startAll);
     $('multi-stop-all-btn').addEventListener('click', multi_stopAll);
@@ -7611,6 +7965,18 @@
     // $('multi-zoom-in').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomIn(); });
     // $('multi-zoom-out').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomOut(); });
     // $('multi-reset-view-btn').addEventListener('click', multi_resetMapView);
+
+    // --- 管理面板标签页事件监听 ---
+    $('admin-tab-users_modal')?.addEventListener('click', () => switchAdminTab('users'));
+    $('admin-tab-groups_modal')?.addEventListener('click', () => switchAdminTab('groups'));
+    $('admin-tab-logs_modal')?.addEventListener('click', () => switchAdminTab('logs'));
+    $('admin-tab-health_modal')?.addEventListener('click', () => switchAdminTab('health'));
+    $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
+    $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
+    $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
+    
+    // 留言板刷新按钮
+    $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
 
     // --- 多账号模式核心函数 ---
     async function switchToMultiMode() {
@@ -7799,8 +8165,72 @@
 
 
     async function multi_importFromExcel() {
-      const result = await callPythonAPI('multi_import_accounts');
-      if (result && result.accounts) renderMultiAccountList(result.accounts);
+      // [BUG 修复] 后端 open_file_dialog 在 Web 模式下无效 (main.py L3605)。
+      // 必须由前端创建文件输入框来读取文件。
+      
+      const input = document.createElement('input');
+      input.type = 'file';
+      // 限制文件类型为 Excel 和 CSV
+      input.accept = '.xlsx, .xls, .csv'; 
+
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+          logMessage_Info("未选择文件。");
+          return;
+        }
+
+        // 验证文件扩展名
+        const fileName = file.name;
+        const fileExt = fileName.split('.').pop().toLowerCase();
+        if (!['xlsx', 'xls', 'csv'].includes(fileExt)) {
+          showModalAlert("文件格式不支持，请选择 .xlsx, .xls, 或 .csv 文件。");
+          return;
+        }
+
+        logMessage_Info(`正在读取文件: ${fileName}`);
+        
+        // 我们将文件内容作为 Base64 字符串发送到后端
+        // 这是处理二进制 (xls/xlsx) 和文本 (csv) 文件的最可靠方法
+        const reader = new FileReader();
+        reader.readAsDataURL(file); // 读取为 Data URL (包含了 Base64)
+
+        reader.onload = async () => {
+          try {
+            // reader.result 格式为 "data:application/vnd.ms-excel;base64,UEsD..."
+            // 我们需要去掉 "data:..."
+            const base64Content = reader.result.split(',')[1];
+            
+            // 调用一个[新]的API，将文件名和Base64内容发送到后端
+            const result = await callPythonAPI('multi_import_accounts', fileName, base64Content);
+            
+            if (result && result.success) {
+              logMessage_Info(`成功导入 ${result.imported_count || 0} 个账号。`);
+              if (result.skipped_count > 0) {
+                 // 如果有跳过的（例如缺密码），显示后端返回的提示信息
+                 showModalAlert(`导入完成：\n成功 ${result.imported_count} 个。\n跳过 ${result.skipped_count} 个（缺少密码）。\n\n详情：${result.message}`, "导入提示");
+              }
+              // 刷新账号列表
+              if (result.accounts) {
+                renderMultiAccountList(result.accounts);
+              }
+            } else {
+              showModalAlert(`导入失败: ${result.message || '未知错误'}`);
+            }
+          } catch (err) {
+            logMessage_Error("导入文件时出错:", err);
+            showModalAlert(`导入失败: ${err.message}`);
+          }
+        };
+
+        reader.onerror = () => {
+          logMessage_Error("读取文件失败。");
+          showModalAlert("读取文件失败。");
+        };
+      };
+      
+      // 触发文件选择框
+      input.click();
     }
 
     async function multi_exportToExcel() {
@@ -8540,6 +8970,7 @@
       }
       await callPythonAPI('clear_current_task_draft')
       if (polylines.draft) { map.remove(polylines.draft); polylines.draft = null; }
+      if (polylines.history) { map.remove(polylines.history); polylines.history = null; }
       if (polylines.run) { map.remove(polylines.run); polylines.run = null; }
       if (drawingInfoMarker) drawingInfoMarker.hide();
       draftPath = []; draftPathLngLat = []; draftTotalDist = 0;
@@ -8575,6 +9006,7 @@
     async function toggleRun() {
       const btn = $('start-run-button'); runAccumulatedMs = 0;
       if (btn.textContent === '开始执行') {
+        const autoGen = $('auto-gen-all-check').checked;
         // 使用后台任务执行模式运行单个任务
         if (selectedTaskIndex < 0) {
           showModalAlert('请先选择任务');
@@ -8583,7 +9015,7 @@
         
         const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
           task_indices: [selectedTaskIndex],
-          auto_generate: false
+          auto_generate: autoGen
         });
         
         if (result.success) {
@@ -8592,9 +9024,10 @@
           btn.classList.add('btn-danger');
           
           // 初始化单任务进度显示界面
-          updateSingleProgress(0, '0 / ? 点');
+          updateSingleProgress(0, '0 / 0 点');
           
-          // Start polling (with a small delay to let backend initialize)
+          
+          // 500ms后开始轮询任务状态
           setTimeout(() => startBackgroundTaskPolling(), 500);
         } else {
           showModalAlert(result.message);
@@ -8617,8 +9050,8 @@
         
         // 筛选符合条件的任务
         const taskIndices = [];
-        for (let i = 0; i < allTasksData.length; i++) {
-          const task = allTasksData[i];
+        for (let i = 0; i < currentTasks.length; i++) {
+          const task = currentTasks[i];
           if (task.status == 1 && !ignoreCompleted) continue;
           
           // 检查任务的时间范围是否有效
@@ -8704,6 +9137,33 @@
         if (result.success && result.task_status) {
           const status = result.task_status;
           
+          // ---------- [BUG 修复 START] ----------
+          // 检查后端是否在 auto-gen 后发来了完整的路径数据
+          // (这个数据在 currentRunData 中可能不存在，因为 auto-gen 是在后端发生的)
+          if (status.run_coords && status.run_coords.length > 0) {
+            // 检查前端的 currentRunData 是否缺少此路径数据
+            if (!currentRunData || !currentRunData.run_coords || currentRunData.run_coords.length === 0) {
+              logMessage_Info("检测到后端已自动生成路径，正在更新前端地图...");
+              
+              // 将后端发来的路径和打卡点数据同步到前端的 currentRunData
+              currentRunData.run_coords = status.run_coords || [];
+              currentRunData.target_points = status.target_points || [];
+              currentRunData.target_point_names = status.target_point_names || '';
+              currentRunData.recommended_coords = status.recommended_coords || [];
+              
+              // (重要) 同步总览数据
+              currentRunData.total_run_time_s = status.estimated_total_time_s || 0;
+              currentRunData.total_run_distance_m = status.estimated_total_distance_m || 0;
+              
+              // 立即重绘地图（显示路径和打卡点）
+              drawOnMap();
+              
+              // 立即更新仪表盘（显示总览）
+              updateDashboard();
+            }
+          }
+          // ---------- [BUG 修复 END] ----------
+          
           // 更新现有的进度显示界面
           const completedTasks = status.completed_tasks || 0;
           const totalTasks = status.total_tasks || 0;
@@ -8771,18 +9231,18 @@
 
           drawMarkers();
           
-          // 如果有实时位置数据，则在地图上更新显示
-          if (status.current_position) {
-            const pos = status.current_position;
-            updateRunnerPosition(
-              pos.lon,
-              pos.lat,
-              pos.distance || 0,
-              pos.target_sequence || 0,
-              0, // duration not needed for display
-              false // don't auto-center
-            );
-          }
+          // // 如果有实时位置数据，则在地图上更新显示
+          // if (status.current_position) {
+          //   const pos = status.current_position;
+          //   updateRunnerPosition(
+          //     pos.lon,
+          //     pos.lat,
+          //     pos.distance || 0,
+          //     pos.target_sequence || 0,
+          //     0, // duration not needed for display
+          //     false // don't auto-center
+          //   );
+          // }
           
           // 检查这是否是旧数据（任务在我们开始轮询前就已启动）
           const taskStartTime = (status.start_time || 0) * 1000; // 转换为毫秒
@@ -9015,6 +9475,36 @@
 
     }
     function onTaskCompleted(taskIndex) { if (currentTasks[taskIndex]) { currentTasks[taskIndex].status = 1; renderTaskList(); } }
+
+    /**
+     * 当后端（通过WebSocket）通知任务已停止时调用
+     * (无论是完成、失败还是手动中止)
+     */
+    function onRunStopped() {
+      logMessage_Info("后台任务已停止（来自服务器推送）。");
+      
+      // 1. 停止前端的轮询
+      stopBackgroundTaskPolling();
+
+      // 2. 重置"开始执行"按钮
+      const startBtn = $('start-run-button');
+      if (startBtn) {
+          startBtn.textContent = '开始执行';
+          startBtn.classList.remove('btn-danger');
+          startBtn.classList.add('btn-primary');
+          startBtn.disabled = false; // 确保按钮可用
+      }
+
+      // 3. 重置"执行所有"按钮
+      const startAllBtn = $('start-all-button');
+      if (startAllBtn) {
+          startAllBtn.textContent = '执行所有';
+          startAllBtn.classList.remove('btn-danger');
+          startAllBtn.classList.add('btn-secondary');
+          startAllBtn.disabled = false; // 确保按钮可用
+      }
+    }
+
     async function exportTask() {
       if (selectedTaskIndex === -1) {
         showModalAlert("请先选择一个要导出的任务！");
@@ -10289,7 +10779,7 @@
       // 补签后刷新通知列表状态
       await fetchNotifications();
       // 重新打开通知模态框以显示最新状态
-      showNotifications();
+      // showNotifications();
     }
 
     // --- 手动选点补签函数 ---
