@@ -7666,34 +7666,188 @@ class Api:
                     continue
                 run_data.target_points = waypoints
 
-                path_result = {}
-                completion_event = threading.Event()  # 使用绿化后的 Event
-                self.path_gen_callbacks[acc.username] = (
-                    path_result, completion_event)
-                self.window.evaluate_js(
-                    f'triggerPathGenerationForPy("{acc.username}", {json.dumps(waypoints)})')
-
-                acc.log("等待前端JS规划路径...")
-                # path_received = completion_event.wait(timeout=120)
-
-                # 等待期间若被停止，立即返回
-                while not completion_event.wait(timeout=120):
-                    if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
-                        # 回调通道清理
-                        if acc.username in self.path_gen_callbacks:
-                            self.path_gen_callbacks.pop(acc.username, None)
-                        self._update_account_status_js(acc, status_text="已中止")
-                        return
-
-                if 'path' not in path_result:
-                    error_msg = path_result.get('error', '超时')
-                    acc.log(f"路径规划失败或超时: {error_msg}")
-                    if acc.username in self.path_gen_callbacks:
-                        del self.path_gen_callbacks[acc.username]
+                # 使用 chrome_pool 进行路径规划（Web 模式）
+                api_path_coords = None
+                
+                global chrome_pool
+                if not chrome_pool:
+                    acc.log("错误: Chrome浏览器池不可用，无法进行路径规划。")
                     continue
+                
+                try:
+                    acc.log("正在调用高德地图API进行路径规划...")
+                    
+                    # 获取会话ID（用于chrome_pool）
+                    session_id = getattr(self, '_web_session_id', None)
+                    if not session_id:
+                        acc.log("错误: 无法获取会话ID，跳过任务。")
+                        continue
+                    
+                    # 获取高德地图API密钥
+                    config = configparser.ConfigParser()
+                    config.read(CONFIG_FILE, encoding='utf-8')
+                    amap_key = config.get('Map', 'amap_js_key', fallback='')
+                    
+                    if not amap_key:
+                        acc.log("错误: 未配置高德地图API密钥，请在config.ini中设置。")
+                        continue
+                    
+                    # 获取Chrome上下文并加载高德地图
+                    ctx = chrome_pool.get_context(session_id)
+                    page = ctx['page']
+                    
+                    # 加载高德地图SDK
+                    page.goto("about:blank")
+                    page.set_content("""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <script type="text/javascript" src="https://webapi.amap.com/loader.js"></script>
+                    </head>
+                    <body></body>
+                    </html>
+                    """)
+                    
+                    # 等待AMap加载
+                    page.wait_for_function("typeof AMapLoader !== 'undefined'", timeout=10000)
+                    
+                    # 执行路径规划JavaScript
+                    path_coords = chrome_pool.execute_js(
+                        session_id,
+                        """
+                        (async (arg) => {
+                            const waypointsPy = arg[0];
+                            const apiKey = arg[1];
+                            const pythonParams = arg[2];
 
-                api_path_coords = path_result['path']
-                acc.log(f"路径规划成功，共 {len(api_path_coords)} 点。")
+                            async function planPath(waypointsPy, apiKey, pythonParams) {
+                                if (typeof AMapLoader === 'undefined') {
+                                    return {error: 'AMapLoader not loaded'};
+                                }
+
+                                try {
+                                    await AMapLoader.load({
+                                        "key": apiKey,
+                                        "version": "2.0",
+                                        "plugins": ["AMap.Walking"]
+                                    });
+                                } catch (e) {
+                                    return {error: 'AMapLoader.load failed: ' + (e ? e.message : 'Unknown error')};
+                                }
+
+                                if (typeof AMap.Walking === 'undefined') {
+                                    return {error: 'AMap.Walking plugin failed to load'};
+                                }
+
+                                const useFallback = pythonParams.api_fallback_line ?? false;
+                                const maxRetries = pythonParams.api_retries ?? 2;
+                                const retryDelayMs = (pythonParams.api_retry_delay_s ?? 0.5) * 1000;
+                                const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+                                const searchSegment = (start, end, walkingInstance) => new Promise((resolve) => {
+                                    walkingInstance.search(start, end, (status, result) => {
+                                        if (status === 'complete' && result.routes?.length > 0) {
+                                            const p = []; 
+                                            result.routes[0].steps.forEach(s => s.path.forEach(pt => p.push({ lng: pt.lng, lat: pt.lat })));
+                                            resolve({ path: p });
+                                        } else {
+                                            let errorInfo = 'Unknown Error';
+                                            if (status === 'error') {
+                                                errorInfo = result?.info || status;
+                                            } else if (status === 'no_data') {
+                                                errorInfo = 'No path found (no_data)';
+                                            } else {
+                                                errorInfo = status;
+                                            }
+                                            resolve({ error: 'Path planning failed: ' + errorInfo });
+                                        }
+                                    });
+                                });
+
+                                const all_path = [];
+                                const waypoints = waypointsPy.map(p => new AMap.LngLat(p[0], p[1]));
+                                const walking = new AMap.Walking({ map: null, panel: "", hideMarkers: true });
+
+                                if (waypoints.length < 2) {
+                                    return {error: 'Waypoints must be at least 2.'};
+                                }
+
+                                for (let i = 0; i < waypoints.length - 1; i++) {
+                                    const realStart = waypoints[i];
+                                    const realEnd = waypoints[i + 1];
+                                    
+                                    let attempts = 0;
+                                    let segmentResult = null;
+                                    let segmentPath = null;
+
+                                    while (attempts <= maxRetries) {
+                                        if (attempts > 0) {
+                                            await sleep(retryDelayMs);
+                                        }
+                                        
+                                        segmentResult = await searchSegment(realStart, realEnd, walking);
+                                        
+                                        if (segmentResult.path) {
+                                            segmentPath = segmentResult.path;
+                                            break;
+                                        }
+                                        
+                                        attempts++;
+                                    }
+
+                                    if (segmentPath) {
+                                        const areCoordsEqual = (c1, c2) => Math.abs(c1.lng - c2.lng) < 1e-6 && Math.abs(c1.lat - c2.lat) < 1e-6;
+                                        if (i > 0) {
+                                            all_path.push(...segmentPath.slice(1));
+                                        } else {
+                                            all_path.push(...segmentPath);
+                                        }
+                                        if (i === waypoints.length - 2) { 
+                                            if (segmentPath.length > 0 && !areCoordsEqual(segmentPath[segmentPath.length - 1], { lng: realEnd.lng, lat: realEnd.lat })) {
+                                                all_path.push({ lng: realEnd.lng, lat: realEnd.lat });
+                                            }
+                                        }
+                                    } else {
+                                        if (useFallback) {
+                                            const lastPoint = all_path.length > 0 ? all_path[all_path.length - 1] : null;
+                                            if (!lastPoint || (Math.abs(lastPoint.lng - realStart.lng) > 1e-6 || Math.abs(lastPoint.lat - realStart.lat) > 1e-6)) {
+                                                all_path.push({ lng: realStart.lng, lat: realStart.lat });
+                                            }
+                                            all_path.push({ lng: realEnd.lng, lat: realEnd.lat });
+                                        } else {
+                                            return {error: `Segment ${i+1} failed after ${maxRetries+1} attempts: ${segmentResult.error}`};
+                                        }
+                                    }
+                                }
+                                
+                                return {path: all_path};
+                            }
+
+                            return await planPath(waypointsPy, apiKey, pythonParams);
+                        })
+                        """,
+                        waypoints,
+                        amap_key,
+                        acc.params
+                    )
+                    
+                    if path_coords and 'path' in path_coords:
+                        api_path_coords = path_coords['path']
+                        acc.log(f"路径规划成功，共 {len(api_path_coords)} 个点。")
+                    else:
+                        error_msg = path_coords.get('error', '未知错误') if path_coords else '无响应'
+                        acc.log(f"路径规划失败: {error_msg}")
+                        continue
+                        
+                except Exception as e:
+                    logging.error(f"Chrome浏览器池路径规划失败: {e}", exc_info=True)
+                    acc.log(f"路径规划异常: {str(e)}")
+                    continue
+                
+                if not api_path_coords:
+                    acc.log("路径规划失败，跳过任务。")
+                    continue
 
                 min_t_m, max_t_m, min_d_m = acc.params.get("min_time_m", 20), acc.params.get(
                     "max_time_m", 30), acc.params.get("min_dist_m", 2000)
@@ -7779,11 +7933,7 @@ class Api:
                             submission_successful = False
                             break
 
-                        # 位置与前端地图更新（保持原有逻辑）
-                        if self.window:
-                            self.window.evaluate_js(
-                                f'multi_updateRunnerPosition("{acc.username}", {lon}, {lat}, "{acc.user_data.name}")'
-                            )
+
 
                         # 等待当前点的“上报时长”（保持原有逻辑）
                         if acc.stop_event.wait(timeout=dur_ms / 1000.0):
