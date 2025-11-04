@@ -3064,6 +3064,9 @@ class AccountSession:
         # 首次登录验证状态
         self.is_first_login_verified: bool = False  # 是否已完成首次登录验证
         self.is_verifying: bool = False  # 是否正在进行首次验证
+        
+        # 最后刷新时间戳（用于避免重复刷新）
+        self.last_refresh_time: float = 0  # 上次刷新的时间戳
 
         self.status_text: str = "待命"  # UI上显示的状态
         self.summary = {"total": 0, "completed": 0, "pending": 0,
@@ -6530,6 +6533,9 @@ class Api:
         - preserve_status=True 时：若账号正在运行，不改写 status_text，只更新 name 与 summary
         """
         try:
+            # 更新最后刷新时间戳
+            acc.last_refresh_time = time.time()
+            
             # 动态判断是否需要保留状态（仅当账号当前正在运行且调用方要求保留时）
             preserve_now = preserve_status and bool(
                 acc.worker_thread and acc.worker_thread.is_alive())
@@ -7632,45 +7638,57 @@ class Api:
                 self._update_account_status_js(acc, status_text="已取消")
                 return
 
-            self._update_account_status_js(acc, status_text="登录中...")
-            if not acc.device_ua:
-                acc.device_ua = ApiClient.generate_random_ua()
+            # 检查是否需要重新登录和刷新任务列表
+            # 如果20秒内已经刷新过（例如首次验证刚完成），则跳过登录和任务刷新，直接使用已有数据
+            current_time = time.time()
+            time_since_last_refresh = current_time - acc.last_refresh_time
+            skip_refresh = time_since_last_refresh < 20 and acc.user_data.id and len(acc.all_run_data) > 0
+            
+            if skip_refresh:
+                acc.log(f"距离上次刷新仅 {time_since_last_refresh:.1f} 秒，跳过重复刷新，直接使用已有数据。")
+            else:
+                self._update_account_status_js(acc, status_text="登录中...")
+                if not acc.device_ua:
+                    acc.device_ua = ApiClient.generate_random_ua()
 
-          # 登录前再次检查是否已被停止
-            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
-                self._update_account_status_js(acc, status_text="已中止")
-                self._update_multi_global_buttons()
-                return
+              # 登录前再次检查是否已被停止
+                if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                    self._update_account_status_js(acc, status_text="已中止")
+                    self._update_multi_global_buttons()
+                    return
 
-            login_resp = self._queued_login(acc)
+                login_resp = self._queued_login(acc)
 
-            # 登录返回后立即检查是否已被停止（避免继续向下流程）
-            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
-                self._update_account_status_js(acc, status_text="已中止")
-                self._update_multi_global_buttons()
-                return
+                # 登录返回后立即检查是否已被停止（避免继续向下流程）
+                if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                    self._update_account_status_js(acc, status_text="已中止")
+                    self._update_multi_global_buttons()
+                    return
 
-            if not login_resp or not login_resp.get('success'):
-                msg = login_resp.get(
-                    'message', '未知错误') if login_resp else '网络错误'
-                self._update_account_status_js(acc, status_text=f"登录失败: {msg}")
-                return
+                if not login_resp or not login_resp.get('success'):
+                    msg = login_resp.get(
+                        'message', '未知错误') if login_resp else '网络错误'
+                    self._update_account_status_js(acc, status_text=f"登录失败: {msg}")
+                    return
 
-            data = login_resp.get('data', {})
-            user_info = data.get('userInfo', {})
-            acc.user_data.name = user_info.get('name', '')
-            acc.user_data.id = user_info.get('id', '')
-            acc.user_data.student_id = user_info.get('account', '')
-            acc.log("登录成功。")
-            self._update_account_status_js(
-                acc, status_text="分析任务", name=acc.user_data.name)
+                data = login_resp.get('data', {})
+                user_info = data.get('userInfo', {})
+                acc.user_data.name = user_info.get('name', '')
+                acc.user_data.id = user_info.get('id', '')
+                acc.user_data.student_id = user_info.get('account', '')
+                acc.log("登录成功。")
+                self._update_account_status_js(
+                    acc, status_text="分析任务", name=acc.user_data.name)
 
-            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
-                self._update_account_status_js(acc, status_text="已中止")
-                return
+                if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                    self._update_account_status_js(acc, status_text="已中止")
+                    return
 
-            self._multi_fetch_and_summarize_tasks(acc)
-            self._update_account_status_js(acc, summary=acc.summary)
+                self._multi_fetch_and_summarize_tasks(acc)
+                self._update_account_status_js(acc, summary=acc.summary)
+                
+                # 更新刷新时间戳
+                acc.last_refresh_time = time.time()
 
             tasks_to_run_candidates = []
             now = datetime.datetime.now()
