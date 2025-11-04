@@ -734,7 +734,6 @@ def _get_default_config():
     - [System]: 系统路径和文件配置
     - [Security]: 安全策略（密码存储、防暴力破解）
     - [Map]: 地图API配置（高德地图密钥）
-    - [AutoFill]: 自动填充功能开关
 
     返回:
         configparser.ConfigParser: 包含默认配置的对象
