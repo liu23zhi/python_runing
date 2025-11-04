@@ -8125,13 +8125,22 @@ class Api:
 
     # --- 获取通知功能 ---
 
-    def get_notifications(self, is_auto_refresh: bool = False):
+    def get_notifications(self, is_auto_refresh: bool = False, request_limit: int = None, request_offset: int = 0):
         """
         (已重构) 获取未读通知数量和通知列表。
         - 附加基于新逻辑的签到状态。
         - (自动签到逻辑已移至 _check_and_trigger_auto_attendance)
+        - 支持分段加载：可指定 request_limit 和 request_offset 参数
+        
+        Args:
+            is_auto_refresh: 是否为自动刷新调用
+            request_limit: 请求的最大通知数量（None表示获取全部）
+            request_offset: 请求的起始偏移量（默认为0）
+        
+        Returns:
+            包含 success、unreadCount、notices、hasMore、totalCount 的字典
         """
-        logging.info("API调用: get_notifications - 获取用户通知消息列表")
+        logging.info(f"API调用: get_notifications - 获取用户通知消息列表 (limit={request_limit}, offset={request_offset})")
         if not self.user_data.id or self.is_multi_account_mode:
             return {"success": False, "message": "仅单账号登录模式可用"}
 
@@ -8153,28 +8162,56 @@ class Api:
                 unread_count = count_resp.get(
                     'data', {}).get('unreadNumber', 0)
 
-            # 2. 【重构】获取所有通知
+            # 2. 【重构】获取通知 - 支持分段加载
             all_notices = []
-            offset = 0
-            limit = 10
-            while True:
-                list_resp = self.api_client.get_notice_list(
-                    offset=offset, limit=limit, type_id=0)
-                if list_resp and list_resp.get('success'):
-                    current_notices = list_resp.get(
-                        'data', {}).get('noticeList', [])
-                    if not current_notices:
-                        # 没有更多通知了，退出循环
+            offset = request_offset
+            limit = 10  # 每次向服务器请求的批次大小
+            total_fetched = 0
+            
+            # 如果指定了 request_limit，则只获取指定数量的通知
+            if request_limit is not None:
+                # 计算需要获取多少批次
+                while total_fetched < request_limit:
+                    # 计算本次请求应该获取多少条
+                    batch_size = min(limit, request_limit - total_fetched)
+                    
+                    list_resp = self.api_client.get_notice_list(
+                        offset=offset, limit=batch_size, type_id=0)
+                    if list_resp and list_resp.get('success'):
+                        current_notices = list_resp.get(
+                            'data', {}).get('noticeList', [])
+                        if not current_notices:
+                            # 没有更多通知了，退出循环
+                            break
+                        all_notices.extend(current_notices)
+                        total_fetched += len(current_notices)
+                        offset += len(current_notices)
+                        # 如果返回的通知数小于请求的批次大小，说明没有更多数据了
+                        if len(current_notices) < batch_size:
+                            break
+                    else:
+                        self.log("获取通知列表时失败。")
                         break
-                    all_notices.extend(current_notices)
-                    offset += limit
-                    # 如果返回的通知数小于请求的 limit，说明是最后一页
-                    if len(current_notices) < limit:
+            else:
+                # 原有逻辑：获取所有通知
+                while True:
+                    list_resp = self.api_client.get_notice_list(
+                        offset=offset, limit=limit, type_id=0)
+                    if list_resp and list_resp.get('success'):
+                        current_notices = list_resp.get(
+                            'data', {}).get('noticeList', [])
+                        if not current_notices:
+                            # 没有更多通知了，退出循环
+                            break
+                        all_notices.extend(current_notices)
+                        offset += limit
+                        # 如果返回的通知数小于请求的 limit，说明是最后一页
+                        if len(current_notices) < limit:
+                            break
+                    else:
+                        self.log("获取通知列表时失败。")
+                        # 发生错误时中断，避免无限循环
                         break
-                else:
-                    self.log("获取通知列表时失败。")
-                    # 发生错误时中断，避免无限循环
-                    break
 
             notices = all_notices
 
@@ -8217,13 +8254,28 @@ class Api:
                         logging.warning(
                             f"附加签到状态失败 (ID: {notice.get('id')}): {e}")
 
+            # 判断是否还有更多通知
+            # 如果请求了 request_limit 条，且实际获取的数量等于 request_limit，
+            # 说明可能还有更多数据（需要再次请求确认）
+            has_more = False
+            if request_limit is not None and len(notices) >= request_limit:
+                # 尝试peek下一条，看是否还有数据
+                peek_resp = self.api_client.get_notice_list(
+                    offset=offset, limit=1, type_id=0)
+                if peek_resp and peek_resp.get('success'):
+                    peek_notices = peek_resp.get('data', {}).get('noticeList', [])
+                    has_more = len(peek_notices) > 0
+
             if not is_auto_refresh:
-                self.log(f"获取到 {unread_count} 条未读通知，共有 {len(notices)} 条通知。")
+                self.log(f"获取到 {unread_count} 条未读通知，本次返回 {len(notices)} 条通知。")
 
             return {
                 "success": True,
                 "unreadCount": unread_count,
-                "notices": notices
+                "notices": notices,
+                "hasMore": has_more,
+                "totalCount": offset,  # 当前已扫描到的总数
+                "returnedCount": len(notices)  # 本次返回的数量
             }
         except Exception as e:
             self.log(f"获取通知失败: {e}")

@@ -10522,89 +10522,162 @@
         refreshBtn.textContent = '刷新中...';
       }
       if (markReadBtn) markReadBtn.disabled = true;
-      content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载前5条通知...</p>';
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载...</p>';
 
       try {
-        // 【优化】渐进式分段加载：每次加载5条，立即显示
-        let currentOffset = 0;
-        const batchSize = 5;
-        let hasMore = true;
-        let firstLoad = true;
-        
-        // 定义递归加载函数
-        const loadNextBatch = async () => {
-          if (!hasMore) {
-            return;
-          }
-          
-          logMessage_Info(`正在加载通知：offset=${currentOffset}, limit=${batchSize}`);
-          const result = await fetchNotifications(batchSize, currentOffset);
-          
-          if (!result || !result.success) {
-            if (firstLoad) {
-              content.innerHTML = '<p class="text-red-500 text-center py-10">加载失败，请稍后重试</p>';
+        const result = await fetchNotifications(); // <-- 第一次调用，获取数据
+        // 2. 异步获取最新数据
+        // fetchNotifications 会更新全局的 window.currentNotifications
+        // await fetchNotifications(); // <-- 修复：删除这行多余的、导致双倍等待的调用
+
+        // 3. 修复Issue 3: 使用流式渲染，逐条显示通知而不是等待全部完成
+        content.innerHTML = ''; // 清空 "正在加载..."
+        // 使用第一次调用返回的 result.notices，或者使用已被设置的 window.currentNotifications
+        const notices = result.notices || window.currentNotifications || [];
+
+        if (notices.length === 0) {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无通知</p>';
+          if (markReadBtn) markReadBtn.disabled = true;
+        } else {
+          let hasUnread = false;
+          // 使用requestAnimationFrame和分批渲染来优化用户体验
+          let batchIndex = 0;
+          const batchSize = 5; // 每批渲染5条
+
+          const renderBatch = () => {
+            const start = batchIndex * batchSize;
+            const end = Math.min(start + batchSize, notices.length);
+
+            for (let i = start; i < end; i++) {
+              const n = notices[i];
+              const item = document.createElement('div');
+              item.className = 'p-3 border-b border-slate-200';
+
+              item.id = `notice-${n.id}`; // 添加唯一ID
+
+              const isEffectivelyRead = (n.isRead == 1 || n.isRead === true);
+              const isReadClass = isEffectivelyRead ? 'opacity-60' : 'font-bold';
+
+              // 1. “设为已读”按钮
+              let readButtonHtml = '';
+              if (!isEffectivelyRead) {
+                hasUnread = true;
+                readButtonHtml = `<button class="btn btn-ghost !py-0 !px-2 !text-xs text-sky-600" onclick="markAsRead(event, '${n.id}')">设为已读</button>`;
+              }
+
+              // 2. 签到状态/按钮 (使用后端新逻辑)
+              let attendanceHtml = '';
+              const isAttendanceTask = (n.image === 'attendance') || (n.title && n.title.includes('签到'));
+
+              if (isAttendanceTask && n.id) {
+                // 后端已经附加了 attendance_code (-1=过期, 0=待签, 1=已签)
+                switch (n.attendance_code) {
+                  case -1:
+                    // --- 新代码 (case -1) ---
+                    try {
+                      const coordsStr = (n.updateBy || "").trim();
+                      const [lat, lon] = coordsStr.split(',').map(Number);
+                      if (isNaN(lon) || isNaN(lat)) throw new Error('坐标无效');
+                      const targetCoords = `[${lon}, ${lat}]`;
+
+                      attendanceHtml = `
+                        <span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span>
+                        <div class="relative inline-block group">
+                          <button class="btn btn-warning !py-0 !px-2 !text-xs inline-flex items-center" title="补签此任务">
+                            <span>补签</span>
+                            <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
+                          </button>
+                          <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-32 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
+                            <button class="btn btn-warning !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleMakeupAttendance(event, '${n.id}', ${targetCoords})">随机补签</button>
+                            <button class="btn btn-warning !bg-orange-400 hover:!bg-orange-500 !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualMakeupAttendance(event, '${n.id}', ${targetCoords})">手动选点补签</button>
+                          </div>
+                        </div>
+                      `;
+                    } catch (e) {
+                      attendanceHtml = `<span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span> <span class="text-xs text-slate-400">(坐标无效)</span>`;
+                    }
+                    break;
+                  case 1:
+                    attendanceHtml = `<span class="text-xs font-semibold text-emerald-600 px-2 py-0.5 rounded-full bg-emerald-100">已签到</span>`;
+                    break;
+                  case 0:
+                    // 待签到，显示按钮
+                    try {
+                      // 坐标在 updateBy 字段，格式为 "lat,lon"
+                      const coordsStr = (n.updateBy || "").trim();
+                      const [lat, lon] = coordsStr.split(',').map(Number);
+
+                      if (!isNaN(lon) && !isNaN(lat)) {
+                        const rollCallId = n.id;
+                        // JavaScript API接口需要 [经度, 纬度] 格式的坐标
+                        const targetCoords = `[${lon}, ${lat}]`;
+
+                        // --- 新代码 (case 0, successful parse) ---
+                        // 保留原有的签到下拉框，并额外添加一个“补签”按钮
+                        attendanceHtml = `
+                          <div class="relative inline-block group">
+                            <button class="btn btn-secondary !py-0 !px-2 !text-xs inline-flex items-center">
+                              <span>签到</span>
+                              <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
+                            </button>
+                            <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-28 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
+                              <button class="btn btn-success !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleAttendance(event, '${rollCallId}', ${targetCoords})">随机签到</button>
+                              <button class="btn btn-secondary !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualAttendance(event, '${rollCallId}', ${targetCoords})">手动选点</button>
+                            </div>
+                          </div>
+                          <button class="btn btn-warning !py-0 !px-2 !text-xs" onclick="handleMakeupAttendance(event, '${rollCallId}', ${targetCoords})">
+                            补签
+                          </button>
+                        `;
+                      } else {
+                        attendanceHtml = `<span class="text-xs text-slate-400">坐标无效</span>`;
+                      }
+                    } catch (e) {
+                      logMessage_Error("解析签到坐标失败:", e, n.updateBy);
+                      attendanceHtml = `<span class="text-xs text-red-500">数据错误</span>`;
+                    }
+                    break;
+                  default:
+                    // (status_code 未知)
+                    attendanceHtml = `<span class="text-xs text-slate-400">状态未知</span>`;
+                }
+              }
+
+              // 3. 组装
+              item.innerHTML = `
+                <div class="flex justify-between items-center">
+                  <span class="text-base text-slate-800 ${isReadClass}">${n.title}</span>
+                  <div class="flex items-center gap-2">
+                    ${readButtonHtml}
+                    ${attendanceHtml}
+                    <span class="text-xs text-slate-500 flex-shrink-0">${n.createtime}</span>
+                  </div>
+                </div>
+                <p class="text-sm text-slate-600 mt-1 ${isReadClass}">${n.content}</p>
+              `;
+              content.appendChild(item);
+
+              if (!isEffectivelyRead) hasUnread = true;
             }
-            return;
-          }
-          
-          const notices = result.notices || [];
-          
-          if (firstLoad) {
-            // 首次加载，清空"正在加载"提示
-            content.innerHTML = '';
-            firstLoad = false;
-          }
-          
-          if (notices.length === 0 && currentOffset === 0) {
-            content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无通知</p>';
-            if (markReadBtn) markReadBtn.disabled = true;
-            return;
-          }
-          
-          // 移除之前的"正在加载更多"提示（如果存在）
-          const oldIndicator = $('loading-more-indicator');
-          if (oldIndicator) {
-            oldIndicator.remove();
-          }
-          
-          // 渲染这一批通知
-          if (notices.length > 0) {
-            logMessage_Info(`第${Math.floor(currentOffset/batchSize) + 1}批加载完成：显示 ${notices.length} 条通知`);
-            renderNotificationBatch(notices, content);
-            
-            // 更新未读按钮状态
-            const allNotices = window.currentNotifications || [];
-            const hasUnread = allNotices.some(n => n.isRead == 0 || n.isRead === false);
-            if (markReadBtn) markReadBtn.disabled = !hasUnread;
-          }
-          
-          // 更新偏移量和是否还有更多数据
-          currentOffset += batchSize;
-          hasMore = result.hasMore || false;
-          
-          // 如果还有更多数据，显示"正在加载更多"提示，并继续加载
-          if (hasMore) {
-            const loadingMore = document.createElement('div');
-            loadingMore.id = 'loading-more-indicator';
-            loadingMore.className = 'p-3 text-center text-slate-400 text-sm';
-            loadingMore.innerHTML = '正在加载更多通知...';
-            content.appendChild(loadingMore);
-            
-            // 短暂延迟后加载下一批（让用户看到前一批的内容）
-            setTimeout(loadNextBatch, 100);
-          } else {
-            logMessage_Info("所有通知加载完成");
-          }
-          
-          // 第一批加载完成后，调用 onNotificationsUpdated 来刷新"签到"Tab
-          if (currentOffset === batchSize && result.success) {
-            onNotificationsUpdated(result);
-          }
-        };
-        
-        // 开始加载第一批
-        await loadNextBatch();
-        
+
+            batchIndex++;
+            if (end < notices.length) {
+              // 还有更多通知，继续渲染下一批
+              requestAnimationFrame(renderBatch);
+            } else {
+              // 渲染完成
+              if (markReadBtn) markReadBtn.disabled = !hasUnread;
+            }
+          };
+
+          // 开始第一批渲染
+          renderBatch();
+        }
+        // 4. 显式调用 onNotificationsUpdated 来刷新“签到”Tab
+        //    因为它包含渲染 attendance-list 的逻辑
+        if (result && result.success) {
+          onNotificationsUpdated(result);
+        }
       } catch (e) {
         logMessage_Error("Failed to refresh notifications UI", e);
         content.innerHTML = '<p class="text-red-500 text-center py-10">刷新失败，请稍后重试</p>';
@@ -10614,111 +10687,12 @@
           refreshBtn.disabled = false;
           refreshBtn.textContent = '刷新';
         }
+        if (markReadBtn) {
+          // 再次检查最新的未读状态
+          const hasUnread = (window.currentNotifications || []).some(n => n.isRead == 0 || n.isRead === false);
+          markReadBtn.disabled = !hasUnread;
+        }
         isRefreshingNotifications = false;
-      }
-    }
-    
-    // 辅助函数：渲染一批通知
-    function renderNotificationBatch(notices, container) {
-      if (!notices || notices.length === 0) return;
-      
-      for (const n of notices) {
-        const item = document.createElement('div');
-        item.className = 'p-3 border-b border-slate-200';
-        item.id = `notice-${n.id}`;
-
-        const isEffectivelyRead = (n.isRead == 1 || n.isRead === true);
-        const isReadClass = isEffectivelyRead ? 'opacity-60' : 'font-bold';
-
-        // 1. "设为已读"按钮
-        let readButtonHtml = '';
-        if (!isEffectivelyRead) {
-          readButtonHtml = `<button class="btn btn-ghost !py-0 !px-2 !text-xs text-sky-600" onclick="markAsRead(event, '${n.id}')">设为已读</button>`;
-        }
-
-        // 2. 签到状态/按钮 (使用后端新逻辑)
-        let attendanceHtml = '';
-        const isAttendanceTask = (n.image === 'attendance') || (n.title && n.title.includes('签到'));
-
-        if (isAttendanceTask && n.id) {
-          switch (n.attendance_code) {
-            case -1:
-              try {
-                const coordsStr = (n.updateBy || "").trim();
-                const [lat, lon] = coordsStr.split(',').map(Number);
-                if (isNaN(lon) || isNaN(lat)) throw new Error('坐标无效');
-                const targetCoords = `[${lon}, ${lat}]`;
-
-                attendanceHtml = `
-                  <span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span>
-                  <div class="relative inline-block group">
-                    <button class="btn btn-warning !py-0 !px-2 !text-xs inline-flex items-center" title="补签此任务">
-                      <span>补签</span>
-                      <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
-                    </button>
-                    <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-32 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
-                      <button class="btn btn-warning !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleMakeupAttendance(event, '${n.id}', ${targetCoords})">随机补签</button>
-                      <button class="btn btn-warning !bg-orange-400 hover:!bg-orange-500 !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualMakeupAttendance(event, '${n.id}', ${targetCoords})">手动选点补签</button>
-                    </div>
-                  </div>
-                `;
-              } catch (e) {
-                attendanceHtml = `<span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span> <span class="text-xs text-slate-400">(坐标无效)</span>`;
-              }
-              break;
-            case 1:
-              attendanceHtml = `<span class="text-xs font-semibold text-emerald-600 px-2 py-0.5 rounded-full bg-emerald-100">已签到</span>`;
-              break;
-            case 0:
-              try {
-                const coordsStr = (n.updateBy || "").trim();
-                const [lat, lon] = coordsStr.split(',').map(Number);
-
-                if (!isNaN(lon) && !isNaN(lat)) {
-                  const rollCallId = n.id;
-                  const targetCoords = `[${lon}, ${lat}]`;
-
-                  attendanceHtml = `
-                    <div class="relative inline-block group">
-                      <button class="btn btn-secondary !py-0 !px-2 !text-xs inline-flex items-center">
-                        <span>签到</span>
-                        <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
-                      </button>
-                      <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-28 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
-                        <button class="btn btn-success !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleAttendance(event, '${rollCallId}', ${targetCoords})">随机签到</button>
-                        <button class="btn btn-secondary !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualAttendance(event, '${rollCallId}', ${targetCoords})">手动选点</button>
-                      </div>
-                    </div>
-                    <button class="btn btn-warning !py-0 !px-2 !text-xs" onclick="handleMakeupAttendance(event, '${rollCallId}', ${targetCoords})">
-                      补签
-                    </button>
-                  `;
-                } else {
-                  attendanceHtml = `<span class="text-xs text-slate-400">坐标无效</span>`;
-                }
-              } catch (e) {
-                logMessage_Error("解析签到坐标失败:", e, n.updateBy);
-                attendanceHtml = `<span class="text-xs text-red-500">数据错误</span>`;
-              }
-              break;
-            default:
-              attendanceHtml = `<span class="text-xs text-slate-400">状态未知</span>`;
-          }
-        }
-
-        // 3. 组装
-        item.innerHTML = `
-          <div class="flex justify-between items-center">
-            <span class="text-base text-slate-800 ${isReadClass}">${n.title}</span>
-            <div class="flex items-center gap-2">
-              ${readButtonHtml}
-              ${attendanceHtml}
-              <span class="text-xs text-slate-500 flex-shrink-0">${n.createtime}</span>
-            </div>
-          </div>
-          <p class="text-sm text-slate-600 mt-1 ${isReadClass}">${n.content}</p>
-        `;
-        container.appendChild(item);
       }
     }
 
