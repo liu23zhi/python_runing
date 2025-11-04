@@ -777,12 +777,6 @@ def _get_default_config():
         'amap_js_key': '',  # 高德地图JS API密钥
     }
 
-    # [AutoFill] 自动填充配置
-    config['AutoFill'] = {
-        'guest_auto_fill_password': 'false',  # 游客模式是否自动填充密码
-        'auto_fill_accounts': '',  # 允许自动填充密码的账号列表（逗号分隔）
-    }
-
     return config
 
 
@@ -872,18 +866,6 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 申请类型：Web端(JS API)，服务平台：Web端\n")
         f.write(
             f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
-
-        # [AutoFill] 配置
-        f.write("[AutoFill]\n")
-        f.write("# 游客模式是否自动填充密码（true/false）\n")
-        f.write("# true：游客登录时自动填充密码（方便测试）\n")
-        f.write("# false：需要手动输入密码\n")
-        f.write(
-            f"guest_auto_fill_password = {config_obj.get('AutoFill', 'guest_auto_fill_password', fallback='false')}\n")
-        f.write("# 允许自动填充密码的账号列表（逗号分隔）\n")
-        f.write("# 示例：user1,user2,user3\n")
-        f.write(
-            f"auto_fill_accounts = {config_obj.get('AutoFill', 'auto_fill_accounts', fallback='')}\n\n")
 
 
 def _create_config_ini():
@@ -2660,10 +2642,9 @@ class TokenManager:
 
     def _get_token_file_path(self, username):
         """获取用户的token文件路径"""
-        # 使用用户名的哈希作为文件名
-        username_hash = hashlib.sha256(username.encode()).hexdigest()
+        # 直接使用用户名作为文件名（简化格式）
         file_path = os.path.join(
-            self.tokens_dir, f"{username_hash}_tokens.json")
+            self.tokens_dir, f"{username}.json")
         logging.debug(
             f"_get_token_file_path: 用户 {username} 的令牌文件: {file_path}")
         return file_path
@@ -11666,7 +11647,6 @@ def start_web_server(args_param):
         return jsonify({
             "success": True,
             "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True),
-            "guest_auto_fill_password": auth_system.config.getboolean('AutoFill', 'guest_auto_fill_password', fallback=False),
             "amap_js_key": auth_system.config.get('Map', 'amap_js_key', fallback='')
         })
 
@@ -13471,6 +13451,18 @@ def start_web_server(args_param):
                     result = func(**params) if isinstance(params,dict) else func(*params)
                 else:
                     result = func()
+
+                # 权限过滤：on_user_selected需要检查auto_fill_password权限
+                if method == 'on_user_selected' and result and isinstance(result, dict):
+                    # 检查用户是否有auto_fill_password权限
+                    has_auto_fill = False
+                    if hasattr(api_instance, 'auth_username'):
+                        has_auto_fill = auth_system.check_permission(
+                            api_instance.auth_username, 'auto_fill_password')
+                    
+                    # 如果没有权限，清空密码字段
+                    if not has_auto_fill:
+                        result['password'] = ""
 
                 # 关键改进：对于会改变会话状态的API调用，保存会话状态
                 # 扩展自动保存的方法列表，包括所有可能改变状态的操作
