@@ -3564,19 +3564,6 @@ class Api:
         except Exception as e:
             return {"success": False, "message": str(e)}
 
-    def set_window(self, window):
-        """由主程序调用，设置WebView窗口对象的引用"""
-        logging.info("Python后端: set_window方法已被调用，准备设置WebView窗口对象引用")
-        self.window = window
-        if self.args.autologin:
-            user, passwd = self.args.autologin
-            self.log("收到自动登录指令。")
-            logging.debug(f"收到自动登录请求，目标用户: {user}")
-            # 使用 threading.Timer（已被绿化）
-            timer = threading.Timer(2.0, lambda: self.window.evaluate_js(
-                f'autoLogin("{user}", "{passwd}")'))
-            timer.start()
-
     def log(self, message):
         """将日志消息通过 WebSocket 发送到前端界面显示"""
         # 尝试获取当前 Api 实例关联的 session_id
@@ -5896,40 +5883,6 @@ class Api:
         logging.warning("加载历史运动轨迹数据失败")
         return {"success": False, "message": "加载历史轨迹失败"}
 
-    def open_file_dialog(self, dialog_type, options):
-        """打开系统文件对话框（Web模式不支持，返回错误）"""
-        logging.info(f"API调用: open_file_dialog - 打开文件对话框，类型: {dialog_type}")
-        # Web模式下无法使用文件对话框
-        logging.error("文件对话框在Web模式下不可用")
-        return None
-
-    def show_confirm_dialog(self, title, message):
-        """(已修复) 由JS调用，显示一个基于HTML的确认对话框(是/否)"""
-        logging.info(f"API调用: show_confirm_dialog - 显示确认对话框，标题: {title}")
-
-        if not self.window:
-            logging.error(
-                "窗口对象未设置，无法显示确认对话框")
-            return False  # 无法显示，默认返回 "否"
-
-        try:
-            # 调用JS函数 (jsShowConfirm)，并等待其返回的 Promise
-            # JS中的 jsShowConfirm 必须返回一个 Promise<boolean>
-            js_code = f'jsShowConfirm({json.dumps(title)}, {json.dumps(message)})'
-
-            # evaluate_js 会阻塞Python线程，直到JS的Promise解析
-            result = self.window.evaluate_js(js_code)
-
-            # 确保返回的是布尔值
-            return bool(result)
-
-        except Exception as e:
-            # 如果JS函数不存在、JS执行出错或返回了非预期值
-            logging.error(
-                f"从JavaScript显示/获取确认对话框时出错: {e}", exc_info=True)
-            # Web模式下无法使用tkinter回退
-            return False
-
     def update_param(self, key, value):
         """更新并保存单个参数"""
         logging.info(f"API调用: update_param - 更新参数，键: {key}, 值: {value}")
@@ -6708,32 +6661,6 @@ class Api:
             self.log(f"模板生成失败：{e}")
             logging.error(f"Template generation failed: {traceback.format_exc()}")
             return {"success": False, "message": f"生成失败: {e}"}
-
-    def safe_load_workbook(self, filepath, **kwargs):
-        if not filepath:
-            raise ValueError("未提供有效的文件路径，可能是用户取消了文件选择。")
-        if not isinstance(filepath, (str, bytes, os.PathLike)):
-            raise TypeError(f"文件路径类型错误: 期望 str/Path，实际 {type(filepath)}")
-        try:
-            wb = openpyxl.load_workbook(
-                filepath,
-                data_only=True,
-                read_only=True,
-                **kwargs
-            )
-            return wb
-        except Exception as e:
-            # 增强提示：可能是办公软件兼容性问题
-            warnings.warn(
-                f"Excel 打开失败，已尝试只读模式: {e}\n"
-                f"提示: 请确认已安装兼容的办公软件 (如 Microsoft Office 或新版 WPS)，"
-                f"并确保文件未被其他程序占用。"
-            )
-            return openpyxl.load_workbook(
-                filepath,
-                data_only=True,
-                read_only=True
-            )
 
     def multi_import_accounts(self, filename, base64_content):
         """从文件导入账号密码，支持 .xlsx/.xls/.csv（仅Web模式，从内存流处理）
