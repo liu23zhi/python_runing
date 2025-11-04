@@ -4,6 +4,7 @@
 
 # ===== 导入标准库 =====
 import argparse  # 命令行参数解析，用于启动参数配置
+import base64  # Base64编解码，用于处理二进制文件内容传输
 import bisect  # 二分查找算法，可能用于有序列表操作
 import collections  # 集合数据类型，提供特殊容器如deque、Counter等
 import configparser  # INI配置文件解析，用于读写config.ini
@@ -3038,7 +3039,7 @@ class RunData:
 class AccountSession:
     """封装单个账号的所有运行时数据、状态和操作"""
 
-    def __init__(self, username, password, api_bridge):
+    def __init__(self, username, password, api_bridge, tag=None):
         self.username: str = username
         self.password: str = password
         self.api_bridge = api_bridge  # Api 类的实例引用
@@ -3056,6 +3057,16 @@ class AccountSession:
         # --- 账号独立的签到半径缓存 ---
         self.server_attendance_radius_m = 0.0
         self.last_radius_fetch_time = 0
+
+        # 标记信息
+        self.tag: str = tag if tag else ""  # 账号标记（备注/标签）
+        
+        # 首次登录验证状态
+        self.is_first_login_verified: bool = False  # 是否已完成首次登录验证
+        self.is_verifying: bool = False  # 是否正在进行首次验证
+        
+        # 最后刷新时间戳（用于避免重复刷新）
+        self.last_refresh_time: float = 0  # 上次刷新的时间戳
 
         self.status_text: str = "待命"  # UI上显示的状态
         self.summary = {"total": 0, "completed": 0, "pending": 0,
@@ -3553,19 +3564,6 @@ class Api:
         except Exception as e:
             return {"success": False, "message": str(e)}
 
-    def set_window(self, window):
-        """由主程序调用，设置WebView窗口对象的引用"""
-        logging.info("Python后端: set_window方法已被调用，准备设置WebView窗口对象引用")
-        self.window = window
-        if self.args.autologin:
-            user, passwd = self.args.autologin
-            self.log("收到自动登录指令。")
-            logging.debug(f"收到自动登录请求，目标用户: {user}")
-            # 使用 threading.Timer（已被绿化）
-            timer = threading.Timer(2.0, lambda: self.window.evaluate_js(
-                f'autoLogin("{user}", "{passwd}")'))
-            timer.start()
-
     def log(self, message):
         """将日志消息通过 WebSocket 发送到前端界面显示"""
         # 尝试获取当前 Api 实例关联的 session_id
@@ -3968,6 +3966,50 @@ class Api:
                     pass
         logging.debug(f"已成功加载用户配置: {username}")
         return password
+
+    def _save_account_tag(self, username, tag):
+        """保存账号标记到用户配置文件"""
+        user_ini_path = os.path.join(self.user_dir, f"{username}.ini")
+        
+        cfg = configparser.RawConfigParser()
+        cfg.optionxform = str  # 保持键的大小写
+        if os.path.exists(user_ini_path):
+            try:
+                cfg.read(user_ini_path, encoding='utf-8')
+            except Exception as e:
+                logging.warning(f"读取配置文件 {user_ini_path} 失败: {e}")
+        
+        # 确保分区存在
+        if not cfg.has_section('Account'):
+            cfg.add_section('Account')
+        
+        # 设置标记
+        cfg.set('Account', 'Tag', str(tag))
+        
+        # 写入文件
+        try:
+            with open(user_ini_path, 'w', encoding='utf-8') as f:
+                cfg.write(f)
+            logging.debug(f"已保存账号 {username} 的标记: {tag}")
+        except Exception as e:
+            logging.error(f"保存账号标记失败 {user_ini_path}: {e}", exc_info=True)
+
+    def _load_account_tag(self, username):
+        """从用户配置文件加载账号标记"""
+        user_ini_path = os.path.join(self.user_dir, f"{username}.ini")
+        if not os.path.exists(user_ini_path):
+            return None
+        
+        cfg = configparser.ConfigParser()
+        try:
+            cfg.read(user_ini_path, encoding='utf-8')
+            if cfg.has_option('Account', 'Tag'):
+                tag_str = cfg.get('Account', 'Tag')
+                return tag_str
+        except Exception as e:
+            logging.warning(f"加载账号标记失败 {username}: {e}")
+        
+        return None
 
     def _get_full_user_info_dict(self):
         """获取当前用户所有信息的字典"""
@@ -5841,40 +5883,6 @@ class Api:
         logging.warning("加载历史运动轨迹数据失败")
         return {"success": False, "message": "加载历史轨迹失败"}
 
-    def open_file_dialog(self, dialog_type, options):
-        """打开系统文件对话框（Web模式不支持，返回错误）"""
-        logging.info(f"API调用: open_file_dialog - 打开文件对话框，类型: {dialog_type}")
-        # Web模式下无法使用文件对话框
-        logging.error("文件对话框在Web模式下不可用")
-        return None
-
-    def show_confirm_dialog(self, title, message):
-        """(已修复) 由JS调用，显示一个基于HTML的确认对话框(是/否)"""
-        logging.info(f"API调用: show_confirm_dialog - 显示确认对话框，标题: {title}")
-
-        if not self.window:
-            logging.error(
-                "窗口对象未设置，无法显示确认对话框")
-            return False  # 无法显示，默认返回 "否"
-
-        try:
-            # 调用JS函数 (jsShowConfirm)，并等待其返回的 Promise
-            # JS中的 jsShowConfirm 必须返回一个 Promise<boolean>
-            js_code = f'jsShowConfirm({json.dumps(title)}, {json.dumps(message)})'
-
-            # evaluate_js 会阻塞Python线程，直到JS的Promise解析
-            result = self.window.evaluate_js(js_code)
-
-            # 确保返回的是布尔值
-            return bool(result)
-
-        except Exception as e:
-            # 如果JS函数不存在、JS执行出错或返回了非预期值
-            logging.error(
-                f"从JavaScript显示/获取确认对话框时出错: {e}", exc_info=True)
-            # Web模式下无法使用tkinter回退
-            return False
-
     def update_param(self, key, value):
         """更新并保存单个参数"""
         logging.info(f"API调用: update_param - 更新参数，键: {key}, 值: {value}")
@@ -6263,8 +6271,14 @@ class Api:
 
         return self.multi_get_all_accounts_status()
 
-    def multi_add_account(self, username, password):
-        """模式二：手动或选择性添加账号"""
+    def multi_add_account(self, username, password, tag=None):
+        """模式二：手动或选择性添加账号
+        
+        Args:
+            username: 账号用户名
+            password: 账号密码
+            tag: 账号标记（备注/标签），可选
+        """
         if username in self.accounts:
             # 如果账号已存在，智能处理密码更新或从文件刷新
             acc = self.accounts[username]
@@ -6282,6 +6296,12 @@ class Api:
                 reloaded_password = self._load_config(username)
                 if reloaded_password:
                     acc.password = reloaded_password
+            
+            # 更新标记（如果提供了新的标记）
+            if tag is not None:
+                acc.tag = str(tag)
+                self._save_account_tag(username, acc.tag)
+                self.log(f"已更新账号 [{username}] 的标记：{acc.tag}。")
 
             # 统一执行后续的强制刷新逻辑，以新密码或从文件加载的最新密码来重新验证
             try:
@@ -6306,7 +6326,10 @@ class Api:
             return self.multi_get_all_accounts_status()
 
         # 创建账号会话（注意：若稍后判定密码为空，将撤销）
-        self.accounts[username] = AccountSession(username, password, self)
+        # 加载已保存的标记（如果有）
+        loaded_tag = self._load_account_tag(username)
+        final_tag = tag if tag is not None else (loaded_tag if loaded_tag else "")
+        self.accounts[username] = AccountSession(username, password, self, tag=final_tag)
 
         # 尝试从 .ini 加载 UA/参数/密码（如果存在）
         loaded_password = self._load_config(username)
@@ -6342,16 +6365,39 @@ class Api:
             self._update_multi_global_buttons()
             return self.multi_get_all_accounts_status()
 
-        # 若密码已确定，保存到 .ini（避免刷新后丢失）
+        # 检查是否需要首次验证
+        # 如果导入的密码与已有配置文件中的密码不同，或者配置文件不存在，则需要首次验证
         ini_path = os.path.join(self.user_dir, f"{username}.ini")
-        try:
-            # 创建 .ini 或更新现有 .ini，保存 UA 与参数与密码
-            # 修复：在多账号模式添加账号时，应该保存该账号的 UA
-            self._save_config(
-                username, self.accounts[username].password, self.accounts[username].device_ua)
-        except Exception:
-            logging.warning(
-                f"保存 {ini_path} 失败（将继续运行）：{traceback.format_exc()}")
+        needs_verification = False
+        
+        if password and loaded_password and password != loaded_password:
+            # 密码冲突：导入的密码与配置文件中的密码不同
+            needs_verification = True
+            self.log(f"账号 {username} 密码与配置文件不一致，需要首次登录验证。")
+        elif password and not loaded_password:
+            # 新账号：配置文件不存在或没有密码
+            needs_verification = True
+            self.log(f"账号 {username} 是新添加的账号，需要首次登录验证。")
+        
+        if needs_verification:
+            # 标记为需要验证，不保存密码到配置文件
+            self.accounts[username].is_first_login_verified = False
+            self.accounts[username].is_verifying = True
+            # 只保存 UA 和参数，不保存密码
+            try:
+                self._save_config(username, password=None, ua=self.accounts[username].device_ua)
+            except Exception:
+                logging.warning(f"保存配置失败（将继续运行）：{traceback.format_exc()}")
+        else:
+            # 使用已有的密码，直接标记为已验证
+            self.accounts[username].is_first_login_verified = True
+            self.accounts[username].is_verifying = False
+            # 保存完整配置
+            try:
+                self._save_config(
+                    username, self.accounts[username].password, self.accounts[username].device_ua)
+            except Exception:
+                logging.warning(f"保存配置失败（将继续运行）：{traceback.format_exc()}")
 
         self.log(f"已添加账号: {username}")
         # 添加账号后立即刷新“全部开始/全部停止”按钮状态
@@ -6440,6 +6486,9 @@ class Api:
         - preserve_status=True 时：若账号正在运行，不改写 status_text，只更新 name 与 summary
         """
         try:
+            # 更新最后刷新时间戳
+            acc.last_refresh_time = time.time()
+            
             # 动态判断是否需要保留状态（仅当账号当前正在运行且调用方要求保留时）
             preserve_now = preserve_status and bool(
                 acc.worker_thread and acc.worker_thread.is_alive())
@@ -6448,12 +6497,29 @@ class Api:
             if not acc.user_data.id:
                 if not acc.device_ua:
                     acc.device_ua = ApiClient.generate_random_ua()
+                
+                # 标记正在验证
+                if not acc.is_first_login_verified:
+                    acc.is_verifying = True
+                    if not preserve_now:
+                        self._update_account_status_js(acc, status_text="首次验证中...")
+                
                 login_resp = self._queued_login(acc, respect_global_stop=False)
                 if not login_resp or not login_resp.get('success'):
-                    # 登录失败：仅在不保留状态时才更新状态文案
-                    if not preserve_now:
-                        self._update_account_status_js(
-                            acc, status_text="刷新失败(登录错误)")
+                    # 登录失败
+                    if not acc.is_first_login_verified:
+                        # 首次验证失败
+                        acc.is_verifying = False
+                        acc.is_first_login_verified = False
+                        if not preserve_now:
+                            self._update_account_status_js(
+                                acc, status_text="验证失败(密码错误)")
+                        acc.log(f"首次登录验证失败，密码可能不正确。")
+                    else:
+                        # 已验证账号的登录失败
+                        if not preserve_now:
+                            self._update_account_status_js(
+                                acc, status_text="刷新失败(登录错误)")
                     return
 
                 data = login_resp.get('data', {})
@@ -6462,10 +6528,21 @@ class Api:
                 acc.user_data.id = user_info.get('id', '')
                 acc.user_data.student_id = user_info.get('account', '')
 
-                # 写回 UA/参数（如有）
-                ini_path = os.path.join(self.user_dir, f"{acc.username}.ini")
-                if os.path.exists(ini_path):
-                    self._save_config(acc.username)
+                # 首次登录验证成功，保存密码到配置文件
+                if not acc.is_first_login_verified:
+                    acc.is_first_login_verified = True
+                    acc.is_verifying = False
+                    try:
+                        # 保存密码、UA和参数到配置文件
+                        self._save_config(acc.username, acc.password, acc.device_ua)
+                        acc.log(f"首次登录验证成功，密码已保存到配置文件。")
+                    except Exception as e:
+                        logging.error(f"保存密码到配置文件失败: {e}", exc_info=True)
+                else:
+                    # 写回 UA/参数（如有）
+                    ini_path = os.path.join(self.user_dir, f"{acc.username}.ini")
+                    if os.path.exists(ini_path):
+                        self._save_config(acc.username)
 
                 # 更新名字（允许）
                 self._update_account_status_js(acc, name=acc.user_data.name)
@@ -6549,112 +6626,75 @@ class Api:
                 "name": acc.user_data.name or "---",
                 "status_text": acc.status_text,
                 "summary": acc.summary,
+                "tag": acc.tag,  # 添加标记字段
             })
         return {"accounts": status_list}
 
     def multi_download_import_template(self):
-        """下载导入模板（账号、密码），支持 xlsx/xls/csv"""
-        # 选择保存位置与格式
-        filepath = self.open_file_dialog('save', {
-            'initialfile': f"账号导入模板_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx",
-            'filetypes': [
-                ('Excel 模板 (*.xlsx)', '*.xlsx'),
-                ('Excel 97-2003 模板 (*.xls)', '*.xls'),
-                ('CSV 模板 (*.csv)', '*.csv'),
-                ('所有文件 (*.*)', '*.*')
-            ],
-            'defaultextension': ".xlsx"
-        })
-        if not filepath:
-            return {"success": False, "message": "用户取消操作"}
-
+        """下载导入模板（账号、密码、标记），支持 Web模式直接返回文件内容"""
         try:
-            ext = os.path.splitext(filepath)[1].lower()
-            headers = ["账号", "密码"]
-
-            if ext == ".xlsx":
-                wb = openpyxl.Workbook()
-                sh = wb.active
-                sh.title = "模板"
-                sh.append(headers)
-
-                wb.save(filepath)
-            elif ext == ".xls":
-                wb = xlwt.Workbook()
-                sh = wb.add_sheet("模板")
-                for col, val in enumerate(headers):
-                    sh.write(0, col, val)
-
-                wb.save(filepath)
-            elif ext == ".csv":
-
-                with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(headers)
-
-            else:
-                return {"success": False, "message": f"不支持的模板格式: {ext}"}
-
-            self.log(f"模板已生成：{os.path.basename(filepath)}")
-            return {"success": True}
+            headers = ["账号", "密码", "标记"]
+            
+            # Web模式：生成xlsx文件到内存，返回base64编码的内容
+            wb = openpyxl.Workbook()
+            sh = wb.active
+            sh.title = "模板"
+            sh.append(headers)
+            
+            # 保存到内存流
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            
+            # 转换为base64
+            file_content = base64.b64encode(output.read()).decode('utf-8')
+            filename = f"账号导入模板_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx"
+            
+            self.log(f"模板已生成：{filename}")
+            return {
+                "success": True,
+                "filename": filename,
+                "content": file_content,
+                "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            }
         except Exception as e:
             self.log(f"模板生成失败：{e}")
-            logging.error(
-                f"Template generation failed: {traceback.format_exc()}")
+            logging.error(f"Template generation failed: {traceback.format_exc()}")
             return {"success": False, "message": f"生成失败: {e}"}
 
-    def safe_load_workbook(self, filepath, **kwargs):
-        if not filepath:
-            raise ValueError("未提供有效的文件路径，可能是用户取消了文件选择。")
-        if not isinstance(filepath, (str, bytes, os.PathLike)):
-            raise TypeError(f"文件路径类型错误: 期望 str/Path，实际 {type(filepath)}")
+    def multi_import_accounts(self, filename, base64_content):
+        """从文件导入账号密码，支持 .xlsx/.xls/.csv（仅Web模式，从内存流处理）
+        
+        Args:
+            filename: 文件名（从前端传入）
+            base64_content: Base64编码的文件内容（从前端传入）
+        """
         try:
-            wb = openpyxl.load_workbook(
-                filepath,
-                data_only=True,
-                read_only=True,
-                **kwargs
-            )
-            return wb
+            # 解码Base64内容到内存
+            file_data = base64.b64decode(base64_content)
+            file_stream = io.BytesIO(file_data)
+            
+            # 确定文件扩展名
+            ext = os.path.splitext(filename)[1].lower()
+            
+            logging.info(f"正在从内存处理上传的文件 {filename}（大小：{len(file_data)} 字节）")
         except Exception as e:
-            # 增强提示：可能是办公软件兼容性问题
-            warnings.warn(
-                f"Excel 打开失败，已尝试只读模式: {e}\n"
-                f"提示: 请确认已安装兼容的办公软件 (如 Microsoft Office 或新版 WPS)，"
-                f"并确保文件未被其他程序占用。"
-            )
-            return openpyxl.load_workbook(
-                filepath,
-                data_only=True,
-                read_only=True
-            )
-
-    def multi_import_accounts(self):
-        """从文件导入账号密码，支持 .xlsx/.xls/.csv"""
-        filepath = self.open_file_dialog('open', {
-            'filetypes': [
-                ('Excel 文件 (*.xlsx;*.xls)', '*.xlsx;*.xls'),
-                ('CSV 文件 (*.csv)', '*.csv'),
-                ('所有文件 (*.*)', '*.*')
-            ]
-        })
-        if not filepath:
-            return {"success": False, "message": "用户取消操作"}
+            logging.error(f"解码Base64内容失败: {e}")
+            return {"success": False, "message": f"文件处理失败: {e}"}
 
         try:
             imported = 0
-            ext = os.path.splitext(filepath)[1].lower()
             seen_usernames: set[str] = set()  # 本次导入会话内去重，避免同一文件重复账号多次导入
 
             if ext == ".xlsx":
-                # 使用只读模式安全加载工作簿
+                # 从内存流加载工作簿
                 try:
-                    wb = self.safe_load_workbook(filepath, keep_links=False)
+                    wb = openpyxl.load_workbook(file_stream, data_only=True, read_only=True, keep_links=False)
                 except TypeError as e:
                     # 针对个别环境样式解析异常的兜底
                     warnings.warn(f"样式解析失败，已忽略样式: {e}")
-                    wb = self.safe_load_workbook(
-                        filepath, keep_links=False, keep_vba=False)
+                    file_stream.seek(0)  # 重置流位置
+                    wb = openpyxl.load_workbook(file_stream, data_only=True, read_only=True, keep_links=False, keep_vba=False)
 
                 sh = wb.active
                 skipped_no_password = []  # 收集无密码且 .ini 无密码的账号
@@ -6663,8 +6703,12 @@ class Api:
                     if not row or len(row) < 1:
                         continue
                     username = str(row[0] or '').strip()
-                    password = str(row[1] or '').strip() if len(
-                        row) > 1 else ''
+                    password = str(row[1] or '').strip() if len(row) > 1 else ''
+                    # 支持第三列：标记（可选）
+                    tag = None
+                    if len(row) > 2 and row[2]:
+                        tag = str(row[2]).strip()
+                    
                     if not username:
                         continue
                     # 本次导入内去重
@@ -6682,12 +6726,14 @@ class Api:
                         skipped_no_password.append(username)
                         continue  # 跳过本账号，留给用户手动补密码
 
-                    # 4. 使用 final_password 添加
-                    self.multi_add_account(username, final_password)
+                    # 4. 使用 final_password 和 tag 添加
+                    self.multi_add_account(username, final_password, tag=tag)
                     imported += 1
 
             elif ext == ".xls":
-                book = xlrd.open_workbook(filepath)
+                # xlrd支持从内存流读取
+                file_stream.seek(0)  # 重置流位置
+                book = xlrd.open_workbook(file_contents=file_stream.read())
                 sh = book.sheet_by_index(0)
                 skipped_no_password = []
                 for r in range(1, sh.nrows):
@@ -6695,6 +6741,13 @@ class Api:
                     password = ""
                     if sh.ncols >= 2:
                         password = str(sh.cell_value(r, 1) or '').strip()
+                    # 支持第三列：标记（可选）
+                    tag = None
+                    if sh.ncols >= 3:
+                        tag_val = sh.cell_value(r, 2)
+                        if tag_val:
+                            tag = str(tag_val).strip()
+                    
                     if username:
                         if username in seen_usernames:
                             continue
@@ -6706,39 +6759,47 @@ class Api:
                             skipped_no_password.append(username)
                             continue
 
-                        self.multi_add_account(username, final_password)
+                        self.multi_add_account(username, final_password, tag=tag)
                         imported += 1
 
             elif ext == ".csv":
                 skipped_no_password = []
-                with open(filepath, "r", encoding="utf-8-sig", newline="") as f:
-                    reader = csv.reader(f)
-                    first_row = True
-                    for row in reader:
-                        if not row or len(row) < 1:
-                            continue
-                        # 跳过可能的表头
-                        if first_row and str(row[0]).strip() in ("账号", "用户名", "username", "user"):
-                            first_row = False
-                            continue
+                # 从内存流读取CSV
+                file_stream.seek(0)  # 重置流位置
+                # 将字节流转换为文本流
+                text_stream = io.TextIOWrapper(file_stream, encoding="utf-8-sig", newline="")
+                reader = csv.reader(text_stream)
+                
+                first_row = True
+                for row in reader:
+                    if not row or len(row) < 1:
+                        continue
+                    # 跳过可能的表头
+                    if first_row and str(row[0]).strip() in ("账号", "用户名", "username", "user"):
                         first_row = False
-                        username = (row[0] or '').strip()
-                        password = (row[1] or '').strip() if len(
-                            row) > 1 else ''
-                        if username:
-                            if username in seen_usernames:
-                                continue
-                            seen_usernames.add(username)
+                        continue
+                    first_row = False
+                    username = (row[0] or '').strip()
+                    password = (row[1] or '').strip() if len(row) > 1 else ''
+                    # 支持第三列：标记（可选）
+                    tag = None
+                    if len(row) > 2 and row[2]:
+                        tag = row[2].strip()
+                    
+                    if username:
+                        if username in seen_usernames:
+                            continue
+                        seen_usernames.add(username)
 
-                            loaded_password = self._load_config(username)
-                            final_password = password or (
-                                loaded_password or "")
-                            if not final_password:
-                                skipped_no_password.append(username)
-                                continue
+                        loaded_password = self._load_config(username)
+                        final_password = password or (
+                            loaded_password or "")
+                        if not final_password:
+                            skipped_no_password.append(username)
+                            continue
 
-                            self.multi_add_account(username, final_password)
-                            imported += 1
+                        self.multi_add_account(username, final_password, tag=tag)
+                        imported += 1
 
             else:
                 return {"success": False, "message": f"不支持的导入格式: {ext}"}
@@ -6767,24 +6828,10 @@ class Api:
             return {"success": False, "message": f"导入失败: {e}"}
 
     def multi_export_accounts_summary(self):
-        """导出多账号汇总，支持 .xlsx/.xls/.csv"""
-        filepath = self.open_file_dialog('save', {
-            'initialfile': f"跑步任务汇总_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx",
-            'filetypes': [
-                ('Excel 文件 (*.xlsx)', '*.xlsx'),
-                ('Excel 97-2003 文件 (*.xls)', '*.xls'),
-                ('CSV 文件 (*.csv)', '*.csv'),
-                ('所有文件 (*.*)', '*.*')
-            ],
-            'defaultextension': ".xlsx"
-        })
-        if not filepath:
-            return {"success": False, "message": "用户取消操作"}
-
+        """导出多账号汇总，支持 Web模式直接返回文件内容"""
         try:
-
             headers = ["账号", "姓名", "状态", "总任务数",
-                       "已完成完成", "未开始任务数", "可执行任务数", "已过期任务数"]
+                       "已完成", "未开始任务数", "可执行任务数", "已过期任务数"]
 
             rows = []
             for acc in sorted(self.accounts.values(), key=lambda x: x.username):
@@ -6795,54 +6842,44 @@ class Api:
                     acc.status_text,
                     s.get('total', 0),
                     s.get('completed', 0),
-                    s.get('not_started', 0),  # <- 使用 not_started
+                    s.get('not_started', 0),
                     s.get('executable', 0),
                     s.get('expired', 0)
                 ])
 
-            ext = os.path.splitext(filepath)[1].lower()
-
-            if ext == ".xlsx":
-                wb = openpyxl.Workbook()
-                sh = wb.active
-                sh.title = "任务汇总"
-                sh.append(headers)
-                for r in rows:
-                    sh.append(r)
-                # 自动列宽
-                for col in sh.columns:
-                    max_len = 0
-                    col_letter = col[0].column_letter
-                    for cell in col:
-                        v = '' if cell.value is None else str(cell.value)
-                        max_len = max(max_len, len(v))
-                    sh.column_dimensions[col_letter].width = max_len + 2
-                wb.save(filepath)
-
-            elif ext == ".xls":
-                wb = xlwt.Workbook()
-                sh = wb.add_sheet("任务汇总")
-                # 写表头
-                for c, v in enumerate(headers):
-                    sh.write(0, c, v)
-                # 写数据
-                for r_idx, r in enumerate(rows, start=1):
-                    for c_idx, v in enumerate(r):
-                        sh.write(r_idx, c_idx, v)
-                wb.save(filepath)
-
-            elif ext == ".csv":
-
-                with open(filepath, "w", encoding="utf-8-sig", newline="") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(headers)
-                    writer.writerows(rows)
-
-            else:
-                return {"success": False, "message": f"不支持的导出格式: {ext}"}
-
-            self.log(f"汇总信息已导出到 {os.path.basename(filepath)}")
-            return {"success": True}
+            # Web模式：生成xlsx文件到内存，返回base64编码的内容
+            wb = openpyxl.Workbook()
+            sh = wb.active
+            sh.title = "任务汇总"
+            sh.append(headers)
+            for r in rows:
+                sh.append(r)
+            
+            # 自动列宽
+            for col in sh.columns:
+                max_len = 0
+                col_letter = col[0].column_letter
+                for cell in col:
+                    v = '' if cell.value is None else str(cell.value)
+                    max_len = max(max_len, len(v))
+                sh.column_dimensions[col_letter].width = max_len + 2
+            
+            # 保存到内存流
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            
+            # 转换为base64
+            file_content = base64.b64encode(output.read()).decode('utf-8')
+            filename = f"跑步任务汇总_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx"
+            
+            self.log(f"汇总信息已导出到 {filename}")
+            return {
+                "success": True,
+                "filename": filename,
+                "content": file_content,
+                "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            }
         except Exception as e:
             self.log(f"导出失败: {e}")
             logging.error(
@@ -7485,45 +7522,57 @@ class Api:
                 self._update_account_status_js(acc, status_text="已取消")
                 return
 
-            self._update_account_status_js(acc, status_text="登录中...")
-            if not acc.device_ua:
-                acc.device_ua = ApiClient.generate_random_ua()
+            # 检查是否需要重新登录和刷新任务列表
+            # 如果20秒内已经刷新过（例如首次验证刚完成），则跳过登录和任务刷新，直接使用已有数据
+            current_time = time.time()
+            time_since_last_refresh = current_time - acc.last_refresh_time
+            skip_refresh = time_since_last_refresh < 20 and acc.user_data.id and len(acc.all_run_data) > 0
+            
+            if skip_refresh:
+                acc.log(f"距离上次刷新仅 {time_since_last_refresh:.1f} 秒，跳过重复刷新，直接使用已有数据。")
+            else:
+                self._update_account_status_js(acc, status_text="登录中...")
+                if not acc.device_ua:
+                    acc.device_ua = ApiClient.generate_random_ua()
 
-          # 登录前再次检查是否已被停止
-            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
-                self._update_account_status_js(acc, status_text="已中止")
-                self._update_multi_global_buttons()
-                return
+              # 登录前再次检查是否已被停止
+                if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                    self._update_account_status_js(acc, status_text="已中止")
+                    self._update_multi_global_buttons()
+                    return
 
-            login_resp = self._queued_login(acc)
+                login_resp = self._queued_login(acc)
 
-            # 登录返回后立即检查是否已被停止（避免继续向下流程）
-            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
-                self._update_account_status_js(acc, status_text="已中止")
-                self._update_multi_global_buttons()
-                return
+                # 登录返回后立即检查是否已被停止（避免继续向下流程）
+                if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                    self._update_account_status_js(acc, status_text="已中止")
+                    self._update_multi_global_buttons()
+                    return
 
-            if not login_resp or not login_resp.get('success'):
-                msg = login_resp.get(
-                    'message', '未知错误') if login_resp else '网络错误'
-                self._update_account_status_js(acc, status_text=f"登录失败: {msg}")
-                return
+                if not login_resp or not login_resp.get('success'):
+                    msg = login_resp.get(
+                        'message', '未知错误') if login_resp else '网络错误'
+                    self._update_account_status_js(acc, status_text=f"登录失败: {msg}")
+                    return
 
-            data = login_resp.get('data', {})
-            user_info = data.get('userInfo', {})
-            acc.user_data.name = user_info.get('name', '')
-            acc.user_data.id = user_info.get('id', '')
-            acc.user_data.student_id = user_info.get('account', '')
-            acc.log("登录成功。")
-            self._update_account_status_js(
-                acc, status_text="分析任务", name=acc.user_data.name)
+                data = login_resp.get('data', {})
+                user_info = data.get('userInfo', {})
+                acc.user_data.name = user_info.get('name', '')
+                acc.user_data.id = user_info.get('id', '')
+                acc.user_data.student_id = user_info.get('account', '')
+                acc.log("登录成功。")
+                self._update_account_status_js(
+                    acc, status_text="分析任务", name=acc.user_data.name)
 
-            if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
-                self._update_account_status_js(acc, status_text="已中止")
-                return
+                if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
+                    self._update_account_status_js(acc, status_text="已中止")
+                    return
 
-            self._multi_fetch_and_summarize_tasks(acc)
-            self._update_account_status_js(acc, summary=acc.summary)
+                self._multi_fetch_and_summarize_tasks(acc)
+                self._update_account_status_js(acc, summary=acc.summary)
+                
+                # 更新刷新时间戳
+                acc.last_refresh_time = time.time()
 
             tasks_to_run_candidates = []
             now = datetime.datetime.now()
@@ -11321,8 +11370,12 @@ def start_web_server(args_param):
         new_group = data.get('new_group', '')
 
         if new_group == 'super_admin':
-            return jsonify({"success": False, "message": "不能分配超级管理员组"})
+            return jsonify({"success": False, "message": "不允许分配超级管理员组"})
 
+        super_admin = auth_system.config.get('Admin', 'super_admin', fallback='admin')
+        if target_username == super_admin:
+            return jsonify({"success": False, "message": "不允许修改超级管理员用户组的用户"})
+            
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权"})
 

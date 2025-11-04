@@ -469,7 +469,7 @@
     #amap-key-modal:not(.hidden)~#map-container .amap-copyright,
     #amap-key-modal:not(.hidden)~main>#multi-map-container .amap-logo,
     #amap-key-modal:not(.hidden)~main>#multi-map-container .amap-copyright,
-    
+
     #user-details-modal:not(.hidden)~#map-container .amap-logo,
     #user-details-modal:not(.hidden)~#map-container .amap-copyright,
     #task-details-modal:not(.hidden)~#map-container .amap-logo,
@@ -493,11 +493,13 @@
       transform: translateY(-50%);
       /* 强制 hover 时只应用垂直居中 transform */
     }
-    
+
     /* --- Bug Fix: 防止 SweetAlert2 弹窗导致页面位移 --- */
     body.swal2-shown:not(.swal2-toast-shown) {
-      overflow: hidden !important; /* 强制保持 overflow: hidden */
-      padding-right: 0 !important; /* 强制移除 SweetAlert 可能添加的 padding */
+      overflow: hidden !important;
+      /* 强制保持 overflow: hidden */
+      padding-right: 0 !important;
+      /* 强制移除 SweetAlert 可能添加的 padding */
     }
   </style>
 
@@ -749,7 +751,7 @@
           <p id="user-name-label" class="font-bold text-slate-800 truncate">姓名: NULL</p>
           <p id="user-id-label" class="text-sm text-slate-500">学号: NULL</p>
         </div>
-        
+
         <button id="show-notifications-btn" class="btn btn-ghost !py-2 !px-3 relative" title="查看通知">
           <span>通知</span>
           <span id="notification-badge"
@@ -1413,23 +1415,27 @@
             <h4 class="font-semibold">留言板</h4>
             <button id="admin-refresh-messages_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
           </div>
-          
+
           <!-- 发表留言表单 -->
           <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
             <h5 class="font-semibold text-slate-700">发表留言</h5>
             <div id="message-guest-fields" class="space-y-2 hidden">
               <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-1">昵称 <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">昵称 <span
+                    class="text-red-500">*</span></label>
                 <input type="text" id="message-nickname" class="input-field" placeholder="请输入您的昵称" maxlength="50">
               </div>
               <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-1">邮箱 <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">邮箱 <span
+                    class="text-red-500">*</span></label>
                 <input type="email" id="message-email" class="input-field" placeholder="请输入您的邮箱">
               </div>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">留言内容 <span class="text-red-500">*</span></label>
-              <textarea id="message-content" class="input-field" rows="4" placeholder="请输入留言内容（最多1000字）" maxlength="1000"></textarea>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">留言内容 <span
+                  class="text-red-500">*</span></label>
+              <textarea id="message-content" class="input-field" rows="4" placeholder="请输入留言内容（最多1000字）"
+                maxlength="1000"></textarea>
               <div class="text-xs text-slate-500 mt-1 text-right">
                 <span id="message-char-count">0</span> / 1000
               </div>
@@ -1922,19 +1928,19 @@
       } catch (networkError) {
         // 捕获 fetch 本身的网络错误 (例如 DNS 解析失败、服务器无法连接)
         logMessage_Error(`[API调用] ✗ 网络请求失败 (${method}):`, networkError);
-        
+
         // 进入网络错误状态（即使定时器已经被停止也要设置标志）
         if (!isInNetworkErrorState) {
           isInNetworkErrorState = true; // 标记进入网络错误状态
           logMessage_Info('[API调用] 进入网络错误状态，停止后端日志发送和WebSocket');
-          
+
           // 停止可能的刷新定时器
           if (refreshUserListInterval) {
             logMessage_Info('[API调用] 停止用户列表刷新定时器 (因网络错误)');
             clearInterval(refreshUserListInterval);
             refreshUserListInterval = null;
           }
-          
+
           // 断开WebSocket连接并禁用自动重连，避免持续的连接错误
           if (socket) {
             if (socket.io) {
@@ -1946,14 +1952,14 @@
             logMessage_Info('[API调用] 已断开WebSocket连接并禁用自动重连 (因网络错误)');
           }
         }
-        
+
         // 显示通用网络错误提示，并在用户关闭时尝试恢复
         showModalAlert('无法连接到服务器，请检查您的网络连接或稍后重试。', '网络错误', () => {
           // 用户关闭网络错误弹窗时，尝试恢复
           if (isInNetworkErrorState) {
             logMessage_Info('[API调用] 用户关闭网络错误弹窗，准备恢复连接');
             isInNetworkErrorState = false;
-            
+
             // 延迟1秒后重新启动定时器和WebSocket，给网络恢复时间
             setTimeout(() => {
               // 恢复定时器
@@ -1961,7 +1967,7 @@
                 refreshUserListInterval = setInterval(refreshUserList, 5000);
                 logMessage_Info('[API调用] 用户列表刷新定时器已恢复');
               }
-              
+
               // 重新连接WebSocket
               if (socket && !socket.connected && sessionUUID) {
                 // 重新启用自动重连
@@ -1974,7 +1980,7 @@
             }, 1000);
           }
         });
-        
+
         throw networkError; // 重新抛出网络错误，中断后续处理
       }
 
@@ -2098,11 +2104,11 @@
 
       try {
         const response = await fetch(path, options);
-        
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const result = await response.json();
         return result;
       } catch (error) {
@@ -3280,7 +3286,7 @@
         if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
         if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
         if (messagesTab) messagesTab.style.display = canViewMessages ? 'block' : 'none';
-        
+
         // 游客模式：只显示会话管理和留言板，隐藏个人信息
         if (isGuest) {
           if (profileTab) profileTab.style.display = 'none';  // 游客不显示个人信息标签
@@ -4292,10 +4298,10 @@
         // 清空旧输入
         $('newUsername').value = "";
         $('newPassword').value = "";
-        
+
         // 显示模态框
         modal.style.display = 'flex';
-        
+
         // [BUG 修复] 绑定 "确认" 按钮事件
         // 此函数被 Admin Panel 的 "新增用户" 按钮调用，
         // 但原代码未绑定 newUserConfirm 的 onclick 事件，导致按钮无效。
@@ -4303,7 +4309,7 @@
         $('newUserConfirm').onclick = async () => {
           const inputUsername = $('newUsername').value.trim();
           const inputPassword = $('newPassword').value;
-          
+
           if (!inputUsername || !inputPassword) {
             showModalAlert("账号和密码均不能为空");
             return;
@@ -4312,9 +4318,9 @@
             showModalAlert('密码长度至少为6个字符', '错误');
             return;
           }
-          
+
           // 默认 group 为 'user'，因为此模态框没有组选择器
-          const group = 'user'; 
+          const group = 'user';
 
           try {
             // 调用后端管理员创建用户的API
@@ -4322,7 +4328,7 @@
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'X-Session-ID': sessionUUID 
+                'X-Session-ID': sessionUUID
               },
               body: JSON.stringify({
                 username: inputUsername,
@@ -4330,9 +4336,9 @@
                 group: group
               })
             });
-            
+
             const result = await response.json();
-            
+
             if (result.success) {
               showModalAlert("用户创建成功！");
               closeNewUserModal();
@@ -4561,11 +4567,13 @@
         if (result.success) {
           logMessage_Info(`用户 ${username} 的权限组已更新为 ${newGroup}`);
         } else {
-          alert('更新失败: ' + result.message);
+          // 使用 showModalAlert 替换 alert
+          showModalAlert(`更新失败: ${result.message}`, '操作失败');
           loadAdminUsers(); // 重新加载以恢复原状态
         }
       } catch (e) {
-        alert('更新失败: ' + e.message);
+        // 使用 showModalAlert 替换 alert
+        showModalAlert(`更新失败: ${e.message}`, '网络错误');
         loadAdminUsers();
       }
     }
@@ -5331,22 +5339,22 @@
     }
 
     // ========== 留言板功能 ========== //
-    
+
     async function loadMessages() {
       const listEl = $('admin-messages-list_modal');
       const guestFields = $('message-guest-fields');
-      
+
       if (!listEl) {
         logMessage_Error("loadMessages: 无法找到留言列表容器");
         return;
       }
-      
+
       // 根据用户类型显示/隐藏游客字段
       const isGuest = currentUserIsGuest;
       if (guestFields) {
         guestFields.style.display = isGuest ? 'block' : 'none';
       }
-      
+
       // 字符计数器
       const contentInput = $('message-content');
       const charCount = $('message-char-count');
@@ -5355,41 +5363,41 @@
           charCount.textContent = contentInput.value.length;
         });
       }
-      
+
       try {
         listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
-        
+
         const response = await fetch('/api/messages/list', {
           headers: {
             'X-Session-ID': sessionUUID
           }
         });
         const result = await response.json();
-        
+
         if (!result.success) {
           listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
           return;
         }
-        
+
         const messages = result.messages || [];
-        
+
         if (messages.length === 0) {
           listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无留言</p>';
           return;
         }
-        
+
         // 检查删除权限
         const canDeleteAny = await checkAdminPermission('delete_any_messages');
         const canDeleteOwn = await checkAdminPermission('delete_own_messages');
         const currentUsername = currentUserData?.username;
-        
+
         const html = messages.map(msg => {
           const isOwnMessage = !msg.is_guest && msg.username === currentUsername;
           const canDelete = canDeleteAny || (canDeleteOwn && isOwnMessage);
           const displayName = msg.is_guest ? msg.nickname : msg.username;
           const date = new Date(msg.timestamp * 1000);
           const dateStr = date.toLocaleString('zh-CN');
-          
+
           return `
             <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
               <div class="flex justify-between items-start">
@@ -5410,34 +5418,34 @@
             </div>
           `;
         }).join('');
-        
+
         listEl.innerHTML = html;
-        
+
       } catch (e) {
         logMessage_Error('加载留言失败:', e);
         listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
       }
     }
-    
+
     async function postMessage() {
       const contentInput = $('message-content');
       const nicknameInput = $('message-nickname');
       const emailInput = $('message-email');
       const postBtn = $('post-message-btn');
-      
+
       if (!contentInput || !postBtn) return;
-      
+
       const content = contentInput.value.trim();
       const nickname = nicknameInput ? nicknameInput.value.trim() : '';
       const email = emailInput ? emailInput.value.trim() : '';
-      
+
       if (!content) {
         showModalAlert('请输入留言内容', '提示');
         return;
       }
-      
+
       const isGuest = currentUserData?.is_guest;
-      
+
       if (isGuest) {
         if (!nickname) {
           showModalAlert('游客必须填写昵称', '提示');
@@ -5448,11 +5456,11 @@
           return;
         }
       }
-      
+
       try {
         postBtn.disabled = true;
         postBtn.textContent = '发表中...';
-        
+
         const response = await fetch('/api/messages/post', {
           method: 'POST',
           headers: {
@@ -5465,16 +5473,16 @@
             email: email
           })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
           contentInput.value = '';
           if (nicknameInput) nicknameInput.value = '';
           if (emailInput) emailInput.value = '';
           const charCount = $('message-char-count');
           if (charCount) charCount.textContent = '0';
-          
+
           showModalAlert('留言发表成功', '成功');
           await loadMessages();
         } else {
@@ -5488,12 +5496,12 @@
         postBtn.textContent = '发表留言';
       }
     }
-    
+
     async function deleteMessage(messageId) {
       if (!confirm('确定要删除这条留言吗？')) {
         return;
       }
-      
+
       try {
         const response = await fetch('/api/messages/delete', {
           method: 'POST',
@@ -5505,9 +5513,9 @@
             message_id: messageId
           })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
           showModalAlert('留言已删除', '成功');
           await loadMessages();
@@ -5519,7 +5527,7 @@
         showModalAlert('删除留言失败: ' + e.message, '错误');
       }
     }
-    
+
     function escapeHtml(unsafe) {
       return unsafe
         .replace(/&/g, "&amp;")
@@ -5528,9 +5536,9 @@
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
     }
-    
+
     // ========== 按钮权限校验 ========== //
-    
+
     async function checkButtonPermission(buttonId, permissionName) {
       const hasPermission = await checkAdminPermission(permissionName);
       if (!hasPermission) {
@@ -6211,8 +6219,8 @@
             hideLoadingOverlays();
             logMessage_Error('无效的UUID格式:', sessionUUID);
 
-            
-            
+
+
             // 使用 Swal.fire 显示错误并等待用户确认
             Swal.fire({
               title: '无效的会话', // 弹窗标题
@@ -6229,7 +6237,7 @@
             // setTimeout(() => {
             //   window.location.href = '/';
             // }, 2000);
-            
+
 
             return;
 
@@ -6260,21 +6268,20 @@
               // }, 2000);
 
               let message = "无法通过UUID判断会话列席\n将跳转到登录页面"
-              if (result.message !== '') 
-              {
-                message = "无法通过UUID判断会话列席\n"+result.message+"\n将跳转到登录页面"
+              if (result.message !== '') {
+                message = "无法通过UUID判断会话列席\n" + result.message + "\n将跳转到登录页面"
               }
 
               Swal.fire({
-              title: '无效的会话类型', // 弹窗标题
-              text: message, // 弹窗消息
-              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-              confirmButtonText: '确定' // 按钮文字
-            }).then(() => {
-              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-              logMessage_Info('用户确认检查UUID失败弹窗，正在跳转到登录页面...');
-              window.location.href = '/'; // 执行跳转
-            });
+                title: '无效的会话类型', // 弹窗标题
+                text: message, // 弹窗消息
+                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+                confirmButtonText: '确定' // 按钮文字
+              }).then(() => {
+                // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+                logMessage_Info('用户确认检查UUID失败弹窗，正在跳转到登录页面...');
+                window.location.href = '/'; // 执行跳转
+              });
 
               return;
             }
@@ -6434,7 +6441,7 @@
         if (initialData.lastUser) userCombo.value = initialData.lastUser;
         await onUserChange();
 
-        
+
         const hasSchoolLogin = initialData.isLoggedIn && initialData.userInfo;
         const hasSystemAuth = initialData.is_authenticated && !initialData.is_guest;
         const isGuestMode = initialData.is_authenticated && initialData.is_guest;
@@ -6451,28 +6458,28 @@
           logMessage_Error('获取会话模式信息失败:', e);
           hideLoadingOverlays();
           Swal.fire({
-              title: '网络错误', // 弹窗标题
-              text: '获取会话模式信息失败，请检查网络连接后重试', // 弹窗消息
-              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-              confirmButtonText: '确定' // 按钮文字
-            }).then(() => {
-              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-              logMessage_Info('用户确认获取会话模式信息失败弹窗，正在跳转到登录页面...');
-              window.location.href = '/'; // 执行跳转
-            });
-            return;
+            title: '网络错误', // 弹窗标题
+            text: '获取会话模式信息失败，请检查网络连接后重试', // 弹窗消息
+            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+            confirmButtonText: '确定' // 按钮文字
+          }).then(() => {
+            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+            logMessage_Info('用户确认获取会话模式信息失败弹窗，正在跳转到登录页面...');
+            window.location.href = '/'; // 执行跳转
+          });
+          return;
         }
 
-        const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  
+        const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;
 
         $('loading-overlay').classList.remove('hidden');
 
         resetUI();
-        
+
         // 如果会话之前是多账号模式，直接恢复到多账号模式
         if (sessionModeInfo && sessionModeInfo.is_multi_account_mode) {
           logMessage_Info('检测到会话之前处于多账号模式，正在恢复...');
-          
+
           // 通知后端进入多账号模式（恢复后端状态）
           try {
             const result = await callPythonAPI('enter_multi_account_mode');
@@ -6500,17 +6507,17 @@
             }
           }
           $('loading-overlay').classList.remove('hidden');
-          
+
           // 隐藏登录界面和认证界面
           $('auth-login-container').classList.add('hidden');
           $('login-container').classList.add('hidden');
-          
+
           // 显示多账号界面
           $('multi-account-app').classList.remove('hidden');
           $('multi-account-app').classList.add('grid');
           $('main-app').classList.add('hidden');
           // hideLoadingOverlays();
-          
+
           // 创建多账号地图（如果还没有创建）
           if (!multiAccountMap && AMapInstance) {
             try {
@@ -6562,7 +6569,7 @@
               logMessage_Error('初始化多账号地图失败:', e);
             }
           }
-          
+
           // 初始化配置用户下拉列表
           try {
             const configUsers = await callPythonAPI('multi_get_all_config_users');
@@ -6576,12 +6583,12 @@
           } catch (e) {
             logMessage_Error('加载配置用户列表失败:', e);
           }
-          
+
           // 恢复全局参数并初始化全局参数UI
           if (sessionModeInfo.global_params) {
             pythonParams = sessionModeInfo.global_params;
           }
-          
+
           // 初始化全局参数UI容器
           try {
             const container = $('multi-global-params-container');
@@ -6591,12 +6598,12 @@
           } catch (e) {
             logMessage_Error('初始化全局参数UI失败:', e);
           }
-          
+
           // 绑定即时刷新和更新按钮状态
           try {
             bindImmediateRefreshForUserSelects();
             updateMultiGlobalButtons(true, true);
-            
+
             // 同步"仅执行未完成的任务"选项到后端
             await callPythonAPI('set_multi_run_only_incomplete',
               document.getElementById('multi-run-only-incomplete-check').checked
@@ -6604,7 +6611,7 @@
           } catch (e) {
             logMessage_Error('绑定多账号UI事件失败:', e);
           }
-          
+
           // 从后端恢复账号列表
           try {
             const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
@@ -6618,7 +6625,7 @@
             logMessage_Error('恢复账号列表失败:', e);
             logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号（列表加载失败）`);
           }
-          
+
           // 初始化内嵌管理面板
           setTimeout(async () => {
             try {
@@ -6627,11 +6634,11 @@
               logMessage_Error('初始化内嵌管理面板失败:', e);
             }
           }, 100);
-          
+
           // 设置主题色
           const base = pythonParams.theme_base_color || '#7dd3fc';
           setBaseColor(base, base);
-          
+
           hideLoadingOverlays();
           // return; // 提前返回，不执行后续单账号模式的逻辑
         }
@@ -6686,14 +6693,14 @@
           let isTaskRestored = false;
           try {
             isTaskRestored = await checkBackgroundTaskOnLoad();
-          } catch(err) {
+          } catch (err) {
             logMessage_Warning('检查后台任务失败:', err);
           }
           // if (isTaskRestored) {
           //   startBackgroundTaskPolling();
 
           // }
-          
+
           // // 恢复之前选中的任务（如果有）
           // if (sessionModeInfo && sessionModeInfo.selected_task_index !== undefined && sessionModeInfo.selected_task_index >= 0) {
           //   try {
@@ -6703,7 +6710,7 @@
 
           //     await pollBackgroundTaskStatus(); // 恢复选中任务后立即更新状态
           //     const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
-              
+
           //     // startBackgroundTaskPolling(); // 启动轮询
           //     // checkBackgroundTaskOnLoad();
 
@@ -6711,7 +6718,7 @@
           //     logMessage_Error('恢复选中任务失败:', e);
           //   }
           // }
-          
+
           const base = pythonParams.theme_base_color || '#7dd3fc';
           setBaseColor(base, base);
 
@@ -6729,8 +6736,8 @@
           if (adminBtn) adminBtn.classList.remove('hidden');
           hideLoadingOverlays();
           await fetchNotifications();
-          
-        } 
+
+        }
         // 没有进入多账号模式或者单账号模式
         else if (hasSystemAuth || isGuestMode) {
 
@@ -6738,7 +6745,7 @@
           // 系统账号已登录（admin/普通用户）或游客模式，隐藏认证面板，显示学校登录面板
           $('auth-login-container').classList.add('hidden');
           $('login-container').classList.remove('hidden');
-          
+
           // 刷新用户选择和 UA 标签
           await onUserChange();
 
@@ -6779,8 +6786,8 @@
 
           }
 
-          
-        
+
+
 
           $('loading-overlay').classList.remove('hidden');
 
@@ -6840,11 +6847,11 @@
 
         // 将定时刷新移动到 API 就绪后再启动
         // setInterval(refreshUserList, 5000);
-      }  catch (err) {
-    hideModal('loading-overlay');
-    showModalAlert('服务器无法连接，请检查网络或稍后重试。', '网络错误');
-    IS_OFFLINE = true;
-  }
+      } catch (err) {
+        hideModal('loading-overlay');
+        showModalAlert('服务器无法连接，请检查网络或稍后重试。', '网络错误');
+        IS_OFFLINE = true;
+      }
     }
     let socket = null; // 全局 socket 变量
 
@@ -6870,7 +6877,7 @@
         reconnectionDelay: 1000,
         reconnectionAttempts: 5
       });
-      
+
       // 手动连接
       socket.connect();
 
@@ -6919,7 +6926,7 @@
       // 监听多账号列表结构更新 (例如：添加账号后)
       socket.on('accounts_updated', (data) => {
         if (data && data.accounts) {
-          logMessage(`[Socket] 收到账号列表更新，共 ${data.accounts.length} 个账号`,INFO,'Socket');
+          logMessage(`[Socket] 收到账号列表更新，共 ${data.accounts.length} 个账号`, 'INFO', 'Socket');
           onAccountsUpdated(data.accounts); // onAccountsUpdated 会调用 renderMultiAccountList
         }
       });
@@ -6932,38 +6939,38 @@
           // 单独处理退出按钮
           const exitBtn = document.getElementById("exit-multi-mode-btn");
           if (exitBtn) {
-              exitBtn.disabled = !!data.exit_disabled;
+            exitBtn.disabled = !!data.exit_disabled;
           }
         }
       });
 
       // 监听单账号跑步机位置更新
       socket.on('runner_position_update', (data) => {
-          if (data) {
-              updateRunnerPosition(data.lon, data.lat, data.distance, data.target_sequence, data.duration, data.center_now);
-          }
+        if (data) {
+          updateRunnerPosition(data.lon, data.lat, data.distance, data.target_sequence, data.duration, data.center_now);
+        }
       });
 
       // 监听单账号任务完成
       socket.on('task_completed', (data) => {
-          if (data && typeof data.task_index !== 'undefined') {
-              onTaskCompleted(data.task_index);
-          }
+        if (data && typeof data.task_index !== 'undefined') {
+          onTaskCompleted(data.task_index);
+        }
       });
 
       // 监听单账号跑步停止
       socket.on('run_stopped', () => {
-          onRunStopped();
+        onRunStopped();
       });
       // 监听后台推送的通知更新
-          socket.on('onNotificationsUpdated', (data) => {
-              logMessage_Info("[Socket] 收到后台推送的通知更新");
-              // data 就是 get_notifications 返回的完整 result 对象
-              if (data && data.success) {
-                  // 调用现有的JS函数来处理数据并更新UI
-                  onNotificationsUpdated(data);
-              }
-          });
+      socket.on('onNotificationsUpdated', (data) => {
+        logMessage_Info("[Socket] 收到后台推送的通知更新");
+        // data 就是 get_notifications 返回的完整 result 对象
+        if (data && data.success) {
+          // 调用现有的JS函数来处理数据并更新UI
+          onNotificationsUpdated(data);
+        }
+      });
 
     }
 
@@ -7373,10 +7380,10 @@
       $('start-all-button').textContent = '执行所有';
       $('start-all-button').classList.remove('btn-danger');
       $('start-all-button').classList.add('btn-secondary');
-      
+
       // 如果后台任务轮询正在运行，则停止轮询
       stopBackgroundTaskPolling();
-      
+
       updateDashboard();
 
       destroySingleMap();
@@ -7571,11 +7578,11 @@
           showModalAlert(`保存失败: ${result.message}`);
         }
       } catch (e) { // [新代码] 捕获API调用本身的错误
-          logMessage_Error("保存API Key时发生网络错误:", e);
-          showModalAlert(`保存失败: ${e.message}`);
+        logMessage_Error("保存API Key时发生网络错误:", e);
+        showModalAlert(`保存失败: ${e.message}`);
       } finally { // [新代码] 无论成功失败，都恢复按钮状态
-          btn.disabled = false;
-          btn.innerHTML = originalText;
+        btn.disabled = false;
+        btn.innerHTML = originalText;
       }
     }
 
@@ -7602,12 +7609,32 @@
       const result = await callPythonAPI('multi_download_import_template');
       if (!result || !result.success) {
         showModalAlert(result?.message || '模板下载失败');
+        return;
+      }
+      
+      // Web模式：从返回的base64内容创建下载
+      if (result.content && result.filename) {
+        const binaryString = atob(result.content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: result.mimetype || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logMessage_Info(`模板已下载：${result.filename}`);
       }
     }
 
 
 
-    
+
 
 
     // 用 get_initial_data 兼容刷新用户列表
@@ -7616,7 +7643,7 @@
       if (isInNetworkErrorState) {
         return;
       }
-      
+
       // ---检查 sessionUUID 是否有效 ---
       if (!sessionUUID || sessionUUID === 'null' || sessionUUID.trim() === '') {
         // logMessage_Info('sessionUUID 尚未分配或无效，无法刷新用户列表。');
@@ -7870,7 +7897,7 @@
       });
     }
 
-    async function selectTask(index,Update_Dashboard=true) {
+    async function selectTask(index, Update_Dashboard = true) {
       logMessage_Info(`[任务选择] 开始选择任务，索引: ${index}`, 'DEBUG');
       logMessage_Info(`[前端-任务选择] 选择任务 #${index}`);
 
@@ -7908,9 +7935,9 @@
         logMessage_Info(`[任务选择] 离线模式任务，使用本地数据`, 'INFO');
         // 离线模式: 直接使用前端已有的完整数据，不再请求后端
         currentRunData = selectedTask;
-        if(Update_Dashboard)
-        {
-        updateDashboard();}
+        if (Update_Dashboard) {
+          updateDashboard();
+        }
         drawOnMap();
         loadHistory(index); // 加载历史（离线模式下通常为空）
         singleProcessedPoints = 0;
@@ -7974,7 +8001,7 @@
     $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
     $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
     $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
-    
+
     // 留言板刷新按钮
     $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
 
@@ -8167,11 +8194,11 @@
     async function multi_importFromExcel() {
       // [BUG 修复] 后端 open_file_dialog 在 Web 模式下无效 (main.py L3605)。
       // 必须由前端创建文件输入框来读取文件。
-      
+
       const input = document.createElement('input');
       input.type = 'file';
       // 限制文件类型为 Excel 和 CSV
-      input.accept = '.xlsx, .xls, .csv'; 
+      input.accept = '.xlsx, .xls, .csv';
 
       input.onchange = async (e) => {
         const file = e.target.files[0];
@@ -8189,7 +8216,7 @@
         }
 
         logMessage_Info(`正在读取文件: ${fileName}`);
-        
+
         // 我们将文件内容作为 Base64 字符串发送到后端
         // 这是处理二进制 (xls/xlsx) 和文本 (csv) 文件的最可靠方法
         const reader = new FileReader();
@@ -8200,15 +8227,15 @@
             // reader.result 格式为 "data:application/vnd.ms-excel;base64,UEsD..."
             // 我们需要去掉 "data:..."
             const base64Content = reader.result.split(',')[1];
-            
+
             // 调用一个[新]的API，将文件名和Base64内容发送到后端
             const result = await callPythonAPI('multi_import_accounts', fileName, base64Content);
-            
+
             if (result && result.success) {
               logMessage_Info(`成功导入 ${result.imported_count || 0} 个账号。`);
               if (result.skipped_count > 0) {
-                 // 如果有跳过的（例如缺密码），显示后端返回的提示信息
-                 showModalAlert(`导入完成：\n成功 ${result.imported_count} 个。\n跳过 ${result.skipped_count} 个（缺少密码）。\n\n详情：${result.message}`, "导入提示");
+                // 如果有跳过的（例如缺密码），显示后端返回的提示信息
+                showModalAlert(`导入完成：\n成功 ${result.imported_count} 个。\n跳过 ${result.skipped_count} 个（缺少密码）。\n\n详情：${result.message}`, "导入提示");
               }
               // 刷新账号列表
               if (result.accounts) {
@@ -8228,17 +8255,37 @@
           showModalAlert("读取文件失败。");
         };
       };
-      
+
       // 触发文件选择框
       input.click();
     }
 
     async function multi_exportToExcel() {
-      await callPythonAPI('multi_export_accounts_summary');
+      const result = await callPythonAPI('multi_export_accounts_summary');
+      if (!result || !result.success) {
+        showModalAlert(result?.message || '导出失败');
+        return;
+      }
+      
+      // Web模式：从返回的base64内容创建下载
+      if (result.content && result.filename) {
+        const binaryString = atob(result.content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: result.mimetype || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logMessage_Info(`汇总已导出：${result.filename}`);
+      }
     }
-
-
-    async function multi_exportToExcel() { await callPythonAPI('multi_export_accounts_summary'); }
 
     async function multi_startAll() {
 
@@ -8304,6 +8351,7 @@
                     <div class="truncate">
                         <span class="account-name truncate">${acc.name}</span>
                         <span class="text-xs text-slate-500 font-normal block">(${acc.username})</span>
+                        ${acc.tag ? `<span class="text-xs text-purple-600 font-medium block">🏷️ ${acc.tag}</span>` : ''}
                     </div>
                 </div>
                 <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap">${acc.status_text}</span>
@@ -8449,7 +8497,7 @@
             // 轻量延迟，不阻塞 UI
             await new Promise(res => setTimeout(res, d * 10)); // 缩短一个数量级，避免过长等待
           }
-          await callPythonAPI('multi_start_single_account', u);
+          await callPythonAPI('multi_start_single_account', u, run_only_incomplete);
         } catch (e) {
           logMessage_Error(`开始账号 ${u} 失败`, e);
         }
@@ -8836,14 +8884,14 @@
       resetMapView();
     }
 
-    function drawOnMap(){
+    function drawOnMap() {
       drawOnMap_signature();
       setTimeout(() => {
-            // if (selectedTaskIndex === index) {
-              logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
-              drawOnMap_signature();
-            // }
-          }, 100); // 稍微增加延迟以确保渲染稳定
+        // if (selectedTaskIndex === index) {
+        logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
+        drawOnMap_signature();
+        // }
+      }, 100); // 稍微增加延迟以确保渲染稳定
     }
 
     function drawMarkers() {
@@ -9012,21 +9060,21 @@
           showModalAlert('请先选择任务');
           return;
         }
-        
+
         const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
           task_indices: [selectedTaskIndex],
           auto_generate: autoGen
         });
-        
+
         if (result.success) {
           btn.textContent = '停止';
           btn.classList.remove('btn-primary');
           btn.classList.add('btn-danger');
-          
+
           // 初始化单任务进度显示界面
           updateSingleProgress(0, '0 / 0 点');
-          
-          
+
+
           // 500ms后开始轮询任务状态
           setTimeout(() => startBackgroundTaskPolling(), 500);
         } else {
@@ -9041,19 +9089,19 @@
         stopBackgroundTaskPolling();
       }
     }
-    
+
     async function toggleAllRuns() {
       const btn = $('start-all-button'); runAccumulatedMs = 0;
       if (btn.textContent === '执行所有') {
         const ignoreCompleted = $('run-completed-check').checked;
         const autoGen = $('auto-gen-all-check').checked;
-        
+
         // 筛选符合条件的任务
         const taskIndices = [];
         for (let i = 0; i < currentTasks.length; i++) {
           const task = currentTasks[i];
           if (task.status == 1 && !ignoreCompleted) continue;
-          
+
           // 检查任务的时间范围是否有效
           const now = new Date();
           if (task.end_time) {
@@ -9064,29 +9112,29 @@
             const startDate = new Date(task.start_time);
             if (startDate > now) continue;
           }
-          
+
           taskIndices.push(i);
         }
-        
+
         if (taskIndices.length === 0) {
           showModalAlert('没有可执行的任务');
           return;
         }
-        
+
         // 使用后台任务执行模式运行多个任务
         const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
           task_indices: taskIndices,
           auto_generate: autoGen
         });
-        
+
         if (result.success) {
           btn.textContent = '全部停止';
           btn.classList.remove('btn-secondary');
           btn.classList.add('btn-danger');
-          
+
           // 初始化进度显示界面
           updateSingleProgress(0, `0 / ${taskIndices.length} 任务`);
-          
+
           // Start polling (with a small delay to let backend initialize)
           setTimeout(() => startBackgroundTaskPolling(), 500);
         } else {
@@ -9105,38 +9153,38 @@
     // ========== 后台任务管理函数 ==========
     let backgroundTaskPollInterval = null;
     let backgroundTaskStartTime = 0; // 记录任务启动时间，用于避免显示旧数据的提示
-    
+
     function startBackgroundTaskPolling() {
       if (backgroundTaskPollInterval) {
         clearInterval(backgroundTaskPollInterval);
       }
-      
+
       // 标记任务开始时间戳
       backgroundTaskStartTime = Date.now();
-      
+
       // 立即查询一次
       pollBackgroundTaskStatus();
-      
+
       // 每3秒轮询一次
       backgroundTaskPollInterval = setInterval(pollBackgroundTaskStatus, 3000);
     }
-    
+
     function stopBackgroundTaskPolling() {
       if (backgroundTaskPollInterval) {
         clearInterval(backgroundTaskPollInterval);
         backgroundTaskPollInterval = null;
       }
-      
+
       backgroundTaskStartTime = 0;
     }
-    
+
     async function pollBackgroundTaskStatus() {
       try {
         const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
-        
+
         if (result.success && result.task_status) {
           const status = result.task_status;
-          
+
           // ---------- [BUG 修复 START] ----------
           // 检查后端是否在 auto-gen 后发来了完整的路径数据
           // (这个数据在 currentRunData 中可能不存在，因为 auto-gen 是在后端发生的)
@@ -9144,36 +9192,36 @@
             // 检查前端的 currentRunData 是否缺少此路径数据
             if (!currentRunData || !currentRunData.run_coords || currentRunData.run_coords.length === 0) {
               logMessage_Info("检测到后端已自动生成路径，正在更新前端地图...");
-              
+
               // 将后端发来的路径和打卡点数据同步到前端的 currentRunData
               currentRunData.run_coords = status.run_coords || [];
               currentRunData.target_points = status.target_points || [];
               currentRunData.target_point_names = status.target_point_names || '';
               currentRunData.recommended_coords = status.recommended_coords || [];
-              
+
               // (重要) 同步总览数据
               currentRunData.total_run_time_s = status.estimated_total_time_s || 0;
               currentRunData.total_run_distance_m = status.estimated_total_distance_m || 0;
-              
+
               // 立即重绘地图（显示路径和打卡点）
               drawOnMap();
-              
+
               // 立即更新仪表盘（显示总览）
               updateDashboard();
             }
           }
           // ---------- [BUG 修复 END] ----------
-          
+
           // 更新现有的进度显示界面
           const completedTasks = status.completed_tasks || 0;
           const totalTasks = status.total_tasks || 0;
           const progressPercent = status.progress_percent || 0;
           const currentTaskProgress = status.current_task_progress || 0;
-          
+
           // 从后端API获取精确的点数进度
           let pct = 0;
           let displayText = '';
-          
+
           // 优先使用后端提供的点数数据（更准确）
           if (status.singleTotalPoints !== undefined && status.singleProcessedPoints !== undefined) {
             singleTotalPoints = status.singleTotalPoints;
@@ -9183,7 +9231,7 @@
           } else if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
             // 降级方案：从前端计算（当后端数据不可用时）
             singleTotalPoints = currentRunData.run_coords.length;
-            
+
             if (status.current_position) {
               // 使用精确的点索引
               const currentPointIndex = status.current_position.point_index || 0;
@@ -9192,7 +9240,7 @@
               // 从百分比估算点数（当位置数据不可用时）
               singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
             }
-            
+
             pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
             displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
           } else {
@@ -9202,9 +9250,9 @@
             pct = 0;
             displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
           }
-          
+
           updateSingleProgress(pct, displayText);
-          
+
           // 更新当前任务索引（从后端API同步）
           if (status.task_indices && status.current_task_index !== undefined) {
             const task_list = status.task_indices;
@@ -9214,7 +9262,7 @@
               selectedTaskIndex = global_task_index;
             }
           }
-          
+
           // 更新实时时间和距离（从后端API获取）
           if (status.elapsed_time_s !== undefined) {
             runAccumulatedMs = status.elapsed_time_s * 1000;  // 转换为毫秒
@@ -9225,12 +9273,12 @@
           if (status.checked_targets_count !== undefined && currentRunData) {
             currentRunData.target_sequence = status.checked_targets_count;
           }
-          
+
           // 更新仪表板显示
           updateDashboard();
 
           drawMarkers();
-          
+
           // // 如果有实时位置数据，则在地图上更新显示
           // if (status.current_position) {
           //   const pos = status.current_position;
@@ -9243,11 +9291,11 @@
           //     false // don't auto-center
           //   );
           // }
-          
+
           // 检查这是否是旧数据（任务在我们开始轮询前就已启动）
           const taskStartTime = (status.start_time || 0) * 1000; // 转换为毫秒
           const isOldTask = backgroundTaskStartTime > 0 && taskStartTime < backgroundTaskStartTime - 2000; // 2秒缓冲
-          
+
           // 检查是否完成 - 仅在不是旧数据时显示提示
           if (status.status === 'completed') {
             if (!isOldTask) {
@@ -9255,7 +9303,7 @@
               showModalAlert('后台任务全部完成！');
             }
             stopBackgroundTaskPolling();
-            
+
             // Reset button states
             $('start-run-button').textContent = '开始执行';
             $('start-run-button').classList.remove('btn-danger');
@@ -9263,7 +9311,7 @@
             $('start-all-button').textContent = '执行所有';
             $('start-all-button').classList.remove('btn-danger');
             $('start-all-button').classList.add('btn-secondary');
-            
+
             // 刷新任务列表
             if (!isOldTask) {
               refreshTasks();
@@ -9275,7 +9323,7 @@
               showModalAlert('后台任务执行出错: ' + errorMsg);
             }
             stopBackgroundTaskPolling();
-            
+
             // Reset button states
             $('start-run-button').textContent = '开始执行';
             $('start-run-button').classList.remove('btn-danger');
@@ -9290,19 +9338,19 @@
         logMessage_Debug('轮询后台任务状态失败:', e);
       }
     }
-    
+
     // 页面加载时检查是否有后台任务在运行
     async function checkBackgroundTaskOnLoad() {
       try {
         const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
-        
+
         if (result.success && result.task_status) {
           const status = result.task_status;
-          
+
           // 如果有任务在运行，显示状态并开始轮询
           if (status.status === 'running') {
             logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
-            
+
             // 更新按钮状态以反映运行状态
             const totalTasks = status.total_tasks || 0;
             if (totalTasks === 1) {
@@ -9320,62 +9368,62 @@
             // --- 升级：恢复地图路径和打卡点 ---
             const task_list = status.task_indices || [];
             const current_list_index = status.current_task_index || 0;
-            
+
             if (task_list.length > current_list_index) {
-                const global_task_index = task_list[current_list_index];
-                
-                // 使用后端提供的完整任务数据恢复（避免调用selectTask导致任务切换检查失败）
-                logMessage_Info(`正在恢复运行中的任务 (索引: ${global_task_index}) 的地图数据...`);
-                
-                if (status.run_coords && status.run_coords.length > 0) {
-                  // 直接从API响应构建currentRunData
-                  currentRunData = {
-                    run_coords: status.run_coords || [],
-                    target_points: status.target_points || [],
-                    target_point_names: status.target_point_names || '',
-                    recommended_coords: status.recommended_coords || [],
-                    target_sequence: status.checked_targets_count || 0,
-                    distance_covered_m: status.current_distance_m || 0,
-                    total_run_time_s: status.estimated_total_time_s || 0,
-                    total_run_distance_m: status.estimated_total_distance_m || 0
-                  };
-                  
-                  selectedTaskIndex = global_task_index;
-                  
-                  // 更新任务列表的选中状态
-                  const taskListDiv = $('task-list');
-                  Array.from(taskListDiv.children).forEach((child, idx) => {
-                    if (idx === global_task_index) {
-                      child.classList.add('selected');
-                    } else {
-                      child.classList.remove('selected');
-                    }
-                  });
-                  loadHistory(global_task_index);
-                  
-                  // 绘制地图
-                  updateDashboard();
-                  drawOnMap();
-                  
-                  logMessage_Info(`任务数据已从API响应恢复，总点数: ${currentRunData.run_coords.length}`, 'INFO');
-                } else {
-                  // 降级方案：调用selectTask
-                  await selectTask(global_task_index);
-                }
+              const global_task_index = task_list[current_list_index];
+
+              // 使用后端提供的完整任务数据恢复（避免调用selectTask导致任务切换检查失败）
+              logMessage_Info(`正在恢复运行中的任务 (索引: ${global_task_index}) 的地图数据...`);
+
+              if (status.run_coords && status.run_coords.length > 0) {
+                // 直接从API响应构建currentRunData
+                currentRunData = {
+                  run_coords: status.run_coords || [],
+                  target_points: status.target_points || [],
+                  target_point_names: status.target_point_names || '',
+                  recommended_coords: status.recommended_coords || [],
+                  target_sequence: status.checked_targets_count || 0,
+                  distance_covered_m: status.current_distance_m || 0,
+                  total_run_time_s: status.estimated_total_time_s || 0,
+                  total_run_distance_m: status.estimated_total_distance_m || 0
+                };
+
+                selectedTaskIndex = global_task_index;
+
+                // 更新任务列表的选中状态
+                const taskListDiv = $('task-list');
+                Array.from(taskListDiv.children).forEach((child, idx) => {
+                  if (idx === global_task_index) {
+                    child.classList.add('selected');
+                  } else {
+                    child.classList.remove('selected');
+                  }
+                });
+                loadHistory(global_task_index);
+
+                // 绘制地图
+                updateDashboard();
+                drawOnMap();
+
+                logMessage_Info(`任务数据已从API响应恢复，总点数: ${currentRunData.run_coords.length}`, 'INFO');
+              } else {
+                // 降级方案：调用selectTask
+                await selectTask(global_task_index);
+              }
             } else {
-                logMessage_Warning("后台任务状态不一致，无法恢复地图路径。");
+              logMessage_Warning("后台任务状态不一致，无法恢复地图路径。");
             }
             // --- 结束升级 ---
-            
+
             // 恢复进度显示
             const completedTasks = status.completed_tasks || 0;
             const progressPercent = status.progress_percent || 0;
             const currentTaskProgress = status.current_task_progress || 0;
-            
+
             // 从后端API获取精确的点数进度
             let pct = 0;
             let displayText = '';
-            
+
             // 优先使用后端提供的点数数据（更准确）
             if (status.singleTotalPoints !== undefined && status.singleProcessedPoints !== undefined) {
               singleTotalPoints = status.singleTotalPoints;
@@ -9385,7 +9433,7 @@
             } else if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
               // 降级方案：从前端计算（当后端数据不可用时）
               singleTotalPoints = currentRunData.run_coords.length;
-              
+
               if (status.current_position) {
                 // 使用精确的点索引
                 const currentPointIndex = status.current_position.point_index || 0;
@@ -9394,7 +9442,7 @@
                 // 从百分比估算点数（当位置数据不可用时）
                 singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
               }
-              
+
               pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
               displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
             } else {
@@ -9404,9 +9452,9 @@
               pct = 0;
               displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
             }
-            
+
             updateSingleProgress(pct, displayText);
-            
+
             // 更新实时时间和距离（从后端API获取）
             if (status.elapsed_time_s !== undefined) {
               runAccumulatedMs = status.elapsed_time_s * 1000;  // 转换为毫秒
@@ -9417,10 +9465,10 @@
             if (status.checked_targets_count !== undefined && currentRunData) {
               currentRunData.target_sequence = status.checked_targets_count;
             }
-            
+
             // 更新仪表板显示
             updateDashboard();
-            
+
             // 如果有实时位置数据，在地图上恢复跑步者位置显示
             if (status.current_position) {
               const pos = status.current_position;
@@ -9434,7 +9482,7 @@
                 true // center on first restore
               );
             }
-            
+
             startBackgroundTaskPolling();
             return true;
           }
@@ -9482,26 +9530,26 @@
      */
     function onRunStopped() {
       logMessage_Info("后台任务已停止（来自服务器推送）。");
-      
+
       // 1. 停止前端的轮询
       stopBackgroundTaskPolling();
 
       // 2. 重置"开始执行"按钮
       const startBtn = $('start-run-button');
       if (startBtn) {
-          startBtn.textContent = '开始执行';
-          startBtn.classList.remove('btn-danger');
-          startBtn.classList.add('btn-primary');
-          startBtn.disabled = false; // 确保按钮可用
+        startBtn.textContent = '开始执行';
+        startBtn.classList.remove('btn-danger');
+        startBtn.classList.add('btn-primary');
+        startBtn.disabled = false; // 确保按钮可用
       }
 
       // 3. 重置"执行所有"按钮
       const startAllBtn = $('start-all-button');
       if (startAllBtn) {
-          startAllBtn.textContent = '执行所有';
-          startAllBtn.classList.remove('btn-danger');
-          startAllBtn.classList.add('btn-secondary');
-          startAllBtn.disabled = false; // 确保按钮可用
+        startAllBtn.textContent = '执行所有';
+        startAllBtn.classList.remove('btn-danger');
+        startAllBtn.classList.add('btn-secondary');
+        startAllBtn.disabled = false; // 确保按钮可用
       }
     }
 
@@ -9662,7 +9710,7 @@
         });
       } else { $('history-placeholder').textContent = "无历史记录或加载失败"; $('history-placeholder').classList.remove('hidden'); }
     }
-    
+
     async function showHistoricalTrack(trid) {
       if (backgroundTaskPollInterval) {
         logMessage_Warning("任务执行中，无法查看历史记录！请先停止当前任务。");
@@ -9703,24 +9751,24 @@
 
         let callerLine; // <-- 修复 #1: 在外部作用域声明变量
 
-        if (linesToSkip !== null){
+        if (linesToSkip !== null) {
           try {
             callerLine = lines[linesToSkip + 1] || ''; // <-- 修复 #2: 移除 'let'，直接赋值
           } catch (error) {
             logMessage_Error("Error accessing stack line:", error);
             callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // <-- 修复 #3: 移除 'let'
           }
-        }else{
+        } else {
 
-        // 不同浏览器堆栈格式不同，尝试几种常见模式
-        callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // <-- 修复 #4: 移除 'let'
+          // 不同浏览器堆栈格式不同，尝试几种常见模式
+          callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // <-- 修复 #4: 移除 'let'
         }
 
         // 修复 #5: 增加健壮性检查，防止 callerLine 为 undefined 时调用 .trim() 出错
         if (typeof callerLine !== 'string') {
-            callerLine = ''; // 如果堆栈行不存在（例如堆栈太短），提供一个空字符串
+          callerLine = ''; // 如果堆栈行不存在（例如堆栈太短），提供一个空字符串
         }
-        
+
         callerLine = callerLine.trim();
 
         // 尝试匹配 Chrome/V8 格式: "at functionName (file:line:col)" 或 "at file:line:col"
@@ -9787,7 +9835,7 @@
       const timestamp = `[${h}:${m}:${s}]`;
       const timestamp2 = `${h}:${m}:${s}`;
       const line = typeof msg === 'string' ? msg : JSON.stringify(msg);
-      
+
 
       let level_new = 'INFO';
 
@@ -9805,26 +9853,26 @@
       let new_message = `${timestamp}[前端日志][${callerInfo}] ${line}`
       const fullMessage = `${timestamp}[${callerInfo}] ${line}`; // 组合时间戳和消息
 
-      if(level==='DEBUG') {
+      if (level === 'DEBUG') {
         level_new = 'DEBUG';
         console.debug(new_message);
-      } else if(level==='INFO') {
+      } else if (level === 'INFO') {
         level_new = 'INFO';
         console.info(new_message);
-      } else if(level === 'ERROR') {
+      } else if (level === 'ERROR') {
         level_new = 'ERROR';
         console.error(new_message);
-      } else if(level === 'WARNING') {
+      } else if (level === 'WARNING') {
         level_new = 'WARNING';
         console.warn(new_message);
-      } else if(level === 'CRITICAL') {
+      } else if (level === 'CRITICAL') {
         level_new = 'CRITICAL';
         console.error(new_message);
       } else {
         console.log(new_message);
       }
 
-      
+
 
       // 发送到后端日志系统（仅在非网络错误状态时发送）
       if (!isInNetworkErrorState && source !== 'Backend') {
@@ -9857,7 +9905,7 @@
         if (logLevel === 'ERROR' || logLevel === 'WARNING' || logLevel === 'CRITICAL') {
           return true;
         }
-        
+
         // 核心操作关键词
         const coreKeywords = [
           // 路径相关
@@ -9877,7 +9925,7 @@
           // JavaScript路径规划队列相关
           '[JS-Queue]'
         ];
-        
+
         // 检查消息是否包含核心关键词
         return coreKeywords.some(keyword => message.includes(keyword));
       };
@@ -9885,7 +9933,7 @@
       // 只将核心日志显示在 log-tab 中
       // 所有日志仍然发送到控制台和后端，但只有核心日志显示在界面
       const shouldShowInUI = isCoreLog(line, level);
-      
+
       if (shouldShowInUI) {
         const single = $('log-text');
         const multi = $('multi-log-text');
