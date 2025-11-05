@@ -27,41 +27,6 @@
 //
 // ==============================================================================
 
-    // 配置TailwindCSS
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { 'sans': ['Noto Sans SC', 'system-ui', 'sans-serif'], 'display': ['Zilla Slab', 'serif'] },
-          colors: { 'base': '#7dd3fc' }
-        }
-      }
-    }
-
-    // ==============================================================================
-    // JavaScript代码部分
-    // ==============================================================================
-
-    // 全局变量
-
-    let refreshUserListInterval = null;
-    let isInNetworkErrorState = false; // 跟踪网络错误状态
-    let cdnErrorCount = 0;
-    let cdnErrorTimer = null;
-    let appInitialized = false;
-
-    let currentUserIsGuest = false;
-    let currentAuthUsername = null; // 存储当前系统认证的用户名
-    let healthAutoRefreshInterval = null; // 系统健康状态自动刷新定时器
-    let avatarCropper = null; // 头像裁剪器实例
-    let currentLogPage = 1; // 用于日志分页的当前页码
-    let croppedAvatarFile = null; // 裁剪后的头像文件
-
-    // 会话管理相关变量
-    let currentSessionInfo = {
-      maxSessions: 1,
-      currentCount: 0
-    };
-
     function handleCdnError() {
       cdnErrorCount++;
       logMessage_Warning(`CDN资源加载失败 (${cdnErrorCount}/3)，等待应用初始化...`);
@@ -244,17 +209,6 @@
     }
 
 
-
-
-    let AMAP_API_KEY = ""; // 全局API Key变量
-    let isRefreshingNotifications = false; // 通知刷新的“in-flight”标志
-
-    let isRefreshingTasks = false;
-
-
-    // 离线模式标志
-    let IS_OFFLINE = false;
-    let sessionUUID = null;  // 当前会话UUID
 
     // 统一的API调用函数
     async function callPythonAPI(method, ...args) {
@@ -506,192 +460,6 @@
 
       return data.result;
     }
-
-    // 单账号模式：GPS点进度计数
-    let singleProcessedPoints = 0;       // 已处理/已上报的点数
-    let singleTotalPoints = 0;           // 当前任务总点数（run_coords长度）
-
-
-    // 统一的 AMap 单例与加载控制
-    let AMapInstance, map;
-    let amapLoadingPromise = null;   // 保证只触发一次加载
-    let AMapReady = false;           // 高德地图SDK是否已加载就绪
-
-    let currentTasks = [];
-    let selectedTaskIndex = -1;
-    let currentUserData = {};
-    let currentRunData = {};
-    let polylines = { recommended: [], draft: null, run: null, history: null };
-    let markers = [];
-    let runnerMarker = null;
-    let drawingInfoMarker = null;
-    let tempAttendanceMarker = null;
-    let tempAttendanceCircle = null;
-    let isDrawing = false;
-    let isPathDrawing = false;
-    let leftMouseDown = false;
-    const $ = (id) => document.getElementById(id);
-
-    let multiAccountMap;
-    let multiAccountMarkers = {}; // {username: AMap.Marker}
-    const userColors = ['#F44336', '#E91E63', '#9C27B0', '#673AB7', '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4', '#009688', '#4CAF50', '#8BC34A', '#CDDC39', '#FFEB3B', '#FFC107', '#FF9800', '#FF5722'];
-    let colorIndex = 0;
-    let path_planning_queue = [];
-    let is_planning_path = false;
-
-    let currentSessionUA = ""
-
-    let pendingMultiPositions = []; // [{ username, lon, lat, name }]
-
-    // -- 地图初始化Promise，用于确保地图完全加载后再执行绘图操作 --
-    let mapReadyPromise = null;
-    let resolveMapReady = null;
-
-    // 参数定义（详细版：标签、单位、帮助）
-    const paramDefs = {
-      // 采样与速度
-      "interval_ms": {
-        label: "采样间隔",
-        unit: "ms",
-        help: "相邻 GPS 点之间的时间间隔，用于模拟上报节奏。"
-      },
-      "interval_random_ms": {
-        label: "间隔随机范围",
-        unit: "ms",
-        help: "在采样间隔的基础上上下浮动的随机抖动幅度。"
-      },
-      "speed_mps": {
-        label: "平均速度",
-        unit: "m/s",
-        help: "生成/处理路径时的目标平均速度。"
-      },
-      "speed_random_mps": {
-        label: "速度随机范围",
-        unit: "m/s",
-        help: "速度的上下浮动范围，用于模拟自然波动。"
-      },
-      "location_random_m": {
-        label: "定位随机偏移半径",
-
-        unit: "m",
-        help: "对每个 GPS 点施加的随机偏移的半径，模拟定位噪声。"
-      },
-
-      // 任务间隔
-      "task_gap_min_s": {
-        label: "任务间隙下限",
-        unit: "s",
-        help: "连续执行任务之间的最短等待时间。"
-      },
-      "task_gap_max_s": {
-        label: "任务间隙上限",
-        unit: "s",
-        help: "连续执行任务之间的最长等待时间。"
-      },
-
-      // 路径规划API失败时的重试策略配置
-      "api_fallback_line": {
-        label: "规划失败时使用直线连接",
-        unit: "",
-        help: "启用后，当某段步行路径规划失败时，使用起终点直线代替。"
-      },
-      "api_retries": {
-        label: "API重试次数",
-        unit: "次",
-        help: "步行路径每一段失败后的重试次数。"
-      },
-
-      "api_retry_delay_s": {
-        label: "API重试间隔",
-        unit: "s",
-        help: "步行路径失败后发起下一次重试前的等待时间。"
-      },
-      "ignore_task_time": {
-        label: "忽略任务时间仅对比日期",
-        unit: "",
-        help: "勾选后，判断任务是否“未开始”或“已过期”时，只对比年月日，忽略具体时分秒。"
-      },
-
-      // 自动生成路径目标
-      "min_time_m": {
-        label: "目标时长下限",
-        unit: "分钟",
-        help: "自动生成路径的总时长最小值。"
-      },
-      "max_time_m": {
-        label: "目标时长上限",
-        unit: "分钟",
-        help: "自动生成路径的总时长最大值。"
-      },
-      "min_dist_m": {
-        label: "目标距离下限",
-        unit: "m",
-        help: "自动生成路径的总距离下限。上限按 1.0–1.15 倍随机浮动。"
-      },
-
-      // 主题
-      "theme_style": {
-        label: "界面主题风格",
-        unit: "",
-        help: "切换应用界面的外观。主题切换后将自动保存。",
-        type: "theme_selector" // 自定义类型，用于生成主题按钮
-      },
-      "theme_base_color": {
-        label: "主题基础颜色",
-        unit: "",
-        help: "界面主色调（点击颜色块进行选择）。",
-        type: "color_picker" // 自定义类型，用于生成颜色选择器
-      },
-      "auto_attendance_enabled": {
-        label: "开启自动签到",
-        unit: "",
-        help: "开启后，将在后台自动刷新通知并尝试签到",
-        type: "checkbox"
-      },
-      "auto_attendance_refresh_s": {
-        label: "刷新间隔",
-        unit: "秒",
-        help: "自动刷新通知的间隔时间（秒），建议不低于60"
-      },
-      "attendance_user_radius_m": {
-        label: "随机半径",
-        unit: "米",
-        help: "自动签到时，在服务器允许范围内的最大随机偏移半径。设为0为精确签到。"
-      }
-    };
-
-    // 参数分组定义
-    const paramGroups = [
-      {
-        title: "采样与速度",
-        keys: ["interval_ms", "interval_random_ms", "speed_mps", "speed_random_mps", "location_random_m"]
-      },
-      {
-        title: "任务间隔",
-        keys: ["task_gap_min_s", "task_gap_max_s", "ignore_task_time"]
-      },
-      {
-        title: "路径规划重试策略",
-        keys: ["api_fallback_line", "api_retries", "api_retry_delay_s"]
-      },
-      {
-        title: "自动生成目标",
-        keys: ["min_time_m", "max_time_m", "min_dist_m"]
-      },
-      {
-        title: "主题与外观",
-        keys: ["theme_style", "theme_base_color"]
-      },
-      {
-        title: "自动签到",
-        keys: ["auto_attendance_enabled", "auto_attendance_refresh_s", "attendance_user_radius_m"]
-      }
-    ];
-
-    let pythonParams = {};
-
-    let runAccumulatedMs = 0;
-    let draftTotalDist = 0;
 
 
     // 显式销毁单账号地图实例，释放资源并复位变量
@@ -1361,256 +1129,7 @@
     // 认证事件绑定
     // ====================
 
-    // 在DOM加载完成后绑定事件
-    if (typeof window !== 'undefined') {
-      window.addEventListener('load', () => {
-        // 认证标签切换
-        const loginTab = $('auth-tab-login');
-        const registerTab = $('auth-tab-register');
-        if (loginTab) loginTab.addEventListener('click', () => switchAuthTab('login'));
-        if (registerTab) registerTab.addEventListener('click', () => switchAuthTab('register'));
-
-        // 登录按钮
-        const loginBtn = $('auth-login-btn');
-        if (loginBtn) loginBtn.addEventListener('click', handleAuthLogin);
-
-        // 注册按钮
-        const registerBtn = $('auth-register-btn');
-        if (registerBtn) registerBtn.addEventListener('click', handleAuthRegister);
-
-        // 游客登录按钮
-        const guestBtn = $('auth-guest-btn');
-        if (guestBtn) guestBtn.addEventListener('click', handleGuestLogin);
-
-        // 2FA验证按钮
-        const tfa2VerifyBtn = $('auth-2fa-verify-btn');
-        if (tfa2VerifyBtn) tfa2VerifyBtn.addEventListener('click', handle2FAVerify);
-
-        // 2FA返回按钮
-        const tfa2BackBtn = $('auth-2fa-back-btn');
-        if (tfa2BackBtn) tfa2BackBtn.addEventListener('click', () => {
-          const loginForm = $('auth-login-form');
-          const tfaForm = $('auth-2fa-form');
-          if (loginForm) loginForm.classList.remove('hidden');
-          if (tfaForm) tfaForm.classList.add('hidden');
-          // 清空2FA相关数据
-          delete window.temp2FAUsername;
-          const tfaCodeInput = $('auth-2fa-code');
-          if (tfaCodeInput) tfaCodeInput.value = '';
-        });
-
-        // 监听Enter键触发登录操作
-        const authUsername = $('auth-username');
-        const authPassword = $('auth-password');
-        if (authUsername) authUsername.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') handleAuthLogin();
-        });
-        if (authPassword) authPassword.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') handleAuthLogin();
-        });
-
-        // 监听Enter键触发两步验证（2FA）
-        const auth2FACode = $('auth-2fa-code');
-        if (auth2FACode) auth2FACode.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') handle2FAVerify();
-        });
-
-        // 监听Enter键触发用户注册
-        const authRegPassword = $('auth-reg-password-confirm');
-        if (authRegPassword) authRegPassword.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') handleAuthRegister();
-        });
-
-        // 管理面板按钮（多个位置）
-        const adminPanelBtn = $('show-admin-panel');
-        if (adminPanelBtn) adminPanelBtn.addEventListener('click', () => toggleAdminPanel(true));
-
-        const adminPanelBtnLogin = $('show-admin-panel-login');
-        if (adminPanelBtnLogin) adminPanelBtnLogin.addEventListener('click', () => toggleAdminPanel(true));
-
-        const adminPanelBtnMulti = $('show-admin-panel-multi');
-        if (adminPanelBtnMulti) adminPanelBtnMulti.addEventListener('click', () => toggleAdminPanel(true));
-
-        // 内联面板（登录页面）不再显示标签页 - 仅显示会话信息
-        // 所有标签页切换功能仅用于模态对话框面板
-
-        const modalAdminPanel = $('admin-panel-modal');
-        if (modalAdminPanel) {
-          const modalUsersTab = $('admin-tab-users_modal'); // 直接使用新的唯一 ID
-          const modalGroupsTab = $('admin-tab-groups_modal');
-          const modalLogsTab = $('admin-tab-logs_modal');
-          const modalHealthTab = $('admin-tab-health_modal');
-          const modalProfileTab = $('admin-tab-profile_modal');
-          const modalSessionsTab = $('admin-tab-sessions_modal');
-
-          if (modalUsersTab) modalUsersTab.addEventListener('click', () => switchAdminTab('users'));
-          if (modalGroupsTab) modalGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
-          if (modalLogsTab) modalLogsTab.addEventListener('click', () => switchAdminTab('logs'));
-          if (modalHealthTab) modalHealthTab.addEventListener('click', () => switchAdminTab('health'));
-          if (modalProfileTab) modalProfileTab.addEventListener('click', () => switchAdminTab('profile'));
-          if (modalSessionsTab) modalSessionsTab.addEventListener('click', () => switchAdminTab('sessions'));
-          logMessage_Info("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
-        } else {
-          logMessage_Error("Could not find admin panel modal element to bind tab events.");
-        }
-
-        // 模态框刷新按钮（这些ID是唯一的，只存在于模态框中）
-        const refreshUsersBtnModal = $('admin-refresh-users_modal'); // 使用新的唯一 ID
-        const refreshGroupsBtnModal = $('admin-refresh-groups_modal');
-        const refreshLogsBtnModal = $('admin-refresh-logs_modal');
-        const refreshHealthBtnModal = $('admin-refresh-health_modal');
-        const refreshProfileBtnModal = $('admin-refresh-profile_modal');
-        const refreshSessionsBtnModal = $('admin-refresh-sessions_modal');
-
-        // 确保调用的是正确的加载函数 (它们现在内部会操作 _modal 列表)
-        if (refreshUsersBtnModal) refreshUsersBtnModal.addEventListener('click', loadAdminUsers);
-        if (refreshGroupsBtnModal) refreshGroupsBtnModal.addEventListener('click', loadAdminGroups);
-        // [修复] 绑定日志刷新和分页按钮
-        if (refreshLogsBtnModal) {
-            refreshLogsBtnModal.addEventListener('click', () => {
-                loadAdminLogs(1); // 刷新总是回到第1页
-            });
-        }
-        const logPrevPageBtn = $('log-prev-page');
-        const logNextPageBtn = $('log-next-page');
-        const logLimitSelect = $('log-limit-select_modal');
-        
-        if (logPrevPageBtn) {
-            logPrevPageBtn.addEventListener('click', () => {
-                if (currentLogPage > 1) {
-                    loadAdminLogs(currentLogPage - 1);
-                }
-            });
-        }
-        if (logNextPageBtn) {
-            logNextPageBtn.addEventListener('click', () => {
-                // (后端已处理了页码溢出，但前端也简单检查一下)
-                loadAdminLogs(currentLogPage + 1);
-            });
-        }
-        if (logLimitSelect) {
-            // 当"每页行数"变化时，回到第1页
-            logLimitSelect.addEventListener('change', () => {
-                loadAdminLogs(1);
-            });
-        }
-
-        const logPageSelect = $('log-page-select');
-        if (logPageSelect) {
-            logPageSelect.addEventListener('change', () => {
-                const newPage = parseInt(logPageSelect.value, 10);
-                if (newPage && newPage !== currentLogPage) {
-                    loadAdminLogs(newPage);
-                }
-            });
-        }
-
-        if (refreshHealthBtnModal) refreshHealthBtnModal.addEventListener('click', loadHealthStatus);
-        if (refreshProfileBtnModal) refreshProfileBtnModal.addEventListener('click', loadPersonalInfo);
-        if (refreshSessionsBtnModal) refreshSessionsBtnModal.addEventListener('click', loadAdminSessions);
-        logMessage_Info("Admin Panel Modal Refresh Buttons event listeners bound (using _modal IDs).");
-
-        // 会话管理按钮（多个位置）
-        const showSessionsLogin = $('show-sessions-login');
-        const showSessionsMain = $('show-admin-panel');
-        const showSessionsMulti = $('show-sessions-multi');
-        if (showSessionsLogin) showSessionsLogin.addEventListener('click', () => {
-          toggleAdminPanel(true);
-          switchAdminTab('sessions');
-        });
-        if (showSessionsMain) showSessionsMain.addEventListener('click', () => {
-          toggleAdminPanel(true);
-          switchAdminTab('sessions');
-        });
-        if (showSessionsMulti) showSessionsMulti.addEventListener('click', () => {
-          toggleAdminPanel(true);
-          switchAdminTab('sessions');
-        });
-
-        // 内嵌登录页面管理面板刷新按钮 (仅会话管理)
-        const refreshSessionsInlineBtn = $('admin-refresh-sessions-inline');
-        if (refreshSessionsInlineBtn) refreshSessionsInlineBtn.addEventListener('click', loadAdminSessions_inline);
-
-        // 新增用户/权限组按钮 (仅用于模态框)
-        const createUserModalBtn = $('admin-create-user_modal');
-        const createGroupModalBtn = $('admin-create-group_modal');
-        if (createUserModalBtn) createUserModalBtn.addEventListener('click', showCreateUserModal);
-        if (createGroupModalBtn) createGroupModalBtn.addEventListener('click', showCreateGroupModal);
-
-        // 上帝模式切换
-        const godModeCheckbox = $('god-mode-checkbox');
-        const godModeCheckboxModal = $('god-mode-checkbox_modal');
-        if (godModeCheckbox) godModeCheckbox.addEventListener('change', () => loadAdminSessions_inline());
-        if (godModeCheckboxModal) godModeCheckboxModal.addEventListener('change', () => loadAdminSessions());
-
-        // 健康状态自动刷新开关
-        const healthAutoRefreshToggle = $('health-auto-refresh-toggle');
-        if (healthAutoRefreshToggle) {
-          healthAutoRefreshToggle.addEventListener('change', (e) => {
-            if (e.target.checked) {
-              startHealthAutoRefresh();
-            } else {
-              stopHealthAutoRefresh();
-            }
-          });
-        }
-      });
-    }
-
-    // ====================
-    // 管理面板功能
-    // ====================
-
-    // 权限中英文翻译映射
-    const permissionTranslations = {
-      // 基础权限
-      'view_dashboard': '查看仪表板',
-      'view_tasks': '查看任务',
-      'execute_tasks': '执行任务',
-      'view_history': '查看历史记录',
-
-      // 用户管理
-      'manage_users': '管理用户',
-      'create_users': '创建用户',
-      'delete_users': '删除用户',
-      'ban_users': '封禁用户',
-      'view_users': '查看用户',
-
-      // 权限管理
-      'manage_permissions': '管理权限',
-      'manage_groups': '管理权限组',
-      'assign_permissions': '分配权限',
-
-      // 会话管理
-      'manage_sessions': '管理会话',
-      'view_all_sessions': '查看所有会话',
-      'delete_sessions': '删除会话',
-      'god_mode': '上帝模式',
-
-      // 系统管理
-      'view_logs': '查看日志',
-      'system_settings': '系统设置',
-      'manage_api': '管理API',
-
-      // 任务相关
-      'create_tasks': '创建任务',
-      'modify_tasks': '修改任务',
-      'delete_tasks': '删除任务',
-      'schedule_tasks': '定时任务',
-
-      // 数据权限
-      'export_data': '导出数据',
-      'import_data': '导入数据',
-      'backup_data': '备份数据',
-
-      // 通知权限
-      'send_notifications': '发送通知',
-      'manage_notifications': '管理通知',
-
-      // 其他
-      'admin_panel': '管理面板',
-      'debug_mode': '调试模式'
-    };
+  
 
     // 权限翻译函数
     function translatePermission(permissionKey) {
@@ -2729,9 +2248,6 @@
       }
     }
 
-    // ====================
-    // 新增功能：创建用户对话框
-    // ====================
     function showCreateUserModal() {
       const modal = $('newUserModal');
       if (modal) {
@@ -2801,11 +2317,6 @@
       }
     }
 
-    // ====================
-    // 新增功能：创建权限组对话框
-    // ====================
-    let currentEditGroupKey = null;
-    let currentManageUsername = null;
 
     async function showCreateGroupModal() {
       const modal = $('create-group-modal');
@@ -4622,6 +4133,159 @@
     // --- 初始化 ---
     async function initializeApp() {
       try {
+
+          // --- 事件监听绑定 ---
+    $('user-combo').addEventListener('change', onUserChange);
+    $('username-entry').addEventListener('input', async (e) => {
+      const username = e.target.value.trim();
+      $('password-entry').value = "";
+      const userCombo = $('user-combo');
+      const exists = [...userCombo.options].some(o => o.value === username);
+      userCombo.value = exists ? username : "";
+      // if (!username) {
+      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
+      //   return;
+      // }
+      const data = await callPythonAPI('on_user_selected', username);
+      if (data && data.password) $('password-entry').value = data.password;
+      logMessage_Info('获取到的data.ua:', data ? data.ua : 'null');
+      const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
+      $('ua-label').textContent = ua_data;
+      logMessage_Info('User ua label set to:', ua_data);
+
+      // if (data && data.ua) {
+      //   $('ua-label').textContent = data.ua;
+      // } else {
+      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
+      // }
+      pythonParams = (data && data.params) ? data.params : pythonParams;
+      updateParamInputs($('params-container'), 'param', pythonParams);
+      const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
+    });
+    $('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
+    $('login-button').addEventListener('click', async (e) => {
+      // 校验登录按钮权限
+      if (!await checkButtonPermission('login-button', 'use_login_button')) {
+        return;
+      }
+      await onLogin();
+    });
+    $('logout-button').addEventListener('click', onLogout);
+    $('refresh-button').addEventListener('click', refreshTasks);
+    $('record-button').addEventListener('click', toggleRecordMode);
+    $('clear-button').addEventListener('click', () => clearCurrentPath(true));
+    $('process-button').addEventListener('click', processCurrentPath);
+    $('start-run-button').addEventListener('click', toggleRun);
+    $('start-all-button').addEventListener('click', toggleAllRuns);
+    $('export-button').addEventListener('click', exportTask);
+    $('import-button').addEventListener('click', async (e) => {
+      // 校验导入按钮权限
+      if (!await checkButtonPermission('import-button', 'use_import_button')) {
+        return;
+      }
+      await importTask();
+    });
+    // $('zoom-in').addEventListener('click', () => { if (map) map.zoomIn(); });
+    // $('zoom-out').addEventListener('click', () => { if (map) map.zoomOut(); });
+    // $('reset-view-btn').addEventListener('click', resetMapView);
+    $('show-user-details').addEventListener('click', (e) => {
+      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
+      showUserDetails();
+    });
+    $('show-task-details').addEventListener('click', (e) => {
+      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
+      showTaskDetails();
+    });
+    $('auto-gen-button').addEventListener('click', () => {
+      $('auto-gen-modal').classList.remove('hidden');
+      $('auto-gen-modal').classList.add('flex'); // 确保居中
+      document.body.classList.add('modal-visible'); // 隐藏Logo
+    });
+    $('cancel-gen-button').addEventListener('click', () => {
+      $('auto-gen-modal').classList.add('hidden');
+      $('auto-gen-modal').classList.remove('flex'); // 移除居中
+      document.body.classList.remove('modal-visible'); // 恢复Logo
+    });
+    $('confirm-gen-button').addEventListener('click', onConfirmAutoGenerate);
+
+    // --- 绑定通知按钮 ---
+    $('show-notifications-btn').addEventListener('click', (e) => {
+      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
+      showNotifications();
+    });
+
+    $('mark-all-read-btn').addEventListener('click', markAllAsRead);
+    $('refresh-notifications-btn').addEventListener('click', refreshNotificationsUI);
+
+    $('multi-download-template-btn').addEventListener('click', multi_downloadTemplate);
+
+
+    
+    // 定时刷新，例如每 5 秒
+    setInterval(refreshUserList, 5000);
+
+    
+    // --- 多账号模式事件监听 ---
+    $('multi-account-btn').addEventListener('click', async (e) => {
+      // 校验多账号控制台按钮权限
+      if (!await checkButtonPermission('multi-account-btn', 'use_multi_account_button')) {
+        return;
+      }
+      await switchToMultiMode();
+    });
+    $('exit-multi-mode-btn').addEventListener('click', exitMultiMode);
+    $('multi-start-all-btn').addEventListener('click', multi_startAll);
+    $('multi-stop-all-btn').addEventListener('click', multi_stopAll);
+    $('multi-load-all-from-config-btn').addEventListener('click', multi_loadAllFromConfig);
+    $('multi-add-from-config-btn').addEventListener('click', multi_addFromConfig);
+    $('multi-import-excel-btn').addEventListener('click', multi_importFromExcel);
+    $('multi-export-excel-btn').addEventListener('click', multi_exportToExcel);
+    // $('multi-zoom-in').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomIn(); });
+    // $('multi-zoom-out').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomOut(); });
+    // $('multi-reset-view-btn').addEventListener('click', multi_resetMapView);
+
+    // --- 管理面板标签页事件监听 ---
+    $('admin-tab-users_modal')?.addEventListener('click', () => switchAdminTab('users'));
+    $('admin-tab-groups_modal')?.addEventListener('click', () => switchAdminTab('groups'));
+    $('admin-tab-logs_modal')?.addEventListener('click', () => switchAdminTab('logs'));
+    $('admin-tab-health_modal')?.addEventListener('click', () => switchAdminTab('health'));
+    $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
+    $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
+    $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
+
+    // 留言板刷新按钮
+    $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
+
+    // --- 路径绘制相关函数 ---
+    let draftPath = [], draftPathLngLat = [], pendingPoints = [], isUpdating = false, lastMouseMoveTime = 0;
+    const MOUSE_MOVE_THROTTLE_MS = 70;
+    const MIN_DRAW_DISTANCE_M = 12;
+    let pendingUnlockMap = false;
+    
+    let backgroundTaskPollInterval = null;
+    let backgroundTaskStartTime = 0; // 记录任务启动时间，用于避免显示旧数据的提示
+
+    
+    const svgIconNormal = `<div style="pointer-events: none;">
+  <svg width="28" height="36" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+    <path fill="#22d3ee" d="M512 0C321.6 0 160 161.6 160 352c0 89.6 35.2 172.8 96 233.6l249.6 432c6.4 12.8 19.2 19.2 32 19.2s25.6-6.4 32-19.2l249.6-432c60.8-60.8 96-144 96-233.6C864 161.6 702.4 0 512 0z m0 512c-89.6 0-160-70.4-160-160s70.4-160 160-160 160 70.4 160 160-70.4 160-160 160z"></path>
+  </svg>
+</div>`;
+
+    const svgIconMakeup = `<div style="pointer-events: none;">
+  <svg width="28" height="36" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+    <path fill="#f59e0b" d="M512 0C321.6 0 160 161.6 160 352c0 89.6 35.2 172.8 96 233.6l249.6 432c6.4 12.8 19.2 19.2 32 19.2s25.6-6.4 32-19.2l249.6-432c60.8-60.8 96-144 96-233.6C864 161.6 702.4 0 512 0z m0 512c-89.6 0-160-70.4-160-160s70.4-160 160-160 160 70.4 160 160-70.4 160-160 160z"></path>
+  </svg>
+</div>`;
+
+    $('multi-remove-all-btn').addEventListener('click', multi_removeAll);
+    $('multi-remove-selected-btn').addEventListener('click', multi_removeSelected);
+    $('multi-refresh-all-btn').addEventListener('click', multi_refreshAll);
+    $('multi-select-all-check').addEventListener('change', multi_toggleSelectAll);
+    $('multi-start-selected-btn').addEventListener('click', multi_startSelected);
+    $('multi-stop-selected-btn').addEventListener('click', multi_stopSelected);
+    $('multi-refresh-selected-btn').addEventListener('click', multi_refreshSelected);
+
         // UUID格式验证函数 - 验证是否符合标准的UUID v4格式
         function isValidUUID(uuid) {
           const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
@@ -5301,7 +4965,6 @@
         IS_OFFLINE = true;
       }
     }
-    let socket = null; // 全局 socket 变量
 
     // 在 initializeApp 成功获取到 sessionUUID 后或者认证成功后调用此函数
     function connectWebSocket() {
@@ -5443,37 +5106,7 @@
     }
 
 
-    // Web模式应用初始化入口
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        initializeApp().catch(err => {
-          logMessage_Error('应用初始化失败:', err);
-          // 立即显示CDN错误（如果有）
-          appInitialized = false;
-          if (cdnErrorCount > 0) {
-            if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
-            const errorOverlay = document.getElementById('cdn-error-overlay');
-            if (errorOverlay) {
-              errorOverlay.style.setProperty('display', 'flex', 'important');
-            }
-          }
-        });
-      });
-    } else {
-      // DOM文档已完成加载，直接执行初始化流程
-      initializeApp().catch(err => {
-        logMessage_Error('应用初始化失败:', err);
-        // 立即显示CDN错误（如果有）
-        appInitialized = false;
-        if (cdnErrorCount > 0) {
-          if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
-          const errorOverlay = document.getElementById('cdn-error-overlay');
-          if (errorOverlay) {
-            errorOverlay.style.setProperty('display', 'flex', 'important');
-          }
-        }
-      });
-    }
+    
 
     function enhanceMapInteraction(mapInstance) {
       if (!mapInstance) return () => { }; // 防御：如果实例无效，返回空清理函数
@@ -5918,91 +5551,7 @@
       }
     }
 
-    // --- 事件监听绑定 ---
-    $('user-combo').addEventListener('change', onUserChange);
-    $('username-entry').addEventListener('input', async (e) => {
-      const username = e.target.value.trim();
-      $('password-entry').value = "";
-      const userCombo = $('user-combo');
-      const exists = [...userCombo.options].some(o => o.value === username);
-      userCombo.value = exists ? username : "";
-      // if (!username) {
-      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
-      //   return;
-      // }
-      const data = await callPythonAPI('on_user_selected', username);
-      if (data && data.password) $('password-entry').value = data.password;
-      logMessage_Info('获取到的data.ua:', data ? data.ua : 'null');
-      const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
-      $('ua-label').textContent = ua_data;
-      logMessage_Info('User ua label set to:', ua_data);
-
-      // if (data && data.ua) {
-      //   $('ua-label').textContent = data.ua;
-      // } else {
-      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
-      // }
-      pythonParams = (data && data.params) ? data.params : pythonParams;
-      updateParamInputs($('params-container'), 'param', pythonParams);
-      const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
-    });
-    $('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
-    $('login-button').addEventListener('click', async (e) => {
-      // 校验登录按钮权限
-      if (!await checkButtonPermission('login-button', 'use_login_button')) {
-        return;
-      }
-      await onLogin();
-    });
-    $('logout-button').addEventListener('click', onLogout);
-    $('refresh-button').addEventListener('click', refreshTasks);
-    $('record-button').addEventListener('click', toggleRecordMode);
-    $('clear-button').addEventListener('click', () => clearCurrentPath(true));
-    $('process-button').addEventListener('click', processCurrentPath);
-    $('start-run-button').addEventListener('click', toggleRun);
-    $('start-all-button').addEventListener('click', toggleAllRuns);
-    $('export-button').addEventListener('click', exportTask);
-    $('import-button').addEventListener('click', async (e) => {
-      // 校验导入按钮权限
-      if (!await checkButtonPermission('import-button', 'use_import_button')) {
-        return;
-      }
-      await importTask();
-    });
-    // $('zoom-in').addEventListener('click', () => { if (map) map.zoomIn(); });
-    // $('zoom-out').addEventListener('click', () => { if (map) map.zoomOut(); });
-    // $('reset-view-btn').addEventListener('click', resetMapView);
-    $('show-user-details').addEventListener('click', (e) => {
-      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
-      showUserDetails();
-    });
-    $('show-task-details').addEventListener('click', (e) => {
-      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
-      showTaskDetails();
-    });
-    $('auto-gen-button').addEventListener('click', () => {
-      $('auto-gen-modal').classList.remove('hidden');
-      $('auto-gen-modal').classList.add('flex'); // 确保居中
-      document.body.classList.add('modal-visible'); // 隐藏Logo
-    });
-    $('cancel-gen-button').addEventListener('click', () => {
-      $('auto-gen-modal').classList.add('hidden');
-      $('auto-gen-modal').classList.remove('flex'); // 移除居中
-      document.body.classList.remove('modal-visible'); // 恢复Logo
-    });
-    $('confirm-gen-button').addEventListener('click', onConfirmAutoGenerate);
-
-    // --- 绑定通知按钮 ---
-    $('show-notifications-btn').addEventListener('click', (e) => {
-      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
-      showNotifications();
-    });
-
-    $('mark-all-read-btn').addEventListener('click', markAllAsRead);
-    $('refresh-notifications-btn').addEventListener('click', refreshNotificationsUI);
-
-    $('multi-download-template-btn').addEventListener('click', multi_downloadTemplate);
-
+    
 
     // --- 核心业务逻辑函数 (JS端) ---
 
@@ -6170,8 +5719,6 @@
       }
     }
 
-    // 定时刷新，例如每 5 秒
-    setInterval(refreshUserList, 5000);
 
 
     async function onUserChange() {
@@ -6486,37 +6033,6 @@
       }
     }
 
-
-    // --- 多账号模式事件监听 ---
-    $('multi-account-btn').addEventListener('click', async (e) => {
-      // 校验多账号控制台按钮权限
-      if (!await checkButtonPermission('multi-account-btn', 'use_multi_account_button')) {
-        return;
-      }
-      await switchToMultiMode();
-    });
-    $('exit-multi-mode-btn').addEventListener('click', exitMultiMode);
-    $('multi-start-all-btn').addEventListener('click', multi_startAll);
-    $('multi-stop-all-btn').addEventListener('click', multi_stopAll);
-    $('multi-load-all-from-config-btn').addEventListener('click', multi_loadAllFromConfig);
-    $('multi-add-from-config-btn').addEventListener('click', multi_addFromConfig);
-    $('multi-import-excel-btn').addEventListener('click', multi_importFromExcel);
-    $('multi-export-excel-btn').addEventListener('click', multi_exportToExcel);
-    // $('multi-zoom-in').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomIn(); });
-    // $('multi-zoom-out').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomOut(); });
-    // $('multi-reset-view-btn').addEventListener('click', multi_resetMapView);
-
-    // --- 管理面板标签页事件监听 ---
-    $('admin-tab-users_modal')?.addEventListener('click', () => switchAdminTab('users'));
-    $('admin-tab-groups_modal')?.addEventListener('click', () => switchAdminTab('groups'));
-    $('admin-tab-logs_modal')?.addEventListener('click', () => switchAdminTab('logs'));
-    $('admin-tab-health_modal')?.addEventListener('click', () => switchAdminTab('health'));
-    $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
-    $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
-    $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
-
-    // 留言板刷新按钮
-    $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
 
     // --- 多账号模式核心函数 ---
     async function switchToMultiMode() {
@@ -7456,10 +6972,6 @@
       map.add(markers);
     }
 
-    // --- 路径绘制相关函数 ---
-    let draftPath = [], draftPathLngLat = [], pendingPoints = [], isUpdating = false, lastMouseMoveTime = 0;
-    const MOUSE_MOVE_THROTTLE_MS = 70;
-    const MIN_DRAW_DISTANCE_M = 12;
 
     function fastDistanceMeters(lon1, lat1, lon2, lat2) { return Math.sqrt(Math.pow((lon1 - lon2) * 102834.74, 2) + Math.pow((lat1 - lat2) * 111712.69, 2)); }
 
@@ -7531,7 +7043,6 @@
       drawingInfoMarker.show();
     }
 
-    let pendingUnlockMap = false;
 
     function toggleRecordMode() {
       const btn = $('record-button'); isDrawing = !isDrawing;
@@ -7700,8 +7211,6 @@
     }
 
     // ========== 后台任务管理函数 ==========
-    let backgroundTaskPollInterval = null;
-    let backgroundTaskStartTime = 0; // 记录任务启动时间，用于避免显示旧数据的提示
 
     function startBackgroundTaskPolling() {
       if (backgroundTaskPollInterval) {
@@ -9304,17 +8813,6 @@
       showNotifications();
     }
 
-    const svgIconNormal = `<div style="pointer-events: none;">
-  <svg width="28" height="36" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-    <path fill="#22d3ee" d="M512 0C321.6 0 160 161.6 160 352c0 89.6 35.2 172.8 96 233.6l249.6 432c6.4 12.8 19.2 19.2 32 19.2s25.6-6.4 32-19.2l249.6-432c60.8-60.8 96-144 96-233.6C864 161.6 702.4 0 512 0z m0 512c-89.6 0-160-70.4-160-160s70.4-160 160-160 160 70.4 160 160-70.4 160-160 160z"></path>
-  </svg>
-</div>`;
-
-    const svgIconMakeup = `<div style="pointer-events: none;">
-  <svg width="28" height="36" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-    <path fill="#f59e0b" d="M512 0C321.6 0 160 161.6 160 352c0 89.6 35.2 172.8 96 233.6l249.6 432c6.4 12.8 19.2 19.2 32 19.2s25.6-6.4 32-19.2l249.6-432c60.8-60.8 96-144 96-233.6C864 161.6 702.4 0 512 0z m0 512c-89.6 0-160-70.4-160-160s70.4-160 160-160 160 70.4 160 160-70.4 160-160 160z"></path>
-  </svg>
-</div>`;
 
     async function handleManualAttendance(event, rollCallId, targetCoords) {
       event.stopPropagation();
@@ -9683,12 +9181,5 @@
       }
     }
 
-    $('multi-remove-all-btn').addEventListener('click', multi_removeAll);
-    $('multi-remove-selected-btn').addEventListener('click', multi_removeSelected);
-    $('multi-refresh-all-btn').addEventListener('click', multi_refreshAll);
-    $('multi-select-all-check').addEventListener('change', multi_toggleSelectAll);
-    $('multi-start-selected-btn').addEventListener('click', multi_startSelected);
-    $('multi-stop-selected-btn').addEventListener('click', multi_stopSelected);
-    $('multi-refresh-selected-btn').addEventListener('click', multi_refreshSelected);
 
 

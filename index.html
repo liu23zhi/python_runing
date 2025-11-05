@@ -36,7 +36,7 @@
   <link rel="stylesheet" href="/css/Cascading_Style_Sheets.css">
 
 
-  <script>
+  <!-- <script>
     // 通用片段加载器
     function loadFragment(name) {
       const el = document.getElementById(name + '-placeholder');
@@ -52,7 +52,7 @@
         if (name && el.id.endsWith('-placeholder')) loadFragment(name);
       });
     });
-  </script>
+  </script> -->
 </head>
 
 <body class="text-slate-800 font-sans h-screen overflow-hidden antialiased">
@@ -699,6 +699,26 @@
           // 标记应用初始化完成
           if (typeof appInitialized !== 'undefined') {
             appInitialized = true;
+          }
+          
+          // [BUG修复] 在这里调用 initializeApp()，
+          // 确保在 JavaScript.js (主代码) 加载完成后再执行
+          if (typeof initializeApp === 'function') {
+            initializeApp().catch(err => {
+              logMessage_Error('应用初始化失败:', err);
+              // 立即显示CDN错误（如果有）
+              appInitialized = false;
+              if (cdnErrorCount > 0) {
+                if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
+                const errorOverlay = document.getElementById('cdn-error-overlay');
+                if (errorOverlay) {
+                  errorOverlay.style.setProperty('display', 'flex', 'important');
+                }
+              }
+            });
+          } else {
+            console.error('[JavaScript加载] 致命错误: initializeApp 函数未定义');
+            alert('应用初始化失败：核心函数丢失，请刷新页面重试');
           }
         };
         
