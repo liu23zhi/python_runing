@@ -6622,12 +6622,16 @@
           // 创建多账号地图（如果还没有创建）
           if (!multiAccountMap && AMapInstance) {
             try {
+              // 浏览器会尽量将图像数据缓存在GPU内存中，从而提高多个getImageData读取操作的速度
               multiAccountMap = new AMapInstance.Map('multi-map-container', {
                 viewMode: '3D',
                 pitch: 55,
                 rotation: 0,
                 zoom: 17,
-                center: [113.390342, 22.527403]
+                center: [113.390342, 22.527403],
+                renderOptions: {
+                  willReadFrequently: true  // 优化canvas性能
+                }
               });
 
               // 多账号地图的 3D 控制杆
@@ -7045,6 +7049,13 @@
         }
       });
 
+      // 监听多账号位置更新
+      socket.on('multi_position_update', (data) => {
+        if (data && data.username && typeof data.lon === 'number' && typeof data.lat === 'number') {
+          multi_updateRunnerPosition(data.username, data.lon, data.lat, data.name || data.username);
+        }
+      });
+
       // 监听单账号当前位置位置更新
       socket.on('runner_position_update', (data) => {
         if (data) {
@@ -7389,9 +7400,13 @@
     function initMap(AMap) {
       if (map) return;
       AMapInstance = AMap;
+      // 浏览器会尽量将图像数据缓存在GPU内存中，从而提高多个getImageData读取操作的速度
       map = new AMapInstance.Map('map-container', {
         viewMode: '3D', pitch: 55, rotation: 0, zoom: 17,
-        center: [113.390342, 22.527403]
+        center: [113.390342, 22.527403],
+        renderOptions: {
+          willReadFrequently: true  // 优化canvas性能
+        }
       });
 
       const ctrlBar = new AMapInstance.ControlBar({
@@ -8186,12 +8201,16 @@
 
       // 创建多账号地图
       if (!multiAccountMap && AMapInstance) {
+        // 浏览器会尽量将图像数据缓存在GPU内存中，从而提高多个getImageData读取操作的速度
         multiAccountMap = new AMapInstance.Map('multi-map-container', {
           viewMode: '3D',
           pitch: 55,
           rotation: 0,
           zoom: 17,
-          center: [113.390342, 22.527403]
+          center: [113.390342, 22.527403],
+          renderOptions: {
+            willReadFrequently: true  // 优化canvas性能
+          }
         });
 
         // 多账号地图的 3D 控制杆 (直接创建)
@@ -8537,7 +8556,7 @@
                         ${acc.tag ? `<span class="text-xs text-purple-600 font-medium block">🏷️ ${acc.tag}</span>` : ''}
                     </div>
                 </div>
-                <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap">${acc.status_text}</span>
+                <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap" id="MultiAccount_status_text">${acc.status_text}</span>
             </div>
 
 
