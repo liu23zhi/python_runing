@@ -14456,14 +14456,17 @@ def start_web_server(args_param):
             logging.error(f"加载 JavaScript_globals.js 时发生错误: {e}", exc_info=True)
             return jsonify({"error": "Internal server error"}), 500
 
-    @app.route('/css/Cascading_Style_Sheets.css', methods=['GET'])
-    def serve_css():
+    @app.route('/css/<Cascading_Style_Sheets_path>.css', methods=['GET'])
+    def serve_css(Cascading_Style_Sheets_path):
         """
         返回 CSS 样式表文件（支持自动压缩）
         
         功能说明：
-            返回 Cascading_Style_Sheets.css 文件
+            根据路径参数返回对应的 CSS 文件
             支持自动压缩和浏览器缓存
+        
+        参数：
+            Cascading_Style_Sheets_path (str): CSS 文件名称（不含 .css 后缀）
         
         查询参数：
             - minify: 是否压缩 CSS（默认 true）
@@ -14483,7 +14486,8 @@ def start_web_server(args_param):
             <link rel="stylesheet" href="/css/Cascading_Style_Sheets.css">
         """
         try:
-            css_file = os.path.join(os.path.dirname(__file__), 'Cascading_Style_Sheets.css')
+            # 根据路径参数构建 CSS 文件路径
+            css_file = os.path.join(os.path.dirname(__file__), f'{Cascading_Style_Sheets_path}.css')
             
             if not os.path.exists(css_file):
                 logging.error(f"CSS 文件不存在: {css_file}")
