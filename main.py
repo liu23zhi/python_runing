@@ -13740,6 +13740,66 @@ def start_web_server(args_param):
         # 返回HTML内容
         return render_template_string(html_content)
 
+    @app.route('/JavaScript.js', methods=['GET'])
+    def serve_full_javascript():
+        """
+        返回完整的 JavaScript.js 文件
+        
+        功能说明：
+            返回整个 JavaScript.js 文件内容，供浏览器加载和执行。
+            这是最简单和最可靠的方式，浏览器可以缓存整个文件。
+        
+        返回：
+            - 200: 成功返回 JavaScript 代码
+            - 404: 文件未找到
+            - 500: 服务器内部错误
+        
+        缓存策略：
+            - 设置 Cache-Control 头，允许浏览器缓存 1 小时
+            - 使用 Last-Modified 和 ETag 支持条件请求
+        """
+        try:
+            js_file_path = os.path.join(os.path.dirname(__file__), 'JavaScript.js')
+            
+            if not os.path.exists(js_file_path):
+                logging.error(f"JavaScript.js 文件不存在: {js_file_path}")
+                return jsonify({"error": "JavaScript file not found"}), 404
+            
+            # 读取文件内容
+            with open(js_file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 创建响应
+            response = make_response(content)
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            
+            # 设置 Last-Modified
+            file_mtime = os.path.getmtime(js_file_path)
+            from datetime import datetime
+            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            response.headers['Last-Modified'] = last_modified
+            
+            # 设置 ETag
+            import hashlib
+            etag = hashlib.md5(content.encode('utf-8')).hexdigest()
+            response.headers['ETag'] = f'"{etag}"'
+            
+            # 检查条件请求
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            if (if_modified_since == last_modified) or (if_none_match == f'"{etag}"'):
+                logging.debug("JavaScript.js 使用缓存版本 (304)")
+                return '', 304
+            
+            logging.info(f"成功返回 JavaScript.js ({len(content)} 字符)")
+            return response
+            
+        except Exception as e:
+            logging.error(f"加载 JavaScript.js 时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
     @app.route('/JavaScript/<path:function_path>.js', methods=['GET'])
     def serve_javascript(function_path):
         """
