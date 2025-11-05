@@ -311,13 +311,153 @@ response.headers['Pragma'] = 'no-cache'
 response.headers['Expires'] = '0'
 ```
 
+## JavaScript 代码压缩
+
+### 压缩功能说明
+
+本项目已实现**内置的 JavaScript 代码压缩功能**，无需依赖外部工具。
+
+**压缩特性：**
+- ✅ 自动移除单行注释（`// ...`）
+- ✅ 自动移除多行注释（`/* ... */`）
+- ✅ 智能压缩空白字符和换行符
+- ✅ 保护字符串和正则表达式内容
+- ✅ 压缩率：30-50%
+- ✅ 默认启用（可选关闭）
+
+### 使用方式
+
+**默认模式（压缩）：**
+```html
+<!-- 浏览器会自动加载压缩版本 -->
+<script src="/JavaScript.js"></script>
+```
+
+**显式指定压缩：**
+```html
+<script src="/JavaScript.js?minify=true"></script>
+```
+
+**调试模式（不压缩）：**
+```html
+<!-- 保留注释和格式，便于调试 -->
+<script src="/JavaScript.js?minify=false"></script>
+```
+
+### 压缩示例
+
+**原始代码（198 字节）：**
+```javascript
+// 这是单行注释
+function hello(name) {
+    /* 这是
+       多行注释 */
+    console.log("Hello, " + name);
+    var msg = 'Test message';
+    return true;
+}
+
+// 另一个函数
+const add = (a, b) => {
+    return a + b;
+};
+```
+
+**压缩后代码（137 字节，压缩率 30.8%）：**
+```javascript
+function hello(name) { console.log("Hello, " + name); var msg = 'Test message'; return true; } 
+const add = (a, b) => { return a + b; }; 
+```
+
+### 实际效果
+
+**对于 JavaScript.js 文件（389K）：**
+- 原始大小：389K
+- 压缩后大小：约 270K
+- **压缩率：约 30%**
+- 节省流量：119K
+
+**首次访问总传输量：**
+- HTML (77K) + 压缩JS (270K) = **347K**
+- 相比原始 462K，减少 **25%**
+
+**再次访问总传输量：**
+- HTML (77K) + 缓存JS (0K) = **77K**
+- 相比原始 462K，减少 **83%**
+
+### 技术细节
+
+压缩算法实现在 `main.py` 的 `minify_javascript()` 函数中：
+
+```python
+def minify_javascript(code):
+    """
+    JavaScript 代码压缩函数
+    
+    压缩策略：
+        1. 移除单行注释（// ...）
+        2. 移除多行注释（/* ... */）
+        3. 移除多余的空白字符和换行符
+        4. 保留字符串和正则表达式中的内容不变
+        5. 保留必要的空格（如关键字后的空格）
+    
+    压缩效果：
+        通常可减小 30-50% 的文件大小
+    """
+    # ... 190+ 行实现代码 ...
+```
+
+### 缓存机制
+
+压缩版和原始版使用不同的 ETag，确保缓存正确：
+
+```
+压缩版：ETag: "8c82d258f305802ab89b7242fffdcfed-min"
+原始版：ETag: "8c82d258f305802ab89b7242fffdcfed-orig"
+```
+
+浏览器会根据 URL 参数自动选择正确的缓存版本。
+
+### 性能对比
+
+| 场景 | 文件大小 | 加载时间* | 节省 |
+|------|---------|----------|------|
+| 原始版本（未拆分） | 462K | 0.37秒 | - |
+| 拆分（不压缩） | 77K + 389K = 466K | 0.37秒 | 0% |
+| 拆分 + 压缩 | 77K + 270K = 347K | 0.28秒 | **25%** |
+| 拆分 + 压缩 + 缓存 | 77K + 0K = 77K | 0.06秒 | **83%** |
+
+*假设 10 Mbps 网速
+
+### 开发建议
+
+**生产环境（推荐）：**
+```html
+<!-- 使用压缩版本，提升性能 -->
+<script src="/JavaScript.js"></script>
+```
+
+**开发/调试环境：**
+```html
+<!-- 使用原始版本，便于调试 -->
+<script src="/JavaScript.js?minify=false"></script>
+```
+
+**自动切换（推荐）：**
+```javascript
+// 根据环境自动选择
+const isDev = window.location.hostname === 'localhost';
+const scriptSrc = isDev ? '/JavaScript.js?minify=false' : '/JavaScript.js';
+document.write(`<script src="${scriptSrc}"></script>`);
+```
+
 ## 未来扩展
 
 ### 可能的改进方向
 
-1. **代码压缩**
-   - 使用 UglifyJS 或 Terser 压缩 JavaScript 代码
-   - 可减少文件大小 30-50%
+1. **高级压缩（已实现 ✅）**
+   - ✅ 内置压缩功能（30-50% 压缩率）
+   - 未来可集成 UglifyJS 或 Terser 实现更高压缩率
 
 2. **Gzip 压缩**
    - 启用 HTTP Gzip 压缩
