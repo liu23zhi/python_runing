@@ -14364,15 +14364,15 @@ def start_web_server(args_param):
     @app.route('/html/<path:fragment_name>.html', methods=['GET'])
     def serve_html_fragment(fragment_name):
         """
-        HTML 片段动态加载 API 端点（支持自动压缩）
+        HTML 片段动态加载 API 端点（支持自动压缩，从统一文件读取）
         
         功能说明：
-            根据请求的片段名称，从 html_fragments 目录中加载对应的 HTML 片段。
+            根据请求的片段名称，从 html_fragments.html 统一文件中提取对应的 HTML 片段。
             支持自动压缩和浏览器缓存，大幅减小传输大小。
         
         参数：
             fragment_name (str): HTML 片段名称（不含 .html 后缀）
-              例如：'admin-panel-modal', 'main-app', 'auth-login-container'
+              例如：'admin-panel-modal', 'main-app', 'auto-gen-modal', 'notifications-modal'
         
         查询参数：
             - minify: 是否压缩 HTML（默认 true）
@@ -14396,29 +14396,55 @@ def start_web_server(args_param):
         
         使用示例：
             - /html/admin-panel-modal.html             --> 返回压缩版本（推荐）
-            - /html/main-app.html?minify=true          --> 返回压缩版本
-            - /html/auth-login-container.html?minify=false --> 返回原始版本（调试）
+            - /html/auto-gen-modal.html?minify=true    --> 返回压缩版本
+            - /html/notifications-modal.html?minify=false --> 返回原始版本（调试）
         
         支持的片段：
+            大区域：
             - admin-panel-modal      (13.5 KB) - 管理员面板模态框
             - main-app               (10.0 KB) - 主应用界面
             - multi-account-app      (6.1 KB)  - 多账号控制台
             - auth-login-container   (4.8 KB)  - 认证登录容器
             - login-container        (4.4 KB)  - 登录容器
+            
+            模态框：
+            - auto-gen-modal          (1.2 KB) - 自动生成路径模态框
+            - notifications-modal     (0.9 KB) - 通知模态框
+            - session-picker-modal    (1.9 KB) - 会话选择器
+            - create-group-modal      (1.7 KB) - 创建权限组
+            - 以及其他 10+ 个模态框
+        
+        实现细节：
+            片段存储在 html_fragments.html 文件中，格式如下：
+            <!-- BEGIN_FRAGMENT: fragment-name -->
+            <div id="fragment-name">...</div>
+            <!-- END_FRAGMENT: fragment-name -->
         """
         try:
-            # HTML 片段目录
-            fragments_dir = os.path.join(os.path.dirname(__file__), 'html_fragments')
-            fragment_file = os.path.join(fragments_dir, f'{fragment_name}.html')
+            # 统一的 HTML 片段文件
+            fragments_file = os.path.join(os.path.dirname(__file__), 'html_fragments.html')
             
             # 检查文件是否存在
-            if not os.path.exists(fragment_file):
-                logging.error(f"HTML 片段不存在: {fragment_file}")
+            if not os.path.exists(fragments_file):
+                logging.error(f"HTML 片段文件不存在: {fragments_file}")
+                return jsonify({"error": "HTML fragments file not found"}), 500
+            
+            # 读取整个片段文件
+            with open(fragments_file, 'r', encoding='utf-8') as f:
+                fragments_content = f.read()
+            
+            # 从文件中提取指定的片段
+            # 格式：<!-- BEGIN_FRAGMENT: fragment-name --> ... <!-- END_FRAGMENT: fragment-name -->
+            import re
+            pattern = rf'<!-- BEGIN_FRAGMENT: {re.escape(fragment_name)} -->\s*(.*?)\s*<!-- END_FRAGMENT: {re.escape(fragment_name)} -->'
+            match = re.search(pattern, fragments_content, re.DOTALL)
+            
+            if not match:
+                logging.error(f"HTML 片段未找到: {fragment_name}")
                 return jsonify({"error": f"HTML fragment '{fragment_name}' not found"}), 404
             
-            # 读取文件内容
-            with open(fragment_file, 'r', encoding='utf-8') as f:
-                original_content = f.read()
+            # 提取片段内容
+            original_content = match.group(1).strip()
             
             # 检查是否需要压缩（默认为 true）
             minify_param = request.args.get('minify', 'true').lower()
@@ -14436,8 +14462,8 @@ def start_web_server(args_param):
                 content_type_suffix = ' (original)'
                 logging.info(f"HTML 片段 {fragment_name} 返回原始版本：{len(content)} 字节")
             
-            # 设置 Last-Modified（基于文件修改时间）
-            file_mtime = os.path.getmtime(fragment_file)
+            # 设置 Last-Modified（基于统一文件的修改时间）
+            file_mtime = os.path.getmtime(fragments_file)
             from datetime import datetime
             last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
             
