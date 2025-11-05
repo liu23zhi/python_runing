@@ -4130,195 +4130,564 @@
       return { valid: true };
     }
 
+    // ==============================================================================
+    // 模块化事件监听器绑定函数
+    // ==============================================================================
+    // 
+    // 这些函数将事件监听器的绑定逻辑按功能模块拆分，实现按需加载优化。
+    // 每个函数只在需要时被调用一次，避免重复绑定。
+    //
+    // ==============================================================================
+
+    // --- 懒加载标志位 ---
+    // 用于跟踪各个模块的事件监听器是否已经绑定，确保每个模块只初始化一次
+    let eventsInitialized = {
+      login: false,          // 登录/登出相关事件
+      task: false,           // 任务管理相关事件
+      modal: false,          // 模态框相关事件
+      notification: false,   // 通知相关事件
+      multiAccount: false,   // 多账号模式相关事件
+      admin: false,          // 管理面板相关事件
+      userInput: false,      // 用户输入相关事件
+      parameters: false      // 参数控件相关事件
+    };
+
+    /**
+     * 绑定登录和登出相关的事件监听器
+     * 功能：处理用户登录、登出、用户切换等核心认证流程
+     * 
+     * 包含的事件：
+     * - 用户下拉框切换事件
+     * - 随机UA生成按钮
+     * - 登录按钮（带权限校验）
+     * - 登出按钮
+     * - API Key确认按钮
+     */
+    function bindLoginEvents() {
+      // 检查是否已经绑定过，避免重复绑定
+      if (eventsInitialized.login) return;
+      
+      // 绑定用户下拉框的change事件 - 当用户从下拉列表选择不同用户时触发
+      $('user-combo').addEventListener('change', onUserChange);
+      
+      // 绑定随机UA生成按钮 - 点击后调用后端API生成新的User-Agent字符串
+      $('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
+      
+      // 绑定登录按钮 - 点击后先校验权限，再执行登录逻辑
+      $('login-button').addEventListener('click', async (e) => {
+        // 校验登录按钮权限 - 检查用户是否有权限使用登录功能
+        if (!await checkButtonPermission('login-button', 'use_login_button')) {
+          return; // 如果权限校验失败，直接返回，不执行登录
+        }
+        await onLogin(); // 权限校验通过后，执行登录流程
+      });
+      
+      // 绑定登出按钮 - 点击后清除当前会话，返回登录界面
+      $('logout-button').addEventListener('click', onLogout);
+      
+      // 绑定API Key模态框的确认按钮 - 用于保存用户输入的高德地图API Key
+      $('confirm-amap-key-btn').addEventListener('click', onConfirmAmapKey);
+      
+      // 标记登录相关事件已经绑定完成
+      eventsInitialized.login = true;
+      logMessage_Info('[事件绑定] 登录相关事件已绑定');
+    }
+
+    /**
+     * 绑定用户输入相关的事件监听器
+     * 功能：处理用户名输入框的实时交互，包括自动填充密码、UA显示等
+     * 
+     * 包含的事件：
+     * - 用户名输入框的input事件（实时响应用户输入）
+     */
+    function bindUserInputEvents() {
+      // 检查是否已经绑定过，避免重复绑定
+      if (eventsInitialized.userInput) return;
+      
+      // 绑定用户名输入框的input事件 - 当用户输入或修改用户名时触发
+      $('username-entry').addEventListener('input', async (e) => {
+        // 获取输入的用户名并去除首尾空格
+        const username = e.target.value.trim();
+        
+        // 清空密码输入框 - 切换用户时应该清除之前的密码
+        $('password-entry').value = "";
+        
+        // 获取用户下拉框元素引用
+        const userCombo = $('user-combo');
+        
+        // 检查输入的用户名是否在下拉列表中已存在
+        const exists = [...userCombo.options].some(o => o.value === username);
+        
+        // 如果用户名存在于下拉列表，自动同步下拉框的选择；否则设置为空（新用户）
+        userCombo.value = exists ? username : "";
+        
+        // 调用后端API获取该用户的详细信息（密码、UA、参数等）
+        const data = await callPythonAPI('on_user_selected', username);
+        
+        // 如果后端返回了密码，自动填充到密码输入框
+        if (data && data.password) $('password-entry').value = data.password;
+        
+        // 记录获取到的UA数据到日志（用于调试）
+        logMessage_Info('获取到的data.ua:', data ? data.ua : 'null');
+        
+        // 设置UA标签的显示文本：如果有UA则显示，否则显示提示文本
+        const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
+        $('ua-label').textContent = ua_data;
+        
+        // 再次记录UA标签的设置情况（用于调试）
+        logMessage_Info('User ua label set to:', ua_data);
+
+        // 更新全局参数对象：如果后端返回了params，使用返回的；否则保持原值
+        pythonParams = (data && data.params) ? data.params : pythonParams;
+        
+        // 更新参数输入控件的UI，反映最新的参数值
+        updateParamInputs($('params-container'), 'param', pythonParams);
+        
+        // 获取主题基础颜色（如果未设置则使用默认的天蓝色）
+        const base = pythonParams.theme_base_color || '#7dd3fc';
+        
+        // 应用主题颜色到界面
+        setBaseColor(base, base);
+      });
+      
+      // 标记用户输入相关事件已经绑定完成
+      eventsInitialized.userInput = true;
+      logMessage_Info('[事件绑定] 用户输入相关事件已绑定');
+    }
+
+    /**
+     * 绑定任务管理相关的事件监听器
+     * 功能：处理任务的刷新、录制、清除、处理、启动、停止、导入导出等操作
+     * 
+     * 包含的事件：
+     * - 刷新任务列表按钮
+     * - 录制模式切换按钮
+     * - 清除当前路径按钮
+     * - 处理当前路径按钮
+     * - 启动单个任务按钮
+     * - 启动所有任务按钮
+     * - 导出任务按钮
+     * - 导入任务按钮（带权限校验）
+     */
+    function bindTaskEvents() {
+      // 检查是否已经绑定过，避免重复绑定
+      if (eventsInitialized.task) return;
+      
+      // 绑定刷新按钮 - 从服务器重新获取任务列表并更新界面
+      $('refresh-button').addEventListener('click', refreshTasks);
+      
+      // 绑定录制按钮 - 切换地图路径录制模式的开关
+      $('record-button').addEventListener('click', toggleRecordMode);
+      
+      // 绑定清除按钮 - 清除当前绘制的路径，参数true表示显示确认提示
+      $('clear-button').addEventListener('click', () => clearCurrentPath(true));
+      
+      // 绑定处理按钮 - 处理当前绘制的路径（例如保存、优化等）
+      $('process-button').addEventListener('click', processCurrentPath);
+      
+      // 绑定启动运行按钮 - 启动或停止单个任务的执行
+      $('start-run-button').addEventListener('click', toggleRun);
+      
+      // 绑定启动所有按钮 - 批量启动或停止所有任务
+      $('start-all-button').addEventListener('click', toggleAllRuns);
+      
+      // 绑定导出按钮 - 将当前任务导出为文件
+      $('export-button').addEventListener('click', exportTask);
+      
+      // 绑定导入按钮 - 从文件导入任务（需要权限校验）
+      $('import-button').addEventListener('click', async (e) => {
+        // 校验导入按钮权限 - 检查用户是否有权限使用导入功能
+        if (!await checkButtonPermission('import-button', 'use_import_button')) {
+          return; // 如果权限校验失败，直接返回，不执行导入
+        }
+        await importTask(); // 权限校验通过后，执行导入流程
+      });
+      
+      // 标记任务管理相关事件已经绑定完成
+      eventsInitialized.task = true;
+      logMessage_Info('[事件绑定] 任务管理相关事件已绑定');
+    }
+
+    /**
+     * 绑定模态框相关的事件监听器
+     * 功能：处理各种弹窗的显示和交互，包括用户详情、任务详情、自动生成等
+     * 
+     * 包含的事件：
+     * - 显示用户详情按钮
+     * - 显示任务详情按钮
+     * - 自动生成路径按钮
+     * - 取消自动生成按钮
+     * - 确认自动生成按钮
+     */
+    function bindModalEvents() {
+      // 检查是否已经绑定过，避免重复绑定
+      if (eventsInitialized.modal) return;
+      
+      // 绑定"显示用户详情"按钮 - 打开用户详情模态框
+      $('show-user-details').addEventListener('click', (e) => {
+        e.stopPropagation(); // 阻止事件冒泡到模态框背景，防止意外关闭
+        showUserDetails(); // 调用函数显示用户详细信息
+      });
+      
+      // 绑定"显示任务详情"按钮 - 打开任务详情模态框
+      $('show-task-details').addEventListener('click', (e) => {
+        e.stopPropagation(); // 阻止事件冒泡到模态框背景，防止意外关闭
+        showTaskDetails(); // 调用函数显示任务详细信息
+      });
+      
+      // 绑定"自动生成"按钮 - 打开自动生成路径的配置模态框
+      $('auto-gen-button').addEventListener('click', () => {
+        $('auto-gen-modal').classList.remove('hidden'); // 移除hidden类，显示模态框
+        $('auto-gen-modal').classList.add('flex'); // 添加flex类，确保居中显示
+        document.body.classList.add('modal-visible'); // 标记模态框可见状态，可能用于隐藏Logo或其他元素
+      });
+      
+      // 绑定"取消生成"按钮 - 关闭自动生成路径的配置模态框
+      $('cancel-gen-button').addEventListener('click', () => {
+        $('auto-gen-modal').classList.add('hidden'); // 添加hidden类，隐藏模态框
+        $('auto-gen-modal').classList.remove('flex'); // 移除flex类
+        document.body.classList.remove('modal-visible'); // 移除模态框可见标记，恢复Logo显示
+      });
+      
+      // 绑定"确认生成"按钮 - 执行自动生成路径的操作
+      $('confirm-gen-button').addEventListener('click', onConfirmAutoGenerate);
+      
+      // 标记模态框相关事件已经绑定完成
+      eventsInitialized.modal = true;
+      logMessage_Info('[事件绑定] 模态框相关事件已绑定');
+    }
+
+    /**
+     * 绑定通知系统相关的事件监听器
+     * 功能：处理通知的显示、标记已读、刷新等操作
+     * 
+     * 包含的事件：
+     * - 显示通知列表按钮
+     * - 标记所有通知为已读按钮
+     * - 刷新通知列表按钮
+     */
+    function bindNotificationEvents() {
+      // 检查是否已经绑定过，避免重复绑定
+      if (eventsInitialized.notification) return;
+      
+      // 绑定"显示通知"按钮 - 打开通知列表模态框
+      $('show-notifications-btn').addEventListener('click', (e) => {
+        e.stopPropagation(); // 阻止事件冒泡到模态框背景，防止意外关闭
+        showNotifications(); // 调用函数显示通知列表
+      });
+
+      // 绑定"一键已读"按钮 - 将所有未读通知标记为已读
+      $('mark-all-read-btn').addEventListener('click', markAllAsRead);
+      
+      // 绑定"刷新通知"按钮 - 从服务器重新获取最新的通知列表
+      $('refresh-notifications-btn').addEventListener('click', refreshNotificationsUI);
+      
+      // 标记通知相关事件已经绑定完成
+      eventsInitialized.notification = true;
+      logMessage_Info('[事件绑定] 通知相关事件已绑定');
+    }
+
+    /**
+     * 绑定多账号模式相关的事件监听器
+     * 功能：处理多账号控制台的各种操作，包括账号管理、批量操作、导入导出等
+     * 
+     * 包含的事件：
+     * - 进入多账号模式按钮（带权限校验）
+     * - 退出多账号模式按钮
+     * - 全部启动/停止按钮
+     * - 批量加载/添加按钮
+     * - Excel导入/导出按钮
+     * - 选中账号的操作按钮
+     * - 全选复选框
+     * - 下载模板按钮
+     */
+    function bindMultiAccountEvents() {
+      // 检查是否已经绑定过，避免重复绑定
+      if (eventsInitialized.multiAccount) return;
+      
+      // 绑定"多账号模式"按钮 - 切换到多账号管理界面（需要权限校验）
+      $('multi-account-btn').addEventListener('click', async (e) => {
+        // 校验多账号控制台按钮权限 - 检查用户是否有权限使用多账号功能
+        if (!await checkButtonPermission('multi-account-btn', 'use_multi_account_button')) {
+          return; // 如果权限校验失败，直接返回，不进入多账号模式
+        }
+        await switchToMultiMode(); // 权限校验通过后，切换到多账号模式
+      });
+      
+      // 绑定"退出多账号模式"按钮 - 返回单账号界面
+      $('exit-multi-mode-btn').addEventListener('click', exitMultiMode);
+      
+      // 绑定"全部启动"按钮 - 批量启动所有账号的任务
+      $('multi-start-all-btn').addEventListener('click', multi_startAll);
+      
+      // 绑定"全部停止"按钮 - 批量停止所有账号的任务
+      $('multi-stop-all-btn').addEventListener('click', multi_stopAll);
+      
+      // 绑定"从配置加载全部"按钮 - 从配置文件加载所有账号（替换现有）
+      $('multi-load-all-from-config-btn').addEventListener('click', multi_loadAllFromConfig);
+      
+      // 绑定"从配置添加"按钮 - 从配置文件添加账号（不替换现有）
+      $('multi-add-from-config-btn').addEventListener('click', multi_addFromConfig);
+      
+      // 绑定"导入Excel"按钮 - 从Excel文件批量导入账号信息
+      $('multi-import-excel-btn').addEventListener('click', multi_importFromExcel);
+      
+      // 绑定"导出Excel"按钮 - 将当前账号列表导出为Excel文件
+      $('multi-export-excel-btn').addEventListener('click', multi_exportToExcel);
+      
+      // 绑定"删除全部"按钮 - 清空所有账号
+      $('multi-remove-all-btn').addEventListener('click', multi_removeAll);
+      
+      // 绑定"删除选中"按钮 - 删除用户选中的账号
+      $('multi-remove-selected-btn').addEventListener('click', multi_removeSelected);
+      
+      // 绑定"刷新全部"按钮 - 刷新所有账号的状态信息
+      $('multi-refresh-all-btn').addEventListener('click', multi_refreshAll);
+      
+      // 绑定"全选"复选框 - 切换所有账号的选中状态
+      $('multi-select-all-check').addEventListener('change', multi_toggleSelectAll);
+      
+      // 绑定"启动选中"按钮 - 批量启动选中账号的任务
+      $('multi-start-selected-btn').addEventListener('click', multi_startSelected);
+      
+      // 绑定"停止选中"按钮 - 批量停止选中账号的任务
+      $('multi-stop-selected-btn').addEventListener('click', multi_stopSelected);
+      
+      // 绑定"刷新选中"按钮 - 刷新选中账号的状态信息
+      $('multi-refresh-selected-btn').addEventListener('click', multi_refreshSelected);
+      
+      // 绑定"下载模板"按钮 - 下载Excel导入模板文件
+      $('multi-download-template-btn').addEventListener('click', multi_downloadTemplate);
+      
+      // 标记多账号模式相关事件已经绑定完成
+      eventsInitialized.multiAccount = true;
+      logMessage_Info('[事件绑定] 多账号模式相关事件已绑定');
+    }
+
+    /**
+     * 绑定管理面板相关的事件监听器
+     * 功能：处理管理面板的标签页切换、数据刷新等操作
+     * 
+     * 包含的事件：
+     * - 用户管理标签页
+     * - 用户组管理标签页
+     * - 日志查看标签页
+     * - 健康检查标签页
+     * - 个人资料标签页
+     * - 会话管理标签页
+     * - 留言板标签页及刷新按钮
+     */
+    function bindAdminEvents() {
+      // 检查是否已经绑定过，避免重复绑定
+      if (eventsInitialized.admin) return;
+      
+      // 绑定管理面板的各个标签页点击事件
+      // 使用可选链操作符(?.)来安全地绑定事件，如果元素不存在则跳过
+      
+      // 用户管理标签页 - 切换到用户管理界面
+      $('admin-tab-users_modal')?.addEventListener('click', () => switchAdminTab('users'));
+      
+      // 用户组管理标签页 - 切换到用户组管理界面
+      $('admin-tab-groups_modal')?.addEventListener('click', () => switchAdminTab('groups'));
+      
+      // 日志查看标签页 - 切换到系统日志查看界面
+      $('admin-tab-logs_modal')?.addEventListener('click', () => switchAdminTab('logs'));
+      
+      // 健康检查标签页 - 切换到系统健康状态监控界面
+      $('admin-tab-health_modal')?.addEventListener('click', () => switchAdminTab('health'));
+      
+      // 个人资料标签页 - 切换到个人资料编辑界面
+      $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
+      
+      // 会话管理标签页 - 切换到会话列表和管理界面
+      $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
+      
+      // 留言板标签页 - 切换到留言板界面
+      $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
+
+      // 绑定留言板刷新按钮 - 重新加载留言列表
+      $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
+      
+      // 标记管理面板相关事件已经绑定完成
+      eventsInitialized.admin = true;
+      logMessage_Info('[事件绑定] 管理面板相关事件已绑定');
+    }
+
+    /**
+     * 绑定参数控件相关的事件监听器
+     * 功能：处理参数设置界面的各种配置选项变更
+     * 
+     * 包含的事件：
+     * - 自动签到开关
+     * - 签到刷新间隔设置
+     * - 签到范围半径设置
+     * 
+     * 注意：这些控件可能在DOM中不存在，使用可选判断
+     */
+    function bindParameterEvents() {
+      // 检查是否已经绑定过，避免重复绑定
+      if (eventsInitialized.parameters) return;
+      
+      // 获取签到相关的参数控件元素
+      const attEnabled = $('param-auto_attendance_enabled');  // 自动签到开关
+      const attRefresh = $('param-auto_attendance_refresh_s'); // 签到刷新间隔（秒）
+      const attRadius = $('param-attendance_user_radius_m');   // 签到识别范围（米）
+      
+      // 只在元素存在时绑定事件监听器（使用条件判断避免空指针错误）
+      // 当自动签到开关状态改变时，触发参数变更处理函数
+      if (attEnabled) attEnabled.addEventListener('change', onParamChange);
+      
+      // 当签到刷新间隔值改变时，触发参数变更处理函数
+      if (attRefresh) attRefresh.addEventListener('change', onParamChange);
+      
+      // 当签到范围半径值改变时，触发参数变更处理函数
+      if (attRadius) attRadius.addEventListener('change', onParamChange);
+      
+      // 标记参数控件相关事件已经绑定完成
+      eventsInitialized.parameters = true;
+      logMessage_Info('[事件绑定] 参数控件相关事件已绑定');
+    }
+
+    /**
+     * 一次性绑定所有核心事件监听器
+     * 功能：在应用初始化时调用，绑定所有必需的事件监听器
+     * 
+     * 这个函数会按优先级顺序绑定各模块的事件：
+     * 1. 登录相关（最高优先级，用户首先需要登录）
+     * 2. 用户输入相关（登录界面的交互）
+     * 3. 模态框、通知（基础UI交互）
+     * 4. 任务管理、多账号、管理面板、参数（功能模块）
+     */
+    function bindAllCoreEvents() {
+      // 按照功能优先级依次绑定各模块的事件监听器
+      bindLoginEvents();        // 登录/登出 - 最核心的认证功能
+      bindUserInputEvents();    // 用户输入 - 登录界面的交互体验
+      bindModalEvents();        // 模态框 - 基础的弹窗交互
+      bindNotificationEvents(); // 通知 - 系统消息提示
+      bindTaskEvents();         // 任务管理 - 核心业务功能
+      bindMultiAccountEvents(); // 多账号 - 高级功能
+      bindAdminEvents();        // 管理面板 - 管理功能
+      bindParameterEvents();    // 参数设置 - 配置功能
+      
+      // 记录所有核心事件已绑定完成的日志
+      logMessage_Info('[事件绑定] 所有核心事件监听器已绑定完成');
+    }
+
+    // ==============================================================================
+    // 应用初始化函数（轻量级版本）
+    // ==============================================================================
+    //
+    // 重构说明：
+    // 原 initializeApp 函数有 834 行代码，包含大量事件监听器绑定。
+    // 现在将其拆分为两部分：
+    // 1. bindAllCoreEvents() - 绑定所有事件监听器（可复用）
+    // 2. initializeApp() - 只处理核心初始化逻辑（认证、数据加载、UI显示）
+    //
+    // 优化效果：
+    // - 代码结构更清晰，易于维护
+    // - 事件绑定逻辑模块化，便于按需加载
+    // - 初始化函数更简洁，聚焦核心流程
+    //
+    // ==============================================================================
+
     // --- 初始化 ---
     async function initializeApp() {
       try {
+        // --- 第一步：绑定所有事件监听器 ---
+        // 这是应用启动的第一步，确保所有按钮和控件都能响应用户操作
+        bindAllCoreEvents();
 
-          // --- 事件监听绑定 ---
-    $('user-combo').addEventListener('change', onUserChange);
-    $('username-entry').addEventListener('input', async (e) => {
-      const username = e.target.value.trim();
-      $('password-entry').value = "";
-      const userCombo = $('user-combo');
-      const exists = [...userCombo.options].some(o => o.value === username);
-      userCombo.value = exists ? username : "";
-      // if (!username) {
-      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
-      //   return;
-      // }
-      const data = await callPythonAPI('on_user_selected', username);
-      if (data && data.password) $('password-entry').value = data.password;
-      logMessage_Info('获取到的data.ua:', data ? data.ua : 'null');
-      const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
-      $('ua-label').textContent = ua_data;
-      logMessage_Info('User ua label set to:', ua_data);
-
-      // if (data && data.ua) {
-      //   $('ua-label').textContent = data.ua;
-      // } else {
-      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
-      // }
-      pythonParams = (data && data.params) ? data.params : pythonParams;
-      updateParamInputs($('params-container'), 'param', pythonParams);
-      const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
-    });
-    $('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
-    $('login-button').addEventListener('click', async (e) => {
-      // 校验登录按钮权限
-      if (!await checkButtonPermission('login-button', 'use_login_button')) {
-        return;
-      }
-      await onLogin();
-    });
-    $('logout-button').addEventListener('click', onLogout);
-    $('refresh-button').addEventListener('click', refreshTasks);
-    $('record-button').addEventListener('click', toggleRecordMode);
-    $('clear-button').addEventListener('click', () => clearCurrentPath(true));
-    $('process-button').addEventListener('click', processCurrentPath);
-    $('start-run-button').addEventListener('click', toggleRun);
-    $('start-all-button').addEventListener('click', toggleAllRuns);
-    $('export-button').addEventListener('click', exportTask);
-    $('import-button').addEventListener('click', async (e) => {
-      // 校验导入按钮权限
-      if (!await checkButtonPermission('import-button', 'use_import_button')) {
-        return;
-      }
-      await importTask();
-    });
-    // $('zoom-in').addEventListener('click', () => { if (map) map.zoomIn(); });
-    // $('zoom-out').addEventListener('click', () => { if (map) map.zoomOut(); });
-    // $('reset-view-btn').addEventListener('click', resetMapView);
-    $('show-user-details').addEventListener('click', (e) => {
-      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
-      showUserDetails();
-    });
-    $('show-task-details').addEventListener('click', (e) => {
-      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
-      showTaskDetails();
-    });
-    $('auto-gen-button').addEventListener('click', () => {
-      $('auto-gen-modal').classList.remove('hidden');
-      $('auto-gen-modal').classList.add('flex'); // 确保居中
-      document.body.classList.add('modal-visible'); // 隐藏Logo
-    });
-    $('cancel-gen-button').addEventListener('click', () => {
-      $('auto-gen-modal').classList.add('hidden');
-      $('auto-gen-modal').classList.remove('flex'); // 移除居中
-      document.body.classList.remove('modal-visible'); // 恢复Logo
-    });
-    $('confirm-gen-button').addEventListener('click', onConfirmAutoGenerate);
-
-    // --- 绑定通知按钮 ---
-    $('show-notifications-btn').addEventListener('click', (e) => {
-      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
-      showNotifications();
-    });
-
-    $('mark-all-read-btn').addEventListener('click', markAllAsRead);
-    $('refresh-notifications-btn').addEventListener('click', refreshNotificationsUI);
-
-    $('multi-download-template-btn').addEventListener('click', multi_downloadTemplate);
-
-
-    
-    // 定时刷新，例如每 5 秒
-    setInterval(refreshUserList, 5000);
-
-    
-    // --- 多账号模式事件监听 ---
-    $('multi-account-btn').addEventListener('click', async (e) => {
-      // 校验多账号控制台按钮权限
-      if (!await checkButtonPermission('multi-account-btn', 'use_multi_account_button')) {
-        return;
-      }
-      await switchToMultiMode();
-    });
-    $('exit-multi-mode-btn').addEventListener('click', exitMultiMode);
-    $('multi-start-all-btn').addEventListener('click', multi_startAll);
-    $('multi-stop-all-btn').addEventListener('click', multi_stopAll);
-    $('multi-load-all-from-config-btn').addEventListener('click', multi_loadAllFromConfig);
-    $('multi-add-from-config-btn').addEventListener('click', multi_addFromConfig);
-    $('multi-import-excel-btn').addEventListener('click', multi_importFromExcel);
-    $('multi-export-excel-btn').addEventListener('click', multi_exportToExcel);
-    // $('multi-zoom-in').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomIn(); });
-    // $('multi-zoom-out').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomOut(); });
-    // $('multi-reset-view-btn').addEventListener('click', multi_resetMapView);
-
-    // --- 管理面板标签页事件监听 ---
-    $('admin-tab-users_modal')?.addEventListener('click', () => switchAdminTab('users'));
-    $('admin-tab-groups_modal')?.addEventListener('click', () => switchAdminTab('groups'));
-    $('admin-tab-logs_modal')?.addEventListener('click', () => switchAdminTab('logs'));
-    $('admin-tab-health_modal')?.addEventListener('click', () => switchAdminTab('health'));
-    $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
-    $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
-    $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
-
-    // 留言板刷新按钮
-    $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
-
-    // --- 路径绘制相关函数 ---
-    let draftPath = [], draftPathLngLat = [], pendingPoints = [], isUpdating = false, lastMouseMoveTime = 0;
-    const MOUSE_MOVE_THROTTLE_MS = 70;
-    const MIN_DRAW_DISTANCE_M = 12;
-    let pendingUnlockMap = false;
-    
-    let backgroundTaskPollInterval = null;
-    let backgroundTaskStartTime = 0; // 记录任务启动时间，用于避免显示旧数据的提示
-
-    
-    const svgIconNormal = `<div style="pointer-events: none;">
+        // --- 第二步：定义辅助变量和常量 ---
+        // 这些变量在初始化过程中需要使用，包括路径绘制、后台任务轮询、地图图标等
+        
+        // 路径绘制相关变量
+        let draftPath = [];              // 草稿路径的点数组（屏幕坐标）
+        let draftPathLngLat = [];        // 草稿路径的经纬度数组
+        let pendingPoints = [];          // 待处理的点队列
+        let isUpdating = false;          // 是否正在更新路径（防止并发）
+        let lastMouseMoveTime = 0;       // 上次鼠标移动的时间戳（用于节流）
+        const MOUSE_MOVE_THROTTLE_MS = 70;  // 鼠标移动事件节流间隔（毫秒）
+        const MIN_DRAW_DISTANCE_M = 12;  // 绘制路径时的最小距离间隔（米）
+        let pendingUnlockMap = false;    // 是否有待处理的地图解锁操作
+        
+        // 后台任务轮询相关变量
+        let backgroundTaskPollInterval = null;  // 后台任务轮询定时器
+        let backgroundTaskStartTime = 0;        // 记录任务启动时间，用于避免显示旧数据的提示
+        
+        // 地图标记图标（SVG格式）- 正常状态的图标（天蓝色）
+        const svgIconNormal = `<div style="pointer-events: none;">
   <svg width="28" height="36" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
     <path fill="#22d3ee" d="M512 0C321.6 0 160 161.6 160 352c0 89.6 35.2 172.8 96 233.6l249.6 432c6.4 12.8 19.2 19.2 32 19.2s25.6-6.4 32-19.2l249.6-432c60.8-60.8 96-144 96-233.6C864 161.6 702.4 0 512 0z m0 512c-89.6 0-160-70.4-160-160s70.4-160 160-160 160 70.4 160 160-70.4 160-160 160z"></path>
   </svg>
 </div>`;
 
-    const svgIconMakeup = `<div style="pointer-events: none;">
+        // 地图标记图标（SVG格式）- 补偿模式的图标（橙色）
+        const svgIconMakeup = `<div style="pointer-events: none;">
   <svg width="28" height="36" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
     <path fill="#f59e0b" d="M512 0C321.6 0 160 161.6 160 352c0 89.6 35.2 172.8 96 233.6l249.6 432c6.4 12.8 19.2 19.2 32 19.2s25.6-6.4 32-19.2l249.6-432c60.8-60.8 96-144 96-233.6C864 161.6 702.4 0 512 0z m0 512c-89.6 0-160-70.4-160-160s70.4-160 160-160 160 70.4 160 160-70.4 160-160 160z"></path>
   </svg>
 </div>`;
 
-    $('multi-remove-all-btn').addEventListener('click', multi_removeAll);
-    $('multi-remove-selected-btn').addEventListener('click', multi_removeSelected);
-    $('multi-refresh-all-btn').addEventListener('click', multi_refreshAll);
-    $('multi-select-all-check').addEventListener('change', multi_toggleSelectAll);
-    $('multi-start-selected-btn').addEventListener('click', multi_startSelected);
-    $('multi-stop-selected-btn').addEventListener('click', multi_stopSelected);
-    $('multi-refresh-selected-btn').addEventListener('click', multi_refreshSelected);
-
-        // UUID格式验证函数 - 验证是否符合标准的UUID v4格式
+        /**
+         * UUID格式验证函数
+         * 功能：验证字符串是否符合标准的UUID v4格式
+         * 
+         * @param {string} uuid - 待验证的UUID字符串
+         * @returns {boolean} - 如果格式正确返回true，否则返回false
+         * 
+         * UUID v4格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+         * 其中x是十六进制数字（0-9, a-f），y是8/9/a/b之一
+         */
         function isValidUUID(uuid) {
+          // 定义UUID v4格式的正则表达式
           const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+          // 测试输入的UUID是否匹配该格式
           return uuidPattern.test(uuid);
         }
 
-        // 隐藏加载覆盖层的通用函数
+        /**
+         * 隐藏加载覆盖层的通用函数
+         * 功能：同时隐藏正常加载提示和CDN错误提示
+         * 
+         * 这个函数在多处被调用，用于在各种情况下统一隐藏加载界面：
+         * - 应用初始化完成时
+         * - 认证失败时
+         * - 网络错误时
+         */
         function hideLoadingOverlays() {
+          // 隐藏主加载覆盖层
           $('loading-overlay').classList.add('hidden');
+          // 隐藏CDN错误提示覆盖层
           $('cdn-error-overlay').classList.add('hidden');
         }
 
-        // 显示用户友好的错误提示
-        function showUserFriendlyError(title, message, isWarning = false) {
-          const type = isWarning ? 'warning' : 'error';
-          Swal.fire({
-            title: title,
-            text: message,
-            icon: type,
-            confirmButtonText: '确定'
-          });
-        }
-
+        // --- 第三步：显示加载覆盖层，开始初始化流程 ---
+        // 在初始化过程中显示加载提示，提升用户体验
         $('loading-overlay').classList.remove('hidden');
 
-        // 检测Web模式并提取UUID
+        // --- 第四步：启动定时刷新任务 ---
+        // 每5秒刷新一次用户列表，确保显示最新的在线用户状态
+        // 注意：这是一个全局定时器，会持续运行直到页面关闭
+        setInterval(refreshUserList, 5000);
 
+        // --- 第五步：检测Web模式并提取UUID ---
+        // 系统支持两种访问方式：
+        // 1. 不含UUID的网址（如 /）：显示登录界面，用户需要先登录
+        // 2. 含UUID的网址（如 /uuid=xxx-xxx-xxx）：恢复已有会话，直接进入应用
+        // 这里通过解析URL路径来判断当前是哪种模式
+
+        // 获取当前页面的路径部分（不含域名和查询参数）
         const urlPath = window.location.pathname;
-        // 使用标准UUID v4格式的正则表达式
+        
+        // 使用正则表达式匹配URL中的UUID v4格式字符串
+        // UUID格式：xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
         const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
 
         if (match) {
-          // 情况2：访问含UUID的网址
+          // --- 情况2：访问含UUID的网址（会话恢复模式） ---
+          // 用户通过包含UUID的URL访问，尝试恢复之前的会话
+          
+          // 从正则匹配结果中提取UUID（第一个捕获组）
           sessionUUID = match[1];
 
           // 验证UUID格式
@@ -4946,19 +5315,8 @@
         setTimeout(() => { loadingOverlay.style.display = 'none'; }, 500);
         bindImmediateRefreshForUserSelects();
 
-        // --- 绑定签到Tab内的参数控件 ---
-        const attEnabled = $('param-auto_attendance_enabled');
-        const attRefresh = $('param-auto_attendance_refresh_s');
-        const attRadius = $('param-attendance_user_radius_m');
-        if (attEnabled) attEnabled.addEventListener('change', onParamChange);
-        if (attRefresh) attRefresh.addEventListener('change', onParamChange);
-        if (attRadius) attRadius.addEventListener('change', onParamChange);
-
-        // 绑定API Key模态框的确认按钮事件
-        $('confirm-amap-key-btn').addEventListener('click', onConfirmAmapKey);
-
-        // 将定时刷新移动到 API 就绪后再启动
-        // setInterval(refreshUserList, 5000);
+        // --- 注意：参数控件和API Key按钮的事件绑定已在 bindParameterEvents() 和 bindLoginEvents() 中完成 ---
+        // 这些事件监听器在 bindAllCoreEvents() 调用时已经绑定，无需重复绑定
       } catch (err) {
         hideModal('loading-overlay');
         showModalAlert('服务器无法连接，请检查网络或稍后重试。', '网络错误');
