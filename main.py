@@ -10837,6 +10837,169 @@ def start_web_server(args_param):
         days=7)  # 会话保持7天
 
     # ====================
+    # JavaScript 压缩工具函数
+    # ====================
+    
+    def minify_javascript(code):
+        """
+        JavaScript 代码压缩函数
+        
+        功能说明：
+            对 JavaScript 代码进行压缩，移除注释、多余空白和换行符，减小文件大小。
+            这是一个轻量级的压缩实现，不依赖外部库。
+        
+        压缩策略：
+            1. 移除单行注释（// ...）
+            2. 移除多行注释（/* ... */）
+            3. 移除多余的空白字符和换行符
+            4. 保留字符串和正则表达式中的内容不变
+            5. 保留必要的空格（如关键字后的空格）
+        
+        参数：
+            code (str): 原始 JavaScript 代码
+        
+        返回：
+            str: 压缩后的 JavaScript 代码
+        
+        压缩效果：
+            通常可减小 30-50% 的文件大小
+        
+        注意事项：
+            - 此实现为基础版本，不处理复杂的边缘情况
+            - 生产环境建议使用专业工具（如 jsmin、uglifyjs）
+            - 压缩后的代码难以阅读，仅用于生产环境
+        """
+        if not code:
+            return code
+        
+        # 压缩结果
+        result = []
+        
+        # 状态标志
+        in_string = False          # 是否在字符串中
+        string_delimiter = None    # 字符串分隔符（' 或 "）
+        in_regex = False           # 是否在正则表达式中
+        in_single_comment = False  # 是否在单行注释中
+        in_multi_comment = False   # 是否在多行注释中
+        
+        # 遍历每个字符
+        i = 0
+        length = len(code)
+        
+        while i < length:
+            char = code[i]
+            next_char = code[i + 1] if i + 1 < length else ''
+            prev_char = result[-1] if result else ''
+            
+            # 处理多行注释结束
+            if in_multi_comment:
+                if char == '*' and next_char == '/':
+                    in_multi_comment = False
+                    i += 2  # 跳过 */
+                    continue
+                i += 1
+                continue
+            
+            # 处理单行注释结束
+            if in_single_comment:
+                if char == '\n':
+                    in_single_comment = False
+                    # 换行符在某些情况下需要保留（如语句结束）
+                    if result and result[-1] not in [';', '{', '}', '\n']:
+                        result.append('\n')
+                i += 1
+                continue
+            
+            # 检测多行注释开始
+            if not in_string and not in_regex and char == '/' and next_char == '*':
+                in_multi_comment = True
+                i += 2
+                continue
+            
+            # 检测单行注释开始
+            if not in_string and not in_regex and char == '/' and next_char == '/':
+                in_single_comment = True
+                i += 2
+                continue
+            
+            # 处理字符串
+            if char in ['"', "'", '`'] and not in_regex:
+                if not in_string:
+                    # 进入字符串
+                    in_string = True
+                    string_delimiter = char
+                    result.append(char)
+                elif char == string_delimiter and (not result or result[-1] != '\\'):
+                    # 退出字符串（检查是否被转义）
+                    in_string = False
+                    string_delimiter = None
+                    result.append(char)
+                else:
+                    # 字符串内部
+                    result.append(char)
+                i += 1
+                continue
+            
+            # 字符串内部：保留所有字符
+            if in_string:
+                result.append(char)
+                i += 1
+                continue
+            
+            # 处理正则表达式（简化处理：检测 / 前后的上下文）
+            # 注意：这是一个简化的正则检测，可能不完美
+            if char == '/' and not in_string:
+                # 检查是否是正则表达式的开始
+                # 正则通常出现在 =、(、[、,、:、; 等符号后
+                if result and result[-1] in ['=', '(', '[', ',', ':', ';', '!', '&', '|', '?', '{', '}', '\n']:
+                    in_regex = True
+                    result.append(char)
+                    i += 1
+                    continue
+            
+            # 正则表达式内部
+            if in_regex:
+                result.append(char)
+                if char == '/' and (not result or result[-2] != '\\'):
+                    in_regex = False
+                i += 1
+                continue
+            
+            # 压缩空白字符
+            if char in [' ', '\t', '\n', '\r']:
+                # 检查前一个字符
+                if result and result[-1] not in [' ', '\n', '{', '}', '(', ')', '[', ']', ';', ',', ':', '=', '+', '-', '*', '/', '%', '<', '>', '!', '&', '|', '?']:
+                    # 检查下一个字符
+                    next_non_space = ''
+                    j = i + 1
+                    while j < length and code[j] in [' ', '\t', '\n', '\r']:
+                        j += 1
+                    if j < length:
+                        next_non_space = code[j]
+                    
+                    # 如果下一个字符不是特殊字符，保留一个空格
+                    if next_non_space and next_non_space not in ['{', '}', '(', ')', '[', ']', ';', ',', ':', '=', '+', '-', '*', '/', '%', '<', '>', '!', '&', '|', '?']:
+                        result.append(' ')
+                i += 1
+                continue
+            
+            # 普通字符：直接添加
+            result.append(char)
+            i += 1
+        
+        # 返回压缩后的代码
+        minified = ''.join(result)
+        
+        # 记录压缩效果
+        original_size = len(code)
+        minified_size = len(minified)
+        compression_ratio = (1 - minified_size / original_size) * 100 if original_size > 0 else 0
+        
+        logging.debug(f"JavaScript 压缩完成：原始大小 {original_size} 字节，压缩后 {minified_size} 字节，压缩率 {compression_ratio:.1f}%")
+        
+        return minified
+
+    # ====================
     # 认证相关API路由
     # ====================
 
@@ -13743,20 +13906,36 @@ def start_web_server(args_param):
     @app.route('/JavaScript.js', methods=['GET'])
     def serve_full_javascript():
         """
-        返回完整的 JavaScript.js 文件
+        返回完整的 JavaScript.js 文件（支持自动压缩）
         
         功能说明：
             返回整个 JavaScript.js 文件内容，供浏览器加载和执行。
-            这是最简单和最可靠的方式，浏览器可以缓存整个文件。
+            默认会自动压缩代码以减小文件大小，提升加载速度。
+        
+        查询参数：
+            - minify: 是否压缩代码（默认 true）
+              * true/1/yes: 压缩代码（移除注释和空白）
+              * false/0/no: 返回原始代码（保留注释）
         
         返回：
             - 200: 成功返回 JavaScript 代码
+            - 304: 使用缓存版本（内容未修改）
             - 404: 文件未找到
             - 500: 服务器内部错误
         
         缓存策略：
             - 设置 Cache-Control 头，允许浏览器缓存 1 小时
             - 使用 Last-Modified 和 ETag 支持条件请求
+            - 压缩版和非压缩版使用不同的 ETag
+        
+        压缩效果：
+            - 通常可减小 30-50% 的文件大小
+            - 首次加载后浏览器会缓存压缩版本
+        
+        使用示例：
+            - /JavaScript.js             --> 返回压缩版本（推荐）
+            - /JavaScript.js?minify=true --> 返回压缩版本
+            - /JavaScript.js?minify=false--> 返回原始版本（用于调试）
         """
         try:
             js_file_path = os.path.join(os.path.dirname(__file__), 'JavaScript.js')
@@ -13767,33 +13946,53 @@ def start_web_server(args_param):
             
             # 读取文件内容
             with open(js_file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+                original_content = f.read()
             
-            # 创建响应
-            response = make_response(content)
-            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
-            response.headers['Cache-Control'] = 'public, max-age=3600'
+            # 检查是否需要压缩（默认为 true）
+            minify_param = request.args.get('minify', 'true').lower()
+            should_minify = minify_param in ['true', '1', 'yes', '']
             
-            # 设置 Last-Modified
+            # 根据参数决定是否压缩
+            if should_minify:
+                # 压缩代码
+                content = minify_javascript(original_content)
+                content_type_suffix = ' (minified)'
+                logging.info(f"JavaScript.js 压缩：{len(original_content)} 字节 -> {len(content)} 字节 ({(1-len(content)/len(original_content))*100:.1f}% 压缩率)")
+            else:
+                # 返回原始代码
+                content = original_content
+                content_type_suffix = ' (original)'
+                logging.info(f"JavaScript.js 返回原始版本：{len(content)} 字节")
+            
+            # 设置 Last-Modified（基于文件修改时间）
             file_mtime = os.path.getmtime(js_file_path)
             from datetime import datetime
             last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
-            response.headers['Last-Modified'] = last_modified
             
-            # 设置 ETag
+            # 设置 ETag（基于内容哈希 + 压缩标志）
             import hashlib
-            etag = hashlib.md5(content.encode('utf-8')).hexdigest()
-            response.headers['ETag'] = f'"{etag}"'
+            etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
+            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
             
             # 检查条件请求
             if_modified_since = request.headers.get('If-Modified-Since')
             if_none_match = request.headers.get('If-None-Match')
             
-            if (if_modified_since == last_modified) or (if_none_match == f'"{etag}"'):
-                logging.debug("JavaScript.js 使用缓存版本 (304)")
+            if (if_modified_since == last_modified) or (if_none_match == etag):
+                logging.debug(f"JavaScript.js 使用缓存版本 (304){content_type_suffix}")
                 return '', 304
             
-            logging.info(f"成功返回 JavaScript.js ({len(content)} 字符)")
+            # 创建响应
+            response = make_response(content)
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers['Last-Modified'] = last_modified
+            response.headers['ETag'] = etag
+            
+            # 添加自定义头，标识是否已压缩
+            response.headers['X-Minified'] = 'true' if should_minify else 'false'
+            
+            logging.info(f"成功返回 JavaScript.js{content_type_suffix} ({len(content)} 字符)")
             return response
             
         except Exception as e:
