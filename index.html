@@ -667,67 +667,44 @@
 
   <script>
     // ==============================================================================
-    // 动态加载 JavaScript 代码（全局变量优先）
+    // 动态加载 JavaScript 代码（仅加载全局变量）
     // ==============================================================================
-    // 加载顺序：
-    //   1. JavaScript_globals.js  - 全局变量声明（优先）
-    //   2. JavaScript.js          - 主要功能代码
-    //
-    // 为什么需要这个顺序：
-    //   由于使用动态加载，如果全局变量和函数代码一起加载，
-    //   可能导致某些函数在执行时全局变量尚未初始化。
-    //   将全局变量独立出来并优先加载可以避免此问题。
+    // 说明：
+    //   JavaScript.js 路由已弃用，不再加载完整的 JavaScript 文件
+    //   现在只加载 JavaScript_globals.js 全局变量文件
+    //   主要功能代码通过按需加载的方式从 /JavaScript/<function>.js 获取
     // ==============================================================================
 
     (function() {
-      // 第一步：加载全局变量
+      // 加载全局变量
       const globalsScript = document.createElement('script');
       globalsScript.src = '/JavaScript_globals.js';
       globalsScript.charset = 'utf-8';
       
       globalsScript.onload = function() {
         console.log('[JavaScript加载] 全局变量加载完成 ✓');
+        console.log('[JavaScript加载] 主代码已弃用完整加载，改用按需加载模式');
         
-        // 第二步：加载主要功能代码
-        const mainScript = document.createElement('script');
-        mainScript.src = '/JavaScript.js';
-        mainScript.charset = 'utf-8';
-        mainScript.async = false;  // 保持执行顺序
+        // 标记应用初始化完成
+        if (typeof appInitialized !== 'undefined') {
+          appInitialized = true;
+        }
         
-        mainScript.onload = function() {
-          console.log('[JavaScript加载] 主代码加载完成 ✓');
-          // 标记应用初始化完成
-          if (typeof appInitialized !== 'undefined') {
-            appInitialized = true;
-          }
-          
-          // [BUG修复] 在这里调用 initializeApp()，
-          // 确保在 JavaScript.js (主代码) 加载完成后再执行
-          if (typeof initializeApp === 'function') {
-            initializeApp().catch(err => {
-              logMessage_Error('应用初始化失败:', err);
-              // 立即显示CDN错误（如果有）
-              appInitialized = false;
-              if (cdnErrorCount > 0) {
-                if (cdnErrorTimer) clearTimeout(cdnErrorTimer);
-                const errorOverlay = document.getElementById('cdn-error-overlay');
-                if (errorOverlay) {
-                  errorOverlay.style.setProperty('display', 'flex', 'important');
-                }
+        // 如果有 initializeApp 函数（从全局变量或其他脚本中定义），则调用
+        if (typeof initializeApp === 'function') {
+          initializeApp().catch(err => {
+            console.error('应用初始化失败:', err);
+            // 立即显示CDN错误（如果有）
+            appInitialized = false;
+            if (typeof cdnErrorCount !== 'undefined' && cdnErrorCount > 0) {
+              if (typeof cdnErrorTimer !== 'undefined' && cdnErrorTimer) clearTimeout(cdnErrorTimer);
+              const errorOverlay = document.getElementById('cdn-error-overlay');
+              if (errorOverlay) {
+                errorOverlay.style.setProperty('display', 'flex', 'important');
               }
-            });
-          } else {
-            console.error('[JavaScript加载] 致命错误: initializeApp 函数未定义');
-            alert('应用初始化失败：核心函数丢失，请刷新页面重试');
-          }
-        };
-        
-        mainScript.onerror = function() {
-          console.error('[JavaScript加载] 主代码加载失败');
-          alert('JavaScript 主代码加载失败，请刷新页面重试');
-        };
-        
-        document.head.appendChild(mainScript);
+            }
+          });
+        }
       };
       
       globalsScript.onerror = function() {
