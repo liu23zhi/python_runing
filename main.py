@@ -14456,14 +14456,17 @@ def start_web_server(args_param):
             logging.error(f"加载 JavaScript_globals.js 时发生错误: {e}", exc_info=True)
             return jsonify({"error": "Internal server error"}), 500
 
-    @app.route('/css/Cascading_Style_Sheets.css', methods=['GET'])
-    def serve_css():
+    @app.route('/css/<Cascading_Style_Sheets_path>.css', methods=['GET'])
+    def serve_css(Cascading_Style_Sheets_path):
         """
-        返回 CSS 样式表文件（支持自动压缩）
+        CSS 样式分段动态加载 API 端点
         
         功能说明：
-            返回 Cascading_Style_Sheets.css 文件
-            支持自动压缩和浏览器缓存
+            根据路径参数从 Cascading_Style_Sheets.css 统一文件中提取对应的 CSS 规则块。
+            支持自动压缩和浏览器缓存。
+        
+        参数：
+            Cascading_Style_Sheets_path (str): CSS 选择器名称（如 'body', 'panel', 'theme-anime' 等）
         
         查询参数：
             - minify: 是否压缩 CSS（默认 true）
@@ -14473,25 +14476,100 @@ def start_web_server(args_param):
         返回：
             - 200: 成功返回 CSS 代码
             - 304: 使用缓存版本
-            - 404: 文件未找到
+            - 404: CSS 规则未找到
             - 500: 服务器内部错误
         
         压缩效果：
             通常可减小 20-30% 的文件大小
         
         使用示例：
-            <link rel="stylesheet" href="/css/Cascading_Style_Sheets.css">
+            - /css/body.css                    --> 返回 body { ... } 规则
+            - /css/panel.css                   --> 返回 .panel { ... } 规则
+            - /css/Cascading_Style_Sheets.css  --> 返回完整 CSS 文件
+        
+        实现细节：
+            如果请求的是 'Cascading_Style_Sheets'，返回完整的 CSS 文件。
+            否则，从 Cascading_Style_Sheets.css 中提取指定选择器的 CSS 规则块。
         """
         try:
+            # 统一的 CSS 文件路径
             css_file = os.path.join(os.path.dirname(__file__), 'Cascading_Style_Sheets.css')
             
             if not os.path.exists(css_file):
                 logging.error(f"CSS 文件不存在: {css_file}")
-                return jsonify({"error": "CSS file not found"}), 404
+                return jsonify({"error": "CSS file not found"}), 500
             
-            # 读取文件内容
+            # 读取完整的 CSS 文件内容
             with open(css_file, 'r', encoding='utf-8') as f:
-                original_content = f.read()
+                full_content = f.read()
+            
+            # 如果请求的是完整文件（Cascading_Style_Sheets），直接返回全部内容
+            if Cascading_Style_Sheets_path == 'Cascading_Style_Sheets':
+                original_content = full_content
+            else:
+                # 否则，从文件中提取指定选择器的 CSS 规则
+                import re
+                
+                # 转义特殊字符，用于正则表达式匹配
+                selector_pattern = re.escape(Cascading_Style_Sheets_path)
+                
+                # 构建多种可能的 CSS 选择器模式
+                # 模式1: body { ... }                    (标签选择器)
+                # 模式2: .class-name { ... }            (类选择器)
+                # 模式3: #id-name { ... }               (ID选择器)
+                # 模式4: body.theme-anime { ... }       (组合选择器)
+                # 模式5: .panel, .card { ... }          (多选择器)
+                
+                patterns = [
+                    # 精确匹配：选择器名称 + 可选空格 + 左大括号
+                    rf'(?:^|\n)\s*({selector_pattern})\s*{{',
+                    # 类选择器：.class-name
+                    rf'(?:^|\n)\s*(\.{selector_pattern})\s*{{',
+                    # ID选择器：#id-name
+                    rf'(?:^|\n)\s*(#{selector_pattern})\s*{{',
+                    # 组合选择器：tag.class 或 .class.another
+                    rf'(?:^|\n)\s*(\w*\.{selector_pattern}(?:\.\w+)*)\s*{{',
+                    rf'(?:^|\n)\s*({selector_pattern}\.\w+)\s*{{',
+                ]
+                
+                match = None
+                matched_selector = None
+                
+                # 尝试所有模式
+                for pattern in patterns:
+                    match = re.search(pattern, full_content, re.MULTILINE)
+                    if match:
+                        matched_selector = match.group(1)
+                        break
+                
+                if not match:
+                    logging.error(f"CSS 规则未找到: {Cascading_Style_Sheets_path}")
+                    return jsonify({"error": f"CSS rule '{Cascading_Style_Sheets_path}' not found"}), 404
+                
+                # 找到规则起始位置（从选择器开始）
+                rule_start = match.start()
+                
+                # 查找规则结束位置（匹配大括号）
+                brace_count = 0
+                in_rule = False
+                rule_end = rule_start
+                
+                for i in range(rule_start, len(full_content)):
+                    char = full_content[i]
+                    
+                    if char == '{':
+                        brace_count += 1
+                        in_rule = True
+                    elif char == '}':
+                        brace_count -= 1
+                        
+                        # 当大括号计数归零时，说明规则定义结束
+                        if in_rule and brace_count == 0:
+                            rule_end = i + 1
+                            break
+                
+                # 提取 CSS 规则
+                original_content = full_content[rule_start:rule_end].strip()
             
             # 检查是否需要压缩
             minify_param = request.args.get('minify', 'true').lower()
