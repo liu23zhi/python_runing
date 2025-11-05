@@ -13740,6 +13740,184 @@ def start_web_server(args_param):
         # 返回HTML内容
         return render_template_string(html_content)
 
+    @app.route('/JavaScript/<path:function_path>.js', methods=['GET'])
+    def serve_javascript(function_path):
+        """
+        JavaScript 函数动态加载 API 端点
+        
+        功能说明：
+            根据请求的函数名，从 JavaScript.js 文件中查找并返回对应的函数代码。
+            支持浏览器缓存，提升加载速度和性能。
+        
+        参数：
+            function_path (str): 请求的函数路径，例如 'onlogin' 或 'utils/helper'
+        
+        返回：
+            - 200: 成功找到函数，返回 JavaScript 代码
+            - 404: 未找到指定的函数
+            - 500: 服务器内部错误
+        
+        缓存策略：
+            - 设置 Cache-Control 头，允许浏览器缓存 1 小时
+            - 使用 Last-Modified 和 ETag 支持条件请求
+        
+        示例：
+            GET /JavaScript/onlogin.js
+            --> 返回 onlogin 相关的 JavaScript 函数代码
+        """
+        try:
+            # 读取完整的 JavaScript.js 文件内容
+            js_file_path = os.path.join(os.path.dirname(__file__), 'JavaScript.js')
+            
+            # 检查文件是否存在
+            if not os.path.exists(js_file_path):
+                logging.error(f"JavaScript.js 文件不存在: {js_file_path}")
+                return jsonify({"error": "JavaScript file not found"}), 404
+            
+            # 读取文件内容（使用 UTF-8 编码确保中文注释正确显示）
+            with open(js_file_path, 'r', encoding='utf-8') as f:
+                full_content = f.read()
+            
+            # 提取请求的函数名（移除可能的路径分隔符）
+            function_name = function_path.replace('/', '_')
+            
+            # 查找函数定义的模式（支持多种函数定义方式）
+            # 模式1: function functionName(...) { ... }
+            # 模式2: const functionName = function(...) { ... }
+            # 模式3: const functionName = (...) => { ... }
+            # 模式4: let functionName = function(...) { ... }
+            # 模式5: var functionName = function(...) { ... }
+            
+            # 使用正则表达式查找函数定义
+            import re
+            
+            # 构建匹配模式：查找函数声明、函数表达式或箭头函数
+            pattern = rf'(?:^|\n)(\s*(?:function\s+{function_name}\s*\([^)]*\)|(?:const|let|var)\s+{function_name}\s*=\s*(?:function\s*\([^)]*\)|(?:async\s+)?function\s*\([^)]*\)|\([^)]*\)\s*=>))\s*{{)'
+            
+            match = re.search(pattern, full_content, re.MULTILINE)
+            
+            if not match:
+                # 如果未找到精确匹配，尝试模糊搜索（查找包含函数名的所有函数）
+                logging.warning(f"未找到精确匹配的函数 '{function_name}'，尝试模糊搜索...")
+                
+                # 模糊搜索：查找所有包含该名称的函数
+                fuzzy_pattern = rf'(?:^|\n)(\s*(?:function\s+\w*{function_name}\w*\s*\([^)]*\)|(?:const|let|var)\s+\w*{function_name}\w*\s*=))'
+                fuzzy_matches = re.finditer(fuzzy_pattern, full_content, re.MULTILINE | re.IGNORECASE)
+                
+                # 收集所有模糊匹配的函数名
+                found_functions = []
+                for m in fuzzy_matches:
+                    func_line = m.group(0).strip()
+                    found_functions.append(func_line[:50])  # 只取前50个字符作为提示
+                
+                if found_functions:
+                    suggestions = '\n'.join(found_functions)
+                    logging.info(f"找到相似的函数定义:\n{suggestions}")
+                    return jsonify({
+                        "error": f"Function '{function_name}' not found",
+                        "suggestions": found_functions[:5]  # 最多返回5个建议
+                    }), 404
+                else:
+                    logging.error(f"未找到任何与 '{function_name}' 相关的函数")
+                    return jsonify({"error": f"Function '{function_name}' not found"}), 404
+            
+            # 找到函数起始位置
+            func_start = match.start()
+            
+            # 查找函数结束位置（匹配大括号）
+            # 需要考虑嵌套的大括号，所以要计数
+            brace_count = 0
+            in_function = False
+            func_end = func_start
+            
+            for i in range(func_start, len(full_content)):
+                char = full_content[i]
+                
+                if char == '{':
+                    brace_count += 1
+                    in_function = True
+                elif char == '}':
+                    brace_count -= 1
+                    
+                    # 当大括号计数归零时，说明函数定义结束
+                    if in_function and brace_count == 0:
+                        func_end = i + 1
+                        break
+            
+            # 提取函数代码
+            function_code = full_content[func_start:func_end]
+            
+            # 向前查找函数注释（查找函数定义前的注释块）
+            # 注释可能是 // 单行注释或 /* */ 多行注释
+            comments_start = func_start
+            
+            # 向前搜索，查找连续的注释行
+            lines_before = full_content[:func_start].split('\n')
+            comment_lines = []
+            
+            for line in reversed(lines_before):
+                stripped = line.strip()
+                # 如果是注释行，添加到列表
+                if stripped.startswith('//') or stripped.startswith('/*') or stripped.startswith('*') or stripped.startswith('*/'):
+                    comment_lines.insert(0, line)
+                # 如果是空行，继续
+                elif stripped == '':
+                    comment_lines.insert(0, line)
+                # 如果遇到非注释非空行，停止搜索
+                else:
+                    break
+            
+            # 如果找到了注释，将其添加到函数代码前面
+            if comment_lines:
+                comments = '\n'.join(comment_lines)
+                function_code = comments + '\n' + function_code
+            
+            # 准备响应（添加文件头注释说明这是动态加载的代码）
+            response_content = f"""// ==============================================================================
+// 动态加载的 JavaScript 函数: {function_name}
+// 从 JavaScript.js 文件中提取
+// ==============================================================================
+
+{function_code}
+"""
+            
+            # 创建响应对象，设置正确的 Content-Type
+            response = make_response(response_content)
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            
+            # 设置缓存策略：允许浏览器缓存 1 小时
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            
+            # 获取文件的最后修改时间，用于条件请求
+            file_mtime = os.path.getmtime(js_file_path)
+            from datetime import datetime
+            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            response.headers['Last-Modified'] = last_modified
+            
+            # 生成 ETag（基于文件内容的哈希值）
+            import hashlib
+            etag = hashlib.md5(function_code.encode('utf-8')).hexdigest()
+            response.headers['ETag'] = f'"{etag}"'
+            
+            # 检查客户端的条件请求头
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            # 如果客户端已有最新版本，返回 304 Not Modified
+            if (if_modified_since == last_modified) or (if_none_match == f'"{etag}"'):
+                logging.debug(f"JavaScript 函数 '{function_name}' 使用缓存版本 (304)")
+                return '', 304
+            
+            logging.info(f"成功返回 JavaScript 函数: {function_name} ({len(function_code)} 字符)")
+            return response
+            
+        except FileNotFoundError as e:
+            logging.error(f"JavaScript.js 文件未找到: {e}")
+            return jsonify({"error": "JavaScript file not found"}), 404
+        except Exception as e:
+            logging.error(f"加载 JavaScript 函数时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
     @app.route('/api/<path:method>', methods=['GET', 'POST'])
     def api_call(method):
         """API调用端点：将前端调用转发到Python后端"""
