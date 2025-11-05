@@ -35,6 +35,86 @@
   </script>
   <link rel="stylesheet" href="/css/Cascading_Style_Sheets.css">
 
+  <script>
+    /**
+     * 通用 HTML 片段动态加载函数
+     * 
+     * 功能说明：
+     * 此函数用于从服务器动态加载 HTML 片段，并将其插入到对应的占位符位置。
+     * 它统一了所有片段的加载逻辑，避免代码重复，提升可维护性。
+     * 
+     * 工作流程：
+     * 1. 根据片段名称查找对应的占位符元素（ID 格式：{fragmentName}-placeholder）
+     * 2. 显示加载提示（如果存在 loading-indicator）
+     * 3. 通过 fetch API 从 /html/{fragmentName}.html 获取 HTML 内容
+     * 4. 成功后替换占位符的 outerHTML（整个元素被替换）
+     * 5. 失败时在加载提示区域显示错误信息
+     * 
+     * @param {string} fragmentName - 片段名称（与 data-fragment 属性值对应）
+     *                                 例如: 'cdn-error-overlay', 'loading-overlay'
+     * 
+     * @returns {void} 无返回值
+     * 
+     * @example
+     * // 加载 cdn-error-overlay 片段
+     * loadFragment('cdn-error-overlay');
+     * 
+     * @example
+     * // 加载 main-app 片段
+     * loadFragment('main-app');
+     */
+    function loadFragment(fragmentName) {
+      // 步骤1: 根据片段名称构建占位符的 ID，并获取对应的 DOM 元素
+      // 占位符 ID 格式：{fragmentName}-placeholder
+      const placeholder = document.getElementById(fragmentName + '-placeholder');
+      
+      // 防御性检查：如果占位符不存在，则记录错误并终止函数执行
+      // 这可以防止后续代码因为 placeholder 为 null 而报错
+      if (!placeholder) {
+        console.error(`[HTML加载] 未找到占位符: ${fragmentName}-placeholder`);
+        return; // 提前退出函数
+      }
+      
+      // 步骤2: 查找占位符内部的加载提示元素
+      // 加载提示用于向用户显示"正在加载中..."的状态
+      const loadingIndicator = placeholder.querySelector('.loading-indicator');
+      
+      // 如果加载提示元素存在，则将其显示出来
+      // 初始状态下 loading-indicator 的 display 样式被设置为 'none'（隐藏）
+      if (loadingIndicator) loadingIndicator.style.display = 'block';
+      
+      // 步骤3: 使用 fetch API 从服务器动态获取 HTML 片段
+      // URL 格式：/html/{fragmentName}.html
+      // 例如：/html/cdn-error-overlay.html
+      fetch(`/html/${fragmentName}.html`)
+        .then(response => {
+          // 检查 HTTP 响应状态是否成功（状态码 200-299）
+          // 如果响应失败（例如 404 Not Found、500 Server Error），则抛出错误
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          
+          // 将响应体解析为纯文本（HTML 字符串）
+          return response.text();
+        })
+        .then(html => {
+          // 步骤4: 将获取到的 HTML 内容替换占位符元素
+          // outerHTML 会替换整个占位符元素（包括 <div id="xxx-placeholder">...</div> 本身）
+          placeholder.outerHTML = html;
+          
+          // 在控制台记录成功日志，便于调试
+          console.log(`[HTML加载] 成功加载片段: ${fragmentName}`);
+        })
+        .catch(error => {
+          // 步骤5: 捕获并处理所有可能的错误（网络错误、解析错误等）
+          console.error(`[HTML加载] 加载片段失败: ${fragmentName}`, error);
+          
+          // 如果加载提示元素存在，则在其中显示友好的错误信息
+          // 这样用户就能知道发生了什么，并可以选择刷新页面重试
+          if (loadingIndicator) {
+            loadingIndicator.innerHTML = '<p style="color: red;">加载失败，请刷新页面重试</p>';
+          }
+        });
+    }
+  </script>
 
   <!-- <script>
     // 通用片段加载器
@@ -57,51 +137,27 @@
 
 <body class="text-slate-800 font-sans h-screen overflow-hidden antialiased">
 
-  <div id="cdn-error-overlay"
-    class="fixed inset-0 z-9999 hidden flex-col items-center justify-center bg-[#f8fafc] p-8 text-center text-[#475569]"
-    style="font-family: sans-serif;">
-    <div style="max-width: 500px;">
-      <h1 style="font-size: 1.875rem; font-weight: bold; color: #be123c; margin-bottom: 1rem;">界面资源加载失败</h1>
-      <p style="font-size: 1.125rem; margin-bottom: 1.5rem;">应用程序无法连接到外部网络服务器（CDN）来下载必要的界面文件（如样式和地图库）。</p>
-      <div
-        style="background-color: #f1f5f9; border-radius: 0.5rem; padding: 1rem; text-align: left; font-size: 0.875rem; line-height: 1.5;">
-        <h2 style="font-weight: 600; color: #1e293b; margin-top: 0; margin-bottom: 0.75rem;">可能的原因及解决方法：</h2>
-        <ul style="list-style-type: disc; padding-left: 1.25rem; margin: 0;">
-          <li style="margin-bottom: 0.5rem;"><strong>检查您的网络连接</strong>：请确保您的设备已连接到互联网。</li>
-          <li style="margin-bottom: 0.5rem;"><strong>检查防火墙或代理</strong>：系统防火墙、杀毒软件或网络代理可能阻止了程序访问网络。</li>
-          <li><strong>网络环境问题</strong>：您当前的网络环境可能无法稳定访问所需的外部资源。</li>
-        </ul>
-      </div>
-      <p style="margin-top: 1.5rem; font-size: 0.875rem; color: #64748b;">请检查网络后，完全关闭并重启本程序。如果问题持续存在，您可能需要更换网络环境。</p>
+  <!-- CDN 错误提示界面（动态加载） -->
+  <div id="cdn-error-overlay-placeholder" data-fragment="cdn-error-overlay">
+    <!-- 此区域将通过 JavaScript 动态加载 -->
+    <div class="loading-indicator" style="display: none; text-align: center; padding: 20px;">
+      <p>正在加载 cdn-error-overlay...</p>
     </div>
   </div>
+  <script>loadFragment('cdn-error-overlay');</script>
 
   <!-- 新用户添加模态框 -->
-  <div id="newUserModal" class="modal">
-    <div class="modal-content">
-      <span class="close" id="newUserClose">&times;</span>
-      <h3>添加新用户</h3>
-      <div class="form-group">
-        <label for="newUsername">账号：</label>
-        <input type="text" id="newUsername" placeholder="请输入账号">
-      </div>
-      <div class="form-group">
-        <label for="newPassword">密码：</label>
-        <input type="password" id="newPassword" placeholder="请输入密码">
-      </div>
-      <div class="modal-actions">
-        <button id="newUserCancel">取消</button>
-        <button id="newUserConfirm">确认</button>
-      </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/newUserModal.html API 动态加载 -->
+
+
+  <!-- 加载遮罩层（动态加载） -->
+  <div id="loading-overlay-placeholder" data-fragment="loading-overlay">
+    <!-- 此区域将通过 JavaScript 动态加载 -->
+    <div class="loading-indicator" style="display: none; text-align: center; padding: 20px;">
+      <p>正在加载 loading-overlay...</p>
     </div>
   </div>
-
-
-  <!-- 加载遮罩层 -->
-  <div id="loading-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/80">
-    <div class="loader"></div>
-    <p class="text-base font-bold text-sky-600">正在加载资源中...</p>
-  </div>
+  <script>loadFragment('loading-overlay');</script>
 
   <!-- 用户认证登录界面 -->
     <!-- ========================================
@@ -115,35 +171,7 @@
       <p>正在加载 auth-login-container...</p>
     </div>
   </div>
-  <script>
-    // 动态加载 HTML 片段: auth-login-container
-    (function() {
-      const placeholder = document.getElementById('auth-login-container-placeholder');
-      const fragmentName = 'auth-login-container';
-      
-      // 显示加载提示
-      const loadingIndicator = placeholder.querySelector('.loading-indicator');
-      if (loadingIndicator) loadingIndicator.style.display = 'block';
-      
-      // 从 API 加载 HTML 片段
-      fetch(`/html/${fragmentName}.html`)
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return response.text();
-        })
-        .then(html => {
-          // 将加载的 HTML 插入到占位符中
-          placeholder.outerHTML = html;
-          console.log(`[HTML加载] 成功加载片段: ${fragmentName}`);
-        })
-        .catch(error => {
-          console.error(`[HTML加载] 加载片段失败: ${fragmentName}`, error);
-          if (loadingIndicator) {
-            loadingIndicator.innerHTML = '<p style="color: red;">加载失败，请刷新页面重试</p>';
-          }
-        });
-    })();
-  </script>
+  <script>loadFragment('auth-login-container');</script>
 
   <!-- 登录界面 -->
     <!-- ========================================
@@ -157,35 +185,7 @@
       <p>正在加载 login-container...</p>
     </div>
   </div>
-  <script>
-    // 动态加载 HTML 片段: login-container
-    (function() {
-      const placeholder = document.getElementById('login-container-placeholder');
-      const fragmentName = 'login-container';
-      
-      // 显示加载提示
-      const loadingIndicator = placeholder.querySelector('.loading-indicator');
-      if (loadingIndicator) loadingIndicator.style.display = 'block';
-      
-      // 从 API 加载 HTML 片段
-      fetch(`/html/${fragmentName}.html`)
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return response.text();
-        })
-        .then(html => {
-          // 将加载的 HTML 插入到占位符中
-          placeholder.outerHTML = html;
-          console.log(`[HTML加载] 成功加载片段: ${fragmentName}`);
-        })
-        .catch(error => {
-          console.error(`[HTML加载] 加载片段失败: ${fragmentName}`, error);
-          if (loadingIndicator) {
-            loadingIndicator.innerHTML = '<p style="color: red;">加载失败，请刷新页面重试</p>';
-          }
-        });
-    })();
-  </script>
+  <script>loadFragment('login-container');</script>
 
   <!-- 主应用界面 -->
     <!-- ========================================
@@ -199,35 +199,7 @@
       <p>正在加载 main-app...</p>
     </div>
   </div>
-  <script>
-    // 动态加载 HTML 片段: main-app
-    (function() {
-      const placeholder = document.getElementById('main-app-placeholder');
-      const fragmentName = 'main-app';
-      
-      // 显示加载提示
-      const loadingIndicator = placeholder.querySelector('.loading-indicator');
-      if (loadingIndicator) loadingIndicator.style.display = 'block';
-      
-      // 从 API 加载 HTML 片段
-      fetch(`/html/${fragmentName}.html`)
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return response.text();
-        })
-        .then(html => {
-          // 将加载的 HTML 插入到占位符中
-          placeholder.outerHTML = html;
-          console.log(`[HTML加载] 成功加载片段: ${fragmentName}`);
-        })
-        .catch(error => {
-          console.error(`[HTML加载] 加载片段失败: ${fragmentName}`, error);
-          if (loadingIndicator) {
-            loadingIndicator.innerHTML = '<p style="color: red;">加载失败，请刷新页面重试</p>';
-          }
-        });
-    })();
-  </script>
+  <script>loadFragment('main-app');</script>
 
     <!-- ========================================
      动态加载区域: multi-account-app
@@ -240,55 +212,10 @@
       <p>正在加载 multi-account-app...</p>
     </div>
   </div>
-  <script>
-    // 动态加载 HTML 片段: multi-account-app
-    (function() {
-      const placeholder = document.getElementById('multi-account-app-placeholder');
-      const fragmentName = 'multi-account-app';
-      
-      // 显示加载提示
-      const loadingIndicator = placeholder.querySelector('.loading-indicator');
-      if (loadingIndicator) loadingIndicator.style.display = 'block';
-      
-      // 从 API 加载 HTML 片段
-      fetch(`/html/${fragmentName}.html`)
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return response.text();
-        })
-        .then(html => {
-          // 将加载的 HTML 插入到占位符中
-          placeholder.outerHTML = html;
-          console.log(`[HTML加载] 成功加载片段: ${fragmentName}`);
-        })
-        .catch(error => {
-          console.error(`[HTML加载] 加载片段失败: ${fragmentName}`, error);
-          if (loadingIndicator) {
-            loadingIndicator.innerHTML = '<p style="color: red;">加载失败，请刷新页面重试</p>';
-          }
-        });
-    })();
-  </script>
+  <script>loadFragment('multi-account-app');</script>
 
   <!-- 模态对话框 -->
-  <div id="amap-key-modal" class="fixed inset-0 flex items-center justify-center hidden z-50">
-    <div class="absolute inset-0 bg-black/60"></div>
-    <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
-      <h3 class="text-xl font-bold text-red-600 text-center">缺少地图API Key</h3>
-      <p class="text-sm text-slate-600 text-center">
-        程序需要一个有效的高德地图JS API Key才能使用地图功能。请前往
-        <a href="https://console.amap.com/dev/key/app" target="_blank" class="text-sky-600 hover:underline">高德开放平台</a>
-        申请一个Key（类型选择“Web端(JS API)”），然后粘贴到下方。
-      </p>
-      <div class="space-y-2">
-        <label class="w-full text-slate-700 font-semibold">API Key:</label>
-        <input id="amap-key-input" type="text" class="input-field w-full" placeholder="请在此处粘贴你的API Key">
-      </div>
-      <div class="flex justify-end gap-3 pt-4">
-        <button id="confirm-amap-key-btn" class="btn btn-primary">确认并保存</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/amap-key-modal.html API 动态加载 -->
 
 
 
@@ -296,105 +223,15 @@
 
 
 
-  <div id="auto-gen-modal" class="fixed inset-0 flex items-center justify-center hidden z-50">
-    <div class="absolute inset-0 bg-black/40"></div>
-    <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
-      <h3 class="text-xl font-bold text-sky-600 text-center">自动生成路线配置</h3>
-      <div class="space-y-4">
-        <div class="flex items-center">
-          <label class="w-32 text-slate-700 font-semibold">最短时间(分钟)</label>
-          <input id="min-time-input" type="number" value="20" class="input-field w-full">
-        </div>
-        <div class="flex items-center">
-          <label class="w-32 text-slate-700 font-semibold">最长时间(分钟)</label>
-          <input id="max-time-input" type="number" value="30" class="input-field w-full">
-        </div>
-        <div class="flex items-center">
-          <label class="w-32 text-slate-700 font-semibold">最短距离(米)</label>
-          <input id="min-dist-input" type="number" value="2000" class="input-field w-full">
-        </div>
-      </div>
-      <div class="flex justify-end gap-3 pt-4">
-        <button id="cancel-gen-button" class="btn btn-ghost border border-slate-300">取消</button>
-        <button id="confirm-gen-button" class="btn btn-primary">生成</button>
-      </div>
-    </div>
-  </div>
-  <div id="user-details-modal" class="fixed inset-0 hidden items-center justify-center z-50">
-    <div class="absolute inset-0 bg-black/40" onclick="toggleUserDetails(false)"></div>
-    <div class="panel rounded-2xl p-6 w-[32rem] space-y-4 relative">
-      <div class="flex items-center justify-center gap-2">
-        <h3 class="text-xl font-bold text-sky-600 text-center">用户详情</h3>
-      </div>
-      <div id="user-details-content" class="text-sm space-y-1 max-h-[70vh] overflow-y-auto"></div>
-      <div class="flex justify-end pt-2"><button class="btn btn-ghost border border-slate-300"
-          onclick="toggleUserDetails(false)">关闭</button></div>
-    </div>
-  </div>
-  <div id="task-details-modal" class="fixed inset-0 hidden items-center justify-center z-50">
-    <div class="absolute inset-0 bg-black/40" onclick="toggleTaskDetails(false)"></div>
-    <div class="panel rounded-2xl p-6 w-[36rem] space-y-4 relative">
-      <div class="flex items-center justify-center gap-2">
-        <h3 class="text-xl font-bold text-sky-600 text-center">任务详情</h3>
-      </div>
-      <div id="task-details-content" class="text-sm space-y-1 max-h-[70vh] overflow-y-auto"></div>
-      <div class="flex justify-end pt-2"><button class="btn btn-ghost border border-slate-300"
-          onclick="toggleTaskDetails(false)">关闭</button></div>
-    </div>
-  </div>
-  <div id="account-params-modal" class="fixed inset-0 hidden items-center justify-center z-50">
-    <div class="absolute inset-0 bg-black/40" onclick="
-    const modalElem = this.parentElement;
-    modalElem.classList.add('hidden'); 
-    modalElem.classList.remove('flex'); 
-    document.body.classList.remove('modal-visible');
-  "></div>
-    <div class="panel rounded-2xl p-6 w-[32rem] space-y-4 relative">
-      <h3 id="account-params-title" class="text-xl font-bold text-sky-600 text-center">账号参数设置</h3>
-      <div id="account-params-container" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto pr-2"></div>
-      <div class="flex justify-end pt-2 gap-3">
-        <button class="btn btn-ghost border border-slate-300" onclick="
-        const m = this.closest('#account-params-modal');
-        m.classList.add('hidden'); 
-        m.classList.remove('flex'); 
-        document.body.classList.remove('modal-visible');
-      ">关闭</button>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/auto-gen-modal.html API 动态加载 -->
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/user-details-modal.html API 动态加载 -->
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/task-details-modal.html API 动态加载 -->
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/account-params-modal.html API 动态加载 -->
 
-        <button id="save-account-params-btn" class="btn btn-primary">保存</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="notifications-modal" class="fixed inset-0 hidden items-center justify-center z-50">
-    <div class="absolute inset-0 bg-black/40" onclick="toggleNotifications(false)"></div>
-    <div class="panel rounded-2xl p-6 w-[36rem] space-y-4 relative">
-      <h3 class="text-xl font-bold text-sky-600 text-center">通知中心</h3>
-      <div id="notifications-content" class="text-sm space-y-2 max-h-[70vh] overflow-y-auto pr-2">
-        <p class="text-slate-400 text-center py-10">正在加载...</p>
-      </div>
-      <div class="flex justify-between items-center pt-2">
-        <div class="flex gap-2"> <button id="refresh-notifications-btn"
-            class="btn btn-ghost !py-1 !px-3 text-sky-600">刷新</button>
-          <button id="mark-all-read-btn" class="btn btn-secondary !py-1 !px-3">一键已读</button>
-        </div>
-        <button class="btn btn-ghost border border-slate-300" onclick="toggleNotifications(false)">关闭</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/notifications-modal.html API 动态加载 -->
 
 
-  <div id="alert-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
-    <div class="absolute inset-0 bg-black/60" onclick="closeModalAlert()"></div>
-    <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
-      <h3 id="alert-modal-title" class="text-xl font-bold text-red-600 text-center">操作失败</h3>
-      <p id="alert-modal-message" class="text-sm text-slate-600 text-center py-4">
-        这是一个错误提示。
-      </p>
-      <div class="flex justify-center gap-3 pt-4">
-        <button id="alert-modal-close-btn" class="btn btn-primary">关闭</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/alert-modal.html API 动态加载 -->
 
     <!-- ========================================
      动态加载区域: admin-panel-modal
@@ -407,263 +244,30 @@
       <p>正在加载 admin-panel-modal...</p>
     </div>
   </div>
-  <script>
-    // 动态加载 HTML 片段: admin-panel-modal
-    (function() {
-      const placeholder = document.getElementById('admin-panel-modal-placeholder');
-      const fragmentName = 'admin-panel-modal';
-      
-      // 显示加载提示
-      const loadingIndicator = placeholder.querySelector('.loading-indicator');
-      if (loadingIndicator) loadingIndicator.style.display = 'block';
-      
-      // 从 API 加载 HTML 片段
-      fetch(`/html/${fragmentName}.html`)
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return response.text();
-        })
-        .then(html => {
-          // 将加载的 HTML 插入到占位符中
-          placeholder.outerHTML = html;
-          console.log(`[HTML加载] 成功加载片段: ${fragmentName}`);
-        })
-        .catch(error => {
-          console.error(`[HTML加载] 加载片段失败: ${fragmentName}`, error);
-          if (loadingIndicator) {
-            loadingIndicator.innerHTML = '<p style="color: red;">加载失败，请刷新页面重试</p>';
-          }
-        });
-    })();
-  </script>
+  <script>loadFragment('admin-panel-modal');</script>
 
-  <div id="confirm-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
-    <div class="absolute inset-0 bg-black/60"></div>
-    <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
-      <h3 id="confirm-modal-title" class="text-xl font-bold text-amber-600 text-center">请确认</h3>
-      <p id="confirm-modal-message" class="text-sm text-slate-600 text-center py-4">
-        你确定要执行此操作吗？
-      </p>
-      <div class="flex justify-end gap-3 pt-4">
-        <button id="confirm-modal-cancel-btn" class="btn btn-ghost border border-slate-300">取消</button>
-        <button id="confirm-modal-ok-btn" class="btn btn-primary">确认</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/confirm-modal.html API 动态加载 -->
 
   <!-- 会话选择模态框 -->
-  <div id="session-picker-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1052]">
-    <div class="absolute inset-0 bg-black/60"></div>
-    <div class="panel rounded-2xl p-6 w-[40rem] max-h-[70vh] space-y-4 relative">
-      <div class="flex items-center justify-between">
-        <h3 class="text-xl font-bold text-sky-600">会话管理</h3>
-        <div id="session-count-display" class="text-sm text-slate-600">
-          <!-- 会话计数将由JS动态填充 -->
-        </div>
-      </div>
-
-      <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
-        <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
-        <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-          </svg>
-          创建新会话
-        </button>
-      </div>
-
-      <div class="space-y-2">
-        <div class="flex justify-between items-center">
-          <h4 class="font-semibold text-slate-700">现有会话</h4>
-          <button class="btn btn-ghost !py-1 !px-2" onclick="refreshSessionPicker()">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-              </path>
-            </svg>
-            刷新
-          </button>
-        </div>
-        <div id="session-picker-list" class="max-h-[40vh] overflow-y-auto space-y-2">
-          <p class="text-slate-400 text-center py-10">加载中...</p>
-        </div>
-      </div>
-
-      <div class="border-t pt-3 text-xs text-slate-500">
-        <p>💡 提示：每个会话都是独立的学校账号登录状态。您可以创建多个会话来管理不同的账号。</p>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/session-picker-modal.html API 动态加载 -->
 
   <!-- 创建权限组模态框 -->
-  <div id="create-group-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
-    <div class="absolute inset-0 bg-black/60" onclick="closeCreateGroupModal()"></div>
-    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-xl font-bold text-sky-600">创建权限组</h3>
-        <button onclick="closeCreateGroupModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
-      </div>
-
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">权限组键名</label>
-          <input type="text" id="new-group-key" class="input-field w-full" placeholder="例如: custom_group">
-          <p class="text-xs text-slate-500 mt-1">英文字母、数字、下划线，用于内部标识</p>
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">权限组名称</label>
-          <input type="text" id="new-group-name" class="input-field w-full" placeholder="例如: 自定义权限组">
-          <p class="text-xs text-slate-500 mt-1">显示名称，用于界面展示</p>
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
-          <div id="create-group-permissions"
-            class="grid grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
-            <!-- 权限列表将由JS动态填充 -->
-          </div>
-        </div>
-      </div>
-
-      <div class="flex justify-end gap-3 pt-4 border-t">
-        <button onclick="closeCreateGroupModal()" class="btn btn-ghost border border-slate-300">取消</button>
-        <button onclick="submitCreateGroup()" class="btn btn-primary">创建</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/create-group-modal.html API 动态加载 -->
 
   <!-- 编辑权限组权限模态框 -->
-  <div id="edit-group-permissions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
-    <div class="absolute inset-0 bg-black/60" onclick="closeEditGroupPermissionsModal()"></div>
-    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-xl font-bold text-sky-600">编辑权限组: <span id="edit-group-name"></span></h3>
-        <button onclick="closeEditGroupPermissionsModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
-      </div>
-
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
-          <div id="edit-group-permissions-list"
-            class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
-            <!-- 权限列表将由JS动态填充 -->
-          </div>
-        </div>
-      </div>
-
-      <div class="flex justify-end gap-3 pt-4 border-t">
-        <button onclick="closeEditGroupPermissionsModal()" class="btn btn-ghost border border-slate-300">取消</button>
-        <button onclick="submitEditGroupPermissions()" class="btn btn-primary">保存</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/edit-group-permissions-modal.html API 动态加载 -->
 
   <!-- 管理用户权限模态框 -->
-  <div id="manage-user-permissions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
-    <div class="absolute inset-0 bg-black/60" onclick="closeManageUserPermissionsModal()"></div>
-    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-xl font-bold text-sky-600">管理用户权限: <span id="manage-user-name"></span></h3>
-        <button onclick="closeManageUserPermissionsModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
-      </div>
-
-      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-        <p class="text-sm text-blue-700">
-          <strong>权限组:</strong> <span id="user-base-group" class="font-mono"></span>
-        </p>
-        <p class="text-xs text-slate-600 mt-1">
-          💡 以下为用户相对于权限组的差分化权限。绿色表示额外添加的权限，红色表示移除的权限。
-        </p>
-      </div>
-
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">权限调整</label>
-          <div id="manage-user-permissions-list"
-            class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3">
-            <!-- 权限列表将由JS动态填充 -->
-          </div>
-        </div>
-      </div>
-
-      <div class="flex justify-end gap-3 pt-4 border-t">
-        <button onclick="closeManageUserPermissionsModal()" class="btn btn-ghost border border-slate-300">取消</button>
-        <button onclick="submitManageUserPermissions()" class="btn btn-primary">保存</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/manage-user-permissions-modal.html API 动态加载 -->
 
   <!-- 设置会话限制模态框 -->
-  <div id="set-max-sessions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
-    <div class="absolute inset-0 bg-black/60" onclick="hideModal('set-max-sessions-modal')"></div>
-    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
-      <h3 class="text-xl font-bold text-sky-600">设置会话限制</h3>
-
-      <div class="space-y-2">
-        <p class="text-sm text-slate-600">用户: <span id="sessions-username" class="font-semibold text-slate-800"></span>
-        </p>
-        <p class="text-sm text-slate-600">当前限制: <span id="sessions-current-max"
-            class="font-semibold text-slate-800"></span></p>
-      </div>
-
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1">新会话限制</label>
-        <input type="number" id="new-max-sessions" min="0" class="input-field" placeholder="输入会话数量">
-        <p class="text-xs text-slate-500 mt-1">0 = 无限制</p>
-      </div>
-
-      <div class="flex justify-end gap-3 pt-4 border-t">
-        <button onclick="hideModal('set-max-sessions-modal')" class="btn btn-ghost border border-slate-300">取消</button>
-        <button onclick="submitSetMaxSessions()" class="btn btn-primary">确认</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/set-max-sessions-modal.html API 动态加载 -->
 
   <!-- 重置用户密码模态框 -->
-  <div id="reset-user-password-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
-    <div class="absolute inset-0 bg-black/60" onclick="hideModal('reset-user-password-modal')"></div>
-    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
-      <h3 class="text-xl font-bold text-amber-600">重置用户密码</h3>
-
-      <div>
-        <p class="text-sm text-slate-600">目标用户: <span id="reset-password-username"
-            class="font-semibold text-slate-800"></span></p>
-      </div>
-
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
-          <input type="password" id="reset-new-password" class="input-field" placeholder="输入新密码">
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">确认密码</label>
-          <input type="password" id="reset-confirm-password" class="input-field" placeholder="再次输入新密码">
-        </div>
-      </div>
-
-      <div class="flex justify-end gap-3 pt-4 border-t">
-        <button onclick="hideModal('reset-user-password-modal')"
-          class="btn btn-ghost border border-slate-300">取消</button>
-        <button onclick="submitResetUserPassword()" class="btn btn-primary">重置密码</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/reset-user-password-modal.html API 动态加载 -->
 
   <!-- 头像裁剪模态框 -->
-  <div id="avatar-crop-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
-    <div class="absolute inset-0 bg-black/80" onclick="closeCropModal()"></div>
-    <div class="panel rounded-2xl p-6 max-w-2xl w-full mx-4 space-y-4 relative">
-      <h3 class="text-xl font-bold text-sky-600">裁剪头像</h3>
-
-      <div class="max-h-96 overflow-hidden bg-slate-100 rounded-lg">
-        <img id="crop-image" src="" alt="待裁剪图片" style="max-width: 100%;">
-      </div>
-
-      <div class="flex gap-2 justify-end">
-        <button onclick="closeCropModal()" class="btn btn-ghost border border-slate-300">取消</button>
-        <button onclick="confirmCropAndUpload()" class="btn btn-primary">确认并上传</button>
-      </div>
-    </div>
-  </div>
+  <!-- 模态对话框已移至 html_fragments.html，通过 /html/avatar-crop-modal.html API 动态加载 -->
 
   <script>
     // ==============================================================================
