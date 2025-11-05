@@ -137,6 +137,53 @@
 
 <body class="text-slate-800 font-sans h-screen overflow-hidden antialiased">
 
+  <!-- ========================================
+   模态对话框统一加载区域
+   所有模态框通过 loadFragment 函数从 html_fragments.html 动态加载
+   ======================================== -->
+  <script>
+    // 页面加载完成后立即加载所有模态框
+    // 由于模态框在多处被 JavaScript 代码引用，必须确保它们在页面初始化时就存在
+    document.addEventListener('DOMContentLoaded', function() {
+      // 需要加载的模态框列表（按字母顺序排列）
+      const modals = [
+        'account-params-modal',
+        'alert-modal',
+        'amap-key-modal',
+        'auto-gen-modal',
+        'avatar-crop-modal',
+        'confirm-modal',
+        'create-group-modal',
+        'edit-group-permissions-modal',
+        'manage-user-permissions-modal',
+        'newUserModal',
+        'notifications-modal',
+        'reset-user-password-modal',
+        'session-picker-modal',
+        'set-max-sessions-modal',
+        'task-details-modal',
+        'user-details-modal'
+      ];
+      
+      // 为每个模态框创建占位符并加载
+      modals.forEach(function(modalName) {
+        // 创建占位符元素
+        const placeholder = document.createElement('div');
+        placeholder.id = modalName + '-placeholder';
+        placeholder.setAttribute('data-fragment', modalName);
+        placeholder.innerHTML = '<div class="loading-indicator" style="display: none; text-align: center; padding: 20px;"><p>正在加载 ' + modalName + '...</p></div>';
+        
+        // 将占位符添加到 body
+        document.body.appendChild(placeholder);
+        
+        // 立即加载该模态框
+        loadFragment(modalName);
+      });
+      
+      console.log('[模态框加载] 开始加载 ' + modals.length + ' 个模态对话框');
+    });
+  </script>
+
   <!-- CDN 错误提示界面（动态加载） -->
   <div id="cdn-error-overlay-placeholder" data-fragment="cdn-error-overlay">
     <!-- 此区域将通过 JavaScript 动态加载 -->
@@ -146,9 +193,7 @@
   </div>
   <script>loadFragment('cdn-error-overlay');</script>
 
-  <!-- 新用户添加模态框 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/newUserModal.html API 动态加载 -->
-
+  <!-- 模态对话框通过 DOMContentLoaded 事件统一动态加载，详见上方脚本 -->
 
   <!-- 加载遮罩层（动态加载） -->
   <div id="loading-overlay-placeholder" data-fragment="loading-overlay">
@@ -214,25 +259,6 @@
   </div>
   <script>loadFragment('multi-account-app');</script>
 
-  <!-- 模态对话框 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/amap-key-modal.html API 动态加载 -->
-
-
-
-
-
-
-
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/auto-gen-modal.html API 动态加载 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/user-details-modal.html API 动态加载 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/task-details-modal.html API 动态加载 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/account-params-modal.html API 动态加载 -->
-
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/notifications-modal.html API 动态加载 -->
-
-
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/alert-modal.html API 动态加载 -->
-
     <!-- ========================================
      动态加载区域: admin-panel-modal
      原始大小: 13.5 KB
@@ -245,29 +271,6 @@
     </div>
   </div>
   <script>loadFragment('admin-panel-modal');</script>
-
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/confirm-modal.html API 动态加载 -->
-
-  <!-- 会话选择模态框 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/session-picker-modal.html API 动态加载 -->
-
-  <!-- 创建权限组模态框 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/create-group-modal.html API 动态加载 -->
-
-  <!-- 编辑权限组权限模态框 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/edit-group-permissions-modal.html API 动态加载 -->
-
-  <!-- 管理用户权限模态框 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/manage-user-permissions-modal.html API 动态加载 -->
-
-  <!-- 设置会话限制模态框 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/set-max-sessions-modal.html API 动态加载 -->
-
-  <!-- 重置用户密码模态框 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/reset-user-password-modal.html API 动态加载 -->
-
-  <!-- 头像裁剪模态框 -->
-  <!-- 模态对话框已移至 html_fragments.html，通过 /html/avatar-crop-modal.html API 动态加载 -->
 
   <script>
     // ==============================================================================
@@ -286,7 +289,7 @@
     (function() {
       // 第一步：加载全局变量
       const globalsScript = document.createElement('script');
-      globalsScript.src = '/JavaScript_globals.js';
+      globalsScript.src = '/JavaScript/JavaScript_globals.js';
       globalsScript.charset = 'utf-8';
       
       globalsScript.onload = function() {
@@ -294,7 +297,7 @@
         
         // 第二步：加载主要功能代码
         const mainScript = document.createElement('script');
-        mainScript.src = '/JavaScript.js';
+        mainScript.src = '/JavaScript/JavaScript.js';
         mainScript.charset = 'utf-8';
         mainScript.async = false;  // 保持执行顺序
         
