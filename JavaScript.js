@@ -1,0 +1,9185 @@
+// ==============================================================================
+// 跑步助手 - 前端 JavaScript 代码库
+// ==============================================================================
+// 
+// 文件说明：
+//   本文件包含跑步助手 Web 应用的所有前端 JavaScript 代码，已从 index.html 中提取
+//   并通过后端 API 动态加载，以实现按需加载和浏览器缓存优化
+//
+// 加载方式：
+//   通过后端 API 端点 /JavaScript/<function_name>.js 动态加载特定函数
+//   示例：/JavaScript/onlogin.js 将返回 onlogin 相关的代码
+//
+// 代码结构：
+//   1. 全局变量声明
+//   2. 工具函数（DOM操作、日志、网络请求等）
+//   3. 认证系统相关函数
+//   4. 任务管理相关函数
+//   5. 地图操作相关函数
+//   6. 多账号管理相关函数
+//   7. 事件监听器绑定
+//   8. 应用初始化逻辑
+//
+// 注意事项：
+//   - 所有函数均带有详细的中文注释
+//   - 修改此文件后需重启服务器才能生效
+//   - 浏览器会缓存加载的 JavaScript 代码，修改后可能需要清除缓存
+//
+// ==============================================================================
+
+    function handleCdnError() {
+      cdnErrorCount++;
+      logMessage_Warning(`CDN资源加载失败 (${cdnErrorCount}/3)，等待应用初始化...`);
+
+      // 优化：不立即显示错误，而是延迟检查
+      // 如果3秒后应用仍未初始化，且有CDN错误，则显示错误提示
+      if (cdnErrorTimer) {
+        clearTimeout(cdnErrorTimer);
+      }
+
+      cdnErrorTimer = setTimeout(() => {
+        // 只有在应用未成功初始化时才显示错误
+        if (!appInitialized && cdnErrorCount > 0) {
+          const errorOverlay = document.getElementById('cdn-error-overlay');
+          if (errorOverlay) {
+            // 使用直接 DOM 操作确保覆盖层可见。
+            // 注意：此处不能依赖 $ 快捷函数，因为 handleCdnError 可能在 $ 定义之前被调用。
+            try {
+              errorOverlay.style.setProperty('display', 'flex', 'important');
+            } catch (e) {
+              // 某些环境下 setProperty 的第三个参数可能不可用，回退到直接设置
+              errorOverlay.style.display = 'flex';
+            }
+            // 移除 hidden 类以确保可见
+            errorOverlay.classList.remove('hidden');
+            logMessage_Error(`应用初始化超时，CDN资源加载失败 (${cdnErrorCount}个资源)`);
+          }
+        }
+      }, 3000); // 延迟3秒显示错误，给应用初始化机会
+    }
+
+
+    function showModalAlert(message, title = '提示', onCloseCallback = null) {
+      const modal = $('alert-modal');
+      const titleEl = $('alert-modal-title');
+      const msgEl = $('alert-modal-message');
+      const closeBtn = $('alert-modal-close-btn');
+
+      if (!modal || !titleEl || !msgEl || !closeBtn) {
+        // 模态框DOM不存在，回退到原生 alert
+        logMessage_Warning('Alert modal DOM not found, falling back to native alert.');
+        alert(`${title}:\n${message}`);
+        if (onCloseCallback) onCloseCallback();
+        return;
+      }
+
+      titleEl.textContent = title;
+      // 替换 \n 为 <br> 以支持换行
+      msgEl.innerHTML = String(message).replace(/\n/g, '<br>');
+
+      // 根据标题设置颜色
+      if (title.includes('失败') || title.includes('错误')) {
+        titleEl.classList.remove('text-sky-600');
+        titleEl.classList.add('text-red-600');
+      } else {
+        titleEl.classList.remove('text-red-600');
+        titleEl.classList.add('text-sky-600');
+      }
+
+      closeBtn.onclick = () => {
+        closeModalAlert();
+        if (onCloseCallback) onCloseCallback();
+      };
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.classList.add('modal-visible'); // 隐藏地图版权
+    }
+
+    function closeModalAlert() {
+      const modal = $('alert-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      // 检查是否还有其他模态框可见
+      const otherModals = document.querySelectorAll('.modal, [id$="-modal"]');
+      let stillVisible = false;
+      otherModals.forEach(m => {
+        if (m.id !== 'alert-modal' && !m.classList.contains('hidden') && (m.classList.contains('flex') || m.style.display === 'flex')) {
+          stillVisible = true;
+        }
+      });
+      if (!stillVisible) {
+        document.body.classList.remove('modal-visible');
+      }
+    }
+
+    function showModal(modalId) {
+      const modal = $(modalId);
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('modal-visible');
+      }
+    }
+
+    function hideModal(modalId) {
+      const modal = $(modalId);
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      // 检查是否还有其他模态框可见
+      const otherModals = document.querySelectorAll('.modal, [id$="-modal"]');
+      let stillVisible = false;
+      otherModals.forEach(m => {
+        if (!m.classList.contains('hidden') && (m.classList.contains('flex') || m.style.display === 'flex')) {
+          stillVisible = true;
+        }
+      });
+      if (!stillVisible) {
+        document.body.classList.remove('modal-visible');
+      }
+    }
+
+    // --- 通用确认模态框 (修复 Bug 2) ---
+    let resolveConfirmPromise = null;
+
+    function jsShowConfirm(title, message) {
+      // 返回一个 Promise
+      return new Promise((resolve) => {
+        const modal = $('confirm-modal');
+        const titleEl = $('confirm-modal-title');
+        const msgEl = $('confirm-modal-message');
+        const okBtn = $('confirm-modal-ok-btn');
+        const cancelBtn = $('confirm-modal-cancel-btn');
+
+        if (!modal || !titleEl || !msgEl || !okBtn || !cancelBtn) {
+          logMessage_Error('Confirm modal DOM not found. Falling back to native confirm.');
+          // 回退到原生 confirm，它也会阻塞并返回值
+          resolve(confirm(`${title}:\n${message}`));
+          return;
+        }
+
+        // 保存 resolve 函数，以便按钮点击时调用
+        resolveConfirmPromise = resolve;
+
+        titleEl.textContent = title || '请确认';
+        msgEl.innerHTML = String(message).replace(/\n/g, '<br>');
+
+        // 移除旧监听器（以防万一）
+        okBtn.onclick = null;
+        cancelBtn.onclick = null;
+
+        // 绑定新监听器
+        okBtn.onclick = () => handleConfirm(true);
+        cancelBtn.onclick = () => handleConfirm(false);
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('modal-visible');
+      });
+    }
+
+    function handleConfirm(result) {
+      const modal = $('confirm-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+
+      // 检查是否还有其他模态框可见 (使用与 closeModalAlert 相同的逻辑)
+      const otherModals = document.querySelectorAll('.modal, [id$="-modal"]');
+      let stillVisible = false;
+      otherModals.forEach(m => {
+        if (m.id !== 'confirm-modal' && !m.classList.contains('hidden') && (m.classList.contains('flex') || m.style.display === 'flex')) {
+          stillVisible = true;
+        }
+      });
+      if (!stillVisible) {
+        document.body.classList.remove('modal-visible');
+      }
+
+      // 解析 Promise
+      if (resolveConfirmPromise) {
+        resolveConfirmPromise(result);
+        resolveConfirmPromise = null; // 清理
+      }
+    }
+
+
+
+    // 统一的API调用函数
+    async function callPythonAPI(method, ...args) {
+      logMessage_Info(`[API调用] 方法: ${method}, 参数数量: ${args.length}`);
+      // Web模式：通过HTTP协议调用后端API接口，请求头中携带会话UUID标识
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      // 添加会话UUID到请求头
+      if (sessionUUID) {
+        headers['X-Session-ID'] = sessionUUID;
+        logMessage_Info(`[API调用] 会话ID: ${sessionUUID.substring(0, 16)}...`);
+      } else {
+        // 如果连 sessionUUID 都没有（理论上不应在已加载页面后发生），也可能意味着会话问题
+        logMessage_Warning(`[API调用] 警告: sessionUUID为空，可能导致会话无效错误`);
+      }
+
+      logMessage_Info(`[API调用] 发送请求到 /api/${method}`);
+      let response; // 将 response 移到 try 外部
+      try { // 包裹 fetch 调用
+        response = await fetch(`/api/${method}`, {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',  // 重要：包含cookies
+          body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
+        });
+      } catch (networkError) {
+        // 捕获 fetch 本身的网络错误 (例如 DNS 解析失败、服务器无法连接)
+        logMessage_Error(`[API调用] ✗ 网络请求失败 (${method}):`, networkError);
+
+        // 进入网络错误状态（即使定时器已经被停止也要设置标志）
+        if (!isInNetworkErrorState) {
+          isInNetworkErrorState = true; // 标记进入网络错误状态
+          logMessage_Info('[API调用] 进入网络错误状态，停止后端日志发送和WebSocket');
+
+          // 停止可能的刷新定时器
+          if (refreshUserListInterval) {
+            logMessage_Info('[API调用] 停止用户列表刷新定时器 (因网络错误)');
+            clearInterval(refreshUserListInterval);
+            refreshUserListInterval = null;
+          }
+
+          // 断开WebSocket连接并禁用自动重连，避免持续的连接错误
+          if (socket) {
+            if (socket.io) {
+              socket.io.opts.reconnection = false;  // 禁用自动重连
+            }
+            if (socket.connected) {
+              socket.disconnect();
+            }
+            logMessage_Info('[API调用] 已断开WebSocket连接并禁用自动重连 (因网络错误)');
+          }
+        }
+
+        // 显示通用网络错误提示，并在用户关闭时尝试恢复
+        showModalAlert('无法连接到服务器，请检查您的网络连接或稍后重试。', '网络错误', () => {
+          // 用户关闭网络错误弹窗时，尝试恢复
+          if (isInNetworkErrorState) {
+            logMessage_Info('[API调用] 用户关闭网络错误弹窗，准备恢复连接');
+            isInNetworkErrorState = false;
+
+            // 延迟1秒后重新启动定时器和WebSocket，给网络恢复时间
+            setTimeout(() => {
+              // 恢复定时器
+              if (!refreshUserListInterval) {
+                refreshUserListInterval = setInterval(refreshUserList, 5000);
+                logMessage_Info('[API调用] 用户列表刷新定时器已恢复');
+              }
+
+              // 重新连接WebSocket
+              if (socket && !socket.connected && sessionUUID) {
+                // 重新启用自动重连
+                if (socket.io) {
+                  socket.io.opts.reconnection = true;
+                }
+                socket.connect();
+                logMessage_Info('[API调用] 正在重新连接WebSocket（已重新启用自动重连）');
+              }
+            }, 1000);
+          }
+        });
+
+        throw networkError; // 重新抛出网络错误，中断后续处理
+      }
+
+      // 处理非 OK 响应 (包括 401, 403, 500 等)
+      if (!response.ok) {
+        logMessage_Info(`[API调用] ✗ 响应错误: ${response.status} ${response.statusText}`);
+        let errorData = null;
+        try {
+          errorData = await response.json(); // 尝试解析 JSON 错误体
+        } catch (parseError) {
+          logMessage_Warning('[API调用] ✗ 无法解析错误响应体为 JSON:', parseError);
+          // 即使无法解析，也要根据状态码处理
+        }
+
+        // --- ⭐ Bug 修复：处理会话过期 (401) ---
+        if (response.status === 401 && errorData && errorData.message && errorData.message.includes('会话已过期或无效')) {
+          logMessage_Error('[API调用] ✗ 会话已过期或无效！');
+          logMessage_Info('[系统] 您的会话已过期或无效，请重新登录。'); // 同时记录到界面日志
+
+          // 停止 refreshUserList 定时器
+          if (refreshUserListInterval) {
+            logMessage_Info('[API调用] 停止用户列表刷新定时器 (因会话过期)');
+            clearInterval(refreshUserListInterval);
+            refreshUserListInterval = null; // 清理句柄
+          }
+
+          // 弹窗提示用户
+          showModalAlert('您的会话已过期或无效，请重新登录。', '会话失效');
+
+          // 延迟后跳转到登录页
+          setTimeout(() => {
+            window.location.href = '/'; // 跳转到根目录
+          }, 2500); // 给用户 2.5 秒时间看提示
+
+          // 抛出错误，中断当前 API 调用的后续处理
+          throw new Error('会话已过期或无效');
+        }
+        // --- 结束 Bug 修复 ---
+
+        // 处理其他需要重新登录的情况 (如 token 过期/无效)
+        if (errorData && errorData.need_login) {
+          let errorMsg = errorData.message || 'API调用失败';
+          logMessage_Info(`[API调用] ✗ 需要重新登录: ${errorMsg}`);
+
+          // 如果是在其他设备登录导致的
+          if (errorData.logged_out_elsewhere) {
+            showModalAlert(
+              '您的账号已在其他设备登录，本设备已自动登出。请重新登录。',
+              '多设备登录检测'
+            );
+            logMessage_Info('[安全提示] 检测到账号在其他设备登录，已自动登出');
+            logMessage_Info('[API调用] ✗ 多设备登录检测');
+          } else {
+            showModalAlert(errorMsg, '登录失效');
+            logMessage_Info(`[安全提示] ${errorMsg}`);
+          }
+
+          // 停止可能的刷新定时器 (也适用于 token 过期等情况)
+          if (refreshUserListInterval) {
+            logMessage_Info('[API调用] 停止用户列表刷新定时器 (因需重新登录)');
+            clearInterval(refreshUserListInterval);
+            refreshUserListInterval = null;
+          }
+
+          // 清除本地状态并返回登录页 - 等待用户确认
+          Swal.fire({
+            icon: 'warning',
+            title: '需要重新登录',
+            text: errorMsg,
+            confirmButtonText: '返回登录',
+            allowOutsideClick: false
+          }).then(() => {
+            window.location.href = '/';
+          });
+
+          throw new Error(errorMsg);
+        }
+
+        // 处理其他权限不足 (403) 的错误
+        if (response.status === 403 && errorData && errorData.message) {
+          logMessage_Error(`[API调用] ✗ 权限不足 (${method}): ${errorData.message}`);
+          showModalAlert(`操作失败: ${errorData.message}`, '权限不足');
+          throw new Error(`权限不足: ${errorData.message}`);
+        }
+
+        // 处理其他服务器内部错误 (500) 或未明确处理的错误
+        const genericErrorMessage = (errorData && errorData.message) ? errorData.message : response.statusText;
+        logMessage_Error(`[API调用] ✗ 未处理的错误 (${method}): ${genericErrorMessage}`);
+        // 可以选择是否给用户显示一个通用错误
+        // showModalAlert(`发生意外错误 (${response.status})，请稍后重试或联系管理员。`, '服务器错误');
+        throw new Error(`API调用失败 (${response.status}): ${genericErrorMessage}`);
+      }
+
+      // 如果响应 OK (2xx)
+      logMessage_Info(`[API调用] ✓ 请求成功 (${method})`);
+      const result = await response.json();
+      logMessage_Info(`[API调用] ✓ 返回结果 (${method}):`, result.success ? '成功' : '失败');
+      return result;
+    }
+
+    // 原始API调用函数，用于直接调用路径
+    async function callPythonAPI_raw(path, method = 'POST', data = null) {
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      // 添加会话UUID到请求头
+      if (sessionUUID) {
+        headers['X-Session-ID'] = sessionUUID;
+      }
+
+      const options = {
+        method: method,
+        headers: headers,
+        credentials: 'include',
+      };
+
+      if (data && method !== 'GET') {
+        options.body = JSON.stringify(data);
+      }
+
+      try {
+        const response = await fetch(path, options);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        return result;
+      } catch (error) {
+        logMessage_Error(`API调用失败 (${path}):`, error);
+        throw error;
+      }
+    }
+
+    // 在服务器端Chrome中执行JavaScript
+    async function executeServerJS(script, ...args) {
+      // Web模式：将JavaScript代码发送到服务器端Chrome浏览器中执行
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      // 添加会话UUID到请求头
+      if (sessionUUID) {
+        headers['X-Session-ID'] = sessionUUID;
+      }
+
+      const response = await fetch('/execute_js', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          script: script,
+          args: args
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`服务器端JS执行失败: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'JS执行失败');
+      }
+
+      return data.result;
+    }
+
+
+    // 显式销毁单账号地图实例，释放资源并复位变量
+    function destroySingleMap() {
+      try {
+        // 先清理自定义交互监听器
+        if (window.mapCleanup) {
+          window.mapCleanup();
+          window.mapCleanup = null;
+        }
+        if (map && typeof map.destroy === 'function') {
+          map.destroy();
+        }
+      } catch (e) {
+        logMessage_Warning('destroySingleMap warning:', e);
+      } finally {
+        map = null;
+        polylines.recommended = [];
+        polylines.draft = null;
+        polylines.run = null;
+        polylines.history = null;
+        markers = [];
+        runnerMarker = null;
+        drawingInfoMarker = null;
+
+        try { const container = document.getElementById('map-container'); if (container) container.classList.remove('drawing'); } catch (_) { }
+        isDrawing = false; isPathDrawing = false; leftMouseDown = false; pendingUnlockMap = false;
+        draftPath = []; draftPathLngLat = []; pendingPoints = []; isUpdating = false; lastMouseMoveTime = 0;
+        try { document.body.classList.remove('modal-visible'); } catch (_) { }
+      }
+    }
+
+
+
+
+
+    function updateMultiGlobalButtons(startDisabled, stopDisabled) {
+      const startBtn = document.getElementById('multi-start-all-btn');
+      const stopBtn = document.getElementById('multi-stop-all-btn');
+      if (!startBtn || !stopBtn) return;
+      // 后端传入的布尔值即按钮禁用状态
+      startBtn.disabled = !!startDisabled;
+      stopBtn.disabled = !!stopDisabled;
+    }
+
+
+    // 安全 resize 并在下一帧统一 fit 视角（避免初次显示偏移）
+    function safeResizeAndFitView() {
+      try {
+        map.resize();
+        requestAnimationFrame(() => {
+          resetMapView();
+          // 再补一次 fitView，确保 marker 投影正确
+          if (markers.length > 0) {
+            map.setFitView(markers, false, [50, 50, 50, 50]);
+          }
+        });
+      } catch (e) {
+        logMessage_Warning('safeResizeAndFitView error:', e);
+      }
+    }
+
+
+
+
+
+    // --- 新增：主题风格切换 ---
+    function setThemeStyle(styleName) {
+      // 移除 body 上所有可能的主题 class
+      document.body.classList.remove('theme-anime', 'theme-minimalist');
+
+      // 如果不是默认主题，则添加对应的 class
+      if (styleName !== 'default') {
+        document.body.classList.add(styleName);
+      }
+
+      // 更新按钮的选中状态
+      const themeButtons = document.querySelectorAll('#params-tab .grid button[onclick^="setThemeStyle"]');
+      themeButtons.forEach(btn => {
+        if (btn.getAttribute('onclick') === `setThemeStyle('${styleName}')`) {
+          btn.classList.add('border-2', 'border-sky-500'); // 高亮选中
+        } else {
+          btn.classList.remove('border-2', 'border-sky-500');
+        }
+      });
+
+      // 调用 Python 后端保存设置
+      callPythonAPI('update_param', 'theme_style', styleName);
+      logMessage_Info(`主题已切换为: ${styleName}`);
+    }
+
+
+    // --- 恢复默认主题颜色 ---
+    function resetBaseColorToDefault(prefix) {
+      const defaultColor = '#7dd3fc';
+      const key = 'theme_base_color';
+
+      // 1. 更新颜色选择器和文本框的UI
+      const colorPicker = document.getElementById(`${prefix}-${key}-picker`);
+      const textInput = document.getElementById(`${prefix}-${key}`);
+      if (colorPicker) colorPicker.value = defaultColor;
+      if (textInput) textInput.value = defaultColor;
+
+      // 2. 调用现有函数更新界面主题并保存到后端
+      // setBaseColor 内部已经包含了调用 python api 保存的逻辑
+      setBaseColor(defaultColor, defaultColor);
+
+      // 3. 更新前端缓存的参数对象，确保状态一致
+      if (pythonParams) {
+        pythonParams[key] = defaultColor;
+      }
+
+      logMessage_Info("主题颜色已恢复为默认。");
+    }
+
+    // --- 主题颜色设置 ---
+    function setBaseColor(c, deep) {
+      document.documentElement.style.setProperty('--base-color', c);
+      document.documentElement.style.setProperty('--base-color-600', deep);
+      document.documentElement.style.setProperty('--base-color-300', c);
+      callPythonAPI('update_param', 'theme_base_color', c);
+      if ($('base-color-input')) $('base-color-input').value = c;
+    }
+    function onColorPicked(val) { setBaseColor(val, val); }
+
+    // ====================
+    // 认证系统 JavaScript
+    // ====================
+
+    // 检查并显示认证状态
+    async function checkAuthStatus() {
+      // 检查会话是否已认证
+      try {
+        const result = await callPythonAPI('get_initial_data');
+        if (result && result.is_authenticated) {
+          return true;
+        }
+      } catch (e) {
+        logMessage_Info('未认证或会话过期');
+      }
+
+      return false;
+    }
+
+    // 显示认证登录界面
+    function showAuthLogin() {
+      $('loading-overlay').classList.add('hidden');
+      $('auth-login-container').classList.remove('hidden');
+      $('login-container').classList.add('hidden');
+      $('main-app').classList.add('hidden');
+
+      // 检查是否允许游客登录
+      checkGuestLoginEnabled();
+    }
+
+    // 检查是否允许游客登录
+    async function checkGuestLoginEnabled() {
+      try {
+        const result = await fetch('/auth/get_config');
+        const data = await result.json();
+        if (data.success && data.allow_guest_login) {
+          $('guest-login-section').classList.remove('hidden');
+        } else {
+          $('guest-login-section').classList.add('hidden');
+        }
+      } catch (e) {
+        logMessage_Error('获取配置失败:', e);
+      }
+    }
+
+    // 切换登录/注册标签
+    function switchAuthTab(tab) {
+      const loginTab = $('auth-tab-login');
+      const registerTab = $('auth-tab-register');
+      const loginForm = $('auth-login-form');
+      const registerForm = $('auth-register-form');
+
+      if (tab === 'login') {
+        loginTab.classList.add('text-sky-600', 'border-sky-600');
+        loginTab.classList.remove('text-slate-400', 'border-transparent');
+        registerTab.classList.remove('text-sky-600', 'border-sky-600');
+        registerTab.classList.add('text-slate-400', 'border-transparent');
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+      } else {
+        registerTab.classList.add('text-sky-600', 'border-sky-600');
+        registerTab.classList.remove('text-slate-400', 'border-transparent');
+        loginTab.classList.remove('text-sky-600', 'border-sky-600');
+        loginTab.classList.add('text-slate-400', 'border-transparent');
+        registerForm.classList.remove('hidden');
+        loginForm.classList.add('hidden');
+      }
+
+      // 清空错误/成功消息
+      $('auth-error-msg').classList.add('hidden');
+      $('auth-success-msg').classList.add('hidden');
+    }
+
+    // 显示认证错误消息
+    function showAuthError(message) {
+      const errorMsg = $('auth-error-msg');
+      errorMsg.textContent = message;
+      errorMsg.classList.remove('hidden');
+      $('auth-success-msg').classList.add('hidden');
+    }
+
+    // 显示认证成功消息
+    function showAuthSuccess(message) {
+      const successMsg = $('auth-success-msg');
+      successMsg.textContent = message;
+      successMsg.classList.remove('hidden');
+      $('auth-error-msg').classList.add('hidden');
+    }
+
+    // UI反馈辅助函数
+    function setButtonLoading(buttonId, loading, originalText = '') {
+      const btn = $(buttonId);
+      if (!btn) return;
+
+      if (loading) {
+        btn.dataset.originalText = btn.textContent;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="inline-block animate-spin mr-2">⏳</span>${originalText || '处理中...'}`;
+        btn.classList.add('opacity-75', 'cursor-not-allowed');
+      } else {
+        btn.disabled = false;
+        btn.textContent = btn.dataset.originalText || originalText;
+        btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        delete btn.dataset.originalText;
+      }
+    }
+
+    function showButtonSuccess(buttonId, message = '成功', duration = 1500) {
+      const btn = $(buttonId);
+      if (!btn) return;
+
+      // 先清除加载状态，确保按钮可用
+      btn.disabled = false;
+      btn.classList.remove('opacity-75', 'cursor-not-allowed');
+
+      const originalText = btn.dataset.originalText || btn.textContent;
+      delete btn.dataset.originalText;
+
+      btn.innerHTML = `<span class="mr-1">✓</span>${message}`;
+      btn.classList.add('!bg-green-600');
+
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('!bg-green-600');
+        btn.disabled = false; // 确保恢复后按钮可用
+      }, duration);
+    }
+
+    function showButtonError(buttonId, message = '失败', duration = 2000) {
+      const btn = $(buttonId);
+      if (!btn) return;
+
+      // 先清除加载状态，确保按钮可用
+      btn.disabled = false;
+      btn.classList.remove('opacity-75', 'cursor-not-allowed');
+
+      const originalText = btn.dataset.originalText || btn.textContent;
+      delete btn.dataset.originalText;
+
+      btn.innerHTML = `<span class="mr-1">✗</span>${message}`;
+      btn.classList.add('!bg-red-600');
+
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('!bg-red-600');
+        btn.disabled = false; // 确保恢复后按钮可用
+      }, duration);
+    }
+
+    // 用户登录
+    async function handleAuthLogin() {
+      const loginBtn = $('auth-login-btn');
+      const username = $('auth-username').value.trim();
+      const password = $('auth-password').value.trim();
+
+      // 输入验证
+      if (!username || !password) {
+        showAuthError('请输入用户名和密码');
+        return;
+      }
+
+      // 验证用户名格式
+      const usernameValidation = validateInput(username, 'username');
+      if (!usernameValidation.valid) {
+        showAuthError(usernameValidation.message);
+        return;
+      }
+
+      // 验证密码长度
+      if (password.length < 6 && username !== 'admin') {
+        showAuthError('密码长度至少6个字符');
+        return;
+      }
+
+      // 显示加载状态
+      setButtonLoading('auth-login-btn', true, '登录中...');
+
+      try {
+        // 构建请求头
+        // 对于系统登录，如果没有sessionUUID，发送null
+        const headers = {
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionUUID || null
+        };
+
+        const response = await fetch('/auth/login', {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',  // 重要：包含cookies
+          body: JSON.stringify({
+            auth_username: username,
+            auth_password: password
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          // 检查是否需要2FA验证
+          if (result.requires_2fa) {
+            // 保存用户名用于2FA验证
+            window.temp2FAUsername = username;
+
+            // 清除登录按钮加载状态
+            setButtonLoading('auth-login-btn', false);
+
+            // 隐藏登录表单，显示2FA表单
+            const loginForm = $('auth-login-form');
+            const tfaForm = $('auth-2fa-form');
+            if (loginForm) loginForm.classList.add('hidden');
+            if (tfaForm) tfaForm.classList.remove('hidden');
+
+            // 清空并聚焦到2FA输入框
+            const tfaCodeInput = $('auth-2fa-code');
+            if (tfaCodeInput) {
+              tfaCodeInput.value = '';
+              tfaCodeInput.focus();
+            }
+
+            showAuthSuccess('密码验证成功，请输入验证码');
+            return;
+          }
+
+          // 修正：设置sessionUUID以便后续API调用
+          if (result.session_id) {
+            sessionUUID = result.session_id;
+            logMessage_Info('[登录成功] 会话ID已设置:', sessionUUID.substring(0, 16) + '...');
+          }
+
+          // 显示成功消息
+          let successMessage = '登录成功！';
+
+          // 如果有多设备登录警告
+          if (result.multi_device_warning) {
+            successMessage += '\n' + result.multi_device_warning;
+          }
+
+          // 如果有会话清理提示
+          if (result.cleanup_message) {
+            successMessage += '\n' + result.cleanup_message;
+          }
+
+          showAuthSuccess(successMessage);
+
+          // 如果有token，记录日志（用于调试）
+          if (result.token) {
+            logMessage_Info('Received auth token (stored in cookie)');
+            logMessage_Info('[安全] 登录令牌已生成，有效期1小时');
+          }
+
+          // 系统账号登录成功后，显示会话选择器
+          if (!result.is_guest) {
+            // 显示成功状态，持续时间设为800ms，避免与后续操作冲突
+            showButtonSuccess('auth-login-btn', '登录成功', 800);
+
+            setTimeout(() => {
+              // 清除按钮状态，确保按钮恢复正常
+              setButtonLoading('auth-login-btn', false);
+
+              // 隐藏登录界面，显示会话选择器模态框
+              $('auth-login-container').classList.add('hidden');
+              showSessionPicker();
+
+              // 显示提示信息
+              logMessage_Info('[会话选择] 请选择要进入的会话，或创建新会话');
+              logMessage_Info('[提示] 每个会话都是独立的学校账号登录状态');
+
+              // 如果踢出了其他设备，显示信息
+              if (result.kicked_sessions_count > 0) {
+                logMessage_Info(`[多设备检测] 已自动登出该账号在其他 ${result.kicked_sessions_count} 个设备上的会话`);
+              }
+            }, 1000);
+            return;
+          }
+
+          // 游客登录：分配新UUID并跳转
+          setTimeout(async () => {
+            // 隐藏认证界面，显示应用登录界面
+            $('auth-login-container').classList.add('hidden');
+            $('login-container').classList.remove('hidden');
+
+            // 初始化内嵌管理面板的tab可见性
+            try {
+              await initializeInlineAdminPanel();
+            } catch (e) {
+              logMessage_Error('初始化管理面板失败:', e);
+            }
+
+            // 显示管理面板按钮（所有用户包括游客都可以访问管理面板）
+            const adminBtnLogin = $('show-admin-panel-login');
+            if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
+            const adminBtnMulti = $('show-admin-panel-multi');
+            if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
+            const sessionsBtnMain = $('show-admin-panel');
+            if (sessionsBtnMain) sessionsBtnMain.classList.remove('hidden');
+
+            // 如果是游客，显示提示
+            if (result.is_guest) {
+              logMessage_Info('[游客模式] 部分功能受限：无法标记通知已读、无法使用签到功能、无法执行多账号任务');
+              logMessage_Info('[游客提示] 请保存当前地址，丢失后无法恢复您的数据！5分钟不活跃会话将被清理。');
+            } else {
+              logMessage_Info('[注册用户] 您的状态已关联到账号，可在任何设备登录恢复。');
+            }
+          }, 1000);
+        } else {
+          // 检查是否需要2FA验证
+          if (result.requires_2fa || result.message === '需要2FA验证' || result.message?.includes('2FA')) {
+            // 保存用户名用于2FA验证
+            window.temp2FAUsername = username;
+
+            // 清除登录按钮加载状态
+            setButtonLoading('auth-login-btn', false);
+
+            // 隐藏登录表单，显示2FA表单
+            const loginForm = $('auth-login-form');
+            const tfaForm = $('auth-2fa-form');
+            if (loginForm) loginForm.classList.add('hidden');
+            if (tfaForm) tfaForm.classList.remove('hidden');
+
+            // 清空并聚焦到2FA输入框
+            const tfaCodeInput = $('auth-2fa-code');
+            if (tfaCodeInput) {
+              tfaCodeInput.value = '';
+              tfaCodeInput.focus();
+            }
+
+            showAuthSuccess('密码验证成功，请输入2FA验证码');
+          } else {
+            setButtonLoading('auth-login-btn', false);
+            showButtonError('auth-login-btn', '登录失败');
+            showAuthError(result.message || '登录失败');
+          }
+        }
+      } catch (e) {
+        logMessage_Error('登录请求失败:', e);
+        setButtonLoading('auth-login-btn', false);
+        showButtonError('auth-login-btn', '网络错误');
+        showAuthError('网络错误，请检查连接后重试');
+      }
+    }
+
+    // 2FA验证处理
+    async function handle2FAVerify() {
+      const codeInput = $('auth-2fa-code');
+      const code = codeInput ? codeInput.value.trim() : '';
+
+      // 验证输入：必须是6位数字
+      if (!code || code.length !== 6 || !/^[0-9]{6}$/.test(code)) {
+        showAuthError('请输入有效的6位数字验证码');
+        return;
+      }
+
+      if (!window.temp2FAUsername) {
+        showAuthError('会话已过期，请重新登录');
+        // 返回登录表单
+        const loginForm = $('auth-login-form');
+        const tfaForm = $('auth-2fa-form');
+        if (loginForm) loginForm.classList.remove('hidden');
+        if (tfaForm) tfaForm.classList.add('hidden');
+        return;
+      }
+
+      setButtonLoading('auth-2fa-verify-btn', true, '验证中...');
+
+      try {
+        const response = await fetch('/auth/2fa/verify_login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID || null
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            auth_username: window.temp2FAUsername,
+            code: code
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          // 清空临时数据
+          delete window.temp2FAUsername;
+
+          // 设置sessionUUID
+          if (result.session_id) {
+            sessionUUID = result.session_id;
+            logMessage_Info('[2FA验证成功] 会话ID已设置:', sessionUUID.substring(0, 16) + '...');
+          }
+
+          showButtonSuccess('auth-2fa-verify-btn', '验证成功', 800);
+          showAuthSuccess('2FA验证成功！');
+
+          // 系统账号登录成功后，显示会话选择器
+          if (!result.is_guest) {
+            setTimeout(() => {
+              setButtonLoading('auth-2fa-verify-btn', false);
+
+              // 隐藏登录界面，显示会话选择器模态框
+              $('auth-login-container').classList.add('hidden');
+              showSessionPicker();
+
+              logMessage_Info('[会话选择] 请选择要进入的会话，或创建新会话');
+              logMessage_Info('[提示] 每个会话都是独立的学校账号登录状态');
+
+              // 重置表单
+              const loginForm = $('auth-login-form');
+              const tfaForm = $('auth-2fa-form');
+              if (loginForm) loginForm.classList.remove('hidden');
+              if (tfaForm) tfaForm.classList.add('hidden');
+              if (codeInput) codeInput.value = '';
+            }, 1000);
+          }
+        } else {
+          setButtonLoading('auth-2fa-verify-btn', false);
+          showButtonError('auth-2fa-verify-btn', '验证失败');
+          showAuthError(result.message || '验证码错误');
+          // 清空验证码输入框
+          if (codeInput) {
+            codeInput.value = '';
+            codeInput.focus();
+          }
+        }
+      } catch (e) {
+        logMessage_Error('2FA验证请求失败:', e);
+        setButtonLoading('auth-2fa-verify-btn', false);
+        showButtonError('auth-2fa-verify-btn', '网络错误');
+        showAuthError('网络错误，请检查连接后重试');
+      }
+    }
+
+    // 用户注册
+    async function handleAuthRegister() {
+      const username = $('auth-reg-username').value.trim();
+      const password = $('auth-reg-password').value.trim();
+      const passwordConfirm = $('auth-reg-password-confirm').value.trim();
+
+      // 验证输入
+      if (!username || !password || !passwordConfirm) {
+        showAuthError('请填写所有字段');
+        return;
+      }
+
+      // 使用统一的验证函数
+      const usernameValidation = validateInput(username, 'username');
+      if (!usernameValidation.valid) {
+        showAuthError(usernameValidation.message);
+        return;
+      }
+
+      const passwordValidation = validateInput(password, 'password');
+      if (!passwordValidation.valid) {
+        showAuthError(passwordValidation.message);
+        return;
+      }
+
+      if (password !== passwordConfirm) {
+        showAuthError('两次输入的密码不一致');
+        return;
+      }
+
+      // 显示加载状态
+      setButtonLoading('auth-register-btn', true, '注册中...');
+
+      try {
+        const response = await fetch('/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            auth_username: username,
+            auth_password: password
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showButtonSuccess('auth-register-btn', '注册成功');
+          showAuthSuccess('注册成功！请登录');
+          // setTimeout(() => {
+          //   setButtonLoading('auth-register-btn', false);
+          //   // 切换到登录标签并填充用户名
+          //   switchAuthTab('login');
+          //   $('auth-username').value = username;
+          //   $('auth-password').value = password;
+          // }, 1500);
+        } else {
+          setButtonLoading('auth-register-btn', false);
+          showButtonError('auth-register-btn', '注册失败');
+          showAuthError(result.message || '注册失败');
+        }
+      } catch (e) {
+        logMessage_Error('注册请求失败:', e);
+        setButtonLoading('auth-register-btn', false);
+        showButtonError('auth-register-btn', '网络错误');
+        showAuthError('网络错误，请检查连接后重试');
+      }
+    }
+
+    // 游客登录
+    async function handleGuestLogin() {
+      try {
+        // 游客登录时生成新UUID
+        const newUUID = generateUUID();
+
+        const response = await fetch('/auth/guest_login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': newUUID
+          }
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showAuthSuccess('以游客身份登录成功！正在跳转...');
+          setTimeout(() => {
+            // 跳转到新的UUID地址
+            window.location.href = `/uuid=${newUUID}`;
+          }, 1000);
+        } else {
+          showAuthError(result.message || '游客登录失败');
+        }
+      } catch (e) {
+        showAuthError('游客登录请求失败：' + e.message);
+      }
+    }
+
+    // 生成UUID的辅助函数
+    function generateUUID() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    // ====================
+    // 认证事件绑定
+    // ====================
+
+  
+
+    // 权限翻译函数
+    function translatePermission(permissionKey) {
+      return permissionTranslations[permissionKey] || permissionKey;
+    }
+
+    // 在 toggleAdminPanel 函数内部或之前添加一个辅助函数来检查权限
+    async function checkAdminPermission(permissionName) {
+      try {
+        // 假设 sessionUUID 存储了当前会话ID
+        const response = await fetch('/auth/check_permission', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ permission: permissionName })
+        });
+        const result = await response.json();
+        return result.success && result.has_permission;
+      } catch (e) {
+        logMessage_Error(`检查权限 ${permissionName} 失败:`, e);
+        return false;
+      }
+    }
+
+    async function toggleAdminPanel(show, skipAuthCheck = false) {
+      const modal = $('admin-panel-modal');
+      const usersTab = $('admin-tab-users_modal');
+      const groupsTab = $('admin-tab-groups_modal');
+      const logsTab = $('admin-tab-logs_modal');
+      const healthTab = $('admin-tab-health_modal');
+      const profileTab = $('admin-tab-profile_modal');
+      const sessionsTab = $('admin-tab-sessions_modal'); // 会话标签页按钮
+      const messagesTab = $('admin-tab-messages_modal'); // 留言板标签页按钮
+      const godModeToggle = $('god-mode-toggle_modal');
+
+      if (show) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('modal-visible'); // 添加 body class
+
+        // --- 权限检查 ---
+        // 当 skipAuthCheck=true 时（例如系统登录后打开），跳过学校账号认证检查
+        let canManageUsers = false;
+        let canManageGroups = false;
+        let canViewLogs = false;
+        let canViewHealth = false;
+        let hasGodMode = false;
+        let canViewMessages = false;
+        let isAuthenticated = skipAuthCheck; // 如果跳过检查，假定已认证
+
+        if (!skipAuthCheck) {
+          canManageUsers = await checkAdminPermission('manage_users');
+          canManageGroups = await checkAdminPermission('manage_permissions');
+          canViewLogs = await checkAdminPermission('view_logs');
+          canViewHealth = await checkAdminPermission('manage_users'); // 管理员可以查看健康状态
+          hasGodMode = await checkAdminPermission('god_mode');
+          canViewMessages = await checkAdminPermission('view_messages');
+          isAuthenticated = await checkAuthStatus();
+        }
+
+        const isGuest = currentUserIsGuest;
+        const canManageSessions = isAuthenticated && !isGuest;
+
+        // --- 控制标签页可见性 ---
+        if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
+        if (groupsTab) groupsTab.style.display = canManageGroups ? 'block' : 'none';
+        if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
+        if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
+        if (messagesTab) messagesTab.style.display = canViewMessages ? 'block' : 'none';
+
+        // 游客模式：只显示会话管理和留言板，隐藏个人信息
+        if (isGuest) {
+          if (profileTab) profileTab.style.display = 'none';  // 游客不显示个人信息标签
+          if (sessionsTab) sessionsTab.style.display = 'block';
+          if (messagesTab) messagesTab.style.display = 'block';
+          if (healthTab) healthTab.style.display = 'block'; // 游客可以查看健康状态
+        } else {
+          // 非游客：个人信息和会话管理标签页始终可见
+          if (profileTab) profileTab.style.display = 'block';
+          if (sessionsTab) sessionsTab.style.display = 'block';
+          if (groupsTab) groupsTab.style.display = 'block';
+        }
+
+        // 控制上帝模式开关可见性
+        if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
+
+        // --- 默认显示会话管理标签页 ---
+        switchAdminTab('sessions'); // 将会话管理设为默认打开的标签
+
+      } else {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.classList.remove('modal-visible'); // 移除 body class
+        // 关闭时停止自动刷新
+        stopHealthAutoRefresh();
+      }
+    }
+
+    // 初始化内嵌管理面板的tab可见性
+    async function initializeInlineAdminPanel() {
+      // 简化版本 - 只处理会话管理
+      const sessionsPanel = $('admin-sessions-panel');
+
+      // 直接加载会话列表
+      if (sessionsPanel) {
+        loadAdminSessions_inline();
+      }
+    }
+
+    // 处理主管理面板模态框的标签切换
+    function switchAdminTab(tab) {
+      // 获取主模态框内的标签按钮和内容面板的引用 (使用 _modal 后缀)
+      const usersTab = $('admin-tab-users_modal');
+      const groupsTab = $('admin-tab-groups_modal');
+      const logsTab = $('admin-tab-logs_modal');
+      const healthTab = $('admin-tab-health_modal');
+      const profileTab = $('admin-tab-profile_modal');
+      const sessionsTab = $('admin-tab-sessions_modal');
+      const messagesTab = $('admin-tab-messages_modal');
+      const usersPanel = $('admin-users-panel_modal');
+      const groupsPanel = $('admin-groups-panel_modal');
+      const logsPanel = $('admin-logs-panel_modal');
+      const healthPanel = $('admin-health-panel_modal');
+      const profilePanel = $('admin-profile-panel_modal');
+      const sessionsPanel = $('admin-sessions-panel_modal');
+      const messagesPanel = $('admin-messages-panel_modal');
+
+      // 防御性编程：检查核心元素是否存在
+      if (!sessionsTab || !sessionsPanel) {
+        logMessage_Error("switchAdminTab: 无法找到必要的管理面板元素");
+        return;
+      }
+
+      // 重置所有标签按钮的样式
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab].filter(t => t).forEach(t => {
+        t.classList.remove('text-sky-600', 'border-sky-600');
+        t.classList.add('text-slate-400', 'border-transparent');
+      });
+
+      // 隐藏所有内容面板
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel].filter(p => p).forEach(p => {
+        p.classList.add('hidden');
+      });
+
+      // 根据传入的 tab 参数，激活对应的标签按钮和内容面板，并调用加载函数
+      if (tab === 'users') {
+        usersTab.classList.add('text-sky-600', 'border-sky-600');
+        usersTab.classList.remove('text-slate-400', 'border-transparent');
+        usersPanel.classList.remove('hidden');
+        loadAdminUsers();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
+      } else if (tab === 'groups') {
+        groupsTab.classList.add('text-sky-600', 'border-sky-600');
+        groupsTab.classList.remove('text-slate-400', 'border-transparent');
+        groupsPanel.classList.remove('hidden');
+        loadAdminGroups();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
+      } else if (tab === 'logs') {
+        logsTab.classList.add('text-sky-600', 'border-sky-600');
+        logsTab.classList.remove('text-slate-400', 'border-transparent');
+        logsPanel.classList.remove('hidden');
+        loadAdminLogs(1); // [修复] 确保切换到标签页时总是加载第1页
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
+      } else if (tab === 'health') {
+        healthTab.classList.add('text-sky-600', 'border-sky-600');
+        healthTab.classList.remove('text-slate-400', 'border-transparent');
+        healthPanel.classList.remove('hidden');
+        loadHealthStatus();
+        // 启动健康状态自动刷新
+        startHealthAutoRefresh();
+      } else if (tab === 'profile') {
+        profileTab.classList.add('text-sky-600', 'border-sky-600');
+        profileTab.classList.remove('text-slate-400', 'border-transparent');
+        profilePanel.classList.remove('hidden');
+        loadPersonalInfo();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
+      } else if (tab === 'sessions') {
+        sessionsTab.classList.add('text-sky-600', 'border-sky-600');
+        sessionsTab.classList.remove('text-slate-400', 'border-transparent');
+        sessionsPanel.classList.remove('hidden');
+        loadAdminSessions();
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
+      } else if (tab === 'messages') {
+        if (messagesTab && messagesPanel) {
+          messagesTab.classList.add('text-sky-600', 'border-sky-600');
+          messagesTab.classList.remove('text-slate-400', 'border-transparent');
+          messagesPanel.classList.remove('hidden');
+          loadMessages();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
+      } else {
+        // 默认显示个人信息页面
+        if (profileTab && profilePanel) {
+          profileTab.classList.add('text-sky-600', 'border-sky-600');
+          profileTab.classList.remove('text-slate-400', 'border-transparent');
+          profilePanel.classList.remove('hidden');
+          loadPersonalInfo();
+        }
+        // 停止健康状态自动刷新
+        stopHealthAutoRefresh();
+      }
+    }
+    // 加载用户列表数据到嵌入式管理面板
+    async function loadAdminSessions_inline() {
+      const listEl = $('admin-sessions-list-inline');
+
+      if (!listEl) {
+        logMessage_Error("loadAdminSessions_inline: 无法找到会话列表容器 'admin-sessions-list-inline'。");
+        return;
+      }
+
+      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+      try {
+        // 检查是否开启上帝模式
+        const godModeCheckbox = $('god-mode-checkbox');
+        const isGodMode = godModeCheckbox && godModeCheckbox.checked;
+
+        let response;
+        if (isGodMode) {
+          // 上帝模式：获取所有会话
+          response = await fetch('/auth/admin/all_sessions', {
+            headers: {
+              'X-Session-ID': sessionUUID
+            }
+          });
+        } else {
+          // 普通模式：只获取当前用户的会话
+          response = await fetch('/auth/user/sessions', {
+            headers: {
+              'X-Session-ID': sessionUUID // 确保 sessionUUID 是当前有效的会话 ID
+            }
+          });
+        }
+
+        if (!response.ok) {
+          // 处理非 OK 响应 (例如 401 未授权, 500 服务器错误)
+          let errorMsg = `HTTP error ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMsg = errorData.message || errorMsg;
+          } catch (parseError) { /* 如果错误响应体不是 JSON，则忽略 */ }
+          throw new Error(errorMsg); // 抛出错误，由下面的 catch 块处理
+        }
+
+        const result = await response.json()
+
+        if (!result.success) {
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+
+        const sessions = result.sessions || [];
+
+        // 更新会话信息（从后端获取max_sessions信息）
+        const maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1;
+
+        // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
+        const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
+
+        // 更新会话计数显示
+        if (isGodMode) {
+          updateAdminSessionCountDisplayInline(validSessions.length, -1); // 上帝模式显示所有会话
+        } else {
+          updateAdminSessionCountDisplayInline(validSessions.length, maxSessions);
+        }
+
+        let html = '';
+        if (!currentUserIsGuest) { // <-- 检查是否不是游客
+          // 只有非游客才显示创建按钮
+          html += `
+                  <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
+                    <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
+                    <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
+                  </div>
+                `;
+        } else {
+          // 可以给游客一个提示，说明他们只有一个当前会话
+          html += `
+                  <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p class="text-sm text-blue-700">游客模式：当前会话如下。如需使用多个会话，请注册账号。</p>
+                  </div>
+                `;
+        }
+
+        if (validSessions.length === 0) {
+          html += '<p class="text-slate-400 text-center py-10">暂无会话</p>';
+        } else {
+          html += validSessions.map(session => {
+            const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
+            const isCurrent = session.is_current || session.session_id === sessionUUID;
+            const sessionHash = session.session_hash || session.session_id.substring(0, 16); // 如果哈希值不存在，使用会话ID前16位作为备选
+
+            // 上帝模式显示所有者信息，包括游客模式标识
+            let ownerInfo = '';
+            if (isGodMode) {
+              if (session.username) {
+                ownerInfo = `<p class="text-xs text-slate-500">创建者: ${session.username}</p>`;
+              } else {
+                // 没有username的会话视为游客模式
+                ownerInfo = `<p class="text-xs text-amber-600">创建者: 游客模式</p>`;
+              }
+            }
+
+            return `
+                      <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
+                        <div class="flex justify-between items-start">
+                          <div class="flex-1">
+                            <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id} </p>
+                             ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
+                            <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+                            <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
+                            ${ownerInfo}
+                          </div>
+                          <div class="flex gap-2">
+                            ${!isCurrent ? `
+                              <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
+                              <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
+                            ` : ''}
+                            ${isGodMode ? `<button class="btn btn-danger !py-1 !px-2 text-xs" onclick="destroySession('${session.session_id}')">销毁</button>` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    `;
+          }).join('');
+        }
+
+        listEl.innerHTML = html;
+      } catch (e) {
+        logMessage_Error("加载会话列表失败:", e);
+        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    function updateAdminSessionCountDisplayInline(currentCount, maxSessions) {
+      const countEl = $('admin-session-count-display-inline');
+      if (!countEl) return;
+
+      if (currentUserIsGuest) {
+        countEl.innerHTML = `<span class="text-blue-600">会话数: 1 / 游客仅限单会话</span>`;
+      } else {
+        if (maxSessions === -1) {
+          countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+        } else {
+          const isNearLimit = currentCount >= maxSessions * 0.8;
+          const isAtLimit = currentCount >= maxSessions;
+          const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
+          countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
+        }
+      }
+    }
+
+    // ====================
+    // 日志查看
+    // ====================
+    async function loadAdminLogs(newPage = 1) {
+      currentLogPage = newPage; // 更新当前页码
+
+      const contentEl = $('admin-logs-content_modal');
+      const limitSelect = $('log-limit-select_modal');
+      // --- 修改：获取新的 select 和 span ---
+      const pageSelect = $('log-page-select'); 
+      const pageTotal = $('log-page-total');
+      const prevBtn = $('log-prev-page');
+      const nextBtn = $('log-next-page');
+
+      // --- 修改：更新 DOM 元素检查 ---
+      if (!contentEl || !limitSelect || !pageSelect || !pageTotal || !prevBtn || !nextBtn) {
+        logMessage_Error("loadAdminLogs: 无法找到日志面板的必要DOM元素");
+        return;
+      }
+
+      contentEl.textContent = '加载中...';
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      pageSelect.disabled = true; // --- 新增：加载时禁用选择框
+
+      try {
+        const limit = limitSelect ? limitSelect.value : 100;
+        const response = await fetch(`/logs/view?page=${currentLogPage}&limit=${limit}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          contentEl.textContent = `加载失败: ${result.message}`;
+          // --- 修改：更新失败状态 ---
+          pageSelect.innerHTML = '<option value="1">1</option>';
+          pageTotal.textContent = '(加载失败)';
+          return;
+        }
+
+        if (result.logs.length === 0) {
+          contentEl.textContent = '暂无日志';
+          // --- 修改：更新空状态 ---
+          pageSelect.innerHTML = '<option value="1">第 1 / 1 页</option>';
+          pageTotal.textContent = '(共 0 行)';
+          return;
+        }
+
+        contentEl.textContent = result.logs.join('');
+
+        // --- 修改：填充分页选择框 ---
+        const pagination = result.pagination;
+        pageTotal.textContent = `(共 ${pagination.total_lines} 行)`;
+        
+        // 清空并填充 select
+        pageSelect.innerHTML = ''; 
+        for (let i = 1; i <= pagination.total_pages; i++) {
+          const option = document.createElement('option');
+          option.value = i;
+          option.textContent = `第 ${i} / ${pagination.total_pages} 页`;
+          if (i === pagination.current_page) {
+            option.selected = true;
+          }
+          pageSelect.appendChild(option);
+        }
+        
+        // 恢复按钮和选择框状态
+        prevBtn.disabled = pagination.current_page <= 1;
+        nextBtn.disabled = pagination.current_page >= pagination.total_pages;
+        pageSelect.disabled = false; // --- 新增：恢复选择框
+
+      } catch (e) {
+        logMessage_Error("加载日志失败:", e);
+        contentEl.textContent = `加载失败: ${e.message}`;
+        // --- 修改：更新失败状态 ---
+        pageSelect.innerHTML = '<option value="1">1</option>';
+        pageTotal.textContent = '(加载失败)';
+      }
+    }
+
+    // ====================
+    // 健康状态检测
+    // ====================
+    async function loadHealthStatus() {
+      const contentEl = $('admin-health-content_modal');
+
+      if (!contentEl) {
+        logMessage_Error("loadHealthStatus: 无法找到健康状态容器");
+        return;
+      }
+
+      contentEl.innerHTML = '<p class="text-slate-400 text-center py-10">检测中...</p>';
+
+      try {
+        const startTime = Date.now();
+        const response = await fetch('/health');
+        const responseTime = Date.now() - startTime;
+        const result = await response.json();
+
+        const statusColor = result.status === 'ok' ? 'green' : 'red';
+        const statusText = result.status === 'ok' ? '运行正常' : '出现错误';
+
+        contentEl.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-${statusColor}-50 border border-${statusColor}-200 rounded-lg p-4">
+              <h5 class="font-semibold text-${statusColor}-800 mb-2">服务器状态</h5>
+              <p class="text-2xl font-bold text-${statusColor}-600">${statusText}</p>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h5 class="font-semibold text-blue-800 mb-2">响应时间</h5>
+              <p class="text-2xl font-bold text-blue-600">${responseTime}ms</p>
+            </div>
+          </div>
+          <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <h5 class="font-semibold text-slate-800 mb-2">系统信息</h5>
+            <pre class="text-xs text-slate-600 whitespace-pre-wrap">${JSON.stringify(result, null, 2)}</pre>
+          </div>
+        `;
+      } catch (e) {
+        logMessage_Error("加载健康状态失败:", e);
+        contentEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    // 启动健康状态自动刷新
+    function startHealthAutoRefresh() {
+      // 先清除已有的定时器
+      stopHealthAutoRefresh();
+
+      // 检查自动刷新开关状态
+      const autoRefreshToggle = $('health-auto-refresh-toggle');
+      if (!autoRefreshToggle || !autoRefreshToggle.checked) {
+        return;
+      }
+
+      // 设置5秒间隔的定时器
+      healthAutoRefreshInterval = setInterval(() => {
+        // 再次检查开关状态，防止用户关闭后仍在刷新
+        const toggle = $('health-auto-refresh-toggle');
+        if (toggle && toggle.checked) {
+          loadHealthStatus();
+        } else {
+          stopHealthAutoRefresh();
+        }
+      }, 5000);
+    }
+
+    // 停止健康状态自动刷新
+    function stopHealthAutoRefresh() {
+      if (healthAutoRefreshInterval) {
+        clearInterval(healthAutoRefreshInterval);
+        healthAutoRefreshInterval = null;
+      }
+    }
+
+    // ====================
+    // 个人信息管理
+    // ====================
+    async function loadPersonalInfo() {
+      try {
+        const response = await fetch('/auth/user/details', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          showModalAlert(`加载个人信息失败: ${result.message}`, '错误');
+          return;
+        }
+
+        const user = result.user;
+
+        // 调试用：将用户数据输出到控制台
+        // logMessage_Info('[loadPersonalInfo] User data:', user);
+        // logMessage_Info('[loadPersonalInfo] Avatar URL:', user.avatar_url);
+
+        // 存储当前认证用户名用于后续操作
+        if (user.auth_username) {
+          currentAuthUsername = user.auth_username;
+        }
+
+        // 更新头像显示
+        const avatarDisplay = $('profile-avatar-display');
+        const avatarInput = $('profile-avatar-input');
+        if (avatarDisplay) {
+          const avatarUrl = user.avatar_url || user.avatar || '';
+          logMessage_Info('[loadPersonalInfo] Processing avatar URL:', avatarUrl);
+          if (avatarUrl) {
+            // 如果是API头像URL，需要通过fetch获取并转换为data URL
+            if (avatarUrl.startsWith('/api/avatar/')) {
+              loadAvatarWithAuth(avatarUrl, avatarDisplay);
+            } else {
+              // 旧格式的头像URL或外部URL，直接使用
+              const timestamp = new Date().getTime();
+              const urlWithTimestamp = avatarUrl.includes('?')
+                ? `${avatarUrl}&t=${timestamp}`
+                : `${avatarUrl}?t=${timestamp}`;
+              logMessage_Info('[loadPersonalInfo] Setting avatar display src to:', urlWithTimestamp);
+              avatarDisplay.src = urlWithTimestamp;
+            }
+          } else {
+            logMessage_Info('[loadPersonalInfo] No avatar URL, using default icon');
+            // 如果没有头像，使用默认图标
+            avatarDisplay.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E';
+          }
+        }
+        if (avatarInput) {
+          avatarInput.value = user.avatar_url || user.avatar || '';
+        }
+
+        // 更新2FA状态
+        const tfaStatus = $('profile-2fa-enabled');
+        const tfaActions = $('profile-2fa-actions');
+        const tfaEnabledActions = $('profile-2fa-enabled-actions');
+        const tfaSetup = $('profile-2fa-setup');
+
+        // 使用方括号访问带特殊字符的属性名
+        const tfaEnabled = user['2fa_enabled'] || user.tfa_enabled || false;
+
+        if (tfaStatus) {
+          tfaStatus.textContent = tfaEnabled ? '已启用' : '未启用';
+          tfaStatus.className = tfaEnabled ? 'text-green-600 font-semibold' : 'text-slate-600';
+        }
+
+        // 根据2FA状态显示不同的操作按钮
+        if (tfaEnabled) {
+          if (tfaActions) tfaActions.classList.add('hidden');
+          if (tfaSetup) tfaSetup.classList.add('hidden');
+          if (tfaEnabledActions) tfaEnabledActions.classList.remove('hidden');
+        } else {
+          if (tfaActions) tfaActions.classList.remove('hidden');
+          if (tfaEnabledActions) tfaEnabledActions.classList.add('hidden');
+          if (tfaSetup) tfaSetup.classList.add('hidden');
+        }
+
+        // 更新主题选择
+        const themeSelect = $('profile-theme-select');
+        if (themeSelect && user.theme) {
+          themeSelect.value = user.theme;
+        }
+      } catch (e) {
+        logMessage_Error("加载个人信息失败:", e);
+        showModalAlert(`加载失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function updateAvatar() {
+      const avatarInput = $('profile-avatar-input');
+      if (!avatarInput || !avatarInput.value.trim()) {
+        showModalAlert('请输入头像URL', '提示');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/user/update_avatar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            avatar_url: avatarInput.value.trim()
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('头像更新成功！', '成功');
+          loadPersonalInfo(); // 重新加载显示
+        } else {
+          showModalAlert(`更新失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        logMessage_Error("更新头像失败:", e);
+        showModalAlert(`更新失败: ${e.message}`, '错误');
+      }
+    }
+
+    // 使用认证加载头像
+    async function loadAvatarWithAuth(avatarUrl, imgElement) {
+      try {
+        logMessage_Info('[loadAvatarWithAuth] Fetching avatar:', avatarUrl);
+        const response = await fetch(avatarUrl, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+
+        if (!response.ok) {
+          logMessage_Error('[loadAvatarWithAuth] Failed to fetch avatar:', response.status);
+          // 如果获取失败，显示默认头像
+          imgElement.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E';
+          return;
+        }
+
+        // 获取图片blob
+        const blob = await response.blob();
+
+        // 转换为data URL
+        const reader = new FileReader();
+        reader.onloadend = function () {
+          logMessage_Info('[loadAvatarWithAuth] Avatar loaded successfully');
+          imgElement.src = reader.result;
+        };
+        reader.readAsDataURL(blob);
+      } catch (e) {
+        logMessage_Error('[loadAvatarWithAuth] Error loading avatar:', e);
+        // 如果加载失败，显示默认头像
+        imgElement.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E';
+      }
+    }
+
+    function previewAvatar(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      // 验证文件类型
+      if (!file.type.startsWith('image/')) {
+        showModalAlert('请选择图片文件', '错误');
+        event.target.value = ''; // 清除选择
+        return;
+      }
+
+      // 读取文件并打开裁剪模态框
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const cropImage = $('crop-image');
+        if (cropImage) {
+          cropImage.src = e.target.result;
+
+          // 销毁旧的裁剪器实例
+          if (avatarCropper) {
+            avatarCropper.destroy();
+          }
+
+          // 创建新的裁剪器
+          avatarCropper = new Cropper(cropImage, {
+            aspectRatio: 1, // 1:1 正方形
+            viewMode: 1,
+            minContainerWidth: 300,
+            minContainerHeight: 300,
+            autoCropArea: 0.8,
+            responsive: true,
+            guides: true,
+            center: true,
+            highlight: true,
+            cropBoxResizable: true,
+            cropBoxMovable: true,
+            toggleDragModeOnDblclick: false
+          });
+
+          // 显示裁剪模态框
+          showModal('avatar-crop-modal');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function closeCropModal() {
+      // 销毁裁剪器
+      if (avatarCropper) {
+        avatarCropper.destroy();
+        avatarCropper = null;
+      }
+
+      // 清除文件输入
+      const fileInput = $('profile-avatar-file');
+      if (fileInput) {
+        fileInput.value = '';
+      }
+
+      hideModal('avatar-crop-modal');
+    }
+
+    async function confirmCropAndUpload() {
+      if (!avatarCropper) {
+        showModalAlert('裁剪器未初始化', '错误');
+        return;
+      }
+
+      // 获取裁剪后的canvas
+      const canvas = avatarCropper.getCroppedCanvas({
+        width: 200,
+        height: 200,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+      });
+
+      if (!canvas) {
+        showModalAlert('裁剪失败', '错误');
+        return;
+      }
+
+      // 将canvas转换为blob
+      canvas.toBlob(async function (blob) {
+        // 创建文件对象
+        const avatarFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+
+        // 关闭裁剪模态框
+        closeCropModal();
+
+        // 直接上传
+        const formData = new FormData();
+        formData.append('avatar', avatarFile);
+
+        try {
+          const response = await fetch('/auth/user/upload_avatar', {
+            method: 'POST',
+            headers: {
+              'X-Session-ID': sessionUUID
+            },
+            body: formData
+          });
+          const result = await response.json();
+
+          if (result.success) {
+            showModalAlert('头像上传成功！', '成功');
+
+            // 清除裁剪后的文件
+            croppedAvatarFile = null;
+
+            // 清除文件输入
+            const fileInput = $('profile-avatar-file');
+            if (fileInput) {
+              fileInput.value = '';
+            }
+
+            // 重新加载个人信息以显示新头像
+            await loadPersonalInfo();
+          } else {
+            showModalAlert(`上传失败: ${result.message}`, '错误');
+          }
+        } catch (e) {
+          logMessage_Error("上传头像失败:", e);
+          showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
+        }
+      }, 'image/jpeg', 0.9);
+    }
+
+    async function uploadAvatar() {
+      // 优先使用裁剪后的文件
+      let fileToUpload = croppedAvatarFile;
+
+      // 如果没有裁剪的文件，使用原文件
+      if (!fileToUpload) {
+        const fileInput = $('profile-avatar-file');
+        if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+          showModalAlert('请先选择并裁剪图片文件', '提示');
+          return;
+        }
+        fileToUpload = fileInput.files[0];
+      }
+
+      const formData = new FormData();
+      formData.append('avatar', fileToUpload);
+
+      try {
+        const response = await fetch('/auth/user/upload_avatar', {
+          method: 'POST',
+          headers: {
+            'X-Session-ID': sessionUUID
+          },
+          body: formData
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('头像上传成功！', '成功');
+
+          // 清除裁剪后的文件
+          croppedAvatarFile = null;
+
+          // 清除文件输入
+          const fileInput = $('profile-avatar-file');
+          if (fileInput) {
+            fileInput.value = '';
+          }
+
+          // 重新加载个人信息以显示新头像
+          await loadPersonalInfo();
+        } else {
+          showModalAlert(`上传失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        logMessage_Error("上传头像失败:", e);
+        showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
+      }
+    }
+
+    async function updatePassword() {
+      const currentPassword = $('profile-current-password');
+      const newPassword = $('profile-new-password');
+      const confirmPassword = $('profile-confirm-password');
+
+      if (!currentPassword || !newPassword || !confirmPassword) return;
+
+      if (!currentPassword.value || !newPassword.value || !confirmPassword.value) {
+        showModalAlert('请填写所有密码字段', '提示');
+        return;
+      }
+
+      if (newPassword.value !== confirmPassword.value) {
+        showModalAlert('两次输入的密码不一致', '错误');
+        return;
+      }
+
+      if (newPassword.value.length < 6) {
+        showModalAlert('密码长度至少为6个字符', '错误');
+        return;
+      }
+
+      if (!currentAuthUsername) {
+        showModalAlert('无法获取当前用户信息，请重新加载个人信息', '错误');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/admin/reset_password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: currentAuthUsername,
+            old_password: currentPassword.value,
+            new_password: newPassword.value
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('密码修改成功！', '成功');
+          currentPassword.value = '';
+          newPassword.value = '';
+          confirmPassword.value = '';
+        } else {
+          showModalAlert(`修改失败: ${result.message || '请检查当前密码是否正确'}`, '错误');
+        }
+      } catch (e) {
+        logMessage_Error("修改密码失败:", e);
+        showModalAlert(`修改失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function generate2FA() {
+      try {
+        const response = await fetch('/auth/2fa/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          showModalAlert(`生成2FA失败: ${result.message}`, '错误');
+          return;
+        }
+
+        // 显示2FA设置区域
+        const setupDiv = $('profile-2fa-setup');
+        const actionsDiv = $('profile-2fa-actions');
+        if (setupDiv) setupDiv.classList.remove('hidden');
+        if (actionsDiv) actionsDiv.classList.add('hidden');
+
+        // 显示密钥
+        const secretSpan = $('profile-2fa-secret');
+        if (secretSpan && result.secret) {
+          secretSpan.textContent = result.secret;
+        }
+
+        // 使用QRCode.js生成二维码
+        const qrCanvas = $('profile-2fa-qr');
+        if (qrCanvas && result.qr_uri) {
+          if (typeof QRCode !== 'undefined') {
+            // 设置canvas尺寸
+            qrCanvas.width = 200;
+            qrCanvas.height = 200;
+
+            QRCode.toCanvas(qrCanvas, result.qr_uri, { width: 200 }, function (error) {
+              if (error) {
+                logMessage_Error('QR Code generation error:', error);
+                showModalAlert('二维码生成失败', '错误');
+              } else {
+                logMessage_Info('QR Code generated successfully');
+              }
+            });
+          } else {
+            logMessage_Error('QRCode库未加载');
+            showModalAlert('QRCode库未加载，请刷新页面重试', '错误');
+          }
+        }
+      } catch (e) {
+        logMessage_Error("生成2FA失败:", e);
+        showModalAlert(`生成失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function enable2FA() {
+      const codeInput = $('profile-2fa-code');
+      if (!codeInput || !codeInput.value) {
+        showModalAlert('请输入验证码', '提示');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/2fa/enable', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            code: codeInput.value
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('2FA启用成功！', '成功');
+          // 隐藏设置区域
+          const setupDiv = $('profile-2fa-setup');
+          const actionsDiv = $('profile-2fa-actions');
+          if (setupDiv) setupDiv.classList.add('hidden');
+          if (actionsDiv) actionsDiv.classList.remove('hidden');
+          // 重新加载个人信息
+          loadPersonalInfo();
+        } else {
+          showModalAlert(`启用失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        logMessage_Error("启用2FA失败:", e);
+        showModalAlert(`启用失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function disable2FA() {
+      const confirmed = await jsShowConfirm('确认关闭2FA', '关闭双因素认证后，账号安全性将降低。确定要继续吗？');
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/2fa/disable', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('2FA已关闭', '成功');
+          // 重新加载个人信息以更新界面
+          loadPersonalInfo();
+        } else {
+          showModalAlert(`关闭失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        logMessage_Error("关闭2FA失败:", e);
+        showModalAlert(`关闭失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function test2FA() {
+      // 创建测试对话框
+      const testCode = await new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 flex items-center justify-center z-50';
+        modal.innerHTML = `
+          <div class="fixed inset-0 bg-black bg-opacity-50" onclick="this.parentElement.remove()"></div>
+          <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 relative z-10">
+            <h3 class="text-lg font-semibold text-slate-800 mb-4">测试2FA</h3>
+            <div class="mb-4">
+              <label class="block text-sm font-semibold text-slate-700 mb-2">请输入验证器中的6位验证码</label>
+              <input type="text" id="test-2fa-code-input" class="input-field w-full" placeholder="输入6位验证码" maxlength="6" inputmode="numeric">
+            </div>
+            <div class="flex gap-2 justify-end">
+              <button class="btn btn-ghost" onclick="this.closest('.fixed').remove()">取消</button>
+              <button class="btn btn-primary" id="confirm-test-2fa">验证</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const confirmBtn = modal.querySelector('#confirm-test-2fa');
+        const codeInput = modal.querySelector('#test-2fa-code-input');
+
+        confirmBtn.onclick = () => {
+          const code = codeInput.value;
+          if (!code || code.length !== 6 || !/^[0-9]{6}$/.test(code)) {
+            showModalAlert('请输入有效的6位数字验证码', '错误');
+            return;
+          }
+          modal.remove();
+          resolve(code);
+        };
+      });
+
+      if (!testCode) return;
+
+      try {
+        const response = await fetch('/auth/2fa/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            code: testCode
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('2FA验证成功！您的双因素认证工作正常。', '成功');
+        } else {
+          showModalAlert(`验证失败: ${result.message || '验证码错误'}`, '错误');
+        }
+      } catch (e) {
+        logMessage_Error("测试2FA失败:", e);
+        showModalAlert(`测试失败: ${e.message}`, '错误');
+      }
+    }
+
+    async function updateTheme() {
+      const themeSelect = $('profile-theme-select');
+      if (!themeSelect) return;
+
+      try {
+        const response = await fetch('/auth/user/update_theme', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            theme: themeSelect.value
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('主题更新成功！', '成功');
+        } else {
+          showModalAlert(`更新失败: ${result.message}`, '错误');
+        }
+      } catch (e) {
+        logMessage_Error("更新主题失败:", e);
+        showModalAlert(`更新失败: ${e.message}`, '错误');
+      }
+    }
+
+    function showCreateUserModal() {
+      const modal = $('newUserModal');
+      if (modal) {
+        // 清空旧输入
+        $('newUsername').value = "";
+        $('newPassword').value = "";
+
+        // 显示模态框
+        modal.style.display = 'flex';
+
+        
+        const confirmBtn = $('newUserConfirm'); // 获取按钮引用
+        confirmBtn.onclick = async () => {
+          const inputUsername = $('newUsername').value.trim();
+          const inputPassword = $('newPassword').value;
+
+          if (!inputUsername || !inputPassword) {
+            showModalAlert("账号和密码均不能为空");
+            return;
+          }
+          if (!inputPassword || inputPassword.length < 6) {
+            showModalAlert('密码长度至少为6个字符', '错误');
+            return;
+          }
+
+          // 默认 group 为 'user'，因为此模态框没有组选择器
+          const group = 'user';
+
+          // --- 新增：设置按钮加载状态 ---
+          setButtonLoading('newUserConfirm', true, '创建中...');
+
+          try {
+            // 调用后端管理员创建用户的API
+            const response = await fetch('/auth/admin/create_user', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionUUID
+              },
+              body: JSON.stringify({
+                username: inputUsername,
+                password: inputPassword,
+                group: group
+              })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              showModalAlert("用户创建成功！");
+              closeNewUserModal();
+              // 刷新管理面板中的用户列表
+              if (typeof loadAdminUsers === 'function') {
+                loadAdminUsers();
+              }
+            } else {
+              showModalAlert(`创建失败: ${result.message || '未知错误'}`);
+            }
+          } catch (e) {
+            showModalAlert(`创建时发生错误: ${e.message}`);
+            logMessage_Error("创建用户时发生错误:", e);
+          } finally {
+            // --- 新增：无论成功或失败，都恢复按钮状态 ---
+            setButtonLoading('newUserConfirm', false, '确认');
+          }
+        };
+      }
+    }
+
+
+    async function showCreateGroupModal() {
+      const modal = $('create-group-modal');
+      if (!modal) return;
+
+      // 清空输入
+      const keyInput = $('new-group-key');
+      const nameInput = $('new-group-name');
+      if (keyInput) keyInput.value = '';
+      if (nameInput) nameInput.value = '';
+
+      // 加载权限列表
+      try {
+        const response = await fetch('/auth/admin/list_groups', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+
+        if (result.success && result.groups) {
+          // 从第一个权限组获取所有可用权限
+          const firstGroup = Object.values(result.groups)[0];
+          if (firstGroup && firstGroup.permissions) {
+            const permissionsContainer = $('create-group-permissions');
+            if (permissionsContainer) {
+              permissionsContainer.innerHTML = Object.keys(firstGroup.permissions).map(perm => `
+                <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+                  <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}">
+                  <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
+                </label>
+              `).join('');
+            }
+          }
+        }
+      } catch (e) {
+        logMessage_Error('加载权限列表失败:', e);
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeCreateGroupModal() {
+      const modal = $('create-group-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    async function submitCreateGroup() {
+      const keyInput = $('new-group-key');
+      const nameInput = $('new-group-name');
+
+      if (!keyInput || !nameInput) return;
+
+      const groupKey = keyInput.value.trim();
+      const groupName = nameInput.value.trim();
+
+      if (!groupKey || !nameInput) {
+        showModalAlert('请填写权限组键名和名称', '错误');
+        return;
+      }
+
+      // 收集选中的权限
+      const permissionsContainer = $('create-group-permissions');
+      if (!permissionsContainer) return;
+
+      const permissions = {};
+      const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        const perm = cb.getAttribute('data-permission');
+        permissions[perm] = cb.checked;
+      });
+
+      try {
+        const response = await fetch('/auth/admin/create_group', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            group_key: groupKey,
+            group_name: groupName,
+            permissions: permissions
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`权限组 ${groupName} 创建成功`, '成功');
+          closeCreateGroupModal();
+          loadAdminGroups();
+        } else {
+          showModalAlert(result.message || '创建失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function loadAdminUsers() {
+      try {
+        const response = await fetch('/auth/admin/list_users', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          $('admin-users-list').innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+
+        const listEl = $('admin-users-list_modal');
+        if (result.users.length === 0) {
+          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无用户</p>';
+          return;
+        }
+
+        // 同时获取权限组列表
+        const groupsResp = await fetch('/auth/admin/list_groups', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const groupsData = await groupsResp.json();
+        const groups = groupsData.success ? Object.keys(groupsData.groups) : ['guest', 'user', 'admin'];
+
+        listEl.innerHTML = result.users.map(user => {
+          const createdDate = new Date(user.created_at * 1000).toLocaleString();
+          const lastLoginDate = user.last_login ? new Date(user.last_login * 1000).toLocaleString() : '从未登录';
+          const isBanned = user.banned || false;
+          const bannedBadge = isBanned ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full ml-2">已封禁</span>' : '';
+
+          const groupSelect = `
+        <select class="text-sm border border-slate-300 rounded px-2 py-1" onchange="updateUserGroup('${user.auth_username}', this.value)">
+          ${groups.map(g => `<option value="${g}" ${g === user.group ? 'selected' : ''}>${g}</option>`).join('')}
+        </select>
+      `;
+
+          return `
+        <div class="border border-slate-200 rounded-lg p-3 mb-2">
+          <div class="flex justify-between items-start gap-3">
+            <div class="flex items-start gap-3 flex-1">
+              <div id="avatar-${user.auth_username}" class="flex-shrink-0 w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden border-2 border-slate-300">
+                <span class="text-2xl text-slate-400">👤</span>
+              </div>
+              <div class="flex-1">
+                <p class="font-semibold text-slate-800">${user.auth_username}${bannedBadge}</p>
+                <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+                <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
+                <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
+                <p class="text-xs ${(user['2fa_enabled'] || user.tfa_enabled) ? 'text-green-600' : 'text-slate-400'}">2FA: ${(user['2fa_enabled'] || user.tfa_enabled) ? '已启用' : '未启用'}</p>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1">
+              <span class="text-xs text-slate-600">权限组:</span>
+              ${groupSelect}
+              <div class="flex gap-1 mt-2 flex-wrap justify-end">
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
+                ${(user['2fa_enabled'] || user.tfa_enabled) ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
+                ${isBanned ?
+              `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
+              `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
+            }
+                <button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="clearUserAvatar('${user.auth_username}')">清除头像</button>
+                <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${user.auth_username}')">删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+        }).join('');
+
+        // 加载每个用户的头像
+        result.users.forEach(user => {
+          loadUserAvatar(user.auth_username);
+        });
+      } catch (e) {
+        $('admin-users-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    async function updateUserGroup(username, newGroup) {
+      try {
+        const response = await fetch('/auth/admin/update_user_group', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            target_username: username,
+            new_group: newGroup
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          logMessage_Info(`用户 ${username} 的权限组已更新为 ${newGroup}`);
+        } else {
+          // 使用 showModalAlert 替换 alert
+          showModalAlert(`更新失败: ${result.message}`, '操作失败');
+          loadAdminUsers(); // 重新加载以恢复原状态
+        }
+      } catch (e) {
+        // 使用 showModalAlert 替换 alert
+        showModalAlert(`更新失败: ${e.message}`, '网络错误');
+        loadAdminUsers();
+      }
+    }
+
+    // ====================
+    // 用户管理功能函数
+    // ====================
+    async function banUser(username) {
+      const confirmed = await jsShowConfirm('确认封禁', `确定要封禁用户 ${username} 吗？`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/ban_user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 已被封禁`, '成功');
+          loadAdminUsers();
+
+        } else {
+          showModalAlert(result.message || '封禁失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function unbanUser(username) {
+      const confirmed = await jsShowConfirm('确认解封', `确定要解封用户 ${username} 吗？`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/unban_user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 已解封`, '成功');
+          loadAdminUsers();
+
+        } else {
+          showModalAlert(result.message || '解封失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function forceDisable2FA(username) {
+      const confirmed = await jsShowConfirm('强制关闭2FA', `确定要为用户 ${username} 关闭双因素认证吗？`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/force_disable_2fa', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            target_username: username
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的2FA已关闭`, '成功');
+          loadAdminUsers(); // 重新加载用户列表以更新界面
+        } else {
+          showModalAlert(result.message || '操作失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function resetUserPassword(username) {
+      // 使用prompt获取新密码
+      const newPassword = await new Promise((resolve) => {
+        // 创建一个简单的输入对话框
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 flex items-center justify-center z-50';
+        modal.innerHTML = `
+          <div class="fixed inset-0 bg-black bg-opacity-50" onclick="this.parentElement.remove()"></div>
+          <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 relative z-10">
+            <h3 class="text-lg font-semibold text-slate-800 mb-4">重置密码 - ${username}</h3>
+            <div class="mb-4">
+              <label class="block text-sm font-semibold text-slate-700 mb-2">新密码（至少6位）</label>
+              <input type="password" id="reset-password-input" class="input-field w-full" placeholder="输入新密码">
+            </div>
+            <div class="flex gap-2 justify-end">
+              <button class="btn btn-ghost" onclick="this.closest('.fixed').remove()">取消</button>
+              <button class="btn btn-primary" id="confirm-reset-password">确认重置</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const confirmBtn = modal.querySelector('#confirm-reset-password');
+        const passwordInput = modal.querySelector('#reset-password-input');
+
+        confirmBtn.onclick = () => {
+          const password = passwordInput.value;
+          if (!password || password.length < 6) {
+            showModalAlert('密码长度至少为6个字符', '错误');
+            return;
+          }
+          modal.remove();
+          resolve(password);
+        };
+      });
+
+      if (!newPassword) return;
+
+      try {
+        const response = await fetch('/auth/admin/force_reset_password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            target_username: username,
+            new_password: newPassword
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的密码已重置`, '成功');
+        } else {
+          showModalAlert(result.message || '重置失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function deleteUser(username) {
+      const confirmed = await jsShowConfirm('确认删除', `确定要删除用户 ${username} 吗？\n此操作不可恢复！`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/delete_user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 已删除`, '成功');
+          loadAdminUsers();
+
+        } else {
+          showModalAlert(result.message || '删除失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function loadUserAvatar(username) {
+      try {
+        const response = await fetch(`/auth/user/avatar?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+
+        const result = await response.json();
+        const avatarDiv = document.getElementById(`avatar-${username}`);
+
+        if (!avatarDiv) return;
+
+        if (result.success && result.avatar_url) {
+          // 添加session_id作为查询参数到头像URL
+          const avatarUrlWithSession = `${result.avatar_url}?session_id=${sessionUUID}`;
+          avatarDiv.innerHTML = `<img src="${avatarUrlWithSession}" alt="${username}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><span class="text-2xl text-slate-400" style="display:none;">👤</span>`;
+        } else {
+          avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
+        }
+      } catch (e) {
+        logMessage_Error(`加载用户头像失败 ${username}:`, e);
+      }
+    }
+
+    async function clearUserAvatar(username) {
+      const confirmed = await jsShowConfirm('确认清除头像', `确定要清除用户 ${username} 的头像吗？`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/clear_user_avatar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`已清除用户 ${username} 的头像`, '成功');
+          // 立即更新头像显示
+          const avatarDiv = document.getElementById(`avatar-${username}`);
+          if (avatarDiv) {
+            avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
+          }
+        } else {
+          showModalAlert(result.message || '清除失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    function setUserMaxSessions(username, currentMax) {
+      // 填充模态框信息
+      $('sessions-username').textContent = username;
+      $('sessions-current-max').textContent = currentMax === -1 ? '无限制' : currentMax;
+      $('new-max-sessions').value = currentMax === -1 ? 0 : currentMax;
+
+      // 显示模态框
+      showModal('set-max-sessions-modal');
+    }
+
+    async function submitSetMaxSessions() {
+      const username = $('sessions-username').textContent;
+      const newMaxInput = $('new-max-sessions');
+      const newMax = parseInt(newMaxInput.value);
+
+      if (isNaN(newMax) || newMax < 0) {
+        showModalAlert('请输入有效的数字（0或更大）', '错误');
+        return;
+      }
+
+      // 0表示无限制，转换为-1
+      const maxSessions = newMax === 0 ? -1 : newMax;
+
+      try {
+        const response = await fetch('/auth/admin/update_max_sessions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username, max_sessions: maxSessions })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`已更新用户 ${username} 的最大会话数为: ${maxSessions === -1 ? '无限制' : maxSessions}`, '成功');
+          hideModal('set-max-sessions-modal');
+          loadAdminUsers();
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function manageUserPermissions(username) {
+      currentManageUsername = username;
+      const modal = $('manage-user-permissions-modal');
+      if (!modal) return;
+
+      try {
+        // 获取用户权限信息
+        const response = await fetch('/auth/admin/get_user_permissions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ username: username })
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          showModalAlert('无法加载用户权限信息', '错误');
+          return;
+        }
+
+        // 设置用户名和权限组
+        const nameEl = $('manage-user-name');
+        const groupEl = $('user-base-group');
+        if (nameEl) nameEl.textContent = username;
+        if (groupEl) groupEl.textContent = result.group || 'guest';
+
+        // 渲染权限列表（显示差分化权限）
+        const permissionsContainer = $('manage-user-permissions-list');
+        if (permissionsContainer && result.all_permissions) {
+          const groupPerms = result.group_permissions || {};
+          const addedPerms = result.added_permissions || {};
+          const removedPerms = result.removed_permissions || {};
+
+          permissionsContainer.innerHTML = Object.keys(result.all_permissions).map(perm => {
+            const groupHas = groupPerms[perm] || false;
+            const isAdded = addedPerms[perm] === true;
+            const isRemoved = removedPerms[perm] === true;
+            const currentValue = result.all_permissions[perm];
+
+            let statusClass = '';
+            let statusText = '';
+            if (isAdded) {
+              statusClass = 'bg-green-50 border-green-200';
+              statusText = '(新增)';
+            } else if (isRemoved) {
+              statusClass = 'bg-red-50 border-red-200';
+              statusText = '(移除)';
+            }
+
+            return `
+              <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer border ${statusClass}">
+                <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" data-group-value="${groupHas}" ${currentValue ? 'checked' : ''}>
+                <span class="text-sm text-slate-700 flex-1">${translatePermission(perm)}</span>
+                ${statusText ? `<span class="text-xs ${isAdded ? 'text-green-600' : 'text-red-600'}">${statusText}</span>` : ''}
+              </label>
+            `;
+          }).join('');
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      } catch (e) {
+        showModalAlert('加载失败: ' + e.message, '错误');
+      }
+    }
+
+    function closeManageUserPermissionsModal() {
+      const modal = $('manage-user-permissions-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      currentManageUsername = null;
+    }
+
+    async function submitManageUserPermissions() {
+      if (!currentManageUsername) return;
+
+      const permissionsContainer = $('manage-user-permissions-list');
+      if (!permissionsContainer) return;
+
+      // 收集差分化权限
+      const addedPermissions = {};
+      const removedPermissions = {};
+
+      const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        const perm = cb.getAttribute('data-permission');
+        const groupValue = cb.getAttribute('data-group-value') === 'true';
+        const currentValue = cb.checked;
+
+        // 如果当前值与权限组值不同，记录差异
+        if (currentValue !== groupValue) {
+          if (currentValue) {
+            addedPermissions[perm] = true;
+          } else {
+            removedPermissions[perm] = true;
+          }
+        }
+      });
+
+      try {
+        const response = await fetch('/auth/admin/set_user_permission', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: currentManageUsername,
+            added_permissions: addedPermissions,
+            removed_permissions: removedPermissions
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${currentManageUsername} 的权限已更新`, '成功');
+          closeManageUserPermissionsModal();
+          loadAdminUsers();
+
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    function showResetPasswordModal(username) {
+      // 设置目标用户名
+      $('reset-password-username').textContent = username;
+      // 清空输入框
+      $('reset-new-password').value = '';
+      $('reset-confirm-password').value = '';
+      // 显示模态框
+      showModal('reset-user-password-modal');
+    }
+
+    async function submitResetUserPassword() {
+      const username = $('reset-password-username').textContent;
+      const newPassword = $('reset-new-password').value;
+      const confirmPassword = $('reset-confirm-password').value;
+
+      if (!newPassword || !confirmPassword) {
+        showModalAlert('请填写所有密码字段', '提示');
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        showModalAlert('密码长度至少为6个字符', '错误');
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        showModalAlert('两次输入的密码不一致', '错误');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/admin/reset_password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username,
+            new_password: newPassword
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的密码已重置`, '成功');
+          hideModal('reset-user-password-modal');
+        } else {
+          showModalAlert(result.message || '密码重置失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    // ====================
+    // 权限组管理功能函数
+    // ====================
+    async function deleteGroup(groupKey) {
+      const confirmed = await jsShowConfirm('确认删除', `确定要删除权限组 ${groupKey} 吗？\n此操作不可恢复！`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/delete_group', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ group_key: groupKey })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`权限组 ${groupKey} 已删除`, '成功');
+          loadAdminGroups();
+        } else {
+          showModalAlert(result.message || '删除失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function editGroupPermissions(groupKey) {
+      currentEditGroupKey = groupKey;
+      const modal = $('edit-group-permissions-modal');
+      if (!modal) return;
+
+      try {
+        // 获取权限组信息
+        const response = await fetch('/auth/admin/list_groups', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+
+        if (!result.success || !result.groups || !result.groups[groupKey]) {
+          showModalAlert('无法加载权限组信息', '错误');
+          return;
+        }
+
+        const group = result.groups[groupKey];
+        const nameEl = $('edit-group-name');
+        if (nameEl) {
+          nameEl.textContent = `${group.name} (${groupKey})`;
+        }
+
+        // 渲染权限列表
+        const permissionsContainer = $('edit-group-permissions-list');
+        if (permissionsContainer && group.permissions) {
+          permissionsContainer.innerHTML = Object.keys(group.permissions).map(perm => `
+            <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+              <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" ${group.permissions[perm] ? 'checked' : ''}>
+              <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
+            </label>
+          `).join('');
+        }
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      } catch (e) {
+        showModalAlert('加载失败: ' + e.message, '错误');
+      }
+    }
+
+    function closeEditGroupPermissionsModal() {
+      const modal = $('edit-group-permissions-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+      currentEditGroupKey = null;
+    }
+
+    async function submitEditGroupPermissions() {
+      if (!currentEditGroupKey) return;
+
+      const permissionsContainer = $('edit-group-permissions-list');
+      if (!permissionsContainer) return;
+
+      // 收集权限
+      const permissions = {};
+      const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach(cb => {
+        const perm = cb.getAttribute('data-permission');
+        permissions[perm] = cb.checked;
+      });
+
+      try {
+        const response = await fetch('/auth/admin/update_group', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            group_key: currentEditGroupKey,
+            permissions: permissions
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`权限组 ${currentEditGroupKey} 已更新`, '成功');
+          closeEditGroupPermissionsModal();
+          loadAdminGroups();
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function loadAdminGroups() {
+      try {
+        const response = await fetch('/auth/admin/list_groups', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          $('admin-groups-list').innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+
+        const listEl = $('admin-groups-list_modal');
+        const groups = result.groups;
+
+        listEl.innerHTML = Object.keys(groups).map(groupKey => {
+          const group = groups[groupKey];
+          const perms = group.permissions;
+          const isSystemGroup = group.system || ['guest', 'user', 'admin', 'super_admin'].includes(groupKey);
+          const systemBadge = isSystemGroup ? '<span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full ml-2">系统预设</span>' : '';
+
+          return `
+        <div class="border border-slate-200 rounded-lg p-4 mb-2">
+          <div class="flex justify-between items-start mb-2">
+            <h5 class="font-semibold text-slate-800">${group.name} (${groupKey})${systemBadge}</h5>
+            <div class="flex gap-2">
+              <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="editGroupPermissions('${groupKey}')">编辑权限</button>
+              ${!isSystemGroup ? `<button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteGroup('${groupKey}')">删除</button>` : ''}
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-sm">
+            ${Object.keys(perms).map(perm => `
+              <div class="flex items-center gap-2">
+                <span class="${perms[perm] ? 'text-green-600' : 'text-slate-400'}">${perms[perm] ? '✓' : '✗'}</span>
+                <span class="text-slate-600">${translatePermission(perm)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+        }).join('');
+      } catch (e) {
+        $('admin-groups-list').innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    async function loadAdminSessions() {
+      const listEl = $('admin-sessions-list_modal'); // <-- 将 listEl 定义移到 try 外部的最开始
+
+      // --- 检查 listEl 是否存在，移到 try 外部 ---
+      if (!listEl) {
+        logMessage_Error("loadAdminSessions: 无法找到会话列表容器 'admin-sessions-list_modal'。");
+        // 可以选择在这里显示一个通用的错误提示
+        showModalAlert("无法加载会话列表：界面元素丢失。", "错误");
+        return; // 如果元素找不到，直接返回，避免后续错误
+      }
+      // --- 结束移动检查 ---
+
+      try {
+        // listEl 变量现在在外部已定义并检查过
+
+        listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>'; // <-- 现在可以安全使用
+
+        // 检查是否开启上帝模式
+        const godModeCheckbox = $('god-mode-checkbox_modal');
+        const isGodMode = godModeCheckbox && godModeCheckbox.checked;
+
+        let response;
+        if (isGodMode) {
+          // 上帝模式：获取所有会话
+          response = await fetch('/auth/admin/all_sessions', {
+            headers: {
+              'X-Session-ID': sessionUUID
+            }
+          });
+        } else {
+          // 普通模式：只获取当前用户的会话
+          response = await fetch('/auth/user/sessions', {
+            headers: {
+              'X-Session-ID': sessionUUID
+            }
+          });
+        }
+        const result = await response.json();
+
+        if (!result.success) {
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`; // <-- 现在可以安全使用
+          return;
+        }
+
+        // const listEl = $('admin-sessions-list_modal'); // <-- 确保这行已删除或注释掉
+        const sessions = result.sessions || [];
+
+        // 更新会话信息（从后端获取max_sessions信息）
+        const maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1;
+
+        // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
+        const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
+
+        // 更新会话计数显示
+        if (isGodMode) {
+          updateAdminSessionCountDisplay(validSessions.length, -1); // 上帝模式显示所有会话
+        } else {
+          updateAdminSessionCountDisplay(validSessions.length, maxSessions);
+        }
+
+        // 添加创建新会话按钮 (游客模式不显示此按钮，参考inline版本)
+        let html = '';
+        const isGuest = currentUserIsGuest;
+        if (!isGodMode) {
+          if (!isGuest) {
+            // 只有非游客才显示创建按钮
+            html = `
+      <div class="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg">
+        <p class="text-sm text-slate-700 mb-2">选择现有会话或创建新会话</p>
+        <button class="btn btn-primary w-full" onclick="createNewSessionFromPicker()">创建新会话</button>
+      </div>
+    `;
+          } else {
+            // 给游客一个提示，说明他们只有一个当前会话
+            html = `
+      <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <p class="text-sm text-blue-700">游客模式：当前会话如下。如需使用多个会话，请注册账号。</p>
+      </div>
+    `;
+          }
+        }
+
+        if (validSessions.length === 0) {
+          html += '<p class="text-slate-400 text-center py-10">暂无会话</p>';
+        } else {
+          html += validSessions.map(session => {
+            const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
+            const isCurrent = session.is_current || session.session_id === sessionUUID;
+            const sessionHash = session.session_hash || session.session_id.substring(0, 16);
+
+            // 上帝模式显示所有者信息，包括游客模式标识
+            let ownerInfo = '';
+            if (isGodMode) {
+              if (session.username) {
+                ownerInfo = `<p class="text-xs text-slate-500">创建者: ${session.username}</p>`;
+              } else {
+                // 没有username的会话视为游客模式
+                ownerInfo = `<p class="text-xs text-amber-600">创建者: 游客模式</p>`;
+              }
+            }
+
+            return `
+          <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 mb-2">
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <p class="font-semibold text-slate-800 break-all">会话 ${session.session_id}</p>
+                ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
+                <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
+                <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
+                ${ownerInfo}
+              </div>
+              <div class="flex gap-2">
+                ${!isCurrent ? `
+                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="selectSession('${session.session_id}')">选择</button>
+                  <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" onclick="deleteSession('${session.session_id}')">删除</button>
+                ` : ''}
+                ${isGodMode ? `<button class="btn btn-danger !py-1 !px-2 text-xs" onclick="destroySession('${session.session_id}')">销毁</button>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+          }).join('');
+        } // <-- 省略不变的成功渲染逻辑...
+
+        listEl.innerHTML = html; // <-- 现在可以安全使用
+
+      } catch (e) {
+        // 现在 catch 块可以安全访问外部定义的 listEl
+        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    // ========== 留言板功能 ========== //
+
+    async function loadMessages() {
+      const listEl = $('admin-messages-list_modal');
+      const guestFields = $('message-guest-fields');
+
+      if (!listEl) {
+        logMessage_Error("loadMessages: 无法找到留言列表容器");
+        return;
+      }
+
+      // 根据用户类型显示/隐藏游客字段
+      const isGuest = currentUserIsGuest;
+      if (guestFields) {
+        guestFields.style.display = isGuest ? 'block' : 'none';
+      }
+
+      // 字符计数器
+      const contentInput = $('message-content');
+      const charCount = $('message-char-count');
+      if (contentInput && charCount) {
+        contentInput.addEventListener('input', () => {
+          charCount.textContent = contentInput.value.length;
+        });
+      }
+
+      try {
+        listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+        const response = await fetch('/api/messages/list', {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+
+        const messages = result.messages || [];
+
+        if (messages.length === 0) {
+          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无留言</p>';
+          return;
+        }
+
+        // 检查删除权限
+        const canDeleteAny = await checkAdminPermission('delete_any_messages');
+        const canDeleteOwn = await checkAdminPermission('delete_own_messages');
+        const currentUsername = currentUserData?.username;
+
+        const html = messages.map(msg => {
+          const isOwnMessage = !msg.is_guest && msg.username === currentUsername;
+          const canDelete = canDeleteAny || (canDeleteOwn && isOwnMessage);
+          const displayName = msg.is_guest ? msg.nickname : msg.username;
+          const date = new Date(msg.timestamp * 1000);
+          const dateStr = date.toLocaleString('zh-CN');
+
+          return `
+            <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="font-semibold text-slate-700">${displayName}</span>
+                    ${msg.is_guest ? '<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">游客</span>' : ''}
+                  </div>
+                  ${msg.email ? `<p class="text-xs text-slate-500">${msg.email}</p>` : ''}
+                  <p class="text-xs text-slate-400">${dateStr}</p>
+                </div>
+                ${canDelete ? `
+                  <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" 
+                    onclick="deleteMessage('${msg.id}')">删除</button>
+                ` : ''}
+              </div>
+              <p class="text-slate-700 whitespace-pre-wrap break-words">${escapeHtml(msg.content)}</p>
+            </div>
+          `;
+        }).join('');
+
+        listEl.innerHTML = html;
+
+      } catch (e) {
+        logMessage_Error('加载留言失败:', e);
+        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    async function postMessage() {
+      const contentInput = $('message-content');
+      const nicknameInput = $('message-nickname');
+      const emailInput = $('message-email');
+      const postBtn = $('post-message-btn');
+
+      if (!contentInput || !postBtn) return;
+
+      const content = contentInput.value.trim();
+      const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+      const email = emailInput ? emailInput.value.trim() : '';
+
+      if (!content) {
+        showModalAlert('请输入留言内容', '提示');
+        return;
+      }
+
+      const isGuest = currentUserData?.is_guest;
+
+      if (isGuest) {
+        if (!nickname) {
+          showModalAlert('游客必须填写昵称', '提示');
+          return;
+        }
+        if (!email) {
+          showModalAlert('游客必须填写邮箱', '提示');
+          return;
+        }
+      }
+
+      try {
+        postBtn.disabled = true;
+        postBtn.textContent = '发表中...';
+
+        const response = await fetch('/api/messages/post', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            content: content,
+            nickname: nickname,
+            email: email
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          contentInput.value = '';
+          if (nicknameInput) nicknameInput.value = '';
+          if (emailInput) emailInput.value = '';
+          const charCount = $('message-char-count');
+          if (charCount) charCount.textContent = '0';
+
+          showModalAlert('留言发表成功', '成功');
+          await loadMessages();
+        } else {
+          showModalAlert(result.message || '发表留言失败', '错误');
+        }
+      } catch (e) {
+        logMessage_Error('发表留言失败:', e);
+        showModalAlert('发表留言失败: ' + e.message, '错误');
+      } finally {
+        postBtn.disabled = false;
+        postBtn.textContent = '发表留言';
+      }
+    }
+
+    async function deleteMessage(messageId) {
+      if (!confirm('确定要删除这条留言吗？')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/messages/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            message_id: messageId
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('留言已删除', '成功');
+          await loadMessages();
+        } else {
+          showModalAlert(result.message || '删除留言失败', '错误');
+        }
+      } catch (e) {
+        logMessage_Error('删除留言失败:', e);
+        showModalAlert('删除留言失败: ' + e.message, '错误');
+      }
+    }
+
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // ========== 按钮权限校验 ========== //
+
+    async function checkButtonPermission(buttonId, permissionName) {
+      const hasPermission = await checkAdminPermission(permissionName);
+      if (!hasPermission) {
+        showModalAlert(`您没有权限使用此功能`, '权限不足');
+        return false;
+      }
+      return true;
+    }
+
+    function updateAdminSessionCountDisplay(currentCount, maxSessions) {
+      const countEl = $('admin-session-count-display');
+      if (!countEl) return;
+
+      // 修复：在游客模式下显示特定信息
+      if (currentUserIsGuest) {
+        countEl.innerHTML = `<span class="text-blue-600">会话数: 1 / 游客仅限单会话</span>`;
+      } else if (maxSessions === -1) {
+        countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+      } else {
+        const isNearLimit = currentCount >= maxSessions * 0.8;
+        const isAtLimit = currentCount >= maxSessions;
+        const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
+        countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
+      }
+    }
+
+    // ====================
+    // 上帝模式：销毁会话
+    // ====================
+    async function destroySession(sessionId) {
+      const sessionHash = sessionId.substring(0, 16);
+      const confirmed = await jsShowConfirm('确认销毁', `确定要销毁会话\n${sessionHash}...\n吗？\n此操作将强制终止该会话！`);
+      if (!confirmed) return;
+
+      try {
+        const response = await fetch('/auth/admin/destroy_session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ session_id: sessionId })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`会话 ${sessionId} 已销毁`, '成功');
+          loadAdminSessions();
+          loadAdminSessions_inline();
+        } else {
+          showModalAlert(result.message || '销毁失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    // 选择会话并跳转
+    async function selectSession(sessionId) {
+      // 1. 使用 jsShowConfirm 进行确认
+      const confirmed = await jsShowConfirm('确认切换', `确定要切换到会话\n ${sessionId} \n吗？`);
+
+      if (!confirmed) {
+        logMessage_Info("[会话切换] 用户取消操作。");
+        return; // 用户取消
+      }
+
+      // 2. 显示加载提示 (SweetAlert2)
+      Swal.fire({
+        title: '正在切换会话...',
+        text: '正在更新认证信息，请稍候',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      logMessage_Info(`[会话切换] 准备切换到会话 ${sessionId.substring(0, 16)}...`);
+
+      try {
+        // 3. 调用后端 API /auth/switch_session 来更新 Cookie
+        //    需要发送当前 sessionUUID (用于验证权限) 和 target_session_id
+        const response = await fetch('/auth/switch_session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID // 当前窗口的 session ID，用于验证身份
+          },
+          credentials: 'include', // 必须发送 Cookie 以便后端验证当前用户
+          body: JSON.stringify({
+            target_session_id: sessionId // 要切换到的目标 session ID
+          })
+        });
+
+        const result = await response.json();
+
+        // 4. 关闭加载提示
+        Swal.close();
+
+        if (response.ok && result.success) {
+          // 后端成功处理并已在响应中设置了新的 Set-Cookie
+          logMessage_Info(`[会话切换] ✓ 认证信息更新成功，准备跳转到 ${sessionId.substring(0, 16)}...`);
+          // 显示短暂的成功提示
+          Swal.fire({
+            icon: 'success',
+            title: '切换准备就绪',
+            text: '即将跳转到目标会话...',
+            timer: 1000, // 显示1秒
+            showConfirmButton: false
+          }).then(() => {
+            // 5. 执行跳转，浏览器会自动带上新的 Cookie
+            window.location.href = `/uuid=${sessionId}`;
+          });
+        } else {
+          // 6. 后端 API 返回失败 (例如当前认证失效、权限不足等)
+          logMessage_Info(`[会话切换] ✗ 切换失败: ${result.message}`);
+          Swal.fire({
+            icon: 'error',
+            title: '切换失败',
+            text: result.message || '无法更新认证信息，请稍后重试。'
+          });
+          // 如果后端指示需要重新登录
+          if (result.need_login) {
+            Swal.fire({
+              icon: 'warning',
+              title: '需要重新登录',
+              text: result.message || '认证已失效，请重新登录',
+              confirmButtonText: '返回登录',
+              allowOutsideClick: false
+            }).then(() => {
+              window.location.href = '/';
+            });
+          }
+        }
+      } catch (e) {
+        // 7. 网络或其他脚本错误
+        Swal.close(); // 确保关闭加载提示
+        logMessage_Info(`[会话切换] ✗ 切换时发生网络或脚本错误: ${e.message}`);
+        Swal.fire({
+          icon: 'error',
+          title: '切换出错',
+          text: `网络或脚本错误: ${e.message}`
+        });
+      }
+    }
+
+    async function deleteSession(sessionId) {
+      // 1. 使用 jsShowConfirm 进行确认
+      const confirmed = await jsShowConfirm(
+        '确认删除',
+        `确定要删除会话\n ${sessionId} \n吗？\n此操作不可恢复！`
+      );
+
+      if (!confirmed) {
+        logMessage_Info("[会话删除] 用户取消操作。");
+        return; // 用户取消
+      }
+
+      // 2. 显示加载提示 (SweetAlert2)
+      Swal.fire({
+        title: '正在删除会话...',
+        text: '请稍候',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      logMessage_Info(`[会话删除] 准备删除会话 ${sessionId}...`);
+
+      try {
+        // 3. 调用后端 API /auth/user/delete_session
+        const response = await fetch('/auth/user/delete_session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID // 使用当前会话认证
+          },
+          body: JSON.stringify({
+            session_id: sessionId // 要删除的目标会话
+          })
+        });
+
+        const result = await response.json();
+
+        // 4. 关闭加载提示
+        Swal.close();
+
+        if (result.success) {
+          logMessage_Info(`[会话删除] ✓ 会话 ${sessionId} 已删除。`);
+          // 5. 显示短暂的成功提示
+          Swal.fire({
+            icon: 'success',
+            title: '删除成功',
+            timer: 1500, // 显示1.5秒
+            showConfirmButton: false
+          }).then(() => {
+            // 6. 成功后刷新会话列表
+            //    需要判断当前在哪个面板操作，调用对应的刷新函数
+            const adminModal = document.getElementById('admin-panel-modal');
+            if (adminModal && !adminModal.classList.contains('hidden')) {
+              // 如果管理模态框是可见的，刷新模态框内的列表
+              loadAdminSessions();
+            } else {
+              // 否则，刷新登录页内嵌面板的列表
+              loadAdminSessions_inline();
+            }
+          });
+        } else {
+          // 7. 后端 API 返回失败
+          logMessage_Info(`[会话删除] ✗ 删除失败: ${result.message}`);
+          Swal.fire({
+            icon: 'error',
+            title: '删除失败',
+            text: result.message || '无法删除会话，请稍后重试。'
+          });
+        }
+      } catch (e) {
+        // 8. 网络或其他脚本错误
+        Swal.close(); // 确保关闭加载提示
+        logMessage_Info(`[会话删除] ✗ 删除时发生网络或脚本错误: ${e.message}`);
+        Swal.fire({
+          icon: 'error',
+          title: '删除出错',
+          text: `网络或脚本错误: ${e.message}`
+        });
+      }
+    }
+
+    // ====================
+    // 会话选择器模态框函数
+    // ====================
+
+    function showSessionPicker() {
+      const modal = $('session-picker-modal');
+      if (!modal) return;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.classList.add('modal-visible');
+
+      // 自动加载会话列表
+      loadSessionPickerList();
+    }
+
+    function closeSessionPicker() {
+      const modal = $('session-picker-modal');
+      if (!modal) return;
+
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.classList.remove('modal-visible');
+    }
+
+    async function loadSessionPickerList() {
+      const listEl = $('session-picker-list');
+      if (!listEl) return;
+
+      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+      try {
+        // 构建请求头，发送null
+        const headers = {
+          'X-Session-ID': sessionUUID || null
+        };
+
+        const response = await fetch('/auth/user/sessions', {
+          headers: headers
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+
+        const sessions = result.sessions || [];
+
+        // 更新会话信息（从后端获取max_sessions信息）
+        currentSessionInfo.maxSessions = result.max_sessions || 1;
+
+        // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
+        const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
+
+        currentSessionInfo.currentCount = validSessions.length;
+
+        // 更新会话计数显示
+        updateSessionCountDisplay();
+
+        if (validSessions.length === 0) {
+          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无会话，请创建新会话</p>';
+          return;
+        }
+
+        listEl.innerHTML = validSessions.map(session => {
+          const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
+          const isCurrent = session.is_current || session.session_id === sessionUUID;
+          const sessionHash = session.session_hash || session.session_id.substring(0, 16);
+
+          return `
+            <div class="border ${isCurrent ? 'border-sky-500 bg-sky-50' : 'border-slate-200'} rounded-lg p-3 hover:shadow-md transition-shadow">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id}
+                    
+                  </p>
+                  ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2 px-2 py-0.5 bg-sky-100 rounded-full">(当前)</span></p>' : ''}
+                  <p class="text-xs text-slate-500 mt-1">创建时间: ${createdDate}</p>
+                  <p class="text-xs mt-1">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${session.login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}">
+                      ${session.login_success ? '✓ 已登录' : '○ 未登录'}
+                    </span>
+                  </p>
+                </div>
+                <div class="flex flex-col gap-2">
+                  ${!isCurrent ? `
+                    <button class="btn btn-primary !py-1 !px-3 text-xs" onclick="selectSessionFromPicker('${session.session_id}')">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                      </svg>
+                      进入
+                    </button>
+                    <button class="btn btn-ghost !py-1 !px-3 !text-red-600 text-xs border border-red-200 hover:bg-red-50" onclick="deleteSessionFromPicker('${session.session_id}')">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      </svg>
+                      删除
+                    </button>
+                  ` : '<span class="text-xs text-slate-400">当前会话</span>'}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        logMessage_Error('加载会话列表失败:', e);
+        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    function refreshSessionPicker() {
+      loadSessionPickerList();
+    }
+
+    function updateSessionCountDisplay() {
+      const countEl = $('session-count-display');
+      if (!countEl) return;
+
+      const { currentCount, maxSessions } = currentSessionInfo;
+
+      if (maxSessions === -1) {
+        countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+      } else {
+        const isNearLimit = currentCount >= maxSessions * 0.8;
+        const isAtLimit = currentCount >= maxSessions;
+        const colorClass = isAtLimit ? 'text-red-600' : (isNearLimit ? 'text-amber-600' : 'text-slate-600');
+        countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
+      }
+    }
+
+    async function selectSessionFromPicker(sessionId) {
+      logMessage_Info(`准备切换到会话 ${sessionId.substring(0, 16)}...`);
+      closeSessionPicker(); // 先关闭选择器
+
+      try {
+        logMessage_Info(`正在为目标会话 ${sessionId.substring(0, 16)} 刷新认证令牌...`);
+
+        // --- 修改：调用切换会话的API ---
+        const response = await fetch('/auth/switch_session', { // <--- 正确的API端点
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID // 发送当前会话ID以验证用户身份
+          },
+          credentials: 'include', // 包含 Cookie，用于验证当前用户和获取新 Cookie
+          body: JSON.stringify({
+            target_session_id: sessionId // <--- 正确的参数：告知后端要切换到的目标会话ID
+          })
+        });
+        // --- 结束修改 ---
+
+        const result = await response.json();
+
+        // 后端 /auth/switch_session 成功后会设置新的 auth_token cookie
+        if (response.ok && result.success) {
+          logMessage_Info(`令牌更新成功，正在跳转到会话 ${sessionId.substring(0, 16)}...`);
+          // 直接跳转，浏览器会自动带上后端设置的新 Cookie
+          window.location.href = `/uuid=${sessionId}`;
+        } else {
+          // 如果后端返回错误（例如当前认证失效）
+          logMessage_Info(`[错误] 无法切换会话: ${result.message}`);
+          showModalAlert(`无法切换会话: ${result.message}`, '切换失败');
+          // 如果后端指示需要重新登录
+          if (result.need_login) {
+            Swal.fire({
+              icon: 'warning',
+              title: '需要重新登录',
+              text: result.message || '认证已失效，请重新登录',
+              confirmButtonText: '返回登录',
+              allowOutsideClick: false
+            }).then(() => {
+              window.location.href = '/';
+            });
+          }
+        }
+      } catch (e) {
+        logMessage_Error('切换会话失败:', e);
+        logMessage_Info(`[错误] 切换会话时发生网络或脚本错误: ${e.message}`);
+        showModalAlert(`切换会话时发生网络或脚本错误: ${e.message}`, '切换失败');
+      }
+    }
+
+    async function createNewSessionFromPicker() {
+      try {
+        logMessage_Info("[会话创建] 正在获取最新会话信息...");
+        // 调用后端 API 获取最新会话数据
+        const response = await fetch('/auth/user/sessions', {
+          headers: {
+            'X-Session-ID': sessionUUID || null // 确保发送当前会话ID
+          }
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          // 更新全局 currentSessionInfo 对象
+          currentSessionInfo.maxSessions = result.max_sessions !== undefined && result.max_sessions !== null ? result.max_sessions : -1; // 使用后端返回的值，-1表示无限制
+          // 过滤掉无效会话（session_id 为 null、undefined 或空字符串的会话）
+          const validSessions = (result.sessions || []).filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
+          currentSessionInfo.currentCount = validSessions.length;
+          logMessage_Info(`[会话创建] 会话信息已更新: 当前 ${currentSessionInfo.currentCount} / 最大 ${currentSessionInfo.maxSessions === -1 ? '无限制' : currentSessionInfo.maxSessions}`);
+          // 同时更新显示（如果 session-picker-modal 是打开的）
+          updateSessionCountDisplay();
+          // 也更新 admin panel modal 内的显示 (如果它是打开的)
+          updateAdminSessionCountDisplay(currentSessionInfo.currentCount, currentSessionInfo.maxSessions);
+          // 也更新 inline admin panel 内的显示 (如果它是可见的)
+          updateAdminSessionCountDisplayInline(currentSessionInfo.currentCount, currentSessionInfo.maxSessions);
+        } else {
+          // 获取失败，记录警告，但继续尝试创建（使用可能过时的限制）
+          logMessage_Info(`[会话创建] 警告: 获取最新会话信息失败: ${result.message}`);
+          showModalAlert('无法获取最新的会话限制信息，将继续尝试创建。', '警告');
+        }
+      } catch (error) {
+        // 网络或其他错误
+        logMessage_Info(`[会话创建] 错误: 获取最新会话信息时发生网络错误: ${error}`);
+        showModalAlert(`获取最新的会话限制信息时发生网络错误: ${error.message}，将继续尝试创建。`, '网络错误');
+      }
+
+
+
+      // 检查是否已达到最大会话数
+      if (currentSessionInfo.maxSessions !== -1 && currentSessionInfo.currentCount >= currentSessionInfo.maxSessions) {
+        // 已达上限，询问用户是否要删除最旧的会话
+        const result = await Swal.fire({
+          title: '会话数量已达上限',
+          html: `您已达到最大会话数量限制（${currentSessionInfo.maxSessions}个）。<br><br>是否要自动删除最早的会话并创建新会话？`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: '确定，删除最旧会话',
+          cancelButtonText: '取消',
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33'
+        });
+
+        if (!result.isConfirmed) {
+          logMessage_Info("[会话创建] 用户取消操作：会话数已达上限。");
+          return;
+        }
+
+        // 用户确认，找到最旧的会话并删除
+        try {
+          const response = await fetch('/auth/user/sessions', {
+            headers: { 'X-Session-ID': sessionUUID || null }
+          });
+          const sessionsResult = await response.json();
+
+          if (sessionsResult.success && sessionsResult.sessions && sessionsResult.sessions.length > 0) {
+            // 过滤掉当前会话和无效会话，按创建时间排序找到最旧的
+            const validSessions = sessionsResult.sessions.filter(s =>
+              s.session_id &&
+              s.session_id !== 'null' &&
+              s.session_id.trim() !== '' &&
+              s.session_id !== sessionUUID
+            );
+
+            if (validSessions.length > 0) {
+              // 按创建时间排序，最旧的在前
+              validSessions.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+              const oldestSession = validSessions[0];
+
+              logMessage_Info(`[会话管理] 正在删除最旧的会话: ${oldestSession.session_id.substring(0, 16)}...`);
+
+              // 删除最旧的会话
+              const deleteResponse = await fetch('/auth/user/delete_session', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Session-ID': sessionUUID
+                },
+                body: JSON.stringify({ session_id: oldestSession.session_id })
+              });
+
+              const deleteResult = await deleteResponse.json();
+              if (deleteResult.success) {
+                logMessage_Info(`[会话管理] 已删除最旧的会话`);
+              } else {
+                logMessage_Info(`[会话管理] 删除会话失败: ${deleteResult.message}`);
+              }
+            }
+          }
+        } catch (e) {
+          logMessage_Info(`[会话管理] 删除旧会话时出错: ${e.message}`);
+        }
+      }
+
+      const newUUID = generateUUID();
+      logMessage_Info(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
+
+      const confirmed = await jsShowConfirm('确认操作', '您确定要创建一个新的会话吗？');
+
+      if (!confirmed) {
+        logMessage_Info("[会话创建] 用户取消操作。");
+        return; // 用户取消，则不执行任何操作
+      }
+
+      // 2. 显示加载提示 (使用 SweetAlert2)
+      Swal.fire({
+        title: '正在创建新会话...',
+        text: '请稍候',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+
+      logMessage_Info(`[会话创建] 准备创建新会话...`);
+      // 这个破bug修了我好久
+      try {
+        // 调用后端API创建会话持久化文件
+        const response = await fetch('/auth/user/create_session_persistence', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            session_id: newUUID
+          })
+        });
+
+
+        const result = await response.json();
+
+        if (result.success) {
+          logMessage_Info(`会话持久化文件已创建: ${result.message}`);
+          if (result.cleanup_message) {
+            logMessage_Info(`提示: ${result.cleanup_message}`);
+          }
+          closeSessionPicker();
+          window.location.href = `/uuid=${newUUID}`;
+        } else {
+          logMessage_Info(`创建会话失败: ${result.message}`);
+          Swal.fire({
+            icon: 'error',
+            title: '创建失败',
+            text: result.message
+          });
+        }
+      } catch (e) {
+        logMessage_Info(`创建会话时发生错误: ${e.message}`);
+        // 如果API调用失败，仍然允许创建会话（向后兼容）
+        closeSessionPicker();
+        window.location.href = `/uuid=${newUUID}`;
+      }
+    }
+
+    async function deleteSessionFromPicker(sessionId) {
+      if (!confirm('确定要删除此会话吗？此操作不可恢复。')) return;
+
+      const listEl = $('session-picker-list');
+      try {
+        const response = await fetch('/auth/user/delete_session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            session_id: sessionId
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          logMessage_Info('会话已删除');
+          // 重新加载会话列表
+          loadSessionPickerList();
+        } else {
+          alert('删除失败: ' + result.message);
+        }
+      } catch (e) {
+        alert('删除失败: ' + e.message);
+      }
+    }
+
+    // 输入验证函数
+    function validateInput(input, type) {
+      if (!input || input.trim() === '') {
+        return { valid: false, message: '输入不能为空' };
+      }
+
+      switch (type) {
+        case 'username':
+          if (input.length < 3 || input.length > 50) {
+            return { valid: false, message: '用户名长度应在3-50个字符之间' };
+          }
+          if (!/^[a-zA-Z0-9_-]+$/.test(input)) {
+            return { valid: false, message: '用户名只能包含字母、数字、下划线和连字符' };
+          }
+          break;
+        case 'password':
+          if (input.length < 6) {
+            return { valid: false, message: '密码长度至少6个字符' };
+          }
+          break;
+        case 'email':
+          const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailPattern.test(input)) {
+            return { valid: false, message: '请输入有效的邮箱地址' };
+          }
+          break;
+      }
+
+      return { valid: true };
+    }
+
+    // --- 初始化 ---
+    async function initializeApp() {
+      try {
+
+          // --- 事件监听绑定 ---
+    $('user-combo').addEventListener('change', onUserChange);
+    $('username-entry').addEventListener('input', async (e) => {
+      const username = e.target.value.trim();
+      $('password-entry').value = "";
+      const userCombo = $('user-combo');
+      const exists = [...userCombo.options].some(o => o.value === username);
+      userCombo.value = exists ? username : "";
+      // if (!username) {
+      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
+      //   return;
+      // }
+      const data = await callPythonAPI('on_user_selected', username);
+      if (data && data.password) $('password-entry').value = data.password;
+      logMessage_Info('获取到的data.ua:', data ? data.ua : 'null');
+      const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
+      $('ua-label').textContent = ua_data;
+      logMessage_Info('User ua label set to:', ua_data);
+
+      // if (data && data.ua) {
+      //   $('ua-label').textContent = data.ua;
+      // } else {
+      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
+      // }
+      pythonParams = (data && data.params) ? data.params : pythonParams;
+      updateParamInputs($('params-container'), 'param', pythonParams);
+      const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
+    });
+    $('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
+    $('login-button').addEventListener('click', async (e) => {
+      // 校验登录按钮权限
+      if (!await checkButtonPermission('login-button', 'use_login_button')) {
+        return;
+      }
+      await onLogin();
+    });
+    $('logout-button').addEventListener('click', onLogout);
+    $('refresh-button').addEventListener('click', refreshTasks);
+    $('record-button').addEventListener('click', toggleRecordMode);
+    $('clear-button').addEventListener('click', () => clearCurrentPath(true));
+    $('process-button').addEventListener('click', processCurrentPath);
+    $('start-run-button').addEventListener('click', toggleRun);
+    $('start-all-button').addEventListener('click', toggleAllRuns);
+    $('export-button').addEventListener('click', exportTask);
+    $('import-button').addEventListener('click', async (e) => {
+      // 校验导入按钮权限
+      if (!await checkButtonPermission('import-button', 'use_import_button')) {
+        return;
+      }
+      await importTask();
+    });
+    // $('zoom-in').addEventListener('click', () => { if (map) map.zoomIn(); });
+    // $('zoom-out').addEventListener('click', () => { if (map) map.zoomOut(); });
+    // $('reset-view-btn').addEventListener('click', resetMapView);
+    $('show-user-details').addEventListener('click', (e) => {
+      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
+      showUserDetails();
+    });
+    $('show-task-details').addEventListener('click', (e) => {
+      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
+      showTaskDetails();
+    });
+    $('auto-gen-button').addEventListener('click', () => {
+      $('auto-gen-modal').classList.remove('hidden');
+      $('auto-gen-modal').classList.add('flex'); // 确保居中
+      document.body.classList.add('modal-visible'); // 隐藏Logo
+    });
+    $('cancel-gen-button').addEventListener('click', () => {
+      $('auto-gen-modal').classList.add('hidden');
+      $('auto-gen-modal').classList.remove('flex'); // 移除居中
+      document.body.classList.remove('modal-visible'); // 恢复Logo
+    });
+    $('confirm-gen-button').addEventListener('click', onConfirmAutoGenerate);
+
+    // --- 绑定通知按钮 ---
+    $('show-notifications-btn').addEventListener('click', (e) => {
+      e.stopPropagation(); // 修复：阻止事件冒泡到模态框背景
+      showNotifications();
+    });
+
+    $('mark-all-read-btn').addEventListener('click', markAllAsRead);
+    $('refresh-notifications-btn').addEventListener('click', refreshNotificationsUI);
+
+    $('multi-download-template-btn').addEventListener('click', multi_downloadTemplate);
+
+
+    
+    // 定时刷新，例如每 5 秒
+    setInterval(refreshUserList, 5000);
+
+    
+    // --- 多账号模式事件监听 ---
+    $('multi-account-btn').addEventListener('click', async (e) => {
+      // 校验多账号控制台按钮权限
+      if (!await checkButtonPermission('multi-account-btn', 'use_multi_account_button')) {
+        return;
+      }
+      await switchToMultiMode();
+    });
+    $('exit-multi-mode-btn').addEventListener('click', exitMultiMode);
+    $('multi-start-all-btn').addEventListener('click', multi_startAll);
+    $('multi-stop-all-btn').addEventListener('click', multi_stopAll);
+    $('multi-load-all-from-config-btn').addEventListener('click', multi_loadAllFromConfig);
+    $('multi-add-from-config-btn').addEventListener('click', multi_addFromConfig);
+    $('multi-import-excel-btn').addEventListener('click', multi_importFromExcel);
+    $('multi-export-excel-btn').addEventListener('click', multi_exportToExcel);
+    // $('multi-zoom-in').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomIn(); });
+    // $('multi-zoom-out').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomOut(); });
+    // $('multi-reset-view-btn').addEventListener('click', multi_resetMapView);
+
+    // --- 管理面板标签页事件监听 ---
+    $('admin-tab-users_modal')?.addEventListener('click', () => switchAdminTab('users'));
+    $('admin-tab-groups_modal')?.addEventListener('click', () => switchAdminTab('groups'));
+    $('admin-tab-logs_modal')?.addEventListener('click', () => switchAdminTab('logs'));
+    $('admin-tab-health_modal')?.addEventListener('click', () => switchAdminTab('health'));
+    $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
+    $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
+    $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
+
+    // 留言板刷新按钮
+    $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
+
+    // --- 路径绘制相关函数 ---
+    let draftPath = [], draftPathLngLat = [], pendingPoints = [], isUpdating = false, lastMouseMoveTime = 0;
+    const MOUSE_MOVE_THROTTLE_MS = 70;
+    const MIN_DRAW_DISTANCE_M = 12;
+    let pendingUnlockMap = false;
+    
+    let backgroundTaskPollInterval = null;
+    let backgroundTaskStartTime = 0; // 记录任务启动时间，用于避免显示旧数据的提示
+
+    
+    const svgIconNormal = `<div style="pointer-events: none;">
+  <svg width="28" height="36" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+    <path fill="#22d3ee" d="M512 0C321.6 0 160 161.6 160 352c0 89.6 35.2 172.8 96 233.6l249.6 432c6.4 12.8 19.2 19.2 32 19.2s25.6-6.4 32-19.2l249.6-432c60.8-60.8 96-144 96-233.6C864 161.6 702.4 0 512 0z m0 512c-89.6 0-160-70.4-160-160s70.4-160 160-160 160 70.4 160 160-70.4 160-160 160z"></path>
+  </svg>
+</div>`;
+
+    const svgIconMakeup = `<div style="pointer-events: none;">
+  <svg width="28" height="36" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+    <path fill="#f59e0b" d="M512 0C321.6 0 160 161.6 160 352c0 89.6 35.2 172.8 96 233.6l249.6 432c6.4 12.8 19.2 19.2 32 19.2s25.6-6.4 32-19.2l249.6-432c60.8-60.8 96-144 96-233.6C864 161.6 702.4 0 512 0z m0 512c-89.6 0-160-70.4-160-160s70.4-160 160-160 160 70.4 160 160-70.4 160-160 160z"></path>
+  </svg>
+</div>`;
+
+    $('multi-remove-all-btn').addEventListener('click', multi_removeAll);
+    $('multi-remove-selected-btn').addEventListener('click', multi_removeSelected);
+    $('multi-refresh-all-btn').addEventListener('click', multi_refreshAll);
+    $('multi-select-all-check').addEventListener('change', multi_toggleSelectAll);
+    $('multi-start-selected-btn').addEventListener('click', multi_startSelected);
+    $('multi-stop-selected-btn').addEventListener('click', multi_stopSelected);
+    $('multi-refresh-selected-btn').addEventListener('click', multi_refreshSelected);
+
+        // UUID格式验证函数 - 验证是否符合标准的UUID v4格式
+        function isValidUUID(uuid) {
+          const uuidPattern = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+          return uuidPattern.test(uuid);
+        }
+
+        // 隐藏加载覆盖层的通用函数
+        function hideLoadingOverlays() {
+          $('loading-overlay').classList.add('hidden');
+          $('cdn-error-overlay').classList.add('hidden');
+        }
+
+        // 显示用户友好的错误提示
+        function showUserFriendlyError(title, message, isWarning = false) {
+          const type = isWarning ? 'warning' : 'error';
+          Swal.fire({
+            title: title,
+            text: message,
+            icon: type,
+            confirmButtonText: '确定'
+          });
+        }
+
+        $('loading-overlay').classList.remove('hidden');
+
+        // 检测Web模式并提取UUID
+
+        const urlPath = window.location.pathname;
+        // 使用标准UUID v4格式的正则表达式
+        const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
+
+        if (match) {
+          // 情况2：访问含UUID的网址
+          sessionUUID = match[1];
+
+          // 验证UUID格式
+          if (!isValidUUID(sessionUUID)) {
+
+            hideLoadingOverlays();
+            logMessage_Error('无效的UUID格式:', sessionUUID);
+
+
+
+            // 使用 Swal.fire 显示错误并等待用户确认
+            Swal.fire({
+              title: '无效的会话', // 弹窗标题
+              text: 'UUID格式不正确\n将跳转到登录页面', // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+            }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
+              window.location.href = '/'; // 执行跳转
+            });
+
+            // showUserFriendlyError('无效的会话', 'UUID格式不正确，将跳转到登录页面', true);
+            // setTimeout(() => {
+            //   window.location.href = '/';
+            // }, 2000);
+
+
+            return;
+
+          }
+          $('loading-overlay').classList.remove('hidden');
+          logMessage_Info('Web模式: 检测到有效UUID =', sessionUUID);
+
+          // 检查UUID类型
+          try {
+            const response = await fetch('/auth/check_uuid_type', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ uuid: sessionUUID })
+            });
+
+            const result = await response.json();
+
+            if (!result.success) {
+              logMessage_Error('检查UUID失败:', result.message);
+              hideLoadingOverlays();
+
+              // showUserFriendlyError('会话验证失败', result.message, true);
+              // // 跳转到无UUID网址
+              // setTimeout(() => {
+              //   window.location.href = '/';
+              // }, 2000);
+
+              let message = "无法通过UUID判断会话列席\n将跳转到登录页面"
+              if (result.message !== '') {
+                message = "无法通过UUID判断会话列席\n" + result.message + "\n将跳转到登录页面"
+              }
+
+              Swal.fire({
+                title: '无效的会话类型', // 弹窗标题
+                text: message, // 弹窗消息
+                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+                confirmButtonText: '确定' // 按钮文字
+              }).then(() => {
+                // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+                logMessage_Info('用户确认检查UUID失败弹窗，正在跳转到登录页面...');
+                window.location.href = '/'; // 执行跳转
+              });
+
+              return;
+            }
+            $('loading-overlay').classList.remove('hidden');
+
+            if (result.uuid_type === 'guest') {
+              // 游客UUID - 直接恢复会话
+              logMessage_Info('检测到游客UUID，直接恢复会话');
+              hideLoadingOverlays(); // 确保隐藏加载遮挡
+              // 继续正常初始化流程
+            } else if (result.uuid_type === 'system_account') {
+              // 系统账号UUID - 允许访问，后端会在API调用时验证token
+              // 注意：auth_token是httponly cookie，JavaScript无法访问，所以前端不做检查
+              logMessage_Info('检测到系统账号UUID，允许访问（后端将验证token）');
+              hideLoadingOverlays(); // 确保隐藏加载遮挡
+              // 继续正常初始化流程
+              // 如果token无效或过期，后端API调用会返回401错误，前端会处理并重定向到登录
+            } else {
+              // 未知UUID - 弹窗提示后跳转到无UUID网址
+              logMessage_Info('检测到未知UUID，准备弹窗提示后跳转到登录页面');
+
+              // 强制设置背景、居中并禁用输入框
+              const loginContainer = document.getElementById('login-container');
+              const mainApp = document.getElementById('main-app');
+              const multiApp = document.getElementById('multi-account-app');
+              const authContainer = document.getElementById('auth-login-container');
+
+              // 1. 强制隐藏其他容器
+              if (loginContainer) loginContainer.classList.add('hidden');
+              if (mainApp) mainApp.classList.add('hidden');
+              if (multiApp) multiApp.classList.add('hidden');
+
+              // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
+              if (authContainer) {
+                authContainer.classList.remove('hidden');
+                // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
+                authContainer.classList.remove('h-full', 'w-full');
+                // 添加 fixed 定位覆盖全屏和 flex 居中
+                authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
+                // 确保背景可见（有时需要 z-index，但通常不需要）
+                // authContainer.style.zIndex = '10'; // 一般不需要
+              }
+
+              // 3. 禁用 auth-login-container 内的输入框
+              const inputsToDisable = [
+                'auth-username',
+                'auth-password',
+                'auth-reg-username',
+                'auth-reg-password',
+                'auth-reg-password-confirm'
+              ];
+              inputsToDisable.forEach(inputId => {
+                const inputElement = document.getElementById(inputId);
+                if (inputElement) {
+                  inputElement.disabled = true;
+                  // 可选：添加视觉提示，例如降低透明度
+                  // inputElement.style.opacity = '0.7';
+                  // inputElement.style.cursor = 'not-allowed';
+                }
+              });
+
+              if (authContainer) authContainer.classList.remove('hidden');
+              // Swal.fire会返回一个Promise对象，在用户关闭提示弹窗后该Promise会被解析
+              Swal.fire({
+                title: '会话不存在', // 弹窗标题
+                text: '该会话已过期或不存在，请重新登录', // 弹窗消息
+                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+                confirmButtonText: '确定' // 按钮文字
+              }).then(() => {
+                // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+                logMessage_Info('用户确认弹窗，正在跳转到登录页面...');
+                window.location.href = '/';
+              });
+              return;
+            }
+          } catch (e) {
+            logMessage_Error('检查UUID类型失败:', e);
+            hideLoadingOverlays(); // 确保隐藏加载遮挡
+            Swal.fire({
+              title: '网络错误', // 弹窗标题
+              text: '无法验证会话状态，请检查网络连接后重试', // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+            }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              logMessage_Info('用户确认检查UUID类型失败弹窗，正在跳转到登录页面...');
+              window.location.href = '/'; // 执行跳转
+            });
+            // showUserFriendlyError('网络错误', '无法验证会话状态，请检查网络连接后重试');
+            // // 出错时也跳转到无UUID网址
+            // setTimeout(() => {
+            //   window.location.href = '/';
+            // }, 3000);
+            return;
+          }
+        } else {
+          // 情况1：访问不含UUID的网址
+          logMessage_Info('Web模式: 未检测到UUID，显示认证登录页面');
+          //移除加载提示
+          hideLoadingOverlays();
+
+          // 显示认证登录界面，等待用户登录/游客模式
+          showAuthLogin();
+          return; // 停止初始化，等待认证完成后重新初始化
+        }
+
+        $('loading-overlay').classList.remove('hidden');
+
+        // 检查认证状态
+        const isAuthenticated = await checkAuthStatus();
+        if (!isAuthenticated) {
+          hideLoadingOverlays(); // 认证失败时隐藏加载遮挡
+          showAuthLogin();
+          return; // 停止初始化，等待认证
+        }
+        $('loading-overlay').classList.remove('hidden');
+
+        // 认证成功，继续初始化
+        // hideLoadingOverlays();
+
+
+        // 标记应用已成功初始化
+        appInitialized = true;
+
+        // 在确认 sessionUUID 有效且应用准备就绪后
+        if (sessionUUID /* && 应用准备就绪的条件 */) {
+          connectWebSocket();
+        }
+
+
+
+        // 取消CDN错误定时器（如果还在等待）
+        if (cdnErrorTimer) {
+          clearTimeout(cdnErrorTimer);
+          cdnErrorTimer = null;
+        }
+
+        //移除加载提示
+        // hideLoadingOverlays();
+
+        logMessage_Info('应用初始化成功，CDN资源状态正常或可用替代方案');
+
+        const initialData = await callPythonAPI('get_initial_data');
+
+        currentUserIsGuest = initialData.is_guest || false; // <-- 存储从后端获取的状态
+        logMessage_Info(`initializeApp: currentUserIsGuest = ${currentUserIsGuest}`);
+
+        const userCombo = $('user-combo');
+        userCombo.innerHTML = '<option value="">(新用户)</option>';
+        initialData.users.forEach(user => {
+          const option = document.createElement('option');
+          option.value = option.textContent = user;
+          userCombo.appendChild(option);
+        });
+
+        createParamInputs($('params-container'), 'param', onParamChange);
+        if (initialData.lastUser) userCombo.value = initialData.lastUser;
+        await onUserChange();
+
+
+        const hasSchoolLogin = initialData.isLoggedIn && initialData.userInfo;
+        const hasSystemAuth = initialData.is_authenticated && !initialData.is_guest;
+        const isGuestMode = initialData.is_authenticated && initialData.is_guest;
+        // const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;  // 检查是否有已加载的任务
+
+        // $('loading-overlay').classList.remove('hidden');
+
+        // 检查会话模式（单账号/多账号）
+        let sessionModeInfo = null;
+        try {
+          sessionModeInfo = await callPythonAPI('get_session_mode_info');
+          // logMessage_Info('会话模式信息:', sessionModeInfo);
+        } catch (e) {
+          logMessage_Error('获取会话模式信息失败:', e);
+          hideLoadingOverlays();
+          Swal.fire({
+            title: '网络错误', // 弹窗标题
+            text: '获取会话模式信息失败，请检查网络连接后重试', // 弹窗消息
+            icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+            confirmButtonText: '确定' // 按钮文字
+          }).then(() => {
+            // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+            logMessage_Info('用户确认获取会话模式信息失败弹窗，正在跳转到登录页面...');
+            window.location.href = '/'; // 执行跳转
+          });
+          return;
+        }
+
+        const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;
+
+        $('loading-overlay').classList.remove('hidden');
+
+        resetUI();
+
+        // 如果会话之前是多账号模式，直接恢复到多账号模式
+        if (sessionModeInfo && sessionModeInfo.is_multi_account_mode) {
+          logMessage_Info('检测到会话之前处于多账号模式，正在恢复...');
+
+          // 通知后端进入多账号模式（恢复后端状态）
+          try {
+            const result = await callPythonAPI('enter_multi_account_mode');
+            if (!result.success) {
+              logMessage_Error('无法进入多账号模式，返回登录界面');
+              return;
+            }
+            // 使用后端返回的参数（如果会话中没有保存）
+            if (!sessionModeInfo.global_params && result.params) {
+              pythonParams = result.params;
+            }
+          } catch (e) {
+            logMessage_Error('调用 enter_multi_account_mode 失败:', e);
+            return;
+          }
+
+          hideLoadingOverlays();
+          // 确保API Key已配置并加载地图（多账号模式也需要地图）
+          AMAP_API_KEY = initialData.amap_key || "";
+          if (AMAP_API_KEY) {
+            try {
+              await loadAMapOnce();
+            } catch (e) {
+              logMessage_Error('地图加载失败（多账号模式恢复）', e);
+            }
+          }
+          $('loading-overlay').classList.remove('hidden');
+
+          // 隐藏登录界面和认证界面
+          $('auth-login-container').classList.add('hidden');
+          $('login-container').classList.add('hidden');
+
+          // 显示多账号界面
+          $('multi-account-app').classList.remove('hidden');
+          $('multi-account-app').classList.add('grid');
+          $('main-app').classList.add('hidden');
+          // hideLoadingOverlays();
+
+          // 创建多账号地图（如果还没有创建）
+          if (!multiAccountMap && AMapInstance) {
+            try {
+              // 浏览器会尽量将图像数据缓存在GPU内存中，从而提高多个getImageData读取操作的速度
+              multiAccountMap = new AMapInstance.Map('multi-map-container', {
+                viewMode: '3D',
+                pitch: 55,
+                rotation: 0,
+                zoom: 17,
+                center: [113.390342, 22.527403],
+                renderOptions: {
+                  willReadFrequently: true  // 优化canvas性能
+                }
+              });
+
+              // 多账号地图的 3D 控制杆
+              const ctrlBar = new AMapInstance.ControlBar({
+                position: { left: '12px', top: '12px' },
+                showZoomBar: false,
+                showControlButton: true
+              });
+              multiAccountMap.addControl(ctrlBar);
+
+              // 建筑物图层
+              try {
+                const buildings = new AMapInstance.BuildingLayer();
+                buildings.setMap(multiAccountMap);
+              } catch (e) {
+                logMessage_Warning('BuildingLayer not available (multi):', e);
+              }
+
+              multiAccountMap.on('zoomchange', () => {
+                if (!multiAccountMap) return;
+                const z = multiAccountMap.getZoom();
+                const zoomLevelEl = $('multi-zoom-level');
+                if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
+              });
+
+              // 保存清理函数
+              if (window.multiMapCleanup) window.multiMapCleanup();
+              window.multiMapCleanup = enhanceMapInteraction(multiAccountMap);
+
+              multiAccountMap.setStatus({
+                doubleClickZoom: true,
+                dragEnable: true,
+                scrollWheel: true,
+                keyboardEnable: true
+              });
+
+              // 兜底重建并绑定多账号控件
+              ensureMultiControls();
+            } catch (e) {
+              logMessage_Error('初始化多账号地图失败:', e);
+            }
+          }
+
+          // 初始化配置用户下拉列表
+          try {
+            const configUsers = await callPythonAPI('multi_get_all_config_users');
+            const select = $('multi-config-user-select');
+            select.innerHTML = '<option value="">(新用户/手动输入)</option>';
+            configUsers.users.forEach(u => {
+              const opt = document.createElement('option');
+              opt.value = opt.textContent = u;
+              select.appendChild(opt);
+            });
+          } catch (e) {
+            logMessage_Error('加载配置用户列表失败:', e);
+          }
+
+          // 恢复全局参数并初始化全局参数UI
+          if (sessionModeInfo.global_params) {
+            pythonParams = sessionModeInfo.global_params;
+          }
+
+          // 初始化全局参数UI容器
+          try {
+            const container = $('multi-global-params-container');
+            container.innerHTML = '';
+            createParamInputs(container, 'multi-param', onGlobalParamChange);
+            updateParamInputs(container, 'multi-param', pythonParams);
+          } catch (e) {
+            logMessage_Error('初始化全局参数UI失败:', e);
+          }
+
+          // 绑定即时刷新和更新按钮状态
+          try {
+            bindImmediateRefreshForUserSelects();
+            updateMultiGlobalButtons(true, true);
+
+            // 同步"仅执行未完成的任务"选项到后端
+            await callPythonAPI('set_multi_run_only_incomplete',
+              document.getElementById('multi-run-only-incomplete-check').checked
+            );
+          } catch (e) {
+            logMessage_Error('绑定多账号UI事件失败:', e);
+          }
+
+          // 从后端恢复账号列表
+          try {
+            const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
+            if (accountsResult && accountsResult.accounts) {
+              renderMultiAccountList(accountsResult.accounts);
+              logMessage(`已恢复多账号模式，当前有 ${accountsResult.accounts.length} 个账号`);
+            } else {
+              logMessage(`已恢复多账号模式，当前有 0 个账号`);
+            }
+          } catch (e) {
+            logMessage_Error('恢复账号列表失败:', e);
+            logMessage(`已恢复多账号模式，当前有 ${sessionModeInfo.multi_account_count || 0} 个账号（列表加载失败）`);
+          }
+
+          // 初始化内嵌管理面板
+          setTimeout(async () => {
+            try {
+              await initializeInlineAdminPanel();
+            } catch (e) {
+              logMessage_Error('初始化内嵌管理面板失败:', e);
+            }
+          }, 100);
+
+          // 设置主题色
+          const base = pythonParams.theme_base_color || '#7dd3fc';
+          setBaseColor(base, base);
+
+          hideLoadingOverlays();
+          // return; // 提前返回，不执行后续单账号模式的逻辑
+        }
+
+
+        // 如果是单账号模式，则恢复单账号会话
+        // 恢复条件：已登录学校账号 或 有已加载的任务（如导入的离线文件）
+        else if (hasSchoolLogin || hasLoadedTasks) {
+          // 学校账号已登录或有已加载任务，直接显示主界面
+          // 优先使用学校登录的用户信息，如果没有则使用会话中保存的离线模式用户数据
+          currentUserData = initialData.userInfo || (sessionModeInfo && sessionModeInfo.user_data) || {};
+
+          if (initialData.device_ua) {
+            currentSessionUA = initialData.device_ua;
+            logMessage_Info(`[会话恢复] 成功恢复 User-Agent: ${currentSessionUA.substring(0, 50)}...`);
+          } else {
+            logMessage_Warning("[会话恢复] 未能从 initialData 中恢复 User-Agent。");
+            currentSessionUA = "NULL (Restored)"; // 至少提供一个非空值以示区别
+          }
+
+          hideLoadingOverlays();
+          // 恢复会话时确保API Key已配置并加载地图
+          AMAP_API_KEY = initialData.amap_key || "";
+          if (AMAP_API_KEY) {
+            try {
+              await loadAMapOnce();
+            } catch (e) {
+              logMessage_Error('地图加载失败（会话恢复）', e);
+            }
+          } else {
+            // 已登录但没有API Key，弹出提示
+            hideLoadingOverlays();
+            logMessage_Info("[警告] 未配置高德地图API Key，请在弹窗中输入。");
+            $('amap-key-modal').classList.remove('hidden');
+            $('amap-key-modal').classList.add('flex');
+            document.body.classList.add('modal-visible');
+          }
+          $('loading-overlay').classList.remove('hidden');
+
+          if (refreshUserListInterval) clearInterval(refreshUserListInterval); // 清除旧的（如果存在）
+          refreshUserListInterval = setInterval(refreshUserList, 5000); // <--- 在这里启动
+          logMessage_Info('refreshUserList interval started.'); // 添加日志确认启动
+
+          showMainApp();
+          const name = currentUserData.name || '离线模式';  // 如果没有用户信息，显示"离线模式"
+          $('user-name-label').textContent = `姓名: ${name}`;
+          $('user-id-label').textContent = `学号: ${currentUserData.student_id || '未登录'}`;
+          updateDashboard();
+          await refreshTasks();
+
+          // 修复：检查是否有后台任务在运行 (从 6730 行移动至此)
+          let isTaskRestored = false;
+          try {
+            isTaskRestored = await checkBackgroundTaskOnLoad();
+          } catch (err) {
+            logMessage_Warning('检查后台任务失败:', err);
+          }
+          // if (isTaskRestored) {
+          //   startBackgroundTaskPolling();
+
+          // }
+
+          // // 恢复之前选中的任务（如果有）
+          // if (sessionModeInfo && sessionModeInfo.selected_task_index !== undefined && sessionModeInfo.selected_task_index >= 0) {
+          //   try {
+          //     logMessage_Info(`正在恢复之前选中的任务 (索引: ${sessionModeInfo.selected_task_index})...`);
+          //     await selectTask(sessionModeInfo.selected_task_index);
+
+
+          //     await pollBackgroundTaskStatus(); // 恢复选中任务后立即更新状态
+          //     const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+
+          //     // startBackgroundTaskPolling(); // 启动轮询
+          //     // checkBackgroundTaskOnLoad();
+
+          //   } catch (e) {
+          //     logMessage_Error('恢复选中任务失败:', e);
+          //   }
+          // }
+
+          const base = pythonParams.theme_base_color || '#7dd3fc';
+          setBaseColor(base, base);
+
+          // 初始化内嵌管理面板（恢复会话时需要）
+          setTimeout(async () => {
+            try {
+              await initializeInlineAdminPanel();
+            } catch (e) {
+              logMessage_Error('初始化内嵌管理面板失败:', e);
+            }
+          }, 100);
+
+          // 显示管理按钮（所有用户包括游客都可以访问）
+          const adminBtn = $('show-admin-panel');
+          if (adminBtn) adminBtn.classList.remove('hidden');
+          hideLoadingOverlays();
+          await fetchNotifications();
+
+        }
+        // 没有进入多账号模式或者单账号模式
+        else if (hasSystemAuth || isGuestMode) {
+
+          $('loading-overlay').classList.remove('hidden');
+          // 系统账号已登录（admin/普通用户）或游客模式，隐藏认证面板，显示学校登录面板
+          $('auth-login-container').classList.add('hidden');
+          $('login-container').classList.remove('hidden');
+
+          // 刷新用户选择和 UA 标签
+          await onUserChange();
+
+          // 初始化内嵌管理面板，默认显示会话标签页并加载数据
+          setTimeout(async () => {
+            try {
+              await initializeInlineAdminPanel();
+            } catch (e) {
+              logMessage_Error('初始化内嵌管理面板失败:', e);
+            }
+          }, 100);
+
+          // 加载地图API Key
+          AMAP_API_KEY = initialData.amap_key || "";
+          if (AMAP_API_KEY) {
+            try {
+              await loadAMapOnce();
+            } catch (e) {
+              logMessage_Error('地图加载失败（系统账号恢复）', e);
+            }
+          }
+
+          hideLoadingOverlays();
+          // 如果是游客模式，显示提示
+          if (isGuestMode) {
+            logMessage_Info('[游客模式] 部分功能受限，请保存当前地址以便恢复会话');
+
+            Swal.fire({
+              title: '请注意', // 弹窗标题
+              text: '[游客模式] 部分功能受限，请保存当前地址以便恢复会话', // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+            }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              // logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
+              // window.location.href = '/'; // 执行跳转
+            });
+
+          }
+
+
+
+
+          $('loading-overlay').classList.remove('hidden');
+
+
+          // 显示管理面板按钮（所有用户包括游客都可以访问）
+          const adminBtnLogin = $('show-admin-panel-login');
+          if (adminBtnLogin) {
+            adminBtnLogin.classList.remove('hidden');
+          }
+          const adminBtnMulti = $('show-admin-panel-multi');
+          if (adminBtnMulti) adminBtnMulti.classList.remove('hidden');
+
+          hideLoadingOverlays();
+
+        } else {
+          // 完全未登录，显示认证面板，检查API Key和游客登录选项
+          AMAP_API_KEY = initialData.amap_key || "";
+          if (!AMAP_API_KEY) {
+            logMessage_Info("[警告] 未配置高德地图API Key，请在弹窗中输入。");
+            $('amap-key-modal').classList.remove('hidden');
+            $('amap-key-modal').classList.add('flex');
+          } else {
+            try {
+              await loadAMapOnce();
+            } catch (e) {
+              logMessage_Error('AMap SDK 加载失败（ready 阶段）', e);
+            }
+          }
+
+          // 检查是否允许游客登录并显示按钮
+          checkGuestLoginEnabled();
+          hideLoadingOverlays();
+        }
+
+        if (pythonParams.theme_style) {
+          setThemeStyle(pythonParams.theme_style);
+        }
+
+        // 立刻刷新一次用户列表（调用的是新 refreshUserList）
+        await refreshUserList();
+
+        const loadingOverlay = $('loading-overlay');
+        loadingOverlay.style.opacity = '0';
+        setTimeout(() => { loadingOverlay.style.display = 'none'; }, 500);
+        bindImmediateRefreshForUserSelects();
+
+        // --- 绑定签到Tab内的参数控件 ---
+        const attEnabled = $('param-auto_attendance_enabled');
+        const attRefresh = $('param-auto_attendance_refresh_s');
+        const attRadius = $('param-attendance_user_radius_m');
+        if (attEnabled) attEnabled.addEventListener('change', onParamChange);
+        if (attRefresh) attRefresh.addEventListener('change', onParamChange);
+        if (attRadius) attRadius.addEventListener('change', onParamChange);
+
+        // 绑定API Key模态框的确认按钮事件
+        $('confirm-amap-key-btn').addEventListener('click', onConfirmAmapKey);
+
+        // 将定时刷新移动到 API 就绪后再启动
+        // setInterval(refreshUserList, 5000);
+      } catch (err) {
+        hideModal('loading-overlay');
+        showModalAlert('服务器无法连接，请检查网络或稍后重试。', '网络错误');
+        IS_OFFLINE = true;
+      }
+    }
+
+    // 在 initializeApp 成功获取到 sessionUUID 后或者认证成功后调用此函数
+    function connectWebSocket() {
+      if (socket && socket.connected) {
+        logMessage_Info("WebSocket already connected.");
+        return;
+      }
+
+      if (!sessionUUID) {
+        logMessage_Warning("Cannot connect WebSocket: sessionUUID is missing.");
+        return;
+      }
+
+      logMessage_Info("Attempting to connect WebSocket...");
+      // 连接到服务器，注意路径可能需要根据实际部署调整
+      socket = io({
+        // 如果部署在非根路径，可能需要指定 path
+        // path: '/socket.io'
+        autoConexceptnect: false,  // 手动控制连接，避免自动重连干扰网络错误处理
+        reconnection: true,  // 允许重连（在正常情况下）
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5
+      });
+
+      // 手动连接
+      socket.connect();
+
+      socket.on('connect', () => {
+        logMessage_Info('WebSocket connected successfully. SID:', socket.id);
+        // 连接成功后，立即发送 'join' 事件，告知服务器 session_id
+        socket.emit('join', { session_id: sessionUUID });
+        // (可选) 在日志窗口显示连接成功
+        // logMessage_Info("[System] WebSocket 已连接");
+      });
+
+      socket.on('disconnect', (reason) => {
+        logMessage_Warning('WebSocket disconnected:', reason);
+        logMessage_Info("[System] WebSocket 连接已断开，尝试重连...");
+        // Socket.IO库会自动尝试重新建立WebSocket连接
+      });
+
+      socket.on('connect_error', (error) => {
+        // 只在非网络错误状态时记录错误，避免生成大量错误日志
+        if (!isInNetworkErrorState) {
+          logMessage_Error('WebSocket connection error:', error);
+          logMessage_Info("[System-Error] WebSocket 连接失败");
+        }
+      });
+
+      // 监听服务器发送的 'log_message' 事件
+      socket.on('log_message', (data) => {
+        if (data && data.msg) {
+          // 调用现有的 logMessage_Info 函数显示日志
+          logMessage(data.msg, 'INFO', 'Backend');
+        }
+      });
+
+      // ===============================================
+      // === 监听后端推送的UI更新事件 ===
+      // ===============================================
+
+      // 监听多账号卡片内容更新
+      socket.on('multi_status_update', (data) => {
+        if (data && data.username && data.data) {
+          // logMessage_Debug(`[Socket] 收到 ${data.username} 状态更新`);
+          multi_updateAccountStatus(data.username, data.data);
+        }
+      });
+
+      // 监听多账号列表结构更新 (例如：添加账号后)
+      socket.on('accounts_updated', (data) => {
+        if (data && data.accounts) {
+          logMessage(`[Socket] 收到账号列表更新，共 ${data.accounts.length} 个账号`, 'INFO', 'Socket');
+          onAccountsUpdated(data.accounts); // onAccountsUpdated 会调用 renderMultiAccountList
+        }
+      });
+
+      // 监听多账号全局按钮状态更新
+      socket.on('multi_global_buttons_update', (data) => {
+        if (data) {
+          // logMessage_Debug(`[Socket] 收到全局按钮状态更新`);
+          updateMultiGlobalButtons(data.start_disabled, data.stop_disabled);
+          // 单独处理退出按钮
+          const exitBtn = document.getElementById("exit-multi-mode-btn");
+          if (exitBtn) {
+            exitBtn.disabled = !!data.exit_disabled;
+          }
+        }
+      });
+
+      // 监听多账号位置更新
+      socket.on('multi_position_update', (data) => {
+        if (data && data.username && typeof data.lon === 'number' && typeof data.lat === 'number') {
+          multi_updateRunnerPosition(data.username, data.lon, data.lat, data.name || data.username);
+        }
+      });
+
+      // 监听单账号当前位置位置更新
+      socket.on('runner_position_update', (data) => {
+        if (data) {
+          // 检查后端发来的任务索引 (data.task_index)
+          if (data.task_index !== undefined && data.task_index !== selectedTaskIndex) {
+            logMessage_Info(`[Socket] 任务切换: 正在执行任务 #${data.task_index}`);
+            // 1. 更新全局的 selectedTaskIndex
+            selectedTaskIndex = data.task_index;
+            
+            // 2. 重新渲染任务列表以高亮显示当前任务 
+            renderTaskList(); 
+
+            return; 
+          }
+
+          // 只有当 task_index 匹配时，才更新位置
+          updateRunnerPosition(data.lon, data.lat, data.distance, data.target_sequence, data.duration, data.center_now);
+        }
+      });
+
+      // 监听单账号任务完成
+      socket.on('task_completed', (data) => {
+        if (data && typeof data.task_index !== 'undefined') {
+          onTaskCompleted(data.task_index);
+        }
+      });
+
+      // 监听单账号跑步停止
+      socket.on('run_stopped', () => {
+        onRunStopped();
+      });
+      // 监听后台推送的通知更新
+      socket.on('onNotificationsUpdated', (data) => {
+        logMessage("收到后台推送的通知更新",'INFO','Socket');
+        // data 就是 get_notifications 返回的完整 result 对象
+        if (data && data.success) {
+          // 调用现有的JS函数来处理数据并更新UI
+          onNotificationsUpdated(data);
+        }
+      });
+
+    }
+
+
+    
+
+    function enhanceMapInteraction(mapInstance) {
+      if (!mapInstance) return () => { }; // 防御：如果实例无效，返回空清理函数
+      const container = mapInstance.getContainer();
+      if (!container) return () => { }; // 防御：如果容器无效
+
+      const handlers = [];
+
+      const addManagedListener = (element, type, listener, options) => {
+        element.addEventListener(type, listener, options);
+        handlers.push({ element, type, listener, options });
+      };
+
+      const wheelHandler = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!mapInstance) return; // 防御检查
+        if (e.deltaY < 0) mapInstance.zoomIn();
+        else mapInstance.zoomOut();
+      };
+      addManagedListener(container, 'wheel', wheelHandler, { passive: false });
+
+      const contextMenuHandler = (e) => e.preventDefault();
+      addManagedListener(container, 'contextmenu', contextMenuHandler);
+
+      const DRAG_SAME_DIRECTION = true;
+      let rmbLongPressTimer = null, mmbLongPressTimer = null, rmbDragging = false, mmbDragging = false, lastClientX = 0, lastClientY = 0;
+
+      function doPanBy(mouseX, mouseY) {
+        if (!mapInstance) return; // 防御检查
+        const dx = mouseX - lastClientX; const dy = mouseY - lastClientY;
+        if (dx !== 0 || dy !== 0) {
+          const panDx = DRAG_SAME_DIRECTION ? dx : -dx; const panDy = DRAG_SAME_DIRECTION ? dy : -dy;
+          mapInstance.panBy(panDx, panDy); lastClientX = mouseX; lastClientY = mouseY;
+        }
+      }
+
+      const mouseDownHandler = (e) => {
+        if (e.button === 0) return; lastClientX = e.clientX; lastClientY = e.clientY;
+        if (e.button === 1) { e.preventDefault(); e.stopPropagation(); mmbLongPressTimer = setTimeout(() => { mmbDragging = true; }, 0); }
+        if (e.button === 2) { e.preventDefault(); e.stopPropagation(); rmbLongPressTimer = setTimeout(() => { rmbDragging = true; }, 0); }
+      };
+      addManagedListener(container, 'mousedown', mouseDownHandler);
+
+      const mouseMoveHandler = (e) => { if (rmbDragging || mmbDragging) { e.preventDefault(); e.stopPropagation(); doPanBy(e.clientX, e.clientY); } };
+      addManagedListener(container, 'mousemove', mouseMoveHandler);
+
+      function endDrag(button) {
+        if (button === 2) { clearTimeout(rmbLongPressTimer); rmbLongPressTimer = null; rmbDragging = false; }
+        if (button === 1) { clearTimeout(mmbLongPressTimer); mmbLongPressTimer = null; mmbDragging = false; }
+      }
+
+      const mouseUpHandler = (e) => {
+        endDrag(e.button);
+        // 核心修复：在任何鼠标按键（特别是中/右键）抬起后，
+        // 如果仍处于绘制模式，则强制重申地图不可拖拽的状态，
+        // 防止拖拽状态被意外重置，从而修复左键既能画图又能拖动地图的BUG。
+        if (isDrawing && map) {
+          map.setStatus({ dragEnable: false });
+        }
+      };
+      addManagedListener(container, 'mouseup', mouseUpHandler);
+
+      const mouseLeaveHandler = () => { endDrag(1); endDrag(2); };
+      addManagedListener(container, 'mouseleave', mouseLeaveHandler);
+
+      const windowMouseUpHandler = () => { leftMouseDown = false; isPathDrawing = false; endDrag(1); endDrag(2); };
+      addManagedListener(window, 'mouseup', windowMouseUpHandler, true);
+
+      // 返回一个清理函数
+      return () => {
+        handlers.forEach(({ element, type, listener, options }) => {
+          element.removeEventListener(type, listener, options);
+        });
+      };
+    }
+
+    // 统一一次性加载 AMap SDK
+    function loadAMapOnce() {
+      if (AMapReady && AMapInstance) return Promise.resolve(AMapInstance);
+      if (amapLoadingPromise) return amapLoadingPromise;
+
+      // 优先复用 window.AMap（多账号里已载入过）
+      if (window.AMap && window.AMap.ControlBar) { // 检查一个插件是否存在来判断是否完整加载
+        AMapInstance = window.AMap;
+        AMapReady = true;
+        amapLoadingPromise = Promise.resolve(AMapInstance);
+        return amapLoadingPromise;
+      }
+
+      // 新增：加载前检查Key是否存在
+      if (!AMAP_API_KEY) {
+        logMessage_Info("[错误] 尝试加载地图失败：API Key为空。");
+        // 再次弹出提示框
+        $('amap-key-modal').classList.remove('hidden');
+        $('amap-key-modal').classList.add('flex');
+        // 返回一个被拒绝的Promise，中断加载链
+        return Promise.reject("API Key is missing.");
+      }
+
+      // 首次加载 SDK（只执行一次），并带上所有需要的插件
+      amapLoadingPromise = AMapLoader.load({
+        key: AMAP_API_KEY, // 修改：使用全局变量
+        version: "2.0",
+        plugins: ['AMap.ControlBar', 'AMap.BuildingLayer', 'AMap.Walking'] // 在这里一次性声明所有插件
+      })
+        .then((AMap) => {
+          AMapInstance = AMap;
+          AMapReady = true;
+          logMessage_Info("高德地图SDK及所有插件加载成功。");
+          return AMapInstance;
+        })
+        .catch((err) => {
+          logMessage_Error("AMap 加载失败", err);
+          logMessage_Info("[JS-Error] 高德地图SDK加载失败！地图功能将不可用。");
+          AMapReady = false;
+          AMapInstance = null;
+          amapLoadingPromise = null;
+          throw err;
+        });
+
+      return amapLoadingPromise;
+    }
+
+    // 确保“单账号地图”在容器显示后创建（只创建一次）
+    function ensureSingleMap() {
+      if (map || !AMapReady || !AMapInstance) return;
+      const container = document.getElementById('map-container');
+      if (!container) return;
+      const isHidden = container.offsetParent === null;
+      if (isHidden) return; // 容器未显示时不创建
+      initMap(AMapInstance);
+    }
+
+    // 新增：强制投影刷新
+    function forceProjectionRefresh() {
+      if (!map) return;
+      try {
+        // 临时关闭拖拽，触发交互层状态重建
+        map.setStatus({ dragEnable: false });
+
+        // 刷新尺寸
+        map.resize();
+
+        // 下一帧统一拟合覆盖物或打卡点
+        requestAnimationFrame(() => {
+          const overlays = [...polylines.recommended];
+          if (polylines.draft) overlays.push(polylines.draft);
+          if (polylines.run) overlays.push(polylines.run);
+          if (polylines.history) overlays.push(polylines.history);
+
+          if (overlays.length > 0) {
+            map.setFitView(overlays, false, [60, 60, 60, 60]);
+          } else if (currentRunData && Array.isArray(currentRunData.target_points) && currentRunData.target_points.length > 0) {
+            const pts = currentRunData.target_points.map(p => new AMapInstance.LngLat(p[0], p[1]));
+            map.setFitView(pts, false, [60, 60, 60, 60]);
+          } else {
+            map.setZoomAndCenter(17, [113.390342, 22.527403]);
+          }
+
+          // 恢复拖拽
+          map.setStatus({ dragEnable: true });
+        });
+      } catch (e) {
+        logMessage_Warning('forceProjectionRefresh warning:', e);
+      }
+    }
+
+
+    function ensureSingleControls() {
+      const container = document.getElementById('map-container');
+      if (!container) return;
+
+      // 检查控件DOM是否仍在（被 AMap destroy 清空时需要重建）
+      const hasZoomIn = !!document.getElementById('zoom-in');
+      const hasZoomOut = !!document.getElementById('zoom-out');
+      const hasReset = !!document.getElementById('reset-view-btn');
+
+      if (hasZoomIn && hasZoomOut && hasReset) {
+        // 控件还在，只需要确保事件绑定
+        attachSingleControlHandlers();
+        return;
+      }
+
+      // 重建控件盒（与原HTML一致）
+      const overlay = document.createElement('div');
+      overlay.className = 'absolute top-4 right-3 z-10 bg-white/80 backdrop-blur-sm rounded-full shadow-md flex items-center space-x-1 p-1 border border-slate-200';
+      overlay.innerHTML = `
+    <button id="zoom-in" class="w-9 h-9 font-bold text-xl text-center hover:bg-slate-100 rounded-full text-slate-700">+</button>
+    <span id="zoom-level" class="text-xs font-mono select-none w-8 text-center">17</span>
+    <button id="zoom-out" class="w-9 h-9 font-bold text-xl text-center hover:bg-slate-100 rounded-full text-slate-700">-</button>
+    <button id="reset-view-btn" class="w-9 h-9 font-bold text-lg flex items-center justify-center hover:bg-slate-100 rounded-full text-slate-700" title="复位视角">🎯</button>
+  `;
+      container.appendChild(overlay);
+
+      attachSingleControlHandlers();
+    }
+
+    function attachSingleControlHandlers() {
+      const zi = document.getElementById('zoom-in');
+      const zo = document.getElementById('zoom-out');
+      const rv = document.getElementById('reset-view-btn');
+
+      // 防重复绑定：标记已绑定
+      if (zi && !zi._bound) {
+        zi.addEventListener('click', () => { if (map) map.zoomIn(); });
+        zi._bound = true;
+      }
+      if (zo && !zo._bound) {
+        zo.addEventListener('click', () => { if (map) map.zoomOut(); });
+        zo._bound = true;
+      }
+      if (rv && !rv._bound) {
+        rv.addEventListener('click', resetMapView);
+        rv._bound = true;
+      }
+    }
+
+    function ensureMultiControls() {
+      const container = document.getElementById('multi-map-container');
+      if (!container) return;
+
+      const hasZoomIn = !!document.getElementById('multi-zoom-in');
+      const hasZoomOut = !!document.getElementById('multi-zoom-out');
+      const hasReset = !!document.getElementById('multi-reset-view-btn');
+
+      if (hasZoomIn && hasZoomOut && hasReset) {
+        attachMultiControlHandlers();
+        return;
+      }
+
+      const overlay = document.createElement('div');
+      overlay.className = 'absolute top-4 right-3 z-10 bg-white/80 backdrop-blur-sm rounded-full shadow-md flex items-center space-x-1 p-1 border border-slate-200';
+      overlay.innerHTML = `
+    <button id="multi-zoom-in" class="w-9 h-9 font-bold text-xl text-center hover:bg-slate-100 rounded-full text-slate-700">+</button>
+    <span id="multi-zoom-level" class="text-xs font-mono select-none w-8 text-center">17</span>
+    <button id="multi-zoom-out" class="w-9 h-9 font-bold text-xl text-center hover:bg-slate-100 rounded-full text-slate-700">-</button>
+    <button id="multi-reset-view-btn" class="w-9 h-9 font-bold text-lg flex items-center justify-center hover:bg-slate-100 rounded-full text-slate-700" title="复位视角">🎯</button>
+  `;
+      container.appendChild(overlay);
+
+      attachMultiControlHandlers();
+    }
+
+    function attachMultiControlHandlers() {
+      const zi = document.getElementById('multi-zoom-in');
+      const zo = document.getElementById('multi-zoom-out');
+      const rv = document.getElementById('multi-reset-view-btn');
+
+      if (zi && !zi._bound) {
+        zi.addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomIn(); });
+        zi._bound = true;
+      }
+      if (zo && !zo._bound) {
+        zo.addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomOut(); });
+        zo._bound = true;
+      }
+      if (rv && !rv._bound) {
+        rv.addEventListener('click', multi_resetMapView);
+        rv._bound = true;
+      }
+    }
+
+
+
+    // 初始化高德地图
+    function initMap(AMap) {
+      if (map) return;
+      AMapInstance = AMap;
+      // 浏览器会尽量将图像数据缓存在GPU内存中，从而提高多个getImageData读取操作的速度
+      map = new AMapInstance.Map('map-container', {
+        viewMode: '3D', pitch: 55, rotation: 0, zoom: 17,
+        center: [113.390342, 22.527403],
+        renderOptions: {
+          willReadFrequently: true  // 优化canvas性能
+        }
+      });
+
+      const ctrlBar = new AMapInstance.ControlBar({
+        position: { left: '12px', top: '12px' }, showZoomBar: false, showControlButton: true
+      });
+      map.addControl(ctrlBar);
+
+      try { const buildings = new AMapInstance.BuildingLayer(); buildings.setMap(map); } catch (e) { logMessage_Warning('BuildingLayer not available:', e); }
+
+      map.on('mousedown', onMapMouseDown);
+      map.on('mousemove', onMapMouseMove);
+      map.on('mouseup', onMapMouseUp);
+      map.on('zoomchange', () => {
+        if (!map) return;
+        const z = map.getZoom();
+        const zoomLevelEl = $('zoom-level');
+        if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
+      });
+
+      if (window.mapCleanup) window.mapCleanup();
+      window.mapCleanup = enhanceMapInteraction(map);
+      map.setStatus({ doubleClickZoom: true, dragEnable: true, scrollWheel: true, keyboardEnable: true });
+
+      // 恢复简洁的complete事件，仅用于日志或未来扩展
+      map.on('complete', () => {
+        logMessage_Info("地图实例已加载。");
+        // 当地图加载完成后，兑现Promise，通知等待方
+        if (resolveMapReady) {
+          resolveMapReady(map);
+        }
+      });
+    }
+
+
+    // --- UI状态切换 ---
+    function showMainApp() {
+      // 在显示主应用时，创建一个新的Promise用于等待地图加载
+      mapReadyPromise = new Promise(resolve => {
+        resolveMapReady = resolve;
+      });
+      $('login-container').classList.add('hidden');
+      $('main-app').classList.remove('hidden');
+      $('main-app').classList.add('grid');
+
+      logMessage_Info("已进入单账号模式。");
+
+      // 1. 确保旧实例被销毁
+      destroySingleMap();
+
+      // 2. 终极修复：不立即创建地图，而是延迟创建
+      // 这个延迟给予浏览器足够时间来完成UI布局从 hidden 到 grid 的切换和渲染
+      logMessage_Info("等待UI渲染稳定...");
+      setTimeout(() => {
+        logMessage_Info("UI稳定，开始初始化地图...");
+        loadAMapOnce().then(() => {
+          initMap(AMapInstance); // 在这里才真正创建地图实例
+          ensureSingleControls();
+
+          // 由于地图创建时容器尺寸已正确，后续的任务加载和绘制流程将自然正确
+          // selectTask() 会在 refreshTasks() 中被调用，此时 map 实例已存在
+        }).catch((e) => logMessage_Error('AMap 加载失败（延迟创建阶段）', e));
+      }, 100); // 100毫秒的延迟对于现代浏览器已绰绰有余
+    }
+
+    function resetUI() {
+      $('main-app').classList.add('hidden'); $('main-app').classList.remove('grid'); $('login-container').classList.remove('hidden');
+      $('user-name-label').textContent = '姓名: NULL'; $('user-id-label').textContent = '学号: NULL';
+      const logoutBtn = $('logout-button'); logoutBtn.classList.remove('!text-amber-500'); logoutBtn.classList.add('!text-red-600');
+      currentTasks = []; selectedTaskIndex = -1; currentUserData = {}; currentRunData = {};
+      $('task-list').innerHTML = ''; $('history-list').innerHTML = ''; $('target-points-text').innerHTML = '';
+
+      // 离线标志复位，UA 标签与随机按钮恢复
+      IS_OFFLINE = false;
+      const uaLabel = $('ua-label'); if (uaLabel) uaLabel.textContent = ' (未加载) ';
+      const uaBtn = $('random-ua-btn'); if (uaBtn) uaBtn.disabled = false;
+
+
+      // 先移除录制样式与交互禁用（即使地图已销毁也清理DOM）
+      try {
+        const container = document.getElementById('map-container');
+        if (container) container.classList.remove('drawing');
+      } catch (_) { }
+      isDrawing = false;
+      isPathDrawing = false;
+      leftMouseDown = false;
+      pendingUnlockMap = false;
+      // 清空绘制临时队列与节流
+      draftPath = [];
+      draftPathLngLat = [];
+      pendingPoints = [];
+      isUpdating = false;
+      lastMouseMoveTime = 0;
+      // 模态全局标记清理
+      try { document.body.classList.remove('modal-visible'); } catch (_) { }
+
+      // Reset button states
+      $('start-run-button').textContent = '开始执行';
+      $('start-run-button').classList.remove('btn-danger');
+      $('start-run-button').classList.add('btn-primary');
+      $('start-all-button').textContent = '执行所有';
+      $('start-all-button').classList.remove('btn-danger');
+      $('start-all-button').classList.add('btn-secondary');
+
+      // 如果后台任务轮询正在运行，则停止轮询
+      stopBackgroundTaskPolling();
+
+      updateDashboard();
+
+      destroySingleMap();
+
+      onUserChange();
+    }
+
+
+
+
+    function clearMapOverlays() {
+      if (!map) return;
+      polylines.recommended.forEach(p => map.remove(p)); polylines.recommended = [];
+      if (polylines.draft) map.remove(polylines.draft);
+      if (polylines.run) map.remove(polylines.run);
+      if (polylines.history) map.remove(polylines.history);
+      polylines.draft = polylines.run = polylines.history = null;
+      map.remove(markers); markers = [];
+      if (runnerMarker) { map.remove(runnerMarker); runnerMarker = null; }
+      if (drawingInfoMarker) { map.remove(drawingInfoMarker); drawingInfoMarker = null; }
+    }
+
+    // 显式销毁单账号地图实例，释放资源并复位变量
+    function destroySingleMap() {
+      try {
+        if (map && typeof map.destroy === 'function') {
+          map.destroy();
+        }
+      } catch (e) {
+        logMessage_Warning('destroySingleMap warning:', e);
+      } finally {
+        map = null;
+        // 覆盖物与状态变量复位（保险）
+        polylines.recommended = [];
+        polylines.draft = null;
+        polylines.run = null;
+        polylines.history = null;
+        markers = [];
+        runnerMarker = null;
+        drawingInfoMarker = null;
+
+        // 录制模式 & 交互双保险复位
+        try {
+          const container = document.getElementById('map-container');
+          if (container) container.classList.remove('drawing');
+        } catch (_) { }
+        isDrawing = false;
+        isPathDrawing = false;
+        leftMouseDown = false;
+        pendingUnlockMap = false;
+        // 绘制队列与节流状态清理
+        draftPath = [];
+        draftPathLngLat = [];
+        pendingPoints = [];
+        isUpdating = false;
+        lastMouseMoveTime = 0;
+
+        // 模态残留保险清理（防交互禁用）
+        try { document.body.classList.remove('modal-visible'); } catch (_) { }
+      }
+    }
+
+    
+
+    // --- 核心业务逻辑函数 (JS端) ---
+
+
+    // 处理API Key确认事件
+    async function onConfirmAmapKey() {
+      const input = $('amap-key-input');
+      const newKey = input.value.trim();
+      if (!newKey) {
+        showModalAlert('API Key 不能为空！');
+        return;
+      }
+
+      const btn = $('confirm-amap-key-btn');
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="inline-block animate-spin mr-2">⏳</span>保存中...`;
+
+      try {
+        const result = await callPythonAPI('save_amap_key', newKey);
+        if (result.success) {
+          AMAP_API_KEY = newKey;
+          const modal = $('amap-key-modal');
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+          document.body.classList.remove('modal-visible');
+          logMessage_Info("API Key已更新，正在尝试重新加载地图...");
+
+          // 关键：保存成功后，重新触发地图加载
+          try {
+            await loadAMapOnce();
+            // 如果地图加载成功，可能需要初始化一些依赖地图的UI
+            // 例如，如果已经进入了主界面，则需要确保地图被创建
+            ensureSingleMap();
+          } catch (e) {
+            logMessage_Error('保存Key后加载AMap SDK失败', e);
+            logMessage_Info("[错误] 新的API Key似乎无效，地图加载失败。请检查后重试。");
+            // 如果加载失败，可以再次弹出窗口
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.classList.add('modal-visible');
+          }
+
+        } else {
+          showModalAlert(`保存失败: ${result.message}`);
+        }
+      } catch (e) { // [新代码] 捕获API调用本身的错误
+        logMessage_Error("保存API Key时发生网络错误:", e);
+        showModalAlert(`保存失败: ${e.message}`);
+      } finally { // [新代码] 无论成功失败，都恢复按钮状态
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    }
+
+    function bindImmediateRefreshForUserSelects() {
+      const loginSelect = $('user-combo');
+      const multiSelect = $('multi-config-user-select');
+
+      if (loginSelect && !loginSelect._refreshBound) {
+        loginSelect.addEventListener('focus', refreshUserList);
+        loginSelect.addEventListener('click', refreshUserList);
+        loginSelect._refreshBound = true;
+      }
+
+      if (multiSelect && !multiSelect._refreshBound) {
+        multiSelect.addEventListener('focus', refreshUserList);
+        multiSelect.addEventListener('click', refreshUserList);
+        multiSelect._refreshBound = true;
+      }
+    }
+
+    // --- 专门用于后端强制刷新UI的函数 ---
+
+    async function multi_downloadTemplate() {
+      const result = await callPythonAPI('multi_download_import_template');
+      if (!result || !result.success) {
+        showModalAlert(result?.message || '模板下载失败');
+        return;
+      }
+      
+      // Web模式：从返回的base64内容创建下载
+      if (result.content && result.filename) {
+        const binaryString = atob(result.content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: result.mimetype || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logMessage_Info(`模板已下载：${result.filename}`);
+      }
+    }
+
+
+
+
+
+
+    // 用 get_initial_data 兼容刷新用户列表
+    async function refreshUserList() {
+      // 如果处于网络错误状态，跳过刷新避免产生更多错误
+      if (isInNetworkErrorState) {
+        return;
+      }
+
+      // ---检查 sessionUUID 是否有效 ---
+      if (!sessionUUID || sessionUUID === 'null' || sessionUUID.trim() === '') {
+        // logMessage_Info('sessionUUID 尚未分配或无效，无法刷新用户列表。');
+        return; // 如果 UUID 无效，则提前退出，不执行 API 调用
+      }
+      try {
+        const initialData = await callPythonAPI('get_initial_data');
+        // 兼容结构 { users: [...], lastUser: '...' }
+        const users = Array.isArray(initialData?.users) ? initialData.users : [];
+
+        const select = document.getElementById("user-combo");                // 登录页选择框
+        const multiSelect = document.getElementById("multi-config-user-select"); // 多账号模式选择框
+
+        function updateSelect(selectElem, users) {
+          if (!selectElem) return;
+          // 记录当前选择与滚动位置
+          const previousValue = selectElem.value;
+          const previousScrollTop = selectElem.scrollTop;
+
+          // 清空后重建
+          selectElem.innerHTML = '';
+
+          // 统一首项：新用户/手动输入
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = '(新用户/手动输入)';
+          selectElem.appendChild(opt);
+
+          users.forEach(u => {
+            const o = document.createElement('option');
+            o.value = u;
+            o.textContent = u;
+            o.title = u; // 长文本 tooltip
+            selectElem.appendChild(o);
+          });
+
+          // 恢复之前的选择
+          if (users.includes(previousValue)) {
+            selectElem.value = previousValue;
+          } else {
+            selectElem.value = '';
+          }
+
+          // 恢复滚动位置
+          selectElem.scrollTop = previousScrollTop;
+        }
+
+        updateSelect(select, users);
+        updateSelect(multiSelect, users);
+      } catch (err) {
+        logMessage_Error("刷新用户列表失败", err);
+      }
+    }
+
+
+
+    async function onUserChange() {
+      const username = $('user-combo').value;
+      const data = await callPythonAPI('on_user_selected', username);
+      $('username-entry').value = username;
+      $('password-entry').value = data.password || "";
+      $('ua-label').textContent = data.ua || '(新用户将在登录时自动生成)';
+      pythonParams = data.params || pythonParams;
+      updateParamInputs($('params-container'), 'param', pythonParams);
+
+      // 应用主题颜色
+      const base = pythonParams.theme_base_color || '#7dd3fc';
+      setBaseColor(base, base);
+
+      // 新增：应用主题风格
+      const style = pythonParams.theme_style || 'default';
+      setThemeStyle(style);
+    }
+
+    async function onLogin() {
+      logMessage_Info('[前端-登录] 开始登录流程...');
+      const user = $('username-entry').value.trim();
+      const pass = $('password-entry').value;
+
+      logMessage_Info(`[前端-登录] 用户名: ${user}`);
+      if (!user) {
+        logMessage_Info('[前端-登录] 错误: 用户名为空');
+        showModalAlert('请输入用户名');
+        return;
+      }
+
+      // 在线登录前，复位离线标志与 UA 按钮
+      IS_OFFLINE = false;
+      const uaBtn = $('random-ua-btn'); if (uaBtn) uaBtn.disabled = false;
+
+      // 在登录前，从登录页的UA标签捕获当前的UA
+      const uaOnLoginScreen = $('ua-label')?.textContent || "";
+      logMessage_Info(`[前端-登录] 当前UA: ${uaOnLoginScreen.substring(0, 50)}...`);
+
+      // 显示加载状态
+      setButtonLoading('login-button', true, '登录中...');
+
+      logMessage_Info('[前端-登录] 调用后端API进行登录验证...');
+      const result = await callPythonAPI('login', user, pass);
+      if (result.success) {
+        logMessage_Info('[前端-登录] ✓ 登录成功！');
+        showButtonSuccess('login-button', '登录成功');
+        // 修复Issue 3: 在显示主界面前先加载AMap API Key
+        if (result.amap_key) {
+          logMessage_Info('[前端-登录] 加载高德地图API...');
+          AMAP_API_KEY = result.amap_key;
+          try {
+            await loadAMapOnce();
+            logMessage_Info('[前端-登录] ✓ 地图加载成功');
+          } catch (e) {
+            logMessage_Error('[前端-登录] ✗ 地图加载失败:', e);
+          }
+        }
+
+        logMessage_Info('[前端-登录] 显示主应用界面...');
+        showMainApp();
+        $('loading-overlay').classList.add('hidden');
+        currentUserData = result.userInfo;
+        currentSessionUA = uaOnLoginScreen;
+        const name = currentUserData.name || '';
+        $('user-name-label').textContent = `姓名: ${name}`;
+        $('user-id-label').textContent = `学号: ${currentUserData.student_id}`;
+        logMessage_Info(`[前端-登录] 用户信息已更新: ${name} (${currentUserData.student_id})`);
+
+        logMessage_Info('[前端-登录] 更新仪表盘...');
+        updateDashboard();
+
+        logMessage_Info('[前端-登录] 刷新任务列表...');
+        await refreshTasks();
+
+        logMessage_Info('[前端-登录] 获取通知...');
+        // 在获取通知前，先隐藏通知徽章，直到获得确切数量
+        const notificationBadge = $('notification-badge');
+        if (notificationBadge) {
+          notificationBadge.classList.add('hidden');
+        }
+        
+        // 【优化】登录返回的结果中已经包含预加载的通知，无需再次请求
+        if (result.cached_notifications && result.cached_notifications.notices.length > 0) {
+          logMessage_Info(`使用登录时预加载的 ${result.cached_notifications.notices.length} 条通知`);
+          // 更新徽章
+          if (result.cached_notifications.unreadCount > 0) {
+            notificationBadge.textContent = result.cached_notifications.unreadCount > 9 ? '9+' : result.cached_notifications.unreadCount;
+            notificationBadge.classList.remove('hidden');
+          }
+          // 缓存到全局变量
+          window.currentNotifications = result.cached_notifications.notices;
+        } else {
+          // 如果登录响应中没有预加载通知，则主动获取
+          await fetchNotifications();
+        }
+
+        const base = pythonParams.theme_base_color || '#7dd3fc';
+        setBaseColor(base, base);
+        // 显示管理按钮（所有用户包括游客都可以访问）
+        const adminBtn = $('show-admin-panel');
+        if (adminBtn) adminBtn.classList.remove('hidden');
+        const adminBtnLogin = $('show-admin-panel-login');
+        if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
+        $('loading-overlay').classList.remove('hidden');
+        logMessage_Info('[前端-登录] ✓ 登录流程完成！');
+      } else {
+        logMessage_Info(`[前端-登录] ✗ 登录失败: ${result.message}`);
+        setButtonLoading('login-button', false);
+        showButtonError('login-button', '登录失败');
+        showModalAlert(result.message, '登录失败');
+      }
+    }
+
+
+
+    async function onLogout() {
+      await callPythonAPI('logout');
+      currentSessionUA = "";
+      resetUI();
+
+
+      if (refreshUserListInterval) {
+        clearInterval(refreshUserListInterval);
+        refreshUserListInterval = null;
+        logMessage_Info('refreshUserList interval cleared on logout.');
+      }
+    }
+
+
+    async function refreshTasks() {
+      if (isRefreshingTasks) {
+        // 并发保护：已有刷新在进行中时直接返回
+        return;
+      }
+      isRefreshingTasks = true;
+
+      // 临时禁用刷新按钮，用户体验更明确
+      const btn = $('refresh-button');
+      if (btn) btn.disabled = true;
+
+      try {
+        const taskResult = await callPythonAPI('load_tasks');
+        if (taskResult && taskResult.success) {
+          currentTasks = taskResult.tasks;
+          renderTaskList();
+          return;
+        }
+
+        // 小延迟重试一次（兜底），但仍保持防抖
+        await new Promise(r => setTimeout(r, 300));
+        const retry = await callPythonAPI('load_tasks');
+        if (retry && retry.success) {
+          currentTasks = retry.tasks;
+          renderTaskList();
+
+          await fetchNotifications();
+
+        } else {
+          logMessage_Info("加载任务列表失败，请点击左侧“刷新”重试。");
+        }
+      } finally {
+        isRefreshingTasks = false;
+        if (btn) btn.disabled = false;
+      }
+    }
+
+
+    function renderTaskList() {
+      const taskListDiv = $('task-list'); taskListDiv.innerHTML = "";
+      if (currentTasks.length === 0) { taskListDiv.innerHTML = `<div class="text-slate-400 text-center py-10">暂无任务</div>`; return; }
+      currentTasks.forEach((task, index) => {
+        const item = document.createElement('div');
+        const pathStatus = task.run_coords?.length > 0 ? '已生成' : (task.draft_coords?.length > 0 ? '草稿' : '无路径');
+        let statusClass = 'text-amber-600', statusText = '未完成', statusIcon = '🕒';
+
+        // 已完成（宽松比较，兼容数字或字符串）
+        if (task.status == 1) { statusClass = 'text-emerald-600'; statusText = '已完成'; statusIcon = '✅'; }
+
+        // 过期优先显示
+        if (task.info_text === '已过期') { statusClass = 'text-red-600'; statusText = '已过期'; statusIcon = '⛔'; }
+
+        // 若后端 info_text 表示“开始于: YYYY-MM-DD”，则把左侧状态显示为“未开始”
+        if (!(task.status == 1)) {
+          if (typeof task.info_text === 'string' && task.info_text.startsWith('开始于')) {
+            statusClass = 'text-slate-600';
+            statusText = '未开始';
+            statusIcon = '⏳';
+          }
+        }
+
+        item.className = 'p-3 rounded-xl cursor-pointer border border-transparent transition-colors duration-200 hover:bg-white/70';
+        item.innerHTML = `
+      <div class="flex items-center gap-3">
+        <p class="font-bold text-slate-700 text-sm truncate">${task.run_name}</p>
+      </div>
+      <div class="flex justify-between items-center mt-2 text-xs">
+        <span class="font-semibold ${statusClass} flex items-center gap-1">${statusIcon} ${statusText}</span>
+        <span class="text-slate-500">${task.info_text || ''}</span>
+        <span class="badge">${pathStatus}</span>
+      </div>
+    `;
+        item.dataset.index = index;
+        if (task.status === 1) item.classList.add('opacity-60');
+        if (index === selectedTaskIndex) item.classList.add('selected');
+        item.addEventListener('click', () => selectTask(index));
+        taskListDiv.appendChild(item);
+      });
+    }
+
+    async function forceLoadTaskDataForPolling(taskIndex) {
+      if (taskIndex < 0 || taskIndex >= currentTasks.length) return;
+      // 避免重复加载
+      if (currentRunData && currentRunData.task_index === taskIndex) return; 
+
+      logMessage_Info(`[Polling] 强制加载任务 #${taskIndex} 的数据...`);
+      try {
+        const result = await callPythonAPI('get_task_details', taskIndex);
+        if (result.success) {
+          currentRunData = result.details;
+          currentRunData.task_index = taskIndex; // 标记已加载
+          updateDashboard();
+          drawOnMap(); 
+          loadHistory(taskIndex);
+          
+          // 重置该任务的进度跟踪
+          singleProcessedPoints = 0; 
+          singleTotalPoints = (currentRunData.run_coords?.length || 0);
+          updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+        } else {
+          logMessage_Error(`[Polling] 强制加载任务数据失败: ${result.message}`);
+        }
+      } catch (e) {
+        logMessage_Error(`[Polling] 强制加载任务时出错: ${e}`);
+      }
+    }
+
+    async function selectTask(index, Update_Dashboard = true) {
+      logMessage_Info(`[任务选择] 开始选择任务，索引: ${index}`, 'DEBUG');
+      logMessage_Info(`[前端-任务选择] 选择任务 #${index}`);
+
+      // 防止在任务执行过程中切换任务（但允许重新选择当前任务）
+      if (backgroundTaskPollInterval && selectedTaskIndex !== index) {
+        logMessage_Warning("任务执行中，无法切换任务！请先停止当前任务。");
+        showModalAlert("任务执行中，无法切换任务！请先停止当前任务。");
+        return;
+      }
+
+      if (isDrawing) {
+        logMessage_Info("请先结束当前路径绘制！", 'WARN');
+        return;
+      }
+      if (selectedTaskIndex === index) {
+        logMessage_Info(`[任务选择] 任务已选中，无需重复选择: ${index}`, 'DEBUG');
+        return;
+      }
+
+      const taskListDiv = $('task-list');
+      if (selectedTaskIndex > -1 && taskListDiv.children[selectedTaskIndex]) {
+        taskListDiv.children[selectedTaskIndex].classList.remove('selected');
+        logMessage_Info(`[任务选择] 取消选中上一个任务: ${selectedTaskIndex}`, 'DEBUG');
+      }
+      selectedTaskIndex = index;
+      if (taskListDiv.children[selectedTaskIndex]) {
+        taskListDiv.children[selectedTaskIndex].classList.add('selected');
+        logMessage_Info(`[任务选择] 高亮显示当前任务: ${index}`, 'DEBUG');
+      }
+
+      // --- BUG修复 ---
+      const selectedTask = currentTasks[index];
+      // 判断是否为离线导入的任务
+      if (selectedTask && selectedTask.info_text === "离线") {
+        logMessage_Info(`[任务选择] 离线模式任务，使用本地数据`, 'INFO');
+        // 离线模式: 直接使用前端已有的完整数据，不再请求后端
+        currentRunData = selectedTask;
+        if (Update_Dashboard) {
+          updateDashboard();
+        }
+        drawOnMap();
+        loadHistory(index); // 加载历史（离线模式下通常为空）
+        singleProcessedPoints = 0;
+        singleTotalPoints = (currentRunData.run_coords?.length || 0);
+        updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+        logMessage_Info(`[任务选择] ✓ 离线任务加载完成，总点数: ${singleTotalPoints}`, 'INFO');
+      } else {
+        // 在线模式: 按原逻辑从后端获取详情
+        logMessage_Info(`[任务选择] 在线模式，从后端获取任务详情...`, 'INFO');
+        const result = await callPythonAPI('get_task_details', index);
+        if (result.success) {
+          logMessage_Info(`[任务选择] ✓ 任务详情获取成功`, 'INFO');
+          currentRunData = result.details;
+          updateDashboard();
+
+          drawOnMap();
+          // setTimeout(() => {
+          //   if (selectedTaskIndex === index) {
+          //     logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
+          //     drawOnMap();
+          //   }
+          // }, 100); // 稍微增加延迟以确保渲染稳定
+
+          loadHistory(index);
+          singleProcessedPoints = 0;
+          singleTotalPoints = (currentRunData.run_coords?.length || 0);
+          updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+          logMessage_Info(`[任务选择] ✓ 在线任务加载完成，总点数: ${singleTotalPoints}`, 'INFO');
+        } else {
+          logMessage_Info(`[任务选择] ✗ 获取任务详情失败: ${result.message}`, 'ERROR');
+          logMessage_Info(result.message);
+        }
+      }
+    }
+
+
+    // --- 多账号模式核心函数 ---
+    async function switchToMultiMode() {
+
+      $('multi-account-count').textContent = 0;
+
+      const result = await callPythonAPI('enter_multi_account_mode');
+      if (!result.success) return;
+      $('login-container').classList.add('hidden');
+      $('main-app').classList.add('hidden');
+      $('multi-account-app').classList.remove('hidden');
+      $('multi-account-app').classList.add('grid');
+      document.body.classList.remove('modal-visible');
+
+
+
+      // 统一加载一次 SDK（若已加载则立即返回）
+      try {
+        await loadAMapOnce();
+      } catch (e) {
+        logMessage_Error('AMap 未就绪，无法进入多账号地图', e);
+        return;
+      }
+
+
+      // 创建多账号地图
+      if (!multiAccountMap && AMapInstance) {
+        // 浏览器会尽量将图像数据缓存在GPU内存中，从而提高多个getImageData读取操作的速度
+        multiAccountMap = new AMapInstance.Map('multi-map-container', {
+          viewMode: '3D',
+          pitch: 55,
+          rotation: 0,
+          zoom: 17,
+          center: [113.390342, 22.527403],
+          renderOptions: {
+            willReadFrequently: true  // 优化canvas性能
+          }
+        });
+
+        // 多账号地图的 3D 控制杆 (直接创建)
+        const ctrlBar = new AMapInstance.ControlBar({
+          position: { left: '12px', top: '12px' },
+          showZoomBar: false,
+          showControlButton: true
+        });
+        multiAccountMap.addControl(ctrlBar);
+
+
+        // 建筑物图层 (直接创建)
+        try {
+          const buildings = new AMapInstance.BuildingLayer();
+          buildings.setMap(multiAccountMap);
+        } catch (e) {
+          logMessage_Warning('BuildingLayer not available (multi):', e);
+        }
+
+        multiAccountMap.on('zoomchange', () => {
+          const z = multiAccountMap.getZoom();
+          $('multi-zoom-level').textContent = String(z.toFixed(1));
+        });
+
+        multiAccountMap.on('zoomchange', () => {
+          if (!multiAccountMap) return; // 防御检查
+          const z = multiAccountMap.getZoom();
+          const zoomLevelEl = $('multi-zoom-level');
+          if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
+        });
+
+        // 保存清理函数
+        if (window.multiMapCleanup) window.multiMapCleanup();
+        window.multiMapCleanup = enhanceMapInteraction(multiAccountMap);
+
+        multiAccountMap.setStatus({
+          doubleClickZoom: true,
+          dragEnable: true,
+          scrollWheel: true,
+          keyboardEnable: true
+        });
+
+        // 兜底重建并绑定多账号控件
+        ensureMultiControls();
+      }
+
+
+
+
+
+      const configUsers = await callPythonAPI('multi_get_all_config_users');
+      const select = $('multi-config-user-select');
+      select.innerHTML = '<option value="">(新用户/手动输入)</option>';
+      configUsers.users.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = u;
+        select.appendChild(opt);
+      });
+
+      // 初始化全局参数UI
+      const container = $('multi-global-params-container');
+      container.innerHTML = '';
+      createParamInputs(container, 'multi-param', onGlobalParamChange);
+      pythonParams = result.params;
+      updateParamInputs(container, 'multi-param', pythonParams);
+
+      await callPythonAPI('set_multi_run_only_incomplete',
+        document.getElementById('multi-run-only-incomplete-check').checked
+      );
+
+      // 确保多账号选择框也有“点击/聚焦即刷新”
+      bindImmediateRefreshForUserSelects();
+
+      // self.log("已进入多账号模式。")
+      updateMultiGlobalButtons(true, true); // 初始禁用，后端很快会根据真实状态刷新
+
+    }
+
+    async function exitMultiMode() {
+      path_planning_queue = [];
+      is_planning_path = false;
+      await callPythonAPI('exit_multi_account_mode');
+      $('multi-account-app').classList.add('hidden');
+      $('multi-account-app').classList.remove('grid');
+      $('login-container').classList.remove('hidden');
+      document.body.classList.remove('modal-visible');
+
+      $('multi-account-list').innerHTML = '<p class="text-slate-400 text-center py-10">请先添加或导入账号</p>';
+      if (multiAccountMap) {
+        // 先执行清理
+        if (window.multiMapCleanup) {
+          window.multiMapCleanup();
+          window.multiMapCleanup = null;
+        }
+        try { multiAccountMap.remove(Object.values(multiAccountMarkers)); } catch (_) { }
+        try { if (typeof multiAccountMap.destroy === 'function') multiAccountMap.destroy(); } catch (e) { logMessage_Warning('destroy multiAccountMap warning:', e); }
+      }
+      multiAccountMarkers = {};
+      multiAccountMap = null;
+
+      resetUI();
+      if (refreshUserListInterval) {
+        clearInterval(refreshUserListInterval);
+        refreshUserListInterval = null;
+        logMessage_Info('refreshUserList interval cleared on exiting multi mode.');
+      }
+
+    }
+
+
+    async function multi_loadAllFromConfig() {
+      const result = await callPythonAPI('multi_load_accounts_from_config');
+      if (result && result.accounts) renderMultiAccountList(result.accounts);
+    }
+
+    function openNewUserModal() {
+      $('newUsername').value = "";
+      $('newPassword').value = "";
+      $('newUserModal').style.display = "flex"; /* 将 'block' 改为 'flex' 以启用居中 */
+    }
+
+    function closeNewUserModal() {
+      $('newUserModal').style.display = "none";
+    }
+    $('newUserClose').onclick = closeNewUserModal;
+    $('newUserCancel').onclick = closeNewUserModal;
+
+
+    async function multi_addFromConfig() {
+      const user = $('multi-config-user-select').value;
+      if (!user) {
+        // 打开模态框
+        openNewUserModal();
+
+        // 绑定确认按钮事件（只绑定一次）
+        const confirmBtn = $('newUserConfirm'); // 获取按钮引用
+        confirmBtn.onclick = async () => {
+          const inputUsername = $('newUsername').value.trim();
+          const inputPassword = $('newPassword').value;
+
+          // --- 修复：添加密码校验 ---
+          if (!inputUsername || !inputPassword) {
+            showModalAlert("账号和密码均不能为空");
+            return;
+          }
+          // (注意: main.py中的 multi_add_account 也会校验，但前端校验UX更好)
+          if (inputPassword.length < 6) {
+             showModalAlert('密码长度至少为6个字符', '错误');
+             return;
+          }
+
+          // --- 修复：添加加载状态和try...finally ---
+          setButtonLoading('newUserConfirm', true, '添加中...');
+          
+          try {
+            const result = await callPythonAPI('multi_add_account', inputUsername, inputPassword);
+            
+            // --- 修复：只在成功后关闭模态框 ---
+            if (result && result.accounts) {
+              renderMultiAccountList(result.accounts);
+              closeNewUserModal(); // 成功后关闭
+            } else {
+              // 显示后端返回的错误（例如：账号已存在但密码为空）
+              showModalAlert(result?.message || '添加失败，请检查账号是否已存在');
+            }
+          } catch (e) {
+            // 捕获 callPythonAPI 可能抛出的网络错误
+            showModalAlert(`添加时发生错误: ${e.message}`);
+            logMessage_Error("多账号添加新用户时发生错误:", e);
+          } finally {
+            // --- 修复：恢复按钮状态 ---
+            setButtonLoading('newUserConfirm', false, '确认');
+          }
+        };
+        return;
+      }
+      // 已有配置用户
+      const result = await callPythonAPI('multi_add_account', user, "");
+      if (result && result.accounts) renderMultiAccountList(result.accounts);
+    }
+
+
+    async function multi_importFromExcel() {
+      // [BUG 修复] 后端 open_file_dialog 在 Web 模式下无效 (main.py L3605)。
+      // 必须由前端创建文件输入框来读取文件。
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      // 限制文件类型为 Excel 和 CSV
+      input.accept = '.xlsx, .xls, .csv';
+
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+          logMessage_Info("未选择文件。");
+          return;
+        }
+
+        // 验证文件扩展名
+        const fileName = file.name;
+        const fileExt = fileName.split('.').pop().toLowerCase();
+        if (!['xlsx', 'xls', 'csv'].includes(fileExt)) {
+          showModalAlert("文件格式不支持，请选择 .xlsx, .xls, 或 .csv 文件。");
+          return;
+        }
+
+        logMessage_Info(`正在读取文件: ${fileName}`);
+
+        // 我们将文件内容作为 Base64 字符串发送到后端
+        // 这是处理二进制 (xls/xlsx) 和文本 (csv) 文件的最可靠方法
+        const reader = new FileReader();
+        reader.readAsDataURL(file); // 读取为 Data URL (包含了 Base64)
+
+        reader.onload = async () => {
+          try {
+            // reader.result 格式为 "data:application/vnd.ms-excel;base64,UEsD..."
+            // 我们需要去掉 "data:..."
+            const base64Content = reader.result.split(',')[1];
+
+            // 调用一个[新]的API，将文件名和Base64内容发送到后端
+            const result = await callPythonAPI('multi_import_accounts', fileName, base64Content);
+
+            if (result && result.success) {
+              logMessage_Info(`成功导入 ${result.imported_count || 0} 个账号。`);
+              if (result.skipped_count > 0) {
+                // 如果有跳过的（例如缺密码），显示后端返回的提示信息
+                showModalAlert(`导入完成：\n成功 ${result.imported_count} 个。\n跳过 ${result.skipped_count} 个（缺少密码）。\n\n详情：${result.message}`, "导入提示");
+              }
+              // 刷新账号列表
+              if (result.accounts) {
+                renderMultiAccountList(result.accounts);
+              }
+            } else {
+              showModalAlert(`导入失败: ${result.message || '未知错误'}`);
+            }
+          } catch (err) {
+            logMessage_Error("导入文件时出错:", err);
+            showModalAlert(`导入失败: ${err.message}`);
+          }
+        };
+
+        reader.onerror = () => {
+          logMessage_Error("读取文件失败。");
+          showModalAlert("读取文件失败。");
+        };
+      };
+
+      // 触发文件选择框
+      input.click();
+    }
+
+    async function multi_exportToExcel() {
+      const result = await callPythonAPI('multi_export_accounts_summary');
+      if (!result || !result.success) {
+        showModalAlert(result?.message || '导出失败');
+        return;
+      }
+      
+      // Web模式：从返回的base64内容创建下载
+      if (result.content && result.filename) {
+        const binaryString = atob(result.content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: result.mimetype || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logMessage_Info(`汇总已导出：${result.filename}`);
+      }
+    }
+
+    async function multi_startAll() {
+
+
+      // 若当前列表为空
+      const count = parseInt($('multi-account-count').textContent || '0', 10);
+      if (!count || count <= 0) {
+        showModalAlert('账号列表为空，无法开始。请先添加账号。');
+
+        return;
+      }
+
+
+      const use_delay = $('multi-use-delay-check').checked;
+      const min_delay = parseInt($('multi-min-delay-input').value) || 0;
+      const max_delay = parseInt($('multi-max-delay-input').value) || 300;
+      const run_only_incomplete = $('multi-run-only-incomplete-check').checked;
+
+      const result = await callPythonAPI('multi_start_all_accounts', min_delay, max_delay, use_delay, run_only_incomplete);
+      // 失败时回滚按钮状态并提示
+      if (!result || !result.success) {
+        showModalAlert(result?.message || '无法开始全部账号任务。');
+
+        return;
+      }
+    }
+
+
+    async function multi_stopAll() {
+      await callPythonAPI('multi_stop_all_accounts');
+
+    }
+
+    // 后端主动推送时使用的刷新入口
+    function onAccountsUpdated(accounts) {
+      try {
+        renderMultiAccountList(accounts);
+      } catch (e) {
+        logMessage_Error("onAccountsUpdated render failed:", e);
+      }
+    }
+
+
+    function renderMultiAccountList(accounts) {
+      const listDiv = $('multi-account-list');
+      listDiv.innerHTML = '';
+      $('multi-account-count').textContent = accounts.length;
+      if (accounts.length === 0) {
+        listDiv.innerHTML = '<p class="text-slate-400 text-center py-10">请先添加或导入账号</p>';
+        return;
+      }
+
+      accounts.forEach(acc => {
+        const s = acc.summary;
+        const item = document.createElement('div');
+        item.id = `multi-acc-${acc.username}`;
+        item.dataset.username = acc.username;
+        item.className = 'p-3 rounded-xl border border-slate-200 bg-white/80 mb-2 text-sm';
+        item.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div class="font-bold text-slate-800 flex items-start gap-2 truncate min-w-0">
+                    <input type="checkbox" class="account-checkbox w-4 h-4 accent-sky-600 rounded flex-shrink-0 mt-1">
+                    <div class="truncate">
+                        <span class="account-name truncate">${acc.name}</span>
+                        <span class="text-xs text-slate-500 font-normal block">(${acc.username})</span>
+                        ${acc.tag ? `<span class="text-xs text-purple-600 font-medium block">🏷️ ${acc.tag}</span>` : ''}
+                    </div>
+                </div>
+                <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap" id="MultiAccount_status_text">${acc.status_text}</span>
+            </div>
+
+
+            <div class="grid grid-cols-5 gap-2 text-center text-xs mt-2 pt-2 border-t text-slate-600">
+                <div>总数: <span class="summary-total font-bold">${s.total}</span></div>
+                <div>完成: <span class="summary-completed font-bold text-emerald-600">${s.completed}</span></div>
+                <div>未开始: <span class="summary-notstarted font-bold text-slate-600">${s.not_started}</span></div>
+                <div>可跑: <span class="summary-executable font-bold text-amber-600">${s.executable}</span></div>
+                <div>过期: <span class="summary-expired font-bold text-red-600">${s.expired}</span></div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 text-center text-xs mt-2 pt-2 border-t border-slate-100 text-slate-600">
+                <div title="待签到任务">待签: <span class="summary-att-pending font-bold text-sky-600">${s.att_pending || 0}</span></div>
+                <div title="已签到任务">已签: <span class="summary-att-completed font-bold text-emerald-600">${s.att_completed || 0}</span></div>
+                <div title="已过期签到">过期: <span class="summary-att-expired font-bold text-red-600">${s.att_expired || 0}</span></div>
+            </div>
+
+            <div class="flex justify-end items-center gap-2 mt-2 pt-2 border-t">
+                <button class="btn-account-refresh btn btn-ghost !py-1 !px-3 !text-xs" data-username="${acc.username}">刷新</button>
+                <button class="btn-account-start btn btn-success !py-1 !px-3 !text-xs" data-username="${acc.username}">开始</button>
+                <button class="btn-account-stop btn btn-warning !py-1 !px-3 !text-xs" data-username="${acc.username}">停止</button>
+                <button class="btn-account-params btn btn-ghost !py-1 !px-3 !text-xs" data-username="${acc.username}">设置</button>
+            </div>
+            <!-- 进度条块 -->
+            <div class="mt-2">
+                <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div class="progress-fill h-2 bg-sky-500" style="width:0%"></div>
+                </div>
+                <div class="flex justify-between text-xs mt-1">
+                    <span class="progress-text text-slate-600">未开始</span>
+                    <span class="progress-extra text-slate-400"></span>
+                </div>
+            </div>
+            `;
+        listDiv.appendChild(item);
+      });
+      // 为新创建的DOM元素重新绑定事件监听器
+
+      document.querySelectorAll('.btn-account-start').forEach(b => b.onclick = (e) => {
+        const runOnly = document.getElementById('multi-run-only-incomplete-check')?.checked ?? true;
+        callPythonAPI('multi_start_single_account', e.target.dataset.username, runOnly);
+      });
+      document.getElementById('multi-run-only-incomplete-check').addEventListener('change', async (e) => {
+        // 先告诉后端当前的开关状态
+        await callPythonAPI('set_multi_run_only_incomplete', e.target.checked);
+        // 再触发一次“刷新全部”，让摘要与按钮立刻一致
+        await callPythonAPI('multi_refresh_all_statuses');
+      });
+
+
+
+      document.querySelectorAll('.btn-account-stop').forEach(b => b.onclick = (e) => callPythonAPI('multi_stop_single_account', e.target.dataset.username));
+      document.querySelectorAll('.btn-account-params').forEach(b => b.onclick = (e) => openAccountParamsModal(e.target.dataset.username));
+      updateSelectAllCheckboxState();
+      // const startAllBtn = $('multi-start-all-btn');
+      // const stopAllBtn = $('multi-stop-all-btn');
+      // if (startAllBtn) startAllBtn.disabled = false;
+      // if (stopAllBtn) stopAllBtn.disabled = true;
+      document.querySelectorAll('.btn-account-refresh').forEach(b => {
+        b.onclick = async (e) => {
+          const u = e.currentTarget.dataset.username;
+          // 立刻做轻量UI反馈（可选）
+          const item = document.getElementById(`multi-acc-${u}`);
+          if (item) {
+            const statusEl = item.querySelector('.status-text');
+            if (statusEl) statusEl.textContent = '刷新中...';
+          }
+          const result = await callPythonAPI('multi_refresh_single_status', u);
+          if (!result || !result.success) {
+            showModalAlert(result?.message || '刷新失败');
+          }
+        };
+      });
+
+    }
+
+    // --- 新的JS函数 ---
+    function multi_toggleSelectAll(event) {
+      const isChecked = event.target.checked;
+      document.querySelectorAll('.account-checkbox').forEach(cb => cb.checked = isChecked);
+    }
+
+    function updateSelectAllCheckboxState() {
+      const allCheckboxes = document.querySelectorAll('.account-checkbox');
+      const checkedCount = document.querySelectorAll('.account-checkbox:checked').length;
+      const selectAllCheckbox = $('multi-select-all-check');
+      if (allCheckboxes.length > 0) {
+        selectAllCheckbox.checked = checkedCount === allCheckboxes.length;
+        selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < allCheckboxes.length;
+      } else {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+      }
+    }
+
+    $('multi-account-list').addEventListener('change', (event) => { if (event.target.classList.contains('account-checkbox')) { updateSelectAllCheckboxState(); } });
+
+    async function multi_removeAll() {
+      const confirmed = await jsShowConfirm('确认操作', '确定要移除列表中的所有账号吗？此操作不可撤销。');
+      if (confirmed) {
+        const result = await callPythonAPI('multi_remove_all_accounts');
+        if (result && result.accounts) renderMultiAccountList(result.accounts);
+      }
+    }
+
+    async function multi_removeSelected() {
+      const selectedUsernames = Array.from(document.querySelectorAll('.account-checkbox:checked')).map(cb => cb.closest('[data-username]').dataset.username);
+      if (selectedUsernames.length === 0) { showModalAlert("请至少选择一个要移除的账号。"); return; }
+      const confirmed = await jsShowConfirm('确认操作', `确定要移除选中的 ${selectedUsernames.length} 个账号吗？`);
+      if (confirmed) {
+        const result = await callPythonAPI('multi_remove_selected_accounts', selectedUsernames);
+        if (result && result.accounts) renderMultiAccountList(result.accounts);
+      }
+    }
+
+    function multi_getSelectedUsernames() {
+      return Array.from(document.querySelectorAll('.account-checkbox:checked'))
+        .map(cb => cb.closest('[data-username]')?.dataset?.username)
+        .filter(Boolean);
+    }
+
+    async function multi_startSelected() {
+      const usernames = multi_getSelectedUsernames();
+      if (usernames.length === 0) {
+        showModalAlert('请至少选择一个账号再执行“开始选中”。');
+        return;
+      }
+      // 从工具栏勾选项读取运行策略（与“全部开始”一致）
+      const use_delay = $('multi-use-delay-check')?.checked ?? true;
+      const min_delay = parseInt($('multi-min-delay-input')?.value) || 0;
+      const max_delay = parseInt($('multi-max-delay-input')?.value) || 300;
+      const run_only_incomplete = $('multi-run-only-incomplete-check')?.checked ?? true;
+
+      // 逐个调用后端“单账号开始”
+      for (const u of usernames) {
+        try {
+          // 可选：这里可以实现简单的随机延迟，避免瞬发全部
+          if (use_delay && max_delay >= min_delay) {
+            const d = Math.random() * (max_delay - min_delay) + min_delay;
+            // 轻量延迟，不阻塞 UI
+            await new Promise(res => setTimeout(res, d * 10)); // 缩短一个数量级，避免过长等待
+          }
+          await callPythonAPI('multi_start_single_account', u, run_only_incomplete);
+        } catch (e) {
+          logMessage_Error(`开始账号 ${u} 失败`, e);
+        }
+      }
+    }
+
+    async function multi_stopSelected() {
+      const usernames = multi_getSelectedUsernames();
+      if (usernames.length === 0) {
+        showModalAlert('请至少选择一个账号再执行“停止选中”。');
+        return;
+      }
+      for (const u of usernames) {
+        try {
+          await callPythonAPI('multi_stop_single_account', u);
+        } catch (e) {
+          logMessage_Error(`停止账号 ${u} 失败`, e);
+        }
+      }
+    }
+
+    async function multi_refreshSelected() {
+      const usernames = multi_getSelectedUsernames();
+      if (usernames.length === 0) {
+        showModalAlert('请至少选择一个账号再执行“刷新选中”。');
+        return;
+      }
+      for (const u of usernames) {
+        try {
+          // 轻量 UI 提示（非必需）
+          const item = document.getElementById(`multi-acc-${u}`);
+          if (item) {
+            const statusEl = item.querySelector('.status-text');
+            if (statusEl) statusEl.textContent = '刷新中...';
+          }
+          await callPythonAPI('multi_refresh_single_status', u);
+        } catch (e) {
+          logMessage_Error(`刷新账号 ${u} 失败`, e);
+        }
+      }
+    }
+
+
+    async function multi_refreshAll() { await callPythonAPI('multi_refresh_all_statuses'); }
+
+    async function process_path_queue() {
+      if (is_planning_path || path_planning_queue.length === 0) return;
+      is_planning_path = true;
+      const { username, waypoints } = path_planning_queue.shift();
+      try {
+        logMessage_Info(`[JS-Queue] 开始处理 ${username} 的路径规划...`);
+        const path = await getWalkingPath(waypoints);
+        logMessage_Info(`[JS-Queue] 路径规划成功 for ${username}, 返回 ${path.length} 点给Python。`);
+        callPythonAPI('multi_path_generation_callback', username, true, path);
+      } catch (error) {
+        logMessage_Info(`[JS-Queue] 路径规划失败 for ${username}: ${error}`);
+        callPythonAPI('multi_path_generation_callback', username, false, String(error));
+      } finally {
+        is_planning_path = false;
+        setTimeout(process_path_queue, 100);
+      }
+    }
+    function triggerPathGenerationForPy(username, waypoints) {
+      logMessage_Info(`收到 ${username} 的路径规划请求，已加入队列。`);
+      path_planning_queue.push({ username, waypoints });
+      process_path_queue();
+    }
+
+
+    function multi_updateAccountStatus(username, data) {
+      const item = $(`multi-acc-${username}`);
+      if (!item) return;
+
+      // 1. 文案与摘要的常规更新
+      if (data.status_text) {
+        item.querySelector('.status-text').textContent = data.status_text;
+      }
+      if (data.name) {
+        item.querySelector('.account-name').textContent = data.name;
+      }
+
+
+      if (data.summary) {
+        const s = data.summary;
+        item.querySelector('.summary-total').textContent = s.total;
+        item.querySelector('.summary-completed').textContent = s.completed;
+        const ns = item.querySelector('.summary-notstarted');
+        if (ns) ns.textContent = (s.not_started ?? 0);
+        item.querySelector('.summary-executable').textContent = s.executable;
+        item.querySelector('.summary-expired').textContent = s.expired;
+
+        // 更新签到统计
+        const att_pending = item.querySelector('.summary-att-pending');
+        const att_completed = item.querySelector('.summary-att-completed');
+        const att_expired = item.querySelector('.summary-att-expired');
+        if (att_pending) att_pending.textContent = s.att_pending || 0;
+        if (att_completed) att_completed.textContent = s.att_completed || 0;
+        if (att_expired) att_expired.textContent = s.att_expired || 0;
+
+
+      }
+
+
+
+
+
+
+      // 2. 进度条与附加文本的更新
+      if (typeof data.progress_pct === 'number') {
+        const fill = item.querySelector('.progress-fill');
+        if (fill) fill.style.width = `${Math.max(0, Math.min(100, data.progress_pct))}%`;
+      }
+      if (typeof data.progress_text === 'string') {
+        const label = item.querySelector('.progress-text');
+        if (label) label.textContent = data.progress_text;
+      }
+      if (typeof data.progress_extra === 'string') {
+        const extra = item.querySelector('.progress-extra');
+        if (extra) extra.textContent = data.progress_extra;
+      }
+
+      // 3. 状态驱动的标记清理逻辑（核心修复）
+      // 取最新状态文本（data.status_text 若未提供则读取当前DOM）
+      const currentStatus =
+        (typeof data.status_text === 'string' && data.status_text.trim())
+          ? data.status_text.trim()
+          : (item.querySelector('.status-text')?.textContent?.trim() || '');
+
+      // 定义“非运行态”集合：到达这些状态后不再应保留地图标记
+      const NON_RUNNING_STATUSES = new Set([
+        '任务已完成',
+        '全部完成',
+        '无任务可执行',
+        '已停止',
+        '已中止',
+        '待命'
+      ]);
+
+      // 若进入非运行状态，则移除该账号的地图标记
+      if (NON_RUNNING_STATUSES.has(currentStatus)) {
+        multi_removeRunnerMarker(username);
+        return; // 已清理，无需进一步判断
+      }
+
+      // 摘要也可辅助判断：当 s.executable == 0 且状态文本不是明显运行态，也清理一次（保险）
+      const s = data.summary;
+      if (s && typeof s.executable === 'number' && s.executable <= 0) {
+        // 如果没有可执行任务且不是“登录中/分析任务/运行中/等待中”，则移除
+        const maybeRunning = ['登录中...', '分析任务', '运行', '等待', '排队登录...', '延迟'];
+        const isLikelyRunning = maybeRunning.some(k => currentStatus.includes(k));
+        if (!isLikelyRunning) {
+          multi_removeRunnerMarker(username);
+        }
+      }
+    }
+
+
+    function multi_updateRunnerPosition(username, lon, lat, name) {
+      if (!multiAccountMap) return;
+      const pos = new AMapInstance.LngLat(lon, lat);
+      if (multiAccountMarkers[username]) {
+        multiAccountMarkers[username].setPosition(pos);
+      } else {
+        const color = userColors[colorIndex++ % userColors.length];
+        const markerContent = `<div style="background-color: ${color};" class="text-xs font-bold whitespace-nowrap px-2 py-1 rounded-full shadow-lg text-white">${name}</div>`;
+        multiAccountMarkers[username] = new AMapInstance.Marker({
+          position: pos, content: markerContent, anchor: 'bottom-center',
+          zIndex: 110, title: `${name} (${username})`
+        });
+        multiAccountMap.add(multiAccountMarkers[username]);
+      }
+      multi_resetMapView();
+    }
+
+    function multi_removeRunnerMarker(username) {
+      const marker = multiAccountMarkers[username];
+      if (marker && multiAccountMap) {
+        multiAccountMap.remove(marker);
+      }
+      delete multiAccountMarkers[username];
+      // 移除后根据当前剩余标记统一视角
+      multi_resetMapView();
+    }
+
+
+    function multi_resetMapView() {
+      if (!multiAccountMap) return;
+      const overlays = Object.values(multiAccountMarkers).filter(m => m.getMap());
+      if (overlays.length > 0) {
+        multiAccountMap.setFitView(overlays, false, [80, 80, 80, 80]);
+      } else {
+        multiAccountMap.setZoomAndCenter(17, [113.390342, 22.527403]);
+      }
+    }
+
+
+    function selectTaskFromBackend(index) { if (selectedTaskIndex !== index) selectTask(index); }
+
+    function updateDashboard() {
+      if (!currentRunData || Object.keys(currentRunData).length === 0) {
+        $('run-stats-label').textContent = `-- km / --:--`;
+        $('live-dist-label').textContent = '0.00 km';
+        $('total-dist-label').textContent = '0.00 km';
+        $('live-time-label').textContent = '00:00';
+        $('total-time-label').textContent = '00:00';
+        $('target-points-text').innerHTML = '<p class="text-slate-400 text-center text-xs pt-4">请选择一个任务</p>';
+        $('current-location-label').textContent = '当前位置GPS坐标: --, --';
+        return;
+      }
+      const isDrawingNow = isDrawing && !currentRunData.run_coords?.length;
+      if (isDrawingNow && draftTotalDist > 0) {
+        const drawKm = (draftTotalDist / 1000).toFixed(2);
+        const avgSpeed = pythonParams.speed_mps || 1.5;
+        const estMin = avgSpeed > 0 ? (draftTotalDist / avgSpeed) / 60 : 0;
+        $('run-stats-block').innerHTML = `<p class="text-sm text-slate-500">当前绘制</p><p class="font-bold text-2xl text-emerald-600">${drawKm} km / ~${estMin.toFixed(1)} min</p>`;
+      } else {
+        const dist = ((currentRunData.total_run_distance_m || 0) / 1000).toFixed(2);
+        const timeMin = Math.floor((currentRunData.total_run_time_s || 0) / 60);
+        const timeSec = Math.floor((currentRunData.total_run_time_s || 0) % 60);
+        $('run-stats-block').innerHTML = `<p class="text-sm text-slate-500">已选任务总览</p><p id="run-stats-label" class="font-bold text-2xl text-sky-600">${dist} km / ${String(timeMin).padStart(2, '0')}:${String(timeSec).padStart(2, '0')}</p>`;
+      }
+      const liveKm = ((currentRunData.distance_covered_m || 0) / 1000).toFixed(2);
+      const liveMs = runAccumulatedMs || 0;
+      const mm = String(Math.floor(liveMs / 60000)).padStart(2, '0');
+      const ss = String(Math.floor((liveMs % 60000) / 1000)).padStart(2, '0');
+      $('live-dist-label').textContent = `${liveKm} km`;
+      $('live-time-label').textContent = `${mm}:${ss}`;
+
+      const totalDistKm = ((currentRunData.total_run_distance_m || 0) / 1000).toFixed(2);
+      $('total-dist-label').textContent = `${totalDistKm} km`;
+      const totalTimeMin = Math.floor((currentRunData.total_run_time_s || 0) / 60);
+      const totalTimeSec = Math.floor((currentRunData.total_run_time_s || 0) % 60);
+      $('total-time-label').textContent = `${String(totalTimeMin).padStart(2, '0')}:${String(totalTimeSec).padStart(2, '0')}`;
+
+      const targetDiv = $('target-points-text');
+      targetDiv.innerHTML = "";
+      const names = (currentRunData.target_point_names || "").split('|');
+      const sequence = currentRunData.target_sequence || 0;
+      if (names.length === 0 || (names.length === 1 && names[0] === '')) {
+        targetDiv.innerHTML = '<p class="text-slate-400 text-center text-xs pt-4">此任务无打卡点</p>';
+      } else {
+        names.forEach((name, i) => {
+          if (!name) return;
+          const p = document.createElement('p');
+          let textClass = 'text-slate-500';
+          if (sequence > 0) {
+            if (i + 1 < sequence) textClass = 'text-slate-400 line-through';
+            else if (i + 1 === sequence) textClass = 'font-bold text-sky-600';
+          }
+          p.className = `transition-colors p-1 rounded ${textClass}`;
+          p.innerHTML = `<span class="font-mono w-6 inline-block">${i + 1}.</span>${name}`;
+          targetDiv.appendChild(p);
+        });
+        centerTargetList(sequence);
+      }
+    }
+    function centerTargetList(sequence) {
+      const targetDiv = $('target-points-text');
+      if (!targetDiv || !targetDiv.children || targetDiv.children.length === 0) return;
+      const idx = Math.max(0, Math.min(targetDiv.children.length - 1, (sequence || 1) - 1));
+      const child = targetDiv.children[idx];
+      if (child && typeof child.scrollIntoView === 'function') {
+        try { child.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) { }
+      }
+    }
+    function resetMapView() {
+      if (!map) return;
+      const overlays = [...polylines.recommended, ...markers];
+      if (polylines.draft) overlays.push(polylines.draft);
+      if (polylines.run) overlays.push(polylines.run);
+      if (polylines.history) overlays.push(polylines.history);
+
+      if (overlays.length > 0) {
+        map.setFitView(overlays, false, [60, 60, 60, 60]);
+      } else if (currentRunData && currentRunData.target_points?.length > 0) {
+        const targetLngLats = currentRunData.target_points.map(p => new AMapInstance.LngLat(p[0], p[1]));
+        map.setFitView(targetLngLats, false, [60, 60, 60, 60]);
+      } else {
+        map.setZoomAndCenter(17, [113.390342, 22.527403]);
+      }
+    }
+
+    // 在标记绘制后做一次“硬刷新”，模拟录制按钮带来的稳定投影重建
+    function forceProjectionRefresh() {
+      if (!map) return;
+      try {
+        // 1) 先临时关闭拖拽以触发内部交互层状态变更（这一步很关键）
+        map.setStatus({ dragEnable: false });
+
+        // 2) 做一次尺寸刷新
+        map.resize();
+
+        // 3) 下一帧进行视角拟合（覆盖物或打卡点优先）
+        requestAnimationFrame(() => {
+          const overlays = [...polylines.recommended];
+          if (polylines.draft) overlays.push(polylines.draft);
+          if (polylines.run) overlays.push(polylines.run);
+          if (polylines.history) overlays.push(polylines.history);
+
+          // 优先用覆盖物 fit；没有覆盖物时，用打卡点；都没有时回到默认视角
+          if (overlays.length > 0) {
+            map.setFitView(overlays, false, [60, 60, 60, 60]);
+          } else if (currentRunData && Array.isArray(currentRunData.target_points) && currentRunData.target_points.length > 0) {
+            const pts = currentRunData.target_points.map(p => new AMapInstance.LngLat(p[0], p[1]));
+            map.setFitView(pts, false, [60, 60, 60, 60]);
+          } else {
+            map.setZoomAndCenter(17, [113.390342, 22.527403]);
+          }
+
+          // 4) 恢复拖拽（录制按钮的行为也是这一套）
+          map.setStatus({ dragEnable: true });
+        });
+      } catch (e) {
+        logMessage_Warning('forceProjectionRefresh warning:', e);
+      }
+    }
+
+
+    // 在标记绘制后做一次“硬刷新”，模拟录制按钮带来的稳定投影重建
+    function forceProjectionRefresh() {
+      if (!map) return;
+      try {
+        // 1) 先临时关闭拖拽以触发内部交互层状态变更（这一步很关键）
+        map.setStatus({ dragEnable: false });
+
+        // 2) 做一次尺寸刷新
+        map.resize();
+
+        // 3) 下一帧进行视角拟合（覆盖物或打卡点优先）
+        requestAnimationFrame(() => {
+          const overlays = [...polylines.recommended];
+          if (polylines.draft) overlays.push(polylines.draft);
+          if (polylines.run) overlays.push(polylines.run);
+          if (polylines.history) overlays.push(polylines.history);
+
+          // 优先用覆盖物 fit；没有覆盖物时，用打卡点；都没有时回到默认视角
+          if (overlays.length > 0) {
+            map.setFitView(overlays, false, [60, 60, 60, 60]);
+          } else if (currentRunData && Array.isArray(currentRunData.target_points) && currentRunData.target_points.length > 0) {
+            const pts = currentRunData.target_points.map(p => new AMapInstance.LngLat(p[0], p[1]));
+            map.setFitView(pts, false, [60, 60, 60, 60]);
+          } else {
+            map.setZoomAndCenter(17, [113.390342, 22.527403]);
+          }
+
+          // 4) 恢复拖拽（录制按钮的行为也是这一套）
+          map.setStatus({ dragEnable: true });
+        });
+      } catch (e) {
+        logMessage_Warning('forceProjectionRefresh warning:', e);
+      }
+    }
+
+
+
+
+    // 地图绘制相关
+    function drawOnMap_signature() {
+      if (!map) return;
+      clearMapOverlays();
+      const data = currentRunData;
+      if (!data) return;
+
+      if (data.recommended_coords?.length > 0) {
+        let segment = [];
+        data.recommended_coords.forEach(p => {
+          if (p[0] === 0 && p[1] === 0) {
+            if (segment.length > 1) polylines.recommended.push(new AMapInstance.Polyline({ path: segment, strokeColor: "#10b981", strokeWeight: 5, lineCap: 'round', strokeOpacity: 0.6, zIndex: 40 }));
+            segment = [];
+          } else { segment.push(new AMapInstance.LngLat(p[0], p[1])); }
+        });
+        if (segment.length > 1) polylines.recommended.push(new AMapInstance.Polyline({ path: segment, strokeColor: "#10b981", strokeWeight: 5, lineCap: 'round', strokeOpacity: 0.6, zIndex: 40 }));
+        map.add(polylines.recommended);
+      }
+      if (data.draft_coords?.length > 0) {
+        polylines.draft = new AMapInstance.Polyline({ path: data.draft_coords.map(p => new AMapInstance.LngLat(p[0], p[1])), strokeColor: "#1f2937", strokeWeight: 6, zIndex: 45 });
+        map.add(polylines.draft);
+      }
+      if (data.run_coords?.length > 0) {
+        polylines.run = new AMapInstance.Polyline({ path: data.run_coords.map(p => new AMapInstance.LngLat(p[0], p[1])), strokeColor: "#ef4444", strokeWeight: 5, strokeStyle: 'dashed', zIndex: 50 });
+        map.add(polylines.run);
+      }
+      drawMarkers();
+      resetMapView();
+    }
+
+    function drawOnMap() {
+      drawOnMap_signature();
+      setTimeout(() => {
+        // if (selectedTaskIndex === index) {
+        logMessage_Info("执行二次渲染以修正初始位移...", 'DEBUG');
+        drawOnMap_signature();
+        // }
+      }, 100); // 稍微增加延迟以确保渲染稳定
+    }
+
+    function drawMarkers() {
+      if (!map) return;
+      map.remove(markers); markers = [];
+      const data = currentRunData; if (!data?.target_points?.length) return;
+      const sequence = data.target_sequence || (data.status == 1 ? data.target_points.length + 1 : 0);
+      const names = (data.target_point_names || "").split('|');
+      data.target_points.forEach((p, i) => {
+        let bgColor = 'bg-emerald-600', textColor = 'text-white', zIndex = 100, pulseClass = '';
+        if (i + 1 < sequence) { bgColor = 'bg-slate-400'; } else if (i + 1 === sequence) { bgColor = 'bg-sky-600'; zIndex = 110; pulseClass = 'pulsing-marker'; }
+        const pointName = names[i] || `点 ${i + 1}`;
+        const markerContent = `<div class="relative flex flex-col items-center pointer-events-none"><div class="${pulseClass} text-xs font-bold whitespace-nowrap px-2 py-1 rounded-full shadow-lg ${bgColor} ${textColor}">${pointName}</div><div class="w-0 h-0 border-x-4 border-x-transparent border-t-4 ${bgColor.replace('bg-', 'border-t-')}"></div></div>`;
+        const marker = new AMapInstance.Marker({ position: new AMapInstance.LngLat(p[0], p[1]), content: markerContent, anchor: 'bottom-center', zIndex: zIndex });
+        markers.push(marker);
+      });
+      map.add(markers);
+    }
+
+
+    function fastDistanceMeters(lon1, lat1, lon2, lat2) { return Math.sqrt(Math.pow((lon1 - lon2) * 102834.74, 2) + Math.pow((lat1 - lat2) * 111712.69, 2)); }
+
+    function scheduleUpdate() {
+      if (isUpdating) return; isUpdating = true;
+      requestAnimationFrame(() => {
+        if (pendingPoints.length > 0) {
+          const batch = pendingPoints.splice(0, pendingPoints.length);
+          batch.forEach(pt => {
+            const lngLat = new AMapInstance.LngLat(pt.lng, pt.lat);
+            draftPath.push(pt);
+            draftPathLngLat.push(lngLat);
+            if (draftPathLngLat.length > 1) { const prev = draftPathLngLat[draftPathLngLat.length - 2]; draftTotalDist += fastDistanceMeters(prev.lng, prev.lat, pt.lng, pt.lat); }
+            checkTargetReachedOnDraw(lngLat, pt.isKey === 1);
+          });
+          if (!polylines.draft) { polylines.draft = new AMapInstance.Polyline({ path: draftPathLngLat, strokeColor: "#1f2937", strokeWeight: 6, zIndex: 45 }); map.add(polylines.draft); }
+          else { polylines.draft.setPath(draftPathLngLat); }
+          updateDrawingInfo(draftPathLngLat[draftPathLngLat.length - 1]);
+          updateDashboard();
+        }
+        isUpdating = false;
+        if (pendingPoints.length > 0) scheduleUpdate();
+      });
+    }
+
+    function onMapMouseDown(e) { if (e.originEvent.button !== 0) return; leftMouseDown = true; if (isDrawing) { isPathDrawing = true; pendingPoints.push({ lng: e.lnglat.lng, lat: e.lnglat.lat, isKey: 0 }); scheduleUpdate(); } }
+    function onMapMouseMove(e) {
+      const now = performance.now(); if (now - lastMouseMoveTime < MOUSE_MOVE_THROTTLE_MS) return; lastMouseMoveTime = now;
+      if (isDrawing && isPathDrawing && leftMouseDown) {
+        const lastPos = draftPath[draftPath.length - 1];
+        if (!lastPos || fastDistanceMeters(lastPos.lng, lastPos.lat, e.lnglat.lng, e.lnglat.lat) > MIN_DRAW_DISTANCE_M) { pendingPoints.push({ lng: e.lnglat.lng, lat: e.lnglat.lat, isKey: 0 }); scheduleUpdate(); }
+        else { updateDrawingInfo(e.lnglat); }
+      }
+    }
+    function onMapMouseUp(e) { leftMouseDown = false; if (isDrawing && isPathDrawing) { isPathDrawing = false; scheduleUpdate(); } if (pendingUnlockMap) { map.setStatus({ dragEnable: true }); pendingUnlockMap = false; } }
+    function checkTargetReachedOnDraw(currentLngLat, isForcedKeyPoint = false) {
+      if (!currentRunData?.target_points || currentRunData.target_points.length === 0) return;
+      let seq = currentRunData.target_sequence || 1;
+      if (seq > currentRunData.target_points.length) return;
+      const [tarLon, tarLat] = currentRunData.target_points[seq - 1];
+      const dist = fastDistanceMeters(currentLngLat.lng, currentLngLat.lat, tarLon, tarLat);
+      const range = currentRunData.target_range_m || 0.0;
+      if (dist <= range && !currentRunData.isInTargetZone) {
+        currentRunData.isInTargetZone = true;
+        const targetName = (currentRunData.target_point_names || "").split('|')[seq - 1] || `打卡点${seq}`;
+        logMessage_Info(`到达打卡点 ${seq}: ${targetName}`);
+        if (isForcedKeyPoint) { pendingPoints.push({ lng: tarLon, lat: tarLat, isKey: 1 }); scheduleUpdate(); }
+        if (seq < currentRunData.target_points.length) {
+          currentRunData.target_sequence = seq + 1;
+          updateDashboard();
+          drawMarkers();
+        } else {
+          logMessage_Info("已到达所有打卡点！");
+          if (isDrawing) {
+            toggleRecordMode(true);
+          }
+        }
+      } else if (dist > range && currentRunData.isInTargetZone) {
+        currentRunData.isInTargetZone = false;
+      }
+    }
+    function updateDrawingInfo(lnglat) {
+      if (!isDrawing) { if (drawingInfoMarker) drawingInfoMarker.hide(); return; }
+      const avgSpeed = pythonParams.speed_mps || 1.5; const estTime = avgSpeed > 0 ? draftTotalDist / avgSpeed : 0;
+      const timeStr = `${Math.floor(estTime / 60).toString().padStart(2, '0')}:${Math.floor(estTime % 60).toString().padStart(2, '0')}`;
+      if (!drawingInfoMarker) { drawingInfoMarker = new AMapInstance.Text({ anchor: 'bottom-left', offset: new AMapInstance.Pixel(10, -10), style: { 'background-color': 'rgba(255, 255, 255, 0.9)', 'border': '1px solid #94a3b8', 'padding': '4px 8px', 'border-radius': '10px', 'font-size': '12px', 'color': '#1e293b' } }); map.add(drawingInfoMarker); }
+      drawingInfoMarker.setText(`距离: ${draftTotalDist.toFixed(0)} m | 预估: ~${timeStr}`);
+      drawingInfoMarker.setPosition(lnglat);
+      drawingInfoMarker.show();
+    }
+
+
+    function toggleRecordMode() {
+      const btn = $('record-button'); isDrawing = !isDrawing;
+      if (isDrawing) {
+        if (selectedTaskIndex === -1) { showModalAlert("请先选择一个任务！"); isDrawing = false; return; }
+        btn.innerHTML = '结束绘制'; btn.classList.remove('btn-success'); btn.classList.add('btn-danger');
+        $('map-container').classList.add('drawing');
+        clearCurrentPath(false);
+        currentRunData.target_sequence = 1; currentRunData.isInTargetZone = false; draftTotalDist = 0;
+        updateDashboard(); drawMarkers(); map.setStatus({ dragEnable: false }); resetMapView();
+        logMessage_Info("进入录制模式。请在地图上按下左键并拖动来绘制路径。");
+      } else {
+        btn.innerHTML = '录制路径'; btn.classList.remove('btn-danger'); btn.classList.add('btn-success');
+        $('map-container').classList.remove('drawing');
+        pendingUnlockMap = true; isPathDrawing = false; if (drawingInfoMarker) drawingInfoMarker.hide();
+        const totalTargets = (currentRunData.target_points?.length || 0);
+        const inLastZone = totalTargets > 0 && currentRunData.target_sequence >= totalTargets && currentRunData.isInTargetZone === true;
+        if (inLastZone) { if (draftPath.length > 0) callPythonAPI('set_draft_path', draftPath).then(() => processCurrentPath()); }
+        else { discardBlackDraftPolyline(); logMessage_Info("未达到最后打卡点，已舍弃路径。"); }
+        currentRunData.target_sequence = 0; draftTotalDist = 0;
+        updateDashboard(); drawMarkers(); resetMapView();
+      }
+    }
+    async function clearCurrentPath(confirm = true) {
+      if (confirm) {
+
+        const userConfirmed = await jsShowConfirm('确认操作', '确认清除当前任务已生成的路径吗？');
+        if (!userConfirmed) return;
+      }
+      await callPythonAPI('clear_current_task_draft')
+      if (polylines.draft) { map.remove(polylines.draft); polylines.draft = null; }
+      if (polylines.history) { map.remove(polylines.history); polylines.history = null; }
+      if (polylines.run) { map.remove(polylines.run); polylines.run = null; }
+      if (drawingInfoMarker) drawingInfoMarker.hide();
+      draftPath = []; draftPathLngLat = []; draftTotalDist = 0;
+      if (currentRunData) { currentRunData.draft_coords = []; currentRunData.run_coords = []; currentRunData.total_run_distance_m = 0; currentRunData.total_run_time_s = 0; }
+      if (selectedTaskIndex !== -1 && currentTasks[selectedTaskIndex]) { currentTasks[selectedTaskIndex].draft_coords = []; currentTasks[selectedTaskIndex].run_coords = []; }
+      updateDashboard(); renderTaskList();
+    }
+    async function discardBlackDraftPolyline() {
+      try {
+        if (polylines.draft) { map.remove(polylines.draft); polylines.draft = null; }
+        draftPath = []; draftPathLngLat = []; pendingPoints = []; isUpdating = false; isPathDrawing = false; leftMouseDown = false; draftTotalDist = 0;
+        if (drawingInfoMarker) drawingInfoMarker.hide();
+        await callPythonAPI('set_draft_path', []);
+        if (selectedTaskIndex !== -1 && currentTasks[selectedTaskIndex]) { currentTasks[selectedTaskIndex].draft_coords = []; renderTaskList(); }
+        if (currentRunData) currentRunData.draft_coords = [];
+      } catch (e) { logMessage_Error("discardBlackDraftPolyline() error:", e); }
+    }
+    async function processCurrentPath() {
+      if (draftPath.length > 0) await callPythonAPI('set_draft_path', draftPath);
+      const result = await callPythonAPI('process_path');
+      if (result.success) {
+        currentRunData.run_coords = result.run_coords;
+        currentRunData.total_run_distance_m = result.total_dist;
+        currentRunData.total_run_time_s = result.total_time;
+        drawOnMap(); updateDashboard(); renderTaskList(); discardBlackDraftPolyline();
+        // 处理路径后同步总点数并复位进度
+        singleProcessedPoints = 0;
+        singleTotalPoints = (currentRunData.run_coords?.length || 0);
+        updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+
+      } else showModalAlert(result.message);
+    }
+    async function toggleRun() {
+      const btn = $('start-run-button'); runAccumulatedMs = 0;
+      if (btn.textContent === '开始执行') {
+        const autoGen = $('auto-gen-all-check').checked;
+        // 使用后台任务执行模式运行单个任务
+        if (selectedTaskIndex < 0) {
+          showModalAlert('请先选择任务');
+          return;
+        }
+
+        const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
+          task_indices: [selectedTaskIndex],
+          auto_generate: autoGen
+        });
+
+        if (result.success) {
+          btn.textContent = '停止';
+          btn.classList.remove('btn-primary');
+          btn.classList.add('btn-danger');
+
+          // 初始化单任务进度显示界面
+          updateSingleProgress(0, '0 / 0 点');
+
+
+          // 500ms后开始轮询任务状态
+          setTimeout(() => startBackgroundTaskPolling(), 500);
+        } else {
+          showModalAlert(result.message);
+        }
+      } else {
+        // 停止正在执行的任务
+        await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+        btn.textContent = '开始执行';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-primary');
+        stopBackgroundTaskPolling();
+      }
+    }
+
+    async function toggleAllRuns() {
+      const btn = $('start-all-button'); runAccumulatedMs = 0;
+      if (btn.textContent === '执行所有') {
+        const ignoreCompleted = $('run-completed-check').checked;
+        const autoGen = $('auto-gen-all-check').checked;
+
+        // 筛选符合条件的任务
+        const taskIndices = [];
+        for (let i = 0; i < currentTasks.length; i++) {
+          const task = currentTasks[i];
+          if (task.status == 1 && !ignoreCompleted) continue;
+
+          // 检查任务的时间范围是否有效 (JS)
+          // 修复：使用 task.info_text...
+          const infoText = task.info_text || "";
+          
+          
+          
+            if (infoText === '已过期') {
+              continue; // 任务已过期
+            }
+            if (infoText.startsWith('开始于')) {
+              continue; // 任务未开始
+            }
+          
+
+        
+          taskIndices.push(i);
+        }
+
+        if (taskIndices.length === 0) {
+          showModalAlert('没有可执行的任务');
+          return;
+        }
+
+        // 使用后台任务执行模式运行多个任务
+        const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
+          task_indices: taskIndices,
+          auto_generate: autoGen
+        });
+
+        if (result.success) {
+          btn.textContent = '全部停止';
+          btn.classList.remove('btn-secondary');
+          btn.classList.add('btn-danger');
+
+          // 初始化进度显示界面
+          updateSingleProgress(0, `0 / ${taskIndices.length} 任务`);
+
+          // Start polling (with a small delay to let backend initialize)
+          setTimeout(() => startBackgroundTaskPolling(), 500);
+        } else {
+          showModalAlert(result.message);
+        }
+      } else {
+        // 停止所有正在执行的任务
+        await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+        btn.textContent = '执行所有';
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-secondary');
+        stopBackgroundTaskPolling();
+      }
+    }
+
+    // ========== 后台任务管理函数 ==========
+
+    function startBackgroundTaskPolling() {
+      if (backgroundTaskPollInterval) {
+        clearInterval(backgroundTaskPollInterval);
+      }
+
+      // 标记任务开始时间戳
+      backgroundTaskStartTime = Date.now();
+
+      // 立即查询一次
+      pollBackgroundTaskStatus();
+
+      // 每3秒轮询一次
+      backgroundTaskPollInterval = setInterval(pollBackgroundTaskStatus, 3000);
+    }
+
+    function stopBackgroundTaskPolling() {
+      if (backgroundTaskPollInterval) {
+        clearInterval(backgroundTaskPollInterval);
+        backgroundTaskPollInterval = null;
+      }
+
+      backgroundTaskStartTime = 0;
+    }
+
+    async function pollBackgroundTaskStatus() {
+      try {
+        const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+
+        if (result.success && result.task_status) {
+          const status = result.task_status;
+
+          // ---------- [BUG 修复 START] ----------
+          // 检查后端是否在 auto-gen 后发来了完整的路径数据
+          // (这个数据在 currentRunData 中可能不存在，因为 auto-gen 是在后端发生的)
+          if (status.run_coords && status.run_coords.length > 0) {
+            // 检查前端的 currentRunData 是否缺少此路径数据
+            if (!currentRunData || !currentRunData.run_coords || currentRunData.run_coords.length === 0) {
+              logMessage_Info("检测到后端已自动生成路径，正在更新前端地图...");
+
+              // 将后端发来的路径和打卡点数据同步到前端的 currentRunData
+              currentRunData.run_coords = status.run_coords || [];
+              currentRunData.target_points = status.target_points || [];
+              currentRunData.target_point_names = status.target_point_names || '';
+              currentRunData.recommended_coords = status.recommended_coords || [];
+
+              // (重要) 同步总览数据
+              currentRunData.total_run_time_s = status.estimated_total_time_s || 0;
+              currentRunData.total_run_distance_m = status.estimated_total_distance_m || 0;
+
+              // 立即重绘地图（显示路径和打卡点）
+              drawOnMap();
+
+              // 立即更新仪表盘（显示总览）
+              updateDashboard();
+            }
+          }
+          // ---------- [BUG 修复 END] ----------
+
+          // 更新现有的进度显示界面
+          const completedTasks = status.completed_tasks || 0;
+          const totalTasks = status.total_tasks || 0;
+          const progressPercent = status.progress_percent || 0;
+          const currentTaskProgress = status.current_task_progress || 0;
+
+          // 从后端API获取精确的点数进度
+          let pct = 0;
+          let displayText = '';
+
+          // 优先使用后端提供的点数数据（更准确）
+          if (status.singleTotalPoints !== undefined && status.singleProcessedPoints !== undefined) {
+            singleTotalPoints = status.singleTotalPoints;
+            singleProcessedPoints = status.singleProcessedPoints;
+            pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+            displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+          } else if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
+            // 降级方案：从前端计算（当后端数据不可用时）
+            singleTotalPoints = currentRunData.run_coords.length;
+
+            if (status.current_position) {
+              // 使用精确的点索引
+              const currentPointIndex = status.current_position.point_index || 0;
+              singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
+            } else {
+              // 从百分比估算点数（当位置数据不可用时）
+              singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
+            }
+
+            pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+            displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+          } else {
+            // 坐标数据不可用时，仍然使用点数格式（显示 0 / 0）
+            singleTotalPoints = 0;
+            singleProcessedPoints = 0;
+            pct = 0;
+            displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+          }
+
+          updateSingleProgress(pct, displayText);
+
+          // 更新当前任务索引（从后端API同步）
+          if (status.task_indices && status.current_task_index !== undefined) {
+            const task_list = status.task_indices;
+            const current_list_index = status.current_task_index;
+            if (task_list.length > current_list_index) {
+              const global_task_index = task_list[current_list_index];
+
+              if (global_task_index !== selectedTaskIndex || (currentRunData && currentRunData.task_index !== global_task_index) ) {
+                logMessage_Info(`[Polling] 检测到任务切换: ${selectedTaskIndex} -> ${global_task_index}`);
+                selectedTaskIndex = global_task_index;
+                
+                // 1. 重新渲染列表以高亮显示新任务 (你提到的 renderTaskList)
+                renderTaskList(); 
+                
+                // 2. 强制加载新任务的地图数据
+                // (我们调用新创建的辅助函数)
+                await forceLoadTaskDataForPolling(global_task_index); 
+              }
+              
+            }
+          }
+
+          // 更新实时时间和距离（从后端API获取）
+          if (status.elapsed_time_s !== undefined) {
+            runAccumulatedMs = status.elapsed_time_s * 1000;  // 转换为毫秒
+          }
+          if (status.current_distance_m !== undefined && currentRunData) {
+            currentRunData.distance_covered_m = status.current_distance_m;
+          }
+          if (status.checked_targets_count !== undefined && currentRunData) {
+            currentRunData.target_sequence = status.checked_targets_count;
+          }
+
+          // 更新仪表板显示
+          updateDashboard();
+
+          drawMarkers();
+
+          // // 如果有实时位置数据，则在地图上更新显示
+          // if (status.current_position) {
+          //   const pos = status.current_position;
+          //   updateRunnerPosition(
+          //     pos.lon,
+          //     pos.lat,
+          //     pos.distance || 0,
+          //     pos.target_sequence || 0,
+          //     0, // duration not needed for display
+          //     false // don't auto-center
+          //   );
+          // }
+
+          // 检查这是否是旧数据（任务在我们开始轮询前就已启动）
+          const taskStartTime = (status.start_time || 0) * 1000; // 转换为毫秒
+          const isOldTask = backgroundTaskStartTime > 0 && taskStartTime < backgroundTaskStartTime - 2000; // 2秒缓冲
+
+          // 检查是否完成 - 仅在不是旧数据时显示提示
+          if (status.status === 'completed') {
+            if (!isOldTask) {
+              logMessage_Info('后台任务全部完成！');
+              showModalAlert('后台任务全部完成！');
+            }
+            stopBackgroundTaskPolling();
+
+            // Reset button states
+            $('start-run-button').textContent = '开始执行';
+            $('start-run-button').classList.remove('btn-danger');
+            $('start-run-button').classList.add('btn-primary');
+            $('start-all-button').textContent = '执行所有';
+            $('start-all-button').classList.remove('btn-danger');
+            $('start-all-button').classList.add('btn-secondary');
+
+            // 刷新任务列表
+            if (!isOldTask) {
+              refreshTasks();
+            }
+          } else if (status.status === 'error') {
+            const errorMsg = status.error || '未知错误';
+            logMessage_Error('后台任务执行出错: ' + errorMsg);
+            if (!isOldTask) {
+              showModalAlert('后台任务执行出错: ' + errorMsg);
+            }
+            stopBackgroundTaskPolling();
+
+            // Reset button states
+            $('start-run-button').textContent = '开始执行';
+            $('start-run-button').classList.remove('btn-danger');
+            $('start-run-button').classList.add('btn-primary');
+            $('start-all-button').textContent = '执行所有';
+            $('start-all-button').classList.remove('btn-danger');
+            $('start-all-button').classList.add('btn-secondary');
+          }
+        }
+      } catch (e) {
+        // 静默失败，避免轮询错误影响主流程
+        logMessage_Debug('轮询后台任务状态失败:', e);
+      }
+    }
+
+    // 页面加载时检查是否有后台任务在运行
+    async function checkBackgroundTaskOnLoad() {
+      try {
+        const result = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+
+        if (result.success && result.task_status) {
+          const status = result.task_status;
+
+          // 如果有任务在运行，显示状态并开始轮询
+          if (status.status === 'running') {
+            logMessage_Info('检测到后台任务正在运行，已恢复状态显示');
+
+            // 更新按钮状态以反映运行状态
+            const totalTasks = status.total_tasks || 0;
+            if (totalTasks === 1) {
+              // 单个任务正在运行
+              $('start-run-button').textContent = '停止';
+              $('start-run-button').classList.remove('btn-primary');
+              $('start-run-button').classList.add('btn-danger');
+            } else if (totalTasks > 1) {
+              // 多个任务正在运行
+              $('start-all-button').textContent = '全部停止';
+              $('start-all-button').classList.remove('btn-secondary');
+              $('start-all-button').classList.add('btn-danger');
+            }
+
+            // --- 升级：恢复地图路径和打卡点 ---
+            const task_list = status.task_indices || [];
+            const current_list_index = status.current_task_index || 0;
+
+            if (task_list.length > current_list_index) {
+              const global_task_index = task_list[current_list_index];
+
+              // 使用后端提供的完整任务数据恢复（避免调用selectTask导致任务切换检查失败）
+              logMessage_Info(`正在恢复运行中的任务 (索引: ${global_task_index}) 的地图数据...`);
+
+              if (status.run_coords && status.run_coords.length > 0) {
+                // 直接从API响应构建currentRunData
+                currentRunData = {
+                  run_coords: status.run_coords || [],
+                  target_points: status.target_points || [],
+                  target_point_names: status.target_point_names || '',
+                  recommended_coords: status.recommended_coords || [],
+                  target_sequence: status.checked_targets_count || 0,
+                  distance_covered_m: status.current_distance_m || 0,
+                  total_run_time_s: status.estimated_total_time_s || 0,
+                  total_run_distance_m: status.estimated_total_distance_m || 0
+                };
+
+                selectedTaskIndex = global_task_index;
+
+                // 更新任务列表的选中状态
+                const taskListDiv = $('task-list');
+                Array.from(taskListDiv.children).forEach((child, idx) => {
+                  if (idx === global_task_index) {
+                    child.classList.add('selected');
+                  } else {
+                    child.classList.remove('selected');
+                  }
+                });
+                loadHistory(global_task_index);
+
+                // 绘制地图
+                updateDashboard();
+                drawOnMap();
+
+                logMessage_Info(`任务数据已从API响应恢复，总点数: ${currentRunData.run_coords.length}`, 'INFO');
+              } else {
+                // 降级方案：调用selectTask
+                await selectTask(global_task_index);
+              }
+            } else {
+              logMessage_Warning("后台任务状态不一致，无法恢复地图路径。");
+            }
+            // --- 结束升级 ---
+
+            // 恢复进度显示
+            const completedTasks = status.completed_tasks || 0;
+            const progressPercent = status.progress_percent || 0;
+            const currentTaskProgress = status.current_task_progress || 0;
+
+            // 从后端API获取精确的点数进度
+            let pct = 0;
+            let displayText = '';
+
+            // 优先使用后端提供的点数数据（更准确）
+            if (status.singleTotalPoints !== undefined && status.singleProcessedPoints !== undefined) {
+              singleTotalPoints = status.singleTotalPoints;
+              singleProcessedPoints = status.singleProcessedPoints;
+              pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+            } else if (currentRunData && Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
+              // 降级方案：从前端计算（当后端数据不可用时）
+              singleTotalPoints = currentRunData.run_coords.length;
+
+              if (status.current_position) {
+                // 使用精确的点索引
+                const currentPointIndex = status.current_position.point_index || 0;
+                singleProcessedPoints = Math.min(currentPointIndex, singleTotalPoints);
+              } else {
+                // 从百分比估算点数（当位置数据不可用时）
+                singleProcessedPoints = Math.floor((currentTaskProgress / 100) * singleTotalPoints);
+              }
+
+              pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+            } else {
+              // 坐标数据不可用时，仍然使用点数格式（显示 0 / 0）
+              singleTotalPoints = 0;
+              singleProcessedPoints = 0;
+              pct = 0;
+              displayText = `${singleProcessedPoints} / ${singleTotalPoints} 点`;
+            }
+
+            updateSingleProgress(pct, displayText);
+
+            // 更新实时时间和距离（从后端API获取）
+            if (status.elapsed_time_s !== undefined) {
+              runAccumulatedMs = status.elapsed_time_s * 1000;  // 转换为毫秒
+            }
+            if (status.current_distance_m !== undefined && currentRunData) {
+              currentRunData.distance_covered_m = status.current_distance_m;
+            }
+            if (status.checked_targets_count !== undefined && currentRunData) {
+              currentRunData.target_sequence = status.checked_targets_count;
+            }
+
+            // 更新仪表板显示
+            updateDashboard();
+
+            // 如果有实时位置数据，在地图上恢复跑步者位置显示
+            if (status.current_position) {
+              const pos = status.current_position;
+              // 此时 selectTask 已经加载了 currentRunData，updateRunnerPosition 可以正确更新打卡点状态
+              updateRunnerPosition(
+                pos.lon,
+                pos.lat,
+                pos.distance || 0,
+                pos.target_sequence || 0,
+                0,
+                true // center on first restore
+              );
+            }
+
+            startBackgroundTaskPolling();
+            return true;
+          }
+
+
+        }
+      } catch (e) {
+        // 静默失败
+        logMessage_Debug('检查后台任务状态失败:', e);
+        return false;
+      }
+    }
+
+    function ensureRunnerMarker() {
+      if (runnerMarker) return;
+      const content = '<div class="w-5 h-5 rounded-full border-2 border-white shadow-lg" style="background:linear-gradient(135deg,var(--base-color-300),var(--base-color-600));"></div>';
+      runnerMarker = new AMapInstance.Marker({ position: map.getCenter(), content, anchor: 'center', zIndex: 200 });
+      map.add(runnerMarker);
+    }
+    function updateRunnerPosition(lon, lat, distance, targetSequence, duration, centerNow = false) {
+      ensureRunnerMarker();
+      const pos = new AMapInstance.LngLat(lon, lat);
+      runnerMarker.setPosition(pos);
+      if (map && centerNow) map.setCenter(pos);
+      runAccumulatedMs += (duration || 0);
+      currentRunData.distance_covered_m = distance || 0;
+      $('current-location-label').textContent = `当前位置GPS坐标: ${(+lon).toFixed(4)}, ${(+lat).toFixed(4)}`;
+      if (currentRunData.target_sequence !== targetSequence) { currentRunData.target_sequence = targetSequence; drawMarkers(); }
+      updateDashboard();
+      // 每个GPS点到达后推进进度
+      if (Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
+        // 防重复：限制不超过总点数
+        singleTotalPoints = currentRunData.run_coords.length;
+        singleProcessedPoints = Math.min(singleProcessedPoints + 1, singleTotalPoints);
+        const pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+        updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
+      }
+
+    }
+    function onTaskCompleted(taskIndex) { if (currentTasks[taskIndex]) { currentTasks[taskIndex].status = 1; renderTaskList(); } }
+
+    /**
+     * 当后端（通过WebSocket）通知任务已停止时调用
+     * (无论是完成、失败还是手动中止)
+     */
+    function onRunStopped() {
+      logMessage_Info("后台任务已停止（来自服务器推送）。");
+
+      // 1. 停止前端的轮询
+      stopBackgroundTaskPolling();
+
+      // 2. 重置"开始执行"按钮
+      const startBtn = $('start-run-button');
+      if (startBtn) {
+        startBtn.textContent = '开始执行';
+        startBtn.classList.remove('btn-danger');
+        startBtn.classList.add('btn-primary');
+        startBtn.disabled = false; // 确保按钮可用
+      }
+
+      // 3. 重置"执行所有"按钮
+      const startAllBtn = $('start-all-button');
+      if (startAllBtn) {
+        startAllBtn.textContent = '执行所有';
+        startAllBtn.classList.remove('btn-danger');
+        startAllBtn.classList.add('btn-secondary');
+        startAllBtn.disabled = false; // 确保按钮可用
+      }
+    }
+
+    async function exportTask() {
+      if (selectedTaskIndex === -1) {
+        showModalAlert("请先选择一个要导出的任务！");
+        return;
+      }
+      const result = await callPythonAPI('export_task_data');
+      if (result && result.success && result.data) {
+        // Web模式：创建文件下载链接并触发浏览器下载
+        const jsonStr = JSON.stringify(result.data, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = result.filename || 'task_export.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        logMessage_Info('导出成功');
+      } else if (result && !result.success) {
+        showModalAlert(`导出失败: ${result.message}`);
+      }
+    }
+
+    async function importTask() {
+      // Web模式：创建文件选择输入框用于导入
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+          const text = await file.text();
+          const result = await callPythonAPI('import_task_data', text);
+
+          if (result.success) {
+            IS_OFFLINE = true;
+            currentSessionUA = "NULL";
+            const uaLabel = $('ua-label');
+            if (uaLabel) uaLabel.textContent = 'NULL';
+            const uaBtn = $('random-ua-btn');
+            if (uaBtn) uaBtn.disabled = true;
+            if (result.userInfo) {
+              currentUserData = result.userInfo;
+              const name = currentUserData.name || '离线调试';
+              const sid = currentUserData.student_id || 'NULL';
+              $('user-name-label').textContent = `姓名: ${name}`;
+              $('user-id-label').textContent = `学号: ${sid}`;
+            }
+            showMainApp();
+            await mapReadyPromise;
+            currentTasks = result.tasks;
+            renderTaskList();
+            selectTask(0);
+            requestAnimationFrame(() => drawOnMap());
+            logMessage_Info('导入成功');
+          } else {
+            showModalAlert(result.message || '导入失败');
+          }
+        } catch (error) {
+          showModalAlert(`导入失败: ${error.message}`);
+        }
+      };
+      input.click();
+    }
+
+
+
+
+
+    // --- 高德地图JS API路径规划 ---
+    async function getWalkingPath(waypoints) {
+      if (!AMapInstance || waypoints.length < 2) throw new Error("地图实例未加载或路径点少于2");
+      const useFallback = pythonParams.api_fallback_line ?? false, maxRetries = pythonParams.api_retries ?? 2, retryDelayMs = (pythonParams.api_retry_delay_s ?? 0.5) * 1000;
+      callPythonAPI('js_log', 'INFO', `开始路径规划: 重试=${maxRetries}次, 延迟=${retryDelayMs}ms, 备用直线=${useFallback}`);
+      const all_path = [];
+      const areCoordsEqual = (c1, c2) => Math.abs(c1.lng - c2.lng) < 1e-6 && Math.abs(c1.lat - c2.lat) < 1e-6;
+      const searchSegment = (start, end) => new Promise((resolve) => {
+        callPythonAPI('js_log', 'DEBUG', `AMap API请求 --> 步行路径: ${start.toString()} 至 ${end.toString()}`);
+        new AMap.Walking({ map: null, panel: "", hideMarkers: true }).search(start, end, (status, result) => {
+          if (status === 'complete' && result.routes?.length > 0) {
+            const p = []; result.routes[0].steps.forEach(s => s.path.forEach(pt => p.push({ lng: pt.lng, lat: pt.lat })));
+            callPythonAPI('js_log', 'DEBUG', `AMap API响应 <-- 成功，点数: ${p.length}`); resolve(p);
+          } else { let info = result ? (result.info || JSON.stringify(result)) : 'NULL'; callPythonAPI('js_log', 'ERROR', `AMap API响应 <-- 失败. 状态: ${status}, 结果: ${info}`); resolve([]); }
+        });
+      });
+      // await new Promise(resolve => AMap.plugin('AMap.Walking', resolve));
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        logMessage_Info(`正在规划第 ${i + 1}/${waypoints.length - 1} 段路径...`);
+        const realStart = waypoints[i], realEnd = waypoints[i + 1]; let attempts = 0, segmentPath = [];
+        while (attempts <= maxRetries) {
+          if (attempts > 0) { logMessage_Info(`第 ${i + 1} 段路径规划失败，${retryDelayMs / 1000}秒后重试...`); await new Promise(res => setTimeout(res, retryDelayMs)); }
+          segmentPath = await searchSegment(realStart, realEnd); if (segmentPath.length > 0) break; attempts++;
+        }
+        if (segmentPath.length === 0) {
+          if (useFallback) { logMessage_Info(`第 ${i + 1} 段路径规划最终失败，启用直线连接。`); segmentPath = [{ lng: realStart.lng, lat: realStart.lat }, { lng: realEnd.lng, lat: realEnd.lat }]; }
+          else throw new Error(`第 ${i + 1} 段路径规划失败 (重试 ${maxRetries} 次后)`);
+        }
+        if (!areCoordsEqual(segmentPath[0], { lng: realStart.lng, lat: realStart.lat })) segmentPath.unshift({ lng: realStart.lng, lat: realStart.lat });
+        if (!areCoordsEqual(segmentPath[segmentPath.length - 1], { lng: realEnd.lng, lat: realEnd.lat })) segmentPath.push({ lng: realEnd.lng, lat: realEnd.lat });
+        all_path.push(...(i > 0 ? segmentPath.slice(1) : segmentPath));
+      }
+      return all_path;
+    }
+
+    async function onConfirmAutoGenerate() {
+      const minTime = parseInt($('min-time-input').value), maxTime = parseInt($('max-time-input').value), minDist = parseInt($('min-dist-input').value);
+      if (minTime > maxTime) { showModalAlert("最短时间不能大于最长时间"); return; }
+      // $('auto-gen-modal').classList.add('hidden'); // <-- 旧代码
+      // 修复：使用与“取消”按钮相同的逻辑关闭模态框
+      $('auto-gen-modal').classList.add('hidden');
+      $('auto-gen-modal').classList.remove('flex'); // 移除居中
+      document.body.classList.remove('modal-visible'); // 恢复Logo
+
+      if (selectedTaskIndex === -1 || !currentRunData.target_points || currentRunData.target_points.length === 0) { showModalAlert("请先选择一个有打卡点的任务"); return; }
+      logMessage_Info("正在调用高德地图API进行路径规划...");
+      try {
+        const waypoints = currentRunData.target_points.map(p => new AMapInstance.LngLat(p[0], p[1]));
+        const apiPath = await getWalkingPath(waypoints);
+        logMessage_Info(`路径规划成功，共 ${apiPath.length} 个坐标点。正在生成模拟数据...`);
+        const result = await callPythonAPI('auto_generate_path_with_api', apiPath, minTime, maxTime, minDist);
+        if (result.success) {
+          currentRunData.run_coords = result.run_coords;
+          currentRunData.total_run_distance_m = result.total_dist;
+          currentRunData.total_run_time_s = result.total_time;
+          drawOnMap(); updateDashboard(); renderTaskList();
+
+          // 自动生成后同步总点数并复位进度
+          singleProcessedPoints = 0;
+          singleTotalPoints = (currentRunData.run_coords?.length || 0);
+          updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+
+        } else {
+          logMessage_Info(`生成失败: ${result.message}`);
+          showModalAlert(`生成失败: ${result.message}`);
+        }
+      } catch (error) {
+        logMessage_Info(`路径规划或生成失败: ${error}`);
+        showModalAlert(`路径规划或生成失败: ${error}`);
+      }
+    }
+    async function loadHistory(index) {
+
+      $('history-placeholder').textContent = "正在加载..."; $('history-list').innerHTML = "";
+      const result = await callPythonAPI('get_task_history', index);
+      if (result.success && result.history.length > 0) {
+        $('history-placeholder').classList.add('hidden');
+        result.history.forEach(rec => {
+          const item = document.createElement('div');
+          item.className = 'grid grid-cols-3 gap-2 text-xs p-2 border-b border-slate-100 cursor-pointer hover:bg-white/70 rounded';
+          item.innerHTML = `<span class="text-slate-600">${rec.time}</span><span class="font-semibold text-emerald-700">${rec.len}</span><span class="font-semibold text-sky-700">${rec.used_time}</span>`;
+          item.addEventListener('click', () => showHistoricalTrack(rec.trid)); $('history-list').appendChild(item);
+        });
+      } else { $('history-placeholder').textContent = "无历史记录或加载失败"; $('history-placeholder').classList.remove('hidden'); }
+    }
+
+    async function showHistoricalTrack(trid) {
+      if (backgroundTaskPollInterval) {
+        logMessage_Warning("任务执行中，无法查看历史记录！请先停止当前任务。");
+        showModalAlert("任务执行中，无法查看历史记录！请先停止当前任务。");
+        return;
+      }
+      const result = await callPythonAPI('get_historical_track', trid);
+      if (result.success) {
+        if (polylines.history) map.remove(polylines.history);
+        polylines.history = new AMapInstance.Polyline({ path: result.coords.map(p => new AMapInstance.LngLat(p[0], p[1])), strokeColor: "#8b5cf6", strokeWeight: 6, strokeOpacity: 0.8, zIndex: 55 });
+        map.add(polylines.history); map.setFitView([polylines.history]);
+      } else showModalAlert("无法加载历史轨迹");
+    }
+
+    // --- 其他辅助函数 ---
+
+
+    // 单账号进度条更新
+    function updateSingleProgress(pct, text, extra) {
+      const fill = $('single-progress-fill');
+      const label = $('single-progress-text');
+      const extraEl = $('single-progress-extra');
+      if (fill) fill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      if (label) label.textContent = `进度 · ${pct}%`;
+      if (extraEl) extraEl.textContent = extra || text || '';
+    }
+
+
+    // --- 尝试获取调用者信息的辅助函数 ---
+    function getCallerInfo(linesToSkip = null) {
+      try {
+        const err = new Error();
+        const stack = err.stack;
+        if (!stack) return { source: 'unknown (no stack)' };
+
+        // 将堆栈信息按行分割
+        const lines = stack.split('\n');
+
+        let callerLine; // <-- 修复 #1: 在外部作用域声明变量
+
+        if (linesToSkip !== null) {
+          try {
+            callerLine = lines[linesToSkip + 1] || ''; // <-- 修复 #2: 移除 'let'，直接赋值
+          } catch (error) {
+            logMessage_Error("Error accessing stack line:", error);
+            callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // <-- 修复 #3: 移除 'let'
+          }
+        } else {
+
+          // 不同浏览器堆栈格式不同，尝试几种常见模式
+          callerLine = lines[4] || lines[3] || lines[2] || lines[1] || ''; // <-- 修复 #4: 移除 'let'
+        }
+
+        // 修复 #5: 增加健壮性检查，防止 callerLine 为 undefined 时调用 .trim() 出错
+        if (typeof callerLine !== 'string') {
+          callerLine = ''; // 如果堆栈行不存在（例如堆栈太短），提供一个空字符串
+        }
+
+        callerLine = callerLine.trim();
+
+        // 尝试匹配 Chrome/V8 格式: "at functionName (file:line:col)" 或 "at file:line:col"
+        let match = callerLine.match(/at\s+(?:(.+)\s+\()?(?:.+\/)?([^:]+:\d+:\d+)\)?/);
+        if (match) {
+          const functionName = match[1] || 'anonymous';
+          const fileInfo = match[2] || '';
+          // --- 这里是原始的 source 构造 ---
+          return { source: `${functionName} (${fileInfo})`, functionName: functionName, fileInfo: fileInfo };
+        }
+
+        // 尝试匹配 Firefox 格式: "functionName@file:line:col" 或 "@file:line:col"
+        match = callerLine.match(/^(?:([^@]+)@)?(?:.+\/)?([^:]+:\d+:\d+)$/);
+        if (match) {
+          const functionName = match[1] || 'anonymous';
+          const fileInfo = match[2] || '';
+          // --- 这里是原始的 source 构造 ---
+          return { source: `${functionName}@${fileInfo}`, functionName: functionName, fileInfo: fileInfo };
+        }
+
+        // 如果都匹配不上，返回原始行（可能包含一些信息）或未知
+        return { source: callerLine || 'unknown (parse failed)' };
+
+      } catch (e) {
+        // 如果解析出错，返回错误信息
+        return { source: 'unknown (error parsing stack)' };
+      }
+    }
+
+
+    // 从 getCallerInfo 提取干净的来源信息，在 (uuid= 前停止
+    function extractCleanSource(sourceString) {
+      if (typeof sourceString !== 'string') {
+        return 'unknown';
+      }
+
+      let result = '';
+      const marker = '(uuid=';
+      let markerIndex = sourceString.indexOf(marker);
+
+      // 如果找不到标记，直接返回去除首尾空格的原字符串
+      if (markerIndex === -1) {
+        return sourceString.trim();
+      }
+
+      // 获取标记之前的部分
+      let relevantPart = sourceString.substring(0, markerIndex);
+
+      // 去除末尾的空白字符
+      result = relevantPart.trimEnd();
+
+      // 如果处理后结果为空（例如源字符串是 " (uuid=...")，返回一个默认值
+      return result || '未知';
+    }
+
+    // 日志记录函数，支持不同级别日志
+    // level 可选值：'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+    function logMessage(msg, level = 'INFO', source = null) {
+      // 保留原有的时间戳添加逻辑，因为后端 Api.log 未添加时间戳
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      const timestamp = `[${h}:${m}:${s}]`;
+      const timestamp2 = `${h}:${m}:${s}`;
+      const line = typeof msg === 'string' ? msg : JSON.stringify(msg);
+
+
+      let level_new = 'INFO';
+
+      // 获取调用者信息
+      // 检查是否已传入来源 (例如 'Backend')
+      let callerInfo;
+      if (source) {
+        callerInfo = source; // 使用传入的来源
+      } else {
+        // 否则，才尝试获取 JS 调用者
+        let orange_callerInfo = getCallerInfo();
+        callerInfo = extractCleanSource(orange_callerInfo.source);
+      }
+
+      let new_message = `${timestamp}[前端日志][${callerInfo}] ${line}`
+      const fullMessage = `${timestamp}[${callerInfo}] ${line}`; // 组合时间戳和消息
+
+      if (level === 'DEBUG') {
+        level_new = 'DEBUG';
+        console.debug(new_message);
+      } else if (level === 'INFO') {
+        level_new = 'INFO';
+        console.info(new_message);
+      } else if (level === 'ERROR') {
+        level_new = 'ERROR';
+        console.error(new_message);
+      } else if (level === 'WARNING') {
+        level_new = 'WARNING';
+        console.warn(new_message);
+      } else if (level === 'CRITICAL') {
+        level_new = 'CRITICAL';
+        console.error(new_message);
+      } else {
+        console.log(new_message);
+      }
+
+
+
+      // 发送到后端日志系统（仅在非网络错误状态时发送）
+      if (!isInNetworkErrorState && source !== 'Backend') {
+        try {
+          fetch('/api/log_frontend', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Session-ID': sessionUUID || null
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+              level: level_new,
+              message: line,
+              timestamp: timestamp2,
+              source: callerInfo
+            })
+          }).catch(err => {
+            // 静默失败，避免日志发送失败影响主功能
+            console.error('[日志发送失败]', err);
+          });
+        } catch (e) {
+          console.error('[日志发送异常]', e);
+        }
+      }
+
+      // 判断是否为核心日志（路径规划、数据提交、任务执行等核心操作）
+      const isCoreLog = (message, logLevel) => {
+        // 错误和警告始终显示
+        if (logLevel === 'ERROR' || logLevel === 'WARNING' || logLevel === 'CRITICAL') {
+          return true;
+        }
+
+        // 核心操作关键词
+        const coreKeywords = [
+          // 路径相关
+          '路径规划', '路径生成', '自动生成', '处理路径', '清除路径', '录制路径', '导出路径',
+          // 任务执行相关
+          '开始执行', '执行完成', '执行所有', '停止执行', '任务完成', '任务失败',
+          // 数据提交相关
+          '提交成功', '提交失败', '上传成功', '上传失败', '数据提交',
+          // 登录相关核心操作
+          '登录成功', '登录失败', '登出',
+          // 多账号模式核心操作
+          '进入多账号模式', '退出多账号模式', '账号列表',
+          // 签到相关
+          '签到成功', '签到失败', '补签',
+          // 任务状态
+          '加载任务', '刷新任务', '选择任务',
+          // JavaScript路径规划队列相关
+          '[JS-Queue]'
+        ];
+
+        // 检查消息是否包含核心关键词
+        return coreKeywords.some(keyword => message.includes(keyword));
+      };
+
+      // 只将核心日志显示在 log-tab 中
+      // 所有日志仍然发送到控制台和后端，但只有核心日志显示在界面
+      const shouldShowInUI = isCoreLog(line, level);
+
+      if (shouldShowInUI) {
+        const single = $('log-text');
+        const multi = $('multi-log-text');
+        if (single) {
+          single.value += fullMessage + '\n'; // 使用组合后的消息
+          single.scrollTop = single.scrollHeight;
+        }
+        if (multi) {
+          multi.value += fullMessage + '\n'; // 使用组合后的消息
+          multi.scrollTop = multi.scrollHeight;
+        }
+      }
+    }
+
+    function logMessage_Debug(msg) {
+      logMessage(msg, 'DEBUG');
+    }
+
+    function logMessage_Info(msg) {
+      logMessage(msg, 'INFO');
+    }
+
+    function logMessage_Warning(msg) {
+      logMessage(msg, 'WARNING');
+    }
+
+    function logMessage_Error(msg) {
+      logMessage(msg, 'ERROR');
+    }
+
+    function logMessage_Critical(msg) {
+      logMessage(msg, 'CRITICAL');
+    }
+
+    function showTab(tabName, element) {
+      ['run-control', 'path-tools', 'history', 'params', 'log', 'checkpoints', 'attendance'].forEach(name => {
+        $(`${name}-tab`).classList.add('hidden');
+        const b = document.querySelector(`button[onclick="showTab('${name}', this)"]`);
+        if (b) b.classList.remove('active');
+      });
+      $(`${tabName}-tab`).classList.remove('hidden');
+      if (element) element.classList.add('active');
+      if (tabName === 'attendance') {
+        // refreshNotificationsUI() 会获取最新通知
+        // onNotificationsUpdated() (由后台调用或 refreshNotificationsUI 间接调用) 会填充 attendance-list
+        // refreshNotificationsUI() 自带防抖，所以这里直接调用是安全的
+        logMessage_Info("Attendance tab opened, refreshing notifications list...");
+        refreshNotificationsUI();
+      }
+    }
+
+
+
+    function autoLogin(user, pass) {
+      if (!user || !pass) return;
+      const userCombo = $('user-combo');
+      userCombo.addEventListener('focus', refreshUserList);
+      userCombo.addEventListener('click', refreshUserList);
+      if ([...userCombo.options].some(o => o.value === user)) userCombo.value = user;
+      else { const opt = document.createElement('option'); opt.value = opt.textContent = user; userCombo.appendChild(opt); userCombo.value = user; }
+      $('username-entry').value = user; $('password-entry').value = pass;
+      onUserChange().then(() => $('login-button').click());
+    }
+
+
+    function createParamInputs(container, prefix, changeHandler, excludeGroups = []) {
+      container.innerHTML = '';
+
+      // 默认排除“自动签到”组，因为它在专属Tab里
+      let finalExclude = [...excludeGroups];
+      if (prefix !== 'multi-param') {
+        finalExclude.push("自动签到");
+      }
+
+      paramGroups.forEach((group, index) => {
+        // 如果当前分组的标题在排除列表中，则跳过
+        if (finalExclude.includes(group.title)) {
+          return;
+        }
+        // 如果当前分组的标题在排除列表中，则跳过
+        if (excludeGroups.includes(group.title)) {
+          return;
+        }
+
+        const header = document.createElement('h3');
+        const marginTopClass = index === 0 ? '' : 'mt-4';
+        header.className = `text-base font-bold text-sky-700 ${marginTopClass} mb-2 border-b border-slate-200 pb-1`;
+        header.textContent = group.title;
+        container.appendChild(header);
+
+        for (const key of group.keys) {
+          const def = paramDefs[key];
+          if (!def) continue;
+
+          const div = document.createElement('div');
+          div.className = 'text-sm mb-3';
+
+          const step = (key.endsWith('_s') || key.endsWith('_mps')) ? '0.1' : '1';
+          const unitHtml = def.unit ? `<span class="ml-2 text-xs text-slate-500 select-none">${def.unit}</span>` : '';
+
+          // 根据自定义 type 决定渲染哪个 UI
+          if (def.type === 'theme_selector') {
+            div.innerHTML = `
+          <label class="block text-slate-700 font-semibold">${def.label}</label>
+          <p class="mt-1 text-xs text-slate-500">${def.help}</p>
+          <div class="grid grid-cols-3 gap-2 mt-2">
+              <button onclick="setThemeStyle('default')" class="btn btn-ghost !rounded-lg !py-1.5 border-2 border-transparent">默认</button>
+              <button onclick="setThemeStyle('theme-anime')" class="btn btn-ghost !rounded-lg !py-1.5 border-2 border-transparent">二次元</button>
+              <button onclick="setThemeStyle('theme-minimalist')" class="btn btn-ghost !rounded-lg !py-1.5 border-2 border-transparent">简约</button>
+          </div>
+        `;
+          } else if (def.type === 'color_picker') {
+            div.innerHTML = `
+          <label for="${prefix}-${key}" class="block text-slate-700 font-semibold">${def.label}</label>
+          <div class="flex items-center gap-3 mt-1">
+            <input type="color" id="${prefix}-${key}-picker" data-key="${key}" class="w-10 h-10 rounded-full cursor-pointer border-2 border-white shadow-md" title="点击选择颜色">
+            <input type="text" id="${prefix}-${key}" data-key="${key}" class="input-field !py-1 w-full" placeholder="#7dd3fc" title="${def.help}">
+            <button onclick="resetBaseColorToDefault('${prefix}')" class="btn btn-ghost !py-1 !px-3 !text-xs flex-shrink-0">恢复默认</button>
+          </div>
+           <p class="mt-1 text-xs text-slate-500">${def.help}</p>
+        `;
+          } else if (def.type === 'checkbox' || key === 'api_fallback_line' || key === 'ignore_task_time') {
+            div.innerHTML = `
+          <label class="flex items-center gap-2 cursor-pointer" title="${def.help}">
+            <input type="checkbox" id="${prefix}-${key}" data-key="${key}" class="w-5 h-5 accent-sky-600 rounded cursor-pointer flex-shrink-0">
+            <span class="text-slate-700 font-semibold">${def.label}</span>
+          </label>
+          <p class="mt-1 text-xs text-slate-500">${def.help}</p>
+        `;
+          } else {
+            div.innerHTML = `
+          <label for="${prefix}-${key}" class="block mb-1 text-slate-700 font-semibold">${def.label}</label>
+          <div class="flex items-center">
+            <input type="number" step="${step}" id="${prefix}-${key}" data-key="${key}" class="input-field !py-1 w-full" title="${def.help}">
+            ${unitHtml}
+          </div>
+          <p class="mt-1 text-xs text-slate-500">${def.help}</p>
+        `;
+          }
+
+          container.appendChild(div);
+
+          // 为所有 input 绑定 change 事件
+          const inputs = div.querySelectorAll('input');
+          inputs.forEach(input => {
+            if (input.type === 'color') {
+              // 颜色选择器使用 input 事件实现实时预览
+              input.addEventListener('input', (e) => {
+                const hexColor = e.target.value;
+                const textInput = document.getElementById(`${prefix}-${key}`);
+                if (textInput) textInput.value = hexColor;
+                setBaseColor(hexColor, hexColor); // 实时更新
+              });
+              // change 事件用于最终确认并保存
+              input.addEventListener('change', changeHandler);
+            } else if (input.type === 'text' && key === 'theme_base_color') {
+              // 文本框也联动颜色选择器和主题色
+              input.addEventListener('change', (e) => {
+                const hexColor = e.target.value;
+                const colorPicker = document.getElementById(`${prefix}-${key}-picker`);
+                if (colorPicker) colorPicker.value = hexColor;
+                setBaseColor(hexColor, hexColor);
+                changeHandler(e); // 触发保存
+              });
+            } else {
+              input.addEventListener('change', changeHandler);
+            }
+          });
+        }
+      });
+    }
+
+
+    function updateParamInputs(container, prefix, params) {
+      for (const key of Object.keys(paramDefs)) {
+        const input = document.getElementById(`${prefix}-${key}`);
+        if (!input || !params) continue;
+        if (!(key in params)) continue;
+        if (input.type === 'checkbox') {
+          input.checked = Boolean(params[key]);
+        } else {
+          input.value = params[key];
+          // 如果是颜色参数，额外更新颜色选择器
+          if (key === 'theme_base_color') {
+            const colorPicker = document.getElementById(`${prefix}-${key}-picker`);
+            if (colorPicker) {
+              colorPicker.value = params[key];
+            }
+          }
+        }
+      }
+    }
+
+
+
+    function onParamChange(event) {
+      const key = event.target.dataset.key;
+      let value;
+      if (event.target.type === 'checkbox') value = event.target.checked;
+      else value = event.target.value;
+      pythonParams[key] = value; 
+      callPythonAPI('update_param', key, value);
+
+      // 修复：如果“忽略时间”参数被更改，立即刷新任务列表以更新 info_text
+      if (key === 'ignore_task_time') {
+        logMessage_Info("参数 'ignore_task_time' 已更改，正在自动刷新任务列表...");
+        refreshTasks();
+      }
+    }
+
+    function onGlobalParamChange(event) {
+      const key = event.target.dataset.key;
+      let value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+      pythonParams[key] = value;
+      callPythonAPI('update_param', key, value);
+    }
+
+    async function openAccountParamsModal(username) {
+      const result = await callPythonAPI('multi_get_account_params', username);
+      if (!result.success) { showModalAlert(result.message); return; }
+
+      $('account-params-title').textContent = `[${username}] 参数设置`;
+      const container = $('account-params-container');
+      // 调用 createParamInputs 时，传入第三个参数，排除“主题与外观”分组
+      createParamInputs(container, 'acc-param', () => { }, ['主题与外观']);
+      updateParamInputs(container, 'acc-param', result.params);
+
+      $('save-account-params-btn').onclick = async () => {
+        const inputs = container.querySelectorAll('input');
+        for (const input of inputs) {
+          const key = input.dataset.key;
+          const value = input.type === 'checkbox' ? input.checked : input.value;
+          await callPythonAPI('multi_update_account_param', username, key, value);
+        }
+        // 关闭时移除样式与 body 标记
+        const modal = $('account-params-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.classList.remove('modal-visible');
+      };
+
+      // 显示并居中
+      const modal = $('account-params-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');             // 确保居中
+      document.body.classList.add('modal-visible');  // 隐藏地图版权
+    }
+
+
+
+    function toggleUserDetails(show) {
+      const modal = $('user-details-modal');
+      modal.classList.toggle('hidden', !show);
+      modal.classList.toggle('flex', show);
+      const mapToToggle = !$('multi-account-app').classList.contains('hidden') ? multiAccountMap : map;
+      if (show) {
+        if (mapToToggle) mapToToggle.setStatus({ dragEnable: false, scrollWheel: false, doubleClickZoom: false });
+        document.body.classList.add('modal-visible');
+      } else {
+        // 关闭模态时恢复双击缩放
+        if (mapToToggle) mapToToggle.setStatus({ dragEnable: true, scrollWheel: true, doubleClickZoom: true });
+        document.body.classList.remove('modal-visible');
+      }
+    }
+
+
+    function toggleTaskDetails(show) {
+      const modal = $('task-details-modal');
+      modal.classList.toggle('hidden', !show);
+      modal.classList.toggle('flex', show);
+
+      const mapToToggle = !$('multi-account-app').classList.contains('hidden') ? multiAccountMap : map;
+
+      if (show) {
+        if (mapToToggle) mapToToggle.setStatus({ dragEnable: false, scrollWheel: false, doubleClickZoom: false });
+        // 打开任务详情时也标记 body，以触发版权隐藏样式
+        document.body.classList.add('modal-visible');
+      } else {
+        // 关闭模态时恢复双击缩放
+        if (mapToToggle) mapToToggle.setStatus({ dragEnable: true, scrollWheel: true, doubleClickZoom: true });
+        // 关键：关闭时去除标记，恢复版权显示
+        document.body.classList.remove('modal-visible');
+      }
+    }
+
+    function showUserDetails() {
+      if (!currentUserData || !currentUserData.student_id) { showModalAlert('请先成功登录'); return; }
+      const info = currentUserData;
+      const content = $('user-details-content'); content.innerHTML = '';
+      const kv = { '姓名': info.name, '学号': info.student_id, '用户名': info.username, '性别': info.gender, '学校': info.school_name, '属性': info.attribute_type, '手机号': info.phone, '用户ID': info.id, '身份证号': info.id_card, '注册时间': info.registration_time, '首次登录': info.first_login_time, '上次登录': info.last_login_time, '当前登录': info.current_login_time };
+      Object.entries(kv).forEach(([k, v]) => { const p = document.createElement('p'); p.innerHTML = `<span class="font-bold w-24 inline-block text-left pr-2 text-slate-500">${k}:</span><span class="break-all">${v || 'NULL'}</span>`; content.appendChild(p); });
+
+      // 离线模式下固定显示无 UA；否则从登录时保存的 currentSessionUA 变量中读取
+      const uaText = IS_OFFLINE ? 'NULL' : (currentSessionUA || 'NULL');
+      const p_ua = document.createElement('p');
+      // 与其他行一致：标签左对齐，移除 align-top 和不必要的宽度调整
+      p_ua.innerHTML = `<span class="font-bold w-24 inline-block text-left pr-2 text-slate-500">UA:</span><span class="break-all">${uaText}</span>`;
+      content.appendChild(p_ua);
+
+
+      toggleUserDetails(true);
+    }
+
+    function showTaskDetails() {
+      if (!currentRunData || !currentRunData.run_name) { showModalAlert('请先选择任务'); return; }
+      const content = $('task-details-content'); content.innerHTML = '';
+      const kv = { '任务名称': currentRunData.run_name, '任务状态': currentRunData.status == 1 ? '已完成' : '未完成', '任务ID': currentRunData.errand_id, '计划ID': currentRunData.errand_schedule, '开始时间': currentRunData.start_time, '结束时间': currentRunData.end_time, '上传时间': currentRunData.upload_time };
+      Object.entries(kv).forEach(([k, v]) => { const p = document.createElement('p'); p.innerHTML = `<span class="font-bold w-28 inline-block text-left pr-2 text-slate-500">${k}:</span><span>${v || 'NULL'}</span>`; content.appendChild(p); });
+      const tpTitle = document.createElement('p'); tpTitle.className = 'font-bold text-slate-500 mt-2'; tpTitle.textContent = '打卡点列表:'; content.appendChild(tpTitle);
+      (currentRunData.target_points || []).forEach((p, i) => {
+        const name = (currentRunData.target_point_names || "").split('|')[i] || `打卡点${i + 1}`;
+        const div = document.createElement('div'); div.className = 'flex items-center gap-2 text-slate-600 ml-4';
+        const numSpan = document.createElement('span'); numSpan.className = 'font-mono w-6 inline-block'; numSpan.textContent = `${i + 1}.`;
+        const nameSpan = document.createElement('span'); nameSpan.textContent = name;
+        const coordsSpan = document.createElement('span'); coordsSpan.className = 'text-xs text-slate-400'; coordsSpan.textContent = `(${p[0].toFixed(5)}, ${p[1].toFixed(5)})`;
+        div.append(numSpan, nameSpan, coordsSpan);
+        content.appendChild(div);
+      });
+      toggleTaskDetails(true);
+    }
+
+
+    function toggleNotifications(show, forceDisableMap = false) {
+      const modal = $('notifications-modal');
+      modal.classList.toggle('hidden', !show);
+      modal.classList.toggle('flex', show);
+
+      const mapToToggle = !$('multi-account-app').classList.contains('hidden') ? multiAccountMap : map;
+
+      if (show) {
+        // 打开模态框：总是禁用地图
+        if (mapToToggle) mapToToggle.setStatus({ dragEnable: false, scrollWheel: false, doubleClickZoom: false });
+        document.body.classList.add('modal-visible');
+      } else {
+        // 关闭模态框：
+        if (forceDisableMap) {
+          // 如果是“手动选点”调用的，保持地图禁用状态
+          if (mapToToggle) mapToToggle.setStatus({ dragEnable: false, scrollWheel: false, doubleClickZoom: false });
+        } else {
+          // 否则（例如点击背景、关闭按钮），恢复地图
+          if (mapToToggle) mapToToggle.setStatus({ dragEnable: true, scrollWheel: true, doubleClickZoom: true });
+        }
+        document.body.classList.remove('modal-visible');
+      }
+    }
+
+    async function fetchNotifications(limit = null, offset = 0) {
+      const badge = $('notification-badge');
+      let result = null; // <-- 1. 必须在函数顶部声明
+      try {
+        // 构建API参数
+        const params = {};
+        if (limit !== null) {
+          params.request_limit = limit;
+          params.request_offset = offset;
+        }
+        
+        result = await callPythonAPI('get_notifications', params); // <-- 2. 在 try 块中赋值 (不使用 const/let)
+
+        // 3. 检查 result 是否为 null (防止网络错误)
+        if (result && result.success) {
+          // 更新徽章
+          if (result.unreadCount > 0) {
+            badge.textContent = result.unreadCount > 9 ? '9+' : result.unreadCount;
+            badge.classList.remove('hidden');
+          } else {
+            badge.classList.add('hidden');
+          }
+          // 如果没有指定limit，或者这是第一次加载，缓存通知数据
+          if (limit === null || offset === 0) {
+            window.currentNotifications = result.notices || [];
+          } else {
+            // 否则追加到现有数据
+            window.currentNotifications = (window.currentNotifications || []).concat(result.notices || []);
+          }
+        } else {
+          badge.classList.add('hidden');
+        }
+      } catch (e) {
+        logMessage_Error("Fetch notifications failed", e);
+        badge.classList.add('hidden');
+      }
+      return result; // <-- 4. 现在可以安全返回
+    }
+    async function refreshNotificationsUI(useCache = true) {
+      // --- BUG修复：防止重复点击 ---
+      if (isRefreshingNotifications) {
+        logMessage_Info("Notification refresh already in progress. Skipping.");
+        return; // 如果已在刷新，则直接退出
+      }
+      isRefreshingNotifications = true; // 设置 "in-flight" 标志
+      // --- 结束修复 ---
+
+      const content = $('notifications-content');
+      const refreshBtn = $('refresh-notifications-btn');
+      const markReadBtn = $('mark-all-read-btn');
+
+      // 1. 设置加载状态
+      if (refreshBtn) {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = '刷新中...';
+      }
+      if (markReadBtn) markReadBtn.disabled = true;
+      
+      try {
+        // 【优化】步骤1：如果启用缓存，先尝试显示缓存的通知
+        let cachedDisplayed = false;
+        if (useCache) {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载缓存通知...</p>';
+          
+          try {
+            const cachedResult = await callPythonAPI('get_cached_notifications');
+            if (cachedResult && cachedResult.success && cachedResult.cached && cachedResult.notices.length > 0) {
+              logMessage_Info(`显示缓存的 ${cachedResult.notices.length} 条通知`);
+              content.innerHTML = '';
+              renderNotificationBatch(cachedResult.notices, content);
+              cachedDisplayed = true;
+              
+              // 更新徽章
+              const badge = $('notification-badge');
+              if (cachedResult.unreadCount > 0) {
+                badge.textContent = cachedResult.unreadCount > 9 ? '9+' : cachedResult.unreadCount;
+                badge.classList.remove('hidden');
+              } else {
+                badge.classList.add('hidden');
+              }
+              
+              // 更新按钮状态
+              const hasUnread = cachedResult.notices.some(n => n.isRead == 0 || n.isRead === false);
+              if (markReadBtn) markReadBtn.disabled = !hasUnread;
+              
+              // 显示"正在刷新"提示
+              const refreshingIndicator = document.createElement('div');
+              refreshingIndicator.id = 'refreshing-indicator';
+              refreshingIndicator.className = 'p-3 text-center text-slate-400 text-sm';
+              refreshingIndicator.innerHTML = '正在刷新最新通知...';
+              content.appendChild(refreshingIndicator);
+            }
+          } catch (e) {
+            logMessage_Warning("获取缓存通知失败，将直接加载最新通知", e);
+          }
+        }
+        
+        if (!cachedDisplayed) {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载前5条通知...</p>';
+        }
+
+        // 【优化】步骤2：渐进式分段加载最新通知
+        let currentOffset = 0;
+        const batchSize = 5;
+        let hasMore = true;
+        let firstLoad = true;
+        
+        // 定义递归加载函数
+        const loadNextBatch = async () => {
+          if (!hasMore) {
+            return;
+          }
+          
+          logMessage_Info(`正在加载通知：offset=${currentOffset}, limit=${batchSize}`);
+          const result = await fetchNotifications(batchSize, currentOffset);
+          
+          if (!result || !result.success) {
+            if (firstLoad && !cachedDisplayed) {
+              content.innerHTML = '<p class="text-red-500 text-center py-10">加载失败，请稍后重试</p>';
+            }
+            return;
+          }
+          
+          const notices = result.notices || [];
+          
+          if (firstLoad) {
+            // 首次加载新数据，清空之前的内容（包括缓存或"正在加载"提示）
+            content.innerHTML = '';
+            firstLoad = false;
+            logMessage_Info(`首批新通知加载完成，${cachedDisplayed ? '已替换' : '正在显示'}缓存数据`);
+          }
+          
+          if (notices.length === 0 && currentOffset === 0) {
+            content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无通知</p>';
+            if (markReadBtn) markReadBtn.disabled = true;
+            return;
+          }
+          
+          // 移除之前的"正在加载更多"提示（如果存在）
+          const oldIndicator = $('loading-more-indicator');
+          if (oldIndicator) {
+            oldIndicator.remove();
+          }
+          
+          // 渲染这一批通知
+          if (notices.length > 0) {
+            logMessage_Info(`第${Math.floor(currentOffset/batchSize) + 1}批加载完成：显示 ${notices.length} 条通知`);
+            renderNotificationBatch(notices, content);
+            
+            // 更新未读按钮状态
+            const allNotices = window.currentNotifications || [];
+            const hasUnread = allNotices.some(n => n.isRead == 0 || n.isRead === false);
+            if (markReadBtn) markReadBtn.disabled = !hasUnread;
+          }
+          
+          // 更新偏移量和是否还有更多数据
+          currentOffset += batchSize;
+          hasMore = result.hasMore || false;
+          
+          // 如果还有更多数据，显示"正在加载更多"提示，并继续加载
+          if (hasMore) {
+            const loadingMore = document.createElement('div');
+            loadingMore.id = 'loading-more-indicator';
+            loadingMore.className = 'p-3 text-center text-slate-400 text-sm';
+            loadingMore.innerHTML = '正在加载更多通知...';
+            content.appendChild(loadingMore);
+            
+            // 短暂延迟后加载下一批（让用户看到前一批的内容）
+            setTimeout(loadNextBatch, 100);
+          } else {
+            logMessage_Info("所有通知加载完成");
+          }
+          
+          // 第一批加载完成后，调用 onNotificationsUpdated 来刷新"签到"Tab
+          if (currentOffset === batchSize && result.success) {
+            onNotificationsUpdated(result);
+          }
+        };
+        
+        // 开始加载第一批
+        await loadNextBatch();
+        
+      } catch (e) {
+        logMessage_Error("Failed to refresh notifications UI", e);
+        content.innerHTML = '<p class="text-red-500 text-center py-10">刷新失败，请稍后重试</p>';
+      } finally {
+        // 4. 恢复按钮状态
+        if (refreshBtn) {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = '刷新';
+        }
+        isRefreshingNotifications = false;
+      }
+    }
+    
+    // 辅助函数：渲染一批通知
+    function renderNotificationBatch(notices, container) {
+      if (!notices || notices.length === 0) return;
+      
+      for (const n of notices) {
+        const item = document.createElement('div');
+        item.className = 'p-3 border-b border-slate-200';
+        item.id = `notice-${n.id}`;
+
+        const isEffectivelyRead = (n.isRead == 1 || n.isRead === true);
+        const isReadClass = isEffectivelyRead ? 'opacity-60' : 'font-bold';
+
+        // 1. "设为已读"按钮
+        let readButtonHtml = '';
+        if (!isEffectivelyRead) {
+          readButtonHtml = `<button class="btn btn-ghost !py-0 !px-2 !text-xs text-sky-600" onclick="markAsRead(event, '${n.id}')">设为已读</button>`;
+        }
+
+        // 2. 签到状态/按钮 (使用后端新逻辑)
+        let attendanceHtml = '';
+        const isAttendanceTask = (n.image === 'attendance') || (n.title && n.title.includes('签到'));
+
+        if (isAttendanceTask && n.id) {
+          switch (n.attendance_code) {
+            case -1:
+              try {
+                const coordsStr = (n.updateBy || "").trim();
+                const [lat, lon] = coordsStr.split(',').map(Number);
+                if (isNaN(lon) || isNaN(lat)) throw new Error('坐标无效');
+                const targetCoords = `[${lon}, ${lat}]`;
+
+                attendanceHtml = `
+                  <span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span>
+                  <div class="relative inline-block group">
+                    <button class="btn btn-warning !py-0 !px-2 !text-xs inline-flex items-center" title="补签此任务">
+                      <span>补签</span>
+                      <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
+                    </button>
+                    <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-32 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
+                      <button class="btn btn-warning !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleMakeupAttendance(event, '${n.id}', ${targetCoords})">随机补签</button>
+                      <button class="btn btn-warning !bg-orange-400 hover:!bg-orange-500 !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualMakeupAttendance(event, '${n.id}', ${targetCoords})">手动选点补签</button>
+                    </div>
+                  </div>
+                `;
+              } catch (e) {
+                attendanceHtml = `<span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span> <span class="text-xs text-slate-400">(坐标无效)</span>`;
+              }
+              break;
+            case 1:
+              attendanceHtml = `<span class="text-xs font-semibold text-emerald-600 px-2 py-0.5 rounded-full bg-emerald-100">已签到</span>`;
+              break;
+            case 0:
+              try {
+                const coordsStr = (n.updateBy || "").trim();
+                const [lat, lon] = coordsStr.split(',').map(Number);
+
+                if (!isNaN(lon) && !isNaN(lat)) {
+                  const rollCallId = n.id;
+                  const targetCoords = `[${lon}, ${lat}]`;
+
+                  attendanceHtml = `
+                    <div class="relative inline-block group">
+                      <button class="btn btn-secondary !py-0 !px-2 !text-xs inline-flex items-center">
+                        <span>签到</span>
+                        <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
+                      </button>
+                      <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-28 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
+                        <button class="btn btn-success !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleAttendance(event, '${rollCallId}', ${targetCoords})">随机签到</button>
+                        <button class="btn btn-secondary !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualAttendance(event, '${rollCallId}', ${targetCoords})">手动选点</button>
+                      </div>
+                    </div>
+                    <button class="btn btn-warning !py-0 !px-2 !text-xs" onclick="handleMakeupAttendance(event, '${rollCallId}', ${targetCoords})">
+                      补签
+                    </button>
+                  `;
+                } else {
+                  attendanceHtml = `<span class="text-xs text-slate-400">坐标无效</span>`;
+                }
+              } catch (e) {
+                logMessage_Error("解析签到坐标失败:", e, n.updateBy);
+                attendanceHtml = `<span class="text-xs text-red-500">数据错误</span>`;
+              }
+              break;
+            default:
+              attendanceHtml = `<span class="text-xs text-slate-400">状态未知</span>`;
+          }
+        }
+
+        // 3. 组装
+        item.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-base text-slate-800 ${isReadClass}">${n.title}</span>
+            <div class="flex items-center gap-2">
+              ${readButtonHtml}
+              ${attendanceHtml}
+              <span class="text-xs text-slate-500 flex-shrink-0">${n.createtime}</span>
+            </div>
+          </div>
+          <p class="text-sm text-slate-600 mt-1 ${isReadClass}">${n.content}</p>
+        `;
+        container.appendChild(item);
+      }
+    }
+
+    function showNotifications() {
+      // 1. 打开模态框
+      toggleNotifications(true);
+
+      // 2. 触发UI刷新（这个新函数会处理加载、获取数据和渲染）
+      refreshNotificationsUI();
+    }
+
+    /**
+     * 由后端自动刷新线程调用
+     * @param {object} result - 后端 get_notifications 返回的结果
+     */
+    function onNotificationsUpdated(result) {
+      if (!result || !result.success) {
+        logMessage_Info("[后台刷新] 获取通知失败");
+        return;
+      }
+
+      logMessage_Info(`[后台刷新] 收到 ${result.unreadCount} 未读, ${result.notices.length} 总数`);
+
+      // 1. 更新角标
+      const badge = $('notification-badge');
+      if (result.unreadCount > 0) {
+        badge.textContent = result.unreadCount > 9 ? '9+' : result.unreadCount;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+
+      // 2. 缓存最新数据
+      window.currentNotifications = result.notices || [];
+
+      // 3. 渲染“签到”Tab (如果该Tab存在)
+      const attList = $('attendance-list');
+      if (attList) {
+        attList.innerHTML = '';
+        const attendanceNotices = (window.currentNotifications || []).filter(n =>
+          n.image === 'attendance' || (n.title && n.title.includes('签到'))
+        );
+
+        if (attendanceNotices.length === 0) {
+          attList.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">暂无签到任务</p>';
+        } else {
+          attendanceNotices.forEach(n => {
+            const item = document.createElement('div');
+            item.className = 'p-2 border-b border-slate-100';
+
+            let statusText = '未知';
+            let statusClass = 'text-slate-500';
+            let buttonHtml = ''; // --- 新增：用于存放按钮 ---
+
+            // --- 提取坐标解析逻辑，供按钮使用 ---
+            let targetCoords = 'null';
+            let canSign = false;
+            try {
+              const coordsStr = (n.updateBy || "").trim();
+              const [lat, lon] = coordsStr.split(',').map(Number);
+              if (!isNaN(lon) && !isNaN(lat)) {
+                targetCoords = `[${lon}, ${lat}]`;
+                canSign = true;
+              }
+            } catch (e) { }
+
+            // 使用后端附加的 attendance_code
+            switch (n.attendance_code) {
+              case -1:
+                statusText = '已过期'; statusClass = 'text-red-600 font-semibold';
+                // --- 新增：添加补签按钮 ---
+                if (canSign) {
+                  buttonHtml = `
+                <div class="relative inline-block group">
+                  <button class="btn btn-warning !py-0 !px-2 !text-xs inline-flex items-center" title="补签此任务">
+                    <span>补签</span>
+                    <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
+                  </button>
+                  <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-32 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
+                    <button class="btn btn-warning !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleMakeupAttendance(event, '${n.id}', ${targetCoords})">随机补签</button>
+                    <button class="btn btn-warning !bg-orange-400 hover:!bg-orange-500 !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualMakeupAttendance(event, '${n.id}', ${targetCoords})">手动选点补签</button>
+                  </div>
+                </div>
+              `;
+                }
+                break;
+              case 1:
+                statusText = '已签到'; statusClass = 'text-emerald-600 font-semibold';
+                // (已签到，无需按钮)
+                break;
+              case 0:
+                statusText = '待签到'; statusClass = 'text-sky-600 font-bold';
+                // 新增：添加签到和补签按钮
+                if (canSign) {
+                  // (为简洁，签到Tab只放随机签到和补签)
+                  // 与通知模态框保持一致，为“签到”按钮添加下拉菜单
+                  buttonHtml = `
+                <div class="relative inline-block group">
+                  <button class="btn btn-secondary !py-0 !px-2 !text-xs inline-flex items-center">
+                    <span>签到</span>
+                    <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
+                  </button>
+                  <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-28 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
+                    <button class="btn btn-success !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleAttendance(event, '${n.id}', ${targetCoords})">随机签到</button>
+                    <button class="btn btn-secondary !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualAttendance(event, '${n.id}', ${targetCoords})">手动选点</button>
+                  </div>
+                </div>
+                <button class="btn btn-warning !py-0 !px-2 !text-xs" onclick="handleMakeupAttendance(event, '${n.id}', ${targetCoords})">
+                  补签
+                </button>
+              `;
+                }
+                break;
+              default:
+                statusText = '状态未知'; statusClass = 'text-slate-400';
+            }
+
+            // 如果是自动签到失败
+            if (n.attendance_status_text && n.attendance_status_text.includes('失败')) {
+              statusText = n.attendance_status_text;
+              statusClass = 'text-red-700 font-bold';
+            }
+
+            // --- 新代码 (innerHTML) ---
+            item.innerHTML = `
+          <div class="flex justify-between items-center">
+            <span class="text-sm font-semibold text-slate-700">${n.title}</span>
+            <span class="text-xs ${statusClass} flex-shrink-0">${statusText}</span>
+          </div>
+          <div class="flex justify-between items-center mt-1">
+            <span class="text-xs text-slate-500">${n.content}</span>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              <span class="text-xs text-slate-400">${n.createtime}</span>
+              ${buttonHtml}
+            </div>
+          </div>
+        `;
+            attList.appendChild(item);
+          });
+        }
+      }
+
+      // 4. (可选) 如果通知模态框当前是打开的，也刷新它
+      const modal = $('notifications-modal');
+      if (modal && !modal.classList.contains('hidden')) {
+        refreshNotificationsUI();
+      }
+    }
+
+    // --- 处理签到点击的函数 ---
+    async function handleAttendance(event, rollCallId, targetCoords) {
+      event.stopPropagation();
+      logMessage_Info(`正在为您自动签到... 活动ID: ${rollCallId}`);
+      // 调用后端随机签到 (location_choice='random', specific_coords=null, is_makeup=false)
+      const result = await callPythonAPI('trigger_attendance', rollCallId, targetCoords, 'random', null, false);
+      if (result.success) {
+        logMessage_Info(`签到成功: ${result.message}`);
+        showModalAlert(`签到成功: ${result.message}`);
+      } else {
+        logMessage_Info(`签到失败: ${result.message}`);
+        showModalAlert(`签到失败: ${result.message}`);
+      }
+      // 签到后刷新通知列表状态
+      await fetchNotifications();
+      showNotifications();
+    }
+
+
+    async function handleManualAttendance(event, rollCallId, targetCoords) {
+      event.stopPropagation();
+      // 关键修复：传入 'true'，告诉 toggleNotifications 在关闭后保持地图禁用
+      toggleNotifications(false, true);
+
+      // 修复Issue 4: 清空当前任务选择以清除地图遮挡物
+      selectedTaskIndex = -1;
+      renderTaskList();
+      drawOnMap();
+
+      logMessage_Info("请在地图上单击选择签到点...");
+
+      // --- 1. 清理可能残留的旧标记 ---
+      if (tempAttendanceMarker && map) {
+        map.remove(tempAttendanceMarker);
+        tempAttendanceMarker = null;
+      }
+      if (tempAttendanceCircle && map) {
+        map.remove(tempAttendanceCircle);
+        tempAttendanceCircle = null;
+      }
+
+      // --- 2. 获取坐标和半径 ---
+      const radius = (currentUserData && currentUserData.server_attendance_radius_m) ? currentUserData.server_attendance_radius_m : 0.0;
+      const position = new AMapInstance.LngLat(targetCoords[0], targetCoords[1]);
+
+
+      // --- 3. 绘制系统签到点标记 (老师的位置) ---
+      tempAttendanceMarker = new AMapInstance.Marker({
+        position: position,
+        content: svgIconNormal,
+        clickable: false,
+        anchor: 'bottom-center',
+        zIndex: 200
+      });
+
+      // --- 4. 绘制签到范围圆圈 ---
+      tempAttendanceCircle = new AMapInstance.Circle({
+        center: position,
+        radius: radius,
+        strokeColor: "#00BFFF",
+        strokeOpacity: 1,
+        strokeWeight: 2,
+        fillColor: "#00BFFF",
+        fillOpacity: 0.2,
+        zIndex: 199,
+        bubble: true,
+        clickable: false
+      });
+
+      map.add(tempAttendanceMarker);
+      map.add(tempAttendanceCircle);
+
+      // --- 5. 缩放并居中到该区域 ---
+      map.setFitView([tempAttendanceCircle], false, [120, 120, 120, 120]);
+
+      // --- 6. 提示用户点击地图 ---
+      const infoMarker = new AMapInstance.Text({
+        text: '已显示签到区域，请在地图上单击选点',
+        position: position,
+        anchor: 'bottom-center',
+        offset: new AMapInstance.Pixel(0, -40),
+        clickable: false,
+        style: {
+          'background-color': '#fff',
+          'padding': '5px 10px',
+          'border-radius': '5px',
+          'box-shadow': '0 2px 4px rgba(0,0,0,0.2)',
+          'pointer-events': 'none'
+        }
+      });
+      map.add(infoMarker);
+
+      // --- 7. 监听一次地图单击事件 (包含距离校验和状态恢复) ---
+      const onMapClick = async (e) => {
+        map.off('click', onMapClick);
+        map.remove(infoMarker);
+
+        const clickedLngLat = e.lnglat;
+        const specificCoords = [clickedLngLat.lng, clickedLngLat.lat];
+
+        // --- 距离判断 (上次的修复) ---
+        const distance = fastDistanceMeters(clickedLngLat.lng, clickedLngLat.lat, targetCoords[0], targetCoords[1]);
+
+        if (distance > radius) {
+          logMessage_Info(`选点失败：距离 ${distance.toFixed(1)}m > ${radius.toFixed(1)}m`);
+          showModalAlert('您选择的点不在签到范围内，请重新在地图上单击选点。', '选点无效');
+
+          // 重新显示提示并重新绑定监听 (地图仍处于“选点模式”)
+          map.add(infoMarker);
+          map.on('click', onMapClick);
+          return;
+        }
+        // --- 距离判断结束 ---
+
+        logMessage_Info(`已选择签到点: ${specificCoords.join(', ')} (距离 ${distance.toFixed(1)}m)`);
+
+        try {
+          const result = await callPythonAPI('trigger_attendance', rollCallId, targetCoords, 'specific', specificCoords, false);
+          if (result.success) {
+            logMessage_Info(`签到成功: ${result.message}`);
+            showModalAlert(`签到成功: ${result.message}`);
+          } else {
+            logMessage_Info(`签到失败: ${result.message}`);
+            showModalAlert(`签到失败: ${result.message}`);
+          }
+        } catch (err) {
+          logMessage_Info(`签到时发生JS错误: ${err}`);
+        } finally {
+          // --- 8. 清理覆盖物 ---
+          if (tempAttendanceMarker && map) {
+            map.remove(tempAttendanceMarker);
+            tempAttendanceMarker = null;
+          }
+          if (tempAttendanceCircle && map) {
+            map.remove(tempAttendanceCircle);
+            tempAttendanceCircle = null;
+          }
+
+          // --- 关键修复：恢复地图交互状态 ---
+          if (map) {
+            map.setStatus({
+              dragEnable: true,
+              scrollWheel: true,
+              doubleClickZoom: true
+            });
+          }
+
+          await fetchNotifications();
+        }
+      };
+
+      map.on('click', onMapClick);
+    }
+
+
+    async function handleMakeupAttendance(event, rollCallId, targetCoords) {
+      event.stopPropagation();
+      logMessage_Info(`正在为您 [补签]... 活动ID: ${rollCallId}`);
+
+      // 调用后端随机签到，并明确传递 is_makeup=True
+      // 签名: trigger_attendance(rollCallId, targetCoords, location_choice, specific_coords, is_makeup)
+      const result = await callPythonAPI('trigger_attendance',
+        rollCallId,
+        targetCoords,
+        'random',   // location_choice
+        null,       // specific_coords
+        true        // is_makeup
+      );
+
+      if (result.success) {
+        logMessage_Info(`补签成功: ${result.message}`);
+        showModalAlert(`补签成功: ${result.message}`);
+      } else {
+        logMessage_Info(`补签失败: ${result.message}`);
+        showModalAlert(`补签失败: ${result.message}`);
+      }
+      // 补签后刷新通知列表状态
+      await fetchNotifications();
+      // 重新打开通知模态框以显示最新状态
+      // showNotifications();
+    }
+
+    // --- 手动选点补签函数 ---
+    async function handleManualMakeupAttendance(event, rollCallId, targetCoords) {
+      event.stopPropagation();
+      // 关键修复：传入 'true'，告诉 toggleNotifications 在关闭后保持地图禁用
+      toggleNotifications(false, true);
+
+      // 修复Issue 4: 清空当前任务选择以清除地图遮挡物
+      selectedTaskIndex = -1;
+      renderTaskList();
+      drawOnMap();
+
+      logMessage_Info("请在地图上单击选择 [补签] 点...");
+
+      // --- 1. 清理可能残留的旧标记 ---
+      if (tempAttendanceMarker && map) {
+        map.remove(tempAttendanceMarker);
+        tempAttendanceMarker = null;
+      }
+      if (tempAttendanceCircle && map) {
+        map.remove(tempAttendanceCircle);
+        tempAttendanceCircle = null;
+      }
+
+      // --- 2. 获取坐标和半径 ---
+      const radius = (currentUserData && currentUserData.server_attendance_radius_m) ? currentUserData.server_attendance_radius_m : 0.0;
+      const position = new AMapInstance.LngLat(targetCoords[0], targetCoords[1]);
+      logMessage_Info(`系统签到点: ${targetCoords[0]}, ${targetCoords[1]} (半径: ${radius}米)`);
+
+      // --- 3. 绘制系统签到点标记 (老师的位置) ---
+      tempAttendanceMarker = new AMapInstance.Marker({
+        position: position,
+        content: svgIconMakeup, // 使用橙色SVG
+        clickable: false,
+        anchor: 'bottom-center',
+        zIndex: 200
+      });
+
+      // --- 4. 绘制签到范围圆圈 (使用补签的) ---
+      tempAttendanceCircle = new AMapInstance.Circle({
+        center: position,
+        radius: radius,
+        strokeColor: "#F7B731",
+        strokeOpacity: 1,
+        strokeWeight: 2,
+        fillColor: "#F7B731",
+        fillOpacity: 0.2,
+        zIndex: 199,
+        bubble: true,
+        clickable: false
+      });
+
+      map.add(tempAttendanceMarker);
+      map.add(tempAttendanceCircle);
+
+      // --- 5. 缩放并居中到该区域 ---
+      map.setFitView([tempAttendanceCircle], false, [120, 120, 120, 120]);
+
+      // --- 6. 提示用户点击地图 ---
+      const infoMarker = new AMapInstance.Text({
+        text: '已显示签到区域，请在地图上单击选点 [补签]',
+        position: position,
+        anchor: 'bottom-center',
+        offset: new AMapInstance.Pixel(0, -40),
+        clickable: false,
+        style: {
+          'background-color': '#fff',
+          'padding': '5px 10px',
+          'border-radius': '5px',
+          'box-shadow': '0 2px 4px rgba(0,0,0,0.2)',
+          'pointer-events': 'none'
+        }
+      });
+      map.add(infoMarker);
+
+      // --- 7. 监听一次地图单击事件 (包含距离校验和状态恢复) ---
+      const onMapClick = async (e) => {
+        map.off('click', onMapClick);
+        map.remove(infoMarker);
+
+        const clickedLngLat = e.lnglat;
+        const specificCoords = [clickedLngLat.lng, clickedLngLat.lat];
+
+        // --- 距离判断 (上次的修复) ---
+        const distance = fastDistanceMeters(clickedLngLat.lng, clickedLngLat.lat, targetCoords[0], targetCoords[1]);
+
+        if (distance > radius) {
+          logMessage_Info(`[补签] 选点失败：距离 ${distance.toFixed(1)}m > ${radius.toFixed(1)}m`);
+          showModalAlert('您选择的点不在签到范围内，请重新在地图上单击选点。', '选点无效');
+
+          // 重新显示提示并重新绑定监听 (地图仍处于“选点模式”)
+          map.add(infoMarker);
+          map.on('click', onMapClick);
+          return;
+        }
+        // --- 距离判断结束 ---
+
+        logMessage_Info(`已选择 [补签] 点: ${specificCoords.join(', ')} (距离 ${distance.toFixed(1)}m)`);
+
+        try {
+          const result = await callPythonAPI('trigger_attendance', rollCallId, targetCoords, 'specific', specificCoords, true);
+          if (result.success) {
+            logMessage_Info(`补签成功: ${result.message}`);
+            showModalAlert(`补签成功: ${result.message}`);
+          } else {
+            logMessage_Info(`补签失败: ${result.message}`);
+            showModalAlert(`补签失败: ${result.message}`);
+          }
+        } catch (err) {
+          logMessage_Info(`补签时发生JS错误: ${err}`);
+        } finally {
+          // --- 8. 清理覆盖物 ---
+          if (tempAttendanceMarker && map) {
+            map.remove(tempAttendanceMarker);
+            tempAttendanceMarker = null;
+          }
+          if (tempAttendanceCircle && map) {
+            map.remove(tempAttendanceCircle);
+            tempAttendanceCircle = null;
+          }
+
+          // --- 关键修复：恢复地图交互状态 ---
+          if (map) {
+            map.setStatus({
+              dragEnable: true,
+              scrollWheel: true,
+              doubleClickZoom: true
+            });
+          }
+
+          await fetchNotifications();
+        }
+      };
+
+      map.on('click', onMapClick);
+    }
+
+
+    async function markAsRead(event, noticeId) {
+      event.stopPropagation(); // 防止点击穿透
+
+      // 禁用按钮，防止重复点击
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      try {
+        const result = await callPythonAPI('mark_notification_read', noticeId);
+        if (result.success) {
+          // 成功后，重新从服务器获取最新列表
+          // 这是最可靠的方式，能自动更新角标和列表状态
+          await fetchNotifications();
+          // 重新渲染模态框内部
+          showNotifications();
+        } else {
+          showModalAlert(result.message || '标记已读失败');
+          btn.disabled = false;
+          btn.textContent = '设为已读';
+        }
+      } catch (e) {
+        logMessage_Error("markAsRead failed:", e);
+        btn.disabled = false;
+        btn.textContent = '设为已读';
+      }
+    }
+
+    /**
+     * 标记所有通知为已读
+     */
+    async function markAllAsRead() {
+      const btn = $('mark-all-read-btn');
+      btn.disabled = true;
+      btn.textContent = '处理中...';
+
+      // 找出所有未读通知
+      const unreadNotices = (window.currentNotifications || []).filter(n => !n.isRead);
+      if (unreadNotices.length === 0) {
+        btn.textContent = '一键已读';
+        return;
+      }
+
+      try {
+        // 并行发送所有“设为已读”请求
+        const promises = unreadNotices.map(n =>
+          callPythonAPI('mark_notification_read', n.id)
+        );
+        await Promise.all(promises);
+
+        // 全部完成后（无论是否全部成功），都统一刷新一次
+        logMessage_Info(`“一键已读”操作完成，共处理 ${unreadNotices.length} 条。`);
+
+      } catch (e) {
+        logMessage_Error("markAllAsRead failed:", e);
+        logMessage_Info(`“一键已读”时发生错误: ${e}`);
+      } finally {
+        // 最终，从服务器拉取最新状态
+        await fetchNotifications();
+        // 重新渲染模态框
+        showNotifications();
+        // 恢复按钮状态
+        btn.disabled = (window.currentNotifications || []).filter(n => !n.isRead).length === 0;
+        btn.textContent = '一键已读';
+      }
+    }
+
+
+

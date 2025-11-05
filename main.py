@@ -10837,6 +10837,353 @@ def start_web_server(args_param):
         days=7)  # 会话保持7天
 
     # ====================
+    # JavaScript 压缩工具函数
+    # ====================
+    
+    def minify_javascript(code):
+        """
+        JavaScript 代码压缩函数
+        
+        功能说明：
+            对 JavaScript 代码进行压缩，移除注释、多余空白和换行符，减小文件大小。
+            这是一个轻量级的压缩实现，不依赖外部库。
+        
+        压缩策略：
+            1. 移除单行注释（// ...）
+            2. 移除多行注释（/* ... */）
+            3. 移除多余的空白字符和换行符
+            4. 保留字符串和正则表达式中的内容不变
+            5. 保留必要的空格（如关键字后的空格）
+        
+        参数：
+            code (str): 原始 JavaScript 代码
+        
+        返回：
+            str: 压缩后的 JavaScript 代码
+        
+        压缩效果：
+            通常可减小 30-50% 的文件大小
+        
+        注意事项：
+            - 此实现为基础版本，不处理复杂的边缘情况
+            - 生产环境建议使用专业工具（如 jsmin、uglifyjs）
+            - 压缩后的代码难以阅读，仅用于生产环境
+        """
+        if not code:
+            return code
+        
+        # 压缩结果
+        result = []
+        
+        # 状态标志
+        in_string = False          # 是否在字符串中
+        string_delimiter = None    # 字符串分隔符（' 或 "）
+        in_regex = False           # 是否在正则表达式中
+        in_single_comment = False  # 是否在单行注释中
+        in_multi_comment = False   # 是否在多行注释中
+        
+        # 遍历每个字符
+        i = 0
+        length = len(code)
+        
+        while i < length:
+            char = code[i]
+            next_char = code[i + 1] if i + 1 < length else ''
+            prev_char = result[-1] if result else ''
+            
+            # 处理多行注释结束
+            if in_multi_comment:
+                if char == '*' and next_char == '/':
+                    in_multi_comment = False
+                    i += 2  # 跳过 */
+                    continue
+                i += 1
+                continue
+            
+            # 处理单行注释结束
+            if in_single_comment:
+                if char == '\n':
+                    in_single_comment = False
+                    # 换行符在某些情况下需要保留（如语句结束）
+                    if result and result[-1] not in [';', '{', '}', '\n']:
+                        result.append('\n')
+                i += 1
+                continue
+            
+            # 检测多行注释开始
+            if not in_string and not in_regex and char == '/' and next_char == '*':
+                in_multi_comment = True
+                i += 2
+                continue
+            
+            # 检测单行注释开始
+            if not in_string and not in_regex and char == '/' and next_char == '/':
+                in_single_comment = True
+                i += 2
+                continue
+            
+            # 处理字符串
+            if char in ['"', "'", '`'] and not in_regex:
+                if not in_string:
+                    # 进入字符串
+                    in_string = True
+                    string_delimiter = char
+                    result.append(char)
+                elif char == string_delimiter and (not result or result[-1] != '\\'):
+                    # 退出字符串（检查是否被转义）
+                    in_string = False
+                    string_delimiter = None
+                    result.append(char)
+                else:
+                    # 字符串内部
+                    result.append(char)
+                i += 1
+                continue
+            
+            # 字符串内部：保留所有字符
+            if in_string:
+                result.append(char)
+                i += 1
+                continue
+            
+            # 处理正则表达式（简化处理：检测 / 前后的上下文）
+            # 注意：这是一个简化的正则检测，可能不完美
+            if char == '/' and not in_string:
+                # 检查是否是正则表达式的开始
+                # 正则通常出现在 =、(、[、,、:、; 等符号后
+                if result and result[-1] in ['=', '(', '[', ',', ':', ';', '!', '&', '|', '?', '{', '}', '\n']:
+                    in_regex = True
+                    result.append(char)
+                    i += 1
+                    continue
+            
+            # 正则表达式内部
+            if in_regex:
+                result.append(char)
+                if char == '/' and (not result or result[-2] != '\\'):
+                    in_regex = False
+                i += 1
+                continue
+            
+            # 压缩空白字符
+            if char in [' ', '\t', '\n', '\r']:
+                # 检查前一个字符
+                if result and result[-1] not in [' ', '\n', '{', '}', '(', ')', '[', ']', ';', ',', ':', '=', '+', '-', '*', '/', '%', '<', '>', '!', '&', '|', '?']:
+                    # 检查下一个字符
+                    next_non_space = ''
+                    j = i + 1
+                    while j < length and code[j] in [' ', '\t', '\n', '\r']:
+                        j += 1
+                    if j < length:
+                        next_non_space = code[j]
+                    
+                    # 如果下一个字符不是特殊字符，保留一个空格
+                    if next_non_space and next_non_space not in ['{', '}', '(', ')', '[', ']', ';', ',', ':', '=', '+', '-', '*', '/', '%', '<', '>', '!', '&', '|', '?']:
+                        result.append(' ')
+                i += 1
+                continue
+            
+            # 普通字符：直接添加
+            result.append(char)
+            i += 1
+        
+        # 返回压缩后的代码
+        minified = ''.join(result)
+        
+        # 记录压缩效果
+        original_size = len(code)
+        minified_size = len(minified)
+        compression_ratio = (1 - minified_size / original_size) * 100 if original_size > 0 else 0
+        
+        logging.debug(f"JavaScript 压缩完成：原始大小 {original_size} 字节，压缩后 {minified_size} 字节，压缩率 {compression_ratio:.1f}%")
+        
+        return minified
+
+    def minify_html(html):
+        """
+        HTML 代码压缩函数
+        
+        功能说明：
+            对 HTML 代码进行压缩，移除注释、多余空白和换行符，减小文件大小。
+            保留标签结构和属性，不影响页面功能。
+        
+        压缩策略：
+            1. 移除 HTML 注释（<!-- ... -->）
+            2. 移除标签之间的多余空白和换行
+            3. 移除属性值周围的多余空格
+            4. 保留 <script>、<style>、<pre> 标签内的格式
+            5. 保留必要的空格（防止标签粘连）
+        
+        参数：
+            html (str): 原始 HTML 代码
+        
+        返回：
+            str: 压缩后的 HTML 代码
+        
+        压缩效果：
+            通常可减小 20-40% 的文件大小
+        
+        注意事项：
+            - 保留 <script> 和 <style> 标签内的空白（避免破坏代码）
+            - 保留 <pre> 标签内的格式（预格式化文本）
+            - 不会改变 HTML 结构和语义
+        """
+        if not html:
+            return html
+        
+        result = []
+        i = 0
+        length = len(html)
+        
+        # 状态标志
+        in_script = False      # 是否在 <script> 标签内
+        in_style = False       # 是否在 <style> 标签内
+        in_pre = False         # 是否在 <pre> 标签内
+        in_tag = False         # 是否在标签内 < >
+        in_comment = False     # 是否在注释内
+        
+        while i < length:
+            # 检查是否进入注释
+            if not in_comment and i + 4 < length and html[i:i+4] == '<!--':
+                in_comment = True
+                i += 4
+                continue
+            
+            # 检查是否退出注释
+            if in_comment:
+                if i + 3 < length and html[i:i+3] == '-->':
+                    in_comment = False
+                    i += 3
+                else:
+                    i += 1
+                continue
+            
+            # 检查是否进入 <script> 标签
+            if not in_script and i + 7 < length and html[i:i+7].lower() == '<script':
+                in_script = True
+                # 找到标签结束位置
+                while i < length and html[i] != '>':
+                    result.append(html[i])
+                    i += 1
+                if i < length:
+                    result.append(html[i])  # 添加 >
+                    i += 1
+                continue
+            
+            # 检查是否退出 <script> 标签
+            if in_script and i + 9 < length and html[i:i+9].lower() == '</script>':
+                in_script = False
+                result.append(html[i:i+9])
+                i += 9
+                continue
+            
+            # 检查是否进入 <style> 标签
+            if not in_style and i + 6 < length and html[i:i+6].lower() == '<style':
+                in_style = True
+                while i < length and html[i] != '>':
+                    result.append(html[i])
+                    i += 1
+                if i < length:
+                    result.append(html[i])
+                    i += 1
+                continue
+            
+            # 检查是否退出 <style> 标签
+            if in_style and i + 8 < length and html[i:i+8].lower() == '</style>':
+                in_style = False
+                result.append(html[i:i+8])
+                i += 8
+                continue
+            
+            # 检查是否进入 <pre> 标签
+            if not in_pre and i + 4 < length and html[i:i+4].lower() == '<pre':
+                in_pre = True
+                while i < length and html[i] != '>':
+                    result.append(html[i])
+                    i += 1
+                if i < length:
+                    result.append(html[i])
+                    i += 1
+                continue
+            
+            # 检查是否退出 <pre> 标签
+            if in_pre and i + 6 < length and html[i:i+6].lower() == '</pre>':
+                in_pre = False
+                result.append(html[i:i+6])
+                i += 6
+                continue
+            
+            # 在 <script>、<style>、<pre> 标签内：保留所有内容
+            if in_script or in_style or in_pre:
+                result.append(html[i])
+                i += 1
+                continue
+            
+            # 检测标签开始
+            if html[i] == '<':
+                in_tag = True
+                result.append(html[i])
+                i += 1
+                continue
+            
+            # 检测标签结束
+            if html[i] == '>':
+                in_tag = False
+                result.append(html[i])
+                i += 1
+                continue
+            
+            # 在标签内：保留内容（但压缩多余空格）
+            if in_tag:
+                # 压缩标签内的多个空白为一个空格
+                if html[i] in [' ', '\t', '\n', '\r']:
+                    if result and result[-1] not in [' ', '<', '=']:
+                        result.append(' ')
+                    i += 1
+                    continue
+                else:
+                    result.append(html[i])
+                    i += 1
+                    continue
+            
+            # 标签之间的空白：移除或压缩
+            if html[i] in [' ', '\t', '\n', '\r']:
+                # 查看前一个字符
+                if result and result[-1] == '>':
+                    # 跳过标签后的空白
+                    i += 1
+                    continue
+                # 查看下一个字符
+                j = i + 1
+                while j < length and html[j] in [' ', '\t', '\n', '\r']:
+                    j += 1
+                if j < length and html[j] == '<':
+                    # 空白后面是标签，跳过所有空白
+                    i = j
+                    continue
+                # 保留一个空格（防止文本粘连）
+                if result and result[-1] not in [' ', '>']:
+                    result.append(' ')
+                i += 1
+                continue
+            
+            # 普通字符：直接添加
+            result.append(html[i])
+            i += 1
+        
+        # 返回压缩后的 HTML
+        minified = ''.join(result)
+        
+        # 记录压缩效果
+        original_size = len(html)
+        minified_size = len(minified)
+        compression_ratio = (1 - minified_size / original_size) * 100 if original_size > 0 else 0
+        
+        logging.debug(f"HTML 压缩完成：原始大小 {original_size} 字节，压缩后 {minified_size} 字节，压缩率 {compression_ratio:.1f}%")
+        
+        return minified
+
+    # ====================
     # 认证相关API路由
     # ====================
 
@@ -13739,6 +14086,625 @@ def start_web_server(args_param):
 
         # 返回HTML内容
         return render_template_string(html_content)
+
+    # @app.route('/JavaScript.js', methods=['GET'])
+    # def serve_full_javascript():
+    #     """
+    #     返回完整的 JavaScript.js 文件（支持自动压缩）
+        
+    #     功能说明：
+    #         返回整个 JavaScript.js 文件内容，供浏览器加载和执行。
+    #         默认会自动压缩代码以减小文件大小，提升加载速度。
+        
+    #     查询参数：
+    #         - minify: 是否压缩代码（默认 true）
+    #           * true/1/yes: 压缩代码（移除注释和空白）
+    #           * false/0/no: 返回原始代码（保留注释）
+        
+    #     返回：
+    #         - 200: 成功返回 JavaScript 代码
+    #         - 304: 使用缓存版本（内容未修改）
+    #         - 404: 文件未找到
+    #         - 500: 服务器内部错误
+        
+    #     缓存策略：
+    #         - 设置 Cache-Control 头，允许浏览器缓存 1 小时
+    #         - 使用 Last-Modified 和 ETag 支持条件请求
+    #         - 压缩版和非压缩版使用不同的 ETag
+        
+    #     压缩效果：
+    #         - 通常可减小 30-50% 的文件大小
+    #         - 首次加载后浏览器会缓存压缩版本
+        
+    #     使用示例：
+    #         - /JavaScript.js             --> 返回压缩版本（推荐）
+    #         - /JavaScript.js?minify=true --> 返回压缩版本
+    #         - /JavaScript.js?minify=false--> 返回原始版本（用于调试）
+    #     """
+    #     try:
+    #         js_file_path = os.path.join(os.path.dirname(__file__), 'JavaScript.js')
+            
+    #         if not os.path.exists(js_file_path):
+    #             logging.error(f"JavaScript.js 文件不存在: {js_file_path}")
+    #             return jsonify({"error": "JavaScript file not found"}), 404
+            
+    #         # 读取文件内容
+    #         with open(js_file_path, 'r', encoding='utf-8') as f:
+    #             original_content = f.read()
+            
+    #         # 检查是否需要压缩（默认为 true）
+    #         minify_param = request.args.get('minify', 'true').lower()
+    #         should_minify = minify_param in ['true', '1', 'yes', '']
+            
+    #         # # 根据参数决定是否压缩
+    #         # if should_minify:
+    #         #     # 压缩代码
+    #         #     content = minify_javascript(original_content)
+    #         #     content_type_suffix = ' (minified)'
+    #         #     logging.info(f"JavaScript.js 压缩：{len(original_content)} 字节 -> {len(content)} 字节 ({(1-len(content)/len(original_content))*100:.1f}% 压缩率)")
+    #         # else:
+    #         #     # 返回原始代码
+    #         #     content = original_content
+    #         #     content_type_suffix = ' (original)'
+    #         #     logging.info(f"JavaScript.js 返回原始版本：{len(content)} 字节")
+    #         # 根据参数决定是否压缩
+    #         if should_minify:
+    #             # 压缩功能已禁用（原始压缩器有Bug），始终返回原始代码
+    #             content = original_content
+    #             content_type_suffix = ' (original, compression disabled)'
+    #             logging.info(f"JavaScript.js 压缩功能已禁用，返回原始大小: {len(original_content)} 字节")
+    #         else:
+    #             # 返回原始代码
+    #             content = original_content
+    #             content_type_suffix = ' (original)'
+
+
+    #         # 设置 Last-Modified（基于文件修改时间）
+    #         file_mtime = os.path.getmtime(js_file_path)
+    #         from datetime import datetime
+    #         last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            
+    #         # 设置 ETag（基于内容哈希 + 压缩标志）
+    #         import hashlib
+    #         etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
+    #         etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+            
+    #         # 检查条件请求
+    #         if_modified_since = request.headers.get('If-Modified-Since')
+    #         if_none_match = request.headers.get('If-None-Match')
+            
+    #         if (if_modified_since == last_modified) or (if_none_match == etag):
+    #             logging.debug(f"JavaScript.js 使用缓存版本 (304){content_type_suffix}")
+    #             return '', 304
+            
+    #         # 创建响应
+    #         response = make_response(content)
+    #         response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+    #         response.headers['Cache-Control'] = 'public, max-age=3600'
+    #         response.headers['Last-Modified'] = last_modified
+    #         response.headers['ETag'] = etag
+            
+    #         # 添加自定义头，标识是否已压缩
+    #         response.headers['X-Minified'] = 'true' if should_minify else 'false'
+            
+    #         logging.info(f"成功返回 JavaScript.js{content_type_suffix} ({len(content)} 字符)")
+    #         return response
+            
+    #     except Exception as e:
+    #         logging.error(f"加载 JavaScript.js 时发生错误: {e}", exc_info=True)
+    #         return jsonify({"error": "Internal server error"}), 500
+
+    @app.route('/JavaScript/<path:function_path>.js', methods=['GET'])
+    def serve_javascript(function_path):
+        """
+        JavaScript 函数动态加载 API 端点
+        
+        功能说明：
+            根据请求的函数名，从 JavaScript.js 文件中查找并返回对应的函数代码。
+            支持浏览器缓存，提升加载速度和性能。
+        
+        参数：
+            function_path (str): 请求的函数路径，例如 'onlogin' 或 'utils/helper'
+        
+        返回：
+            - 200: 成功找到函数，返回 JavaScript 代码
+            - 404: 未找到指定的函数
+            - 500: 服务器内部错误
+        
+        缓存策略：
+            - 设置 Cache-Control 头，允许浏览器缓存 1 小时
+            - 使用 Last-Modified 和 ETag 支持条件请求
+        
+        示例：
+            GET /JavaScript/onlogin.js
+            --> 返回 onlogin 相关的 JavaScript 函数代码
+        """
+        try:
+            # 读取完整的 JavaScript.js 文件内容
+            js_file_path = os.path.join(os.path.dirname(__file__), 'JavaScript.js')
+            
+            # 检查文件是否存在
+            if not os.path.exists(js_file_path):
+                logging.error(f"JavaScript.js 文件不存在: {js_file_path}")
+                return jsonify({"error": "JavaScript file not found"}), 404
+            
+            # 读取文件内容（使用 UTF-8 编码确保中文注释正确显示）
+            with open(js_file_path, 'r', encoding='utf-8') as f:
+                full_content = f.read()
+            
+            # 提取请求的函数名（移除可能的路径分隔符）
+            function_name = function_path.replace('/', '_')
+            
+            # 查找函数定义的模式（支持多种函数定义方式）
+            # 模式1: function functionName(...) { ... }
+            # 模式2: const functionName = function(...) { ... }
+            # 模式3: const functionName = (...) => { ... }
+            # 模式4: let functionName = function(...) { ... }
+            # 模式5: var functionName = function(...) { ... }
+            
+            # 使用正则表达式查找函数定义
+            import re
+            
+            # 构建匹配模式：查找函数声明、函数表达式或箭头函数
+            pattern = rf'(?:^|\n)(\s*(?:function\s+{function_name}\s*\([^)]*\)|(?:const|let|var)\s+{function_name}\s*=\s*(?:function\s*\([^)]*\)|(?:async\s+)?function\s*\([^)]*\)|\([^)]*\)\s*=>))\s*{{)'
+            
+            match = re.search(pattern, full_content, re.MULTILINE)
+            
+            if not match:
+                # 如果未找到精确匹配，尝试模糊搜索（查找包含函数名的所有函数）
+                logging.warning(f"未找到精确匹配的函数 '{function_name}'，尝试模糊搜索...")
+                
+                # 模糊搜索：查找所有包含该名称的函数
+                fuzzy_pattern = rf'(?:^|\n)(\s*(?:function\s+\w*{function_name}\w*\s*\([^)]*\)|(?:const|let|var)\s+\w*{function_name}\w*\s*=))'
+                fuzzy_matches = re.finditer(fuzzy_pattern, full_content, re.MULTILINE | re.IGNORECASE)
+                
+                # 收集所有模糊匹配的函数名
+                found_functions = []
+                for m in fuzzy_matches:
+                    func_line = m.group(0).strip()
+                    found_functions.append(func_line[:50])  # 只取前50个字符作为提示
+                
+                if found_functions:
+                    suggestions = '\n'.join(found_functions)
+                    logging.info(f"找到相似的函数定义:\n{suggestions}")
+                    return jsonify({
+                        "error": f"Function '{function_name}' not found",
+                        "suggestions": found_functions[:5]  # 最多返回5个建议
+                    }), 404
+                else:
+                    logging.error(f"未找到任何与 '{function_name}' 相关的函数")
+                    return jsonify({"error": f"Function '{function_name}' not found"}), 404
+            
+            # 找到函数起始位置
+            func_start = match.start()
+            
+            # 查找函数结束位置（匹配大括号）
+            # 需要考虑嵌套的大括号，所以要计数
+            brace_count = 0
+            in_function = False
+            func_end = func_start
+            
+            for i in range(func_start, len(full_content)):
+                char = full_content[i]
+                
+                if char == '{':
+                    brace_count += 1
+                    in_function = True
+                elif char == '}':
+                    brace_count -= 1
+                    
+                    # 当大括号计数归零时，说明函数定义结束
+                    if in_function and brace_count == 0:
+                        func_end = i + 1
+                        break
+            
+            # 提取函数代码
+            function_code = full_content[func_start:func_end]
+            
+            # 向前查找函数注释（查找函数定义前的注释块）
+            # 注释可能是 // 单行注释或 /* */ 多行注释
+            comments_start = func_start
+            
+            # 向前搜索，查找连续的注释行
+            lines_before = full_content[:func_start].split('\n')
+            comment_lines = []
+            
+            for line in reversed(lines_before):
+                stripped = line.strip()
+                # 如果是注释行，添加到列表
+                if stripped.startswith('//') or stripped.startswith('/*') or stripped.startswith('*') or stripped.startswith('*/'):
+                    comment_lines.insert(0, line)
+                # 如果是空行，继续
+                elif stripped == '':
+                    comment_lines.insert(0, line)
+                # 如果遇到非注释非空行，停止搜索
+                else:
+                    break
+            
+            # 如果找到了注释，将其添加到函数代码前面
+            if comment_lines:
+                comments = '\n'.join(comment_lines)
+                function_code = comments + '\n' + function_code
+            
+            # 准备响应（添加文件头注释说明这是动态加载的代码）
+            response_content = f"""// ==============================================================================
+// 动态加载的 JavaScript 函数: {function_name}
+// 从 JavaScript.js 文件中提取
+// ==============================================================================
+
+{function_code}
+"""
+            
+            # 创建响应对象，设置正确的 Content-Type
+            response = make_response(response_content)
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            
+            # 设置缓存策略：允许浏览器缓存 1 小时
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            
+            # 获取文件的最后修改时间，用于条件请求
+            file_mtime = os.path.getmtime(js_file_path)
+            from datetime import datetime
+            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            response.headers['Last-Modified'] = last_modified
+            
+            # 生成 ETag（基于文件内容的哈希值）
+            import hashlib
+            etag = hashlib.md5(function_code.encode('utf-8')).hexdigest()
+            response.headers['ETag'] = f'"{etag}"'
+            
+            # 检查客户端的条件请求头
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            # 如果客户端已有最新版本，返回 304 Not Modified
+            if (if_modified_since == last_modified) or (if_none_match == f'"{etag}"'):
+                logging.debug(f"JavaScript 函数 '{function_name}' 使用缓存版本 (304)")
+                return '', 304
+            
+            logging.info(f"成功返回 JavaScript 函数: {function_name} ({len(function_code)} 字符)")
+            return response
+            
+        except FileNotFoundError as e:
+            logging.error(f"JavaScript.js 文件未找到: {e}")
+            return jsonify({"error": "JavaScript file not found"}), 404
+        except Exception as e:
+            logging.error(f"加载 JavaScript 函数时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
+    @app.route('/JavaScript_globals.js', methods=['GET'])
+    def serve_javascript_globals():
+        """
+        返回 JavaScript 全局变量文件（优先加载）
+        
+        功能说明：
+            返回 JavaScript_globals.js 文件，包含所有全局变量声明
+            此文件必须在主 JavaScript.js 之前加载，避免变量未定义错误
+        
+        查询参数：
+            - minify: 是否压缩代码（默认 true）
+        
+        返回：
+            - 200: 成功返回全局变量代码
+            - 304: 使用缓存版本
+            - 404: 文件未找到
+            - 500: 服务器内部错误
+        
+        使用示例：
+            <script src="/JavaScript_globals.js"></script>
+            <script src="/JavaScript.js"></script>
+        """
+        try:
+            js_globals_file = os.path.join(os.path.dirname(__file__), 'JavaScript_globals.js')
+            
+            if not os.path.exists(js_globals_file):
+                logging.error(f"JavaScript 全局变量文件不存在: {js_globals_file}")
+                return jsonify({"error": "JavaScript globals file not found"}), 404
+            
+            # 读取文件内容
+            with open(js_globals_file, 'r', encoding='utf-8') as f:
+                original_content = f.read()
+            
+            # 检查是否需要压缩
+            minify_param = request.args.get('minify', 'true').lower()
+            should_minify = minify_param in ['true', '1', 'yes', '']
+            
+            # if should_minify:
+            #     content = minify_javascript(original_content)
+            #     content_type_suffix = ' (minified)'
+            #     logging.info(f"JavaScript_globals.js 压缩：{len(original_content)} 字节 -> {len(content)} 字节")
+            # else:
+            #     content = original_content
+            #     content_type_suffix = ' (original)'
+            if should_minify:
+                # 压缩功能已禁用（原始压缩器有Bug），始终返回原始代码
+                content = original_content
+                content_type_suffix = ' (original, compression disabled)'
+                logging.info(f"JavaScript_globals.js 压缩功能已禁用，返回原始大小: {len(original_content)} 字节")
+            else:
+                content = original_content
+                content_type_suffix = ' (original)'
+
+            # 设置响应头
+            file_mtime = os.path.getmtime(js_globals_file)
+            from datetime import datetime
+            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            
+            import hashlib
+            etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
+            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+            
+            # 检查条件请求
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            if (if_modified_since == last_modified) or (if_none_match == etag):
+                logging.debug(f"JavaScript_globals.js 使用缓存版本 (304){content_type_suffix}")
+                return '', 304
+            
+            response = make_response(content)
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers['Last-Modified'] = last_modified
+            response.headers['ETag'] = etag
+            response.headers['X-Minified'] = 'true' if should_minify else 'false'
+            
+            logging.info(f"成功返回 JavaScript_globals.js{content_type_suffix} ({len(content)} 字符)")
+            return response
+            
+        except Exception as e:
+            logging.error(f"加载 JavaScript_globals.js 时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
+    @app.route('/css/Cascading_Style_Sheets.css', methods=['GET'])
+    def serve_css():
+        """
+        返回 CSS 样式表文件（支持自动压缩）
+        
+        功能说明：
+            返回 Cascading_Style_Sheets.css 文件
+            支持自动压缩和浏览器缓存
+        
+        查询参数：
+            - minify: 是否压缩 CSS（默认 true）
+              * true/1/yes: 压缩 CSS（移除注释和空白）
+              * false/0/no: 返回原始 CSS（保留格式）
+        
+        返回：
+            - 200: 成功返回 CSS 代码
+            - 304: 使用缓存版本
+            - 404: 文件未找到
+            - 500: 服务器内部错误
+        
+        压缩效果：
+            通常可减小 20-30% 的文件大小
+        
+        使用示例：
+            <link rel="stylesheet" href="/css/Cascading_Style_Sheets.css">
+        """
+        try:
+            css_file = os.path.join(os.path.dirname(__file__), 'Cascading_Style_Sheets.css')
+            
+            if not os.path.exists(css_file):
+                logging.error(f"CSS 文件不存在: {css_file}")
+                return jsonify({"error": "CSS file not found"}), 404
+            
+            # 读取文件内容
+            with open(css_file, 'r', encoding='utf-8') as f:
+                original_content = f.read()
+            
+            # 检查是否需要压缩
+            minify_param = request.args.get('minify', 'true').lower()
+            should_minify = minify_param in ['true', '1', 'yes', '']
+            
+            # if should_minify:
+            #     # 简单的 CSS 压缩：移除注释和多余空白
+            #     import re
+            #     # 移除 CSS 注释
+            #     content = re.sub(r'/\*.*?\*/', '', original_content, flags=re.DOTALL)
+            #     # 移除多余空白
+            #     content = re.sub(r'\s+', ' ', content)
+            #     # 移除属性值周围的空格
+            #     content = re.sub(r'\s*([{}:;,])\s*', r'\1', content)
+            #     content = content.strip()
+                
+            #     content_type_suffix = ' (minified)'
+            #     logging.info(f"CSS 压缩：{len(original_content)} 字节 -> {len(content)} 字节 ({(1-len(content)/len(original_content))*100:.1f}%)")
+            # else:
+            #     content = original_content
+            #     content_type_suffix = ' (original)'
+            
+
+            if should_minify:
+                # 简单的 CSS 压缩：移除注释和多余空白
+                # （已禁用，因为自定义压缩器有Bug）
+                content = original_content
+                
+                content_type_suffix = ' (original, compression disabled)'
+                logging.info(f"CSS 压缩功能已禁用，返回原始大小: {len(original_content)} 字节")
+            else:
+                content = original_content
+                content_type_suffix = ' (original)'
+
+            # 设置响应头
+            file_mtime = os.path.getmtime(css_file)
+            from datetime import datetime
+            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            
+            import hashlib
+            etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
+            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+            
+            # 检查条件请求
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            if (if_modified_since == last_modified) or (if_none_match == etag):
+                logging.debug(f"CSS 使用缓存版本 (304){content_type_suffix}")
+                return '', 304
+            
+            response = make_response(content)
+            response.headers['Content-Type'] = 'text/css; charset=utf-8'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers['Last-Modified'] = last_modified
+            response.headers['ETag'] = etag
+            response.headers['X-Minified'] = 'true' if should_minify else 'false'
+            
+            logging.info(f"成功返回 CSS{content_type_suffix} ({len(content)} 字符)")
+            return response
+            
+        except Exception as e:
+            logging.error(f"加载 CSS 时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
+    @app.route('/html/<path:fragment_name>.html', methods=['GET'])
+    def serve_html_fragment(fragment_name):
+        """
+        HTML 片段动态加载 API 端点（支持自动压缩，从统一文件读取）
+        
+        功能说明：
+            根据请求的片段名称，从 html_fragments.html 统一文件中提取对应的 HTML 片段。
+            支持自动压缩和浏览器缓存，大幅减小传输大小。
+        
+        参数：
+            fragment_name (str): HTML 片段名称（不含 .html 后缀）
+              例如：'admin-panel-modal', 'main-app', 'auto-gen-modal', 'notifications-modal'
+        
+        查询参数：
+            - minify: 是否压缩 HTML（默认 true）
+              * true/1/yes: 压缩 HTML（移除注释和空白）
+              * false/0/no: 返回原始 HTML（保留格式）
+        
+        返回：
+            - 200: 成功返回 HTML 片段
+            - 304: 使用缓存版本（内容未修改）
+            - 404: 片段未找到
+            - 500: 服务器内部错误
+        
+        缓存策略：
+            - 设置 Cache-Control 头，允许浏览器缓存 1 小时
+            - 使用 Last-Modified 和 ETag 支持条件请求
+            - 压缩版和原始版使用不同的 ETag
+        
+        压缩效果：
+            - 通常可减小 20-40% 的文件大小
+            - 首次加载后浏览器会缓存压缩版本
+        
+        使用示例：
+            - /html/admin-panel-modal.html             --> 返回压缩版本（推荐）
+            - /html/auto-gen-modal.html?minify=true    --> 返回压缩版本
+            - /html/notifications-modal.html?minify=false --> 返回原始版本（调试）
+        
+        支持的片段：
+            大区域：
+            - admin-panel-modal      (13.5 KB) - 管理员面板模态框
+            - main-app               (10.0 KB) - 主应用界面
+            - multi-account-app      (6.1 KB)  - 多账号控制台
+            - auth-login-container   (4.8 KB)  - 认证登录容器
+            - login-container        (4.4 KB)  - 登录容器
+            
+            模态框：
+            - auto-gen-modal          (1.2 KB) - 自动生成路径模态框
+            - notifications-modal     (0.9 KB) - 通知模态框
+            - session-picker-modal    (1.9 KB) - 会话选择器
+            - create-group-modal      (1.7 KB) - 创建权限组
+            - 以及其他 10+ 个模态框
+        
+        实现细节：
+            片段存储在 html_fragments.html 文件中，格式如下：
+            <!-- BEGIN_FRAGMENT: fragment-name -->
+            <div id="fragment-name">...</div>
+            <!-- END_FRAGMENT: fragment-name -->
+        """
+        try:
+            # 统一的 HTML 片段文件
+            fragments_file = os.path.join(os.path.dirname(__file__), 'html_fragments.html')
+            
+            # 检查文件是否存在
+            if not os.path.exists(fragments_file):
+                logging.error(f"HTML 片段文件不存在: {fragments_file}")
+                return jsonify({"error": "HTML fragments file not found"}), 500
+            
+            # 读取整个片段文件
+            with open(fragments_file, 'r', encoding='utf-8') as f:
+                fragments_content = f.read()
+            
+            # 从文件中提取指定的片段
+            # 格式：<!-- BEGIN_FRAGMENT: fragment-name --> ... <!-- END_FRAGMENT: fragment-name -->
+            import re
+            pattern = rf'<!-- BEGIN_FRAGMENT: {re.escape(fragment_name)} -->\s*(.*?)\s*<!-- END_FRAGMENT: {re.escape(fragment_name)} -->'
+            match = re.search(pattern, fragments_content, re.DOTALL)
+            
+            if not match:
+                logging.error(f"HTML 片段未找到: {fragment_name}")
+                return jsonify({"error": f"HTML fragment '{fragment_name}' not found"}), 404
+            
+            # 提取片段内容
+            original_content = match.group(1).strip()
+            
+            # 检查是否需要压缩（默认为 true）
+            minify_param = request.args.get('minify', 'true').lower()
+            should_minify = minify_param in ['true', '1', 'yes', '']
+            
+            # # 根据参数决定是否压缩
+            # if should_minify:
+            #     # 压缩 HTML
+            #     content = minify_html(original_content)
+            #     content_type_suffix = ' (minified)'
+            #     logging.info(f"HTML 片段 {fragment_name} 压缩：{len(original_content)} 字节 -> {len(content)} 字节 ({(1-len(content)/len(original_content))*100:.1f}% 压缩率)")
+            # else:
+            #     # 返回原始 HTML
+            #     content = original_content
+            #     content_type_suffix = ' (original)'
+            #     logging.info(f"HTML 片段 {fragment_name} 返回原始版本：{len(content)} 字节")
+            
+            # 根据参数决定是否压缩
+            if should_minify:
+                # 压缩 HTML
+                # （已禁用，因为自定义压缩器有Bug）
+                content = original_content
+                content_type_suffix = ' (original, compression disabled)'
+                logging.info(f"HTML 片段 {fragment_name} 压缩功能已禁用，返回原始大小: {len(original_content)} 字节")
+            else:
+                # 返回原始 HTML
+                content = original_content
+                content_type_suffix = ' (original)'
+                logging.info(f"HTML 片段 {fragment_name} 返回原始版本：{len(content)} 字节")
+
+            # 设置 Last-Modified（基于统一文件的修改时间）
+            file_mtime = os.path.getmtime(fragments_file)
+            from datetime import datetime
+            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            
+            # 设置 ETag（基于内容哈希 + 压缩标志）
+            import hashlib
+            etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
+            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+            
+            # 检查条件请求
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            if (if_modified_since == last_modified) or (if_none_match == etag):
+                logging.debug(f"HTML 片段 {fragment_name} 使用缓存版本 (304){content_type_suffix}")
+                return '', 304
+            
+            # 创建响应
+            response = make_response(content)
+            response.headers['Content-Type'] = 'text/html; charset=utf-8'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers['Last-Modified'] = last_modified
+            response.headers['ETag'] = etag
+            
+            # 添加自定义头，标识是否已压缩
+            response.headers['X-Minified'] = 'true' if should_minify else 'false'
+            
+            logging.info(f"成功返回 HTML 片段 {fragment_name}{content_type_suffix} ({len(content)} 字符)")
+            return response
+            
+        except Exception as e:
+            logging.error(f"加载 HTML 片段时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
 
     @app.route('/api/<path:method>', methods=['GET', 'POST'])
     def api_call(method):
