@@ -1,0 +1,253 @@
+<div id="admin-panel-modal" class="fixed inset-0 hidden items-center justify-center z-50">
+    <div class="absolute inset-0 bg-black/40" onclick="toggleAdminPanel(false)"></div>
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-x-hidden space-y-4 relative flex flex-col">
+
+      <div class="relative mb-4 text-center flex-shrink-0">
+        <h3 class="text-2xl font-bold text-sky-600 inline-block">管理面板</h3>
+
+        <button id="admin-modal-close-btn"
+          class="absolute top-1/2 right-0 transform -translate-y-1/2 btn btn-ghost !py-1 !px-3"
+          onclick="toggleAdminPanel(false)">关闭</button>
+      </div>
+      <div class="flex border-b border-slate-200 flex-shrink-0">
+        <button id="admin-tab-users_modal" class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600"
+          style="display:none;">用户管理</button>
+        <button id="admin-tab-groups_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">权限组管理</button>
+        <button id="admin-tab-logs_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">日志查看</button>
+        <button id="admin-tab-health_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">系统状态</button>
+        <button id="admin-tab-profile_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">个人信息</button>
+        <button id="admin-tab-sessions_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
+        <button id="admin-tab-messages_modal"
+          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">留言板</button>
+      </div>
+
+      <div class="overflow-y-auto overflow-x-hidden flex-grow min-h-0">
+        <div id="admin-users-panel_modal" class="space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">用户列表</h4>
+            <div class="flex gap-2">
+              <button id="admin-create-user_modal" class="btn btn-primary !py-1 !px-2">新增用户</button>
+              <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
+          </div>
+          <div id="admin-users-list_modal" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <div id="admin-groups-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">权限组列表</h4>
+            <div class="flex gap-2">
+              <button id="admin-create-group_modal" class="btn btn-primary !py-1 !px-2">新增权限组</button>
+              <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
+          </div>
+          <div id="admin-groups-list_modal" class="space-y-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <div id="admin-logs-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">系统日志</h4>
+            <div class="flex gap-2">
+              <select id="log-limit-select_modal" class="text-sm border border-slate-300 rounded px-2 py-1">
+                <option value="100">每页100行</option>
+                <option value="200">每页200行</option>
+                <option value="500">每页500行</option>
+                <option value="1000">每页1000行</option>
+              </select>
+              <button id="admin-refresh-logs_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
+          </div>
+          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[49vh]">
+            <pre id="admin-logs-content_modal" class="whitespace-pre-wrap overflow-visible">加载中...</pre>
+          </div>
+          <div id="admin-logs-pagination" class="flex justify-between items-center text-sm text-slate-600 pt-2 border-t border-slate-200">
+        <button id="log-prev-page" class="btn btn-ghost !py-1 !px-3 disabled:opacity-50 disabled:cursor-not-allowed">上一页</button>
+        
+        <div class="flex items-center gap-2">
+          <select id="log-page-select" class="text-sm border border-slate-300 rounded px-2 py-1 bg-white focus:border-sky-500 focus:ring-1 focus:ring-sky-500 focus:outline-none cursor-pointer">
+            <option value="1">第 1 / 1 页</option>
+          </select>
+          <span id="log-page-total" class="text-sm text-slate-500 whitespace-nowrap">(共 0 行)</span>
+        </div>
+        
+        <button id="log-next-page" class="btn btn-ghost !py-1 !px-3 disabled:opacity-50 disabled:cursor-not-allowed">下一页</button>
+      </div>
+    </div>
+
+    <div id="admin-sessions-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">会话列表</h4>
+            <div class="flex items-center gap-3">
+              <label id="god-mode-toggle_modal" class="flex items-center gap-2 cursor-pointer" style="display:none;">
+                <input type="checkbox" id="god-mode-checkbox_modal"
+                  class="w-4 h-4 accent-red-600 rounded cursor-pointer">
+                <span class="text-sm font-semibold text-red-600">上帝模式</span>
+              </label>
+              <div id="admin-session-count-display" class="text-sm text-slate-600">
+                <!-- 会话计数将由JS动态填充 -->
+              </div>
+              <button id="admin-refresh-sessions_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+            </div>
+          </div>
+          <div id="admin-sessions-list_modal" class="space-y-2 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <!-- 健康状态面板 -->
+        <div id="admin-health-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">系统健康状态</h4>
+            <div class="flex items-center gap-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="health-auto-refresh-toggle"
+                  class="w-4 h-4 accent-sky-600 rounded cursor-pointer" checked>
+                <span class="text-sm text-slate-600">自动刷新(5秒)</span>
+              </label>
+              <button id="admin-refresh-health_modal" class="btn btn-ghost !py-1 !px-2">手动刷新</button>
+            </div>
+          </div>
+          <div id="admin-health-content_modal" class="space-y-4">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <!-- 个人信息面板 -->
+        <div id="admin-profile-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">个人信息</h4>
+            <button id="admin-refresh-profile_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+          <div id="admin-profile-content_modal" class="space-y-6">
+            <!-- 头像 -->
+            <div class="flex items-center gap-4">
+              <img id="profile-avatar-display" src="" alt="用户头像"
+                class="w-20 h-20 rounded-full border-2 border-slate-200"
+                onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+              <div class="flex-1 space-y-2">
+                <input type="file" id="profile-avatar-file" accept="image/*" class="hidden"
+                  onchange="previewAvatar(event)">
+
+                <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm"
+                  onclick="document.getElementById('profile-avatar-file').click();">
+                  <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                  </svg>
+                  上传头像
+                </button>
+
+                <!-- <p class="text-xs text-slate-500">💡 点击按钮选择图片以上传并更新头像</p> -->
+              </div>
+            </div>
+
+            <!-- 修改密码 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">当前密码</label>
+                  <input type="password" id="profile-current-password" class="input-field" placeholder="输入当前密码">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
+                  <input type="password" id="profile-new-password" class="input-field" placeholder="输入新密码">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">确认新密码</label>
+                  <input type="password" id="profile-confirm-password" class="input-field" placeholder="再次输入新密码">
+                </div>
+                <button onclick="updatePassword()" class="btn btn-primary">修改密码</button>
+              </div>
+            </div>
+
+            <!-- 2FA设置 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">双因素认证(2FA)</h5>
+              <div id="profile-2fa-status" class="mb-3">
+                <p class="text-sm text-slate-600">状态: <span id="profile-2fa-enabled">检测中...</span></p>
+              </div>
+              <div id="profile-2fa-setup" class="space-y-3 hidden">
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+                  <canvas id="profile-2fa-qr" class="mx-auto"></canvas>
+                  <p class="text-xs text-slate-600 mt-2">密钥: <span id="profile-2fa-secret" class="font-mono"></span></p>
+                  <p class="text-xs text-slate-600 mt-1">请使用Google Authenticator或类似应用扫描此二维码</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">验证码</label>
+                  <input type="text" id="profile-2fa-code" class="input-field" placeholder="输入6位验证码">
+                </div>
+                <button onclick="enable2FA()" class="btn btn-primary">启用2FA</button>
+              </div>
+              <div id="profile-2fa-actions" class="space-y-2">
+                <button onclick="generate2FA()" class="btn btn-primary">生成2FA密钥</button>
+              </div>
+              <div id="profile-2fa-enabled-actions" class="space-y-2 hidden">
+                <button onclick="test2FA()" class="btn btn-ghost">测试2FA</button>
+                <button onclick="disable2FA()" class="btn btn-warning">关闭2FA</button>
+              </div>
+            </div>
+
+            <!-- 主题设置 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">主题设置</h5>
+              <select id="profile-theme-select" onchange="updateTheme()" class="select-field">
+                <option value="light">浅色主题</option>
+                <option value="dark">深色主题</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 留言板面板 -->
+        <div id="admin-messages-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">留言板</h4>
+            <button id="admin-refresh-messages_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+
+          <!-- 发表留言表单 -->
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+            <h5 class="font-semibold text-slate-700">发表留言</h5>
+            <div id="message-guest-fields" class="space-y-2 hidden">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">昵称 <span
+                    class="text-red-500">*</span></label>
+                <input type="text" id="message-nickname" class="input-field" placeholder="请输入您的昵称" maxlength="50">
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">邮箱 <span
+                    class="text-red-500">*</span></label>
+                <input type="email" id="message-email" class="input-field" placeholder="请输入您的邮箱">
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">留言内容 <span
+                  class="text-red-500">*</span></label>
+              <textarea id="message-content" class="input-field" rows="4" placeholder="请输入留言内容（最多1000字）"
+                maxlength="1000"></textarea>
+              <div class="text-xs text-slate-500 mt-1 text-right">
+                <span id="message-char-count">0</span> / 1000
+              </div>
+            </div>
+            <button id="post-message-btn" onclick="postMessage()" class="btn btn-primary w-full">发表留言</button>
+          </div>
+
+          <!-- 留言列表 -->
+          <div id="admin-messages-list_modal" class="space-y-3 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>

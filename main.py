@@ -10999,6 +10999,190 @@ def start_web_server(args_param):
         
         return minified
 
+    def minify_html(html):
+        """
+        HTML 代码压缩函数
+        
+        功能说明：
+            对 HTML 代码进行压缩，移除注释、多余空白和换行符，减小文件大小。
+            保留标签结构和属性，不影响页面功能。
+        
+        压缩策略：
+            1. 移除 HTML 注释（<!-- ... -->）
+            2. 移除标签之间的多余空白和换行
+            3. 移除属性值周围的多余空格
+            4. 保留 <script>、<style>、<pre> 标签内的格式
+            5. 保留必要的空格（防止标签粘连）
+        
+        参数：
+            html (str): 原始 HTML 代码
+        
+        返回：
+            str: 压缩后的 HTML 代码
+        
+        压缩效果：
+            通常可减小 20-40% 的文件大小
+        
+        注意事项：
+            - 保留 <script> 和 <style> 标签内的空白（避免破坏代码）
+            - 保留 <pre> 标签内的格式（预格式化文本）
+            - 不会改变 HTML 结构和语义
+        """
+        if not html:
+            return html
+        
+        result = []
+        i = 0
+        length = len(html)
+        
+        # 状态标志
+        in_script = False      # 是否在 <script> 标签内
+        in_style = False       # 是否在 <style> 标签内
+        in_pre = False         # 是否在 <pre> 标签内
+        in_tag = False         # 是否在标签内 < >
+        in_comment = False     # 是否在注释内
+        
+        while i < length:
+            # 检查是否进入注释
+            if not in_comment and i + 4 < length and html[i:i+4] == '<!--':
+                in_comment = True
+                i += 4
+                continue
+            
+            # 检查是否退出注释
+            if in_comment:
+                if i + 3 < length and html[i:i+3] == '-->':
+                    in_comment = False
+                    i += 3
+                else:
+                    i += 1
+                continue
+            
+            # 检查是否进入 <script> 标签
+            if not in_script and i + 7 < length and html[i:i+7].lower() == '<script':
+                in_script = True
+                # 找到标签结束位置
+                while i < length and html[i] != '>':
+                    result.append(html[i])
+                    i += 1
+                if i < length:
+                    result.append(html[i])  # 添加 >
+                    i += 1
+                continue
+            
+            # 检查是否退出 <script> 标签
+            if in_script and i + 9 < length and html[i:i+9].lower() == '</script>':
+                in_script = False
+                result.append(html[i:i+9])
+                i += 9
+                continue
+            
+            # 检查是否进入 <style> 标签
+            if not in_style and i + 6 < length and html[i:i+6].lower() == '<style':
+                in_style = True
+                while i < length and html[i] != '>':
+                    result.append(html[i])
+                    i += 1
+                if i < length:
+                    result.append(html[i])
+                    i += 1
+                continue
+            
+            # 检查是否退出 <style> 标签
+            if in_style and i + 8 < length and html[i:i+8].lower() == '</style>':
+                in_style = False
+                result.append(html[i:i+8])
+                i += 8
+                continue
+            
+            # 检查是否进入 <pre> 标签
+            if not in_pre and i + 4 < length and html[i:i+4].lower() == '<pre':
+                in_pre = True
+                while i < length and html[i] != '>':
+                    result.append(html[i])
+                    i += 1
+                if i < length:
+                    result.append(html[i])
+                    i += 1
+                continue
+            
+            # 检查是否退出 <pre> 标签
+            if in_pre and i + 6 < length and html[i:i+6].lower() == '</pre>':
+                in_pre = False
+                result.append(html[i:i+6])
+                i += 6
+                continue
+            
+            # 在 <script>、<style>、<pre> 标签内：保留所有内容
+            if in_script or in_style or in_pre:
+                result.append(html[i])
+                i += 1
+                continue
+            
+            # 检测标签开始
+            if html[i] == '<':
+                in_tag = True
+                result.append(html[i])
+                i += 1
+                continue
+            
+            # 检测标签结束
+            if html[i] == '>':
+                in_tag = False
+                result.append(html[i])
+                i += 1
+                continue
+            
+            # 在标签内：保留内容（但压缩多余空格）
+            if in_tag:
+                # 压缩标签内的多个空白为一个空格
+                if html[i] in [' ', '\t', '\n', '\r']:
+                    if result and result[-1] not in [' ', '<', '=']:
+                        result.append(' ')
+                    i += 1
+                    continue
+                else:
+                    result.append(html[i])
+                    i += 1
+                    continue
+            
+            # 标签之间的空白：移除或压缩
+            if html[i] in [' ', '\t', '\n', '\r']:
+                # 查看前一个字符
+                if result and result[-1] == '>':
+                    # 跳过标签后的空白
+                    i += 1
+                    continue
+                # 查看下一个字符
+                j = i + 1
+                while j < length and html[j] in [' ', '\t', '\n', '\r']:
+                    j += 1
+                if j < length and html[j] == '<':
+                    # 空白后面是标签，跳过所有空白
+                    i = j
+                    continue
+                # 保留一个空格（防止文本粘连）
+                if result and result[-1] not in [' ', '>']:
+                    result.append(' ')
+                i += 1
+                continue
+            
+            # 普通字符：直接添加
+            result.append(html[i])
+            i += 1
+        
+        # 返回压缩后的 HTML
+        minified = ''.join(result)
+        
+        # 记录压缩效果
+        original_size = len(html)
+        minified_size = len(minified)
+        compression_ratio = (1 - minified_size / original_size) * 100 if original_size > 0 else 0
+        
+        logging.debug(f"HTML 压缩完成：原始大小 {original_size} 字节，压缩后 {minified_size} 字节，压缩率 {compression_ratio:.1f}%")
+        
+        return minified
+
     # ====================
     # 认证相关API路由
     # ====================
@@ -14175,6 +14359,116 @@ def start_web_server(args_param):
             return jsonify({"error": "JavaScript file not found"}), 404
         except Exception as e:
             logging.error(f"加载 JavaScript 函数时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
+    @app.route('/html/<path:fragment_name>.html', methods=['GET'])
+    def serve_html_fragment(fragment_name):
+        """
+        HTML 片段动态加载 API 端点（支持自动压缩）
+        
+        功能说明：
+            根据请求的片段名称，从 html_fragments 目录中加载对应的 HTML 片段。
+            支持自动压缩和浏览器缓存，大幅减小传输大小。
+        
+        参数：
+            fragment_name (str): HTML 片段名称（不含 .html 后缀）
+              例如：'admin-panel-modal', 'main-app', 'auth-login-container'
+        
+        查询参数：
+            - minify: 是否压缩 HTML（默认 true）
+              * true/1/yes: 压缩 HTML（移除注释和空白）
+              * false/0/no: 返回原始 HTML（保留格式）
+        
+        返回：
+            - 200: 成功返回 HTML 片段
+            - 304: 使用缓存版本（内容未修改）
+            - 404: 片段未找到
+            - 500: 服务器内部错误
+        
+        缓存策略：
+            - 设置 Cache-Control 头，允许浏览器缓存 1 小时
+            - 使用 Last-Modified 和 ETag 支持条件请求
+            - 压缩版和原始版使用不同的 ETag
+        
+        压缩效果：
+            - 通常可减小 20-40% 的文件大小
+            - 首次加载后浏览器会缓存压缩版本
+        
+        使用示例：
+            - /html/admin-panel-modal.html             --> 返回压缩版本（推荐）
+            - /html/main-app.html?minify=true          --> 返回压缩版本
+            - /html/auth-login-container.html?minify=false --> 返回原始版本（调试）
+        
+        支持的片段：
+            - admin-panel-modal      (13.5 KB) - 管理员面板模态框
+            - main-app               (10.0 KB) - 主应用界面
+            - multi-account-app      (6.1 KB)  - 多账号控制台
+            - auth-login-container   (4.8 KB)  - 认证登录容器
+            - login-container        (4.4 KB)  - 登录容器
+        """
+        try:
+            # HTML 片段目录
+            fragments_dir = os.path.join(os.path.dirname(__file__), 'html_fragments')
+            fragment_file = os.path.join(fragments_dir, f'{fragment_name}.html')
+            
+            # 检查文件是否存在
+            if not os.path.exists(fragment_file):
+                logging.error(f"HTML 片段不存在: {fragment_file}")
+                return jsonify({"error": f"HTML fragment '{fragment_name}' not found"}), 404
+            
+            # 读取文件内容
+            with open(fragment_file, 'r', encoding='utf-8') as f:
+                original_content = f.read()
+            
+            # 检查是否需要压缩（默认为 true）
+            minify_param = request.args.get('minify', 'true').lower()
+            should_minify = minify_param in ['true', '1', 'yes', '']
+            
+            # 根据参数决定是否压缩
+            if should_minify:
+                # 压缩 HTML
+                content = minify_html(original_content)
+                content_type_suffix = ' (minified)'
+                logging.info(f"HTML 片段 {fragment_name} 压缩：{len(original_content)} 字节 -> {len(content)} 字节 ({(1-len(content)/len(original_content))*100:.1f}% 压缩率)")
+            else:
+                # 返回原始 HTML
+                content = original_content
+                content_type_suffix = ' (original)'
+                logging.info(f"HTML 片段 {fragment_name} 返回原始版本：{len(content)} 字节")
+            
+            # 设置 Last-Modified（基于文件修改时间）
+            file_mtime = os.path.getmtime(fragment_file)
+            from datetime import datetime
+            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            
+            # 设置 ETag（基于内容哈希 + 压缩标志）
+            import hashlib
+            etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
+            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+            
+            # 检查条件请求
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            if (if_modified_since == last_modified) or (if_none_match == etag):
+                logging.debug(f"HTML 片段 {fragment_name} 使用缓存版本 (304){content_type_suffix}")
+                return '', 304
+            
+            # 创建响应
+            response = make_response(content)
+            response.headers['Content-Type'] = 'text/html; charset=utf-8'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers['Last-Modified'] = last_modified
+            response.headers['ETag'] = etag
+            
+            # 添加自定义头，标识是否已压缩
+            response.headers['X-Minified'] = 'true' if should_minify else 'false'
+            
+            logging.info(f"成功返回 HTML 片段 {fragment_name}{content_type_suffix} ({len(content)} 字符)")
+            return response
+            
+        except Exception as e:
+            logging.error(f"加载 HTML 片段时发生错误: {e}", exc_info=True)
             return jsonify({"error": "Internal server error"}), 500
 
     @app.route('/api/<path:method>', methods=['GET', 'POST'])

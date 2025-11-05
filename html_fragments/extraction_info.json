@@ -1,0 +1,32 @@
+{
+  "admin-panel-modal": {
+    "filename": "html_fragments/admin-panel-modal.html",
+    "size": 13781,
+    "start": 47243,
+    "end": 61024
+  },
+  "main-app": {
+    "filename": "html_fragments/main-app.html",
+    "size": 10284,
+    "start": 24487,
+    "end": 34771
+  },
+  "multi-account-app": {
+    "filename": "html_fragments/multi-account-app.html",
+    "size": 6272,
+    "start": 34775,
+    "end": 41047
+  },
+  "auth-login-container": {
+    "filename": "html_fragments/auth-login-container.html",
+    "size": 4925,
+    "start": 15028,
+    "end": 19953
+  },
+  "login-container": {
+    "filename": "html_fragments/login-container.html",
+    "size": 4493,
+    "start": 19973,
+    "end": 24466
+  }
+}

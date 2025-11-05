@@ -1,0 +1,97 @@
+<div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
+    <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
+      <div class="text-center">
+        <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
+        <p class="text-sm text-slate-500">请登录或注册以继续使用</p>
+      </div>
+
+      <!-- 登录/注册切换标签 -->
+      <div class="flex border-b border-slate-200">
+        <button id="auth-tab-login"
+          class="flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition">登录</button>
+        <button id="auth-tab-register"
+          class="flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition hover:text-slate-600">注册</button>
+      </div>
+
+      <!-- 登录表单 -->
+      <div id="auth-login-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
+          <input type="text" id="auth-username" class="input-field mt-1" placeholder="请输入用户名" autocomplete="username">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
+          <input type="password" id="auth-password" class="input-field mt-1" placeholder="请输入密码"
+            autocomplete="current-password">
+        </div>
+        <button id="auth-login-btn" class="btn btn-primary w-full py-3">登录</button>
+        <div id="guest-login-section" class="text-center hidden">
+          <div class="relative flex py-2 items-center">
+            <div class="flex-grow border-t border-slate-200"></div>
+            <span class="flex-shrink mx-4 text-slate-400 text-xs">或</span>
+            <div class="flex-grow border-t border-slate-200"></div>
+          </div>
+          <button id="auth-guest-btn" class="btn btn-ghost w-full">以游客身份继续</button>
+          <!-- 游客模式警告 -->
+          <div class="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-left">
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" />
+              </svg>
+              <div class="text-xs text-amber-800">
+                <p class="font-semibold mb-1">⚠️ 游客模式提示</p>
+                <ul class="space-y-1">
+                  <li>• 游客使用UUID恢复状态，请务必保存地址</li>
+                  <li>• 丢失URL将无法恢复您的数据和进度</li>
+                  <li>• 5分钟不活跃会话将被自动清理</li>
+                  <li>• 建议注册账号以获得更好的体验</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 注册表单 -->
+      <div id="auth-register-form" class="hidden space-y-4">
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
+          <input type="text" id="auth-reg-username" class="input-field mt-1" placeholder="请输入用户名（3-20字符）"
+            autocomplete="username">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
+          <input type="password" id="auth-reg-password" class="input-field mt-1" placeholder="请输入密码（至少6字符）"
+            autocomplete="new-password">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">确认密码</label>
+          <input type="password" id="auth-reg-password-confirm" class="input-field mt-1" placeholder="请再次输入密码"
+            autocomplete="new-password">
+        </div>
+        <button id="auth-register-btn" class="btn btn-success w-full py-3">注册</button>
+      </div>
+
+      <!-- 2FA验证表单 -->
+      <div id="auth-2fa-form" class="hidden space-y-4">
+        <div class="text-center mb-4">
+          <h3 class="text-xl font-bold text-sky-700 mb-2">双因素认证</h3>
+          <p class="text-sm text-slate-500">请输入您的验证器应用中的6位验证码</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+          <input type="text" id="auth-2fa-code" class="input-field mt-1" placeholder="输入6位验证码" maxlength="6"
+            inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code">
+        </div>
+        <button id="auth-2fa-verify-btn" class="btn btn-primary w-full py-3">验证</button>
+        <button id="auth-2fa-back-btn" class="btn btn-ghost w-full">返回登录</button>
+      </div>
+
+      <!-- 错误提示 -->
+      <div id="auth-error-msg"
+        class="hidden text-sm text-center p-3 rounded-lg bg-red-50 border border-red-200 text-red-600"></div>
+      <div id="auth-success-msg"
+        class="hidden text-sm text-center p-3 rounded-lg bg-green-50 border border-green-200 text-green-600"></div>
+    </div>
+  </div>

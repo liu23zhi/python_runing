@@ -1,0 +1,196 @@
+<main id="main-app" class="hidden h-screen w-screen grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
+    <!-- 左侧面板 -->
+    <div class="lg:col-span-1 xl:col-span-1 flex flex-col gap-4 h-full min-h-0">
+      <!-- 用户信息卡片 -->
+      <div class="panel rounded-xl p-4 flex items-center gap-4">
+        <div class="flex-1 ">
+          <p id="user-name-label" class="font-bold text-slate-800 truncate">姓名: NULL</p>
+          <p id="user-id-label" class="text-sm text-slate-500">学号: NULL</p>
+        </div>
+
+        <button id="show-notifications-btn" class="btn btn-ghost !py-2 !px-3 relative" title="查看通知">
+          <span>通知</span>
+          <span id="notification-badge"
+            class="hidden absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">0</span>
+        </button>
+        <button id="show-user-details" class="btn btn-ghost !py-2 !px-3" title="查看用户详情">详情</button>
+        <button id="show-admin-panel" class="btn btn-ghost !py-2 !px-3 hidden" title="管理面板">管理</button>
+        <button id="logout-button" class="btn btn-ghost !py-2 !px-3 !text-red-600" title="注销">退出</button>
+      </div>
+      <!-- 任务列表面板 -->
+      <div class="panel rounded-xl p-4 flex-grow flex flex-col min-h-0">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-lg font-bold text-slate-800">任务列表</h2>
+          <div class="flex gap-2">
+            <button id="show-task-details" class="btn btn-ghost !py-1 !px-3">任务详情</button>
+            <button id="refresh-button" class="btn btn-ghost !py-1 !px-3">刷新</button>
+          </div>
+        </div>
+        <div id="task-list" class="flex-grow overflow-y-auto -mr-2 pr-2"></div>
+      </div>
+      <!-- 控制面板 (选项卡) -->
+      <div class="panel rounded-xl p-4">
+        <div class="flex border-b border-slate-200 -mx-4 px-2 space-x-2">
+          <button class="tab-button active" onclick="showTab('run-control', this)">执行</button>
+          <button class="tab-button" onclick="showTab('path-tools', this)">路径</button>
+          <button class="tab-button" onclick="showTab('checkpoints', this)">打卡点</button>
+          <button class="tab-button" onclick="showTab('attendance', this)">签到</button>
+          <button class="tab-button" onclick="showTab('history', this)">历史</button>
+          <button class="tab-button" onclick="showTab('params', this)">参数</button>
+          <button class="tab-button" onclick="showTab('log', this)">日志</button>
+        </div>
+        <div class="h-56 overflow-y-auto">
+          <!-- 执行选项卡 -->
+          <div id="run-control-tab" class="pt-4 space-y-3">
+            <div id="run-stats-block" class="text-center p-3 rounded-lg border border-slate-200 bg-white/80">
+              <p class="text-sm text-slate-500">已选任务总览</p>
+              <p id="run-stats-label" class="font-bold text-2xl text-sky-600">-- km / --:--</p>
+            </div>
+
+            <!-- 单任务进度条 -->
+            <div id="single-progress-block" class="mt-2">
+              <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div id="single-progress-fill" class="h-2 bg-sky-500" style="width:0%"></div>
+              </div>
+              <div class="flex justify-between text-xs mt-1">
+                <span id="single-progress-text" class="text-slate-600">未开始</span>
+                <span id="single-progress-extra" class="text-slate-400"></span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <button id="start-run-button" class="btn btn-primary">开始执行</button>
+              <button id="start-all-button" class="btn btn-secondary">执行所有</button>
+            </div>
+
+            <div class="flex items-center justify-center space-x-4 pt-1">
+              <label class="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer"><input type="checkbox"
+                  id="run-completed-check" class="w-4 h-4 accent-sky-600 rounded"><span
+                  class="font-semibold">忽略已完成状态</span></label>
+              <label class="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer"><input type="checkbox"
+                  id="auto-gen-all-check" class="w-4 h-4 accent-sky-600 rounded"><span
+                  class="font-semibold">自动生成路径</span></label>
+            </div>
+          </div>
+          <!-- 路径工具选项卡 -->
+          <div id="path-tools-tab" class="hidden pt-4 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <button id="record-button" class="btn btn-success">录制路径</button>
+              <button id="auto-gen-button" class="btn btn-secondary">自动生成</button>
+              <button id="process-button" class="btn btn-primary">处理路径</button>
+              <button id="clear-button" class="btn btn-warning">清除路径</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button id="export-button" class="btn btn-ghost border border-slate-300 col-span-1">导出</button>
+              <div class="col-span-1"></div>
+            </div>
+          </div>
+          <!-- 打卡点选项卡 -->
+          <div id="checkpoints-tab" class="hidden pt-2">
+            <div id="target-points-text" class="h-48 overflow-y-auto"></div>
+          </div>
+
+
+          <div id="attendance-tab" class="hidden pt-2 space-y-2 h-56 flex flex-col">
+            <div class="flex-shrink-0 space-y-2 border-b pb-2">
+              <label class="flex items-center gap-2 cursor-pointer" title="开启后，将在后台自动刷新通知并尝试签到">
+                <input type="checkbox" id="param-auto_attendance_enabled" data-key="auto_attendance_enabled"
+                  class="w-5 h-5 accent-sky-600 rounded cursor-pointer flex-shrink-0">
+                <span class="text-slate-700 font-semibold">开启自动签到</span>
+              </label>
+
+              <div class="flex items-center gap-2">
+                <label class="text-sm text-slate-700 font-semibold flex-shrink-0">刷新间隔(秒)</label>
+                <input type="number" step="30" id="param-auto_attendance_refresh_s" data-key="auto_attendance_refresh_s"
+                  class="input-field !py-1 w-full" title="自动刷新通知的间隔时间（秒），建议不低于60">
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="text-sm text-slate-700 font-semibold flex-shrink-0">随机半径(米)</label>
+                <input type="number" step="1" id="param-attendance_user_radius_m" data-key="attendance_user_radius_m"
+                  class="input-field !py-1 w-full" title="自动签到时，在服务器允许范围内的最大随机偏移半径。设为0为精确签到。">
+              </div>
+            </div>
+            <div class="flex justify-between items-center border-t pt-2 mt-2">
+              <h4 class="text-sm font-semibold text-slate-700">签到任务列表</h4>
+              <button id="refresh-attendance-list-btn" class="btn btn-ghost !py-0 !px-2 !text-xs text-sky-600"
+                onclick="refreshNotificationsUI()">
+                刷新
+              </button>
+            </div>
+
+            <div id="attendance-list" class="flex-grow overflow-y-auto pr-1">
+              <p class="text-slate-400 text-center py-10 text-xs">点击“刷新”按钮查看签到任务</p>
+            </div>
+          </div>
+
+          <!-- 历史记录选项卡 -->
+          <div id="history-tab" class="hidden pt-2">
+            <div id="history-list-container">
+              <p id="history-placeholder" class="text-slate-400 text-center py-16">选择任务后显示历史记录</p>
+              <div id="history-list"></div>
+            </div>
+          </div>
+          <!-- 参数设置选项卡 -->
+          <div id="params-tab" class="hidden space-y-3">
+            <div id="params-container"></div>
+          </div>
+          <!-- 日志选项卡 -->
+          <div id="log-tab" class="hidden pt-2">
+            <div class="h-48">
+              <textarea id="log-text" readonly
+                class="w-full h-full bg-white/80 border border-slate-200 rounded-md p-2 text-xs text-slate-700 resize-none focus:outline-none leading-snug"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧主区域 -->
+    <div class="lg:col-span-2 xl:col-span-3 flex flex-col gap-4 h-full min-h-0">
+      <!-- 地图容器 -->
+      <div id="map-container"
+        class="flex-grow bg-slate-200 rounded-xl relative overflow-hidden border border-slate-200">
+        <div
+          class="absolute top-4 right-3 z-10 bg-white/80 backdrop-blur-sm rounded-full shadow-md flex items-center space-x-1 p-1 border border-slate-200">
+          <button id="zoom-in"
+            class="w-9 h-9 font-bold text-xl text-center hover:bg-slate-100 rounded-full text-slate-700">+</button>
+          <span id="zoom-level" class="text-xs font-mono select-none w-8 text-center">17</span>
+          <button id="zoom-out"
+            class="w-9 h-9 font-bold text-xl text-center hover:bg-slate-100 rounded-full text-slate-700">-</button>
+          <button id="reset-view-btn"
+            class="w-9 h-9 font-bold text-lg flex items-center justify-center hover:bg-slate-100 rounded-full text-slate-700"
+            title="复位视角">🎯</button>
+        </div>
+      </div>
+      <!-- 底部信息面板 -->
+      <div class="grid grid-cols-1 gap-4">
+        <!-- 实时状态 -->
+        <div class="panel rounded-xl p-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-slate-800">实时状态</h3>
+            <p class="text-sm font-mono text-slate-500" id="current-location-label">当前位置GPS坐标: --, --</p>
+          </div>
+          <div class="grid grid-cols-4 divide-x divide-slate-200 text-center pt-2">
+            <div>
+              <p class="text-sm text-slate-500">已跑距离</p>
+              <p id="live-dist-label" class="font-bold text-xl text-slate-700">0.00 km</p>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">总距离</p>
+              <p id="total-dist-label" class="font-bold text-xl text-slate-700">0.00 km</p>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">已用时间</p>
+              <p id="live-time-label" class="font-bold text-xl text-slate-700">00:00</p>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500">预计时间</p>
+              <p id="total-time-label" class="font-bold text-xl text-slate-700">00:00</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  </main>
