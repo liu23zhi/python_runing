@@ -1189,3 +1189,32 @@
   </div>
 <!-- END_FRAGMENT: alert-modal -->
 
+
+<!-- BEGIN_FRAGMENT: newUserModal -->
+<div id="newUserModal" class="modal">
+    <div class="modal-content">
+      <span class="close" id="newUserClose">&times;</span>
+      <h3>添加新用户</h3>
+      <div class="form-group">
+        <label for="newUsername">账号：</label>
+        <input type="text" id="newUsername" placeholder="请输入账号">
+      </div>
+<!-- END_FRAGMENT: newUserModal -->
+
+<!-- BEGIN_FRAGMENT: cdn-error-overlay -->
+<div id="cdn-error-overlay"
+    class="fixed inset-0 z-9999 hidden flex-col items-center justify-center bg-[#f8fafc] p-8 text-center text-[#475569]"
+    style="font-family: sans-serif;">
+    <div style="max-width: 500px;">
+      <h1 style="font-size: 1.875rem; font-weight: bold; color: #be123c; margin-bottom: 1rem;">界面资源加载失败</h1>
+      <p style="font-size: 1.125rem; margin-bottom: 1.5rem;">应用程序无法连接到外部网络服务器（CDN）来下载必要的界面文件（如样式和地图库）。</p>
+      <div
+        style="background-color: #f1f5f9; border-radius: 0.5rem; padding: 1rem; text-align: left; font-size: 0.875rem; line-height: 1.5;">
+        <h2 style="font-weight: 600; color: #1e293b; margin-top: 0; margin-bottom: 0.75rem;">可能的原因及解决方法：</h2>
+        <ul style="list-style-type: disc; padding-left: 1.25rem; margin: 0;">
+          <li style="margin-bottom: 0.5rem;"><strong>检查您的网络连接</strong>：请确保您的设备已连接到互联网。</li>
+          <li style="margin-bottom: 0.5rem;"><strong>检查防火墙或代理</strong>：系统防火墙、杀毒软件或网络代理可能阻止了程序访问网络。</li>
+          <li><strong>网络环境问题</strong>：您当前的网络环境可能无法稳定访问所需的外部资源。</li>
+        </ul>
+      </div>
+<!-- END_FRAGMENT: cdn-error-overlay -->

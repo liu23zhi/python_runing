@@ -1,0 +1,488 @@
+/* ==============================================================================
+   跑步助手 - 样式表 (Cascading_Style_Sheets.css)
+   ==============================================================================
+   
+   文件说明：
+     本文件包含从 index.html 中提取的所有 CSS 样式代码
+     通过后端 API 动态加载，支持压缩和浏览器缓存
+   
+   加载方式：
+     通过后端 API 端点 /css/Cascading_Style_Sheets.css 动态加载
+     支持 ?minify=true/false 参数控制是否压缩
+   
+   优势：
+     1. CSS 与 HTML 分离，便于维护
+     2. 浏览器可以缓存 CSS 文件
+     3. 减小初始 HTML 大小
+     4. 支持压缩，进一步减小传输量
+   
+   ============================================================================
+*/
+
+/* CSS变量定义 */
+
+
+
+    /* 默认主题（无需额外 class） */
+    body {
+      background: linear-gradient(180deg, rgba(245, 250, 255, 1) 0%, rgba(235, 245, 255, 1) 40%, rgba(250, 240, 255, 1) 100%);
+      background-attachment: fixed;
+    }
+
+    .panel {
+      backdrop-filter: blur(16px);
+      background-color: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow: 0 10px 24px rgba(16, 24, 40, 0.12);
+    }
+
+    /* 二次元主题 */
+    body.theme-anime {
+      /* 添加一张背景图，您可以替换为您喜欢的图片URL */
+      background-image: url('https://api.paugram.com/wallpaper');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+    }
+
+    body.theme-anime .panel {
+      /* 面板使用更强烈的毛玻璃效果 */
+      background-color: rgba(255, 255, 255, 0.65);
+      /* 降低不透明度 */
+      backdrop-filter: blur(20px) saturate(150%);
+      /* 增强模糊和饱和度 */
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+    }
+
+    /* 简约主题 */
+    body.theme-minimalist {
+      background: #f8f9fa;
+      /* 使用纯色背景 */
+    }
+
+    body.theme-minimalist .panel {
+      background-color: #ffffff;
+      backdrop-filter: none;
+      /* 移除毛玻璃效果 */
+      border: 1px solid #e9ecef;
+      /* 使用更柔和的边框 */
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      /* 使用更细微的阴影 */
+      border-radius: 12px;
+      /* 稍微减小圆角 */
+    }
+
+    /* 下拉选择框文本不换行，避免多行挤压导致“看起来不齐全” */
+    #multi-config-user-select {
+      white-space: nowrap;
+      /* 文本不折行 */
+      overflow-x: auto;
+      /* 辅助：允许水平滚动（注意：部分浏览器不为 select 显示 H-scroll） */
+      max-width: 100%;
+      /* 约束为容器宽度，避免撑破布局 */
+    }
+
+
+    /* 仅针对 select 元素减小统一表单内边距，扩大可视空间 */
+    select.select-field {
+      padding: 0.45rem 0.6rem;
+      /* 原来 .select-field 的 padding 比较厚，适当减小 */
+    }
+
+    /* 给 options 提示完整文本（不同浏览器对 option 的样式支持有限，tooltip 更稳妥） */
+    #multi-config-user-select option {
+      /* 大多数浏览器不支持 option 的 ellipsis，但可保留以尽可能兼容 */
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    /* 模态框背景 */
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: auto;
+      /* 允许背景遮罩层交互，阻挡下方点击 */
+      background-color: rgba(0, 0, 0, 0.4);
+      /* 添加半透明黑色背景 */
+      /* display 将由 JS 控制为 'flex' 以实现居中 */
+      align-items: center;
+      justify-content: center;
+    }
+
+
+    /* 内容容器：居中显示 */
+    .modal-content {
+      background: linear-gradient(135deg, #ffffff, #f7f9ff);
+      /* margin: 10% auto;  <-- 移除此行以允许 Flexbox 垂直居中 */
+      padding: 24px 28px;
+      border-radius: 16px;
+      width: 360px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25),
+        0 0 12px rgba(120, 160, 255, 0.4);
+      animation: fadeIn 0.35s ease, scaleIn 0.35s ease;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      position: relative;
+      pointer-events: auto;
+      /* 内容可交互 */
+    }
+
+    /* 标题 */
+    .modal-content h3 {
+      margin-top: 0;
+      text-align: center;
+      font-size: 20px;
+      color: #3a4a7a;
+      letter-spacing: 1px;
+    }
+
+    /* 关闭按钮 */
+    .close {
+      position: absolute;
+      right: 14px;
+      top: 10px;
+      font-size: 22px;
+      cursor: pointer;
+      color: #888;
+      transition: color 0.2s;
+    }
+
+    .close:hover {
+      color: #ff5c8a;
+    }
+
+    /* 表单 */
+    .form-group {
+      margin: 14px 0;
+    }
+
+    .form-group label {
+      display: inline-block;
+      width: 70px;
+      font-weight: bold;
+      color: #4a4a6a;
+    }
+
+    .form-group input {
+      width: 230px;
+      padding: 8px 10px;
+      border: 1px solid #ccd2f0;
+      border-radius: 8px;
+      outline: none;
+      transition: all 0.25s;
+      background: #fff;
+    }
+
+    .form-group input:focus {
+      border-color: #7a9dff;
+      box-shadow: 0 0 6px rgba(122, 157, 255, 0.6);
+    }
+
+    /* 底部按钮 */
+    .modal-actions {
+      text-align: right;
+      margin-top: 18px;
+    }
+
+    .modal-actions button {
+      margin-left: 10px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.25s;
+    }
+
+    #newUserCancel {
+      background: #e0e4f7;
+      color: #444;
+    }
+
+    #newUserCancel:hover {
+      background: #d0d6f0;
+    }
+
+    #newUserConfirm {
+      background: linear-gradient(135deg, #7a9dff, #5c7cff);
+      color: #fff;
+      box-shadow: 0 3px 8px rgba(92, 124, 255, 0.4);
+    }
+
+    #newUserConfirm:hover {
+      background: linear-gradient(135deg, #5c7cff, #4a68e0);
+      box-shadow: 0 4px 10px rgba(92, 124, 255, 0.55);
+    }
+
+    /* 动画 */
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    @keyframes scaleIn {
+      from {
+        transform: scale(0.9);
+      }
+
+      to {
+        transform: scale(1);
+      }
+    }
+
+
+
+    :root {
+      --base-color: #7dd3fc;
+      --base-color-600: #0891b2;
+      --base-color-500: #22d3ee;
+      --base-color-300: #a5f3fc;
+      --card-bg: rgba(255, 255, 255, 0.85);
+      --glass: rgba(255, 255, 255, 0.65);
+      --ink: #0f172a;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      background: linear-gradient(180deg, rgba(245, 250, 255, 1) 0%, rgba(235, 245, 255, 1) 40%, rgba(250, 240, 255, 1) 100%);
+      background-attachment: fixed;
+    }
+
+    .bg-anime {
+      background-image: url('');
+      background-size: cover;
+      background-position: center;
+    }
+
+    .panel {
+      backdrop-filter: blur(16px);
+      background-color: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow: 0 10px 24px rgba(16, 24, 40, 0.12);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      padding: .65rem 1rem;
+      border-radius: 999px;
+      font-weight: 700;
+      transition: all .25s ease;
+      box-shadow: 0 6px 16px rgba(2, 132, 199, .15);
+    }
+
+    .btn:hover {
+      /* transform: translateY(-1px); */
+      /* 按钮没事不要瞎移动 */
+      transform: none;
+      box-shadow: 0 12px 28px rgba(2, 132, 199, .22);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--base-color), var(--base-color-600));
+    }
+
+    .btn-secondary {
+      color: #fff;
+      background: linear-gradient(135deg, #a855f7, #7c3aed);
+    }
+
+    .btn-danger {
+      color: #fff;
+      background: linear-gradient(135deg, #ef4444, #b91c1c);
+    }
+
+    .btn-warning {
+      color: #fff;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
+    .btn-success {
+      color: #fff;
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    .btn-ghost {
+      color: #334155;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+    }
+
+    .input-field,
+    .select-field {
+      width: 100%;
+      border-radius: 14px;
+      padding: .7rem .9rem;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 14px rgba(16, 24, 40, 0.06);
+      color: #0f172a;
+      transition: box-shadow .2s ease, border-color .2s ease;
+    }
+
+    .input-field:focus,
+    .select-field:focus {
+      outline: none;
+      border-color: var(--base-color-600);
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, .25);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: .25rem .6rem;
+      border-radius: 999px;
+      font-weight: 700;
+      background: rgba(34, 211, 238, .18);
+      color: var(--base-color-600);
+    }
+
+    .card-title {
+      font-family: 'Zilla Slab', serif;
+      letter-spacing: .5px;
+    }
+
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(226, 232, 240, 0.6);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background-color: rgba(148, 163, 184, 0.8);
+      border-radius: 6px;
+      border: 2px solid rgba(226, 232, 240, 0.6);
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(100, 116, 139, 0.9);
+    }
+
+    .tab-button {
+      padding: .5rem .75rem;
+      font-weight: 700;
+      color: #64748b;
+      border-bottom: 3px solid transparent;
+      transition: all .2s ease;
+    }
+
+    .tab-button.active {
+      color: var(--base-color-600);
+      border-bottom-color: var(--base-color-600);
+    }
+
+    #task-list>div.selected {
+      background: rgba(34, 211, 238, .14);
+      border-left: 4px solid var(--base-color-600);
+    }
+
+    #map-container.drawing .amap-marker,
+    #map-container.drawing .amap-text,
+    #map-container.drawing .amap-overlay-text,
+    #map-container.drawing .amap-overlay {
+      pointer-events: none !important;
+    }
+
+    .pulsing-marker {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.98);
+        box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.7);
+      }
+
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 12px rgba(2, 132, 199, 0);
+      }
+
+      100% {
+        transform: scale(0.98);
+        box-shadow: 0 0 0 0 rgba(2, 132, 199, 0);
+      }
+    }
+
+    .hero-overlay {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.85) 60%);
+    }
+
+    .theme-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 100%;
+      border: 2px solid #fff;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, .15);
+      cursor: pointer;
+      transition: transform .2s ease;
+    }
+
+    .theme-dot:hover {
+      transform: scale(1.05);
+    }
+
+    /* 模态框显示时，隐藏地图logo和版权 */
+    #amap-key-modal:not(.hidden)~#map-container .amap-logo,
+    #amap-key-modal:not(.hidden)~#map-container .amap-copyright,
+    #amap-key-modal:not(.hidden)~main>#multi-map-container .amap-logo,
+    #amap-key-modal:not(.hidden)~main>#multi-map-container .amap-copyright,
+
+    #user-details-modal:not(.hidden)~#map-container .amap-logo,
+    #user-details-modal:not(.hidden)~#map-container .amap-copyright,
+    #task-details-modal:not(.hidden)~#map-container .amap-logo,
+    #task-details-modal:not(.hidden)~#map-container .amap-copyright,
+    #user-details-modal:not(.hidden)~main>#multi-map-container .amap-logo,
+    #user-details-modal:not(.hidden)~main>#multi-map-container .amap-copyright,
+    #task-details-modal:not(.hidden)~main>#multi-map-container .amap-logo,
+    #task-details-modal:not(.hidden)~main>#multi-map-container .amap-copyright,
+    #account-params-modal:not(.hidden)~main>#multi-map-container .amap-logo,
+    #account-params-modal:not(.hidden)~main>#multi-map-container .amap-copyright {
+      display: none !important;
+    }
+
+    /* 当任意模态打开时，隐藏地图的 logo 与版权 */
+    body.modal-visible .amap-logo,
+    body.modal-visible .amap-copyright {
+      display: none !important;
+    }
+
+    #admin-modal-close-btn:hover {
+      transform: translateY(-50%);
+      /* 强制 hover 时只应用垂直居中 transform */
+    }
+
+    /* --- Bug Fix: 防止 SweetAlert2 弹窗导致页面位移 --- */
+    body.swal2-shown:not(.swal2-toast-shown) {
+      overflow: hidden !important;
+      /* 强制保持 overflow: hidden */
+      padding-right: 0 !important;
+      /* 强制移除 SweetAlert 可能添加的 padding */
+    }

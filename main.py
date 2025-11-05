@@ -14361,6 +14361,171 @@ def start_web_server(args_param):
             logging.error(f"加载 JavaScript 函数时发生错误: {e}", exc_info=True)
             return jsonify({"error": "Internal server error"}), 500
 
+    @app.route('/JavaScript_globals.js', methods=['GET'])
+    def serve_javascript_globals():
+        """
+        返回 JavaScript 全局变量文件（优先加载）
+        
+        功能说明：
+            返回 JavaScript_globals.js 文件，包含所有全局变量声明
+            此文件必须在主 JavaScript.js 之前加载，避免变量未定义错误
+        
+        查询参数：
+            - minify: 是否压缩代码（默认 true）
+        
+        返回：
+            - 200: 成功返回全局变量代码
+            - 304: 使用缓存版本
+            - 404: 文件未找到
+            - 500: 服务器内部错误
+        
+        使用示例：
+            <script src="/JavaScript_globals.js"></script>
+            <script src="/JavaScript.js"></script>
+        """
+        try:
+            js_globals_file = os.path.join(os.path.dirname(__file__), 'JavaScript_globals.js')
+            
+            if not os.path.exists(js_globals_file):
+                logging.error(f"JavaScript 全局变量文件不存在: {js_globals_file}")
+                return jsonify({"error": "JavaScript globals file not found"}), 404
+            
+            # 读取文件内容
+            with open(js_globals_file, 'r', encoding='utf-8') as f:
+                original_content = f.read()
+            
+            # 检查是否需要压缩
+            minify_param = request.args.get('minify', 'true').lower()
+            should_minify = minify_param in ['true', '1', 'yes', '']
+            
+            if should_minify:
+                content = minify_javascript(original_content)
+                content_type_suffix = ' (minified)'
+                logging.info(f"JavaScript_globals.js 压缩：{len(original_content)} 字节 -> {len(content)} 字节")
+            else:
+                content = original_content
+                content_type_suffix = ' (original)'
+            
+            # 设置响应头
+            file_mtime = os.path.getmtime(js_globals_file)
+            from datetime import datetime
+            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            
+            import hashlib
+            etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
+            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+            
+            # 检查条件请求
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            if (if_modified_since == last_modified) or (if_none_match == etag):
+                logging.debug(f"JavaScript_globals.js 使用缓存版本 (304){content_type_suffix}")
+                return '', 304
+            
+            response = make_response(content)
+            response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers['Last-Modified'] = last_modified
+            response.headers['ETag'] = etag
+            response.headers['X-Minified'] = 'true' if should_minify else 'false'
+            
+            logging.info(f"成功返回 JavaScript_globals.js{content_type_suffix} ({len(content)} 字符)")
+            return response
+            
+        except Exception as e:
+            logging.error(f"加载 JavaScript_globals.js 时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
+    @app.route('/css/Cascading_Style_Sheets.css', methods=['GET'])
+    def serve_css():
+        """
+        返回 CSS 样式表文件（支持自动压缩）
+        
+        功能说明：
+            返回 Cascading_Style_Sheets.css 文件
+            支持自动压缩和浏览器缓存
+        
+        查询参数：
+            - minify: 是否压缩 CSS（默认 true）
+              * true/1/yes: 压缩 CSS（移除注释和空白）
+              * false/0/no: 返回原始 CSS（保留格式）
+        
+        返回：
+            - 200: 成功返回 CSS 代码
+            - 304: 使用缓存版本
+            - 404: 文件未找到
+            - 500: 服务器内部错误
+        
+        压缩效果：
+            通常可减小 20-30% 的文件大小
+        
+        使用示例：
+            <link rel="stylesheet" href="/css/Cascading_Style_Sheets.css">
+        """
+        try:
+            css_file = os.path.join(os.path.dirname(__file__), 'Cascading_Style_Sheets.css')
+            
+            if not os.path.exists(css_file):
+                logging.error(f"CSS 文件不存在: {css_file}")
+                return jsonify({"error": "CSS file not found"}), 404
+            
+            # 读取文件内容
+            with open(css_file, 'r', encoding='utf-8') as f:
+                original_content = f.read()
+            
+            # 检查是否需要压缩
+            minify_param = request.args.get('minify', 'true').lower()
+            should_minify = minify_param in ['true', '1', 'yes', '']
+            
+            if should_minify:
+                # 简单的 CSS 压缩：移除注释和多余空白
+                import re
+                # 移除 CSS 注释
+                content = re.sub(r'/\*.*?\*/', '', original_content, flags=re.DOTALL)
+                # 移除多余空白
+                content = re.sub(r'\s+', ' ', content)
+                # 移除属性值周围的空格
+                content = re.sub(r'\s*([{}:;,])\s*', r'\1', content)
+                content = content.strip()
+                
+                content_type_suffix = ' (minified)'
+                logging.info(f"CSS 压缩：{len(original_content)} 字节 -> {len(content)} 字节 ({(1-len(content)/len(original_content))*100:.1f}%)")
+            else:
+                content = original_content
+                content_type_suffix = ' (original)'
+            
+            # 设置响应头
+            file_mtime = os.path.getmtime(css_file)
+            from datetime import datetime
+            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            
+            import hashlib
+            etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
+            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+            
+            # 检查条件请求
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            if (if_modified_since == last_modified) or (if_none_match == etag):
+                logging.debug(f"CSS 使用缓存版本 (304){content_type_suffix}")
+                return '', 304
+            
+            response = make_response(content)
+            response.headers['Content-Type'] = 'text/css; charset=utf-8'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers['Last-Modified'] = last_modified
+            response.headers['ETag'] = etag
+            response.headers['X-Minified'] = 'true' if should_minify else 'false'
+            
+            logging.info(f"成功返回 CSS{content_type_suffix} ({len(content)} 字符)")
+            return response
+            
+        except Exception as e:
+            logging.error(f"加载 CSS 时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
     @app.route('/html/<path:fragment_name>.html', methods=['GET'])
     def serve_html_fragment(fragment_name):
         """
