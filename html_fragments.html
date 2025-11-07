@@ -7,9 +7,9 @@
      每个片段用特殊的分隔标记包围，便于后端 API 提取和返回
    
    片段标记格式：
-     <!-- BEGIN_FRAGMENT: fragment-name -->
+     <!-- 段落开始： fragment-name -->
      ... HTML 内容 ...
-     <!-- END_FRAGMENT: fragment-name -->
+     <!-- 段落结束： fragment-name -->
    
    使用方式：
      后端 API 根据 fragment-name 从本文件中提取对应的片段并返回
@@ -24,7 +24,7 @@
    ============================================================================
 -->
 
-<!-- BEGIN_FRAGMENT: multi-account-app -->
+<!-- 段落开始： multi-account-app -->
 <main id="multi-account-app"
     class="hidden h-screen w-screen grid grid-cols-1 lg:grid-cols-[530px,1fr] xl:grid-cols-[530px,1fr] gap-4 p-4">
     <div class="flex flex-col gap-4 h-full min-h-0">
@@ -170,9 +170,9 @@
       </div>
     </div>
   </main>
-<!-- END_FRAGMENT: multi-account-app -->
+<!-- 段落结束： multi-account-app -->
 
-<!-- BEGIN_FRAGMENT: main-app -->
+<!-- 段落开始： main-app -->
 <main id="main-app" class="hidden h-screen w-screen grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
     <!-- 左侧面板 -->
     <div class="lg:col-span-1 xl:col-span-1 flex flex-col gap-4 h-full min-h-0">
@@ -369,9 +369,9 @@
 
 
   </main>
-<!-- END_FRAGMENT: main-app -->
+<!-- 段落结束： main-app -->
 
-<!-- BEGIN_FRAGMENT: login-container -->
+<!-- 段落开始： login-container -->
 <div id="login-container" class="w-full h-full grid grid-cols-1 lg:grid-cols-3">
 
     <div class="flex flex-col items-center justify-center p-12 bg-gradient-to-br from-slate-50 to-gray-100">
@@ -459,9 +459,9 @@
     </div>
 
   </div>
-<!-- END_FRAGMENT: login-container -->
+<!-- 段落结束： login-container -->
 
-<!-- BEGIN_FRAGMENT: auth-login-container -->
+<!-- 段落开始： auth-login-container -->
 <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
     <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
       <div class="text-center">
@@ -559,9 +559,9 @@
         class="hidden text-sm text-center p-3 rounded-lg bg-green-50 border border-green-200 text-green-600"></div>
     </div>
   </div>
-<!-- END_FRAGMENT: auth-login-container -->
+<!-- 段落结束： auth-login-container -->
 
-<!-- BEGIN_FRAGMENT: admin-panel-modal -->
+<!-- 段落开始： admin-panel-modal -->
 <div id="admin-panel-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="toggleAdminPanel(false)"></div>
     <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-x-hidden space-y-4 relative flex flex-col">
@@ -815,9 +815,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: admin-panel-modal -->
+<!-- 段落结束： admin-panel-modal -->
 
-<!-- BEGIN_FRAGMENT: auto-gen-modal -->
+<!-- 段落开始： auto-gen-modal -->
 <div id="auto-gen-modal" class="fixed inset-0 flex items-center justify-center hidden z-50">
     <div class="absolute inset-0 bg-black/40"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
@@ -842,9 +842,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: auto-gen-modal -->
+<!-- 段落结束： auto-gen-modal -->
 
-<!-- BEGIN_FRAGMENT: notifications-modal -->
+<!-- 段落开始： notifications-modal -->
 <div id="notifications-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="toggleNotifications(false)"></div>
     <div class="panel rounded-2xl p-6 w-[36rem] space-y-4 relative">
@@ -861,9 +861,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: notifications-modal -->
+<!-- 段落结束： notifications-modal -->
 
-<!-- BEGIN_FRAGMENT: session-picker-modal -->
+<!-- 段落开始： session-picker-modal -->
 <div id="session-picker-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1052]">
     <div class="absolute inset-0 bg-black/60"></div>
     <div class="panel rounded-2xl p-6 w-[40rem] max-h-[70vh] space-y-4 relative">
@@ -906,9 +906,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: session-picker-modal -->
+<!-- 段落结束： session-picker-modal -->
 
-<!-- BEGIN_FRAGMENT: create-group-modal -->
+<!-- 段落开始： create-group-modal -->
 <div id="create-group-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
     <div class="absolute inset-0 bg-black/60" onclick="closeCreateGroupModal()"></div>
     <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
@@ -943,9 +943,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: create-group-modal -->
+<!-- 段落结束： create-group-modal -->
 
-<!-- BEGIN_FRAGMENT: edit-group-permissions-modal -->
+<!-- 段落开始： edit-group-permissions-modal -->
 <div id="edit-group-permissions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
     <div class="absolute inset-0 bg-black/60" onclick="closeEditGroupPermissionsModal()"></div>
     <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
@@ -970,9 +970,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: edit-group-permissions-modal -->
+<!-- 段落结束： edit-group-permissions-modal -->
 
-<!-- BEGIN_FRAGMENT: manage-user-permissions-modal -->
+<!-- 段落开始： manage-user-permissions-modal -->
 <div id="manage-user-permissions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
     <div class="absolute inset-0 bg-black/60" onclick="closeManageUserPermissionsModal()"></div>
     <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
@@ -1006,9 +1006,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: manage-user-permissions-modal -->
+<!-- 段落结束： manage-user-permissions-modal -->
 
-<!-- BEGIN_FRAGMENT: set-max-sessions-modal -->
+<!-- 段落开始： set-max-sessions-modal -->
 <div id="set-max-sessions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
     <div class="absolute inset-0 bg-black/60" onclick="hideModal('set-max-sessions-modal')"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
@@ -1033,9 +1033,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: set-max-sessions-modal -->
+<!-- 段落结束： set-max-sessions-modal -->
 
-<!-- BEGIN_FRAGMENT: reset-user-password-modal -->
+<!-- 段落开始： reset-user-password-modal -->
 <div id="reset-user-password-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
     <div class="absolute inset-0 bg-black/60" onclick="hideModal('reset-user-password-modal')"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
@@ -1064,9 +1064,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: reset-user-password-modal -->
+<!-- 段落结束： reset-user-password-modal -->
 
-<!-- BEGIN_FRAGMENT: account-params-modal -->
+<!-- 段落开始： account-params-modal -->
 <div id="account-params-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="
     const modalElem = this.parentElement;
@@ -1089,9 +1089,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: account-params-modal -->
+<!-- 段落结束： account-params-modal -->
 
-<!-- BEGIN_FRAGMENT: amap-key-modal -->
+<!-- 段落开始： amap-key-modal -->
 <div id="amap-key-modal" class="fixed inset-0 flex items-center justify-center hidden z-50">
     <div class="absolute inset-0 bg-black/60"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
@@ -1110,9 +1110,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: amap-key-modal -->
+<!-- 段落结束： amap-key-modal -->
 
-<!-- BEGIN_FRAGMENT: avatar-crop-modal -->
+<!-- 段落开始： avatar-crop-modal -->
 <div id="avatar-crop-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
     <div class="absolute inset-0 bg-black/80" onclick="closeCropModal()"></div>
     <div class="panel rounded-2xl p-6 max-w-2xl w-full mx-4 space-y-4 relative">
@@ -1128,9 +1128,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: avatar-crop-modal -->
+<!-- 段落结束： avatar-crop-modal -->
 
-<!-- BEGIN_FRAGMENT: confirm-modal -->
+<!-- 段落开始： confirm-modal -->
 <div id="confirm-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
     <div class="absolute inset-0 bg-black/60"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
@@ -1144,9 +1144,9 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: confirm-modal -->
+<!-- 段落结束： confirm-modal -->
 
-<!-- BEGIN_FRAGMENT: user-details-modal -->
+<!-- 段落开始： user-details-modal -->
 <div id="user-details-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="toggleUserDetails(false)"></div>
     <div class="panel rounded-2xl p-6 w-[32rem] space-y-4 relative">
@@ -1158,9 +1158,9 @@
           onclick="toggleUserDetails(false)">关闭</button></div>
     </div>
   </div>
-<!-- END_FRAGMENT: user-details-modal -->
+<!-- 段落结束： user-details-modal -->
 
-<!-- BEGIN_FRAGMENT: task-details-modal -->
+<!-- 段落开始： task-details-modal -->
 <div id="task-details-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="toggleTaskDetails(false)"></div>
     <div class="panel rounded-2xl p-6 w-[36rem] space-y-4 relative">
@@ -1172,9 +1172,9 @@
           onclick="toggleTaskDetails(false)">关闭</button></div>
     </div>
   </div>
-<!-- END_FRAGMENT: task-details-modal -->
+<!-- 段落结束： task-details-modal -->
 
-<!-- BEGIN_FRAGMENT: alert-modal -->
+<!-- 段落开始： alert-modal -->
 <div id="alert-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
     <div class="absolute inset-0 bg-black/60" onclick="closeModalAlert()"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
@@ -1187,10 +1187,10 @@
       </div>
     </div>
   </div>
-<!-- END_FRAGMENT: alert-modal -->
+<!-- 段落结束： alert-modal -->
 
 
-<!-- BEGIN_FRAGMENT: newUserModal -->
+<!-- 段落开始： newUserModal -->
 <div id="newUserModal" class="modal">
     <div class="modal-content">
       <span class="close" id="newUserClose">&times;</span>
@@ -1199,9 +1199,9 @@
         <label for="newUsername">账号：</label>
         <input type="text" id="newUsername" placeholder="请输入账号">
       </div>
-<!-- END_FRAGMENT: newUserModal -->
+<!-- 段落结束： newUserModal -->
 
-<!-- BEGIN_FRAGMENT: cdn-error-overlay -->
+<!-- 段落开始： cdn-error-overlay -->
 <div id="cdn-error-overlay"
     class="fixed inset-0 z-9999 hidden flex-col items-center justify-center bg-[#f8fafc] p-8 text-center text-[#475569]"
     style="font-family: sans-serif;">
@@ -1220,11 +1220,11 @@
       <p style="margin-top: 1.5rem; font-size: 0.875rem; color: #64748b;">请检查网络后，完全关闭并重启本程序。如果问题持续存在，您可能需要更换网络环境。</p>
     </div>
   </div>
-<!-- END_FRAGMENT: cdn-error-overlay -->
+<!-- 段落结束： cdn-error-overlay -->
 
-<!-- BEGIN_FRAGMENT: loading-overlay -->
+<!-- 段落开始： loading-overlay -->
 <div id="loading-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/80">
     <div class="loader"></div>
     <p class="text-base font-bold text-sky-600">正在加载资源中...</p>
   </div>
-<!-- END_FRAGMENT: loading-overlay -->
+<!-- 段落结束： loading-overlay -->

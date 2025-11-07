@@ -495,9 +495,11 @@
     }
 
     /* --- Bug Fix: 防止 SweetAlert2 弹窗导致页面位移 --- */
-    html.swal2-shown,
     body.swal2-shown:not(.swal2-toast-shown) {
-      padding-right: 0; /* 强制移除 SweetAlert 添加的 padding */
+      overflow: hidden !important;
+      /* 强制保持 overflow: hidden */
+      padding-right: 0 !important;
+      /* 强制移除 SweetAlert 可能添加的 padding */
     }
   </style>
 
@@ -523,26 +525,7 @@
       <p style="margin-top: 1.5rem; font-size: 0.875rem; color: #64748b;">请检查网络后，完全关闭并重启本程序。如果问题持续存在，您可能需要更换网络环境。</p>
     </div>
   </div>
-  <div id="guest-warning-toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 w-11/12 max-w-lg p-4 z-[1050] panel rounded-2xl hidden shadow-2xl transition-all duration-300 ease-out" style="transform: translate(-50%, 150%);">
-    <div class="flex items-start gap-3">
-      <div class="flex-shrink-0 w-6 h-6 text-amber-500 mt-1">
-        <svg fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-        </svg>
-      </div>
-      <div class="flex-1">
-        <h3 class="text-base font-bold text-slate-800 card-title">游客模式提示</h3>
-        <p class="text-sm text-slate-600 mt-1">
-          [游客模式] 部分功能受限，请保存当前地址以便恢复会话。丢失URL将无法恢复数据，5分钟不活跃会话将被自动清理。
-        </p>
-      </div>
-      <button id="guest-warning-close-btn" class="w-8 h-8 flex-shrink-0 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded-full transition-colors duration-200 -mt-2 -mr-2">
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-        </svg>
-      </button>
-    </div>
-  </div>
+
   <!-- 新用户添加模态框 -->
   <div id="newUserModal" class="modal">
     <div class="modal-content">
@@ -3604,11 +3587,7 @@
                             <p class="font-semibold text-slate-800 break-all"> 会话 ${session.session_id} </p>
                              ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                             <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-                            <p class="text-xs text-slate-500">状态: ${
-                                session.is_multi_account_mode 
-                                ? '<span class="font-semibold text-purple-600">多账号模式</span>' 
-                                : (session.login_success ? '<span class="font-semibold text-green-600">已登录</span>' : '未登录')
-                            }</p>
+                            <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
                             ${ownerInfo}
                           </div>
                           <div class="flex gap-2">
@@ -5436,11 +5415,7 @@
                 <p class="font-semibold text-slate-800 break-all">会话 ${session.session_id}</p>
                 ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                 <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
-                <p class="text-xs text-slate-500">状态: ${
-                    session.is_multi_account_mode 
-                    ? '<span class="font-semibold text-purple-600">多账号模式</span>' 
-                    : (session.login_success ? '<span class="font-semibold text-green-600">已登录</span>' : '未登录')
-                }</p>
+                <p class="text-xs text-slate-500">状态: ${session.login_success ? '已登录' : '未登录'}</p>
                 ${ownerInfo}
               </div>
               <div class="flex gap-2">
@@ -5974,16 +5949,8 @@
                   ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2 px-2 py-0.5 bg-sky-100 rounded-full">(当前)</span></p>' : ''}
                   <p class="text-xs text-slate-500 mt-1">创建时间: ${createdDate}</p>
                   <p class="text-xs mt-1">
-                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${
-                        session.is_multi_account_mode 
-                        ? 'bg-purple-100 text-purple-700' 
-                        : (session.login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700')
-                    }">
-                      ${
-                        session.is_multi_account_mode 
-                        ? '❖ 多账号' 
-                        : (session.login_success ? '✓ 已登录' : '○ 未登录')
-                      }
+                    <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${session.login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}">
+                      ${session.login_success ? '✓ 已登录' : '○ 未登录'}
                     </span>
                   </p>
                 </div>
@@ -6911,28 +6878,16 @@
           if (isGuestMode) {
             logMessage_Info('[游客模式] 部分功能受限，请保存当前地址以便恢复会话');
 
-            // Swal.fire({
-            //   title: '请注意', // 弹窗标题
-            //   text: '[游客模式] 部分功能受限，请保存当前地址以便恢复会话', // 弹窗消息
-            //   icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-            //   confirmButtonText: '确定' // 按钮文字
-            // }).then(() => {
-            //   // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-            //   // logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
-            //   // window.location.href = '/'; // 执行跳转
-            // });
-
-            // showModalAlert(
-            //   '[游客模式] 部分功能受限，请保存当前地址以便恢复会话', // 消息
-            //   '请注意' // 标题
-            // );
-
-            const guestToast = $('guest-warning-toast');
-            if (guestToast) {
-              guestToast.classList.remove('hidden');
-              // 添加一个小的弹出动画
-              setTimeout(() => guestToast.style.transform = 'translate(-50%, 0)', 100);
-            }
+            Swal.fire({
+              title: '请注意', // 弹窗标题
+              text: '[游客模式] 部分功能受限，请保存当前地址以便恢复会话', // 弹窗消息
+              icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+              confirmButtonText: '确定' // 按钮文字
+            }).then(() => {
+              // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+              // logMessage_Info('用户确认无效UUID弹窗，正在跳转到登录页面...');
+              // window.location.href = '/'; // 执行跳转
+            });
 
           }
 
@@ -8219,18 +8174,6 @@
 
     // 留言板刷新按钮
     $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
-    // 绑定游客提示弹窗的关闭按钮
-        const guestWarningCloseBtn = $('guest-warning-close-btn');
-        if (guestWarningCloseBtn) {
-          guestWarningCloseBtn.addEventListener('click', () => {
-            const guestToast = $('guest-warning-toast');
-            if (guestToast) {
-              // 添加滑出动画
-              guestToast.style.transform = 'translate(-50%, 150%)';
-              setTimeout(() => guestToast.classList.add('hidden'), 300);
-            }
-          });
-        }
 
     // --- 多账号模式核心函数 ---
     async function switchToMultiMode() {

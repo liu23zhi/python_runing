@@ -1,6 +1,5 @@
 # 跑步助手
 # 这是一个基于Flask的Web应用，用于模拟跑步任务的执行
-# 主要功能包括：用户认证、任务管理、路径规划、多账号支持、实时进度追踪
 
 # ===== 导入标准库 =====
 import argparse  # 命令行参数解析，用于启动参数配置
@@ -11,7 +10,6 @@ import configparser  # INI配置文件解析，用于读写config.ini
 import copy  # 对象深拷贝，避免引用传递导致的数据污染
 import csv  # CSV文件处理，用于数据导入导出
 import datetime  # 日期时间处理，用于时间戳转换和计算
-# import fcntl  # 文件锁（Unix），当前未使用，可能用于进程间同步
 import hashlib  # 哈希算法，用于密码加密和文件名混淆
 import json  # JSON数据处理，用于配置文件和API数据交换
 import logging  # 日志记录系统，提供分级日志输出
@@ -34,6 +32,7 @@ import atexit  # 程序退出处理，用于资源清理
 from PIL import Image  # 图像处理库，用于头像裁剪和压缩
 import io  # IO流处理，用于内存中的文件操作
 
+
 # ===== Flask-SocketIO（必须在 monkey_patch 之后）=====
 # WebSocket通信库，用于实时推送任务进度和状态更新
 # 注意：如果使用gevent，需要先执行monkey_patch才能导入此模块
@@ -41,6 +40,192 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 
 # Flask Web框架的响应对象，用于自定义HTTP响应（如设置Cookie）
 from flask import make_response
+from flask import Flask, jsonify, request, make_response
+
+import cssutils  # CSS解析和处理库，用于动态生成和修改CSS样式
+
+# ==============================================================================
+#  依赖检查与第三方库导入
+# ==============================================================================
+Flask, render_template_string, session, redirect, url_for, request, jsonify = (
+    None,) * 7  # 元组乘法创建7个None的技巧
+
+# Flask-CORS: 跨域资源共享支持
+# 如果前端和后端不在同一域名，需要CORS头部
+CORS = None
+
+# pyotp: 一次性密码（OTP）库
+# 用于实现两步验证（2FA），基于时间的TOTP算法
+pyotp = None
+
+# requests: HTTP客户端库
+# 用于向跑步平台发送API请求
+# 注意：这里requests会覆盖之前导入的标准库中的requests（如果有的话）
+requests = None
+
+# openpyxl: 现代Excel文件(.xlsx)读写库
+# 支持Excel 2007+格式，功能强大但较慢
+openpyxl = None
+
+# xlrd: 旧版Excel文件(.xls)读取库
+# 只能读取，不能写入，适用于Excel 97-2003格式
+xlrd = None
+
+# xlwt: 旧版Excel文件(.xls)写入库
+# 只能写入，不能读取，与xlrd配套使用
+xlwt = None
+
+# chardet: 字符编码检测库
+# 用于自动识别文本文件的编码（如GBK、UTF-8等）
+chardet = None
+
+# sync_playwright: Playwright浏览器自动化库的同步API
+# 用于在服务器端运行Chrome进行JavaScript计算（如路径规划）
+# 注意：Playwright还有异步API，但这里使用同步版本
+sync_playwright = None
+
+
+def check_and_import_dependencies():
+    """
+    检查并导入所有必需的第三方库。
+
+    如果缺少任何库，将打印详细的安装说明并终止程序运行。
+    如果所有库都存在，则将它们导入到全局命名空间中。
+    """
+    logging.info("="*80)
+    logging.info("开始检查并导入第三方库...")
+    print("[依赖检查] 开始检查并导入第三方库...")
+
+    # 声明我们将要修改全局变量
+    global Flask, render_template_string, session, redirect, url_for, request, jsonify
+    global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
+
+    try:
+        # --- 尝试导入所有必需的第三方库 ---
+
+        # 1. Flask Web 框架
+        logging.info("正在导入 Flask Web 框架...")
+        print("[依赖检查] 正在导入 Flask Web 框架...")
+        from flask import (
+            Flask, render_template_string, session,
+            redirect, url_for, request, jsonify
+        )
+        logging.info("✓ Flask 导入成功")
+        print("[依赖检查] ✓ Flask 导入成功")
+
+        # 2. Flask 跨域支持
+        logging.info("正在导入 Flask CORS...")
+        print("[依赖检查] 正在导入 Flask CORS...")
+        from flask_cors import CORS
+        logging.info("✓ Flask CORS 导入成功")
+        print("[依赖检查] ✓ Flask CORS 导入成功")
+
+        # 3. 一次性密码 (TOTP/HOTP)
+        logging.info("正在导入 pyotp...")
+        print("[依赖检查] 正在导入 pyotp...")
+        import pyotp
+        logging.info("✓ pyotp 导入成功")
+        print("[依赖检查] ✓ pyotp 导入成功")
+
+        # 4. HTTP 请求库
+        logging.info("正在导入 requests...")
+        print("[依赖检查] 正在导入 requests...")
+        import requests
+        logging.info("✓ requests 导入成功")
+        print("[依赖检查] ✓ requests 导入成功")
+
+        # 5. Excel (xlsx) 读写
+        logging.info("正在导入 openpyxl...")
+        print("[依赖检查] 正在导入 openpyxl...")
+        import openpyxl
+        logging.info("✓ openpyxl 导入成功")
+        print("[依赖检查] ✓ openpyxl 导入成功")
+
+        # 6. Excel (xls) 读取
+        logging.info("正在导入 xlrd...")
+        print("[依赖检查] 正在导入 xlrd...")
+        import xlrd
+        logging.info("✓ xlrd 导入成功")
+        print("[依赖检查] ✓ xlrd 导入成功")
+
+        # 7. Excel (xls) 写入
+        logging.info("正在导入 xlwt...")
+        print("[依赖检查] 正在导入 xlwt...")
+        import xlwt
+        logging.info("✓ xlwt 导入成功")
+        print("[依赖检查] ✓ xlwt 导入成功")
+
+        # 8. 字符编码检测
+        logging.info("正在导入 chardet...")
+        print("[依赖检查] 正在导入 chardet...")
+        import chardet
+        logging.info("✓ chardet 导入成功")
+        print("[依赖检查] ✓ chardet 导入成功")
+
+        # 9. 浏览器自动化
+        logging.info("正在导入 Playwright...")
+        print("[依赖检查] 正在导入 Playwright...")
+        from playwright.sync_api import sync_playwright
+
+        # 10. NumPy
+        logging.info("正在导入 NumPy（可选）...")
+        print("[依赖检查] 正在导入 NumPy（可选）...")
+        import numpy as np
+        logging.info("✓ Playwright 导入成功")
+        print("[依赖检查] ✓ Playwright 导入成功")
+        import cssutils
+
+        logging.info("所有依赖库导入完成！")
+        logging.info("="*80)
+
+    except ImportError as e:
+        # --- 捕获到导入错误 ---
+        logging.error(f"导入失败: {e}", exc_info=True)
+
+        # e.name 会告诉我们 *第一个* 导入失败的模块名 (例如 'flask' 或 'playwright')
+        missing_module_name = e.name
+
+        # 定义所有必需的 Pypi 包名（这通常与模块名相同，但不总是，如 'flask_cors' 对应 'flask-cors'）
+        all_packages = [
+            'Flask',
+            'flask-cors',  # 注意 pip install 时用 'flask-cors'
+            'pyotp',
+            'requests',
+            'openpyxl',
+            'xlrd',
+            'xlwt',
+            'chardet',
+            'playwright',
+            'numpy'
+        ]
+        all_packages_str = ' '.join(all_packages)
+
+        # --- 构造详细的错误消息 ---
+        error_msg = (
+            f"程序启动失败，缺少必要的 Python 库: '{missing_module_name}'\n\n"
+            f"运行本程序需要以下所有库:\n"
+            f"{', '.join(all_packages)}\n\n"
+            f"请在您的终端（命令行）中运行以下命令来安装 *所有* 依赖:\n\n"
+            f"   pip install {all_packages_str}\n\n"
+            f"如果您使用的是 pip3，请运行:\n"
+            f"   pip3 install {all_packages_str}\n\n"
+            f"--- 特别提示：关于 'playwright' ---\n"
+            f"playwright 库在首次安装后，还需要安装浏览器驱动。\n"
+            f"请在安装完 pip 包后，额外运行一次:\n"
+            f"   playwright install chromium\n"
+            f"--------------------------------------\n\n"
+            f"详细的导入错误信息: {e}"
+        )
+
+        # 打印到标准错误流
+        print(
+            f"\n{'='*70}\n[依赖缺失错误]\n\n{error_msg}\n{'='*70}\n", file=sys.stderr)
+
+        # 退出程序，返回错误码 1
+        sys.exit(1)
+
+    print("[依赖检查] 所有依赖库导入完成！")
+
 
 # ==============================================================================
 #  1. 日志系统配置
@@ -404,211 +589,6 @@ except Exception as e:
     print(f"[错误] 日志系统初始化失败: {e}")
     import traceback  # 在这里导入traceback，避免污染全局命名空间
     traceback.print_exc()  # 打印完整的堆栈跟踪，便于定位问题
-
-# ==============================================================================
-#  2. 依赖检查与第三方库导入
-# ==============================================================================
-# 这一部分采用延迟导入策略：先声明变量为None，然后在函数中动态导入
-# 优点：
-# 1. 提供友好的错误提示，而不是直接ImportError崩溃
-# 2. 可以在程序启动时一次性检查所有依赖
-# 3. 给用户提供完整的安装指令
-# 缺点：
-# 1. 增加了代码复杂度
-# 2. IDE可能无法正确识别这些变量的类型
-# 3. 运行时才能发现导入错误，而不是启动时
-
-# --- 预先声明全局变量为None ---
-# 这样做的原因：
-# 1. 让后续代码知道这些变量将会存在（避免NameError）
-# 2. 让IDE能够识别这些变量（虽然类型信息会丢失）
-# 3. 在check_and_import_dependencies()中使用global声明修改这些变量
-
-# Flask Web框架及其核心组件
-# Flask: Web应用对象
-# render_template_string: 渲染HTML模板字符串
-# session: 会话管理（服务器端）
-# redirect: HTTP重定向
-# url_for: URL生成
-# request: HTTP请求对象
-# jsonify: 将Python字典转为JSON响应
-Flask, render_template_string, session, redirect, url_for, request, jsonify = (
-    None,) * 7  # 元组乘法创建7个None的技巧
-
-# Flask-CORS: 跨域资源共享支持
-# 如果前端和后端不在同一域名，需要CORS头部
-CORS = None
-
-# pyotp: 一次性密码（OTP）库
-# 用于实现两步验证（2FA），基于时间的TOTP算法
-pyotp = None
-
-# requests: HTTP客户端库
-# 用于向跑步平台发送API请求
-# 注意：这里requests会覆盖之前导入的标准库中的requests（如果有的话）
-requests = None
-
-# openpyxl: 现代Excel文件(.xlsx)读写库
-# 支持Excel 2007+格式，功能强大但较慢
-openpyxl = None
-
-# xlrd: 旧版Excel文件(.xls)读取库
-# 只能读取，不能写入，适用于Excel 97-2003格式
-xlrd = None
-
-# xlwt: 旧版Excel文件(.xls)写入库
-# 只能写入，不能读取，与xlrd配套使用
-xlwt = None
-
-# chardet: 字符编码检测库
-# 用于自动识别文本文件的编码（如GBK、UTF-8等）
-chardet = None
-
-# sync_playwright: Playwright浏览器自动化库的同步API
-# 用于在服务器端运行Chrome进行JavaScript计算（如路径规划）
-# 注意：Playwright还有异步API，但这里使用同步版本
-sync_playwright = None
-
-
-def check_and_import_dependencies():
-    """
-    检查并导入所有必需的第三方库。
-
-    如果缺少任何库，将打印详细的安装说明并终止程序运行。
-    如果所有库都存在，则将它们导入到全局命名空间中。
-    """
-    logging.info("="*80)
-    logging.info("开始检查并导入第三方库...")
-    print("[依赖检查] 开始检查并导入第三方库...")
-
-    # 声明我们将要修改全局变量
-    global Flask, render_template_string, session, redirect, url_for, request, jsonify
-    global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
-
-    try:
-        # --- 尝试导入所有必需的第三方库 ---
-
-        # 1. Flask Web 框架
-        logging.info("正在导入 Flask Web 框架...")
-        print("[依赖检查] 正在导入 Flask Web 框架...")
-        from flask import (
-            Flask, render_template_string, session,
-            redirect, url_for, request, jsonify
-        )
-        logging.info("✓ Flask 导入成功")
-        print("[依赖检查] ✓ Flask 导入成功")
-
-        # 2. Flask 跨域支持
-        logging.info("正在导入 Flask CORS...")
-        print("[依赖检查] 正在导入 Flask CORS...")
-        from flask_cors import CORS
-        logging.info("✓ Flask CORS 导入成功")
-        print("[依赖检查] ✓ Flask CORS 导入成功")
-
-        # 3. 一次性密码 (TOTP/HOTP)
-        logging.info("正在导入 pyotp...")
-        print("[依赖检查] 正在导入 pyotp...")
-        import pyotp
-        logging.info("✓ pyotp 导入成功")
-        print("[依赖检查] ✓ pyotp 导入成功")
-
-        # 4. HTTP 请求库
-        logging.info("正在导入 requests...")
-        print("[依赖检查] 正在导入 requests...")
-        import requests
-        logging.info("✓ requests 导入成功")
-        print("[依赖检查] ✓ requests 导入成功")
-
-        # 5. Excel (xlsx) 读写
-        logging.info("正在导入 openpyxl...")
-        print("[依赖检查] 正在导入 openpyxl...")
-        import openpyxl
-        logging.info("✓ openpyxl 导入成功")
-        print("[依赖检查] ✓ openpyxl 导入成功")
-
-        # 6. Excel (xls) 读取
-        logging.info("正在导入 xlrd...")
-        print("[依赖检查] 正在导入 xlrd...")
-        import xlrd
-        logging.info("✓ xlrd 导入成功")
-        print("[依赖检查] ✓ xlrd 导入成功")
-
-        # 7. Excel (xls) 写入
-        logging.info("正在导入 xlwt...")
-        print("[依赖检查] 正在导入 xlwt...")
-        import xlwt
-        logging.info("✓ xlwt 导入成功")
-        print("[依赖检查] ✓ xlwt 导入成功")
-
-        # 8. 字符编码检测
-        logging.info("正在导入 chardet...")
-        print("[依赖检查] 正在导入 chardet...")
-        import chardet
-        logging.info("✓ chardet 导入成功")
-        print("[依赖检查] ✓ chardet 导入成功")
-
-        # 9. 浏览器自动化
-        logging.info("正在导入 Playwright...")
-        print("[依赖检查] 正在导入 Playwright...")
-        from playwright.sync_api import sync_playwright
-
-        # 10. NumPy
-        logging.info("正在导入 NumPy（可选）...")
-        print("[依赖检查] 正在导入 NumPy（可选）...")
-        import numpy as np
-        logging.info("✓ Playwright 导入成功")
-        print("[依赖检查] ✓ Playwright 导入成功")
-
-        logging.info("所有依赖库导入完成！")
-        logging.info("="*80)
-
-    except ImportError as e:
-        # --- 捕获到导入错误 ---
-        logging.error(f"导入失败: {e}", exc_info=True)
-
-        # e.name 会告诉我们 *第一个* 导入失败的模块名 (例如 'flask' 或 'playwright')
-        missing_module_name = e.name
-
-        # 定义所有必需的 Pypi 包名（这通常与模块名相同，但不总是，如 'flask_cors' 对应 'flask-cors'）
-        all_packages = [
-            'Flask',
-            'flask-cors',  # 注意 pip install 时用 'flask-cors'
-            'pyotp',
-            'requests',
-            'openpyxl',
-            'xlrd',
-            'xlwt',
-            'chardet',
-            'playwright',
-            'numpy'
-        ]
-        all_packages_str = ' '.join(all_packages)
-
-        # --- 构造详细的错误消息 ---
-        error_msg = (
-            f"程序启动失败，缺少必要的 Python 库: '{missing_module_name}'\n\n"
-            f"运行本程序需要以下所有库:\n"
-            f"{', '.join(all_packages)}\n\n"
-            f"请在您的终端（命令行）中运行以下命令来安装 *所有* 依赖:\n\n"
-            f"   pip install {all_packages_str}\n\n"
-            f"如果您使用的是 pip3，请运行:\n"
-            f"   pip3 install {all_packages_str}\n\n"
-            f"--- 特别提示：关于 'playwright' ---\n"
-            f"playwright 库在首次安装后，还需要安装浏览器驱动。\n"
-            f"请在安装完 pip 包后，额外运行一次:\n"
-            f"   playwright install chromium\n"
-            f"--------------------------------------\n\n"
-            f"详细的导入错误信息: {e}"
-        )
-
-        # 打印到标准错误流
-        print(
-            f"\n{'='*70}\n[依赖缺失错误]\n\n{error_msg}\n{'='*70}\n", file=sys.stderr)
-
-        # 退出程序，返回错误码 1
-        sys.exit(1)
-
-    print("[依赖检查] 所有依赖库导入完成！")
 
 
 # ==============================================================================
@@ -4056,9 +4036,10 @@ class Api:
                     'last_activity': last_activity,
                     'is_current': True,
                     'login_success': False,  # 游客没有学校账号登录状态
+                    'is_multi_account_mode': False, # <-- 修复：添加此行
                     'user_data': {"username": "guest"}
                 }]
-                return {"success": True, "sessions": guest_session_info}
+                return jsonify({"success": True, "sessions": guest_session_info, "max_sessions": -1})
             else:
                 # 非游客但未认证，或游客但无法获取当前session_id
                 return {"success": True, "sessions": []}
@@ -4085,15 +4066,14 @@ class Api:
                         if session_data.get('auth_username') == auth_username:
                             sessions_info.append({
                                 'session_id': sid,
-                                # 添加 session_hash 以便前端显示缩略ID
+                                # 添加哈希
                                 'session_hash': hashlib.sha256(sid.encode()).hexdigest()[:16],
                                 'created_at': session_data.get('created_at', 0),
                                 # 使用 last_accessed
                                 'last_activity': session_data.get('last_accessed', 0),
-                                'is_current': sid == current_session_id,  # 标记哪个是当前会话
-                                # 学校账号登录状态
+                                'is_current': sid == session_id,
                                 'login_success': session_data.get('login_success', False),
-                                # 包含学号等信息
+                                'is_multi_account_mode': session_data.get('is_multi_account_mode', False), # <-- 修复：添加此行
                                 'user_data': session_data.get('user_data', {})
                             })
                     except Exception as e:
@@ -5693,6 +5673,8 @@ class Api:
             self.window.evaluate_js('onAllRunsToggled(true)')
         is_first_task = True
 
+        tasks_executed_count = 0 # 跟踪实际执行的任务数
+
         while queue:
             if self.stop_run_flag.is_set():
                 break
@@ -5805,6 +5787,7 @@ class Api:
                 if self.stop_run_flag.wait(timeout=wait_time):
                     break
             is_first_task = False
+            tasks_executed_count += 1 # 任务已通过所有检查，准备执行
 
             run_data.target_sequence, run_data.is_in_target_zone = 0, False  # ✓ 从0开始
             self._first_center_done = False
@@ -5813,7 +5796,11 @@ class Api:
                 run_data, idx, self.api_client, True, task_finished_event)
             task_finished_event.wait()
 
-        self.log("所有任务执行结束。")
+        if tasks_executed_count == 0:
+            self.log("所有任务均被跳过，未执行任何操作。")
+        else:
+            self.log("所有任务执行结束。")
+            
         self.stop_run_flag.set()
         if self.window:
             self.window.evaluate_js('onAllRunsToggled(false)')
@@ -6453,6 +6440,9 @@ class Api:
         except Exception:
             logging.error(f"启动刷新线程失败: {traceback.format_exc()}")
 
+        if hasattr(self, '_web_session_id') and self._web_session_id:
+            save_session_state(self._web_session_id, self, force_save=True)
+        
         return self.multi_get_all_accounts_status()
 
     def multi_remove_account(self, username):
@@ -6465,6 +6455,8 @@ class Api:
             self.log(f"已移除账号: {username}")
         # 统一刷新多账号全局按钮状态
         self._update_multi_global_buttons()
+        if hasattr(self, '_web_session_id') and self._web_session_id:
+            save_session_state(self._web_session_id, self, force_save=True)
         return self.multi_get_all_accounts_status()
 
     def multi_refresh_all_statuses(self):
@@ -6629,6 +6621,9 @@ class Api:
 
         self.log(f"移除了 {removed_count} 个选定账号。")
         self._update_multi_global_buttons()
+        if hasattr(self, '_web_session_id') and self._web_session_id:
+            save_session_state(self._web_session_id, self, force_save=True)
+        
         return self.multi_get_all_accounts_status()
 
     def multi_remove_all_accounts(self):
@@ -6643,6 +6638,8 @@ class Api:
         self.accounts.clear()
         self.log(f"已移除全部 {count} 个账号。")
         self._update_multi_global_buttons()
+        if hasattr(self, '_web_session_id') and self._web_session_id:
+            save_session_state(self._web_session_id, self, force_save=True)
         return self.multi_get_all_accounts_status()
 
     def multi_get_all_accounts_status(self):
@@ -7060,7 +7057,7 @@ class Api:
         )
         acc.worker_thread.start()
         self.log(f"已启动账号: {username}")
-        self._update_account_status_js(acc, status_text="已启动")
+        self._update_account_status_js(acc, status_text="排队等待...")
         self._update_multi_global_buttons()
         return {"success": True}
 
@@ -7649,6 +7646,8 @@ class Api:
             else:
                 acc.has_pending_tasks = True  # 有任务可执行
 
+            tasks_executed_count = 0 # 跟踪实际执行的任务数
+
             if delay > 0:
                 end_time = time.time() + delay
                 while time.time() < end_time:
@@ -7966,6 +7965,8 @@ class Api:
                 run_data.total_run_distance_m = d_covered
                 run_data.total_run_time_s = t_elapsed
 
+                tasks_executed_count += 1 # 任务已通过所有检查，准备执行
+
                 run_data.trid = f"{acc.user_data.student_id}{int(time.time() * 1000)}"
                 start_time_ms = str(int(time.time() * 1000))
                 submission_successful = True
@@ -8082,7 +8083,13 @@ class Api:
                         break
 
             if not acc.stop_event.is_set():
-                self._update_account_status_js(acc, status_text="全部完成")
+                if tasks_executed_count == 0:
+                    # 如果没有执行任何任务（全部跳过）
+                    self._update_account_status_js(acc, status_text="无任务可执行")
+                else:
+                    # 至少执行了一个任务
+                    self._update_account_status_js(acc, status_text="全部完成")
+                    
 
         except Exception:
             logging.error(
@@ -9127,7 +9134,14 @@ def save_session_state(session_id, api_instance, force_save=False):
 
             # 增强：保存用户配置参数
             if hasattr(api_instance, 'params'):
-                state['params'] = api_instance.params
+                # 复制 params 字典以进行修改
+                params_to_save = api_instance.params.copy()
+                # 从要保存到会话的字典中移除 amap_js_key
+                # amap_js_key 只应存在于 config.ini 中
+                if 'amap_js_key' in params_to_save:
+                    del params_to_save['amap_js_key']
+                
+                state['params'] = params_to_save
 
             # 增强：保存User-Agent
             if hasattr(api_instance, 'device_ua'):
@@ -9207,34 +9221,75 @@ def save_session_state(session_id, api_instance, force_save=False):
 
             # 如果是多账号模式，保存多账号相关信息
             if getattr(api_instance, 'is_multi_account_mode', False):
-                # 保存已加载的账号列表（用户名列表）
-                state['multi_account_usernames'] = list(
-                    getattr(api_instance, 'accounts', {}).keys())
 
+                # --- [BUG修复] 保存多账号列表的状态 ---
                 # 保存全局参数
-                state['multi_global_params'] = getattr(
-                    api_instance, 'global_params', {})
+                if hasattr(api_instance, 'global_params'):
+                    global_params_to_save = api_instance.global_params.copy()
+                    if 'amap_js_key' in global_params_to_save:
+                        del global_params_to_save['amap_js_key']
+                    state['multi_global_params'] = global_params_to_save
+                else:
+                    state['multi_global_params'] = {}
 
-                # 保存每个账号的状态
+                # 保存每个账号的状态（精简版，只保存恢复所需的核心信息）
                 multi_account_states = {}
                 accounts = getattr(api_instance, 'accounts', {})
                 for username, account_session in accounts.items():
                     try:
                         account_state = {
-                            'username': username,
-                            'is_running': getattr(account_session, 'is_running', False),
-                            'status_text': getattr(account_session, 'status_text', ''),
-                            'progress': getattr(account_session, 'progress', 0),
+                            # 'username': username, # 键名就是 username，无需重复
+                            'status_text': getattr(account_session, 'status_text', '待命'),
                             'school_account_logged_in': getattr(account_session, 'login_success', False),
-                            'has_tasks': len(getattr(account_session, 'all_run_data', [])) > 0,
-                            'task_count': len(getattr(account_session, 'all_run_data', [])),
-                            'completed_tasks': sum(1 for task in getattr(account_session, 'all_run_data', [])
-                                                   if getattr(task, 'status', 0) == 1),
+                            
+                            # [BUG 修复] 必须保存 summary 字典，UI 恢复依赖此信息
+                            'summary': getattr(account_session, 'summary', {}),
                         }
+                        
                         # 保存账号特定参数（如果有）
                         if hasattr(account_session, 'params'):
                             account_state['params'] = account_session.params
+                        
                         multi_account_states[username] = account_state
+                        
+                    except Exception as e:
+                        logging.warning(f"保存账号 {username} 状态时出错: {e}")
+                        continue
+
+                state['multi_account_states'] = multi_account_states
+                # 保存已加载的账号列表（用户名列表）
+                state['multi_account_usernames'] = list(
+                    getattr(api_instance, 'accounts', {}).keys())
+
+                # 保存全局参数
+                if hasattr(api_instance, 'global_params'):
+                    global_params_to_save = api_instance.global_params.copy()
+                    if 'amap_js_key' in global_params_to_save:
+                        del global_params_to_save['amap_js_key']
+                    state['multi_global_params'] = global_params_to_save
+                else:
+                    state['multi_global_params'] = {}
+
+                # 保存每个账号的状态（精简版，只保存恢复所需的核心信息）
+                multi_account_states = {}
+                accounts = getattr(api_instance, 'accounts', {})
+                for username, account_session in accounts.items():
+                    try:
+                        account_state = {
+                            # 'username': username, # 键名就是 username，无需重复
+                            'status_text': getattr(account_session, 'status_text', '待命'),
+                            'school_account_logged_in': getattr(account_session, 'login_success', False),
+                            
+                            # [BUG 修复] 必须保存 summary 字典，UI 恢复依赖此信息
+                            'summary': getattr(account_session, 'summary', {}),
+                        }
+                        
+                        # 保存账号特定参数（如果有）
+                        if hasattr(account_session, 'params'):
+                            account_state['params'] = account_session.params
+                        
+                        multi_account_states[username] = account_state
+                        
                     except Exception as e:
                         logging.warning(f"保存账号 {username} 状态时出错: {e}")
                         continue
@@ -9531,29 +9586,78 @@ def restore_session_to_api_instance(api_instance, state):
                 # 恢复账号列表的基本信息（修复：页面刷新后账号列表丢失）
                 if 'multi_account_states' in state:
                     multi_account_states = state['multi_account_states']
+                    
+                    logging.info(f"会话恢复：找到 {len(multi_account_states)} 个账号状态，正在重建...")
+                    
                     for username, account_state in multi_account_states.items():
                         if username not in api_instance.accounts:
-                            # 重新创建账号会话对象（仅基本信息）
-                            from collections import namedtuple
-                            UserData = namedtuple(
-                                'UserData', ['name', 'id', 'student_id'])
-                            
-                            acc = api_instance.AccountSession()
-                            acc.username = username
-                            acc.user_data = UserData(
-                                name=username, id='', student_id='')
-                            acc.status_text = account_state.get('status_text', '待命')
-                            acc.params = account_state.get('params', api_instance.global_params.copy())
-                            acc.summary = {
-                                'total': 0, 'completed': 0, 'not_started': 0,
-                                'executable': 0, 'expired': 0,
-                                'att_pending': 0, 'att_completed': 0, 'att_expired': 0
-                            }
-                            api_instance.accounts[username] = acc
-                            logging.info(f"会话恢复：重建账号 {username} 的基本信息")
+                            try:
+                                # [BUG 修复] 启动时重建 AccountSession 实例
+                                # 1. 从 .ini 文件加载该账号的密码 (必须)
+                                #    _load_config 也会加载 .ini 中的 params 和 ua, 
+                                #    但我们稍后会用会话中保存的 params 覆盖它。
+                                loaded_password = api_instance._load_config(username) 
+                                
+                                # 2. 从 .ini 加载 tag
+                                loaded_tag = api_instance._load_account_tag(username)
+
+                                # 3. 正确创建 AccountSession 实例
+                                #    (Api 实例本身就是 api_bridge)
+                                acc = AccountSession(
+                                    username=username,
+                                    password=loaded_password or "", # 如果 .ini 没有密码，则为空
+                                    api_bridge=api_instance,
+                                    tag=loaded_tag or ""
+                                )
+                                
+                                # 4. 恢复会话中保存的状态
+                                acc.status_text = account_state.get('status_text', '待命')
+                                
+                                # 优先使用会话中保存的 params，其次是刚从 .ini 加载的，最后是全局
+                                acc.params = account_state.get('params', acc.params) 
+                                
+                                # [BUG 修复] 恢复会话中保存的 summary
+                                acc.summary = account_state.get('summary', {
+                                    'total': 0, 'completed': 0, 'not_started': 0,
+                                    'executable': 0, 'expired': 0,
+                                    'att_pending': 0, 'att_completed': 0, 'att_expired': 0
+                                })
+                                
+                                # 恢复 user_data (如果已登录过)
+                                if account_state.get('school_account_logged_in', False):
+                                    acc.login_success = True
+                                    # (user_data 字段在 AccountSession 初始化时是空的, 
+                                    #  下次刷新 _multi_refresh_worker 时会自动填充)
+                                
+                                # 5. 添加到 Api 实例的 accounts 字典中
+                                api_instance.accounts[username] = acc
+                                logging.info(f"会话恢复：成功重建账号 {username} (密码从 .ini 加载)")
+                                
+                            except Exception as e:
+                                logging.error(f"会话恢复：重建账号 {username} 失败: {e}", exc_info=True)
+                                continue # 跳过这个损坏的账号
+                
+                # --- 启动后立即刷新所有已恢复账号的状态 ---
+                if len(api_instance.accounts) > 0:
+                    logging.info(f"会话恢复：正在为 {len(api_instance.accounts)} 个已恢复的账号启动后台刷新...")
+                    for acc_session in api_instance.accounts.values():
+                        try:
+                            # 为每个账号启动一个独立的刷新工作线程
+                            # preserve_status=False 确保UI显示“刷新中...”
+                            # 我们使用 threading.Thread，因为 _multi_refresh_worker 内部的
+                            # eventlet/socketio 调用会在需要时自动“绿化”这个线程。
+                            threading.Thread(
+                                target=api_instance._multi_refresh_worker,
+                                args=(acc_session, False), # False 表示不保留旧状态，强制刷新
+                                daemon=True,
+                                name=f"RestoreRefresh-{acc_session.username}" # 为线程添加名称
+                            ).start()
+                        except Exception as thread_err:
+                            logging.error(f"会话恢复：启动账号 {acc_session.username} 的刷新线程失败: {thread_err}", exc_info=True)
+                # --- [BUG修复结束] ---
 
                 logging.info(
-                    f"会话恢复：检测到多账号模式，账号数: {len(api_instance.accounts)}")
+                    f"会话恢复：检测到多账号模式，已恢复 {len(api_instance.accounts)} 个账号")
 
         # 恢复停止标志状态
         if 'stop_run_flag_set' in state:
@@ -14219,6 +14323,8 @@ def start_web_server(args_param):
             GET /JavaScript/onlogin.js
             --> 返回 onlogin 相关的 JavaScript 函数代码
         """
+        if function_path == 'JavaScript_globals':
+            return redirect("/JavaScript_globals.js")
         try:
             # 读取完整的 JavaScript.js 文件内容
             js_file_path = os.path.join(os.path.dirname(__file__), 'JavaScript.js')
@@ -14246,7 +14352,7 @@ def start_web_server(args_param):
             import re
             
             # 构建匹配模式：查找函数声明、函数表达式或箭头函数
-            pattern = rf'(?:^|\n)(\s*(?:function\s+{function_name}\s*\([^)]*\)|(?:const|let|var)\s+{function_name}\s*=\s*(?:function\s*\([^)]*\)|(?:async\s+)?function\s*\([^)]*\)|\([^)]*\)\s*=>))\s*{{)'
+            pattern = rf'(?:^|\n)(\s*(?:(?:async\s+)?function\s+{function_name}\s*\([^)]*\)|(?:const|let|var)\s+{function_name}\s*=\s*(?:function\s*\([^)]*\)|(?:async\s+)?function\s*\([^)]*\)|\([^)]*\)\s*=>))\s*{{)'
             
             match = re.search(pattern, full_content, re.MULTILINE)
             
@@ -14344,8 +14450,7 @@ def start_web_server(args_param):
             
             # 获取文件的最后修改时间，用于条件请求
             file_mtime = os.path.getmtime(js_file_path)
-            from datetime import datetime
-            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
             response.headers['Last-Modified'] = last_modified
             
             # 生成 ETag（基于文件内容的哈希值）
@@ -14427,8 +14532,7 @@ def start_web_server(args_param):
 
             # 设置响应头
             file_mtime = os.path.getmtime(js_globals_file)
-            from datetime import datetime
-            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
             
             import hashlib
             etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
@@ -14456,158 +14560,59 @@ def start_web_server(args_param):
             logging.error(f"加载 JavaScript_globals.js 时发生错误: {e}", exc_info=True)
             return jsonify({"error": "Internal server error"}), 500
 
-    @app.route('/css/<Cascading_Style_Sheets_path>.css', methods=['GET'])
-    def serve_css(Cascading_Style_Sheets_path):
+    @app.route('/Cascading_Style_Sheets_Web_animation.css', methods=['GET'])
+    def serve_css_animation():
         """
-        CSS 样式分段动态加载 API 端点
-        
+        返回 CSS 动画文件（优先加载）
+
         功能说明：
-            根据路径参数从 Cascading_Style_Sheets.css 统一文件中提取对应的 CSS 规则块。
-            支持自动压缩和浏览器缓存。
-        
-        参数：
-            Cascading_Style_Sheets_path (str): CSS 选择器名称（如 'body', 'panel', 'theme-anime' 等）
-        
+            返回 Cascading_Style_Sheets_Web_animation.css 文件，包含所有 CSS 动画样式
+            此文件必须在主 CSS 文件之前加载，避免样式未定义错误
+
         查询参数：
-            - minify: 是否压缩 CSS（默认 true）
-              * true/1/yes: 压缩 CSS（移除注释和空白）
-              * false/0/no: 返回原始 CSS（保留格式）
+            - minify: 是否压缩代码（默认 true）
         
         返回：
-            - 200: 成功返回 CSS 代码
+            - 200: 成功返回全局变量代码
             - 304: 使用缓存版本
-            - 404: CSS 规则未找到
+            - 404: 文件未找到
             - 500: 服务器内部错误
         
-        压缩效果：
-            通常可减小 20-30% 的文件大小
-        
-        使用示例：
-            - /css/body.css                    --> 返回 body { ... } 规则
-            - /css/panel.css                   --> 返回 .panel { ... } 规则
-            - /css/Cascading_Style_Sheets.css  --> 返回完整 CSS 文件
-        
-        实现细节：
-            如果请求的是 'Cascading_Style_Sheets'，返回完整的 CSS 文件。
-            否则，从 Cascading_Style_Sheets.css 中提取指定选择器的 CSS 规则块。
         """
         try:
-            # 统一的 CSS 文件路径
-            css_file = os.path.join(os.path.dirname(__file__), 'Cascading_Style_Sheets.css')
-            
-            if not os.path.exists(css_file):
-                logging.error(f"CSS 文件不存在: {css_file}")
-                return jsonify({"error": "CSS file not found"}), 500
-            
-            # 读取完整的 CSS 文件内容
-            with open(css_file, 'r', encoding='utf-8') as f:
-                full_content = f.read()
-            
-            # 如果请求的是完整文件（Cascading_Style_Sheets），直接返回全部内容
-            if Cascading_Style_Sheets_path == 'Cascading_Style_Sheets':
-                original_content = full_content
-            else:
-                # 否则，从文件中提取指定选择器的 CSS 规则
-                import re
-                
-                # 转义特殊字符，用于正则表达式匹配
-                selector_pattern = re.escape(Cascading_Style_Sheets_path)
-                
-                # 构建多种可能的 CSS 选择器模式
-                # 模式1: body { ... }                    (标签选择器)
-                # 模式2: .class-name { ... }            (类选择器)
-                # 模式3: #id-name { ... }               (ID选择器)
-                # 模式4: body.theme-anime { ... }       (组合选择器)
-                # 模式5: .panel, .card { ... }          (多选择器)
-                
-                patterns = [
-                    # 精确匹配：选择器名称 + 可选空格 + 左大括号
-                    rf'(?:^|\n)\s*({selector_pattern})\s*{{',
-                    # 类选择器：.class-name
-                    rf'(?:^|\n)\s*(\.{selector_pattern})\s*{{',
-                    # ID选择器：#id-name
-                    rf'(?:^|\n)\s*(#{selector_pattern})\s*{{',
-                    # 组合选择器：tag.class 或 .class.another
-                    rf'(?:^|\n)\s*(\w*\.{selector_pattern}(?:\.\w+)*)\s*{{',
-                    rf'(?:^|\n)\s*({selector_pattern}\.\w+)\s*{{',
-                ]
-                
-                match = None
-                matched_selector = None
-                
-                # 尝试所有模式
-                for pattern in patterns:
-                    match = re.search(pattern, full_content, re.MULTILINE)
-                    if match:
-                        matched_selector = match.group(1)
-                        break
-                
-                if not match:
-                    logging.error(f"CSS 规则未找到: {Cascading_Style_Sheets_path}")
-                    return jsonify({"error": f"CSS rule '{Cascading_Style_Sheets_path}' not found"}), 404
-                
-                # 找到规则起始位置（从选择器开始）
-                rule_start = match.start()
-                
-                # 查找规则结束位置（匹配大括号）
-                brace_count = 0
-                in_rule = False
-                rule_end = rule_start
-                
-                for i in range(rule_start, len(full_content)):
-                    char = full_content[i]
-                    
-                    if char == '{':
-                        brace_count += 1
-                        in_rule = True
-                    elif char == '}':
-                        brace_count -= 1
-                        
-                        # 当大括号计数归零时，说明规则定义结束
-                        if in_rule and brace_count == 0:
-                            rule_end = i + 1
-                            break
-                
-                # 提取 CSS 规则
-                original_content = full_content[rule_start:rule_end].strip()
+            css_animation_file = os.path.join(os.path.dirname(__file__), 'Cascading_Style_Sheets_Web_animation.css')
+
+            if not os.path.exists(css_animation_file):
+                logging.error(f"CSS 动画文件不存在: {css_animation_file}")
+                return jsonify({"error": "CSS animation file not found"}), 404
+
+            # 读取文件内容
+            with open(css_animation_file, 'r', encoding='utf-8') as f:
+                original_content = f.read()
             
             # 检查是否需要压缩
             minify_param = request.args.get('minify', 'true').lower()
             should_minify = minify_param in ['true', '1', 'yes', '']
             
             # if should_minify:
-            #     # 简单的 CSS 压缩：移除注释和多余空白
-            #     import re
-            #     # 移除 CSS 注释
-            #     content = re.sub(r'/\*.*?\*/', '', original_content, flags=re.DOTALL)
-            #     # 移除多余空白
-            #     content = re.sub(r'\s+', ' ', content)
-            #     # 移除属性值周围的空格
-            #     content = re.sub(r'\s*([{}:;,])\s*', r'\1', content)
-            #     content = content.strip()
-                
+            #     content = minify_javascript(original_content)
             #     content_type_suffix = ' (minified)'
-            #     logging.info(f"CSS 压缩：{len(original_content)} 字节 -> {len(content)} 字节 ({(1-len(content)/len(original_content))*100:.1f}%)")
+            #     logging.info(f"JavaScript_globals.js 压缩：{len(original_content)} 字节 -> {len(content)} 字节")
             # else:
             #     content = original_content
             #     content_type_suffix = ' (original)'
-            
-
             if should_minify:
-                # 简单的 CSS 压缩：移除注释和多余空白
-                # （已禁用，因为自定义压缩器有Bug）
+                # 压缩功能已禁用（原始压缩器有Bug），始终返回原始代码
                 content = original_content
-                
                 content_type_suffix = ' (original, compression disabled)'
-                logging.info(f"CSS 压缩功能已禁用，返回原始大小: {len(original_content)} 字节")
+                logging.info(f"Cascading_Style_Sheets_Web_animation.css 压缩功能已禁用，返回原始大小: {len(original_content)} 字节")
             else:
                 content = original_content
                 content_type_suffix = ' (original)'
 
             # 设置响应头
-            file_mtime = os.path.getmtime(css_file)
-            from datetime import datetime
-            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            file_mtime = os.path.getmtime(css_animation_file)
+            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
             
             import hashlib
             etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
@@ -14618,6 +14623,231 @@ def start_web_server(args_param):
             if_none_match = request.headers.get('If-None-Match')
             
             if (if_modified_since == last_modified) or (if_none_match == etag):
+                logging.debug(f"Cascading_Style_Sheets_Web_animation.css 使用缓存版本 (304){content_type_suffix}")
+                return '', 304
+            
+            response = make_response(content)
+            response.headers['Content-Type'] = 'text/css; charset=utf-8'
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            response.headers['Last-Modified'] = last_modified
+            response.headers['ETag'] = etag
+            response.headers['X-Minified'] = 'true' if should_minify else 'false'
+            
+            logging.info(f"成功返回 Cascading_Style_Sheets_Web_animation.css{content_type_suffix} ({len(content)} 字符)")
+            return response
+            
+        except Exception as e:
+            logging.error(f"加载 Cascading_Style_Sheets_Web_animation.css 时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
+
+    def get_parsed_stylesheet(css_file_path):
+        """
+        获取解析后的 CSS 样式表（实时读取，不使用内存缓存）。
+        
+        返回 (stylesheet, selectors_list)
+        """
+        
+        # --- 4. 优化：在解析前先检查文件是否存在 ---
+        if not os.path.exists(css_file_path):
+            logging.error(f"CSS 文件不存在: {css_file_path}")
+            return None, None
+
+        try:
+            logging.info(f"正在实时解析 CSS 文件: {css_file_path}")
+
+            # 解析前重置缩进/压缩偏好
+            cssutils.ser.prefs.useDefaults() 
+            
+            # 抑制 cssutils 自己的日志，防止它因错误停止
+            cssutils.log.setLevel(logging.CRITICAL) 
+            
+            # 创建一个不进行验证的解析器
+            parser = cssutils.CSSParser(validate=False)
+            
+            # 使用该解析器实例来解析文件
+            stylesheet = parser.parseFile(css_file_path, encoding='utf-8')
+            
+            # 生成选择器列表
+            selectors = set()
+            for rule in stylesheet:
+                if rule.type == cssutils.css.CSSRule.STYLE_RULE:
+                    # 这是一个样式规则 (例如 .class, #id)
+                    for selector in rule.selectorList:
+                        selectors.add(selector.selectorText.strip())
+                
+                # --- 2. 移除 @keyframes 兼容性 ---
+                # (此处原有的 KEYFRAMES_RULE 和 UNKNOWN_RULE 逻辑已删除)
+
+            sorted_selectors = sorted(list(selectors))
+            
+            # --- 1. 移除缓存：不再更新 _css_cache ---
+            
+            return stylesheet, sorted_selectors
+        
+        except Exception as e:
+            logging.error(f"解析 CSS 文件时出错: {e}", exc_info=True)
+            # --- 1. 移除缓存：出错时不再需要清理缓存 ---
+            return None, None
+
+
+    @app.route('/css/available-selectors.list', methods=['GET'])
+    def get_available_css_selectors():
+        """
+        返回 Cascading_Style_Sheets.css 文件中所有可用的 CSS 选择器列表。
+        """
+            
+        # --- 1. 代码复用：定义统一的 CSS 文件路径常量 ---
+        # 使用 os.path.dirname(__file__) 来确保路径总是相对于当前脚本
+        try:
+            CURRENT_DIR = os.path.dirname(__file__)
+        except NameError:
+            CURRENT_DIR = os.getcwd() # 备用方案（例如在 REPL 中）
+            
+        CSS_FILE_PATH = os.path.join(CURRENT_DIR, 'Cascading_Style_Sheets.css')
+        try:
+            # --- 4. 复用：使用常量 ---
+            # --- 1. 移除缓存：每次都调用解析函数 ---
+            
+            # 优化：在解析前先检查文件
+            if not os.path.exists(CSS_FILE_PATH):
+                return jsonify({"错误": "找不到 CSS 文件"}), 500
+                
+            stylesheet, selectors = get_parsed_stylesheet(CSS_FILE_PATH)
+            
+            if not stylesheet:
+                # get_parsed_stylesheet 内部已记录文件不存在或解析失败
+                return jsonify({"错误": "解析 CSS 文件失败"}), 500
+
+            # --- 1. 移除缓存：从文件系统实时获取 mtime 用于 HTTP 缓存 ---
+            file_mtime = os.path.getmtime(CSS_FILE_PATH)
+            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            
+            # ETag 基于选择器列表的内容
+            etag = f'"{hashlib.md5(str(selectors).encode("utf-8")).hexdigest()}"'
+            
+            # 检查 HTTP 缓存头
+            if (request.headers.get('If-Modified-Since') == last_modified) or \
+            (request.headers.get('If-None-Match') == etag):
+                return '', 304
+
+            response = make_response(jsonify(selectors))
+            response.headers['Cache-Control'] = 'public, max-age=3600' # 1 小时浏览器缓存
+            response.headers['Last-Modified'] = last_modified
+            response.headers['ETag'] = etag
+            
+            logging.info(f"成功返回 {len(selectors)} 个 CSS 选择器。")
+            return response
+        
+        except Exception as e:
+            logging.error(f"获取 CSS 选择器列表时发生错误: {e}", exc_info=True)
+            return jsonify({"error": "Internal server error"}), 500
+
+    # --- 3. 修复路由：使用更健壮的 <path:css_path> 并内部处理 .css 后缀 ---
+    @app.route('/css/<path:css_path>', methods=['GET'])
+    def serve_css(css_path):
+        """
+        CSS 样式分段动态加载 API 端点
+        
+        使用示例：
+            - /css/body.css
+            - /css/.panel.css
+            - /css/#admin-modal-close-btn:hover.css
+        """
+        
+        # --- 1. 代码复用：定义统一的 CSS 文件路径常量 ---
+        # 使用 os.path.dirname(__file__) 来确保路径总是相对于当前脚本
+        try:
+            CURRENT_DIR = os.path.dirname(__file__)
+        except NameError:
+            CURRENT_DIR = os.getcwd() # 备用方案（例如在 REPL 中）
+            
+        CSS_FILE_PATH = os.path.join(CURRENT_DIR, 'Cascading_Style_Sheets.css')
+        try:
+            # --- 3. 修复路由：检查并剥离 .css 后缀 ---
+            if not css_path or not css_path.endswith('.css'):
+                logging.warning(f"无效的 CSS 请求路径: {css_path}")
+                return jsonify({"error": "Invalid path. Must end with .css"}), 404
+            
+            # 移除末尾的 '.css' 来获取原始选择器字符串
+            requested_selector_raw = css_path[:-4]
+            
+            # --- 4. 复用：使用常量 ---
+            # 优化：在解析前先检查文件
+            if not os.path.exists(CSS_FILE_PATH):
+                logging.error(f"CSS 文件不存在: {CSS_FILE_PATH}")
+                return jsonify({"error": "CSS file not found"}), 500
+                
+            # --- 1. 移除缓存：每次都调用解析函数 ---
+            stylesheet, _ = get_parsed_stylesheet(CSS_FILE_PATH)
+            
+            if not stylesheet:
+                return jsonify({"error": "Failed to parse CSS file"}), 500
+            
+            # 1. 检查是否需要压缩
+            minify_param = request.args.get('minify', 'true').lower()
+            should_minify = minify_param in ['true', '1', 'yes', '']
+            
+            # 2. 设置 cssutils 的压缩偏好
+            if should_minify:
+                cssutils.ser.prefs.useMinified()
+                content_type_suffix = ' (minified)'
+            else:
+                cssutils.ser.prefs.useDefaults()
+                content_type_suffix = ' (original)'
+
+            # 3. 解码 URL 中的选择器
+            try:
+                # 步骤 1: 替换组合选择器 (例如 '+~+' -> ' ~ ')
+                requested_selector_decoded = requested_selector_raw.replace('+~+', ' ~ ')
+                requested_selector_decoded = requested_selector_decoded.replace('+>+', ' > ')
+                # 步骤 2: 替换剩余的 '+' 为空格
+                requested_selector = requested_selector_decoded.replace('+', ' ')
+                
+                if requested_selector_raw != requested_selector:
+                    logging.debug(f"CSS 选择器解码: '{requested_selector_raw}' -> '{requested_selector}'")
+                    
+            except Exception as decode_err:
+                logging.warning(f"CSS 选择器解码失败: {decode_err}，将使用原始请求字符串")
+                requested_selector = requested_selector_raw
+
+            if requested_selector == 'Web_animation':
+                return redirect("/Cascading_Style_Sheets_Web_animation.css")
+            found_css_text = []
+
+            # 遍历 stylesheet 对象
+            for rule in stylesheet:
+                if rule.type == cssutils.css.CSSRule.STYLE_RULE:
+                    # 这是一个样式规则
+                    for selector in rule.selectorList:
+                        if selector.selectorText.strip() == requested_selector:
+                            # 找到了！.cssText 会根据上面设置的偏好自动格式化
+                            found_css_text.append(rule.cssText)
+                            break # 找到后跳出内循环
+                
+                # --- 2. 移除 @keyframes 兼容性 ---
+                # (此处原有的 KEYFRAMES_RULE 和 UNKNOWN_RULE 逻辑已删除)
+
+            if not found_css_text:
+                logging.warning(f"CSS 规则未找到: {requested_selector} (原始请求: {css_path})")
+                return jsonify({"error": f"CSS rule '{requested_selector}' not found"}), 404
+            
+            # 合并所有匹配的规则
+            content = "\n".join(found_css_text)
+            
+            # --- 1. 移除缓存：从文件系统实时获取 mtime 用于 HTTP 缓存 ---
+            file_mtime = os.path.getmtime(CSS_FILE_PATH)
+            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            
+            # ETag 必须基于 *生成的 content*
+            etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
+            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+            
+            # 检查条件请求
+            if_modified_since = request.headers.get('If-Modified-Since')
+            if_none_match = request.headers.get('If-None-Match')
+            
+            if (if_none_match == etag) or (not if_none_match and if_modified_since == last_modified):
                 logging.debug(f"CSS 使用缓存版本 (304){content_type_suffix}")
                 return '', 304
             
@@ -14628,14 +14858,16 @@ def start_web_server(args_param):
             response.headers['ETag'] = etag
             response.headers['X-Minified'] = 'true' if should_minify else 'false'
             
-            logging.info(f"成功返回 CSS{content_type_suffix} ({len(content)} 字符)")
+            logging.info(f"成功返回 CSS{content_type_suffix} ({len(content)} 字符) for: {requested_selector}")
             return response
             
         except Exception as e:
             logging.error(f"加载 CSS 时发生错误: {e}", exc_info=True)
             return jsonify({"error": "Internal server error"}), 500
 
-    @app.route('/html/<path:fragment_name>.html', methods=['GET'])
+
+
+    @app.route('/html/<path:fragment_name>.json', methods=['GET'])
     def serve_html_fragment(fragment_name):
         """
         HTML 片段动态加载 API 端点（支持自动压缩，从统一文件读取）
@@ -14690,9 +14922,9 @@ def start_web_server(args_param):
         
         实现细节：
             片段存储在 html_fragments.html 文件中，格式如下：
-            <!-- BEGIN_FRAGMENT: fragment-name -->
+            <!-- 段落开始： fragment-name -->
             <div id="fragment-name">...</div>
-            <!-- END_FRAGMENT: fragment-name -->
+            <!-- 段落结束： fragment-name -->
         """
         try:
             # 统一的 HTML 片段文件
@@ -14708,9 +14940,9 @@ def start_web_server(args_param):
                 fragments_content = f.read()
             
             # 从文件中提取指定的片段
-            # 格式：<!-- BEGIN_FRAGMENT: fragment-name --> ... <!-- END_FRAGMENT: fragment-name -->
+            # 格式：<!-- 段落开始： fragment-name --> ... <!-- 段落结束： fragment-name -->
             import re
-            pattern = rf'<!-- BEGIN_FRAGMENT: {re.escape(fragment_name)} -->\s*(.*?)\s*<!-- END_FRAGMENT: {re.escape(fragment_name)} -->'
+            pattern = rf'<!-- 段落开始： {re.escape(fragment_name)} -->\s*(.*?)\s*<!-- 段落结束： {re.escape(fragment_name)} -->'
             match = re.search(pattern, fragments_content, re.DOTALL)
             
             if not match:
@@ -14751,8 +14983,7 @@ def start_web_server(args_param):
 
             # 设置 Last-Modified（基于统一文件的修改时间）
             file_mtime = os.path.getmtime(fragments_file)
-            from datetime import datetime
-            last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
+            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
             
             # 设置 ETag（基于内容哈希 + 压缩标志）
             import hashlib
