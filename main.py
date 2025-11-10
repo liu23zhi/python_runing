@@ -1,24 +1,120 @@
 # 跑步助手
 # 这是一个基于Flask的Web应用，用于模拟跑步任务的执行
 
+# ============================================================================
+# 预导入：文件级别必需的内置模块
+# 这些模块用于定义类和全局变量，必须在文件加载时就可用
+# ============================================================================
+
+# 存储导入失败的模块信息
+_import_failures = []
+
+def _try_import_builtin(module_name, display_name=None):
+    """
+    尝试导入内置模块，失败时记录但不立即退出。
+    
+    参数:
+        module_name: 模块名称（用于import语句）
+        display_name: 显示名称（用于错误提示，可选）
+    
+    返回:
+        模块对象或None（失败时）
+    """
+    if display_name is None:
+        display_name = module_name
+    
+    try:
+        module = __import__(module_name)
+        print(f"[导入检查] ✓ {display_name} 导入成功")
+        return module
+    except ImportError as e:
+        error_msg = f"内置模块 '{display_name}' 导入失败: {e}"
+        _import_failures.append({
+            'module': display_name,
+            'type': 'builtin',
+            'error': str(e)
+        })
+        print(f"[导入检查] ✗ {display_name} 导入失败: {e}")
+        return None
+
+# 导入所有必需的内置模块
+print("[导入检查] 开始导入Python内置模块...")
+logging = _try_import_builtin('logging')
+sys = _try_import_builtin('sys')
+os = _try_import_builtin('os')
+re = _try_import_builtin('re')
+time = _try_import_builtin('time')
+threading = _try_import_builtin('threading')
+hashlib = _try_import_builtin('hashlib')
+json = _try_import_builtin('json')
+configparser = _try_import_builtin('configparser')
+datetime = _try_import_builtin('datetime')
+traceback = _try_import_builtin('traceback')
+zipfile = _try_import_builtin('zipfile')
+random = _try_import_builtin('random')
+argparse = _try_import_builtin('argparse')
+
+# 检查是否有导入失败
+if _import_failures:
+    print(f"\n{'='*70}")
+    print(f"[致命错误] 内置模块导入失败")
+    print(f"{'='*70}")
+    print(f"\n检测到 {len(_import_failures)} 个内置模块导入失败：\n")
+    for i, failure in enumerate(_import_failures, 1):
+        print(f"  {i}. {failure['module']}")
+        print(f"     错误: {failure['error']}\n")
+    print("这通常表示您的 Python 环境已损坏。")
+    print("建议重新安装 Python 或修复当前安装。")
+    print(f"{'='*70}\n")
+    if sys:
+        sys.exit(1)
+    else:
+        exit(1)
+
+print("[导入检查] ✓ 所有内置模块导入成功\n")
+
+# 配置UTF-8编码（用于日志和控制台输出）
+if sys and sys.platform.startswith('win'):
+    # Windows系统特殊处理
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Python 3.6及更早版本不支持reconfigure
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
+# ============================================================================
+# 延迟导入函数：第三方库和可选模块在main()中导入
+# ============================================================================
+
+
+def import_builtin_modules():
+    """
+    兼容性函数：确保内置模块已导入。
+    
+    注意：内置模块现在在文件顶部预导入，此函数保留用于兼容性。
+    在main()函数中调用此函数可以确认所有模块都已正确加载。
+    """
+    if logging:
+        logging.info("[模块导入] 内置模块已预加载完成")
+    return True
+
 
 def import_logging_and_other_early_modules():
     """
-    在程序启动的最早阶段导入 logging 和其他必要的模块。
-    这样可以确保在后续导入过程中出现错误时，日志系统已经可用，
-    并且可以记录任何导入错误。
+    兼容性函数：在程序启动的最早阶段导入模块。
+    现在由文件顶部的预导入统一处理。
     """
-    # 优先导入 logging 和 sys，用于在启动早期捕获错误
-    import logging
-    import sys
-    import os # os 也是早期需要的，比如用于日志路径
+    pass
 
 
 
 def import_standard_libraries():
     """
     逐步导入所有必需的标准库。
-    这是为了精确确定问题，如果标准库缺失，通常表示 Python 环境损坏。
+    收集所有导入失败的模块，最后统一报告，便于用户一次性解决所有问题。
     """
     logging.info("="*80)
     logging.info("开始检查并导入 Python 标准库...")
@@ -54,25 +150,57 @@ def import_standard_libraries():
         ('zipfile', 'import zipfile')
     ]
 
-    try:
-        for name, import_cmd in std_libs:
+    failed_imports = []
+    
+    # 逐个尝试导入，收集所有失败的模块
+    for name, import_cmd in std_libs:
+        try:
             logging.info(f"  -> 正在导入 {name}...")
+            print(f"[依赖检查]   -> {name}...", end=" ")
             exec(import_cmd, globals())
             logging.info(f"  ✓ {name} 导入成功")
-        
-        # 特殊处理 fcntl (仅限非 Windows 平台)
-        if sys.platform != 'win32':
+            print("✓")
+        except ImportError as e:
+            logging.error(f"  ✗ {name} 导入失败: {e}")
+            print(f"✗ ({e})")
+            failed_imports.append({
+                'name': name,
+                'error': str(e)
+            })
+    
+    # 特殊处理 fcntl (仅限非 Windows 平台)
+    if sys.platform != 'win32':
+        try:
             logging.info("  -> 正在导入 fcntl (非Windows)...")
+            print(f"[依赖检查]   -> fcntl (非Windows)...", end=" ")
             import fcntl
             globals()['fcntl'] = fcntl
             logging.info("  ✓ fcntl 导入成功")
-        else:
-            logging.warning("  -> fcntl 模块在 Windows 平台不可用，已跳过。")
-
-    except ImportError as e:
-        logging.critical(f"标准库导入失败: {e}", exc_info=True)
-        print(f"\n[致命错误] 标准库 '{e.name}' 导入失败！", file=sys.stderr)
-        print("这可能表示您的 Python 环境已损坏。请检查您的 Python 安装。", file=sys.stderr)
+            print("✓")
+        except ImportError as e:
+            logging.error(f"  ✗ fcntl 导入失败: {e}")
+            print(f"✗ ({e})")
+            failed_imports.append({
+                'name': 'fcntl',
+                'error': str(e)
+            })
+    else:
+        logging.warning("  -> fcntl 模块在 Windows 平台不可用，已跳过。")
+        print("[依赖检查]   -> fcntl (Windows平台跳过)")
+    
+    # 如果有导入失败，统一报告
+    if failed_imports:
+        logging.critical(f"标准库导入失败，共 {len(failed_imports)} 个模块")
+        print(f"\n{'='*70}")
+        print(f"[致命错误] Python 标准库导入失败")
+        print(f"{'='*70}")
+        print(f"\n检测到 {len(failed_imports)} 个标准库导入失败：\n")
+        for i, failure in enumerate(failed_imports, 1):
+            print(f"  {i}. {failure['name']}")
+            print(f"     错误: {failure['error']}\n")
+        print("这可能表示您的 Python 环境已损坏。")
+        print("请检查您的 Python 安装或尝试重新安装 Python。")
+        print(f"{'='*70}\n")
         sys.exit(1)
     
     print("[依赖检查] ✓ 所有标准库导入成功！")
@@ -82,37 +210,55 @@ def import_standard_libraries():
 def import_core_third_party():
     """
     导入 'check_and_import_dependencies' 未涵盖的核心第三方库。
-    这些库通常是程序运行的基础。
+    收集所有导入失败的模块，最后统一报告。
     """
     logging.info("="*80)
     logging.info("开始检查并导入核心第三方库 (Pillow, bcrypt, Flask-SocketIO)...")
-    print("[依赖检查] 正在导入核心第三方库 (Pillow, bcrypt, Flask-SocketIO)...")
+    print("[依赖检查] 正在导入核心第三方库...")
 
-    # (显示名称, 导入命令)
+    # (显示名称, 导入命令, pip包名)
     core_libs = [
-        ('PIL (Pillow)', 'from PIL import Image'),
-        ('bcrypt', 'import bcrypt'),
-        ('Flask-SocketIO', 'from flask_socketio import SocketIO, emit, join_room, leave_room')
+        ('PIL (Pillow)', 'from PIL import Image', 'Pillow'),
+        ('bcrypt', 'import bcrypt', 'bcrypt'),
+        ('Flask-SocketIO', 'from flask_socketio import SocketIO, emit, join_room, leave_room', 'Flask-SocketIO')
     ]
-    # 对应的 pip 包名
-    pip_names = "Pillow bcrypt Flask-SocketIO"
 
-    try:
-        for name, import_cmd in core_libs:
-            logging.info(f"  -> 正在导入 {name}...")
+    failed_imports = []
+    
+    # 逐个尝试导入
+    for display_name, import_cmd, pip_name in core_libs:
+        try:
+            logging.info(f"  -> 正在导入 {display_name}...")
+            print(f"[依赖检查]   -> {display_name}...", end=" ")
             exec(import_cmd, globals())
-            logging.info(f"  ✓ {name} 导入成功")
-            
-    except ImportError as e:
-        missing_module_name = e.name
-        logging.critical(f"核心第三方库导入失败: {e}", exc_info=True)
-        print(f"\n{'='*70}\n[依赖缺失错误]\n\n"
-              f"程序启动失败，缺少核心库: '{missing_module_name}'\n"
-              f"请在您的终端（命令行）中运行以下命令来安装它:\n\n"
-              f"  pip install {pip_names}\n\n"
-              f"如果您使用的是 pip3，请运行:\n"
-              f"  pip3 install {pip_names}\n"
-              f"\n{'='*70}\n", file=sys.stderr)
+            logging.info(f"  ✓ {display_name} 导入成功")
+            print("✓")
+        except ImportError as e:
+            logging.error(f"  ✗ {display_name} 导入失败: {e}")
+            print(f"✗ ({e})")
+            failed_imports.append({
+                'name': display_name,
+                'pip_name': pip_name,
+                'error': str(e)
+            })
+    
+    # 如果有导入失败，统一报告
+    if failed_imports:
+        logging.critical(f"核心第三方库导入失败，共 {len(failed_imports)} 个模块")
+        pip_install_list = ' '.join([f['pip_name'] for f in failed_imports])
+        
+        print(f"\n{'='*70}")
+        print(f"[依赖缺失错误] 核心第三方库导入失败")
+        print(f"{'='*70}")
+        print(f"\n检测到 {len(failed_imports)} 个核心库导入失败：\n")
+        for i, failure in enumerate(failed_imports, 1):
+            print(f"  {i}. {failure['name']} (pip包名: {failure['pip_name']})")
+            print(f"     错误: {failure['error']}\n")
+        print("请在您的终端（命令行）中运行以下命令来安装缺失的库:")
+        print(f"\n  pip install {pip_install_list}\n")
+        print("如果您使用的是 pip3，请运行:")
+        print(f"\n  pip3 install {pip_install_list}\n")
+        print(f"{'='*70}\n")
         sys.exit(1)
     
     print("[依赖检查] ✓ 核心第三方库导入成功！")
@@ -122,7 +268,7 @@ def import_core_third_party():
 def check_and_import_dependencies():
     """
     检查并导入所有主要的第三方库 (Flask, requests, playwright 等)。
-    如果缺少任何库，将打印详细的安装说明并终止程序运行。
+    收集所有导入失败的模块，最后统一报告并提供安装命令。
     """
     logging.info("="*80)
     logging.info("开始检查并导入主要应用依赖库...")
@@ -131,145 +277,106 @@ def check_and_import_dependencies():
     # 声明我们将要修改全局变量
     global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response
     global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
-    global cssutils
+    global cssutils, playwright_available
 
     # 将所有变量预设为 None，以防导入成功但未完全解包
     Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response = (None,) * 8
     CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np, cssutils = (None,) * 10
+    playwright_available = False
 
-    try:
-        # --- 尝试导入所有必需的第三方库 ---
-
-        # 1. Flask Web 框架 (包括 make_response)
-        logging.info("  -> 正在导入 Flask Web 框架...")
-        print("[依赖检查] 正在导入 Flask Web 框架...")
-        from flask import (
-            Flask, render_template_string, session,
-            redirect, url_for, request, jsonify, make_response
-        )
-        logging.info("  ✓ Flask 导入成功")
-        print("[依赖检查] ✓ Flask 导入成功")
-
-        # 2. Flask 跨域支持
-        logging.info("  -> 正在导入 Flask CORS...")
-        print("[依赖检查] 正在导入 Flask CORS...")
-        from flask_cors import CORS
-        logging.info("  ✓ Flask CORS 导入成功")
-        print("[依赖检查] ✓ Flask CORS 导入成功")
-
-        # 3. 一次性密码 (TOTP/HOTP)
-        logging.info("  -> 正在导入 pyotp...")
-        print("[依赖检查] 正在导入 pyotp...")
-        import pyotp
-        logging.info("  ✓ pyotp 导入成功")
-        print("[依赖检查] ✓ pyotp 导入成功")
-
-        # 4. HTTP 请求库
-        logging.info("  -> 正在导入 requests...")
-        print("[依赖检查] 正在导入 requests...")
-        import requests
-        logging.info("  ✓ requests 导入成功")
-        print("[依赖检查] ✓ requests 导入成功")
-
-        # 5. Excel (xlsx) 读写
-        logging.info("  -> 正在导入 openpyxl...")
-        print("[依赖检查] 正在导入 openpyxl...")
-        import openpyxl
-        logging.info("  ✓ openpyxl 导入成功")
-        print("[依赖检查] ✓ openpyxl 导入成功")
-
-        # 6. Excel (xls) 读取
-        logging.info("  -> 正在导入 xlrd...")
-        print("[依赖检查] 正在导入 xlrd...")
-        import xlrd
-        logging.info("  ✓ xlrd 导入成功")
-        print("[依赖检查] ✓ xlrd 导入成功")
-
-        # 7. Excel (xls) 写入
-        logging.info("  -> 正在导入 xlwt...")
-        print("[依赖检查] 正在导入 xlwt...")
-        import xlwt
-        logging.info("  ✓ xlwt 导入成功")
-        print("[依赖检查] ✓ xlwt 导入成功")
-
-        # 8. 字符编码检测
-        logging.info("  -> 正在导入 chardet...")
-        print("[依赖检查] 正在导入 chardet...")
-        import chardet
-        logging.info("  ✓ chardet 导入成功")
-        print("[依赖检查] ✓ chardet 导入成功")
-
-        # 9. 浏览器自动化
-        logging.info("  -> 正在导入 Playwright...")
-        print("[依赖检查] 正在导入 Playwright...")
-        from playwright.sync_api import sync_playwright
-        logging.info("  ✓ Playwright 导入成功")
-        print("[依赖检查] ✓ Playwright 导入成功")
-
-        # 10. NumPy (科学计算)
-        logging.info("  -> 正在导入 NumPy...")
-        print("[依赖检查] 正在导入 NumPy...")
-        import numpy as np
-        logging.info("  ✓ NumPy 导入成功")
-        print("[依赖检查] ✓ NumPy 导入成功")
+    # (显示名称, 导入代码, pip包名)
+    dependencies = [
+        ('Flask Web框架', 
+         'from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response',
+         'Flask'),
+        ('Flask CORS',
+         'from flask_cors import CORS',
+         'flask-cors'),
+        ('pyotp (一次性密码)',
+         'import pyotp',
+         'pyotp'),
+        ('requests (HTTP库)',
+         'import requests',
+         'requests'),
+        ('openpyxl (Excel .xlsx)',
+         'import openpyxl',
+         'openpyxl'),
+        ('xlrd (Excel .xls读取)',
+         'import xlrd',
+         'xlrd'),
+        ('xlwt (Excel .xls写入)',
+         'import xlwt',
+         'xlwt'),
+        ('chardet (编码检测)',
+         'import chardet',
+         'chardet'),
+        ('Playwright (浏览器自动化)',
+         'from playwright.sync_api import sync_playwright',
+         'playwright'),
+        ('NumPy (科学计算)',
+         'import numpy as np',
+         'numpy'),
+        ('cssutils (CSS解析)',
+         'import cssutils',
+         'cssutils')
+    ]
+    
+    failed_imports = []
+    
+    # 逐个尝试导入
+    for display_name, import_cmd, pip_name in dependencies:
+        try:
+            logging.info(f"  -> 正在导入 {display_name}...")
+            print(f"[依赖检查]   -> {display_name}...", end=" ")
+            exec(import_cmd, globals())
+            logging.info(f"  ✓ {display_name} 导入成功")
+            print("✓")
+            
+            # 特殊处理：标记 playwright 可用
+            if pip_name == 'playwright':
+                playwright_available = True
+                
+        except ImportError as e:
+            logging.error(f"  ✗ {display_name} 导入失败: {e}")
+            print(f"✗ ({e})")
+            failed_imports.append({
+                'name': display_name,
+                'pip_name': pip_name,
+                'error': str(e)
+            })
+    
+    # 如果有导入失败，统一报告
+    if failed_imports:
+        logging.critical(f"主要应用依赖导入失败，共 {len(failed_imports)} 个模块")
+        pip_install_list = ' '.join([f['pip_name'] for f in failed_imports])
         
-        # 11. CSS 解析
-        logging.info("  -> 正在导入 cssutils...")
-        print("[依赖检查] 正在导入 cssutils...")
-        import cssutils
-        logging.info("  ✓ cssutils 导入成功")
-        print("[依赖检查] ✓ cssutils 导入成功")
-
-        logging.info("所有主要应用依赖库导入完成！")
-        print("[依赖检查] ✓ 所有主要应用依赖库导入完成！")
-        logging.info("="*80)
-
-    except ImportError as e:
-        # --- 捕获到导入错误 ---
-        logging.critical(f"主要应用依赖导入失败: {e}", exc_info=True)
-
-        # e.name 会告诉我们 *第一个* 导入失败的模块名
-        missing_module_name = e.name
-
-        # 定义所有必需的 Pypi 包名
-        all_packages = [
-            'Flask',
-            'flask-cors', # 注意 pip install 时用 'flask-cors'
-            'pyotp',
-            'requests',
-            'openpyxl',
-            'xlrd',
-            'xlwt',
-            'chardet',
-            'playwright',
-            'numpy',
-            'cssutils' # cssutils 对应的包名是 'cssutils'
-        ]
-        all_packages_str = ' '.join(all_packages)
-
-        # --- 构造详细的错误消息 ---
-        error_msg = (
-            f"程序启动失败，缺少必要的 Python 库: '{missing_module_name}'\n\n"
-            f"运行本程序需要以下所有库:\n"
-            f"{', '.join(all_packages)}\n\n"
-            f"请在您的终端（命令行）中运行以下命令来安装 *所有* 依赖:\n\n"
-            f"    pip install {all_packages_str}\n\n"
-            f"如果您使用的是 pip3，请运行:\n"
-            f"    pip3 install {all_packages_str}\n\n"
-            f"--- 特别提示：关于 'playwright' ---\n"
-            f"playwright 库在首次安装后，还需要安装浏览器驱动。\n"
-            f"请在安装完 pip 包后，额外运行一次:\n"
-            f"    playwright install chromium\n"
-            f"--------------------------------------\n\n"
-            f"详细的导入错误信息: {e}"
-        )
-
-        # 打印到标准错误流
-        print(
-            f"\n{'='*70}\n[依赖缺失错误]\n\n{error_msg}\n{'='*70}\n", file=sys.stderr)
-
-        # 退出程序，返回错误码 1
+        print(f"\n{'='*70}")
+        print(f"[依赖缺失错误] 主要应用依赖导入失败")
+        print(f"{'='*70}")
+        print(f"\n检测到 {len(failed_imports)} 个依赖库导入失败：\n")
+        for i, failure in enumerate(failed_imports, 1):
+            print(f"  {i}. {failure['name']} (pip包名: {failure['pip_name']})")
+            print(f"     错误: {failure['error']}\n")
+        print("请在您的终端（命令行）中运行以下命令来安装 *所有* 缺失的依赖:")
+        print(f"\n  pip install {pip_install_list}\n")
+        print("如果您使用的是 pip3，请运行:")
+        print(f"\n  pip3 install {pip_install_list}\n")
+        
+        # 特别提示 playwright
+        if any(f['pip_name'] == 'playwright' for f in failed_imports):
+            print("--- 特别提示：关于 'playwright' ---")
+            print("playwright 库在首次安装后，还需要安装浏览器驱动。")
+            print("请在安装完 pip 包后，额外运行一次:")
+            print("  playwright install chromium")
+            print("--------------------------------------\n")
+        
+        print(f"{'='*70}\n")
         sys.exit(1)
+    
+    logging.info("所有主要应用依赖库导入完成！")
+    print("[依赖检查] ✓ 所有主要应用依赖库导入完成！")
+    logging.info("="*80)
+
 
 
 
@@ -748,83 +855,116 @@ def auto_init_system():
         # 因为有些功能可能在部分初始化失败的情况下仍能工作
 
 
+# 初始化全局目录变量（默认值）
+# 这些变量会在 _create_directories() 中根据 config.ini 配置更新
+SCHOOL_ACCOUNTS_DIR = 'school_accounts'
+SYSTEM_ACCOUNTS_DIR = 'system_accounts'
+LOGIN_LOGS_DIR = 'logs'
+SESSION_STORAGE_DIR = 'sessions'
+TOKENS_STORAGE_DIR = 'tokens'
+CONFIG_FILE = 'config.ini'
+PERMISSIONS_FILE = 'permissions.json'
+SESSION_INDEX_FILE = None  # 将在 _create_directories() 后初始化
+LOGIN_LOG_FILE = None  # 将在 _create_directories() 后初始化
+AUDIT_LOG_FILE = None  # 将在 _create_directories() 后初始化
+
+
 def _create_directories():
     """
-    创建程序运行所需的目录结构。
-
+    创建程序运行所需的目录结构，目录路径从 config.ini 配置文件读取。
+    
     目录说明：
-    - logs: 日志文件存储目录
-    - school_accounts: 学校账号信息存储（JSON文件）
-    - system_accounts: 系统认证账号存储（与school_accounts分离）
-    - sessions: 用户会话持久化存储（UUID命名的JSON文件）
+    - logs: 日志文件存储目录（可在 config.ini [Logging] log_dir 配置）
+    - school_accounts: 学校账号信息存储（可在 config.ini [System] school_accounts_dir 配置）
+    - system_accounts: 系统认证账号存储（可在 config.ini [System] system_accounts_dir 配置）
+    - sessions: 用户会话持久化存储（可在 config.ini [System] sessions_dir 配置）
+    - tokens: API令牌存储目录（可在 config.ini [System] tokens_dir 配置）
+    
+    注意：此函数会更新全局变量，使其他模块可以使用配置的路径。
     """
-
-
-
-# 会话索引文件：存储SHA256哈希和完整UUID的对应关系
-SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
-
-# 学校账号数据目录
-SCHOOL_ACCOUNTS_DIR = os.path.join(
-    os.path.dirname(__file__), 'school_accounts')
-if not os.path.exists(SCHOOL_ACCOUNTS_DIR):
-    os.makedirs(SCHOOL_ACCOUNTS_DIR)
-    logging.info(
-        f"[系统初始化] 创建学校账号数据目录 --> 目录路径: {SCHOOL_ACCOUNTS_DIR}, 用途: 存储学校系统的用户账号信息")
-
-# 系统认证账号目录（修正：独立存储，不在school_accounts下）
-SYSTEM_ACCOUNTS_DIR = os.path.join(
-    os.path.dirname(__file__), 'system_accounts')
-if not os.path.exists(SYSTEM_ACCOUNTS_DIR):
-    os.makedirs(SYSTEM_ACCOUNTS_DIR)
-    logging.info(
-        f"[系统初始化] 创建系统认证账号目录 --> 目录路径: {SYSTEM_ACCOUNTS_DIR}, 用途: 独立存储系统管理员和普通用户的认证信息")
-
-# 登录日志目录
-LOGIN_LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
-if not os.path.exists(LOGIN_LOGS_DIR):
-    os.makedirs(LOGIN_LOGS_DIR)
-    logging.info(
-        f"[系统初始化] 创建登录日志目录 --> 目录路径: {LOGIN_LOGS_DIR}, 用途: 存储登录历史、审计日志和系统运行日志")
-
-
-# 会话存储目录
-SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
-if not os.path.exists(SESSION_STORAGE_DIR):
-    os.makedirs(SESSION_STORAGE_DIR)
-    logging.info(
-        f"[系统初始化] 创建会话存储目录 --> 目录路径: {SESSION_STORAGE_DIR}, 用途: 存储用户会话数据和状态信息")
-
-# Token存储目录
-TOKENS_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'tokens')
-if not os.path.exists(TOKENS_STORAGE_DIR):
-    os.makedirs(TOKENS_STORAGE_DIR)
-    logging.info(
-        f"[系统初始化] 创建Token存储目录 --> 目录路径: {TOKENS_STORAGE_DIR}, 用途: 存储API访问令牌和临时凭证")
-
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
-PERMISSIONS_FILE = os.path.join(os.path.dirname(__file__), 'permissions.json')
-LOGIN_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'login_history.jsonl')
-AUDIT_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'audit.jsonl')
-
-
-
-
-    directories = [
-        'logs',             # 日志文件目录
-        'school_accounts',  # 学校跑步平台的账号数据
-        'system_accounts',  # 本系统的认证账号（admin等）
-        'sessions'          # Web会话持久化存储
-    ]
-
-    for directory in directories:
+    global SCHOOL_ACCOUNTS_DIR, SYSTEM_ACCOUNTS_DIR, LOGIN_LOGS_DIR
+    global SESSION_STORAGE_DIR, TOKENS_STORAGE_DIR
+    global SESSION_INDEX_FILE, LOGIN_LOG_FILE, AUDIT_LOG_FILE
+    
+    # 默认目录配置
+    default_dirs = {
+        'school_accounts_dir': 'school_accounts',
+        'system_accounts_dir': 'system_accounts',
+        'log_dir': 'logs',
+        'sessions_dir': 'sessions',
+        'tokens_dir': 'tokens'
+    }
+    
+    # 尝试从 config.ini 读取目录配置
+    config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+    if os.path.exists(config_file):
+        try:
+            config = configparser.ConfigParser()
+            config.read(config_file, encoding='utf-8')
+            
+            # 从 [System] 节读取配置
+            if config.has_section('System'):
+                default_dirs['school_accounts_dir'] = config.get(
+                    'System', 'school_accounts_dir', 
+                    fallback=default_dirs['school_accounts_dir']
+                )
+                default_dirs['system_accounts_dir'] = config.get(
+                    'System', 'system_accounts_dir',
+                    fallback=default_dirs['system_accounts_dir']
+                )
+                default_dirs['sessions_dir'] = config.get(
+                    'System', 'sessions_dir',
+                    fallback=default_dirs['sessions_dir']
+                )
+                default_dirs['tokens_dir'] = config.get(
+                    'System', 'tokens_dir',
+                    fallback=default_dirs['tokens_dir']
+                )
+            
+            # 从 [Logging] 节读取日志目录配置
+            if config.has_section('Logging'):
+                default_dirs['log_dir'] = config.get(
+                    'Logging', 'log_dir',
+                    fallback=default_dirs['log_dir']
+                )
+            
+            print(f"[配置读取] 成功从 config.ini 读取目录配置")
+        except Exception as e:
+            print(f"[配置读取] 警告: 读取 config.ini 失败，使用默认配置: {e}")
+    else:
+        print(f"[配置读取] config.ini 不存在，使用默认目录配置")
+    
+    # 更新全局变量（使用绝对路径）
+    base_dir = os.path.dirname(__file__)
+    SCHOOL_ACCOUNTS_DIR = os.path.join(base_dir, default_dirs['school_accounts_dir'])
+    SYSTEM_ACCOUNTS_DIR = os.path.join(base_dir, default_dirs['system_accounts_dir'])
+    LOGIN_LOGS_DIR = os.path.join(base_dir, default_dirs['log_dir'])
+    SESSION_STORAGE_DIR = os.path.join(base_dir, default_dirs['sessions_dir'])
+    TOKENS_STORAGE_DIR = os.path.join(base_dir, default_dirs['tokens_dir'])
+    
+    # 创建所有目录
+    directories = {
+        'school_accounts': SCHOOL_ACCOUNTS_DIR,
+        'system_accounts': SYSTEM_ACCOUNTS_DIR,
+        'logs': LOGIN_LOGS_DIR,
+        'sessions': SESSION_STORAGE_DIR,
+        'tokens': TOKENS_STORAGE_DIR
+    }
+    
+    for name, directory in directories.items():
         if not os.path.exists(directory):
-            # exist_ok=True: 如果目录已存在不报错（多进程安全）
             os.makedirs(directory, exist_ok=True)
-            print(f"[目录创建] 创建目录: {directory}")
+            print(f"[目录创建] 创建目录: {name} -> {directory}")
+            logging.info(f"[系统初始化] 创建目录: {name} -> {directory}")
         else:
-            print(f"[目录创建] 目录已存在: {directory}")
-            # 这里可以考虑检查目录的读写权限
+            print(f"[目录创建] 目录已存在: {name} -> {directory}")
+    
+    # 初始化依赖于目录路径的全局变量
+    SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
+    LOGIN_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'login_history.jsonl')
+    AUDIT_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'audit.jsonl')
+    
+    print(f"[目录创建] 所有目录创建完成")
 
 
 def _get_default_config():
@@ -860,7 +1000,9 @@ def _get_default_config():
     config['System'] = {
         'session_expiry_days': '7',
         'school_accounts_dir': 'school_accounts',
-        'system_accounts_dir': 'system_accounts',  # 修正：不应该在school_accounts下
+        'system_accounts_dir': 'system_accounts',
+        'sessions_dir': 'sessions',  # 新增：会话存储目录
+        'tokens_dir': 'tokens',  # 新增：Token存储目录
         'permissions_file': 'permissions.json'
     }
 
@@ -15712,39 +15854,36 @@ def start_web_server(args_param):
 def main():
     """主函数，启动Web服务器模式（已弃用桌面模式）"""
     
-    import_logging_and_other_early_modules()
-    # ========== 初始化日志系统 ==========
+    # ========== 第1步：导入内置模块 ==========
+    # 必须最先执行，因为后续所有操作都依赖这些模块
+    try:
+        import_builtin_modules()
+    except Exception as e:
+        print(f"[致命错误] 导入内置模块失败: {e}")
+        import traceback
+        traceback.print_exc()
+        import sys
+        sys.exit(1)
+    
+    # ========== 第2步：初始化日志系统 ==========
     # 在程序最开始就初始化日志，确保后续所有操作都能被记录
     try:
-
-    # 配置UTF-8编码（用于日志和控制台输出）
-    if sys.platform.startswith('win'):
-        # Windows系统特殊处理
-        try:
-            sys.stdout.reconfigure(encoding='utf-8')
-            sys.stderr.reconfigure(encoding='utf-8')
-        except AttributeError:
-            # Python 3.6及更早版本不支持reconfigure
-            import codecs
-            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
         setup_logging()
     except Exception as e:
         # 如果日志系统初始化失败，至少要在控制台输出错误
-        # 这是最后的防线，确保用户能看到问题
         print(f"[错误] 日志系统初始化失败: {e}")
-        traceback.print_exc()  # 打印完整的堆栈跟踪，便于定位问题
+        traceback.print_exc()
+        # 不退出，继续尝试运行
 
-
-
-
+    # ========== 第3步：导入第三方依赖 ==========
+    # 导入Flask、requests、playwright等第三方库
     check_and_import_dependencies()
 
-
-    # 在导入完成后立即初始化系统
+    # ========== 第4步：初始化系统 ==========
+    # 创建目录、配置文件、默认管理员账号等
     auto_init_system()
 
-
+    # ========== 第5步：解析命令行参数 ==========
     parser = argparse.ArgumentParser(description='跑步助手 - Web服务器模式')
     parser.add_argument("--port", type=int, default=5000,
                         help="Web服务器端口（默认5000）")
@@ -15758,7 +15897,7 @@ def main():
                         help="启用调试日志（兼容旧参数，等同于 --log-level debug）")
     args = parser.parse_args()
 
-    # 配置详细的中文日志输出（确保UTF-8编码）
+    # ========== 第6步：配置日志级别 ==========
     selected_level_name = 'debug' if args.debug else args.log_level
     log_level = getattr(logging, selected_level_name.upper(), logging.DEBUG)
 
@@ -15788,9 +15927,7 @@ def main():
     logging.info(f"服务器地址: {args.host}:{args.port}")
     logging.info("="*60)
 
-    check_and_import_dependencies()
-
-    # 检查Playwright是否可用
+    # ========== 第7步：检查Playwright是否可用 ==========
     if not playwright_available:
         print("\n" + "="*60)
         print("错误: 需要安装 Playwright 以在服务器端运行Chrome")
@@ -15800,6 +15937,7 @@ def main():
         print("="*60 + "\n")
         sys.exit(1)
 
+    # ========== 第8步：检查并选择可用端口 ==========
     initial_port = args.port
     if not check_port_available(args.host, args.port):
         logging.warning(f"指定的端口 {args.port} 不可用或已被占用，尝试自动查找可用端口...")
@@ -15839,7 +15977,7 @@ def main():
         else:
             args.port = found_port  # 更新 args 中的端口号为找到的可用端口
 
-    # 启动Web服务器模式
+    # ========== 第9步：启动Web服务器 ==========
     logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
     start_web_server(args)
 
