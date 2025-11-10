@@ -1,194 +1,240 @@
 # 跑步助手
 # 这是一个基于Flask的Web应用，用于模拟跑步任务的执行
 
-# ===== 导入标准库 =====
-import argparse  # 命令行参数解析，用于启动参数配置
-import base64  # Base64编解码，用于处理二进制文件内容传输
-import bisect  # 二分查找算法，可能用于有序列表操作
-import collections  # 集合数据类型，提供特殊容器如deque、Counter等
-import configparser  # INI配置文件解析，用于读写config.ini
-import copy  # 对象深拷贝，避免引用传递导致的数据污染
-import csv  # CSV文件处理，用于数据导入导出
-import datetime  # 日期时间处理，用于时间戳转换和计算
-import hashlib  # 哈希算法，用于密码加密和文件名混淆
-import json  # JSON数据处理，用于配置文件和API数据交换
-import logging  # 日志记录系统，提供分级日志输出
-import math  # 数学函数，用于距离计算和坐标转换
-import os  # 操作系统接口，文件和目录操作
-import pickle  # Python对象序列化，用于会话持久化
-import queue  # 线程安全的队列，用于生产者-消费者模式
-import random  # 随机数生成，用于模拟真实运动轨迹的随机性
-import re  # 正则表达式，用于字符串匹配和验证
-import secrets  # 安全随机数生成，用于token生成
-import socket  # 网络编程，用于端口检查
-import sys  # 系统相关参数和函数，用于程序退出和编码设置
-import threading  # 多线程支持，用于后台任务和并发处理
-import time  # 时间相关函数，用于时间戳获取和延迟
-import traceback  # 异常追踪，用于详细错误信息记录
-import urllib  # URL处理库，可能用于HTTP请求
-import uuid  # UUID生成，用于会话ID和唯一标识
-import warnings  # 警告控制，用于抑制第三方库警告
-import atexit  # 程序退出处理，用于资源清理
-from PIL import Image  # 图像处理库，用于头像裁剪和压缩
-import io  # IO流处理，用于内存中的文件操作
+
+def import_logging_and_other_early_modules():
+    """
+    在程序启动的最早阶段导入 logging 和其他必要的模块。
+    这样可以确保在后续导入过程中出现错误时，日志系统已经可用，
+    并且可以记录任何导入错误。
+    """
+    # 优先导入 logging 和 sys，用于在启动早期捕获错误
+    import logging
+    import sys
+    import os # os 也是早期需要的，比如用于日志路径
 
 
-# ===== Flask-SocketIO（必须在 monkey_patch 之后）=====
-# WebSocket通信库，用于实时推送任务进度和状态更新
-# 注意：如果使用gevent，需要先执行monkey_patch才能导入此模块
-from flask_socketio import SocketIO, emit, join_room, leave_room
 
-# Flask Web框架的响应对象，用于自定义HTTP响应（如设置Cookie）
-from flask import make_response
-from flask import Flask, jsonify, request, make_response
+def import_standard_libraries():
+    """
+    逐步导入所有必需的标准库。
+    这是为了精确确定问题，如果标准库缺失，通常表示 Python 环境损坏。
+    """
+    logging.info("="*80)
+    logging.info("开始检查并导入 Python 标准库...")
+    print("[依赖检查] 正在导入 Python 标准库...")
 
-import cssutils  # CSS解析和处理库，用于动态生成和修改CSS样式
+    # (模块名, 导入命令)
+    std_libs = [
+        ('argparse', 'import argparse'),
+        ('base64', 'import base64'),
+        ('bisect', 'import bisect'),
+        ('collections', 'import collections'),
+        ('configparser', 'import configparser'),
+        ('copy', 'import copy'),
+        ('csv', 'import csv'),
+        ('datetime', 'import datetime'),
+        ('hashlib', 'import hashlib'),
+        ('json', 'import json'),
+        ('math', 'import math'),
+        ('pickle', 'import pickle'),
+        ('queue', 'import queue'),
+        ('random', 'import random'),
+        ('re', 'import re'),
+        ('secrets', 'import secrets'),
+        ('socket', 'import socket'),
+        ('threading', 'import threading'),
+        ('time', 'import time'),
+        ('traceback', 'import traceback'),
+        ('urllib', 'import urllib.parse'), # urllib 是一个包, 导入其子模块
+        ('uuid', 'import uuid'),
+        ('warnings', 'import warnings'),
+        ('atexit', 'import atexit'),
+        ('io', 'import io'),
+        ('zipfile', 'import zipfile')
+    ]
 
-# ==============================================================================
-#  依赖检查与第三方库导入
-# ==============================================================================
-Flask, render_template_string, session, redirect, url_for, request, jsonify = (
-    None,) * 7  # 元组乘法创建7个None的技巧
+    try:
+        for name, import_cmd in std_libs:
+            logging.info(f"  -> 正在导入 {name}...")
+            exec(import_cmd, globals())
+            logging.info(f"  ✓ {name} 导入成功")
+        
+        # 特殊处理 fcntl (仅限非 Windows 平台)
+        if sys.platform != 'win32':
+            logging.info("  -> 正在导入 fcntl (非Windows)...")
+            import fcntl
+            globals()['fcntl'] = fcntl
+            logging.info("  ✓ fcntl 导入成功")
+        else:
+            logging.warning("  -> fcntl 模块在 Windows 平台不可用，已跳过。")
 
-# Flask-CORS: 跨域资源共享支持
-# 如果前端和后端不在同一域名，需要CORS头部
-CORS = None
+    except ImportError as e:
+        logging.critical(f"标准库导入失败: {e}", exc_info=True)
+        print(f"\n[致命错误] 标准库 '{e.name}' 导入失败！", file=sys.stderr)
+        print("这可能表示您的 Python 环境已损坏。请检查您的 Python 安装。", file=sys.stderr)
+        sys.exit(1)
+    
+    print("[依赖检查] ✓ 所有标准库导入成功！")
+    logging.info("所有标准库导入成功！")
 
-# pyotp: 一次性密码（OTP）库
-# 用于实现两步验证（2FA），基于时间的TOTP算法
-pyotp = None
 
-# requests: HTTP客户端库
-# 用于向跑步平台发送API请求
-# 注意：这里requests会覆盖之前导入的标准库中的requests（如果有的话）
-requests = None
+def import_core_third_party():
+    """
+    导入 'check_and_import_dependencies' 未涵盖的核心第三方库。
+    这些库通常是程序运行的基础。
+    """
+    logging.info("="*80)
+    logging.info("开始检查并导入核心第三方库 (Pillow, bcrypt, Flask-SocketIO)...")
+    print("[依赖检查] 正在导入核心第三方库 (Pillow, bcrypt, Flask-SocketIO)...")
 
-# openpyxl: 现代Excel文件(.xlsx)读写库
-# 支持Excel 2007+格式，功能强大但较慢
-openpyxl = None
+    # (显示名称, 导入命令)
+    core_libs = [
+        ('PIL (Pillow)', 'from PIL import Image'),
+        ('bcrypt', 'import bcrypt'),
+        ('Flask-SocketIO', 'from flask_socketio import SocketIO, emit, join_room, leave_room')
+    ]
+    # 对应的 pip 包名
+    pip_names = "Pillow bcrypt Flask-SocketIO"
 
-# xlrd: 旧版Excel文件(.xls)读取库
-# 只能读取，不能写入，适用于Excel 97-2003格式
-xlrd = None
-
-# xlwt: 旧版Excel文件(.xls)写入库
-# 只能写入，不能读取，与xlrd配套使用
-xlwt = None
-
-# chardet: 字符编码检测库
-# 用于自动识别文本文件的编码（如GBK、UTF-8等）
-chardet = None
-
-# sync_playwright: Playwright浏览器自动化库的同步API
-# 用于在服务器端运行Chrome进行JavaScript计算（如路径规划）
-# 注意：Playwright还有异步API，但这里使用同步版本
-sync_playwright = None
+    try:
+        for name, import_cmd in core_libs:
+            logging.info(f"  -> 正在导入 {name}...")
+            exec(import_cmd, globals())
+            logging.info(f"  ✓ {name} 导入成功")
+            
+    except ImportError as e:
+        missing_module_name = e.name
+        logging.critical(f"核心第三方库导入失败: {e}", exc_info=True)
+        print(f"\n{'='*70}\n[依赖缺失错误]\n\n"
+              f"程序启动失败，缺少核心库: '{missing_module_name}'\n"
+              f"请在您的终端（命令行）中运行以下命令来安装它:\n\n"
+              f"  pip install {pip_names}\n\n"
+              f"如果您使用的是 pip3，请运行:\n"
+              f"  pip3 install {pip_names}\n"
+              f"\n{'='*70}\n", file=sys.stderr)
+        sys.exit(1)
+    
+    print("[依赖检查] ✓ 核心第三方库导入成功！")
+    logging.info("核心第三方库导入成功！")
 
 
 def check_and_import_dependencies():
     """
-    检查并导入所有必需的第三方库。
-
+    检查并导入所有主要的第三方库 (Flask, requests, playwright 等)。
     如果缺少任何库，将打印详细的安装说明并终止程序运行。
-    如果所有库都存在，则将它们导入到全局命名空间中。
     """
     logging.info("="*80)
-    logging.info("开始检查并导入第三方库...")
-    print("[依赖检查] 开始检查并导入第三方库...")
+    logging.info("开始检查并导入主要应用依赖库...")
+    print("[依赖检查] 开始检查并导入主要应用依赖库...")
 
     # 声明我们将要修改全局变量
-    global Flask, render_template_string, session, redirect, url_for, request, jsonify
+    global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response
     global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
+    global cssutils
+
+    # 将所有变量预设为 None，以防导入成功但未完全解包
+    Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response = (None,) * 8
+    CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np, cssutils = (None,) * 10
 
     try:
         # --- 尝试导入所有必需的第三方库 ---
 
-        # 1. Flask Web 框架
-        logging.info("正在导入 Flask Web 框架...")
+        # 1. Flask Web 框架 (包括 make_response)
+        logging.info("  -> 正在导入 Flask Web 框架...")
         print("[依赖检查] 正在导入 Flask Web 框架...")
         from flask import (
             Flask, render_template_string, session,
-            redirect, url_for, request, jsonify
+            redirect, url_for, request, jsonify, make_response
         )
-        logging.info("✓ Flask 导入成功")
+        logging.info("  ✓ Flask 导入成功")
         print("[依赖检查] ✓ Flask 导入成功")
 
         # 2. Flask 跨域支持
-        logging.info("正在导入 Flask CORS...")
+        logging.info("  -> 正在导入 Flask CORS...")
         print("[依赖检查] 正在导入 Flask CORS...")
         from flask_cors import CORS
-        logging.info("✓ Flask CORS 导入成功")
+        logging.info("  ✓ Flask CORS 导入成功")
         print("[依赖检查] ✓ Flask CORS 导入成功")
 
         # 3. 一次性密码 (TOTP/HOTP)
-        logging.info("正在导入 pyotp...")
+        logging.info("  -> 正在导入 pyotp...")
         print("[依赖检查] 正在导入 pyotp...")
         import pyotp
-        logging.info("✓ pyotp 导入成功")
+        logging.info("  ✓ pyotp 导入成功")
         print("[依赖检查] ✓ pyotp 导入成功")
 
         # 4. HTTP 请求库
-        logging.info("正在导入 requests...")
+        logging.info("  -> 正在导入 requests...")
         print("[依赖检查] 正在导入 requests...")
         import requests
-        logging.info("✓ requests 导入成功")
+        logging.info("  ✓ requests 导入成功")
         print("[依赖检查] ✓ requests 导入成功")
 
         # 5. Excel (xlsx) 读写
-        logging.info("正在导入 openpyxl...")
+        logging.info("  -> 正在导入 openpyxl...")
         print("[依赖检查] 正在导入 openpyxl...")
         import openpyxl
-        logging.info("✓ openpyxl 导入成功")
+        logging.info("  ✓ openpyxl 导入成功")
         print("[依赖检查] ✓ openpyxl 导入成功")
 
         # 6. Excel (xls) 读取
-        logging.info("正在导入 xlrd...")
+        logging.info("  -> 正在导入 xlrd...")
         print("[依赖检查] 正在导入 xlrd...")
         import xlrd
-        logging.info("✓ xlrd 导入成功")
+        logging.info("  ✓ xlrd 导入成功")
         print("[依赖检查] ✓ xlrd 导入成功")
 
         # 7. Excel (xls) 写入
-        logging.info("正在导入 xlwt...")
+        logging.info("  -> 正在导入 xlwt...")
         print("[依赖检查] 正在导入 xlwt...")
         import xlwt
-        logging.info("✓ xlwt 导入成功")
+        logging.info("  ✓ xlwt 导入成功")
         print("[依赖检查] ✓ xlwt 导入成功")
 
         # 8. 字符编码检测
-        logging.info("正在导入 chardet...")
+        logging.info("  -> 正在导入 chardet...")
         print("[依赖检查] 正在导入 chardet...")
         import chardet
-        logging.info("✓ chardet 导入成功")
+        logging.info("  ✓ chardet 导入成功")
         print("[依赖检查] ✓ chardet 导入成功")
 
         # 9. 浏览器自动化
-        logging.info("正在导入 Playwright...")
+        logging.info("  -> 正在导入 Playwright...")
         print("[依赖检查] 正在导入 Playwright...")
         from playwright.sync_api import sync_playwright
-
-        # 10. NumPy
-        logging.info("正在导入 NumPy（可选）...")
-        print("[依赖检查] 正在导入 NumPy（可选）...")
-        import numpy as np
-        logging.info("✓ Playwright 导入成功")
+        logging.info("  ✓ Playwright 导入成功")
         print("[依赖检查] ✓ Playwright 导入成功")
-        import cssutils
 
-        logging.info("所有依赖库导入完成！")
+        # 10. NumPy (科学计算)
+        logging.info("  -> 正在导入 NumPy...")
+        print("[依赖检查] 正在导入 NumPy...")
+        import numpy as np
+        logging.info("  ✓ NumPy 导入成功")
+        print("[依赖检查] ✓ NumPy 导入成功")
+        
+        # 11. CSS 解析
+        logging.info("  -> 正在导入 cssutils...")
+        print("[依赖检查] 正在导入 cssutils...")
+        import cssutils
+        logging.info("  ✓ cssutils 导入成功")
+        print("[依赖检查] ✓ cssutils 导入成功")
+
+        logging.info("所有主要应用依赖库导入完成！")
+        print("[依赖检查] ✓ 所有主要应用依赖库导入完成！")
         logging.info("="*80)
 
     except ImportError as e:
         # --- 捕获到导入错误 ---
-        logging.error(f"导入失败: {e}", exc_info=True)
+        logging.critical(f"主要应用依赖导入失败: {e}", exc_info=True)
 
-        # e.name 会告诉我们 *第一个* 导入失败的模块名 (例如 'flask' 或 'playwright')
+        # e.name 会告诉我们 *第一个* 导入失败的模块名
         missing_module_name = e.name
 
-        # 定义所有必需的 Pypi 包名（这通常与模块名相同，但不总是，如 'flask_cors' 对应 'flask-cors'）
+        # 定义所有必需的 Pypi 包名
         all_packages = [
             'Flask',
-            'flask-cors',  # 注意 pip install 时用 'flask-cors'
+            'flask-cors', # 注意 pip install 时用 'flask-cors'
             'pyotp',
             'requests',
             'openpyxl',
@@ -196,7 +242,8 @@ def check_and_import_dependencies():
             'xlwt',
             'chardet',
             'playwright',
-            'numpy'
+            'numpy',
+            'cssutils' # cssutils 对应的包名是 'cssutils'
         ]
         all_packages_str = ' '.join(all_packages)
 
@@ -206,13 +253,13 @@ def check_and_import_dependencies():
             f"运行本程序需要以下所有库:\n"
             f"{', '.join(all_packages)}\n\n"
             f"请在您的终端（命令行）中运行以下命令来安装 *所有* 依赖:\n\n"
-            f"   pip install {all_packages_str}\n\n"
+            f"    pip install {all_packages_str}\n\n"
             f"如果您使用的是 pip3，请运行:\n"
-            f"   pip3 install {all_packages_str}\n\n"
+            f"    pip3 install {all_packages_str}\n\n"
             f"--- 特别提示：关于 'playwright' ---\n"
             f"playwright 库在首次安装后，还需要安装浏览器驱动。\n"
             f"请在安装完 pip 包后，额外运行一次:\n"
-            f"   playwright install chromium\n"
+            f"    playwright install chromium\n"
             f"--------------------------------------\n\n"
             f"详细的导入错误信息: {e}"
         )
@@ -224,8 +271,64 @@ def check_and_import_dependencies():
         # 退出程序，返回错误码 1
         sys.exit(1)
 
-    print("[依赖检查] 所有依赖库导入完成！")
 
+
+def initialize_global_variables():
+    """
+    初始化所有全局变量和应用状态。
+    这应该在所有库都导入成功之后运行。
+    """
+    logging.info("开始初始化全局变量...")
+    
+    # 声明我们将要创建的全局变量
+    global auth_system, token_manager, html_content
+    global web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock
+    global session_activity, session_activity_lock
+    global chrome_pool, background_task_manager
+
+    # TODO: 您必须在此函数 *之前* 定义 AuthSystem 和 TokenManager 类
+    # auth_system = AuthSystem()
+    # token_manager = TokenManager(TOKENS_STORAGE_DIR)
+    # logging.info("认证系统和Token管理器已创建。")
+
+    # 读取 HTML
+    html_content = ""
+    try:
+        # TODO: 您必须在此函数 *之前* 定义 resource_path 函数
+        # html_path = resource_path("index.html")
+        html_path = "index.html" # 临时占位符
+        logging.warning("使用的是临时的 'index.html' 路径，请确保 resource_path 函数已定义。")
+        
+        with open(html_path, 'r', encoding='utf-8') as file:
+            html_content = file.read()
+        logging.info("成功读取 index.html 文件！")
+
+    except FileNotFoundError:
+        logging.error(f"错误: 未在路径 '{html_path}' 中找到 'index.html' 文件。")
+        sys.exit(1)
+    except Exception as e:
+        logging.error(f"读取文件时发生错误: {e}", exc_info=True)
+        sys.exit(1)
+
+    # 全局会话存储
+    web_sessions = {}
+    web_sessions_lock = threading.Lock()
+    
+    # 会话文件锁
+    session_file_locks = {}
+    session_file_locks_lock = threading.Lock()
+    
+    # 会话活动追踪
+    session_activity = {}
+    session_activity_lock = threading.Lock()
+    logging.info("会话存储和锁已初始化。")
+
+    # 全局浏览器池和任务管理器
+    chrome_pool = None
+    background_task_manager = None
+    logging.info("浏览器池和任务管理器已初始化为 None。")
+    
+    logging.info("全局变量初始化完成。")
 
 # ==============================================================================
 #  1. 日志系统配置
@@ -269,131 +372,6 @@ class NoColorFileFormatter(logging.Formatter):
         # 使用sub方法替换所有匹配的ANSI代码为空字符串
         cleaned_message = self.ansi_escape_regex.sub('', original_message)
         return cleaned_message
-
-
-def archive_old_logs():
-    """
-    归档旧的日志文件。
-
-    在程序启动时调用，将上一次运行的日志文件压缩并移动到归档目录。
-    支持归档 zx-slm-tool.log 和 zx-slm-tool-*.log 格式的文件。
-    """
-    import zipfile
-    from datetime import datetime
-
-    log_dir = 'logs'
-    archive_dir = os.path.join(log_dir, 'archive')
-
-    # 确保归档目录存在
-    if not os.path.exists(archive_dir):
-        os.makedirs(archive_dir, exist_ok=True)
-        print(f"[日志归档] 创建归档目录: {archive_dir}")
-
-    # 查找所有需要归档的日志文件
-    log_files_to_archive = []
-    for filename in os.listdir(log_dir):
-        if filename == 'zx-slm-tool.log' or (filename.startswith('zx-slm-tool-') and filename.endswith('.log')):
-            log_path = os.path.join(log_dir, filename)
-            # 只归档非空文件
-            if os.path.isfile(log_path) and os.path.getsize(log_path) > 0:
-                log_files_to_archive.append((log_path, filename))
-
-    if not log_files_to_archive:
-        print(f"[日志归档] 没有需要归档的日志文件")
-        return
-
-    # 生成归档文件名（毫秒级时间戳）
-    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')[:-3]  # 毫秒级
-    archive_filename = f"{timestamp}.zip"
-    archive_path = os.path.join(archive_dir, archive_filename)
-
-    try:
-        # 创建ZIP归档
-        with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for log_path, filename in log_files_to_archive:
-                zipf.write(log_path, filename)
-                print(f"[日志归档] 已压缩: {filename}")
-
-        # 删除已归档的日志文件
-        for log_path, filename in log_files_to_archive:
-            os.remove(log_path)
-            print(f"[日志归档] 已删除原文件: {filename}")
-
-        print(f"[日志归档] 归档完成: {archive_path}")
-
-    except Exception as e:
-        print(f"[日志归档] 归档失败: {e}")
-        import traceback
-        traceback.print_exc()
-
-
-def cleanup_archive_directory(archive_dir, max_size_mb):
-    """
-    清理归档目录，确保不超过指定大小。
-
-    当归档目录大小超过限制时，删除最早的归档文件。
-
-    参数:
-        archive_dir: 归档目录路径
-        max_size_mb: 最大大小（MB），0表示不限制
-    """
-    if max_size_mb <= 0:
-        return  # 不限制大小
-
-    if not os.path.exists(archive_dir):
-        return
-
-    try:
-        # 获取所有归档文件及其大小
-        archive_files = []
-        total_size = 0
-
-        for filename in os.listdir(archive_dir):
-            if filename.endswith('.zip'):
-                file_path = os.path.join(archive_dir, filename)
-                if os.path.isfile(file_path):
-                    file_size = os.path.getsize(file_path)
-                    # 获取文件修改时间
-                    mtime = os.path.getmtime(file_path)
-                    archive_files.append(
-                        (file_path, filename, file_size, mtime))
-                    total_size += file_size
-
-        max_size_bytes = max_size_mb * 1024 * 1024
-        current_size_mb = total_size / (1024 * 1024)
-
-        if total_size <= max_size_bytes:
-            print(
-                f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB / {max_size_mb}MB (无需清理)")
-            return
-
-        print(
-            f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB 超过限制 {max_size_mb}MB，开始清理...")
-
-        # 按时间排序（最早的在前）
-        archive_files.sort(key=lambda x: x[3])
-
-        # 删除最早的文件直到大小满足要求
-        deleted_count = 0
-        for file_path, filename, file_size, _ in archive_files:
-            if total_size <= max_size_bytes:
-                break
-
-            os.remove(file_path)
-            total_size -= file_size
-            deleted_count += 1
-            print(
-                f"[归档清理] 已删除: {filename} ({file_size / (1024 * 1024):.2f}MB)")
-
-        final_size_mb = total_size / (1024 * 1024)
-        print(
-            f"[归档清理] 清理完成，删除了 {deleted_count} 个文件，当前大小: {final_size_mb:.2f}MB")
-
-    except Exception as e:
-        print(f"[归档清理] 清理失败: {e}")
-        import traceback
-        traceback.print_exc()
-
 
 class CustomLogHandler(logging.FileHandler):
     """
@@ -478,6 +456,131 @@ class CustomLogHandler(logging.FileHandler):
 
         # 重新打开文件
         self.stream = self._open()
+
+
+
+def archive_old_logs():
+    """
+    归档旧的日志文件。
+
+    在程序启动时调用，将上一次运行的日志文件压缩并移动到归档目录。
+    支持归档 zx-slm-tool.log 和 zx-slm-tool-*.log 格式的文件。
+    """
+
+
+    log_dir = 'logs'
+    archive_dir = os.path.join(log_dir, 'archive')
+
+    # 确保归档目录存在
+    if not os.path.exists(archive_dir):
+        os.makedirs(archive_dir, exist_ok=True)
+        print(f"[日志归档] 创建归档目录: {archive_dir}")
+
+    # 查找所有需要归档的日志文件
+    log_files_to_archive = []
+    for filename in os.listdir(log_dir):
+        if filename == 'zx-slm-tool.log' or (filename.startswith('zx-slm-tool-') and filename.endswith('.log')):
+            log_path = os.path.join(log_dir, filename)
+            # 只归档非空文件
+            if os.path.isfile(log_path) and os.path.getsize(log_path) > 0:
+                log_files_to_archive.append((log_path, filename))
+
+    if not log_files_to_archive:
+        print(f"[日志归档] 没有需要归档的日志文件")
+        return
+
+    # 生成归档文件名（毫秒级时间戳）
+    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')[:-3]  # 毫秒级
+    archive_filename = f"{timestamp}.zip"
+    archive_path = os.path.join(archive_dir, archive_filename)
+
+    try:
+        # 创建ZIP归档
+        with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for log_path, filename in log_files_to_archive:
+                zipf.write(log_path, filename)
+                print(f"[日志归档] 已压缩: {filename}")
+
+        # 删除已归档的日志文件
+        for log_path, filename in log_files_to_archive:
+            os.remove(log_path)
+            print(f"[日志归档] 已删除原文件: {filename}")
+
+        print(f"[日志归档] 归档完成: {archive_path}")
+
+    except Exception as e:
+        print(f"[日志归档] 归档失败: {e}")
+        
+        traceback.print_exc()
+
+
+def cleanup_archive_directory(archive_dir, max_size_mb):
+    """
+    清理归档目录，确保不超过指定大小。
+
+    当归档目录大小超过限制时，删除最早的归档文件。
+
+    参数:
+        archive_dir: 归档目录路径
+        max_size_mb: 最大大小（MB），0表示不限制
+    """
+    if max_size_mb <= 0:
+        return  # 不限制大小
+
+    if not os.path.exists(archive_dir):
+        return
+
+    try:
+        # 获取所有归档文件及其大小
+        archive_files = []
+        total_size = 0
+
+        for filename in os.listdir(archive_dir):
+            if filename.endswith('.zip'):
+                file_path = os.path.join(archive_dir, filename)
+                if os.path.isfile(file_path):
+                    file_size = os.path.getsize(file_path)
+                    # 获取文件修改时间
+                    mtime = os.path.getmtime(file_path)
+                    archive_files.append(
+                        (file_path, filename, file_size, mtime))
+                    total_size += file_size
+
+        max_size_bytes = max_size_mb * 1024 * 1024
+        current_size_mb = total_size / (1024 * 1024)
+
+        if total_size <= max_size_bytes:
+            print(
+                f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB / {max_size_mb}MB (无需清理)")
+            return
+
+        print(
+            f"[归档清理] 归档目录大小: {current_size_mb:.2f}MB 超过限制 {max_size_mb}MB，开始清理...")
+
+        # 按时间排序（最早的在前）
+        archive_files.sort(key=lambda x: x[3])
+
+        # 删除最早的文件直到大小满足要求
+        deleted_count = 0
+        for file_path, filename, file_size, _ in archive_files:
+            if total_size <= max_size_bytes:
+                break
+
+            os.remove(file_path)
+            total_size -= file_size
+            deleted_count += 1
+            print(
+                f"[归档清理] 已删除: {filename} ({file_size / (1024 * 1024):.2f}MB)")
+
+        final_size_mb = total_size / (1024 * 1024)
+        print(
+            f"[归档清理] 清理完成，删除了 {deleted_count} 个文件，当前大小: {final_size_mb:.2f}MB")
+
+    except Exception as e:
+        print(f"[归档清理] 清理失败: {e}")
+        
+        traceback.print_exc()
+
 
 
 def setup_logging():
@@ -579,16 +682,6 @@ def setup_logging():
     return logger
 
 
-# ========== 初始化日志系统 ==========
-# 在程序最开始就初始化日志，确保后续所有操作都能被记录
-try:
-    setup_logging()
-except Exception as e:
-    # 如果日志系统初始化失败，至少要在控制台输出错误
-    # 这是最后的防线，确保用户能看到问题
-    print(f"[错误] 日志系统初始化失败: {e}")
-    import traceback  # 在这里导入traceback，避免污染全局命名空间
-    traceback.print_exc()  # 打印完整的堆栈跟踪，便于定位问题
 
 
 # ==============================================================================
@@ -609,14 +702,6 @@ def auto_init_system():
     2. 生成或更新config.ini配置文件
     3. 创建permissions.json权限配置
     4. 创建默认管理员账号（用户名：admin，密码：admin）
-
-    幂等性：多次调用是安全的，已存在的文件不会被覆盖
-    异常处理：任何步骤失败都会记录日志但不会中断程序
-
-    使用场景：
-    - 程序首次启动
-    - 配置文件丢失后的恢复
-    - 版本升级时的配置补全
     """
     logging.info("="*80)
     logging.info("开始自动初始化系统...")
@@ -672,16 +757,59 @@ def _create_directories():
     - school_accounts: 学校账号信息存储（JSON文件）
     - system_accounts: 系统认证账号存储（与school_accounts分离）
     - sessions: 用户会话持久化存储（UUID命名的JSON文件）
-
-    设计特点：
-    - 使用exist_ok=True避免重复创建时出错
-    - 不使用递归创建，所有目录都在根目录下
-    - 每个目录都会输出创建状态，便于监控
-
-    潜在问题：
-    - 如果目录权限不足，makedirs会失败
-    - 目录名硬编码，迁移时需要同步修改
     """
+
+
+
+# 会话索引文件：存储SHA256哈希和完整UUID的对应关系
+SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
+
+# 学校账号数据目录
+SCHOOL_ACCOUNTS_DIR = os.path.join(
+    os.path.dirname(__file__), 'school_accounts')
+if not os.path.exists(SCHOOL_ACCOUNTS_DIR):
+    os.makedirs(SCHOOL_ACCOUNTS_DIR)
+    logging.info(
+        f"[系统初始化] 创建学校账号数据目录 --> 目录路径: {SCHOOL_ACCOUNTS_DIR}, 用途: 存储学校系统的用户账号信息")
+
+# 系统认证账号目录（修正：独立存储，不在school_accounts下）
+SYSTEM_ACCOUNTS_DIR = os.path.join(
+    os.path.dirname(__file__), 'system_accounts')
+if not os.path.exists(SYSTEM_ACCOUNTS_DIR):
+    os.makedirs(SYSTEM_ACCOUNTS_DIR)
+    logging.info(
+        f"[系统初始化] 创建系统认证账号目录 --> 目录路径: {SYSTEM_ACCOUNTS_DIR}, 用途: 独立存储系统管理员和普通用户的认证信息")
+
+# 登录日志目录
+LOGIN_LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
+if not os.path.exists(LOGIN_LOGS_DIR):
+    os.makedirs(LOGIN_LOGS_DIR)
+    logging.info(
+        f"[系统初始化] 创建登录日志目录 --> 目录路径: {LOGIN_LOGS_DIR}, 用途: 存储登录历史、审计日志和系统运行日志")
+
+
+# 会话存储目录
+SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
+if not os.path.exists(SESSION_STORAGE_DIR):
+    os.makedirs(SESSION_STORAGE_DIR)
+    logging.info(
+        f"[系统初始化] 创建会话存储目录 --> 目录路径: {SESSION_STORAGE_DIR}, 用途: 存储用户会话数据和状态信息")
+
+# Token存储目录
+TOKENS_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'tokens')
+if not os.path.exists(TOKENS_STORAGE_DIR):
+    os.makedirs(TOKENS_STORAGE_DIR)
+    logging.info(
+        f"[系统初始化] 创建Token存储目录 --> 目录路径: {TOKENS_STORAGE_DIR}, 用途: 存储API访问令牌和临时凭证")
+
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
+PERMISSIONS_FILE = os.path.join(os.path.dirname(__file__), 'permissions.json')
+LOGIN_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'login_history.jsonl')
+AUDIT_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'audit.jsonl')
+
+
+
+
     directories = [
         'logs',             # 日志文件目录
         'school_accounts',  # 学校跑步平台的账号数据
@@ -1194,22 +1322,6 @@ def _create_default_admin():
         f"[系统初始化] 管理员账号创建成功 --> 文件路径: {admin_file}, 账号信息: 用户名=admin, 权限组=super_admin, 双因素认证=未启用, 最大会话数=无限制, 主题=light")
 
 
-# 在导入完成后立即初始化系统
-auto_init_system()
-
-# 会话存储目录
-SESSION_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'sessions')
-if not os.path.exists(SESSION_STORAGE_DIR):
-    os.makedirs(SESSION_STORAGE_DIR)
-    logging.info(
-        f"[系统初始化] 创建会话存储目录 --> 目录路径: {SESSION_STORAGE_DIR}, 用途: 存储用户会话数据和状态信息")
-
-# Token存储目录
-TOKENS_STORAGE_DIR = os.path.join(os.path.dirname(__file__), 'tokens')
-if not os.path.exists(TOKENS_STORAGE_DIR):
-    os.makedirs(TOKENS_STORAGE_DIR)
-    logging.info(
-        f"[系统初始化] 创建Token存储目录 --> 目录路径: {TOKENS_STORAGE_DIR}, 用途: 存储API访问令牌和临时凭证")
 
 
 def get_session_file_path(session_id: str) -> str:
@@ -1218,57 +1330,6 @@ def get_session_file_path(session_id: str) -> str:
     return os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
 
 
-# 会话索引文件：存储SHA256哈希和完整UUID的对应关系
-SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
-
-# 学校账号数据目录
-SCHOOL_ACCOUNTS_DIR = os.path.join(
-    os.path.dirname(__file__), 'school_accounts')
-if not os.path.exists(SCHOOL_ACCOUNTS_DIR):
-    os.makedirs(SCHOOL_ACCOUNTS_DIR)
-    logging.info(
-        f"[系统初始化] 创建学校账号数据目录 --> 目录路径: {SCHOOL_ACCOUNTS_DIR}, 用途: 存储学校系统的用户账号信息")
-
-# 系统认证账号目录（修正：独立存储，不在school_accounts下）
-SYSTEM_ACCOUNTS_DIR = os.path.join(
-    os.path.dirname(__file__), 'system_accounts')
-if not os.path.exists(SYSTEM_ACCOUNTS_DIR):
-    os.makedirs(SYSTEM_ACCOUNTS_DIR)
-    logging.info(
-        f"[系统初始化] 创建系统认证账号目录 --> 目录路径: {SYSTEM_ACCOUNTS_DIR}, 用途: 独立存储系统管理员和普通用户的认证信息")
-
-# 登录日志目录
-LOGIN_LOGS_DIR = os.path.join(os.path.dirname(__file__), 'logs')
-if not os.path.exists(LOGIN_LOGS_DIR):
-    os.makedirs(LOGIN_LOGS_DIR)
-    logging.info(
-        f"[系统初始化] 创建登录日志目录 --> 目录路径: {LOGIN_LOGS_DIR}, 用途: 存储登录历史、审计日志和系统运行日志")
-
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.ini')
-PERMISSIONS_FILE = os.path.join(os.path.dirname(__file__), 'permissions.json')
-LOGIN_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'login_history.jsonl')
-AUDIT_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'audit.jsonl')
-
-# 配置UTF-8编码（用于日志和控制台输出）
-if sys.platform.startswith('win'):
-    # Windows系统特殊处理
-    try:
-        sys.stdout.reconfigure(encoding='utf-8')
-        sys.stderr.reconfigure(encoding='utf-8')
-    except AttributeError:
-        # Python 3.6及更早版本不支持reconfigure
-        import codecs
-        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
-
-# Playwright用于在服务器端运行Chrome进行JS计算
-try:
-    from playwright.sync_api import sync_playwright
-    playwright_available = True
-except ImportError:
-    playwright_available = False
-
-check_and_import_dependencies()
 
 
 # ==============================================================================
@@ -1463,7 +1524,7 @@ class AuthSystem:
         if method == 'bcrypt':
             # 使用bcrypt加密（推荐方式）
             try:
-                import bcrypt
+                
                 # bcrypt.gensalt() 自动生成随机盐
                 # 默认cost=12，可以通过rounds参数调整
                 salt = bcrypt.gensalt()
@@ -1533,7 +1594,7 @@ class AuthSystem:
         if stored_password.startswith('$2b$') or stored_password.startswith('$2a$'):
             # bcrypt格式密码
             try:
-                import bcrypt
+                
                 # bcrypt.checkpw自动处理盐值验证，内部使用常量时间比较
                 result = bcrypt.checkpw(input_password.encode(
                     'utf-8'), stored_password.encode('utf-8'))
@@ -2587,12 +2648,10 @@ class AuthSystem:
         except Exception as e:
             logging.error(f"[权限同步] 同步 super_admin 权限时发生严重错误: {e}", exc_info=True)
 
-# 创建全局认证系统实例
-auth_system = AuthSystem()
 
 
 # ==============================================================================
-# Token管理系统 (2048位令牌)
+# Token管理系统 
 # ==============================================================================
 
 class TokenManager:
@@ -2875,10 +2934,6 @@ class TokenManager:
             logging.info(f"检测到多设备登录: {username}, 旧会话数: {len(old_sessions)}")
 
         return old_sessions
-
-
-# 创建全局Token管理器实例
-token_manager = TokenManager(TOKENS_STORAGE_DIR)
 
 
 # ==============================================================================
@@ -8858,20 +8913,6 @@ def resource_path(relative_path):
     return os.path.join(os.path.abspath("."), relative_path)
 
 
-html_content = ""
-
-try:
-    html_path = resource_path("index.html")
-    with open(html_path, 'r', encoding='utf-8') as file:
-        html_content = file.read()
-    logging.info("成功读取 index.html 文件！")
-
-except FileNotFoundError:
-    logging.error("错误: 未在资源路径中找到 'index.html' 文件。")
-    sys.exit(1)
-except Exception as e:
-    logging.error(f"读取文件时发生错误: {e}")
-    sys.exit(1)
 
 
 def check_port_available(host, port):
@@ -8891,15 +8932,7 @@ def check_port_available(host, port):
 #    支持通过浏览器访问，使用UUID进行会话管理
 #    使用Playwright在服务器端运行Chrome进行JS计算
 # ==============================================================================
-# 全局会话存储：{session_id: Api实例}
-web_sessions = {}
-web_sessions_lock = threading.Lock()
-# 会话文件锁，用于并发保护
-session_file_locks = {}  # {session_hash: threading.Lock}
-session_file_locks_lock = threading.Lock()
-# 会话活动追踪：{session_id: last_activity_time}
-session_activity = {}
-session_activity_lock = threading.Lock()
+
 
 
 def update_session_activity(session_id):
@@ -10577,9 +10610,6 @@ class ChromeBrowserPool:
                     f"清理线程 {threading.current_thread().name} 资源时出错: {e}", exc_info=True)
 
 
-# 全局Chrome浏览器池和后台任务管理器
-chrome_pool = None
-background_task_manager = None
 
 
 def _cleanup_playwright():
@@ -12510,14 +12540,9 @@ def start_web_server(args_param):
         max_retries = 3
         retry_delay = 0.1
 
-        import sys
+        
         # 在循环开始前尝试导入 fcntl (仅非Windows)
         fcntl = None
-        if sys.platform != 'win32':
-            try:
-                import fcntl
-            except ImportError:
-                logging.warning("fcntl 模块在当前平台不可用，文件锁将被跳过。")
 
         for attempt in range(max_retries):
             try:
@@ -13114,9 +13139,6 @@ def start_web_server(args_param):
     @app.route('/auth/user/upload_avatar', methods=['POST'])
     def auth_user_upload_avatar():
         """上传用户头像文件（multipart/form-data）"""
-        import hashlib
-        from PIL import Image
-        import io
 
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
@@ -13256,7 +13278,7 @@ def start_web_server(args_param):
     @app.route('/api/avatar/<filename>', methods=['GET'])
     def serve_avatar(filename):
         """提供头像图片服务（需要会话认证，管理员可访问）"""
-        from flask import send_file
+
 
         # 验证会话 - 支持从header、cookie或query参数获取session_id
         session_id = request.headers.get('X-Session-ID', '') or \
@@ -13716,7 +13738,7 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": "缺少会话ID"}), 400
 
         # 验证UUID格式
-        import re
+
         uuid_pattern = re.compile(
             r'^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$',
             re.IGNORECASE
@@ -14348,8 +14370,7 @@ def start_web_server(args_param):
             # 模式4: let functionName = function(...) { ... }
             # 模式5: var functionName = function(...) { ... }
             
-            # 使用正则表达式查找函数定义
-            import re
+
             
             # 构建匹配模式：查找函数声明、函数表达式或箭头函数
             pattern = rf'(?:^|\n)(\s*(?:(?:async\s+)?function\s+{function_name}\s*\([^)]*\)|(?:const|let|var)\s+{function_name}\s*=\s*(?:function\s*\([^)]*\)|(?:async\s+)?function\s*\([^)]*\)|\([^)]*\)\s*=>))\s*{{)'
@@ -14454,7 +14475,7 @@ def start_web_server(args_param):
             response.headers['Last-Modified'] = last_modified
             
             # 生成 ETag（基于文件内容的哈希值）
-            import hashlib
+
             etag = hashlib.md5(function_code.encode('utf-8')).hexdigest()
             response.headers['ETag'] = f'"{etag}"'
             
@@ -14534,7 +14555,7 @@ def start_web_server(args_param):
             file_mtime = os.path.getmtime(js_globals_file)
             last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
             
-            import hashlib
+
             etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
             etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
             
@@ -14614,7 +14635,7 @@ def start_web_server(args_param):
             file_mtime = os.path.getmtime(css_animation_file)
             last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
             
-            import hashlib
+
             etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
             etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
             
@@ -14941,7 +14962,7 @@ def start_web_server(args_param):
             
             # 从文件中提取指定的片段
             # 格式：<!-- 段落开始： fragment-name --> ... <!-- 段落结束： fragment-name -->
-            import re
+
             pattern = rf'<!-- 段落开始： {re.escape(fragment_name)} -->\s*(.*?)\s*<!-- 段落结束： {re.escape(fragment_name)} -->'
             match = re.search(pattern, fragments_content, re.DOTALL)
             
@@ -14986,7 +15007,7 @@ def start_web_server(args_param):
             last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
             
             # 设置 ETag（基于内容哈希 + 压缩标志）
-            import hashlib
+
             etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
             etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
             
@@ -15338,14 +15359,13 @@ def start_web_server(args_param):
             if not nickname:
                 return jsonify({"success": False, "message": "游客必须设置昵称"})
             # 简单的邮箱格式验证
-            import re
+
             email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
             if not re.match(email_pattern, email):
                 return jsonify({"success": False, "message": "邮箱格式不正确"})
 
         # 构建留言对象
-        import time
-        import uuid
+
         message = {
             "id": str(uuid.uuid4()),
             "content": content,
@@ -15691,6 +15711,39 @@ def start_web_server(args_param):
 
 def main():
     """主函数，启动Web服务器模式（已弃用桌面模式）"""
+    
+    import_logging_and_other_early_modules()
+    # ========== 初始化日志系统 ==========
+    # 在程序最开始就初始化日志，确保后续所有操作都能被记录
+    try:
+
+    # 配置UTF-8编码（用于日志和控制台输出）
+    if sys.platform.startswith('win'):
+        # Windows系统特殊处理
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+            sys.stderr.reconfigure(encoding='utf-8')
+        except AttributeError:
+            # Python 3.6及更早版本不支持reconfigure
+            import codecs
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+        setup_logging()
+    except Exception as e:
+        # 如果日志系统初始化失败，至少要在控制台输出错误
+        # 这是最后的防线，确保用户能看到问题
+        print(f"[错误] 日志系统初始化失败: {e}")
+        traceback.print_exc()  # 打印完整的堆栈跟踪，便于定位问题
+
+
+
+
+    check_and_import_dependencies()
+
+
+    # 在导入完成后立即初始化系统
+    auto_init_system()
+
 
     parser = argparse.ArgumentParser(description='跑步助手 - Web服务器模式')
     parser.add_argument("--port", type=int, default=5000,
