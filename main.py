@@ -480,7 +480,7 @@ class CustomLogHandler(logging.FileHandler):
         self.stream = self._open()
 
 
-def setup_logging():
+def setup_logging(log_level=logging.DEBUG):
     """
     配置详细的日志系统（带自定义轮转逻辑）。
 
@@ -488,6 +488,11 @@ def setup_logging():
     1. 启动时归档旧日志文件到 logs/archive（压缩为 zip）
     2. 当 zx-slm-tool.log 大小超过配置限制时自动轮转
     3. 清理归档目录，防止占用过多磁盘空间
+
+    参数：
+        log_level (int): Python logging 模块的日志级别常量（如 logging.DEBUG, logging.INFO 等）
+                        默认为 logging.DEBUG，记录所有级别的日志
+                        此参数允许通过命令行参数动态控制日志输出详细程度
 
     配置项（config.ini [Logging]）：
     - log_rotation_size_mb: 单个日志文件最大大小（MB）
@@ -527,34 +532,68 @@ def setup_logging():
 
     log_file = os.path.join(log_dir, 'zx-slm-tool.log')
 
-    # 创建logger
+    # 获取 Python 日志系统的根 logger
+    # 根 logger 是所有其他 logger 的祖先，配置它会影响整个程序的日志行为
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    
+    # 设置根 logger 的日志级别
+    # 这是日志过滤的第一道关卡：低于此级别的日志消息会被直接丢弃
+    # 使用传入的 log_level 参数，支持通过命令行参数动态控制日志详细程度
+    logger.setLevel(log_level)
 
-    # 清除已有的处理器
+    # 清除根 logger 已有的所有处理器（handlers）
+    # 这很重要，因为如果多次调用 setup_logging()，会导致重复的日志输出
+    # 清除后重新添加，确保日志配置的一致性
     logger.handlers.clear()
 
     # 日志格式 - 包含详细信息
+    # 创建日志格式化器 - 定义每条日志消息的输出格式
+    # 包含的信息：
+    #   - asctime: 时间戳（格式：YYYY-MM-DD HH:MM:SS）
+    #   - levelname: 日志级别（DEBUG, INFO, WARNING, ERROR, CRITICAL）
+    #   - filename: 产生日志的源文件名
+    #   - lineno: 产生日志的源文件行号
+    #   - funcName: 产生日志的函数名
+    #   - message: 实际的日志消息内容
     log_format = logging.Formatter(
         '%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] [%(funcName)s] %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
     # 控制台处理器 - 输出到标准输出
+    # 创建控制台处理器 - 将日志输出到标准输出（终端/控制台）
+    # 使用 sys.stdout 而不是 sys.stderr，确保日志按顺序与程序输出混合显示
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
+    
+    # 设置控制台处理器的日志级别
+    # 这是第二道过滤关卡：即使消息通过了 logger 的级别检查，
+    # 如果低于 handler 的级别也不会被输出到控制台
+    # 这里设置为与根 logger 相同的级别，确保一致性
+    console_handler.setLevel(log_level)
+    
+    # 为控制台处理器设置格式化器
     console_handler.setFormatter(log_format)
+    
+    # 将控制台处理器添加到根 logger
     logger.addHandler(console_handler)
 
     # 文件处理器 - 使用自定义轮转处理器
+    # 创建文件处理器 - 将日志写入文件，并支持自动轮转
+    # 计算文件大小上限（单位：字节）
     max_bytes = log_rotation_size_mb * 1024 * 1024
+    
+    # 使用自定义的 CustomLogHandler，支持文件大小检查和轮转
+    # mode='a' 表示追加模式，不会覆盖已有日志
+    # encoding='utf-8' 确保中文日志正确写入
     file_handler = CustomLogHandler(
         log_file,
         mode='a',
         encoding='utf-8',
         max_bytes=max_bytes
     )
-    file_handler.setLevel(logging.DEBUG)
+    
+    # 文件处理器也设置为相同的日志级别
+    file_handler.setLevel(log_level)
 
     # 修复：为 file_handler 应用“无颜色”格式化程序
     # 我们从原始 log_format 中提取格式字符串和日期格式
@@ -566,29 +605,32 @@ def setup_logging():
 
     logger.addHandler(file_handler)
 
-    # 记录日志系统启动
+    # 记录日志系统启动信息
+    # 使用 logging.info() 而不是 print()，确保这些信息也被记录到文件
     logging.info("="*80)
     logging.info("日志系统初始化完成（启用自定义轮转）")
     logging.info(f"日志文件: {log_file}")
-    logging.info(f"日志级别: DEBUG (所有级别)")
+    
+    # 将数字日志级别转换为易读的名称（DEBUG, INFO, WARNING 等）
+    level_name = logging.getLevelName(log_level)
+    logging.info(f"日志级别: {level_name} ({log_level})")
+    
     logging.info(f"日志轮转: 单文件最大{log_rotation_size_mb}MB")
     logging.info(
         f"归档目录: {archive_dir}, 最大{archive_max_size_mb}MB{'（不限制）' if archive_max_size_mb == 0 else ''}")
     logging.info("="*80)
 
+    # 返回配置好的 logger 对象
+    # 虽然通常不需要返回值（因为已经配置了根 logger），
+    # 但返回 logger 可以让调用者获得引用以进行进一步操作
     return logger
 
 
-# ========== 初始化日志系统 ==========
-# 在程序最开始就初始化日志，确保后续所有操作都能被记录
-try:
-    setup_logging()
-except Exception as e:
-    # 如果日志系统初始化失败，至少要在控制台输出错误
-    # 这是最后的防线，确保用户能看到问题
-    print(f"[错误] 日志系统初始化失败: {e}")
-    import traceback  # 在这里导入traceback，避免污染全局命名空间
-    traceback.print_exc()  # 打印完整的堆栈跟踪，便于定位问题
+# ========== 日志系统初始化说明 ==========
+# 日志系统将在 main() 函数中初始化，以便能够接受命令行参数（如 --log-level）
+# 这样用户可以通过命令行参数动态控制日志输出的详细程度
+# 例如：python main.py --log-level info  （只显示INFO及以上级别的日志）
+#      python main.py --debug             （显示所有DEBUG级别的详细日志）
 
 
 # ==============================================================================
@@ -15690,106 +15732,228 @@ def start_web_server(args_param):
 
 
 def main():
-    """主函数，启动Web服务器模式（已弃用桌面模式）"""
+    """
+    主函数，启动Web服务器模式（已弃用桌面模式）。
+    
+    功能说明：
+        这是程序的入口函数，负责：
+        1. 解析命令行参数（端口、主机地址、日志级别等）
+        2. 初始化日志系统（根据用户指定的日志级别）
+        3. 检查必要的依赖项（Playwright等）
+        4. 查找可用的网络端口
+        5. 启动Web服务器
+    
+    命令行参数：
+        --port: 服务器端口号（默认5000）
+        --host: 服务器监听地址（默认127.0.0.1，仅本机访问）
+        --headless: 使用无头Chrome模式（默认启用）
+        --log-level: 日志级别（debug/info/warning/error/critical，默认debug）
+        --debug: 启用调试日志（等同于 --log-level debug）
+    
+    使用示例：
+        python main.py                                    # 使用默认配置启动
+        python main.py --port 8080                       # 指定端口8080
+        python main.py --log-level info                  # 只显示INFO及以上级别日志
+        python main.py --host 0.0.0.0 --port 8080       # 允许外部访问
+    """
 
+    # ===== 步骤1：解析命令行参数 =====
+    # 使用 argparse 模块解析用户传入的命令行参数
+    # 这允许用户自定义服务器的行为而不需要修改代码
     parser = argparse.ArgumentParser(description='跑步助手 - Web服务器模式')
+    
+    # 添加端口参数：指定Web服务器监听的端口号
+    # type=int 确保输入的是整数，default=5000 设置默认值
     parser.add_argument("--port", type=int, default=5000,
                         help="Web服务器端口（默认5000）")
+    
+    # 添加主机地址参数：指定服务器监听的IP地址
+    # 127.0.0.1 表示只接受本机连接，0.0.0.0 表示接受所有网络接口的连接
     parser.add_argument("--host", type=str,
                         default="127.0.0.1", help="Web服务器地址（默认127.0.0.1）")
+    
+    # 添加无头模式参数：控制Chrome浏览器是否显示界面
+    # action="store_true" 表示如果指定此参数，值为True；否则为False
+    # default=True 表示默认启用无头模式（不显示浏览器窗口）
     parser.add_argument("--headless", action="store_true",
                         default=True, help="使用无头Chrome模式（默认启用）")
+    
+    # 添加日志级别参数：控制日志输出的详细程度
+    # choices 限制用户只能选择这些值之一
+    # debug: 最详细，包含所有调试信息
+    # info: 一般信息，记录程序运行的关键步骤
+    # warning: 警告信息，可能存在问题但不影响运行
+    # error: 错误信息，某些功能出现问题
+    # critical: 严重错误，程序可能无法继续运行
     parser.add_argument("--log-level", choices=['debug', 'info', 'warning',
                         'error', 'critical'], default='debug', help="设置日志级别（默认 debug）")
+    
+    # 添加调试参数：兼容旧版本的调试开关
+    # 如果用户使用 --debug，等同于 --log-level debug
     parser.add_argument("--debug", action="store_true",
                         help="启用调试日志（兼容旧参数，等同于 --log-level debug）")
+    
+    # 解析命令行参数，将结果存储在 args 对象中
+    # args.port, args.host, args.log_level 等属性可以直接访问
     args = parser.parse_args()
 
-    # 配置详细的中文日志输出（确保UTF-8编码）
+    # ===== 步骤2：确定日志级别 =====
+    # 根据用户指定的参数确定实际使用的日志级别
+    # 如果用户指定了 --debug，优先使用 debug 级别
+    # 否则使用 --log-level 指定的级别（默认也是 debug）
     selected_level_name = 'debug' if args.debug else args.log_level
+    
+    # 将日志级别名称（字符串）转换为 logging 模块的常量（整数）
+    # logging.DEBUG = 10, logging.INFO = 20, logging.WARNING = 30, 等等
+    # getattr 函数动态获取 logging 模块的属性
+    # 例如：getattr(logging, 'DEBUG') 返回 logging.DEBUG (值为10)
+    # 如果转换失败（不应该发生，因为有 choices 限制），使用 logging.DEBUG 作为默认值
     log_level = getattr(logging, selected_level_name.upper(), logging.DEBUG)
 
-    log_format = "%(asctime)s [%(levelname)s] [%(filename)s:%(lineno)d] %(message)s"
+    # ===== 步骤3：初始化日志系统 =====
+    # 调用 setup_logging() 函数，传入用户指定的日志级别
+    # 这会配置日志系统：
+    # - 创建日志文件和归档目录
+    # - 设置日志格式和轮转规则
+    # - 配置控制台和文件两个输出目标
+    # - 应用用户指定的日志级别过滤
+    try:
+        setup_logging(log_level)
+    except Exception as e:
+        # 如果日志系统初始化失败，使用 print() 输出错误信息
+        # 因为此时日志系统可能还没有正常工作
+        print(f"[错误] 日志系统初始化失败: {e}")
+        import traceback
+        traceback.print_exc()
+        # 即使日志初始化失败，也继续运行（可能只是日志功能不可用）
+        # 实际环境中可以考虑是否应该退出程序
 
-    # 创建UTF-8编码的StreamHandler
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter(log_format))
-
-    logging.basicConfig(
-        level=log_level,
-        format=log_format,
-        handlers=[handler]
-    )
-
+    # ===== 步骤4：输出启动信息 =====
+    # 使用 logging.info() 记录程序启动信息
+    # 这些信息会同时输出到控制台和日志文件
     logging.info("="*60)
     logging.info("跑步助手 Web 模式启动中...")
+    
+    # 创建日志级别的中文映射表，方便中文用户理解
     level_name_map = {
-        logging.DEBUG: "调试",
-        logging.INFO: "信息",
-        logging.WARNING: "警告",
-        logging.ERROR: "错误",
-        logging.CRITICAL: "严重"
+        logging.DEBUG: "调试",      # 最详细的调试信息
+        logging.INFO: "信息",        # 一般运行信息
+        logging.WARNING: "警告",     # 警告但不影响运行
+        logging.ERROR: "错误",       # 错误，某些功能失败
+        logging.CRITICAL: "严重"     # 严重错误，可能导致程序崩溃
     }
+    
+    # 输出当前使用的日志级别（中文名称和英文名称）
     logging.info(
         f"日志级别: {level_name_map.get(log_level, selected_level_name.upper())} ({selected_level_name.upper()})")
+    
+    # 输出服务器将要监听的地址和端口
+    # 用户可以通过这个地址在浏览器中访问应用
     logging.info(f"服务器地址: {args.host}:{args.port}")
     logging.info("="*60)
 
+    # ===== 步骤5：检查依赖项 =====
+    # 检查并导入所有必需的第三方库（Flask, Playwright, requests 等）
+    # 如果缺少任何库，函数会输出详细的安装说明并退出程序
     check_and_import_dependencies()
 
-    # 检查Playwright是否可用
+    # ===== 步骤6：检查Playwright是否可用 =====
+    # Playwright 用于在服务器端运行Chrome浏览器进行JavaScript计算
+    # 这是程序的核心功能，必须可用
+    # playwright_available 是一个全局变量，在文件顶部尝试导入时设置
+    # 如果 Playwright 库未安装或安装不正确，这个变量会是 False
     if not playwright_available:
+        # 输出详细的错误信息和解决方案
+        # 使用 print() 而不是 logging，因为这是致命错误，需要确保用户能看到
         print("\n" + "="*60)
         print("错误: 需要安装 Playwright 以在服务器端运行Chrome")
         print("请运行以下命令:")
         print("  pip install playwright")
         print("  python -m playwright install chromium")
         print("="*60 + "\n")
+        # 退出程序，返回状态码 1 表示错误
         sys.exit(1)
 
+    # ===== 步骤7：检查端口可用性并自动查找备选端口 =====
+    # 保存用户最初指定的端口号，用于错误消息
     initial_port = args.port
+    
+    # 检查用户指定的端口是否可用
+    # check_port_available() 函数尝试绑定端口，如果成功则表示端口可用
     if not check_port_available(args.host, args.port):
+        # 端口不可用（可能被其他程序占用），输出警告并尝试查找替代端口
         logging.warning(f"指定的端口 {args.port} 不可用或已被占用，尝试自动查找可用端口...")
-        found_port = None
-        # 尝试常用备选端口
+        found_port = None  # 用于存储找到的可用端口
+        
+        # 尝试常用的备选端口列表
+        # 这些都是Web服务常用的端口，按常用程度排序
         alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000, 5005, 5050]
+        
+        # 遍历备选端口列表，查找第一个可用的端口
         for port in alternative_ports:
             logging.info(f"尝试端口 {port}...")
+            # 检查当前端口是否可用
             if check_port_available(args.host, port):
-                found_port = port
+                found_port = port  # 找到可用端口，保存并退出循环
                 logging.info(f"找到可用端口: {found_port}")
-                break
+                break  # 退出 for 循环
 
-        # 如果常用端口都不可用，尝试随机端口 (例如 10000 到 65535 之间)
+        # 如果常用端口都不可用，尝试随机端口
+        # 范围：10000-65535（避开系统保留端口 0-1023 和常用端口 1024-9999）
         if not found_port:
             logging.info("常用备选端口均不可用，尝试在 10000-65535 范围内查找随机可用端口...")
-            max_random_tries = 20  # 限制尝试次数
+            max_random_tries = 20  # 限制尝试次数，避免无限循环
+            
+            # 尝试最多 20 个随机端口
             for i in range(max_random_tries):
+                # 生成一个随机端口号
                 random_port = random.randint(10000, 65535)
-                # logging.debug(f"尝试随机端口 {random_port} ({i+1}/{max_random_tries})...") # Debug日志
+                
+                # Debug日志（已注释）：如果需要调试，可以取消注释查看尝试的每个端口
+                # logging.debug(f"尝试随机端口 {random_port} ({i+1}/{max_random_tries})...")
+                
+                # 检查随机端口是否可用
                 if check_port_available(args.host, random_port):
-                    found_port = random_port
+                    found_port = random_port  # 找到可用端口
                     logging.info(f"找到可用随机端口: {found_port}")
-                    break
-                # 短暂等待避免CPU占用过高
+                    break  # 退出 for 循环
+                
+                # 短暂等待，避免CPU占用过高
+                # 0.01秒的延迟对用户体验几乎无影响，但能降低系统负载
                 time.sleep(0.01)
 
-        # 如果最终仍未找到可用端口
+        # 如果最终仍未找到可用端口（非常罕见的情况）
         if not found_port:
+            # 记录错误日志
             logging.error(f"自动查找端口失败。初始端口 {initial_port} 及所有尝试的备选/随机端口均不可用。")
+            
+            # 输出友好的错误消息，指导用户如何解决
             print(f"\n{'='*60}")
             print(f"错误: 无法自动找到可用的网络端口。")
             print(f"请检查端口 {initial_port} 或其他常用端口是否被占用，或手动指定一个可用端口:")
             print(f"  python main.py --port <可用端口号>")
             print(f"{'='*60}\n")
+            
+            # 退出程序，返回状态码 1 表示错误
             sys.exit(1)
         else:
-            args.port = found_port  # 更新 args 中的端口号为找到的可用端口
+            # 找到了可用端口，更新 args 对象中的端口号
+            # 这样后续代码使用 args.port 时会使用新找到的端口
+            args.port = found_port
 
-    # 启动Web服务器模式
+    # ===== 步骤8：启动Web服务器 =====
+    # 所有检查和初始化都已完成，现在启动Web服务器
+    # start_web_server() 是一个阻塞函数，会一直运行直到服务器关闭
     logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
     start_web_server(args)
 
 
+# ===== 程序入口点 =====
+# 这是Python的标准惯用法，确保代码只在作为主程序运行时执行，而不是作为模块导入时执行
+# __name__ 是Python的特殊变量：
+# - 如果文件被直接运行（python main.py），__name__ 的值是 "__main__"
+# - 如果文件被导入（import main），__name__ 的值是模块名 "main"
+# 这样设计允许代码既可以作为独立程序运行，也可以作为模块被其他代码导入使用
 if __name__ == "__main__":
+    # 调用主函数，启动整个程序
     main()
