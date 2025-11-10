@@ -397,10 +397,9 @@ def initialize_global_variables():
     global session_activity, session_activity_lock
     global chrome_pool, background_task_manager
 
-    # TODO: 您必须在此函数 *之前* 定义 AuthSystem 和 TokenManager 类
-    # auth_system = AuthSystem()
-    # token_manager = TokenManager(TOKENS_STORAGE_DIR)
-    # logging.info("认证系统和Token管理器已创建。")
+    auth_system = AuthSystem()
+    token_manager = TokenManager(TOKENS_STORAGE_DIR)
+    logging.info("认证系统和Token管理器已创建。")
 
     # 读取 HTML
     html_content = ""
@@ -601,7 +600,7 @@ def archive_old_logs():
         return
 
     # 生成归档文件名（毫秒级时间戳）
-    timestamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')[:-3]  # 毫秒级
+    timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')[:-3]  # 毫秒级
     archive_filename = f"{timestamp}.zip"
     archive_path = os.path.join(archive_dir, archive_filename)
 
@@ -15860,14 +15859,14 @@ def main():
     
     # ========== 第1步：导入内置模块 ==========
     # 必须最先执行，因为后续所有操作都依赖这些模块
-    try:
-        import_builtin_modules()
-    except Exception as e:
-        print(f"[致命错误] 导入内置模块失败: {e}")
-        import traceback
-        traceback.print_exc()
-        import sys
-        sys.exit(1)
+    # try:
+    #     import_builtin_modules()
+    # except Exception as e:
+    #     print(f"[致命错误] 导入内置模块失败: {e}")
+    #     import traceback
+    #     traceback.print_exc()
+    #     import sys
+    #     sys.exit(1)
     
     # ========== 第2步：初始化日志系统 ==========
     # 在程序最开始就初始化日志，确保后续所有操作都能被记录
@@ -15879,13 +15878,22 @@ def main():
         traceback.print_exc()
         # 不退出，继续尝试运行
 
-    # ========== 第3步：导入第三方依赖 ==========
-    # 导入Flask、requests、playwright等第三方库
+    # ========== 第3步：导入所有依赖库 ==========
+    # 导入标准库 (socket, math, etc.)
+    import_standard_libraries()
+    
+    # 导入核心第三方库 (Pillow, bcrypt, Flask-SocketIO)
+    import_core_third_party()
+
+    # 导入主要应用依赖库 (Flask, requests, playwright 等)
     check_and_import_dependencies()
 
     # ========== 第4步：初始化系统 ==========
     # 创建目录、配置文件、默认管理员账号等
     auto_init_system()
+
+    # 创建 AuthSystem, TokenManager, 并加载 html_content
+    initialize_global_variables()
 
     # ========== 第5步：解析命令行参数 ==========
     parser = argparse.ArgumentParser(description='跑步助手 - Web服务器模式')

@@ -12,3 +12,4 @@ __pycache__/
 /permissions.json
 /background_tasks/
 messages.json
+/.vscode
