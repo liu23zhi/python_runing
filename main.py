@@ -6336,6 +6336,15 @@ class Api:
         except Exception as e:
             self.log(f"启动多账号自动刷新线程失败: {e}")
 
+        # [BUG修复] 进入多账号模式后立即保存会话状态，确保账号列表被持久化
+        # 这样即使程序重启，也能恢复多账号列表
+        if session_id:
+            try:
+                save_session_state(session_id, self, force_save=True)
+                logging.info(f"进入多账号模式：已保存会话状态到持久化存储")
+            except Exception as e:
+                logging.error(f"进入多账号模式：保存会话状态失败: {e}")
+
         return {"success": True, "params": self.global_params}
 
     def exit_multi_account_mode(self):
@@ -6377,6 +6386,17 @@ class Api:
         self._init_state_variables()
         self._load_global_config()
         self.log("已退出多账号模式。")
+        
+        # [BUG修复] 退出多账号模式后立即保存会话状态，清空多账号列表
+        # 确保重启后不会恢复多账号模式
+        session_id = getattr(self, '_web_session_id', None)
+        if session_id:
+            try:
+                save_session_state(session_id, self, force_save=True)
+                logging.info(f"退出多账号模式：已清空会话中的账号列表并保存")
+            except Exception as e:
+                logging.error(f"退出多账号模式：保存会话状态失败: {e}")
+        
         return {"success": True}
 
     def enter_single_account_mode(self):
@@ -6797,6 +6817,20 @@ class Api:
                         acc, status_text=final_status, summary=acc.summary)
 
             acc.log("状态刷新完成。")
+            
+            # [BUG修复] 账号刷新完成后保存会话状态（延迟保存，避免过于频繁）
+            # 只在主动刷新（不保留状态）时保存，避免运行中的账号频繁保存
+            if not preserve_now and hasattr(self, '_web_session_id') and self._web_session_id:
+                # 使用线程延迟保存，避免阻塞刷新线程
+                def delayed_save():
+                    time.sleep(2)  # 延迟2秒，等待所有刷新完成
+                    try:
+                        save_session_state(self._web_session_id, self, force_save=True)
+                        logging.debug(f"账号 {acc.username} 刷新完成后已保存会话状态")
+                    except Exception as e:
+                        logging.error(f"延迟保存会话状态失败: {e}")
+                
+                threading.Thread(target=delayed_save, daemon=True).start()
 
         except Exception as e:
             logging.error(
@@ -7195,6 +7229,11 @@ class Api:
                 self._save_config(
                     username, self.accounts[username].password)
                 self.log(f"已更新账号 [{username}] 的参数 {key}。")
+                
+                # [BUG修复] 账号参数更新后保存会话状态
+                if hasattr(self, '_web_session_id') and self._web_session_id:
+                    save_session_state(self._web_session_id, self, force_save=True)
+                
                 return {"success": True}
             except (ValueError, TypeError) as e:
                 # 类型转换失败，返回错误
