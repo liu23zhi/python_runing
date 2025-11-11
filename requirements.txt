@@ -1,0 +1,14 @@
+Flask
+flask-cors
+pyotp
+requests
+openpyxl
+xlrd
+xlwt
+chardet
+playwright
+numpy
+cssutils
+Pillow
+bcrypt
+Flask-SocketIO
