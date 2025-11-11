@@ -25,33 +25,34 @@ IF NOT EXIST "requirements.txt" (
 )
 
 REM 检查是否为手动模式
-IF /I "%1" == "manual" GOTO :manual_mode
+IF /I "%1" == "manual" GOTO :manual_mode [cite: 1]
 
 REM --- 自动模式 ---
 
 REM 1. 检查虚拟环境是否存在
-IF NOT EXIST "%VENV_NAME%\" (
+IF NOT EXIST "%VENV_NAME%\Scripts\activate.bat" (
     echo 未找到虚拟环境 '%VENV_NAME%'。正在创建...
     %PYTHON_CMD% -m venv %VENV_NAME%
-    IF %ERRORLEVEL% NEQ 0 GOTO :venv_fail
+    IF %ERRORLEVEL% NEQ 0 GOTO :venv_fail 
 ) ELSE (
-    echo 找到虚拟环境 '%VENV_NAME%'。
+    echo 找到虚拟环境 '%VENV_NAME%'。 
 )
 
 REM 2. 激活虚拟环境
 echo 正在激活虚拟环境...
-CALL "%VENV_NAME%\Scripts\activate.bat"
-IF %ERRORLEVEL% NEQ 0 GOTO :activate_fail
+CALL "%VENV_NAME%\Scripts\activate.bat" 
+IF %ERRORLEVEL% NEQ 0 GOTO :activate_fail 
 
 REM 3. 安装/更新依赖
 echo 正在从 requirements.txt 安装/更新依赖...
-pip install -r requirements.txt
-IF %ERRORLEVEL% NEQ 0 GOTO :deps_fail
+pip install -r requirements.txt 
+IF %ERRORLEVEL% NEQ 0 GOTO :deps_fail 
 
 REM 4. 启动 main.py
 echo 依赖安装完毕。正在启动 main.py ...
 echo -----------------------------------------
-%PYTHON_CMD% main.py
+REM *** 这是修改过的行 ***
+%PYTHON_CMD% main.py %*
 echo -----------------------------------------
 echo 程序已退出。
 
@@ -82,7 +83,7 @@ GOTO :fail
 
 :fail
 echo.
-echo 脚本执行失败。
+echo 脚本执行失败。 [cite: 3]
 ENDLOCAL
 exit /b 1
 

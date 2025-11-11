@@ -15990,43 +15990,57 @@ def main():
 
     # ========== 第8步：检查并选择可用端口 ==========
     initial_port = args.port
-    if not check_port_available(args.host, args.port):
-        logging.warning(f"指定的端口 {args.port} 不可用或已被占用，尝试自动查找可用端口...")
-        found_port = None
-        # 尝试常用备选端口
-        alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000, 5005, 5050]
-        for port in alternative_ports:
-            logging.info(f"尝试端口 {port}...")
-            if check_port_available(args.host, port):
-                found_port = port
-                logging.info(f"找到可用端口: {found_port}")
-                break
+    DEFAULT_PORT = 5000  # 从 argparse 定义中获取的默认端口
 
-        # 如果常用端口都不可用，尝试随机端口 (例如 10000 到 65535 之间)
-        if not found_port:
-            logging.info("常用备选端口均不可用，尝试在 10000-65535 范围内查找随机可用端口...")
-            max_random_tries = 20  # 限制尝试次数
-            for i in range(max_random_tries):
-                random_port = random.randint(10000, 65535)
-                # logging.debug(f"尝试随机端口 {random_port} ({i+1}/{max_random_tries})...") # Debug日志
-                if check_port_available(args.host, random_port):
-                    found_port = random_port
-                    logging.info(f"找到可用随机端口: {found_port}")
+    # 检查用户是否 *明确* 指定了 *非默认* 端口
+    if initial_port != DEFAULT_PORT:
+        # --- 用户明确指定了端口 (例如 --port 80) ---
+        logging.info(f"用户已明确指定端口 {initial_port}。")
+        logging.warning(f"将 *直接尝试* 绑定到端口 {initial_port}。")
+        logging.warning(f"注意：如果此端口已被占用，或需要更高权限 (例如在 Linux/macOS 上绑定端口 80)，程序将会启动失败。")
+        # 我们跳过了 check_port_available 和自动重分配逻辑
+        # args.port 保持用户指定的值 (例如 80)
+
+    else:
+        # --- 用户使用的是默认端口 (5000)，我们执行自动检查和重分配 ---
+        logging.info(f"用户正在使用默认端口 {DEFAULT_PORT}。正在检查端口可用性...")
+        if not check_port_available(args.host, args.port):
+            logging.warning(f"默认端口 {args.port} 不可用或已被占用，尝试自动查找可用端口...")
+            found_port = None
+            # 尝试常用备选端口
+            alternative_ports = [8080, 8000, 3000, 5001, 8888, 9000, 5005, 5050]
+            for port in alternative_ports:
+                logging.info(f"尝试端口 {port}...")
+                if check_port_available(args.host, port):
+                    found_port = port
+                    logging.info(f"找到可用端口: {found_port}")
                     break
-                # 短暂等待避免CPU占用过高
-                time.sleep(0.01)
 
-        # 如果最终仍未找到可用端口
-        if not found_port:
-            logging.error(f"自动查找端口失败。初始端口 {initial_port} 及所有尝试的备选/随机端口均不可用。")
-            print(f"\n{'='*60}")
-            print(f"错误: 无法自动找到可用的网络端口。")
-            print(f"请检查端口 {initial_port} 或其他常用端口是否被占用，或手动指定一个可用端口:")
-            print(f"  python main.py --port <可用端口号>")
-            print(f"{'='*60}\n")
-            sys.exit(1)
+            # 如果常用端口都不可用，尝试随机端口
+            if not found_port:
+                logging.info("常用备选端口均不可用，尝试在 10000-65535 范围内查找随机可用端口...")
+                max_random_tries = 20  # 限制尝试次数
+                for i in range(max_random_tries):
+                    random_port = random.randint(10000, 65535)
+                    if check_port_available(args.host, random_port):
+                        found_port = random_port
+                        logging.info(f"找到可用随机端口: {found_port}")
+                        break
+                    time.sleep(0.01)
+
+            # 如果最终仍未找到可用端口
+            if not found_port:
+                logging.error(f"自动查找端口失败。默认端口 {initial_port} 及所有尝试的备选/随机端口均不可用。")
+                print(f"\n{'='*60}")
+                print(f"错误: 无法自动找到可用的网络端口。")
+                print(f"请检查端口 {initial_port} 或其他常用端口是否被占用，或手动指定一个可用端口:")
+                print(f"  python main.py --port <可用端口号>")
+                print(f"{'='*60}\n")
+                sys.exit(1)
+            else:
+                args.port = found_port  # 更新 args 中的端口号为找到的可用端口
         else:
-            args.port = found_port  # 更新 args 中的端口号为找到的可用端口
+            logging.info(f"默认端口 {DEFAULT_PORT} 可用。")
 
     # ========== 第9步：启动Web服务器 ==========
     logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")

@@ -34,7 +34,7 @@ fi
 # --- 自动模式 ---
 
 # 1. 检查虚拟环境是否存在
-if [ ! -d "$VENV_NAME" ]; then
+if [ ! -f "$VENV_NAME/bin/activate" ]; then
     echo "未找到虚拟环境 '$VENV_NAME'。正在创建..."
     $PYTHON_CMD -m venv $VENV_NAME
     if [ $? -ne 0 ]; then
@@ -65,8 +65,8 @@ fi
 # 4. 启动 main.py
 echo "依赖安装完毕。正在启动 main.py ..."
 echo "-----------------------------------------"
-$PYTHON_CMD main.py
-
+# *** 这是修改过的行 ***
+$PYTHON_CMD main.py "$@"
 # 脚本执行完毕后，虚拟环境会自动停用（因为脚本 shell 退出了）
 echo "-----------------------------------------"
 echo "程序已退出。"
