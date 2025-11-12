@@ -1631,116 +1631,122 @@
 
         <!-- 个人信息面板 -->
         <div id="admin-profile-panel_modal" class="hidden space-y-4">
-          <div class="flex justify-between items-center">
-            <h4 class="font-semibold">个人信息</h4>
-            <button id="admin-refresh-profile_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
-          </div>
-          <div id="admin-profile-content_modal" class="space-y-6">
-            <!-- 头像 -->
-            <div class="flex items-center gap-4">
-              <img id="profile-avatar-display" src="" alt="用户头像"
-                class="w-20 h-20 rounded-full border-2 border-slate-200"
-                onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
-              <div class="flex-1 space-y-2">
-                <input type="file" id="profile-avatar-file" accept="image/*" class="hidden"
-                  onchange="previewAvatar(event)">
-
-                <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm"
-                  onclick="document.getElementById('profile-avatar-file').click();">
-                  <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                  </svg>
-                  上传头像
-                </button>
-
-                <!-- <p class="text-xs text-slate-500">💡 点击按钮选择图片以上传并更新头像</p> -->
-              </div>
+            <div class="flex justify-between items-center">
+              <h4 class="font-semibold">个人信息</h4>
+              <button id="admin-refresh-profile_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
-
-            <!-- 昵称和手机号 -->
-            <div class="border-t border-slate-200 pt-4">
-              <h5 class="font-semibold text-slate-700 mb-3">基本信息</h5>
-              <div class="space-y-3">
-                <div>
-                  <label class="block text-sm font-semibold text-slate-700 mb-1">昵称</label>
-                  <input type="text" id="profile-nickname" class="input-field" placeholder="输入昵称">
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-slate-700 mb-1">手机号</label>
-                  <div class="flex gap-2">
-                    <input type="tel" id="profile-phone" class="input-field flex-1" placeholder="未绑定手机号" readonly
-                      inputmode="numeric">
-                    <button onclick="modifyPhone()" id="profile-modify-phone-btn"
-                      class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap">
-                      修改手机号
+            
+            <div id="admin-profile-content_modal" class="space-y-6 text-slate-800">
+              
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                <h5 class="font-semibold text-slate-700 mb-2">头像</h5>
+                <div class="flex items-center gap-4">
+                  <img id="profile-avatar-display" src="" alt="用户头像"
+                    class="w-20 h-20 rounded-full border-2 border-slate-200"
+                    onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+                  <div class="flex-1 space-y-2">
+                    <input type="file" id="profile-avatar-file" accept="image/*" class="hidden"
+                      onchange="previewAvatar(event)">
+    
+                    <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm"
+                      onclick="document.getElementById('profile-avatar-file').click();">
+                      <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                      </svg>
+                      上传头像
                     </button>
                   </div>
-                  <p class="text-xs text-slate-500 mt-1" id="profile-phone-hint">💡 修改手机号需要短信验证</p>
                 </div>
-                <button onclick="updateBasicInfo()" class="btn btn-primary">保存基本信息</button>
               </div>
-            </div>
 
-            <!-- 修改密码 -->
-            <div class="border-t border-slate-200 pt-4">
-              <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
-              <div class="space-y-3">
-                <div>
-                  <label class="block text-sm font-semibold text-slate-700 mb-1">当前密码</label>
-                  <input type="password" id="profile-current-password" class="input-field" placeholder="输入当前密码">
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                <h5 class="font-semibold text-slate-700 mb-3">基本信息</h5>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">昵称</label>
+                    <input type="text" id="profile-nickname" class="input-field" placeholder="输入昵称">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">手机号</label>
+                    <div class="flex gap-2">
+                      <input type="tel" id="profile-phone" class="input-field flex-1" placeholder="未绑定手机号" readonly
+                        inputmode="numeric">
+                      <button onclick="modifyPhone()" id="profile-modify-phone-btn"
+                        class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap">
+                        修改手机号
+                      </button>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1" id="profile-phone-hint">💡 修改手机号需要短信验证</p>
+                  </div>
+                  <div class="flex justify-end">
+                    <button onclick="updateBasicInfo()" class="btn btn-primary">保存基本信息</button>
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
-                  <input type="password" id="profile-new-password" class="input-field" placeholder="输入新密码">
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-slate-700 mb-1">确认新密码</label>
-                  <input type="password" id="profile-confirm-password" class="input-field" placeholder="再次输入新密码">
-                </div>
-                <button onclick="updatePassword()" class="btn btn-primary">修改密码</button>
               </div>
-            </div>
 
-            <!-- 2FA设置 -->
-            <div class="border-t border-slate-200 pt-4">
-              <h5 class="font-semibold text-slate-700 mb-3">双因素认证(2FA)</h5>
-              <div id="profile-2fa-status" class="mb-3">
-                <p class="text-sm text-slate-600">状态: <span id="profile-2fa-enabled">检测中...</span></p>
-              </div>
-              <div id="profile-2fa-setup" class="space-y-3 hidden">
-                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
-                  <canvas id="profile-2fa-qr" class="mx-auto"></canvas>
-                  <p class="text-xs text-slate-600 mt-2">密钥: <span id="profile-2fa-secret" class="font-mono"></span></p>
-                  <p class="text-xs text-slate-600 mt-1">请使用Google Authenticator或类似应用扫描此二维码</p>
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">当前密码</label>
+                    <input type="password" id="profile-current-password" class="input-field" placeholder="输入当前密码">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
+                    <input type="password" id="profile-new-password" class="input-field" placeholder="输入新密码">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">确认新密码</label>
+                    <input type="password" id="profile-confirm-password" class="input-field" placeholder="再次输入新密码">
+                  </div>
+                  <div class="flex justify-end">
+                    <button onclick="updatePassword()" class="btn btn-primary">修改密码</button>
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-sm font-semibold text-slate-700 mb-1">验证码</label>
-                  <input type="text" id="profile-2fa-code" class="input-field" placeholder="输入6位验证码">
-                </div>
-                <button onclick="enable2FA()" class="btn btn-primary">启用2FA</button>
               </div>
-              <div id="profile-2fa-actions" class="space-y-2">
-                <button onclick="generate2FA()" class="btn btn-primary">生成2FA密钥</button>
-              </div>
-              <div id="profile-2fa-enabled-actions" class="space-y-2 hidden">
-                <button onclick="test2FA()" class="btn btn-ghost">测试2FA</button>
-                <button onclick="disable2FA()" class="btn btn-warning">关闭2FA</button>
-              </div>
-            </div>
 
-            <!-- 主题设置 -->
-            <div class="border-t border-slate-200 pt-4">
-              <h5 class="font-semibold text-slate-700 mb-3">主题设置</h5>
-              <select id="profile-theme-select" onchange="updateTheme()" class="select-field">
-                <option value="light">浅色主题</option>
-                <option value="dark">深色主题</option>
-              </select>
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                <h5 class="font-semibold text-slate-700 mb-3">双因素认证(2FA)</h5>
+                <div id="profile-2fa-status" class="mb-3">
+                  <p class="text-sm text-slate-600">状态: <span id="profile-2fa-enabled">检测中...</span></p>
+                </div>
+                <div id="profile-2fa-setup" class="space-y-3 hidden">
+                  <div class="bg-slate-100 border border-slate-200 rounded-lg p-4 text-center">
+                    <canvas id="profile-2fa-qr" class="mx-auto"></canvas>
+                    <p class="text-xs text-slate-600 mt-2">密钥: <span id="profile-2fa-secret" class="font-mono"></span></p>
+                    <p class="text-xs text-slate-600 mt-1">请使用Google Authenticator或类似应用扫描此二维码</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">验证码</label>
+                    <input type="text" id="profile-2fa-code" class="input-field" placeholder="输入6位验证码">
+                  </div>
+                  <div class="flex justify-end">
+                    <button onclick="enable2FA()" class="btn btn-primary">启用2FA</button>
+                  </div>
+                </div>
+                <div id="profile-2fa-actions" class="space-y-2 flex justify-end">
+                  <button onclick="generate2FA()" class="btn btn-primary">生成2FA密钥</button>
+                </div>
+                <div id="profile-2fa-enabled-actions" class="space-y-2 hidden flex justify-end gap-2">
+                  <button onclick="test2FA()" class="btn btn-ghost">测试2FA</button>
+                  <button onclick="disable2FA()" class="btn btn-warning">关闭2FA</button>
+                </div>
+              </div>
+
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                <h5 class="font-semibold text-slate-700 mb-3">主题设置</h5>
+                <select id="profile-theme-select" onchange="updateTheme()" class="select-field">
+                  <option value="light">浅色主题</option>
+                  <option value="dark">深色主题</option>
+                </select>
+              </div>
+              
             </div>
-          </div>
         </div>
 
+        
         <!-- 留言板面板 -->
         <div id="admin-messages-panel_modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
@@ -1921,6 +1927,34 @@
       </div>
     </div>
   </div>
+
+  <div id="admin-modify-nickname-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeAdminModifyNicknameModal()"></div>
+    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-sky-600">修改用户昵称</h3>
+        <button onclick="closeAdminModifyNicknameModal()" class="text-slate-400 hover:text-slate-600">&times;</button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">用户名</label>
+          <input type="text" id="admin-modify-nickname-username" class="input-field mt-1" readonly>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">新昵称</label>
+          <input type="text" id="admin-modify-nickname-new" class="input-field mt-1" placeholder="请输入新昵称 (可含中文)">
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4">
+        <button onclick="closeAdminModifyNicknameModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitAdminModifyNickname()" class="btn btn-primary">确认修改</button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- 管理员修改用户手机号的二级模态框 -->
   <div id="admin-modify-phone-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
@@ -4814,7 +4848,7 @@
       }
 
       try {
-        const response = await fetch('/api/admin/users/' + encodeURIComponent(currentAuthUsername), {
+        const response = await fetch('/api/admin/users/' + encodeURIComponent(currentAuthUsername) + '/basic_info', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -5343,6 +5377,7 @@
                 <p class="text-xs text-slate-500">手机号: ${user.phone || '未绑定'}</p>
                 <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                 <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
+                <p class="text-xs text-slate-500">登录IP: ${user.last_login_ip || '无记录'} (${user.last_login_city || '未知'})</p>
                 <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
                 <p class="text-xs ${(user['2fa_enabled'] || user.tfa_enabled) ? 'text-green-600' : 'text-slate-400'}">2FA: ${(user['2fa_enabled'] || user.tfa_enabled) ? '已启用' : '未启用'}</p>
               </div>
@@ -5351,9 +5386,11 @@
               <span class="text-xs text-slate-600">权限组:</span>
               ${groupSelect}
               <div class="flex gap-1 mt-2 flex-wrap justify-end">
+                <div class="flex gap-1 mt-2 flex-wrap justify-end">
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${user.auth_username}')">查看日志</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserNickname('${user.auth_username}', '${escapeHtml(user.nickname || '')}')">修改昵称</button> 
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserPhone('${user.auth_username}', '${user.phone || ''}')">修改手机</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
                 ${(user['2fa_enabled'] || user.tfa_enabled) ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
@@ -5980,6 +6017,56 @@
       }
     }
 
+
+    // --- 管理员修改用户昵称 ---
+    function modifyUserNickname(username, currentNickname) {
+      // 打开二级模态框
+      $('admin-modify-nickname-username').value = username;
+      $('admin-modify-nickname-new').value = currentNickname || ''; // 预填充当前昵称
+      $('admin-modify-nickname-modal').classList.remove('hidden');
+    }
+
+    function closeAdminModifyNicknameModal() {
+      $('admin-modify-nickname-modal').classList.add('hidden');
+    }
+
+    async function submitAdminModifyNickname() {
+      const username = $('admin-modify-nickname-username').value;
+      const newNickname = $('admin-modify-nickname-new').value.trim();
+
+      if (!newNickname) {
+        showModalAlert('请输入新昵称');
+        return;
+      }
+
+      try {
+        // 调用新的后端API
+        const response = await fetch('/auth/admin/update_user_nickname', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: username,
+            nickname: newNickname
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的昵称已更新`, '成功');
+          closeAdminModifyNicknameModal();
+          loadAdminUsers(); // 刷新用户列表
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+
     // ====================
     // 加载用户头像
     // ====================
@@ -6377,6 +6464,17 @@
             finalAvatarSrc = `/api/avatar/${rawAvatarUrl}`;
           }
 
+          // 为头像URL附加 session_id 查询参数以通过认证
+          // 确保 sessionUUID 全局变量可用
+          if (typeof sessionUUID !== 'undefined' && sessionUUID) {
+             // 检查URL是否已有查询参数
+             if (finalAvatarSrc.includes('?')) {
+                finalAvatarSrc += `&session_id=${sessionUUID}`;
+             } else {
+                finalAvatarSrc += `?session_id=${sessionUUID}`;
+             }
+          }
+
           return `
             <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
               <div class="flex justify-between items-start gap-3">
@@ -6385,7 +6483,7 @@
                   <!-- 用户头像 -->
                   <div class="flex-shrink-0 w-12 h-12 rounded-full bg-slate-200 overflow-hidden border-2 border-slate-300">
                     <img src="${finalAvatarSrc}" alt="头像" class="w-full h-full object-cover"
-                      onerror="this.parentElement.innerHTML='<span class=\\'text-2xl text-slate-400\\'>👤</span>'; this.parentElement.classList.add('flex', 'items-center', 'justify-center');">
+                      onerror="const p = this.parentElement; p.innerHTML='<span class=\\'text-2xl text-slate-400\\'>👤</span>'; p.classList.add('flex', 'items-center', 'justify-center');">
                   </div>
                   <!-- 用户信息 -->
                   <div class="flex-1">

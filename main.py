@@ -2214,6 +2214,7 @@ class AuthSystem:
             logging.debug(f"authenticate: 更新最后登录时间: {auth_username}")
             print(f"[用户认证] 更新最后登录时间: {auth_username}")
             user_data['last_login'] = time.time()
+            user_data['last_login_ip'] = ip_address
             if 'session_ids' not in user_data:
                 user_data['session_ids'] = []
 
@@ -2465,11 +2466,27 @@ class AuthSystem:
                 try:
                     with open(user_file, 'r', encoding='utf-8') as f:
                         user_data = json.load(f)
+                    
+                    # 修正：获取IP并查询城市
+                    last_ip = user_data.get('last_login_ip', None)
+                    last_city = None
+                    if last_ip:
+                        try:
+                            # 调用已移至全局的 get_ip_location
+                            last_city = get_ip_location(last_ip)
+                        except Exception as ip_e:
+                            logging.warning(f"查询IP归属地失败 {last_ip}: {ip_e}")
+                            last_city = "查询失败"
+
                     users.append({
                         'auth_username': user_data['auth_username'],
+                        'nickname': user_data.get('nickname', ''), # 修正：添加昵称
+                        'phone': user_data.get('phone', ''),       # 修正：添加手机号
                         'group': user_data.get('group', 'user'),
                         'created_at': user_data.get('created_at'),
                         'last_login': user_data.get('last_login'),
+                        'last_login_ip': last_ip,                  # 修正：添加IP
+                        'last_login_city': last_city,              # 修正：添加城市
                         '2fa_enabled': user_data.get('2fa_enabled', False),
                         'banned': user_data.get('banned', False),
                         'max_sessions': user_data.get('max_sessions', 1)
@@ -12028,7 +12045,7 @@ def start_web_server(args_param):
 
                     # 记录审计日志
                     if session_id=='' or session_id is None:
-                        audit_details = f'登录成功，会话ID: {session_id}'
+                        audit_details = f'登录成功'
                     else:
                         audit_details = f'登录成功，会话ID: {session_id}'
                     if cleanup_message:
@@ -16741,7 +16758,7 @@ def start_web_server(args_param):
 
     @app.route('/api/messages/list', methods=['GET'])
     def get_messages():
-        """获取留言列表"""
+        """获取留言列表（修正：实时加载昵称、头像和IP归属地）"""
         # 验证会话
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
@@ -16754,7 +16771,7 @@ def start_web_server(args_param):
         if not auth_system.check_permission(auth_username, 'view_messages'):
             return jsonify({"success": False, "message": "无权查看留言"}), 403
 
-        # 读取留言文件
+        # 读取原始留言文件
         messages_file = 'messages.json'
         messages = []
 
@@ -16765,11 +16782,43 @@ def start_web_server(args_param):
             except (json.JSONDecodeError, OSError) as e:
                 logging.error(f"[留言板] 读取留言失败: {e}")
                 messages = []
+        
+        # --- 实时数据扩充 ---
+        enriched_messages = []
+        for msg in messages:
+            # 复制原始数据
+            enriched_msg = msg.copy()
+            
+            msg_auth_username = msg.get('auth_username')
+            msg_ip = msg.get('ip')
+            msg_is_guest = msg.get('is_guest', True)
+
+            # 1. 实时获取IP归属地
+            enriched_msg['ip_city'] = get_ip_location(msg_ip)
+
+            # 2. 实时获取昵称和头像
+            if not msg_is_guest and msg_auth_username:
+                # 注册用户：从 auth_system 获取
+                user_details = auth_system.get_user_details(msg_auth_username)
+                if user_details:
+                    enriched_msg['nickname'] = user_details.get('nickname', msg_auth_username)
+                    enriched_msg['avatar_url'] = user_details.get('avatar_url', 'default_avatar.png')
+                else:
+                    # 如果用户文件被删了
+                    enriched_msg['nickname'] = f"{msg_auth_username} (已注销)"
+                    enriched_msg['avatar_url'] = 'default_avatar.png'
+            else:
+                # 游客：使用 email (如果存在) 或 "游客" 作为昵称
+                enriched_msg['nickname'] = msg.get('email', '游客')
+                enriched_msg['avatar_url'] = 'default_avatar.png'
+            
+            enriched_messages.append(enriched_msg)
+        # --- 扩充结束 ---
 
         # 按时间倒序排序（最新的在前）
-        messages.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+        enriched_messages.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
 
-        return jsonify({"success": True, "messages": messages})
+        return jsonify({"success": True, "messages": enriched_messages})
 
     # ============================================================
     # 任务15：IP归属地获取辅助函数
@@ -16797,7 +16846,7 @@ def start_web_server(args_param):
         try:
             # 使用ip-api.com的免费API获取IP位置
             # 注意：此API有速率限制（45请求/分钟），生产环境建议使用本地IP数据库
-            import requests
+            # import requests (requests 已经在 check_and_import_dependencies 导入)
             response = requests.get(
                 f'http://ip-api.com/json/{ip_address}?lang=zh-CN&fields=status,message,city',
                 timeout=3  # 设置3秒超时
@@ -16899,11 +16948,8 @@ def start_web_server(args_param):
             "id": str(uuid.uuid4()),                           # 留言唯一ID
             "content": content,                                # 留言内容
             "auth_username": auth_username if not is_guest else None,  # 用户名（已登录用户）
-            "nickname": user_nickname,                         # 显示昵称
             "email": email if is_guest else None,              # 邮箱（游客）
-            "avatar_url": avatar_url,                          # 头像URL
             "is_guest": is_guest,                              # 是否游客
-            "ip_city": ip_city,                                # IP归属地（城市）
             "timestamp": time.time(),                          # 发表时间戳
             "ip": request.remote_addr                          # IP地址（用于管理）
         }
