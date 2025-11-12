@@ -42,6 +42,52 @@
     body {
       background: linear-gradient(180deg, rgba(245, 250, 255, 1) 0%, rgba(235, 245, 255, 1) 40%, rgba(250, 240, 255, 1) 100%);
       background-attachment: fixed;
+      /* 问题18修复：启用页面垂直滚动 */
+      overflow-y: auto;
+      min-height: 100vh;
+    }
+
+    /* 问题18修复：美化所有页面的滚动条样式 */
+    /* Webkit浏览器（Chrome, Safari, Edge）的滚动条样式 */
+    ::-webkit-scrollbar {
+      width: 12px; /* 垂直滚动条宽度 */
+      height: 12px; /* 水平滚动条高度 */
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05); /* 滚动条轨道背景 */
+      border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(125, 211, 252, 0.6); /* 滚动条滑块颜色（使用主题色） */
+      border-radius: 10px;
+      border: 2px solid rgba(0, 0, 0, 0.05); /* 滑块边框 */
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(125, 211, 252, 0.8); /* 鼠标悬停时的颜色 */
+    }
+
+    /* Firefox浏览器的滚动条样式 */
+    * {
+      scrollbar-width: thin; /* 细滚动条 */
+      scrollbar-color: rgba(125, 211, 252, 0.6) rgba(0, 0, 0, 0.05); /* 滑块颜色 轨道颜色 */
+    }
+
+    /* 问题18修复：为模态框和面板添加滚动支持 */
+    .modal-content, .panel, [class*="modal"] > div:first-child {
+      max-height: 90vh; /* 限制最大高度为视口的90% */
+      overflow-y: auto; /* 启用垂直滚动 */
+    }
+
+    /* 为特定容器启用滚动 */
+    #attendance-list, 
+    #multi-account-list,
+    .admin-panel-content,
+    .scrollable-content {
+      overflow-y: auto;
+      max-height: 70vh; /* 根据需要调整 */
     }
 
     .panel {
@@ -668,18 +714,48 @@
     </div>
   </div>
   <!-- 新用户添加模态框 -->
+  <!-- 问题3修复：添加新用户模态框（与注册表单一致，phone可选，验证码可发送但非必需） -->
   <div id="newUserModal" class="modal">
     <div class="modal-content">
       <span class="close" id="newUserClose">&times;</span>
       <h3>添加新用户</h3>
+      
       <div class="form-group">
         <label for="newUsername">账号：</label>
-        <input type="text" id="newUsername" placeholder="请输入账号">
+        <input type="text" id="newUsername" placeholder="请输入账号（3-20字符，不含中文）">
       </div>
+      
+      <!-- 问题3修复：添加手机号字段（可选） -->
+      <div class="form-group">
+        <label for="newUserPhone">手机号（可选）：</label>
+        <input type="tel" id="newUserPhone" placeholder="请输入手机号" inputmode="numeric" pattern="[0-9]*">
+      </div>
+      
+      <!-- 问题3修复：添加验证码字段（可选，仅当填写手机号时） -->
+      <div class="form-group" id="newUserSmsGroup" style="display:none;">
+        <label for="newUserSmsCode">验证码（可选）：</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="newUserSmsCode" placeholder="请输入验证码" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" style="flex: 1;">
+          <button type="button" id="newUserSendCode" class="btn btn-primary" style="min-height: 44px; white-space: nowrap;">发送验证码</button>
+        </div>
+      </div>
+      
+      <!-- 问题3修复：添加昵称字段 -->
+      <div class="form-group">
+        <label for="newUserNickname">昵称：</label>
+        <input type="text" id="newUserNickname" placeholder="请输入昵称（可含中文）">
+      </div>
+      
       <div class="form-group">
         <label for="newPassword">密码：</label>
-        <input type="password" id="newPassword" placeholder="请输入密码">
+        <input type="password" id="newPassword" placeholder="请输入密码（至少6字符）">
       </div>
+      
+      <div class="form-group">
+        <label for="newPasswordConfirm">确认密码：</label>
+        <input type="password" id="newPasswordConfirm" placeholder="请再次输入密码">
+      </div>
+      
       <div class="modal-actions">
         <button id="newUserCancel">取消</button>
         <button id="newUserConfirm">确认</button>
@@ -1751,7 +1827,11 @@
         <!-- 任务18：IP封禁管理Modal -->
         <!-- ============================================================ -->
         <div id="admin-ip-ban-modal" class="hidden space-y-4">
-          <h4 class="font-semibold">IP封禁管理</h4>
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">IP封禁管理</h4>
+            <!-- 问题13修复：添加刷新按钮 -->
+            <button id="admin-refresh-ipban_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadIPBans()">刷新</button>
+          </div>
           
           <!-- 封禁列表 -->
           <div id="ip-ban-list" class="space-y-2 max-h-[40vh] overflow-y-auto">
@@ -1781,7 +1861,11 @@
         <!-- 任务20：短信服务配置Modal -->
         <!-- ============================================================ -->
         <div id="admin-sms-config-modal" class="hidden space-y-4">
-          <h4 class="font-semibold">短信服务配置</h4>
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">短信服务配置</h4>
+            <!-- 问题13修复：添加刷新按钮 -->
+            <button id="admin-refresh-sms_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadSMSConfig()">刷新</button>
+          </div>
           
           <div class="space-y-3">
             <!-- 全局开关 -->
@@ -1831,6 +1915,91 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 问题9修复：管理员修改用户手机号的二级模态框 -->
+  <div id="admin-modify-phone-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeAdminModifyPhoneModal()"></div>
+    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-sky-600">修改用户手机号</h3>
+        <button onclick="closeAdminModifyPhoneModal()" class="text-slate-400 hover:text-slate-600">&times;</button>
+      </div>
+      
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">用户名</label>
+          <input type="text" id="admin-modify-phone-username" class="input-field mt-1" readonly>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">当前手机号</label>
+          <input type="tel" id="admin-modify-phone-current" class="input-field mt-1" readonly>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">新手机号</label>
+          <input type="tel" id="admin-modify-phone-new" class="input-field mt-1" placeholder="请输入新手机号" inputmode="numeric" pattern="[0-9]*">
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">验证码（可选）</label>
+          <div class="flex gap-2 mt-1">
+            <input type="text" id="admin-modify-phone-code" class="input-field flex-1" placeholder="验证码" maxlength="6" inputmode="numeric" pattern="[0-9]{6}">
+            <button onclick="sendAdminModifyPhoneCode()" id="admin-modify-phone-send-btn" class="btn btn-primary whitespace-nowrap">发送验证码</button>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">管理员修改手机号不强制要求验证码</p>
+        </div>
+      </div>
+      
+      <div class="flex justify-end gap-3 pt-4">
+        <button onclick="closeAdminModifyPhoneModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitAdminModifyPhone()" class="btn btn-primary">确认修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 问题10修复：用户日志查看的二级模态框 -->
+  <div id="user-logs-secondary-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeUserLogsSecondaryModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] space-y-4 relative overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-sky-600">用户日志查看</h3>
+        <button onclick="closeUserLogsSecondaryModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      
+      <!-- 显示当前查看的用户名 -->
+      <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
+        <p class="text-sm text-slate-700">
+          当前查看用户: <span id="current-log-username-secondary" class="font-semibold text-sky-600">N/A</span>
+        </p>
+      </div>
+
+      <!-- Tab切换按钮 -->
+      <div class="flex border-b border-slate-200">
+        <button id="log-tab-login-secondary" class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600" onclick="switchUserLogTab('login')">
+          登录记录
+        </button>
+        <button id="log-tab-audit-secondary" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" onclick="switchUserLogTab('audit')">
+          操作记录
+        </button>
+      </div>
+
+      <!-- 登录记录内容区域 -->
+      <div id="log-login-content-secondary" class="space-y-2 max-h-[50vh] overflow-y-auto">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+
+      <!-- 操作记录内容区域 -->
+      <div id="log-audit-content-secondary" class="hidden space-y-2 max-h-[50vh] overflow-y-auto">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+
+      <!-- 关闭按钮 -->
+      <div class="flex justify-end">
+        <button onclick="closeUserLogsSecondaryModal()" class="btn btn-ghost">关闭</button>
       </div>
     </div>
   </div>
@@ -3680,6 +3849,8 @@
       const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal'); // 会话标签页按钮
       const messagesTab = $('admin-tab-messages_modal'); // 留言板标签页按钮
+      const ipbanTab = $('admin-tab-ipban_modal'); // 问题2修复：IP封禁标签
+      const smsTab = $('admin-tab-sms_modal'); // 问题2修复：短信配置标签
       const godModeToggle = $('god-mode-toggle_modal');
 
       if (show) {
@@ -3716,6 +3887,10 @@
         if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
         if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
         if (messagesTab) messagesTab.style.display = canViewMessages ? 'block' : 'none';
+        
+        // 问题2修复：IP封禁和短信配置标签只对管理员显示
+        if (ipbanTab) ipbanTab.style.display = canManageUsers ? 'block' : 'none';
+        if (smsTab) smsTab.style.display = canManageUsers ? 'block' : 'none';
 
         // 游客模式：只显示会话管理和留言板，隐藏个人信息
         if (isGuest) {
@@ -5155,6 +5330,8 @@
               </div>
               <div class="flex-1">
                 <p class="font-semibold text-slate-800">${user.auth_username}${bannedBadge}</p>
+                <p class="text-xs text-slate-500">昵称: ${user.nickname || '未设置'}</p>
+                <p class="text-xs text-slate-500">手机号: ${user.phone || '未绑定'}</p>
                 <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                 <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
                 <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
@@ -5168,6 +5345,7 @@
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${user.auth_username}')">查看日志</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserPhone('${user.auth_username}', '${user.phone || ''}')">修改手机</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
                 ${(user['2fa_enabled'] || user.tfa_enabled) ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
                 ${isBanned ?
@@ -5682,6 +5860,119 @@
       }
     }
 
+    // ====================
+    // 问题4和9修复：管理员修改用户手机号功能（二级模态窗）
+    // ====================
+    function modifyUserPhone(username, currentPhone) {
+      // 打开二级模态框
+      $('admin-modify-phone-username').value = username;
+      $('admin-modify-phone-current').value = currentPhone || '未绑定';
+      $('admin-modify-phone-new').value = '';
+      $('admin-modify-phone-code').value = '';
+      $('admin-modify-phone-modal').classList.remove('hidden');
+    }
+
+    function closeAdminModifyPhoneModal() {
+      $('admin-modify-phone-modal').classList.add('hidden');
+    }
+
+    async function sendAdminModifyPhoneCode() {
+      const newPhone = $('admin-modify-phone-new').value.trim();
+      if (!newPhone || !/^1[3-9]\d{9}$/.test(newPhone)) {
+        showModalAlert('请输入正确的手机号');
+        return;
+      }
+      
+      const sendBtn = $('admin-modify-phone-send-btn');
+      sendBtn.disabled = true;
+      const originalText = sendBtn.textContent;
+      
+      try {
+        const result = await callPythonAPI('send_sms_code', newPhone);
+        if (result && result.success) {
+          const expireMin = result.expire_minutes || 5;
+          const retryAfter = result.retry_after || 180;
+          showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
+          
+          // 倒计时
+          let countdown = retryAfter;
+          const timer = setInterval(() => {
+            countdown--;
+            sendBtn.textContent = `${countdown}秒后重试`;
+            if (countdown <= 0) {
+              clearInterval(timer);
+              sendBtn.disabled = false;
+              sendBtn.textContent = originalText;
+            }
+          }, 1000);
+        } else {
+          if (result?.retry_after) {
+            let countdown = result.retry_after;
+            sendBtn.textContent = `${countdown}秒后重试`;
+            const timer = setInterval(() => {
+              countdown--;
+              sendBtn.textContent = `${countdown}秒后重试`;
+              if (countdown <= 0) {
+                clearInterval(timer);
+                sendBtn.disabled = false;
+                sendBtn.textContent = originalText;
+              }
+            }, 1000);
+          } else {
+            sendBtn.disabled = false;
+          }
+          showModalAlert(result?.message || '发送失败');
+        }
+      } catch (error) {
+        sendBtn.disabled = false;
+        showModalAlert('发送失败: ' + error.message);
+      }
+    }
+
+    async function submitAdminModifyPhone() {
+      const username = $('admin-modify-phone-username').value;
+      const newPhone = $('admin-modify-phone-new').value.trim();
+      const code = $('admin-modify-phone-code').value.trim();
+      
+      if (!newPhone) {
+        showModalAlert('请输入新手机号');
+        return;
+      }
+      
+      if (!/^1[3-9]\d{9}$/.test(newPhone)) {
+        showModalAlert('请输入正确的手机号格式');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/auth/admin/update_user_phone', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: username,
+            new_phone: newPhone,
+            sms_code: code || ''
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的手机号已更新`, '成功');
+          closeAdminModifyPhoneModal();
+          loadAdminUsers();
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    // ====================
+    // 加载用户头像
     // ====================
     // 权限组管理功能函数
     // ====================
@@ -6216,28 +6507,20 @@
      * 显示用户日志Modal并加载登录记录
      * @param {string} username - 要查看日志的用户名
      */
+    // 问题10修复：showUserLogs改为二级模态窗
     function showUserLogs(username) {
-      // 隐藏用户列表面板
-      const usersPanel = $('admin-users-panel_modal');
-      if (usersPanel) usersPanel.classList.add('hidden');
-      
-      // 显示用户日志面板
-      const logsModal = $('admin-user-logs-modal');
-      if (!logsModal) {
-        logMessage_Error('用户日志Modal不存在');
-        return;
-      }
-      logsModal.classList.remove('hidden');
+      // 打开二级模态框
+      $('user-logs-secondary-modal').classList.remove('hidden');
       
       // 设置当前查看的用户名
-      const usernameDisplay = $('current-log-username');
+      const usernameDisplay = $('current-log-username-secondary');
       if (usernameDisplay) usernameDisplay.textContent = username;
       
       // 重置Tab状态（显示登录记录）
-      const loginTab = $('log-tab-login');
-      const auditTab = $('log-tab-audit');
-      const loginContent = $('log-login-content');
-      const auditContent = $('log-audit-content');
+      const loginTab = $('log-tab-login-secondary');
+      const auditTab = $('log-tab-audit-secondary');
+      const loginContent = $('log-login-content-secondary');
+      const auditContent = $('log-audit-content-secondary');
       
       if (loginTab) {
         loginTab.classList.add('text-sky-600', 'border-sky-600');
@@ -6251,7 +6534,140 @@
       if (auditContent) auditContent.classList.add('hidden');
       
       // 加载登录记录
-      loadUserLoginLogs(username);
+      loadUserLoginLogsSecondary(username);
+    }
+    
+    function closeUserLogsSecondaryModal() {
+      $('user-logs-secondary-modal').classList.add('hidden');
+    }
+    
+    function switchUserLogTab(tab) {
+      const loginTab = $('log-tab-login-secondary');
+      const auditTab = $('log-tab-audit-secondary');
+      const loginContent = $('log-login-content-secondary');
+      const auditContent = $('log-audit-content-secondary');
+      const username = $('current-log-username-secondary').textContent;
+      
+      if (tab === 'login') {
+        loginTab.classList.add('text-sky-600', 'border-sky-600');
+        loginTab.classList.remove('text-slate-400', 'border-transparent');
+        auditTab.classList.add('text-slate-400', 'border-transparent');
+        auditTab.classList.remove('text-sky-600', 'border-sky-600');
+        loginContent.classList.remove('hidden');
+        auditContent.classList.add('hidden');
+        loadUserLoginLogsSecondary(username);
+      } else if (tab === 'audit') {
+        auditTab.classList.add('text-sky-600', 'border-sky-600');
+        auditTab.classList.remove('text-slate-400', 'border-transparent');
+        loginTab.classList.add('text-slate-400', 'border-transparent');
+        loginTab.classList.remove('text-sky-600', 'border-sky-600');
+        auditContent.classList.remove('hidden');
+        loginContent.classList.add('hidden');
+        loadUserAuditLogsSecondary(username);
+      }
+    }
+
+    /**
+     * 加载用户的登录记录（二级模态窗版本）
+     * @param {string} username - 用户名
+     */
+    async function loadUserLoginLogsSecondary(username) {
+      const content = $('log-login-content-secondary');
+      if (!content) return;
+      
+      // 显示加载中状态
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      
+      try {
+        // 调用后端API获取登录记录
+        const response = await fetch(`/api/admin/logs/login_history?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.logs && data.logs.length > 0) {
+          // 渲染登录记录列表
+          content.innerHTML = data.logs.map(log => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-slate-700">
+                    登录时间: ${log.timestamp || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    IP地址: ${log.ip || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    设备信息: ${log.user_agent || 'N/A'}
+                  </p>
+                  ${log.location ? `<p class="text-sm text-slate-600 mt-1">位置: ${log.location}</p>` : ''}
+                </div>
+                <div class="text-xs px-2 py-1 rounded ${log.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                  ${log.status === 'success' ? '成功' : '失败'}
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无登录记录</p>';
+        }
+      } catch (e) {
+        content.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+    
+    /**
+     * 加载用户的操作记录（二级模态窗版本）
+     * @param {string} username - 用户名
+     */
+    async function loadUserAuditLogsSecondary(username) {
+      const content = $('log-audit-content-secondary');
+      if (!content) return;
+      
+      // 显示加载中状态
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      
+      try {
+        // 调用后端API获取操作记录
+        const response = await fetch(`/api/admin/logs/audit?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.logs && data.logs.length > 0) {
+          // 渲染操作记录列表
+          content.innerHTML = data.logs.map(log => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-slate-700">
+                    ${log.timestamp || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    操作类型: ${log.action || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    详情: ${log.details || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    IP地址: ${log.ip || 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无操作记录</p>';
+        }
+      } catch (e) {
+        content.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
     }
 
     /**
@@ -9370,9 +9786,26 @@
     }
 
     function openNewUserModal() {
+      // 问题3修复：清空所有表单字段
       $('newUsername').value = "";
       $('newPassword').value = "";
+      $('newPasswordConfirm').value = "";
+      $('newUserPhone').value = "";
+      $('newUserNickname').value = "";
+      $('newUserSmsCode').value = "";
+      $('newUserSmsGroup').style.display = "none";
       $('newUserModal').style.display = "flex"; /* 将 'block' 改为 'flex' 以启用居中 */
+      
+      // 问题3修复：监听手机号输入，显示/隐藏验证码字段
+      const phoneInput = $('newUserPhone');
+      phoneInput.oninput = () => {
+        const phone = phoneInput.value.trim();
+        if (phone) {
+          $('newUserSmsGroup').style.display = "block";
+        } else {
+          $('newUserSmsGroup').style.display = "none";
+        }
+      };
     }
 
     function closeNewUserModal() {
@@ -9380,6 +9813,61 @@
     }
     $('newUserClose').onclick = closeNewUserModal;
     $('newUserCancel').onclick = closeNewUserModal;
+    
+    // 问题3修复：为newUserModal添加发送验证码功能
+    $('newUserSendCode').onclick = async function() {
+      const phone = $('newUserPhone').value.trim();
+      if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+        showModalAlert('请输入正确的手机号');
+        return;
+      }
+      
+      const sendCodeBtn = $('newUserSendCode');
+      sendCodeBtn.disabled = true;
+      const originalText = sendCodeBtn.textContent;
+      
+      try {
+        const result = await callPythonAPI('send_sms_code', phone);
+        if (result && result.success) {
+          const expireMin = result.expire_minutes || 5;
+          const retryAfter = result.retry_after || 180;
+          showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
+          
+          // 倒计时
+          let countdown = retryAfter;
+          const timer = setInterval(() => {
+            countdown--;
+            sendCodeBtn.textContent = `${countdown}秒后重试`;
+            if (countdown <= 0) {
+              clearInterval(timer);
+              sendCodeBtn.disabled = false;
+              sendCodeBtn.textContent = originalText;
+            }
+          }, 1000);
+        } else {
+          // 处理频繁发送错误
+          if (result?.retry_after) {
+            let countdown = result.retry_after;
+            sendCodeBtn.textContent = `${countdown}秒后重试`;
+            const timer = setInterval(() => {
+              countdown--;
+              sendCodeBtn.textContent = `${countdown}秒后重试`;
+              if (countdown <= 0) {
+                clearInterval(timer);
+                sendCodeBtn.disabled = false;
+                sendCodeBtn.textContent = originalText;
+              }
+            }, 1000);
+          } else {
+            sendCodeBtn.disabled = false;
+          }
+          showModalAlert(result?.message || '发送失败');
+        }
+      } catch (error) {
+        sendCodeBtn.disabled = false;
+        showModalAlert('发送失败: ' + error.message);
+      }
+    };
 
 
     async function multi_addFromConfig() {
@@ -9393,36 +9881,71 @@
         confirmBtn.onclick = async () => {
           const inputUsername = $('newUsername').value.trim();
           const inputPassword = $('newPassword').value;
+          const inputPasswordConfirm = $('newPasswordConfirm').value; // 问题3修复：确认密码
+          const inputPhone = $('newUserPhone').value.trim(); // 问题3修复：手机号（可选）
+          const inputNickname = $('newUserNickname').value.trim(); // 问题3修复：昵称
+          const inputSmsCode = $('newUserSmsCode').value.trim(); // 问题3修复：验证码（可选）
 
           // --- 修复：添加密码校验 ---
           if (!inputUsername || !inputPassword) {
             showModalAlert("账号和密码均不能为空");
             return;
           }
-          // (注意: main.py中的 multi_add_account 也会校验，但前端校验UX更好)
+          
+          // 问题3修复：验证用户名格式（不含中文）
+          if (/[\u4e00-\u9fa5]/.test(inputUsername)) {
+            showModalAlert('用户名不能包含中文字符');
+            return;
+          }
+          
+          // 问题3修复：验证密码长度
           if (inputPassword.length < 6) {
              showModalAlert('密码长度至少为6个字符', '错误');
              return;
+          }
+          
+          // 问题3修复：验证密码一致性
+          if (inputPassword !== inputPasswordConfirm) {
+             showModalAlert('两次输入的密码不一致', '错误');
+             return;
+          }
+          
+          // 问题3修复：如果填写了手机号，验证格式（但不强制要求）
+          if (inputPhone && !/^1[3-9]\d{9}$/.test(inputPhone)) {
+            showModalAlert('请输入正确的手机号格式');
+            return;
           }
 
           // --- 修复：添加加载状态和try...finally ---
           setButtonLoading('newUserConfirm', true, '添加中...');
           
           try {
-            const result = await callPythonAPI('multi_add_account', inputUsername, inputPassword);
+            // 问题3修复：调用注册API而不是multi_add_account
+            // 因为需要支持phone、nickname等额外字段
+            const result = await callPythonAPI('auth_register', 
+              inputUsername, 
+              inputPassword, 
+              inputPhone, 
+              inputSmsCode, 
+              inputNickname
+            );
             
             // --- 修复：只在成功后关闭模态框 ---
-            if (result && result.accounts) {
-              renderMultiAccountList(result.accounts);
+            if (result && result.success) {
+              showModalAlert('用户添加成功', '成功');
               closeNewUserModal(); // 成功后关闭
+              // 刷新用户列表（如果在管理员面板中）
+              if (typeof loadAdminUsers === 'function') {
+                loadAdminUsers();
+              }
             } else {
-              // 显示后端返回的错误（例如：账号已存在但密码为空）
-              showModalAlert(result?.message || '添加失败，请检查账号是否已存在');
+              // 显示后端返回的错误
+              showModalAlert(result?.message || '添加失败');
             }
           } catch (e) {
             // 捕获 callPythonAPI 可能抛出的网络错误
             showModalAlert(`添加时发生错误: ${e.message}`);
-            logMessage_Error("多账号添加新用户时发生错误:", e);
+            logMessage_Error("添加新用户时发生错误:", e);
           } finally {
             // --- 修复：恢复按钮状态 ---
             setButtonLoading('newUserConfirm', false, '确认');
@@ -9574,11 +10097,11 @@
     }
 
     /**
-     * 任务24: 计算账户的状态文本（status_text）
+     * 任务17修复：计算账户的状态文本（status_text）
      * 根据only_incomplete和ignore_task_time参数，计算可执行任务数量
      * @param {Object} account - 账户对象，包含tasks数组
      * @param {boolean} onlyIncomplete - 是否只统计未完成任务
-     * @param {boolean} ignoreTaskTime - 是否忽略任务时间限制
+     * @param {boolean} ignoreTaskTime - 是否忽略任务时间限制（只比对日期）
      * @returns {string} 状态文本，如"有3个任务可执行"或"无任务可执行"
      */
     function calculateStatusText(account, onlyIncomplete = false, ignoreTaskTime = false) {
@@ -9590,7 +10113,7 @@
       const now = new Date();
       
       account.tasks.forEach(task => {
-        // 如果only_incomplete=true，跳过已完成的任务（status=1）
+        // 问题17修复：如果only_incomplete=true，跳过已完成的任务（status=1）
         if (onlyIncomplete && task.status === 1) {
           return;
         }
@@ -9601,12 +10124,22 @@
           return; // 过期任务不可执行
         }
         
-        // 如果ignore_task_time=false，需要检查任务时间窗口
-        if (!ignoreTaskTime) {
-          // 检查任务是否在可执行时间窗口内
-          if (task.start_time && task.end_time) {
-            const startTime = new Date(task.start_time);
-            const endTime = new Date(task.end_time);
+        // 问题17修复：根据ignore_task_time参数决定如何检查时间
+        if (task.start_time && task.end_time) {
+          const startTime = new Date(task.start_time);
+          const endTime = new Date(task.end_time);
+          
+          if (ignoreTaskTime) {
+            // 如果ignoreTaskTime=true，只比对日期，忽略具体时间
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const startDate = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate());
+            const endDate = new Date(endTime.getFullYear(), endTime.getMonth(), endTime.getDate());
+            
+            if (nowDate < startDate || nowDate > endDate) {
+              return; // 不在日期范围内
+            }
+          } else {
+            // 如果ignoreTaskTime=false，比对完整的日期和时间
             if (now < startTime || now > endTime) {
               return; // 不在时间窗口内
             }

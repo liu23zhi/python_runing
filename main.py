@@ -8937,18 +8937,11 @@ class Api:
 
                 # 读取刷新间隔，并设置合理的默认值和最小值
                 refresh_interval_s = self.params.get(
-                    "auto_attendance_refresh_s", 30)  # 默认60秒
+                    "auto_attendance_refresh_s", 30)  # 默认30秒
                 # 确保间隔不小于一个最小值，例如15秒，防止过高频率
                 refresh_interval_s = max(15, refresh_interval_s)
 
-                # (修复：将等待日志移到 wait 之前)
-                self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
-
-                # 使用 wait() 替代 time.sleep()，以便在等待期间可以被 'stop_auto_refresh.set()' 立即中断
-                if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
-                    break  # 如果在等待时收到停止信号，则退出循环
-
-                # 再次检查登录状态 (可能在等待时退出了)
+                # 再次检查登录状态
                 if (self.is_multi_account_mode or not self.user_data.id):
                     continue
 
@@ -8989,6 +8982,12 @@ class Api:
                 else:
                     # 如果未启用，则不执行任何操作也不记录日志，保持安静
                     pass
+
+                # 问题15修复：刷新完成后等待，减轻服务器负担
+                self.log(f"自动刷新完成，等待 {refresh_interval_s} 秒后再次刷新...")
+                # 使用 wait() 替代 time.sleep()，以便在等待期间可以被 'stop_auto_refresh.set()' 立即中断
+                if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
+                    break  # 如果在等待时收到停止信号，则退出循环
 
             except Exception as e:
                 self.log(f"自动刷新线程出错: {e}")
@@ -12770,11 +12769,12 @@ def start_web_server(args_param):
 
     @app.route('/auth/admin/create_group', methods=['POST'])
     def auth_admin_create_group():
-        """超级管理员：创建权限组"""
+        """问题7修复：超级管理员：创建权限组（验证必填字段）"""
         session_id = request.headers.get('X-Session-ID', '')
         data = request.get_json() or {}
-        group_name = data.get('group_name', '')
-        display_name = data.get('display_name', '')
+        # 去除首尾空格
+        group_name = data.get('group_name', '').strip()
+        display_name = data.get('display_name', '').strip()
         permissions = data.get('permissions', {})
 
         if not session_id or session_id not in web_sessions:
@@ -12788,16 +12788,24 @@ def start_web_server(args_param):
         if api_instance.auth_group != 'super_admin':
             return jsonify({"success": False, "message": "仅超级管理员可创建权限组"})
 
+        # 问题7修复：验证必填字段不能为空
+        if not group_name:
+            return jsonify({"success": False, "message": "权限组标识（group_name）不能为空"})
+        
+        if not display_name:
+            return jsonify({"success": False, "message": "权限组名称（display_name）不能为空"})
+
         result = auth_system.create_permission_group(
             group_name, permissions, display_name)
         return jsonify(result)
 
     @app.route('/auth/admin/update_group', methods=['POST'])
     def auth_admin_update_group():
-        """超级管理员：更新权限组"""
+        """问题6修复：超级管理员：更新权限组（支持group_key和group_name参数）"""
         session_id = request.headers.get('X-Session-ID', '')
         data = request.get_json() or {}
-        group_name = data.get('group_name', '')
+        # 问题6修复：兼容group_key和group_name两种参数名
+        group_name = data.get('group_key') or data.get('group_name', '')
         permissions = data.get('permissions', {})
 
         if not session_id or session_id not in web_sessions:
@@ -12811,7 +12819,18 @@ def start_web_server(args_param):
         if api_instance.auth_group != 'super_admin':
             return jsonify({"success": False, "message": "仅超级管理员可更新权限组"})
 
+        # 问题6修复：验证权限组名称
+        if not group_name:
+            return jsonify({"success": False, "message": "权限组标识不能为空"})
+
         result = auth_system.update_permission_group(group_name, permissions)
+        
+        # 问题6修复：检查权限组是否存在
+        if not result.get('success', False):
+            # 如果更新失败，检查是否因为权限组不存在
+            if '不存在' in result.get('message', ''):
+                return jsonify({"success": False, "message": f"权限组 '{group_name}' 不存在"})
+        
         return jsonify(result)
 
     @app.route('/auth/admin/delete_group', methods=['POST'])
@@ -13475,6 +13494,196 @@ def start_web_server(args_param):
 
         return jsonify(result)
 
+    @app.route('/api/admin/users/<username>/basic_info', methods=['PUT'])
+    def api_admin_update_user_basic_info(username):
+        """
+        问题8修复：管理员或用户本人：更新用户基本信息
+        
+        功能说明：
+        允许管理员或用户本人更新基本信息（如昵称）
+        
+        URL参数:
+            username: 要更新的用户名
+            
+        请求体参数（JSON）:
+            nickname: 新昵称（可选）
+            
+        权限要求:
+            - 管理员可以更新任何用户的信息
+            - 普通用户只能更新自己的信息
+            
+        返回:
+            操作结果
+        """
+        # 获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        # 验证会话
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        # 获取API实例和当前用户信息
+        api_instance = web_sessions[session_id]
+        current_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限：管理员可以更新任何用户，普通用户只能更新自己
+        is_admin = auth_system.check_permission(current_username, 'manage_users')
+        if not is_admin and current_username != username:
+            return jsonify({"success": False, "message": "权限不足：您只能修改自己的信息"}), 403
+
+        # 获取请求数据
+        data = request.get_json() or {}
+        nickname = data.get('nickname', '').strip()  # 获取昵称并去除空格
+
+        # 验证昵称不能为空
+        if not nickname:
+            return jsonify({"success": False, "message": "昵称不能为空"}), 400
+
+        try:
+            # 获取用户文件路径
+            user_file_path = auth_system.get_user_file_path(username)
+            
+            # 检查用户是否存在
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "用户不存在"}), 404
+
+            # 读取用户数据
+            with open(user_file_path, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+
+            # 更新昵称
+            user_data['nickname'] = nickname
+            
+            # 保存更新后的用户数据
+            with open(user_file_path, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            # 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                current_username,
+                'update_basic_info',
+                f'更新用户 {username} 的昵称为: {nickname}',
+                ip_address,
+                session_id
+            )
+
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "基本信息更新成功",
+                "data": {
+                    "username": username,
+                    "nickname": nickname
+                }
+            })
+
+        except Exception as e:
+            # 捕获异常并记录日志
+            app.logger.error(f"[更新基本信息] 失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+
+    @app.route('/auth/admin/update_user_phone', methods=['POST'])
+    def auth_admin_update_user_phone():
+        """
+        问题4修复：管理员更新用户手机号
+        
+        功能说明：
+        允许管理员更新用户的手机号（验证码非必需）
+        
+        请求体参数（JSON）:
+            username: 要更新的用户名
+            new_phone: 新手机号
+            sms_code: 验证码（可选）
+            
+        权限要求:
+            - 管理员权限
+            
+        返回:
+            操作结果
+        """
+        # 获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        # 验证会话
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        # 获取API实例和当前用户信息
+        api_instance = web_sessions[session_id]
+        current_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查管理员权限
+        if not auth_system.check_permission(current_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足：需要管理员权限"}), 403
+
+        # 获取请求数据
+        data = request.get_json() or {}
+        username = data.get('username', '').strip()
+        new_phone = data.get('new_phone', '').strip()
+        sms_code = data.get('sms_code', '').strip()
+
+        # 验证参数
+        if not username:
+            return jsonify({"success": False, "message": "缺少用户名参数"}), 400
+            
+        if not new_phone:
+            return jsonify({"success": False, "message": "新手机号不能为空"}), 400
+        
+        # 验证手机号格式
+        import re
+        if not re.match(r'^1[3-9]\d{9}$', new_phone):
+            return jsonify({"success": False, "message": "手机号格式不正确"}), 400
+
+        try:
+            # 获取用户文件路径
+            user_file_path = auth_system.get_user_file_path(username)
+            
+            # 检查用户是否存在
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "用户不存在"}), 404
+
+            # 如果提供了验证码，进行验证（可选）
+            if sms_code:
+                verify_result = auth_system.verify_sms_code(new_phone, sms_code)
+                if not verify_result.get('success'):
+                    # 验证码错误时给出提示，但不阻止管理员操作
+                    app.logger.warning(f"管理员 {current_username} 修改用户 {username} 手机号时验证码错误，但仍允许操作")
+
+            # 读取用户数据
+            with open(user_file_path, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+
+            # 更新手机号
+            user_data['phone'] = new_phone
+            
+            # 保存更新后的用户数据
+            with open(user_file_path, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            # 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                current_username,
+                'admin_update_phone',
+                f'管理员更新用户 {username} 的手机号为: {new_phone}',
+                ip_address,
+                session_id
+            )
+
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "手机号更新成功",
+                "data": {
+                    "username": username,
+                    "phone": new_phone
+                }
+            })
+
+        except Exception as e:
+            # 捕获异常并记录日志
+            app.logger.error(f"[管理员更新手机号] 失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+
     @app.route('/auth/admin/login_logs', methods=['GET'])
     def auth_admin_login_logs():
         """获取登录日志（管理员）"""
@@ -13797,6 +14006,18 @@ def start_web_server(args_param):
 
         # 管理员可以访问所有头像，无需进一步验证
         # 普通用户也可以访问（因为他们已通过会话验证）
+
+        # 问题1修复：特殊处理默认头像文件
+        # 默认头像位于项目根目录的default_avatar.png
+        if filename == 'default_avatar.png':
+            default_avatar_path = os.path.join(os.path.dirname(__file__), 'default_avatar.png')
+            if os.path.exists(default_avatar_path):
+                try:
+                    return send_file(default_avatar_path, mimetype='image/png')
+                except Exception as e:
+                    return jsonify({"success": False, "message": f"读取默认头像失败: {str(e)}"}), 500
+            else:
+                return jsonify({"success": False, "message": "默认头像文件不存在"}), 404
 
         # 验证文件名格式（只允许PNG文件，且文件名为64字符的十六进制哈希值）
         # 64 chars hash + .png (4 chars)
@@ -14795,15 +15016,16 @@ def start_web_server(args_param):
             target_username = request.args.get('username', '').strip()
             limit = int(request.args.get('limit', 100))
             
+            # 问题5修复：使用check_permission替代is_admin
             # 权限检查：非管理员只能查看自己的记录
-            if not auth_system.is_admin(current_user):
+            if not auth_system.check_permission(current_user, 'manage_users'):
                 if target_username and target_username != current_user:
                     return jsonify({"success": False, "message": "权限不足"}), 403
                 target_username = current_user
             
             # 如果未指定用户名且是管理员，则查看所有用户
             if not target_username:
-                if not auth_system.is_admin(current_user):
+                if not auth_system.check_permission(current_user, 'manage_users'):
                     target_username = current_user
             
             # 读取登录日志文件
@@ -14853,8 +15075,9 @@ def start_web_server(args_param):
         返回：审计日志列表
         """
         try:
+            # 问题5修复：使用check_permission替代is_admin
             # 权限检查：仅管理员可访问
-            if not auth_system.is_admin(g.user):
+            if not auth_system.check_permission(g.user, 'view_logs'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
             # 获取查询参数
@@ -14963,15 +15186,22 @@ def start_web_server(args_param):
         返回：所有IP封禁规则列表
         """
         try:
+            # 问题5修复：使用check_permission替代is_admin
             # 权限检查
-            if not auth_system.is_admin(g.user):
+            if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 问题11修复：自动创建文件和目录
+            # 如果logs目录不存在，自动创建
+            if not os.path.exists('logs'):
+                os.makedirs('logs', exist_ok=True)
             
             # 读取封禁列表
             if os.path.exists(IP_BANS_FILE):
                 with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
                     bans = json.load(f)
             else:
+                # 如果文件不存在，自动创建空列表
                 bans = []
             
             return jsonify({"success": True, "bans": bans})
@@ -14992,8 +15222,9 @@ def start_web_server(args_param):
         - scope: 范围（all/messages_only）
         """
         try:
+            # 问题5修复：使用check_permission替代is_admin
             # 权限检查
-            if not auth_system.is_admin(g.user):
+            if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
             data = request.get_json() or {}
@@ -15003,6 +15234,10 @@ def start_web_server(args_param):
             
             if not target:
                 return jsonify({"success": False, "message": "封禁目标不能为空"})
+            
+            # 问题11修复：确保目录存在
+            if not os.path.exists('logs'):
+                os.makedirs('logs', exist_ok=True)
             
             # 读取现有封禁列表
             if os.path.exists(IP_BANS_FILE):
@@ -15044,8 +15279,9 @@ def start_web_server(args_param):
         - ban_id: 封禁规则ID
         """
         try:
+            # 问题5修复：使用check_permission替代is_admin
             # 权限检查
-            if not auth_system.is_admin(g.user):
+            if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
             if not os.path.exists(IP_BANS_FILE):
@@ -15127,12 +15363,44 @@ def start_web_server(args_param):
         返回：短信服务配置信息
         """
         try:
+            # 问题5修复：使用check_permission替代is_admin
             # 权限检查
-            if not auth_system.is_admin(g.user):
+            if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
+            # 问题12修复：自动补全config.ini配置
             config = configparser.ConfigParser()
             config.read('config.ini', encoding='utf-8')
+            
+            # 确保所需的配置节存在
+            if 'Features' not in config:
+                config.add_section('Features')
+            if 'SMS_Service_SMSBao' not in config:
+                config.add_section('SMS_Service_SMSBao')
+            
+            # 补全缺失的配置项（使用默认值）
+            if not config.has_option('Features', 'enable_sms_service'):
+                config.set('Features', 'enable_sms_service', 'false')
+            if not config.has_option('SMS_Service_SMSBao', 'username'):
+                config.set('SMS_Service_SMSBao', 'username', '')
+            if not config.has_option('SMS_Service_SMSBao', 'api_key'):
+                config.set('SMS_Service_SMSBao', 'api_key', '')
+            if not config.has_option('SMS_Service_SMSBao', 'signature'):
+                config.set('SMS_Service_SMSBao', 'signature', '')
+            if not config.has_option('SMS_Service_SMSBao', 'template_register'):
+                config.set('SMS_Service_SMSBao', 'template_register', '')
+            if not config.has_option('SMS_Service_SMSBao', 'code_expire_minutes'):
+                config.set('SMS_Service_SMSBao', 'code_expire_minutes', '5')
+            if not config.has_option('SMS_Service_SMSBao', 'rate_limit_per_account_day'):
+                config.set('SMS_Service_SMSBao', 'rate_limit_per_account_day', '10')
+            if not config.has_option('SMS_Service_SMSBao', 'rate_limit_per_ip_day'):
+                config.set('SMS_Service_SMSBao', 'rate_limit_per_ip_day', '20')
+            if not config.has_option('SMS_Service_SMSBao', 'rate_limit_per_phone_day'):
+                config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', '5')
+            
+            # 保存补全后的配置
+            with open('config.ini', 'w', encoding='utf-8') as f:
+                config.write(f)
             
             sms_config = {
                 'enable_sms_service': config.getboolean('Features', 'enable_sms_service', fallback=False),
@@ -15161,8 +15429,9 @@ def start_web_server(args_param):
         参数：配置对象（enable_sms_service, username, api_key等）
         """
         try:
+            # 问题5修复：使用check_permission替代is_admin
             # 权限检查
-            if not auth_system.is_admin(g.user):
+            if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
             data = request.get_json() or {}
@@ -15170,6 +15439,7 @@ def start_web_server(args_param):
             config = configparser.ConfigParser()
             config.read('config.ini', encoding='utf-8')
             
+            # 问题12修复：确保配置节存在
             # 更新配置
             if 'Features' not in config:
                 config.add_section('Features')
@@ -15206,8 +15476,9 @@ def start_web_server(args_param):
         返回：短信余额
         """
         try:
+            # 问题5修复：使用check_permission替代is_admin
             # 权限检查
-            if not auth_system.is_admin(g.user):
+            if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
             config = configparser.ConfigParser()
