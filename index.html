@@ -12628,15 +12628,16 @@
           }
           
           sendLoginCodeBtn.disabled = true;
-          let countdown = 60;
           const originalText = sendLoginCodeBtn.textContent;
           
           try {
             const result = await callPythonAPI('send_sms_code', phone, 'login');
             if (result && result.success) {
               const expireMin = result.expire_minutes || 5;
+              const retryAfter = result.retry_after || 180;
               showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
               
+              let countdown = retryAfter;
               const timer = setInterval(() => {
                 countdown--;
                 sendLoginCodeBtn.textContent = countdown + '秒';
@@ -12647,7 +12648,22 @@
                 }
               }, 1000);
             } else {
-              sendLoginCodeBtn.disabled = false;
+              if (result?.retry_after) {
+                const retrySeconds = result.retry_after;
+                let countdown = retrySeconds;
+                sendLoginCodeBtn.textContent = countdown + '秒';
+                const timer = setInterval(() => {
+                  countdown--;
+                  sendLoginCodeBtn.textContent = countdown + '秒';
+                  if (countdown <= 0) {
+                    clearInterval(timer);
+                    sendLoginCodeBtn.disabled = false;
+                    sendLoginCodeBtn.textContent = originalText;
+                  }
+                }, 1000);
+              } else {
+                sendLoginCodeBtn.disabled = false;
+              }
               showModalAlert(result?.message || '发送失败');
             }
           } catch (error) {
@@ -12697,15 +12713,17 @@
           }
           
           sendCodeBtn.disabled = true;
-          let countdown = 60;
           const originalText = sendCodeBtn.textContent;
           
           try {
             const result = await callPythonAPI('send_sms_code', phone);
             if (result && result.success) {
               const expireMin = result.expire_minutes || 5;
+              const retryAfter = result.retry_after || 180;  // 获取发送间隔
               showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
               
+              // 使用服务器返回的间隔时间进行倒计时
+              let countdown = retryAfter;
               const timer = setInterval(() => {
                 countdown--;
                 sendCodeBtn.textContent = `${countdown}秒后重试`;
@@ -12716,7 +12734,23 @@
                 }
               }, 1000);
             } else {
-              sendCodeBtn.disabled = false;
+              // 处理频繁发送错误，显示剩余等待时间
+              if (result?.retry_after) {
+                const retrySeconds = result.retry_after;
+                let countdown = retrySeconds;
+                sendCodeBtn.textContent = `${countdown}秒后重试`;
+                const timer = setInterval(() => {
+                  countdown--;
+                  sendCodeBtn.textContent = `${countdown}秒后重试`;
+                  if (countdown <= 0) {
+                    clearInterval(timer);
+                    sendCodeBtn.disabled = false;
+                    sendCodeBtn.textContent = originalText;
+                  }
+                }, 1000);
+              } else {
+                sendCodeBtn.disabled = false;
+              }
               showModalAlert(result?.message || '发送失败');
             }
           } catch (error) {
@@ -12749,14 +12783,16 @@
       
       const btn = document.getElementById('modify-phone-send-btn');
       btn.disabled = true;
-      let countdown = 60;
       const originalText = btn.textContent;
       
       try {
-        const result = await callPythonAPI('send_sms_code', newPhone);
+        const result = await callPythonAPI('send_sms_code', newPhone, 'modify');
         if (result && result.success) {
-          showTempMessage('验证码已发送', 'success');
+          const expireMin = result.expire_minutes || 5;
+          const retryAfter = result.retry_after || 180;
+          showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
           
+          let countdown = retryAfter;
           const timer = setInterval(() => {
             countdown--;
             btn.textContent = `${countdown}秒`;
@@ -12767,7 +12803,22 @@
             }
           }, 1000);
         } else {
-          btn.disabled = false;
+          if (result?.retry_after) {
+            const retrySeconds = result.retry_after;
+            let countdown = retrySeconds;
+            btn.textContent = `${countdown}秒`;
+            const timer = setInterval(() => {
+              countdown--;
+              btn.textContent = `${countdown}秒`;
+              if (countdown <= 0) {
+                clearInterval(timer);
+                btn.disabled = false;
+                btn.textContent = originalText;
+              }
+            }, 1000);
+          } else {
+            btn.disabled = false;
+          }
           showModalAlert(result?.message || '发送失败');
         }
       } catch (error) {

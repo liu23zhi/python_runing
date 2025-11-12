@@ -1046,6 +1046,7 @@ def _get_default_config():
         'signature': '【您的签名】',  # 短信签名（需提前在短信宝审核通过）
         'template_register': '您的验证码是：{code}，{minutes}分钟内有效。',  # 注册验证码短信模板，支持{code}和{minutes}占位符
         'code_expire_minutes': '5',  # 验证码有效期（分钟），默认5分钟，管理员可修改
+        'send_interval_seconds': '180',  # 发送间隔（秒），默认180秒（3分钟），防止频繁发送
         'rate_limit_per_account_day': '10',  # 单个账号每天最多发送次数
         'rate_limit_per_ip_day': '20',  # 单个IP每天最多发送次数
         'rate_limit_per_phone_day': '5',  # 单个手机号每天最多发送次数
@@ -1180,6 +1181,9 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 验证码有效期（分钟），默认5分钟，管理员可根据需要修改\n")
         f.write(
             f"code_expire_minutes = {config_obj.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5')}\n")
+        f.write("# 发送间隔（秒），默认180秒（3分钟），防止频繁发送，增强安全性\n")
+        f.write(
+            f"send_interval_seconds = {config_obj.get('SMS_Service_SMSBao', 'send_interval_seconds', fallback='180')}\n")
         f.write("# 单个账号每天最多发送次数（防止滥用）\n")
         f.write(
             f"rate_limit_per_account_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_account_day', fallback='10')}\n")
@@ -14565,7 +14569,21 @@ def start_web_server(args_param):
             if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
                 return jsonify({"success": False, "message": "短信服务未启用"})
             
-            # 3. 执行速率限制检查（防止滥用和攻击）
+            # 3. 检查发送间隔限制（安全增强）
+            sms_interval_seconds = int(config.get('SMS_Service_SMSBao', 'send_interval_seconds', fallback='180'))
+            last_send_key = f"sms_last_send_{phone}"
+            last_send_time = cache.get(last_send_key, 0)
+            current_time = time.time()
+            
+            if last_send_time and (current_time - last_send_time) < sms_interval_seconds:
+                remaining_seconds = int(sms_interval_seconds - (current_time - last_send_time))
+                return jsonify({
+                    "success": False, 
+                    "message": f"发送过于频繁，请{remaining_seconds}秒后再试",
+                    "retry_after": remaining_seconds
+                })
+            
+            # 4. 执行速率限制检查（防止滥用和攻击）
             client_ip = request.remote_addr
             current_date = time.strftime('%Y-%m-%d')
             
@@ -14583,11 +14601,11 @@ def start_web_server(args_param):
             if phone_count >= phone_limit:
                 return jsonify({"success": False, "message": f"该手机号每日发送次数已达上限({phone_limit}次)"})
             
-            # 4. 生成6位数字验证码
+            # 5. 生成6位数字验证码（安全：仅后端存储，不返回前端）
             import random
             code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
             
-            # 5. 调用短信宝API发送短信
+            # 6. 调用短信宝API发送短信
             username = config.get('SMS_Service_SMSBao', 'username', fallback='')
             api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
             signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【您的签名】')
@@ -14612,32 +14630,30 @@ def start_web_server(args_param):
                 
                 # 短信宝返回码：0=成功，其他为错误码
                 if result == '0':
-                    # 6. 存储验证码到缓存（有效期可配置，默认5分钟）
+                    # 7. 存储验证码到缓存（有效期可配置，默认5分钟）
+                    # 安全增强：验证码仅存储在后端，不返回前端
                     code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
                     code_expire_seconds = code_expire_minutes * 60
-                    code_id = f"sms_code_{phone}_{int(time.time())}"
-                    cache[code_id] = {
-                        'code': code,
-                        'phone': phone,
-                        'scene': scene,
-                        'expires': time.time() + code_expire_seconds  # 可配置有效期
-                    }
                     
-                    # 同时存储到sms_verification_codes（用于登录验证）
+                    # 存储验证码到sms_verification_codes（用于后端验证）
                     sms_verification_codes[phone] = (code, time.time() + code_expire_seconds)
                     
                     # 更新速率限制计数
                     cache[ip_limit_key] = ip_count + 1
                     cache[phone_limit_key] = phone_count + 1
                     
-                    # 记录日志
+                    # 更新最后发送时间（用于间隔限制）
+                    cache[last_send_key] = current_time
+                    
+                    # 记录日志（安全：不记录验证码内容）
                     app.logger.info(f"[短信服务] 向 {phone} 发送验证码成功，场景：{scene}，有效期：{code_expire_minutes}分钟")
                     
+                    # 安全：返回信息中不包含验证码
                     return jsonify({
                         "success": True, 
                         "message": f"验证码已发送，{code_expire_minutes}分钟内有效",
-                        "code_id": code_id,
-                        "expire_minutes": code_expire_minutes
+                        "expire_minutes": code_expire_minutes,
+                        "retry_after": sms_interval_seconds  # 告知前端下次可发送的间隔
                     })
                 else:
                     # 短信宝错误码映射
