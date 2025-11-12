@@ -2816,8 +2816,9 @@ class AuthSystem:
                 for line in f:
                     try:
                         entry = json.loads(line.strip())
-                        if (username is None or entry.get('username') == username) and \
-                           (action is None or entry.get('action') == action):
+                        # 修复：使用 (not username ...) 来同时处理 None 和 "" (空字符串)
+                        if (not username or entry.get('username') == username) and \
+                           (not action or entry.get('action') == action):
                             logs.append(entry)
                     except (json.JSONDecodeError, KeyError, ValueError) as e:
                         logging.debug(f"[审计日志] 跳过无效日志行: {e}")
@@ -9752,7 +9753,6 @@ def cleanup_expired_sessions():
     清理过期的会话文件（7天未访问）
 
     此函数遍历所有会话文件，删除超过7天未访问的会话。
-    建议在应用启动时调用一次，以及定期后台调用。
     """
     try:
         if not os.path.exists(SESSION_STORAGE_DIR):
@@ -12027,7 +12027,10 @@ def start_web_server(args_param):
                     auth_system.link_session_to_user(auth_username, session_id)
 
                     # 记录审计日志
-                    audit_details = f'登录成功，会话ID: {session_id}'
+                    if session_id=='' or session_id is None:
+                        audit_details = f'登录成功，会话ID: {session_id}'
+                    else:
+                        audit_details = f'登录成功，会话ID: {session_id}'
                     if cleanup_message:
                         audit_details += f'; {cleanup_message}'
 

@@ -5708,6 +5708,9 @@
         if (nameEl) nameEl.textContent = username;
         if (groupEl) groupEl.textContent = result.group || 'guest';
 
+        if (groupEl==='super_admin'){
+          showModalAlert('无法修改超级管理员的权限', '错误');
+        }
         // 渲染权限列表（显示差分化权限）
         const permissionsContainer = $('manage-user-permissions-list');
         if (permissionsContainer && result.all_permissions) {
@@ -6703,7 +6706,7 @@
               <div class="flex justify-between items-start">
                 <div class="flex-1">
                   <p class="text-sm font-semibold text-slate-700">
-                    ${(log.datetime || 'N/A').replace('T', ' ')}
+                    时间: ${(log.datetime || 'N/A').replace('T', ' ')}
                   </p>
                   <p class="text-sm text-slate-600 mt-1">
                     操作类型: ${log.action || 'N/A'}
