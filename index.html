@@ -763,7 +763,7 @@
 
   <!-- 用户认证登录界面 -->
   <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
-    <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
+    <div class="panel rounded-2xl w-full max-w-md p-6 space-y-6">
       <div class="text-center">
         <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
         <p class="text-sm text-slate-500">请登录或注册以继续使用</p>
@@ -895,7 +895,13 @@
           <div class="flex items-center gap-3 mt-1">
             <img id="auth-reg-avatar-preview" src="/static/default_avatar.png"
               class="w-16 h-16 rounded-full object-cover border-2 border-slate-200">
-            <input type="file" id="auth-reg-avatar" accept="image/*" class="flex-1">
+            <input type="file" id="auth-reg-avatar" accept="image/*" class="hidden">
+            <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm" onclick="document.getElementById('auth-reg-avatar').click(); return false;">
+              <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+              </svg>
+              上传头像
+            </button>
           </div>
         </div>
 
@@ -1526,7 +1532,7 @@
           style="display:none;">短信配置</button>
       </div>
 
-      <div class="overflow-y-auto overflow-x-hidden flex-grow min-h-0">
+      <div class="overflow-x-hidden flex-grow min-h-0">
         <div id="admin-users-panel_modal" class="space-y-4">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">用户列表</h4>
@@ -1535,7 +1541,7 @@
               <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
           </div>
-          <div id="admin-users-list_modal" class="space-y-2">
+          <div id="admin-users-list_modal" class="space-y-2 max-h-[50vh] overflow-y-auto -mr-2 pr-2">
             <p class="text-slate-400 text-center py-10">加载中...</p>
           </div>
         </div>
@@ -1548,7 +1554,7 @@
               <button id="admin-refresh-groups_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
           </div>
-          <div id="admin-groups-list_modal" class="space-y-2">
+          <div id="admin-groups-list_modal" class="space-y-2 max-h-[50vh] overflow-y-auto -mr-2 pr-2">
             <p class="text-slate-400 text-center py-10">加载中...</p>
           </div>
         </div>
@@ -1782,13 +1788,13 @@
           </div>
 
           <!-- 留言列表 -->
-          <div id="admin-messages-list_modal" class="space-y-3 max-h-[50vh] overflow-y-auto">
+          <div id="admin-messages-list_modal" class="space-y-3 max-h-[19vh] overflow-y-auto">
             <p class="text-slate-400 text-center py-10">加载中...</p>
           </div>
         </div>
 
         <!-- ============================================================ -->
-        <!-- 任务14：用户日志查看Modal -->
+        <!-- 用户日志查看Modal -->
         <!-- 此组件允许管理员查看指定用户的登录记录和操作记录 -->
         <!-- ============================================================ -->
         <div id="admin-user-logs-modal" class="hidden space-y-4">
@@ -1830,7 +1836,7 @@
         </div>
 
         <!-- ============================================================ -->
-        <!-- 任务18：IP封禁管理Modal -->
+        <!-- IP封禁管理Modal -->
         <!-- ============================================================ -->
         <div id="admin-ip-ban-modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
@@ -1885,7 +1891,7 @@
               <h5 class="font-semibold mb-2">短信宝配置</h5>
               <div class="space-y-2">
                 <input type="text" id="sms-username" class="w-full border rounded px-2 py-1" placeholder="短信宝用户名">
-                <input type="password" id="sms-apikey" class="w-full border rounded px-2 py-1" placeholder="短信宝API Key">
+                <input type="password" id="sms-apikey" class="w-full border rounded px-2 py-1" placeholder="短信宝 ApiKey">
                 <input type="text" id="sms-signature" class="w-full border rounded px-2 py-1" placeholder="短信签名(3-12字)"
                   maxlength="12">
                 <textarea id="sms-template" class="w-full border rounded px-2 py-1" rows="3"
@@ -2293,6 +2299,8 @@
     let currentAuthUsername = null; // 存储当前系统认证的用户名
     let healthAutoRefreshInterval = null; // 系统健康状态自动刷新定时器
     let avatarCropper = null; // 头像裁剪器实例
+    let isRegistrationCrop = false; // 标志：是否为注册流程打开的裁剪器
+    let registrationCroppedAvatarBlob = null; // 暂存注册时裁剪后的头像Blob
     let currentLogPage = 1; // 用于日志分页的当前页码
     let croppedAvatarFile = null; // 裁剪后的头像文件
 
@@ -3214,20 +3222,23 @@
 
       // 输入验证
       if (!username || !password) {
-        showAuthError('请输入用户名和密码');
+        // showAuthError('请输入用户名和密码');
+        showModalAlert('请输入用户名和密码', '登录失败');
         return;
       }
 
       // 验证用户名格式
       const usernameValidation = validateInput(username, 'username');
       if (!usernameValidation.valid) {
-        showAuthError(usernameValidation.message);
+        // showAuthError(usernameValidation.message);
+        showModalAlert(usernameValidation.message, '登录失败');
         return;
       }
 
       // 验证密码长度
       if (password.length < 6 && username !== 'admin') {
-        showAuthError('密码长度至少6个字符');
+        // showAuthError('密码长度至少6个字符');
+        showModalAlert('密码长度至少6个字符', '登录失败');
         return;
       }
 
@@ -3309,6 +3320,13 @@
 
           // 系统账号登录成功后，显示会话选择器
           if (!result.is_guest) {
+            // 在系统登录成功时，必须设置 currentUserData.group
+            // 否则 switchAdminTab 会错误地认为是 'user' 权限
+            currentUserData.group = result.group || 'user';
+            currentAuthUsername = result.auth_username;
+            currentUserIsGuest = false;
+            logMessage_Info(`[系统登录] 权限组已设置为: ${currentUserData.group}`);
+
             // 显示成功状态，持续时间设为800ms，避免与后续操作冲突
             showButtonSuccess('auth-login-btn', '登录成功', 800);
 
@@ -3387,14 +3405,16 @@
           } else {
             setButtonLoading('auth-login-btn', false);
             showButtonError('auth-login-btn', '登录失败');
-            showAuthError(result.message || '登录失败');
+            // showAuthError(result.message || '登录失败');
+            showModalAlert(result.message || '登录失败', '登录失败');
           }
         }
       } catch (e) {
         logMessage_Error('登录请求失败:', e);
         setButtonLoading('auth-login-btn', false);
         showButtonError('auth-login-btn', '网络错误');
-        showAuthError('网络错误，请检查连接后重试');
+        // showAuthError('网络错误，请检查连接后重试');
+        showModalAlert('网络错误，请检查连接后重试', '登录失败');
       }
     }
 
@@ -3405,12 +3425,14 @@
 
       // 验证输入：必须是6位数字
       if (!code || code.length !== 6 || !/^[0-9]{6}$/.test(code)) {
-        showAuthError('请输入有效的6位数字验证码');
+        // showAuthError('请输入有效的6位数字验证码');
+        showModalAlert('请输入有效的6位数字验证码', '2FA验证失败');
         return;
       }
 
       if (!window.temp2FAUsername) {
-        showAuthError('会话已过期，请重新登录');
+        // showAuthError('会话已过期，请重新登录');
+        showModalAlert('会话已过期，请重新登录', '2FA验证失败');
         // 返回登录表单
         const loginForm = $('auth-login-form');
         const tfaForm = $('auth-2fa-form');
@@ -3473,7 +3495,8 @@
         } else {
           setButtonLoading('auth-2fa-verify-btn', false);
           showButtonError('auth-2fa-verify-btn', '验证失败');
-          showAuthError(result.message || '验证码错误');
+          // showAuthError(result.message || '验证码错误');
+          showModalAlert(result.message || '验证码错误', '2FA验证失败');
           // 清空验证码输入框
           if (codeInput) {
             codeInput.value = '';
@@ -3484,53 +3507,129 @@
         logMessage_Error('2FA验证请求失败:', e);
         setButtonLoading('auth-2fa-verify-btn', false);
         showButtonError('auth-2fa-verify-btn', '网络错误');
-        showAuthError('网络错误，请检查连接后重试');
+        // showAuthError('网络错误，请检查连接后重试');
+        showModalAlert('网络错误，请检查连接后重试', '2FA验证失败');
       }
     }
 
     // 用户注册
     async function handleAuthRegister() {
+      // 1. 获取所有字段的值
       const username = $('auth-reg-username').value.trim();
+      const phone = $('auth-reg-phone').value.trim();
+      const smsCode = $('auth-reg-sms-code').value.trim();
+      const nickname_Raw = $('auth-reg-nickname').value.trim();
+
+      
+      let nickname; 
+      if(nickname_Raw === '' || nickname_Raw === null ){
+        // 如果昵称为空，使用用户名作为昵称
+        nickname = username; // 赋值
+      } else {
+        nickname = nickname_Raw; // 赋值
+      }
+      
+      
+      const avatarFile = registrationCroppedAvatarBlob; // 获取裁剪后的文件 Blob
       const password = $('auth-reg-password').value.trim();
       const passwordConfirm = $('auth-reg-password-confirm').value.trim();
 
-      // 验证输入
+      // 2. 验证输入
+      // 验证必填字段（昵称可选）
       if (!username || !password || !passwordConfirm) {
-        showAuthError('请填写所有字段');
+        // showAuthError('请填写所有必填字段（用户名、密码）');
+        showModalAlert('请填写所有必填字段（用户名、密码）', '注册失败');
         return;
       }
 
-      // 使用统一的验证函数
+      // 验证用户名（已在 input 事件处理，此处为双重保险）
       const usernameValidation = validateInput(username, 'username');
       if (!usernameValidation.valid) {
-        showAuthError(usernameValidation.message);
+        // showAuthError(usernameValidation.message);
+        showModalAlert(usernameValidation.message, '注册失败');
         return;
       }
+      // 再次确认无中文
+      if (/[一-龥]/.test(username)) {
+        //  showAuthError('用户名不能包含中文字符');
+        showModalAlert('用户名不能包含中文字符', '注册失败');
+         return;
+      }
 
+      // 验证密码
       const passwordValidation = validateInput(password, 'password');
       if (!passwordValidation.valid) {
-        showAuthError(passwordValidation.message);
+        // showAuthError(passwordValidation.message);
+        showModalAlert(passwordValidation.message, '注册失败');
         return;
       }
 
       if (password !== passwordConfirm) {
-        showAuthError('两次输入的密码不一致');
+        // showAuthError('两次输入的密码不一致');
+        showModalAlert('两次输入的密码不一致', '注册失败');
         return;
       }
+
+      // 验证手机号（如果填写了）
+      if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+        // showAuthError('请输入正确的手机号格式');
+        showModalAlert('请输入正确的手机号格式', '注册失败');
+        return;
+      }
+
+      if (phone) {
+          try {
+              const bindResult = await callPythonAPI_raw('/api/auth/check_phone', 'POST', { phone: phone });
+              
+              if (bindResult && bindResult.is_bound) {
+                  // 如果手机号已被绑定，弹出拟态窗警告
+                  const confirmed = await jsShowConfirm(
+                      '手机号已被绑定', 
+                      `您输入的手机号 ${phone} 已被用户 ${bindResult.bound_to_user} 绑定。\n\n是否继续注册？\n\n如果继续，该手机号将从原账号上强制解绑。`
+                  );
+                  
+                  if (!confirmed) {
+                      logMessage_Info("[注册] 用户取消操作，因为手机号已被绑定。");
+                      return; // 用户取消，停止注册
+                  }
+                  // 用户确认，继续执行注册（后端会自动处理解绑）
+                  logMessage_Info("[注册] 用户已确认强制解绑手机号，继续注册...");
+              }
+          } catch (e) {
+              logMessage_Error('检查手机号绑定失败:', e);
+              showModalAlert(`检查手机号失败: ${e.message}，请稍后重试`, '网络错误');
+              return;
+          }
+      }
+      // ==============================================================================
+      
+      // 注意：后端的 APP_CONFIG.reg_verify_enabled 会决定是否*强制*要求手机和验证码
+      // 前端在这里只做基本格式校验
 
       // 显示加载状态
       setButtonLoading('auth-register-btn', true, '注册中...');
 
+      // 3. 创建 FormData
+      const formData = new FormData();
+      formData.append('auth_username', username);
+      formData.append('auth_password', password);
+      formData.append('phone', phone);
+      formData.append('nickname', nickname); 
+      formData.append('sms_code', smsCode);
+
+      // 4. 添加头像文件（如果存在）
+      if (avatarFile) {
+        // 后端期望的字段名是 'avatar'
+        // 'avatar.jpg' 是我们在 confirmCropForRegistration 中设置的默认文件名
+        formData.append('avatar', avatarFile, avatarFile.name || 'avatar.jpg');
+      }
+
       try {
+        // 5. 修改 fetch 请求
         const response = await fetch('/auth/register', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            auth_username: username,
-            auth_password: password
-          })
+          // 移除 headers，浏览器会为 FormData 自动设置 Content-Type: multipart/form-data
+          body: formData 
         });
 
         const result = await response.json();
@@ -3538,23 +3637,34 @@
         if (result.success) {
           showButtonSuccess('auth-register-btn', '注册成功');
           showAuthSuccess('注册成功！请登录');
+          
+          // // 注册成功后，自动切换到登录标签页并填充用户名
           // setTimeout(() => {
           //   setButtonLoading('auth-register-btn', false);
-          //   // 切换到登录标签并填充用户名
+          //   // 切换到登录标签
           //   switchAuthTab('login');
+          //   // 填充用户名
           //   $('auth-username').value = username;
-          //   $('auth-password').value = password;
+          //   // 聚焦到密码框，提示用户输入密码登录
+          //   $('auth-password').focus(); 
           // }, 1500);
         } else {
           setButtonLoading('auth-register-btn', false);
           showButtonError('auth-register-btn', '注册失败');
-          showAuthError(result.message || '注册失败');
+          // showAuthError(result.message || '注册失败');
+          showModalAlert(result.message || '注册失败', '注册失败');
         }
       } catch (e) {
         logMessage_Error('注册请求失败:', e);
         setButtonLoading('auth-register-btn', false);
         showButtonError('auth-register-btn', '网络错误');
-        showAuthError('网络错误，请检查连接后重试');
+        // showAuthError('网络错误，请检查连接后重试');
+        showModalAlert('网络错误，请检查连接后重试', '注册失败');
+      } finally {
+        // 无论成功失败，都清空暂存的 Blob
+        registrationCroppedAvatarBlob = null;
+        // 恢复按钮状态
+        setButtonLoading('auth-register-btn', false);
       }
     }
 
@@ -3581,10 +3691,12 @@
             window.location.href = `/uuid=${newUUID}`;
           }, 1000);
         } else {
-          showAuthError(result.message || '游客登录失败');
+          // showAuthError(result.message || '游客登录失败');
+          showModalAlert(result.message || '游客登录失败', '登录失败');
         }
       } catch (e) {
-        showAuthError('游客登录请求失败：' + e.message);
+        // showAuthError('游客登录请求失败：' + e.message);
+        showModalAlert('游客登录请求失败：' + e.message, '登录失败');
       }
     }
 
@@ -4522,6 +4634,34 @@
           currentAuthUsername = user.auth_username;
         }
 
+        // ==============================================================================
+        // 任务 2/3：更新个人信息面板的UI
+        // ==============================================================================
+
+        // 更新基本信息
+        const nicknameInput = $('profile-nickname');
+        const phoneInput = $('profile-phone');
+        if (nicknameInput) nicknameInput.value = user.nickname || '';
+        if (phoneInput) phoneInput.value = user.phone || '未绑定';
+        
+        // 根据 config 决定是否显示“修改手机号”按钮
+        const modifyPhoneBtn = $('profile-modify-phone-btn');
+        const phoneHint = $('profile-phone-hint');
+        
+        // 确保 window.APP_CONFIG 存在
+        const config = window.APP_CONFIG || { enable_phone_modification: false };
+        
+        if (config.enable_phone_modification) {
+            if (modifyPhoneBtn) modifyPhoneBtn.style.display = 'block';
+            if (phoneHint) phoneHint.style.display = 'block';
+        } else {
+            if (modifyPhoneBtn) modifyPhoneBtn.style.display = 'none';
+            if (phoneHint) phoneHint.style.display = 'none';
+            // 如果功能关闭，手机号输入框也应只读
+            if (phoneInput) phoneInput.readOnly = true;
+        }
+        // ==============================================================================
+
         // 更新头像显示
         const avatarDisplay = $('profile-avatar-display');
         const avatarInput = $('profile-avatar-input');
@@ -4654,6 +4794,7 @@
     }
 
     function previewAvatar(event) {
+      isRegistrationCrop = false; // 明确设置上下文为 'profile'
       const file = event.target.files[0];
       if (!file) return;
 
@@ -4699,6 +4840,36 @@
       reader.readAsDataURL(file);
     }
 
+    // 专用于注册流程的预览函数
+    function previewAvatarForRegistration(event) {
+      isRegistrationCrop = true; // 明确设置上下文为 'register'
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+        showModalAlert('请选择图片文件', '错误');
+        event.target.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const cropImage = $('crop-image');
+        if (cropImage) {
+          cropImage.src = e.target.result;
+          if (avatarCropper) avatarCropper.destroy();
+          avatarCropper = new Cropper(cropImage, {
+            aspectRatio: 1, viewMode: 1, minContainerWidth: 300, minContainerHeight: 300,
+            autoCropArea: 0.8, responsive: true, guides: true, center: true,
+            highlight: true, cropBoxResizable: true, cropBoxMovable: true,
+            toggleDragModeOnDblclick: false
+          });
+          showModal('avatar-crop-modal');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
     function closeCropModal() {
       // 销毁裁剪器
       if (avatarCropper) {
@@ -4706,78 +4877,149 @@
         avatarCropper = null;
       }
 
-      // 清除文件输入
+      // 清除文件输入 (两个输入框都清除)
       const fileInput = $('profile-avatar-file');
-      if (fileInput) {
-        fileInput.value = '';
-      }
+      if (fileInput) fileInput.value = '';
+      const regFileInput = $('auth-reg-avatar');
+      if (regFileInput) regFileInput.value = '';
+      
+      isRegistrationCrop = false; // 重置标志
 
       hideModal('avatar-crop-modal');
     }
 
-    async function confirmCropAndUpload() {
+    // 专用于注册流程的确认函数
+    async function confirmCropForRegistration() {
       if (!avatarCropper) {
         showModalAlert('裁剪器未初始化', '错误');
         return;
       }
-
-      // 获取裁剪后的canvas
+      
       const canvas = avatarCropper.getCroppedCanvas({
-        width: 200,
-        height: 200,
-        imageSmoothingEnabled: true,
-        imageSmoothingQuality: 'high'
+        width: 200, height: 200, imageSmoothingQuality: 'high'
       });
-
       if (!canvas) {
         showModalAlert('裁剪失败', '错误');
         return;
       }
 
-      // 将canvas转换为blob
-      canvas.toBlob(async function (blob) {
-        // 创建文件对象
-        const avatarFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-
-        // 关闭裁剪模态框
-        closeCropModal();
-
-        // 直接上传
-        const formData = new FormData();
-        formData.append('avatar', avatarFile);
-
-        try {
-          const response = await fetch('/auth/user/upload_avatar', {
-            method: 'POST',
-            headers: {
-              'X-Session-ID': sessionUUID
-            },
-            body: formData
-          });
-          const result = await response.json();
-
-          if (result.success) {
-            showModalAlert('头像上传成功！', '成功');
-
-            // 清除裁剪后的文件
-            croppedAvatarFile = null;
-
-            // 清除文件输入
-            const fileInput = $('profile-avatar-file');
-            if (fileInput) {
-              fileInput.value = '';
-            }
-
-            // 重新加载个人信息以显示新头像
-            await loadPersonalInfo();
-          } else {
-            showModalAlert(`上传失败: ${result.message}`, '错误');
-          }
-        } catch (e) {
-          logMessage_Error("上传头像失败:", e);
-          showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
+      // 将 canvas 转换为 blob 并暂存
+      canvas.toBlob(function (blob) {
+        registrationCroppedAvatarBlob = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+        
+        // 更新注册表单的预览图
+        const previewImg = $('auth-reg-avatar-preview');
+        if (previewImg) {
+          previewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
         }
+        
+        // 关闭模态框
+        closeCropModal();
       }, 'image/jpeg', 0.9);
+    }
+
+
+    async function confirmCropForRegistration() {
+      if (!avatarCropper) {
+        showModalAlert('裁剪器未初始化', '错误');
+        return;
+      }
+      
+      const canvas = avatarCropper.getCroppedCanvas({
+        width: 200, height: 200, imageSmoothingQuality: 'high'
+      });
+      if (!canvas) {
+        showModalAlert('裁剪失败', '错误');
+        return;
+      }
+
+      // 将 canvas 转换为 blob 并暂存
+      canvas.toBlob(function (blob) {
+        // 暂存裁剪后的文件 Blob，用于注册时提交
+        registrationCroppedAvatarBlob = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+        
+        // 更新注册表单的预览图
+        const previewImg = $('auth-reg-avatar-preview');
+        if (previewImg) {
+          // 使用 createObjectURL 更新预览图
+          previewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
+        }
+        
+        // 关闭模态框
+        closeCropModal();
+      }, 'image/jpeg', 0.9);
+    }
+
+    async function confirmCropAndUpload() {
+      // 检查上下文标志 (isRegistrationCrop 是我们在上一步添加的全局变量)
+      if (isRegistrationCrop) {
+        // 注册流程：调用新的辅助函数，只暂存 Blob，不上传
+        await confirmCropForRegistration();
+      } else {
+        // 个人资料流程：立即上传（保持原逻辑不变）
+        if (!avatarCropper) {
+          showModalAlert('裁剪器未初始化', '错误');
+          return;
+        }
+
+        // 获取裁剪后的canvas
+        const canvas = avatarCropper.getCroppedCanvas({
+          width: 200,
+          height: 200,
+          imageSmoothingEnabled: true,
+          imageSmoothingQuality: 'high'
+        });
+
+        if (!canvas) {
+          showModalAlert('裁剪失败', '错误');
+          return;
+        }
+
+        // 将canvas转换为blob
+        canvas.toBlob(async function (blob) {
+          // 创建文件对象
+          const avatarFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+
+          // 关闭裁剪模态框
+          closeCropModal();
+
+          // 直接上传
+          const formData = new FormData();
+          formData.append('avatar', avatarFile);
+
+          try {
+            const response = await fetch('/auth/user/upload_avatar', {
+              method: 'POST',
+              headers: {
+                'X-Session-ID': sessionUUID
+              },
+              body: formData
+            });
+            const result = await response.json();
+
+            if (result.success) {
+              showModalAlert('头像上传成功！', '成功');
+
+              // 清除裁剪后的文件
+              croppedAvatarFile = null;
+
+              // 清除文件输入
+              const fileInput = $('profile-avatar-file');
+              if (fileInput) {
+                fileInput.value = '';
+              }
+
+              // 重新加载个人信息以显示新头像
+              await loadPersonalInfo();
+            } else {
+              showModalAlert(`上传失败: ${result.message}`, '错误');
+            }
+          } catch (e) {
+            logMessage_Error("上传头像失败:", e);
+            showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
+          }
+        }, 'image/jpeg', 0.9);
+      }
     }
 
     async function uploadAvatar() {
@@ -4826,7 +5068,7 @@
         }
       } catch (e) {
         logMessage_Error("上传头像失败:", e);
-        showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
+        showModalAlert(`上传失败: ${e.message}`, '错误');
       }
     }
 
@@ -5385,25 +5627,28 @@
             <div class="flex flex-col items-end gap-1">
               <span class="text-xs text-slate-600">权限组:</span>
               ${groupSelect}
-              <div class="flex gap-1 mt-2 flex-wrap justify-end">
-                <div class="flex gap-1 mt-2 flex-wrap justify-end">
-                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${user.auth_username}')">查看日志</button>
-                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
-                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
-                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserNickname('${user.auth_username}', '${escapeHtml(user.nickname || '')}')">修改昵称</button> 
-                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserPhone('${user.auth_username}', '${user.phone || ''}')">修改手机</button>
-                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
-                ${(user['2fa_enabled'] || user.tfa_enabled) ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
-                ${isBanned ?
-              `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
-              `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
-            }
-                <button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="clearUserAvatar('${user.auth_username}')">清除头像</button>
-                <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${user.auth_username}')">删除</button>
+              <div class="flex flex-col gap-1.5 mt-2" id="user-actions-${user.auth_username}">
+                <div class="flex gap-1 flex-wrap justify-end">
+                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${user.auth_username}')">查看日志</button>
+                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
+                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
+                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserNickname('${user.auth_username}', '${escapeHtml(user.nickname || '')}')">修改昵称</button>
+                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserPhone('${user.auth_username}', '${user.phone || ''}')">修改手机</button>
+                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
+                </div>
+                <div class="flex gap-1 flex-wrap justify-end">
+                  ${(user['2fa_enabled'] || user.tfa_enabled) ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
+                  ${isBanned ?
+                `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
+                `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
+              }
+                  <button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="clearUserAvatar('${user.auth_username}')">清除头像</button>
+                  <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${user.auth_username}')">删除</button>
+                </div>
               </div>
-            </div>
           </div>
         </div>
+      </div>
       `;
         }).join('');
 
@@ -5934,7 +6179,20 @@
       const originalText = sendBtn.textContent;
 
       try {
-        const result = await callPythonAPI('send_sms_code', newPhone);
+        // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口
+        const response = await fetch('/api/sms/send_code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            phone: newPhone,
+            scene: 'modify' // 场景：管理员修改
+          })
+        });
+        const result = await response.json();
+        
         if (result && result.success) {
           const expireMin = result.expire_minutes || 5;
           const retryAfter = result.retry_after || 180;
@@ -5989,6 +6247,39 @@
         showModalAlert('请输入正确的手机号格式');
         return;
       }
+
+      // 在提交前，先检查手机号是否已被绑定
+      try {
+          const bindResult = await callPythonAPI_raw('/api/auth/check_phone', 'POST', { phone: newPhone });
+          
+          // 检查是否已绑定，并且绑定的不是当前正在编辑的这个用户
+          if (bindResult && bindResult.is_bound && bindResult.bound_to_user !== username) {
+              // 手机号被其他人占用了，弹窗确认
+              const confirmed = await jsShowConfirm(
+                  '手机号已被绑定', 
+                  `您输入的新手机号 ${newPhone} 已被用户 ${bindResult.bound_to_user} 绑定。\n\n是否继续？\n\n如果继续，该手机号将从原账号上强制解绑并绑定到 ${username} 账号上。`
+              );
+              
+              if (!confirmed) {
+                  logMessage_Info("[管理员修改手机号] 用户取消操作，因为手机号已被绑定。");
+                  return; // 用户取消操作
+              }
+              logMessage_Info("[管理员修改手机号] 用户已确认强制解绑，继续操作...");
+          } else if (bindResult && bindResult.is_bound && bindResult.bound_to_user === username) {
+              // 手机号已经绑定在当前用户身上了，这不算错误，直接提示并关闭即可
+              showModalAlert('此手机号已绑定到该用户。', '提示');
+              closeAdminModifyPhoneModal();
+              return;
+          }
+          // 如果未绑定 (is_bound: false) 或 检查API失败 (bindResult is null/false)，
+          // 则继续执行（后端API会做最终验证，例如验证码）
+      
+      } catch (e) {
+          logMessage_Error('检查手机号绑定失败:', e);
+          showModalAlert(`检查手机号失败: ${e.message}，请稍后重试`, '网络错误');
+          return; // 检查失败时停止操作
+      }
+
 
       try {
         const response = await fetch('/auth/admin/update_user_phone', {
@@ -6436,12 +6727,13 @@
         // 检查删除权限
         const canDeleteAny = await checkAdminPermission('delete_any_messages');
         const canDeleteOwn = await checkAdminPermission('delete_own_messages');
-        const currentUsername = currentUserData?.username;
+        // 使用系统认证用户名 (currentAuthUsername) 而不是学校账号用户名 (currentUserData?.username)
+        const currentUsername = currentAuthUsername;
 
         const html = messages.map(msg => {
-          // 判断是否为当前用户的留言
-          const isOwnMessage = !msg.is_guest && (msg.username === currentUsername || msg.auth_username === currentUsername);
-          // 检查删除权限
+          // 修复：检查 msg.auth_username 是否等于 currentAuthUsername
+          const isOwnMessage = !msg.is_guest && msg.auth_username === currentUsername;
+          // 检查删除权限 (此行逻辑是正确的)
           const canDelete = canDeleteAny || (canDeleteOwn && isOwnMessage);
           // 显示名称：优先使用nickname，其次username或auth_username
           const displayName = msg.nickname || msg.username || msg.auth_username || '匿名';
@@ -6587,7 +6879,8 @@
     }
 
     async function deleteMessage(messageId) {
-      if (!confirm('确定要删除这条留言吗？')) {
+      const confirmed = await jsShowConfirm('确认删除', '确定要删除这条留言吗？');
+      if (!confirmed) {
         return;
       }
 
@@ -8030,7 +8323,8 @@
         const initialData = await callPythonAPI('get_initial_data');
 
         currentUserIsGuest = initialData.is_guest || false; // <-- 存储从后端获取的状态
-        logMessage_Info(`initializeApp: currentUserIsGuest = ${currentUserIsGuest}`);
+        currentAuthUsername = initialData.auth_username || null; // <-- [ADD THIS LINE] 修复：在初始化时设置系统用户名
+        logMessage_Info(`initializeApp: currentUserIsGuest = ${currentUserIsGuest}, auth_username = ${currentAuthUsername}`); // <-- [MODIFY THIS LINE]
 
         const userCombo = $('user-combo');
         userCombo.innerHTML = '<option value="">(新用户)</option>';
@@ -8353,6 +8647,11 @@
         }
         // 没有进入多账号模式或者单账号模式
         else if (hasSystemAuth || isGuestMode) {
+          // 必须在这里重新设置 currentUserData.group
+          // 因为 resetUI() (在 line 11139) 会将其清空
+          // (initialData 是在函数开头 11100 行附近获取的)
+          currentUserData.group = initialData.auth_group || 'guest';
+          logMessage_Info(`[Auth Restore] 恢复系统权限组: ${currentUserData.group}`);
 
           $('loading-overlay').classList.remove('hidden');
           // 系统账号已登录（admin/普通用户）或游客模式，隐藏认证面板，显示学校登录面板
@@ -9983,7 +10282,20 @@
       const originalText = sendCodeBtn.textContent;
 
       try {
-        const result = await callPythonAPI('send_sms_code', phone);
+        // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口
+        const response = await fetch('/api/sms/send_code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            phone: phone,
+            scene: 'register' // 场景：管理员添加新用户
+          })
+        });
+        const result = await response.json();
+        
         if (result && result.success) {
           const expireMin = result.expire_minutes || 5;
           const retryAfter = result.retry_after || 180;
@@ -13214,8 +13526,8 @@
 
   </script>
 
-  <!-- 任务10: 修改手机号Modal -->
-  <div id="modify-phone-modal" class="modal-overlay hidden">
+  <!-- 修改手机号Modal -->
+  <div id="modify-phone-modal" class="modal">
     <div class="modal-content" style="max-width: 500px;">
       <div class="flex justify-between items-center mb-4">
         <h3 class="text-xl font-bold text-slate-800">修改绑定手机号</h3>
@@ -13345,7 +13657,20 @@
           const originalText = sendLoginCodeBtn.textContent;
 
           try {
-            const result = await callPythonAPI('send_sms_code', phone, 'login');
+            // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口
+            const response = await fetch('/api/sms/send_code', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionUUID
+              },
+              body: JSON.stringify({
+                phone: phone,
+                scene: 'login' // 场景：登录
+              })
+            });
+            const result = await response.json();
+            
             if (result && result.success) {
               const expireMin = result.expire_minutes || 5;
               const retryAfter = result.retry_after || 180;
@@ -13401,22 +13726,14 @@
         });
       }
 
-      // 任务8: 头像预览
+      // 头像预览
       const avatarInput = document.getElementById('auth-reg-avatar');
       if (avatarInput) {
-        avatarInput.addEventListener('change', function (e) {
-          const file = e.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-              document.getElementById('auth-reg-avatar-preview').src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-          }
-        });
+        // 调用 previewAvatarForRegistration 来打开裁剪模态框
+        avatarInput.addEventListener('change', previewAvatarForRegistration);
       }
 
-      // 任务8: 发送注册验证码
+      // 发送注册验证码
       const sendCodeBtn = document.getElementById('auth-reg-send-code-btn');
       if (sendCodeBtn) {
         sendCodeBtn.addEventListener('click', async function () {
@@ -13430,7 +13747,20 @@
           const originalText = sendCodeBtn.textContent;
 
           try {
-            const result = await callPythonAPI('send_sms_code', phone);
+            // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口
+            const response = await fetch('/api/sms/send_code', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionUUID
+              },
+              body: JSON.stringify({
+                phone: phone,
+                scene: 'register' // 场景：注册
+              })
+            });
+            const result = await response.json();
+            
             if (result && result.success) {
               const expireMin = result.expire_minutes || 5;
               const retryAfter = result.retry_after || 180;  // 获取发送间隔
@@ -13481,11 +13811,13 @@
       document.getElementById('modify-phone-current').value = currentPhone;
       document.getElementById('modify-phone-new').value = '';
       document.getElementById('modify-phone-code').value = '';
-      document.getElementById('modify-phone-modal').classList.remove('hidden');
+      document.getElementById('modify-phone-modal').style.display = 'flex';
+      document.body.classList.add('modal-visible'); // 隐藏地图版权
     }
 
     function closeModifyPhoneModal() {
-      document.getElementById('modify-phone-modal').classList.add('hidden');
+      document.getElementById('modify-phone-modal').style.display = 'none';
+      // document.body.classList.remove('modal-visible'); // 恢复地图版权
     }
 
     async function sendModifyPhoneCode() {
@@ -13500,7 +13832,20 @@
       const originalText = btn.textContent;
 
       try {
-        const result = await callPythonAPI('send_sms_code', newPhone, 'modify');
+        // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口
+        const response = await fetch('/api/sms/send_code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            phone: newPhone,
+            scene: 'modify' // 场景：用户修改
+          })
+        });
+        const result = await response.json();
+        
         if (result && result.success) {
           const expireMin = result.expire_minutes || 5;
           const retryAfter = result.retry_after || 180;
@@ -13541,17 +13886,66 @@
       }
     }
 
+    
+
+
     async function confirmModifyPhone() {
       const newPhone = document.getElementById('modify-phone-new').value;
       const code = document.getElementById('modify-phone-code').value;
 
-      if (!newPhone || !code) {
+      
+
+      // 验证手机号格式
+      if (!/^1[3-9]\d{9}$/.test(newPhone)) {
+          showModalAlert('请输入正确的新手机号格式');
+          return;
+      }
+      
+      // 检查手机号是否已被绑定
+      try {
+          // 必须使用 callPythonAPI_raw (或 fetch) 来调用 /api/auth/check_phone
+          const bindResult = await callPythonAPI_raw('/api/auth/check_phone', 'POST', { phone: newPhone });
+          
+          // currentAuthUsername 是在登录时设置的全局JS变量
+          if (bindResult && bindResult.is_bound && bindResult.bound_to_user !== currentAuthUsername) {
+              // 手机号被其他人占用了，弹窗确认
+              const confirmed = await jsShowConfirm(
+                  '手机号已被绑定', 
+                  `您输入的新手机号 ${newPhone} 已被用户 ${bindResult.bound_to_user} 绑定。\n\n是否继续？\n\n如果继续，该手机号将从原账号上强制解绑并绑定到您的账号上。`
+              );
+              
+              if (!confirmed) {
+                  logMessage_Info("[修改手机号] 用户取消操作，因为手机号已被绑定。");
+                  return; // 用户取消
+              }
+              logMessage_Info("[修改手机号] 用户已确认强制解绑，继续操作...");
+          } else if (bindResult && bindResult.is_bound && bindResult.bound_to_user === currentAuthUsername) {
+              // 手机号已经绑定在自己身上
+              showModalAlert('此手机号已绑定到您的账号。', '提示');
+              closeModifyPhoneModal();
+              return;
+          }
+          // 未绑定或检查失败，继续执行（后端会验证验证码）
+
+          if (!newPhone || !code) {
         showModalAlert('请填写完整信息');
         return;
       }
+      
+      } catch (e) {
+          logMessage_Error('检查手机号绑定失败:', e);
+          showModalAlert(`检查手机号失败: ${e.message}，请稍后重试`, '网络错误');
+          return; // 检查失败时停止
+      }
+
 
       try {
-        const result = await callPythonAPI('update_user_phone', newPhone, code);
+        // 修正：必须使用 callPythonAPI_raw (或 fetch) 来调用 /api/user/update_phone
+        const result = await callPythonAPI_raw('/api/user/update_phone', 'POST', {
+            new_phone: newPhone,
+            sms_code: code
+        });
+        
         if (result && result.success) {
           showModalAlert('手机号修改成功');
           document.getElementById('profile-phone').value = newPhone;

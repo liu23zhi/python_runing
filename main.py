@@ -1638,6 +1638,72 @@ class AuthSystem:
             print(f"  请检查文件是否存在、是否有读取权限以及格式是否基本正确。")
             sys.exit(1)
 
+
+    def find_user_by_phone(self, phone):
+        """
+        遍历所有系统账号，查找绑定了特定手机号的用户。
+        
+        参数:
+            phone (str): 要查找的手机号。
+            
+        返回:
+            str: 绑定的用户名，如果未找到则返回 None。
+        """
+        # 仅在 system_accounts_dir 中查找，因为学校账号是导入的，不参与系统认证
+        accounts_dir = SYSTEM_ACCOUNTS_DIR 
+        if not os.path.exists(accounts_dir):
+            return None
+            
+        for filename in os.listdir(accounts_dir):
+            if filename.endswith('.json'):
+                user_file = os.path.join(accounts_dir, filename)
+                try:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                        if user_data.get('phone') == phone:
+                            return user_data.get('auth_username')
+                except Exception:
+                    continue # 跳过损坏的文件
+        return None
+
+    def unbind_phone_from_user(self, phone, except_username=None):
+        """
+        查找绑定了指定手机号的用户，并将其手机号字段清空。
+        
+        参数:
+            phone (str): 要解绑的手机号。
+            except_username (str, 可选): 如果找到的用户是此用户，则不解绑。
+        """
+        if not phone:
+            return
+
+        bound_username = self.find_user_by_phone(phone)
+        
+        if bound_username and bound_username != except_username:
+            logging.info(f"[手机号解绑] 手机号 {phone} 原本绑定在 {bound_username}。正在解绑...")
+            user_file = self.get_user_file_path(bound_username)
+            if os.path.exists(user_file):
+                try:
+                    # 使用 AuthSystem 的锁确保文件操作安全
+                    with self.lock:
+                        with open(user_file, 'r', encoding='utf-8') as f:
+                            user_data = json.load(f)
+                        
+                        if user_data.get('phone') == phone:
+                            user_data['phone'] = "" # 清空手机号
+                            with open(user_file, 'w', encoding='utf-8') as f:
+                                json.dump(user_data, f, indent=2, ensure_ascii=False)
+                            logging.info(f"[手机号解绑] 已成功解绑用户 {bound_username} 的手机号。")
+                            
+                            # 记录审计日志
+                            self.log_audit(
+                                'System',
+                                'auto_unbind_phone',
+                                f'因手机号 {phone} 被新用户注册或绑定，系统自动解绑了用户 {bound_username} 的手机号'
+                            )
+                except Exception as e:
+                    logging.error(f"[手机号解绑] 解绑用户 {bound_username} 手机号失败: {e}", exc_info=True)
+
     def _load_permissions(self):
         """加载权限配置"""
         logging.debug(f"_load_permissions: 检查权限文件: {PERMISSIONS_FILE}")
@@ -2086,6 +2152,8 @@ class AuthSystem:
         logging.info(f"register_user: 开始注册新用户: {auth_username}, 权限组: {group}")
         print(f"[用户注册] 开始注册新用户: {auth_username}, 权限组: {group}")
         with self.lock:
+            if phone:
+                self.unbind_phone_from_user(phone, except_username=auth_username)
             user_file = self.get_user_file_path(auth_username)
             logging.debug(f"register_user: 检查用户文件是否存在: {user_file}")
             if os.path.exists(user_file):
@@ -2727,16 +2795,18 @@ class AuthSystem:
 
         # 返回用户信息（不包含密码）
         return {
-            'auth_username': user_data['auth_username'],
-            'group': user_data.get('group', 'user'),
-            'created_at': user_data.get('created_at'),
-            'last_login': user_data.get('last_login'),
-            '2fa_enabled': user_data.get('2fa_enabled', False),
-            'avatar_url': user_data.get('avatar_url') or 'default_avatar.png',
-            'max_sessions': user_data.get('max_sessions', 1),
-            'theme': user_data.get('theme', 'light'),
-            'session_ids': user_data.get('session_ids', [])
-        }
+                'auth_username': user_data['auth_username'],
+                'group': user_data.get('group', 'user'),
+                'created_at': user_data.get('created_at'),
+                'last_login': user_data.get('last_login'),
+                '2fa_enabled': user_data.get('2fa_enabled', False),
+                'avatar_url': user_data.get('avatar_url') or 'default_avatar.png',
+                'max_sessions': user_data.get('max_sessions', 1),
+                'theme': user_data.get('theme', 'light'),
+                'session_ids': user_data.get('session_ids', []),
+                'nickname': user_data.get('nickname', user_data['auth_username']),
+                'phone': user_data.get('phone', '')
+            }
 
     def check_single_session_enforcement(self, auth_username, new_session_id):
         """检查并强制执行会话数量限制
@@ -11214,7 +11284,15 @@ def start_web_server(args_param):
     # 将命令行参数存储为全局变量，供Flask路由函数访问
     args = args_param
 
-    # --- 新增：显式初始化/重置内存锁状态 ---
+
+    # 用于速率限制的简单内存缓存
+    global cache
+    cache = {}
+    # 用于存储待验证短信验证码
+    global sms_verification_codes
+    sms_verification_codes = {}
+
+    # --- 显式初始化/重置内存锁状态 ---
     # 重置所有会话相关的全局变量，防止程序重启后出现状态污染
     web_sessions = {}
     web_sessions_lock = threading.Lock()
@@ -11727,10 +11805,22 @@ def start_web_server(args_param):
         - 用户名已存在：由auth_system返回错误
         """
         try:
+
+            # 确保 configparser 和 os 模块已在文件顶部导入
+            config = configparser.ConfigParser()
+            if os.path.exists(CONFIG_FILE):
+                config.read(CONFIG_FILE, encoding='utf-8')
+
             # 1. 解析请求数据（支持JSON和表单两种方式）
-            data = request.get_json() or {}
-            form_data = request.form.to_dict() if request.form else {}
-            data.update(form_data)  # 合并表单数据
+            content_type = request.headers.get('Content-Type', '').lower()
+            
+            if 'application/json' in content_type:
+                # 备用：如果请求是纯 JSON (没有头像上传)
+                data = request.get_json() or {}
+            else:
+                # 核心：处理 multipart/form-data 或 x-www-form-urlencoded
+                # request.form 会自动解析 FormData 中的文本字段。
+                data = request.form.to_dict()
             
             # 2. 提取基本字段并去除首尾空格
             auth_username = data.get('auth_username', '').strip()
@@ -11760,16 +11850,18 @@ def start_web_server(args_param):
                 
                 # 查找验证码记录
                 code_verified = False
-                for key in list(cache.keys()):
-                    if key.startswith(f"sms_code_{phone}_"):
-                        code_data = cache.get(key)
-                        if code_data and code_data.get('code') == sms_code:
-                            # 检查是否过期（5分钟）
-                            if time.time() <= code_data.get('expires', 0):
-                                code_verified = True
-                                # 验证成功后删除验证码（一次性使用）
-                                del cache[key]
-                                break
+                if phone in sms_verification_codes:
+                    stored_code, expires_at = sms_verification_codes[phone]
+                    
+                    if time.time() > expires_at:
+                        # 验证码过期
+                        del sms_verification_codes[phone]
+                        return jsonify({"success": False, "message": "验证码已过期，请重新获取"})
+                    
+                    if stored_code == sms_code:
+                        # 验证成功
+                        code_verified = True
+                        del sms_verification_codes[phone] # 验证码一次性使用
                 
                 if not code_verified:
                     return jsonify({"success": False, "message": "验证码错误或已过期"})
@@ -11777,28 +11869,88 @@ def start_web_server(args_param):
             # 7. 处理头像上传（如果提供）
             avatar_url = "default_avatar.png"  # 默认头像
             avatar_file = request.files.get('avatar')
+            avatar_sha256_hash = None # 用于注册后更新索引
+
             if avatar_file and avatar_file.filename:
                 # 验证文件类型（仅允许图片）
                 allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
                 file_ext = avatar_file.filename.rsplit('.', 1)[-1].lower()
                 if file_ext not in allowed_extensions:
                     return jsonify({"success": False, "message": "头像文件格式不支持，请使用png/jpg/gif"})
+
+                # 读取文件内容
+                file_content = avatar_file.read()
                 
                 # 验证文件大小（限制5MB）
-                avatar_file.seek(0, os.SEEK_END)
-                file_size = avatar_file.tell()
-                avatar_file.seek(0)  # 重置文件指针
-                if file_size > 5 * 1024 * 1024:
-                    return jsonify({"success": False, "message": "头像文件过大，请小于5MB"})
-                
-                # 保存文件到uploads目录
-                import uuid
-                uploads_dir = 'static/uploads/avatars'
-                os.makedirs(uploads_dir, exist_ok=True)
-                avatar_filename = f"{uuid.uuid4().hex}.{file_ext}"
-                avatar_path = os.path.join(uploads_dir, avatar_filename)
-                avatar_file.save(avatar_path)
-                avatar_url = f"uploads/avatars/{avatar_filename}"
+                max_size = 5 * 1024 * 1024  # 5MB
+                if len(file_content) > max_size:
+                    return jsonify({"success": False, "message": "文件过大，请上传小于5MB的图片"}), 400
+
+                try:
+                    # 使用PIL打开图片并转换为PNG格式
+                    img = Image.open(io.BytesIO(file_content))
+
+                    # 转换为RGB模式（PNG不支持CMYK等模式）
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        pass # 保留透明度
+                    elif img.mode != 'RGB':
+                        img = img.convert('RGB')
+
+                    # 将图片转换为PNG格式的字节流
+                    png_buffer = io.BytesIO()
+                    img.save(png_buffer, format='PNG', optimize=True)
+                    png_content = png_buffer.getvalue()
+
+                    # 计算SHA256哈希
+                    avatar_sha256_hash = hashlib.sha256(png_content).hexdigest()
+
+                    # 创建存储目录 (修正路径)
+                    images_dir = os.path.join('system_accounts', 'images')
+                    os.makedirs(images_dir, exist_ok=True)
+
+                    # 保存为PNG文件 (修正文件名)
+                    filename = f"{avatar_sha256_hash}.png"
+                    filepath = os.path.join(images_dir, filename)
+
+                    with open(filepath, 'wb') as f:
+                        f.write(png_content)
+
+                    # 更新索引文件，记录为 "Guest" (用户请求)
+                    index_file = os.path.join(images_dir, '_index.json')
+                    try:
+                        if os.path.exists(index_file):
+                            with open(index_file, 'r', encoding='utf-8') as f:
+                                index_data = json.load(f)
+                        else:
+                            index_data = {'version': '1.0', 'description': '用户头像索引文件', 'files': {}}
+
+                        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+
+                        # 添加/更新文件信息，用户名为 "Guest"
+                        index_data['files'][filename] = {
+                            'username': 'Guest', # <--- 修正：注册时标记为Guest
+                            'upload_time': time.time(),
+                            'upload_time_str': datetime.datetime.now().isoformat(),
+                            'ip_address': ip_address,
+                            'original_filename': avatar_file.filename,
+                            'file_size': len(png_content),
+                            'sha256': avatar_sha256_hash
+                        }
+
+                        with open(index_file, 'w', encoding='utf-8') as f:
+                            json.dump(index_data, f, indent=2, ensure_ascii=False)
+
+                        logging.info(f"访客 (注册前) 从 {ip_address} 上传头像: {filename}")
+                    except Exception as e:
+                        logging.error(f"注册时更新头像索引失败: {e}", exc_info=True)
+                        # 索引失败不应阻止注册，继续
+
+                    # 构建正确的头像URL (修正URL)
+                    avatar_url = f"/api/avatar/{filename}"
+
+                except Exception as e:
+                    logging.error(f"注册时处理头像失败: {e}", exc_info=True)
+                    return jsonify({"success": False, "message": f"图片处理失败: {str(e)}"}), 500
             
             # 8. 调用auth_system.register_user()执行注册逻辑
             # 传递额外参数：phone, nickname, avatar_url
@@ -11809,6 +11961,36 @@ def start_web_server(args_param):
                 nickname=nickname or auth_username,  # 默认昵称为用户名
                 avatar_url=avatar_url
             )
+
+            # 9. (新) 注册成功后，更新头像索引中的用户名
+            if result.get('success') and avatar_sha256_hash:
+                try:
+                    images_dir = os.path.join('system_accounts', 'images')
+                    index_file = os.path.join(images_dir, '_index.json')
+                    filename = f"{avatar_sha256_hash}.png"
+
+                    if os.path.exists(index_file):
+                        # 此处需要加锁，以防并发写入索引文件
+                        # 假设 auth_system.lock 可用于此目的
+                        with auth_system.lock: 
+                            with open(index_file, 'r', encoding='utf-8') as f:
+                                index_data = json.load(f)
+                            
+                            # 查找由Guest上传的、匹配哈希值的条目
+                            if filename in index_data.get('files', {}) and index_data['files'][filename].get('username') == 'Guest':
+                                # 更新用户名为新注册的用户名
+                                index_data['files'][filename]['username'] = auth_username
+                                
+                                with open(index_file, 'w', encoding='utf-8') as f:
+                                    json.dump(index_data, f, indent=2, ensure_ascii=False)
+                                
+                                logging.info(f"头像索引已更新：文件 {filename} 的所有者已从 'Guest' 更新为 '{auth_username}'")
+                            else:
+                                logging.warning(f"注册后尝试更新头像索引：未找到匹配的 'Guest' 条目 (文件: {filename})")
+                except Exception as e:
+                    logging.error(f"注册成功后更新头像索引失败: {e}", exc_info=True)
+                    # 索引更新失败不影响注册成功响应
+
             
             return jsonify(result)
             
@@ -13610,10 +13792,90 @@ def start_web_server(args_param):
             app.logger.error(f"[更新基本信息] 失败：{str(e)}", exc_info=True)
             return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
 
+
+    @app.route('/auth/admin/update_user_nickname', methods=['POST'])
+    @login_required
+    def auth_admin_update_user_nickname():
+        """
+        新功能：管理员强制修改用户昵称
+        
+        权限要求:
+            - 管理员权限 ('manage_users')
+            
+        请求体参数（JSON）:
+            username: 要更新的用户名
+            nickname: 新昵称
+            
+        返回:
+            操作结果
+        """
+        try:
+            # 1. 获取当前登录用户 (来自 @login_required 装饰器设置的 g.user)
+            current_username = g.user
+            
+            # 2. 检查管理员权限
+            if not auth_system.check_permission(current_username, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足：需要管理员权限"}), 403
+
+            # 3. 获取请求数据
+            data = request.get_json() or {}
+            target_username = data.get('username', '').strip()
+            new_nickname = data.get('nickname', '').strip()
+
+            # 4. 验证参数
+            if not target_username:
+                return jsonify({"success": False, "message": "缺少用户名参数"}), 400
+            
+            if not new_nickname:
+                return jsonify({"success": False, "message": "新昵称不能为空"}), 400
+
+            # 5. 获取用户文件路径
+            user_file_path = auth_system.get_user_file_path(target_username)
+            
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "用户不存在"}), 404
+
+            # 6. 读取、更新、保存用户数据
+            # (使用 auth_system.lock 确保文件操作的线程安全)
+            with auth_system.lock:
+                with open(user_file_path, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+
+                user_data['nickname'] = new_nickname
+                
+                with open(user_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            # 7. 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                current_username,
+                'admin_update_nickname',
+                f'管理员 {current_username} 更新了用户 {target_username} 的昵称为: {new_nickname}',
+                ip_address,
+                g.api_instance._web_session_id if hasattr(g, 'api_instance') else ''
+            )
+
+            # 8. 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "昵称更新成功",
+                "data": {
+                    "username": target_username,
+                    "nickname": new_nickname
+                }
+            })
+
+        except Exception as e:
+            app.logger.error(f"[管理员更新昵称] 失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+
+
     @app.route('/auth/admin/update_user_phone', methods=['POST'])
     def auth_admin_update_user_phone():
         """
         问题4修复：管理员更新用户手机号
+        任务 3/3：落实一个手机号只能绑定一个账号
         
         功能说明：
         允许管理员更新用户的手机号（验证码非必需）
@@ -13621,7 +13883,7 @@ def start_web_server(args_param):
         请求体参数（JSON）:
             username: 要更新的用户名
             new_phone: 新手机号
-            sms_code: 验证码（可选）
+            sms_code: 验证码（可选，管理员操作不强制）
             
         权限要求:
             - 管理员权限
@@ -13645,9 +13907,9 @@ def start_web_server(args_param):
 
         # 获取请求数据
         data = request.get_json() or {}
-        username = data.get('username', '').strip()
+        username = data.get('username', '').strip() # 目标用户
         new_phone = data.get('new_phone', '').strip()
-        sms_code = data.get('sms_code', '').strip()
+        sms_code = data.get('sms_code', '').strip() # 管理员操作时，sms_code可选
 
         # 验证参数
         if not username:
@@ -13669,30 +13931,29 @@ def start_web_server(args_param):
             if not os.path.exists(user_file_path):
                 return jsonify({"success": False, "message": "用户不存在"}), 404
 
-            # 如果提供了验证码，进行验证（可选）
-            if sms_code:
-                verify_result = auth_system.verify_sms_code(new_phone, sms_code)
-                if not verify_result.get('success'):
-                    # 验证码错误时给出提示，但不阻止管理员操作
-                    app.logger.warning(f"管理员 {current_username} 修改用户 {username} 手机号时验证码错误，但仍允许操作")
+
+            # 管理员修改时，允许将手机号绑定到目标用户，即使该手机号已绑定到其他人
+            auth_system.unbind_phone_from_user(new_phone, except_username=username)
 
             # 读取用户数据
-            with open(user_file_path, 'r', encoding='utf-8') as f:
-                user_data = json.load(f)
+            # (使用 AuthSystem 的锁确保文件操作的线程安全)
+            with auth_system.lock:
+                with open(user_file_path, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
 
-            # 更新手机号
-            user_data['phone'] = new_phone
-            
-            # 保存更新后的用户数据
-            with open(user_file_path, 'w', encoding='utf-8') as f:
-                json.dump(user_data, f, indent=2, ensure_ascii=False)
+                # 更新手机号
+                user_data['phone'] = new_phone
+                
+                # 保存更新后的用户数据
+                with open(user_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
 
             # 记录审计日志
             ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
             auth_system.log_audit(
                 current_username,
                 'admin_update_phone',
-                f'管理员更新用户 {username} 的手机号为: {new_phone}',
+                f'管理员 {current_username} 更新了用户 {username} 的手机号为: {new_phone}',
                 ip_address,
                 session_id
             )
@@ -14964,6 +15225,8 @@ def start_web_server(args_param):
             import urllib.parse
             import urllib.request
             url = f"http://api.smsbao.com/sms?u={username}&p={api_key}&m={phone}&c={urllib.parse.quote(content)}"
+
+            logging.debug(f"[短信服务] 发送请求到短信宝API: {url}")
             
             try:
                 response = urllib.request.urlopen(url, timeout=10)
@@ -15237,9 +15500,127 @@ def start_web_server(args_param):
                 f"[前端日志处理错误][IP:{ip_address_err}][Sess:{session_id_err[:8]}] {e}", exc_info=True)
             return jsonify({"success": False, "message": str(e)}), 500
 
-    # ====================
-    # 任务18：IP封禁管理API
-    # ====================
+    @app.route('/api/auth/check_phone', methods=['POST'])
+    def auth_check_phone():
+        """
+        检查手机号是否已被绑定。
+        
+        请求体:
+            { "phone": "13800138000" }
+            
+        返回:
+            { "success": true, "is_bound": true/false, "bound_to_user": "username" (如果已绑定) }
+        """
+        data = request.get_json() or {}
+        phone = data.get('phone', '').strip()
+        
+        if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
+            return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+        try:
+            bound_username = auth_system.find_user_by_phone(phone)
+            
+            if bound_username:
+                return jsonify({
+                    "success": True, 
+                    "is_bound": True, 
+                    "bound_to_user": bound_username
+                })
+            else:
+                return jsonify({
+                    "success": True, 
+                    "is_bound": False
+                })
+        except Exception as e:
+            logging.error(f"[检查手机号] 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"服务器内部错误: {e}"}), 500
+
+    # 用户修改自己的手机号
+    @app.route('/api/user/update_phone', methods=['POST'])
+    @login_required # 使用装饰器确保用户已登录
+    def user_update_phone():
+        """
+        用户修改自己的手机号。
+        - 检查 enable_phone_modification 开关
+        - 强制验证短信
+        - 强制解绑其他账号
+        """
+        try:
+            # 1. 检查功能开关
+            config = configparser.ConfigParser()
+            config.read(CONFIG_FILE, encoding='utf-8')
+            if config.get('Features', 'enable_phone_modification', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "系统未开启手机号修改功能"})
+                
+            # 2. 获取参数
+            data = request.get_json() or {}
+            new_phone = data.get('new_phone', '').strip()
+            sms_code = data.get('sms_code', '').strip()
+            
+            if not new_phone or not re.match(r'^1[3-9]\d{9}$', new_phone):
+                return jsonify({"success": False, "message": "新手机号格式不正确"})
+                
+            if not sms_code:
+                return jsonify({"success": False, "message": "请输入短信验证码"})
+                
+            # 3. 验证短信验证码
+            global sms_verification_codes
+            stored_code_info = sms_verification_codes.get(new_phone)
+            
+            if not stored_code_info:
+                return jsonify({"success": False, "message": "请先获取验证码"})
+            
+            stored_code, expires_at = stored_code_info
+            
+            if time.time() > expires_at:
+                del sms_verification_codes[new_phone]
+                return jsonify({"success": False, "message": "验证码已过期，请重新获取"})
+                
+            if stored_code != sms_code:
+                return jsonify({"success": False, "message": "验证码错误"})
+                
+            # 验证成功，删除验证码
+            del sms_verification_codes[new_phone]
+            
+            # 4. 获取当前用户名
+            current_username = g.user
+            
+            # 5. 强制解绑该手机号（如果被其他人绑定）
+            auth_system.unbind_phone_from_user(new_phone, except_username=current_username)
+            
+            # 6. 更新当前用户的手机号
+            user_file_path = auth_system.get_user_file_path(current_username)
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "当前用户文件不存在"}), 404
+
+            with auth_system.lock:
+                with open(user_file_path, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                user_data['phone'] = new_phone
+                
+                with open(user_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            # 7. 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                current_username,
+                'user_update_phone',
+                f'用户 {current_username} 成功修改手机号为: {new_phone}',
+                ip_address,
+                g.api_instance._web_session_id
+            )
+            
+            return jsonify({
+                "success": True,
+                "message": "手机号修改成功",
+                "new_phone": new_phone
+            })
+            
+        except Exception as e:
+            app.logger.error(f"[用户修改手机号] 失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
     
     # IP封禁数据存储文件路径
     IP_BANS_FILE = os.path.join('logs', 'ip_bans.json')
@@ -15593,10 +15974,16 @@ def start_web_server(args_param):
         
         sms_enabled = config.get('Features', 'enable_sms_service', fallback='false').lower() == 'true'
         reg_verify_enabled = config.get('Features', 'enable_phone_registration_verify', fallback='false').lower() == 'true'
+
+        phone_modification_enabled = config.get('Features', 'enable_phone_modification', fallback='false').lower() == 'true'
+
         
         return {
             'sms_enabled': sms_enabled,
-            'reg_verify_enabled': reg_verify_enabled
+            'reg_verify_enabled': reg_verify_enabled,
+            # --- 新增代码 开始 ---
+            'enable_phone_modification': phone_modification_enabled
+            # --- 新增代码 结束 ---
         }
 
     @app.route('/')
@@ -16758,7 +17145,7 @@ def start_web_server(args_param):
 
     @app.route('/api/messages/list', methods=['GET'])
     def get_messages():
-        """获取留言列表（修正：实时加载昵称、头像和IP归属地）"""
+        """获取留言列表"""
         # 验证会话
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
@@ -16808,8 +17195,8 @@ def start_web_server(args_param):
                     enriched_msg['nickname'] = f"{msg_auth_username} (已注销)"
                     enriched_msg['avatar_url'] = 'default_avatar.png'
             else:
-                # 游客：使用 email (如果存在) 或 "游客" 作为昵称
-                enriched_msg['nickname'] = msg.get('email', '游客')
+                # 游客：优先使用保存的昵称，其次是邮箱，最后是"游客"
+                enriched_msg['nickname'] = msg.get('nickname') or msg.get('email') or '游客'
                 enriched_msg['avatar_url'] = 'default_avatar.png'
             
             enriched_messages.append(enriched_msg)
@@ -16824,6 +17211,7 @@ def start_web_server(args_param):
     # 任务15：IP归属地获取辅助函数
     # 用于获取IP地址的地理位置（城市）信息
     # ============================================================
+    global get_ip_location
     def get_ip_location(ip_address):
         """
         获取IP地址的地理位置信息（城市）
@@ -16945,14 +17333,15 @@ def start_web_server(args_param):
         
         # 构建留言对象（增强版，包含更多信息）
         message = {
-            "id": str(uuid.uuid4()),                           # 留言唯一ID
-            "content": content,                                # 留言内容
-            "auth_username": auth_username if not is_guest else None,  # 用户名（已登录用户）
-            "email": email if is_guest else None,              # 邮箱（游客）
-            "is_guest": is_guest,                              # 是否游客
-            "timestamp": time.time(),                          # 发表时间戳
-            "ip": request.remote_addr                          # IP地址（用于管理）
-        }
+                "id": str(uuid.uuid4()),                           # 留言唯一ID
+                "content": content,                                # 留言内容
+                "auth_username": auth_username if not is_guest else None,  # 用户名（已登录用户）
+                "nickname": nickname if is_guest else None,        # 昵称（游客）
+                "email": email if is_guest else None,              # 邮箱（游客）
+                "is_guest": is_guest,                              # 是否游客
+                "timestamp": time.time(),                          # 发表时间戳
+                "ip": request.remote_addr                          # IP地址（用于管理）
+            }
 
         # 读取现有留言
         messages_file = 'messages.json'
@@ -17025,7 +17414,7 @@ def start_web_server(args_param):
             auth_username, 'delete_any_messages')
         can_delete_own = auth_system.check_permission(
             auth_username, 'delete_own_messages')
-        is_own_message = (message_to_delete.get('username') ==
+        is_own_message = (message_to_delete.get('auth_username') ==
                           auth_username and not message_to_delete.get('is_guest'))
 
         if can_delete_any:
@@ -17148,7 +17537,7 @@ def start_web_server(args_param):
 
         return jsonify({
             "status": "ok",
-            "sessions": len(web_sessions),
+            "sessions": len(web_sessions)-1,
             "chrome_contexts": contexts_count
         })
 
