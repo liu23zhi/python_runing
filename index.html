@@ -42,52 +42,7 @@
     body {
       background: linear-gradient(180deg, rgba(245, 250, 255, 1) 0%, rgba(235, 245, 255, 1) 40%, rgba(250, 240, 255, 1) 100%);
       background-attachment: fixed;
-      /* 问题18修复：启用页面垂直滚动 */
-      overflow-y: auto;
-      min-height: 100vh;
-    }
-
-    /* 问题18修复：美化所有页面的滚动条样式 */
-    /* Webkit浏览器（Chrome, Safari, Edge）的滚动条样式 */
-    ::-webkit-scrollbar {
-      width: 12px; /* 垂直滚动条宽度 */
-      height: 12px; /* 水平滚动条高度 */
-    }
-
-    ::-webkit-scrollbar-track {
-      background: rgba(0, 0, 0, 0.05); /* 滚动条轨道背景 */
-      border-radius: 10px;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: rgba(125, 211, 252, 0.6); /* 滚动条滑块颜色（使用主题色） */
-      border-radius: 10px;
-      border: 2px solid rgba(0, 0, 0, 0.05); /* 滑块边框 */
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(125, 211, 252, 0.8); /* 鼠标悬停时的颜色 */
-    }
-
-    /* Firefox浏览器的滚动条样式 */
-    * {
-      scrollbar-width: thin; /* 细滚动条 */
-      scrollbar-color: rgba(125, 211, 252, 0.6) rgba(0, 0, 0, 0.05); /* 滑块颜色 轨道颜色 */
-    }
-
-    /* 问题18修复：为模态框和面板添加滚动支持 */
-    .modal-content, .panel, [class*="modal"] > div:first-child {
-      max-height: 90vh; /* 限制最大高度为视口的90% */
-      overflow-y: auto; /* 启用垂直滚动 */
-    }
-
-    /* 为特定容器启用滚动 */
-    #attendance-list, 
-    #multi-account-list,
-    .admin-panel-content,
-    .scrollable-content {
-      overflow-y: auto;
-      max-height: 70vh; /* 根据需要调整 */
+      
     }
 
     .panel {
@@ -6349,13 +6304,21 @@
           const date = new Date(msg.timestamp * 1000);
           const dateStr = date.toLocaleString('zh-CN');
           // 获取头像URL，如果没有则使用默认头像
-          const avatarUrl = msg.avatar_url || 'default_avatar.png';
+          const rawAvatarUrl = msg.avatar_url || 'default_avatar.png';
           // 获取IP归属地，如果没有则不显示
           const ipCity = msg.ip_city || '';
 
-          // ============================================================
-          // 任务16：修改留言渲染以显示头像、昵称和IP归属地
-          // ============================================================
+
+
+          let finalAvatarSrc;
+          if (rawAvatarUrl.startsWith('/api/avatar/')) {
+            // 已经是完整路径了 (例如 /api/avatar/hash.png)，直接使用
+            finalAvatarSrc = rawAvatarUrl;
+          } else {
+            // 是文件名 (例如 default_avatar.png 或旧的 hash.png)，添加前缀
+            finalAvatarSrc = `/api/avatar/${rawAvatarUrl}`;
+          }
+
           return `
             <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
               <div class="flex justify-between items-start gap-3">
@@ -6363,7 +6326,7 @@
                 <div class="flex gap-3 flex-1">
                   <!-- 用户头像 -->
                   <div class="flex-shrink-0 w-12 h-12 rounded-full bg-slate-200 overflow-hidden border-2 border-slate-300">
-                    <img src="/api/avatar/${avatarUrl}" alt="头像" class="w-full h-full object-cover"
+                    <img src="${finalAvatarSrc}" alt="头像" class="w-full h-full object-cover"
                       onerror="this.parentElement.innerHTML='<span class=\\'text-2xl text-slate-400\\'>👤</span>'; this.parentElement.classList.add('flex', 'items-center', 'justify-center');">
                   </div>
                   <!-- 用户信息 -->

@@ -280,7 +280,7 @@ def check_and_import_dependencies():
     print("[依赖检查] 开始检查并导入主要应用依赖库...")
 
     # 声明我们将要修改全局变量
-    global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g
+    global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g, send_file
     global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
     global cssutils, playwright_available
 
@@ -292,7 +292,7 @@ def check_and_import_dependencies():
     # (显示名称, 导入代码, pip包名)
     dependencies = [
         ('Flask Web框架', 
-         'from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g',
+         'from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g, send_file',
          'Flask'),
         ('Flask CORS',
          'from flask_cors import CORS',
@@ -2240,7 +2240,7 @@ class AuthSystem:
                 "group": group,
                 "is_guest": False,
                 "max_sessions": user_data.get('max_sessions', 1),
-                "avatar_url": user_data.get('avatar_url', ''),
+                "avatar_url": user_data.get('avatar_url') or 'default_avatar.png',
                 "theme": user_data.get('theme', 'light'),
                 "session_ids": user_data.get('session_ids', [])
             }
@@ -2715,7 +2715,7 @@ class AuthSystem:
             'created_at': user_data.get('created_at'),
             'last_login': user_data.get('last_login'),
             '2fa_enabled': user_data.get('2fa_enabled', False),
-            'avatar_url': user_data.get('avatar_url', ''),
+            'avatar_url': user_data.get('avatar_url') or 'default_avatar.png',
             'max_sessions': user_data.get('max_sessions', 1),
             'theme': user_data.get('theme', 'light'),
             'session_ids': user_data.get('session_ids', [])
@@ -13983,6 +13983,46 @@ def start_web_server(args_param):
             except (OSError, PermissionError) as e:
                 logging.warning(f"[会话索引] 更新索引文件失败: {e}")
             return jsonify(result)
+
+    @app.route('/default_avatar.png')
+    @app.route('/static/default_avatar.png')
+    def serve_default_avatar():
+        """
+        [修复] 
+        为 default_avatar.png 提供根路径和 /static 路径的访问。
+        
+        问题：
+        - 注册页面 (auth-reg-avatar-preview) hardcodes /static/default_avatar.png (404)
+        - 个人资料 (loadPersonalInfo) 在 avatar_url 为 'default_avatar.png' 时，
+          会直接请求 /default_avatar.png (404)
+        
+        解决：
+        添加这两个路由，统一指向 ./default_avatar.png 文件。
+        """
+        try:
+            # 确保 os 模块已导入
+            import os
+            
+            # 使用 os.path.dirname(__file__) 确保路径是相对于 main.py 的
+            # __file__ 在 main() 中已保证可用
+            base_dir = os.path.dirname(__file__)
+            default_avatar_path = os.path.join(base_dir, 'default_avatar.png')
+            
+            if os.path.exists(default_avatar_path):
+                # 使用 send_file 发送文件 (必须在顶部导入)
+                return send_file(default_avatar_path, mimetype='image/png')
+            else:
+                logging.warning(f"Default avatar not found at {default_avatar_path}")
+                return "Default avatar not found", 404
+        except NameError as e:
+            # 如果 send_file 未导入 (虽然我们上面修复了，但作为兜底)
+            logging.error(f"Serve default avatar failed: {e}. Is send_file imported?")
+            return "Server configuration error", 500
+        except Exception as e:
+            logging.error(f"Error serving default avatar: {e}", exc_info=True)
+            return "Server error", 500
+
+
 
     @app.route('/api/avatar/<filename>', methods=['GET'])
     def serve_avatar(filename):
