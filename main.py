@@ -151,7 +151,8 @@ def import_standard_libraries():
         ('warnings', 'import warnings'),
         ('atexit', 'import atexit'),
         ('io', 'import io'),
-        ('zipfile', 'import zipfile')
+        ('zipfile', 'import zipfile'),
+        ('functools', 'import functools')
     ]
 
     failed_imports = []
@@ -279,19 +280,19 @@ def check_and_import_dependencies():
     print("[依赖检查] 开始检查并导入主要应用依赖库...")
 
     # 声明我们将要修改全局变量
-    global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response
+    global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g
     global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
     global cssutils, playwright_available
 
     # 将所有变量预设为 None，以防导入成功但未完全解包
-    Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response = (None,) * 8
+    Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g = (None,) * 9
     CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np, cssutils = (None,) * 10
     playwright_available = False
 
     # (显示名称, 导入代码, pip包名)
     dependencies = [
         ('Flask Web框架', 
-         'from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response',
+         'from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g',
          'Flask'),
         ('Flask CORS',
          'from flask_cors import CORS',
@@ -8936,12 +8937,12 @@ class Api:
 
                 # 读取刷新间隔，并设置合理的默认值和最小值
                 refresh_interval_s = self.params.get(
-                    "auto_attendance_refresh_s", 60)  # 默认60秒
+                    "auto_attendance_refresh_s", 30)  # 默认60秒
                 # 确保间隔不小于一个最小值，例如15秒，防止过高频率
                 refresh_interval_s = max(15, refresh_interval_s)
 
                 # (修复：将等待日志移到 wait 之前)
-                # self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
+                self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
 
                 # 使用 wait() 替代 time.sleep()，以便在等待期间可以被 'stop_auto_refresh.set()' 立即中断
                 if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
@@ -10940,7 +10941,8 @@ def _cleanup_playwright():
     if chrome_pool:
         logging.info("捕获到程序退出信号，正在清理 Playwright 资源...")
         try:
-            chrome_pool.cleanup()
+            # 修正：调用线程本地的清理方法 cleanup_thread()，而不是不存在的 cleanup()
+            chrome_pool.cleanup_thread()
             logging.info("Playwright浏览器自动化框架资源清理完成")
         except Exception as e:
             # 在退出时尽量不抛出新异常，只记录错误
@@ -11262,6 +11264,45 @@ def start_web_server(args_param):
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(
         days=7)  # 会话保持7天
+
+    # ===== 登录验证装饰器 =====
+    def login_required(f):
+        """
+        一个装饰器，用于验证用户是否已登录。
+        它检查 X-Session-ID，验证会话，并将用户信息存储在 g 对象中。
+        """
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            session_id = request.headers.get('X-Session-ID', '')
+            api_instance = None
+            is_authenticated = False
+            auth_username = None
+
+            # 1. 检查会话ID是否存在且在内存中
+            if session_id:
+                with web_sessions_lock:
+                    if session_id in web_sessions:
+                        api_instance = web_sessions[session_id]
+                        # 检查是否已通过认证（非游客或已登录的系统用户）
+                        is_authenticated = getattr(api_instance, 'is_authenticated', False)
+                        auth_username = getattr(api_instance, 'auth_username', None)
+
+            # 2. 如果未认证，返回401
+            if not is_authenticated or not api_instance or not auth_username:
+                return jsonify({"success": False, "message": "未登录或会话无效"}), 401
+            
+            # 3. 检查是否为游客
+            if getattr(api_instance, 'is_guest', False):
+                 return jsonify({"success": False, "message": "游客无权访问此功能"}), 403
+
+            # 4. 认证成功，将用户信息存入g (Flask的请求上下文)
+            g.user = auth_username
+            g.api_instance = api_instance
+            
+            # 5. 执行原始的路由函数
+            return f(*args, **kwargs)
+        return decorated_function
+    # ===============================
 
     # ====================
     # JavaScript 压缩工具函数

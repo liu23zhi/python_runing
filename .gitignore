@@ -14,3 +14,4 @@ __pycache__/
 messages.json
 /.vscode
 /zs_campus_run_helper_venv
+ip_bans.json

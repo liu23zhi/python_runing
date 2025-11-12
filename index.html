@@ -11640,6 +11640,7 @@
     }
 
     async function fetchNotifications(limit = null, offset = 0) {
+      logMessage_Debug("开始刷新通知", { limit, offset });
       const badge = $('notification-badge');
       let result = null; // <-- 1. 必须在函数顶部声明
       try {
