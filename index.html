@@ -1378,6 +1378,10 @@
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
         <button id="admin-tab-messages_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">留言板</button>
+        <button id="admin-tab-ipban_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">IP封禁</button>
+        <button id="admin-tab-sms_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">短信配置</button>
       </div>
 
       <div class="overflow-y-auto overflow-x-hidden flex-grow min-h-0">
@@ -3698,6 +3702,8 @@
       const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal');
       const messagesTab = $('admin-tab-messages_modal');
+      const ipbanTab = $('admin-tab-ipban_modal');
+      const smsTab = $('admin-tab-sms_modal');
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
       const logsPanel = $('admin-logs-panel_modal');
@@ -3705,6 +3711,8 @@
       const profilePanel = $('admin-profile-panel_modal');
       const sessionsPanel = $('admin-sessions-panel_modal');
       const messagesPanel = $('admin-messages-panel_modal');
+      const ipbanPanel = $('admin-ip-ban-modal');
+      const smsPanel = $('admin-sms-config-modal');
 
       // 根据用户组进行权限隔离
       // 如果是普通用户（'user'），只显示健康状态和留言板，隐藏用户组管理
@@ -3715,6 +3723,9 @@
         if (healthTab) healthTab.style.display = 'block';
         // 显示留言板Tab（普通用户可发表和查看留言）
         if (messagesTab) messagesTab.style.display = 'block';
+        // 隐藏管理员专用Tab
+        if (ipbanTab) ipbanTab.style.display = 'none';
+        if (smsTab) smsTab.style.display = 'none';
       } else if (userGroup === 'admin' || userGroup === 'super_admin') {
         // 管理员和超级管理员可以看到所有Tab，确保全部显示
         if (groupsTab) groupsTab.style.display = 'block';
@@ -3724,6 +3735,8 @@
         if (logsTab) logsTab.style.display = 'block';
         if (profileTab) profileTab.style.display = 'block';
         if (sessionsTab) sessionsTab.style.display = 'block';
+        if (ipbanTab) ipbanTab.style.display = 'block';
+        if (smsTab) smsTab.style.display = 'block';
       }
 
       // 防御性编程：检查核心元素是否存在
@@ -3733,13 +3746,13 @@
       }
 
       // 重置所有标签按钮的样式
-      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab].filter(t => t).forEach(t => {
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab].filter(t => t).forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
       // 隐藏所有内容面板
-      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel].filter(p => p).forEach(p => {
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel].filter(p => p).forEach(p => {
         p.classList.add('hidden');
       });
 
@@ -3792,6 +3805,24 @@
           messagesTab.classList.remove('text-slate-400', 'border-transparent');
           messagesPanel.classList.remove('hidden');
           loadMessages();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
+      } else if (tab === 'ipban') {
+        if (ipbanTab && ipbanPanel) {
+          ipbanTab.classList.add('text-sky-600', 'border-sky-600');
+          ipbanTab.classList.remove('text-slate-400', 'border-transparent');
+          ipbanPanel.classList.remove('hidden');
+          loadIPBans();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
+      } else if (tab === 'sms') {
+        if (smsTab && smsPanel) {
+          smsTab.classList.add('text-sky-600', 'border-sky-600');
+          smsTab.classList.remove('text-slate-400', 'border-transparent');
+          smsPanel.classList.remove('hidden');
+          loadSMSConfig();
           // 停止健康状态自动刷新
           stopHealthAutoRefresh();
         }
@@ -9018,6 +9049,8 @@
     $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
     $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
     $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
+    $('admin-tab-ipban_modal')?.addEventListener('click', () => switchAdminTab('ipban'));
+    $('admin-tab-sms_modal')?.addEventListener('click', () => switchAdminTab('sms'));
 
     // ============================================================
     // 任务14：用户日志Tab切换事件监听器
