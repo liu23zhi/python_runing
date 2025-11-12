@@ -712,16 +712,51 @@
 
       <!-- 登录表单 -->
       <div id="auth-login-form" class="space-y-4">
+        <!-- 任务9: 手机号/用户名登录切换 -->
+        <div id="auth-login-type-toggle" class="flex justify-center gap-2 pb-2">
+          <button id="auth-login-username-btn" class="px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm">
+            用户名登录
+          </button>
+          <button id="auth-login-phone-btn" class="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm">
+            手机号登录
+          </button>
+        </div>
+        
         <div>
-          <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
+          <label class="block text-sm font-semibold leading-6 text-slate-700" id="auth-login-label">用户名</label>
           <input type="text" id="auth-username" class="input-field mt-1" placeholder="请输入用户名" autocomplete="username">
         </div>
-        <div>
-          <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
+        
+        <!-- 密码登录区域 -->
+        <div id="auth-password-section">
+          <div class="flex justify-between items-center">
+            <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
+            <button type="button" id="auth-switch-to-sms" class="text-xs text-sky-600 hover:text-sky-700 hidden">
+              使用验证码登录
+            </button>
+          </div>
           <input type="password" id="auth-password" class="input-field mt-1" placeholder="请输入密码"
             autocomplete="current-password">
         </div>
-        <button id="auth-login-btn" class="btn btn-primary w-full py-3">登录</button>
+        
+        <!-- 验证码登录区域（默认隐藏） -->
+        <div id="auth-sms-section" class="hidden">
+          <div class="flex justify-between items-center">
+            <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+            <button type="button" id="auth-switch-to-password" class="text-xs text-sky-600 hover:text-sky-700">
+              使用密码登录
+            </button>
+          </div>
+          <div class="flex gap-2 mt-1">
+            <input type="text" id="auth-sms-code" class="input-field flex-1" placeholder="请输入验证码"
+              maxlength="6" inputmode="numeric" pattern="[0-9]{6}">
+            <button type="button" id="auth-send-login-code" class="btn btn-primary whitespace-nowrap" style="min-height: 44px;">
+              发送验证码
+            </button>
+          </div>
+        </div>
+        
+        <button id="auth-login-btn" class="btn btn-primary w-full py-3" style="min-height: 44px;">登录</button>
         <div id="guest-login-section" class="text-center hidden">
           <div class="relative flex py-2 items-center">
             <div class="flex-grow border-t border-slate-200"></div>
@@ -752,11 +787,48 @@
 
       <!-- 注册表单 -->
       <div id="auth-register-form" class="hidden space-y-4">
+        <!-- 任务8: 用户名（禁止中文） -->
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
-          <input type="text" id="auth-reg-username" class="input-field mt-1" placeholder="请输入用户名（3-20字符）"
+          <input type="text" id="auth-reg-username" class="input-field mt-1" placeholder="请输入用户名（3-20字符，不含中文）"
             autocomplete="username">
         </div>
+        
+        <!-- 任务8: 手机号（type="tel"触控优化） -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">手机号</label>
+          <input type="tel" id="auth-reg-phone" class="input-field mt-1" placeholder="请输入手机号" 
+            autocomplete="tel" inputmode="numeric" pattern="[0-9]*">
+        </div>
+        
+        <!-- 任务8: 短信验证码 + 发送按钮 -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+          <div class="flex gap-2">
+            <input type="text" id="auth-reg-sms-code" class="input-field mt-1 flex-1" placeholder="请输入验证码"
+              maxlength="6" inputmode="numeric" pattern="[0-9]{6}">
+            <button id="auth-reg-send-code-btn" class="btn btn-primary mt-1 whitespace-nowrap" style="min-height: 44px;">
+              发送验证码
+            </button>
+          </div>
+        </div>
+        
+        <!-- 任务8: 昵称（允许中文） -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">昵称</label>
+          <input type="text" id="auth-reg-nickname" class="input-field mt-1" placeholder="请输入昵称（可含中文）">
+        </div>
+        
+        <!-- 任务8: 头像上传 -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">头像</label>
+          <div class="flex items-center gap-3 mt-1">
+            <img id="auth-reg-avatar-preview" src="/static/default_avatar.png" 
+              class="w-16 h-16 rounded-full object-cover border-2 border-slate-200">
+            <input type="file" id="auth-reg-avatar" accept="image/*" class="flex-1">
+          </div>
+        </div>
+        
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
           <input type="password" id="auth-reg-password" class="input-field mt-1" placeholder="请输入密码（至少6字符）"
@@ -767,7 +839,7 @@
           <input type="password" id="auth-reg-password-confirm" class="input-field mt-1" placeholder="请再次输入密码"
             autocomplete="new-password">
         </div>
-        <button id="auth-register-btn" class="btn btn-success w-full py-3">注册</button>
+        <button id="auth-register-btn" class="btn btn-success w-full py-3" style="min-height: 44px;">注册</button>
       </div>
 
       <!-- 2FA验证表单 -->
@@ -1524,7 +1596,7 @@
                 <div>
                   <label class="block text-sm font-semibold text-slate-700 mb-1">手机号</label>
                   <div class="flex gap-2">
-                    <input type="text" id="profile-phone" class="input-field flex-1" placeholder="输入手机号" readonly>
+                    <input type="tel" id="profile-phone" class="input-field flex-1" placeholder="输入手机号" readonly inputmode="numeric">
                     <button onclick="modifyPhone()" id="profile-modify-phone-btn" class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap">
                       修改手机号
                     </button>
@@ -12424,6 +12496,324 @@
     $('multi-refresh-selected-btn').addEventListener('click', multi_refreshSelected);
 
   </script>
+
+  <!-- 任务10: 修改手机号Modal -->
+  <div id="modify-phone-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-slate-800">修改绑定手机号</h3>
+        <button onclick="closeModifyPhoneModal()" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">当前手机号</label>
+          <input type="tel" id="modify-phone-current" class="input-field" readonly>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">新手机号</label>
+          <input type="tel" id="modify-phone-new" class="input-field" placeholder="请输入新手机号" 
+            inputmode="numeric" pattern="[0-9]*" style="min-height: 44px;">
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">短信验证码</label>
+          <div class="flex gap-2">
+            <input type="text" id="modify-phone-code" class="input-field flex-1" placeholder="请输入验证码"
+              maxlength="6" inputmode="numeric" pattern="[0-9]{6}" style="min-height: 44px;">
+            <button onclick="sendModifyPhoneCode()" id="modify-phone-send-btn" 
+              class="btn btn-primary whitespace-nowrap" style="min-height: 44px;">
+              发送验证码
+            </button>
+          </div>
+        </div>
+        
+        <div class="flex gap-3 pt-4">
+          <button onclick="confirmModifyPhone()" class="btn btn-success flex-1" style="min-height: 44px;">
+            确认修改
+          </button>
+          <button onclick="closeModifyPhoneModal()" class="btn btn-ghost flex-1" style="min-height: 44px;">
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    // ==================== 任务8-10: 注册登录和个人资料功能 ====================
+    
+    // 任务9: 手机号/用户名登录切换
+    let isPhoneLogin = false;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      const usernameBtn = document.getElementById('auth-login-username-btn');
+      const phoneBtn = document.getElementById('auth-login-phone-btn');
+      const authInput = document.getElementById('auth-username');
+      const authLabel = document.getElementById('auth-login-label');
+      
+      if (usernameBtn && phoneBtn) {
+        usernameBtn.addEventListener('click', function() {
+          isPhoneLogin = false;
+          usernameBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
+          phoneBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
+          authInput.type = 'text';
+          authInput.placeholder = '请输入用户名';
+          authInput.removeAttribute('inputmode');
+          if (authLabel) authLabel.textContent = '用户名';
+          
+          // 隐藏"使用验证码登录"按钮
+          const switchToSms = document.getElementById('auth-switch-to-sms');
+          if (switchToSms) switchToSms.classList.add('hidden');
+          
+          // 确保显示密码输入
+          const passwordSection = document.getElementById('auth-password-section');
+          const smsSection = document.getElementById('auth-sms-section');
+          if (passwordSection) passwordSection.classList.remove('hidden');
+          if (smsSection) smsSection.classList.add('hidden');
+        });
+        
+        phoneBtn.addEventListener('click', function() {
+          isPhoneLogin = true;
+          phoneBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
+          usernameBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
+          authInput.type = 'tel';
+          authInput.placeholder = '请输入手机号';
+          authInput.setAttribute('inputmode', 'numeric');
+          if (authLabel) authLabel.textContent = '手机号';
+          
+          // 显示"使用验证码登录"按钮
+          const switchToSms = document.getElementById('auth-switch-to-sms');
+          if (switchToSms) switchToSms.classList.remove('hidden');
+        });
+      }
+      
+      // 验证码/密码登录切换
+      const switchToSms = document.getElementById('auth-switch-to-sms');
+      const switchToPassword = document.getElementById('auth-switch-to-password');
+      const passwordSection = document.getElementById('auth-password-section');
+      const smsSection = document.getElementById('auth-sms-section');
+      
+      if (switchToSms) {
+        switchToSms.addEventListener('click', function() {
+          passwordSection.classList.add('hidden');
+          smsSection.classList.remove('hidden');
+        });
+      }
+      
+      if (switchToPassword) {
+        switchToPassword.addEventListener('click', function() {
+          smsSection.classList.add('hidden');
+          passwordSection.classList.remove('hidden');
+        });
+      }
+      
+      // 发送登录验证码
+      const sendLoginCodeBtn = document.getElementById('auth-send-login-code');
+      if (sendLoginCodeBtn) {
+        sendLoginCodeBtn.addEventListener('click', async function() {
+          const phone = document.getElementById('auth-username').value;
+          if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+            showModalAlert('请输入正确的手机号');
+            return;
+          }
+          
+          sendLoginCodeBtn.disabled = true;
+          let countdown = 60;
+          const originalText = sendLoginCodeBtn.textContent;
+          
+          try {
+            const result = await callPythonAPI('send_sms_code', phone, 'login');
+            if (result && result.success) {
+              showTempMessage('验证码已发送', 'success');
+              
+              const timer = setInterval(() => {
+                countdown--;
+                sendLoginCodeBtn.textContent = countdown + '秒';
+                if (countdown <= 0) {
+                  clearInterval(timer);
+                  sendLoginCodeBtn.disabled = false;
+                  sendLoginCodeBtn.textContent = originalText;
+                }
+              }, 1000);
+            } else {
+              sendLoginCodeBtn.disabled = false;
+              showModalAlert(result?.message || '发送失败');
+            }
+          } catch (error) {
+            sendLoginCodeBtn.disabled = false;
+            showModalAlert('发送失败: ' + error.message);
+          }
+        });
+      }
+      
+      // 任务8: 注册表单验证
+      const regUsernameInput = document.getElementById('auth-reg-username');
+      if (regUsernameInput) {
+        regUsernameInput.addEventListener('input', function(e) {
+          // 禁止输入中文
+          const value = e.target.value;
+          const noChinese = value.replace(/[一-龥]/g, '');
+          if (value !== noChinese) {
+            e.target.value = noChinese;
+            showTempMessage('用户名不能包含中文字符', 'warning');
+          }
+        });
+      }
+      
+      // 任务8: 头像预览
+      const avatarInput = document.getElementById('auth-reg-avatar');
+      if (avatarInput) {
+        avatarInput.addEventListener('change', function(e) {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              document.getElementById('auth-reg-avatar-preview').src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+      }
+      
+      // 任务8: 发送注册验证码
+      const sendCodeBtn = document.getElementById('auth-reg-send-code-btn');
+      if (sendCodeBtn) {
+        sendCodeBtn.addEventListener('click', async function() {
+          const phone = document.getElementById('auth-reg-phone').value;
+          if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+            showModalAlert('请输入正确的手机号');
+            return;
+          }
+          
+          sendCodeBtn.disabled = true;
+          let countdown = 60;
+          const originalText = sendCodeBtn.textContent;
+          
+          try {
+            const result = await callPythonAPI('send_sms_code', phone);
+            if (result && result.success) {
+              showTempMessage('验证码已发送', 'success');
+              
+              const timer = setInterval(() => {
+                countdown--;
+                sendCodeBtn.textContent = `${countdown}秒后重试`;
+                if (countdown <= 0) {
+                  clearInterval(timer);
+                  sendCodeBtn.disabled = false;
+                  sendCodeBtn.textContent = originalText;
+                }
+              }, 1000);
+            } else {
+              sendCodeBtn.disabled = false;
+              showModalAlert(result?.message || '发送失败');
+            }
+          } catch (error) {
+            sendCodeBtn.disabled = false;
+            showModalAlert('发送失败: ' + error.message);
+          }
+        });
+      }
+    });
+    
+    // 任务10: 修改手机号功能
+    function modifyPhone() {
+      const currentPhone = document.getElementById('profile-phone').value;
+      document.getElementById('modify-phone-current').value = currentPhone;
+      document.getElementById('modify-phone-new').value = '';
+      document.getElementById('modify-phone-code').value = '';
+      document.getElementById('modify-phone-modal').classList.remove('hidden');
+    }
+    
+    function closeModifyPhoneModal() {
+      document.getElementById('modify-phone-modal').classList.add('hidden');
+    }
+    
+    async function sendModifyPhoneCode() {
+      const newPhone = document.getElementById('modify-phone-new').value;
+      if (!newPhone || !/^1[3-9]\d{9}$/.test(newPhone)) {
+        showModalAlert('请输入正确的新手机号');
+        return;
+      }
+      
+      const btn = document.getElementById('modify-phone-send-btn');
+      btn.disabled = true;
+      let countdown = 60;
+      const originalText = btn.textContent;
+      
+      try {
+        const result = await callPythonAPI('send_sms_code', newPhone);
+        if (result && result.success) {
+          showTempMessage('验证码已发送', 'success');
+          
+          const timer = setInterval(() => {
+            countdown--;
+            btn.textContent = `${countdown}秒`;
+            if (countdown <= 0) {
+              clearInterval(timer);
+              btn.disabled = false;
+              btn.textContent = originalText;
+            }
+          }, 1000);
+        } else {
+          btn.disabled = false;
+          showModalAlert(result?.message || '发送失败');
+        }
+      } catch (error) {
+        btn.disabled = false;
+        showModalAlert('发送失败: ' + error.message);
+      }
+    }
+    
+    async function confirmModifyPhone() {
+      const newPhone = document.getElementById('modify-phone-new').value;
+      const code = document.getElementById('modify-phone-code').value;
+      
+      if (!newPhone || !code) {
+        showModalAlert('请填写完整信息');
+        return;
+      }
+      
+      try {
+        const result = await callPythonAPI('update_user_phone', newPhone, code);
+        if (result && result.success) {
+          showModalAlert('手机号修改成功');
+          document.getElementById('profile-phone').value = newPhone;
+          closeModifyPhoneModal();
+        } else {
+          showModalAlert(result?.message || '修改失败');
+        }
+      } catch (error) {
+        showModalAlert('修改失败: ' + error.message);
+      }
+    }
+    
+    function showTempMessage(msg, type = 'info') {
+      // 临时消息提示（3秒自动消失）
+      const colors = {
+        success: 'bg-green-100 text-green-700 border-green-300',
+        warning: 'bg-amber-100 text-amber-700 border-amber-300',
+        error: 'bg-red-100 text-red-700 border-red-300',
+        info: 'bg-blue-100 text-blue-700 border-blue-300'
+      };
+      
+      const div = document.createElement('div');
+      div.className = `fixed top-4 right-4 px-4 py-2 rounded-lg border-2 ${colors[type]} z-50 shadow-lg`;
+      div.textContent = msg;
+      document.body.appendChild(div);
+      
+      setTimeout(() => {
+        div.remove();
+      }, 3000);
+    }
+  </script>
+
 </body>
 
 </html>

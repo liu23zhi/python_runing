@@ -11836,13 +11836,16 @@ def start_web_server(args_param):
         # 支持login_id字段（可以是用户名或手机号）
         login_id = data.get('login_id') or data.get('auth_username', '').strip()
         auth_password = data.get('auth_password', '').strip()
+        sms_code = data.get('sms_code', '').strip()  # 新增：短信验证码
         two_fa_code = data.get('two_fa_code', '').strip()
         session_id = request.headers.get('X-Session-ID', '')
         
         # 判断login_id是手机号还是用户名
         # 如果是手机号（11位数字，1开头），则查找对应的用户名
         auth_username = login_id
+        is_phone_login = False
         if re.match(r'^1[3-9]\d{9}$', login_id):
+            is_phone_login = True
             # 这是手机号，需要查找对应的用户名
             # 检查是否启用了手机号登录功能
             if config.get('Features', 'enable_phone_login', fallback='false').lower() != 'true':
@@ -11875,26 +11878,53 @@ def start_web_server(args_param):
                 return jsonify({"success": False, "message": "手机号未注册或密码错误"})
             
             auth_username = found_username
-
-        # 获取IP和UA
-        # 用于安全审计和登录日志记录
-        ip_address = request.remote_addr or ''
-        user_agent = request.headers.get('User-Agent', '')
-
-        # if not session_id:
-        #     return jsonify({"success": False, "message": "缺少会话ID"})
-
-        # # 更新会话活动时间
-        # update_session_activity(session_id)
-
-        # 验证用户
-        # authenticate()方法会：
-        # 1. 验证密码（明文或加密比较）
-        # 2. 验证2FA代码（如果启用）
-        # 3. 检查账号状态（是否锁定等）
-        # 4. 记录登录日志（IP、UA、时间、结果）
-        auth_result = auth_system.authenticate(
-            auth_username, auth_password, ip_address, user_agent, two_fa_code)
+        
+        # 新增：手机号验证码登录（不需要密码）
+        if is_phone_login and sms_code:
+            # 检查是否启用了手机号登录功能
+            if config.get('Features', 'enable_phone_login', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "手机号登录功能未启用"})
+            
+            # 验证短信验证码
+            stored_code = sms_verification_codes.get(login_id)
+            if not stored_code:
+                return jsonify({"success": False, "message": "请先获取验证码"})
+            
+            code_value, expires_at = stored_code
+            if time.time() > expires_at:
+                del sms_verification_codes[login_id]
+                return jsonify({"success": False, "message": "验证码已过期，请重新获取"})
+            
+            if code_value != sms_code:
+                return jsonify({"success": False, "message": "验证码错误"})
+            
+            # 验证码正确，清除验证码
+            del sms_verification_codes[login_id]
+            
+            # 跳过密码验证，直接登录成功
+            # 获取用户信息用于登录
+            auth_result = {
+                'success': True,
+                'auth_username': auth_username,
+                'group': auth_system.get_user_group(auth_username),
+                'is_guest': False,
+                'message': '登录成功'
+            }
+            
+            # 记录登录日志
+            ip_address = request.remote_addr or ''
+            user_agent = request.headers.get('User-Agent', '')
+            auth_system._log_login_attempt(auth_username, True, ip_address, user_agent, 'SMS code login')
+        else:
+            # 原有的密码登录逻辑
+            # 获取IP和UA
+            ip_address = request.remote_addr or ''
+            user_agent = request.headers.get('User-Agent', '')
+            
+            # 验证用户密码
+            auth_result = auth_system.authenticate(
+                auth_username, auth_password, ip_address, user_agent, two_fa_code)
+        
         if not auth_result['success']:
             return jsonify(auth_result)
 
