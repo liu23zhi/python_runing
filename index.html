@@ -10097,11 +10097,11 @@
     }
 
     /**
-     * 任务24: 计算账户的状态文本（status_text）
+     * 任务17修复：计算账户的状态文本（status_text）
      * 根据only_incomplete和ignore_task_time参数，计算可执行任务数量
      * @param {Object} account - 账户对象，包含tasks数组
      * @param {boolean} onlyIncomplete - 是否只统计未完成任务
-     * @param {boolean} ignoreTaskTime - 是否忽略任务时间限制
+     * @param {boolean} ignoreTaskTime - 是否忽略任务时间限制（只比对日期）
      * @returns {string} 状态文本，如"有3个任务可执行"或"无任务可执行"
      */
     function calculateStatusText(account, onlyIncomplete = false, ignoreTaskTime = false) {
@@ -10113,7 +10113,7 @@
       const now = new Date();
       
       account.tasks.forEach(task => {
-        // 如果only_incomplete=true，跳过已完成的任务（status=1）
+        // 问题17修复：如果only_incomplete=true，跳过已完成的任务（status=1）
         if (onlyIncomplete && task.status === 1) {
           return;
         }
@@ -10124,12 +10124,22 @@
           return; // 过期任务不可执行
         }
         
-        // 如果ignore_task_time=false，需要检查任务时间窗口
-        if (!ignoreTaskTime) {
-          // 检查任务是否在可执行时间窗口内
-          if (task.start_time && task.end_time) {
-            const startTime = new Date(task.start_time);
-            const endTime = new Date(task.end_time);
+        // 问题17修复：根据ignore_task_time参数决定如何检查时间
+        if (task.start_time && task.end_time) {
+          const startTime = new Date(task.start_time);
+          const endTime = new Date(task.end_time);
+          
+          if (ignoreTaskTime) {
+            // 如果ignoreTaskTime=true，只比对日期，忽略具体时间
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const startDate = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate());
+            const endDate = new Date(endTime.getFullYear(), endTime.getMonth(), endTime.getDate());
+            
+            if (nowDate < startDate || nowDate > endDate) {
+              return; // 不在日期范围内
+            }
+          } else {
+            // 如果ignoreTaskTime=false，比对完整的日期和时间
             if (now < startTime || now > endTime) {
               return; // 不在时间窗口内
             }
