@@ -14116,7 +14116,7 @@ def start_web_server(args_param):
         old_avatar_url = user_details.get('avatar_url', '')
 
         # 清除用户头像URL
-        result = auth_system.update_user_avatar(target_username, '')
+        result = auth_system.update_user_avatar(target_username, 'default_avatar.png')
 
         if result.get('success'):
             # 如果有旧头像，尝试删除文件和索引（但不强制，因为可能被其他用户共享）
@@ -15084,26 +15084,18 @@ def start_web_server(args_param):
                 if not auth_system.check_permission(current_user, 'manage_users'):
                     target_username = current_user
             
-            # 读取登录日志文件
-            log_file = os.path.join('logs', 'login_audit.jsonl')
-            history = []
+            # --- 调用 AuthSystem 的方法，而不是手动读取错误的文件 ---
+            # target_username 在权限检查后，要么是目标用户，要么是管理员(空字符串)，要么是用户自己
+            # 如果 target_username 为空字符串 (管理员查看全部)，需转为 None 以匹配 get_login_history
             
-            if os.path.exists(log_file):
-                with open(log_file, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        try:
-                            import json
-                            entry = json.loads(line.strip())
-                            # 过滤用户名（如果指定）
-                            if target_username and entry.get('username') != target_username:
-                                continue
-                            history.append(entry)
-                        except:
-                            continue
+            username_to_query = target_username if target_username else None
             
-            # 按时间倒序排序并限制数量
-            history.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
-            history = history[:limit]
+            # 调用 auth_system 中正确的方法
+            # get_login_history 会返回最近的N条记录（但按时间正序）
+            history = auth_system.get_login_history(username_to_query, limit)
+            
+            # 前端期望的是倒序（最新的在前），所以我们在这里反转一下
+            history.reverse()
             
             return jsonify({
                 "success": True,
@@ -15124,14 +15116,14 @@ def start_web_server(args_param):
         权限要求：管理员
         
         参数：
-        - username: 用户名（可选）
-        - action: 操作类型（可选，如login/logout/update_profile等）
+        - username: 用户名
+        - action: 操作类型
         - limit: 返回条数（默认100）
         
         返回：审计日志列表
         """
+
         try:
-            # 问题5修复：使用check_permission替代is_admin
             # 权限检查：仅管理员可访问
             if not auth_system.check_permission(g.user, 'view_logs'):
                 return jsonify({"success": False, "message": "权限不足"}), 403

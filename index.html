@@ -7,10 +7,7 @@
   <meta charset="UTF-8">
   <title>跑步助手</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- 注意: Tailwind CDN 仅用于开发/演示。生产环境建议安装为 PostCSS 插件 -->
   <script src="https://cdn.tailwindcss.com" onerror="handleCdnError()"></script>
-
-  <!-- Google Fonts 标准引入（替代手写 @font-face） -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -94,21 +91,16 @@
       white-space: nowrap;
       /* 文本不折行 */
       overflow-x: auto;
-      /* 辅助：允许水平滚动（注意：部分浏览器不为 select 显示 H-scroll） */
       max-width: 100%;
       /* 约束为容器宽度，避免撑破布局 */
     }
 
 
-    /* 仅针对 select 元素减小统一表单内边距，扩大可视空间 */
     select.select-field {
       padding: 0.45rem 0.6rem;
-      /* 原来 .select-field 的 padding 比较厚，适当减小 */
     }
 
-    /* 给 options 提示完整文本（不同浏览器对 option 的样式支持有限，tooltip 更稳妥） */
     #multi-config-user-select option {
-      /* 大多数浏览器不支持 option 的 ellipsis，但可保留以尽可能兼容 */
       text-overflow: ellipsis;
       overflow: hidden;
     }
@@ -712,51 +704,52 @@
   <!-- 新用户添加模态框 -->
   <!-- 问题3修复：添加新用户模态框（与注册表单一致，phone可选，验证码可发送但非必需） -->
   <div id="newUserModal" class="modal">
-    <div class="modal-content">
-      <span class="close" id="newUserClose">&times;</span>
-      <h3>添加新用户</h3>
+    <div class="panel rounded-2xl w-full max-w-md p-6 space-y-4 relative bg-white/95 shadow-xl">
+      
+      <button id="newUserClose" class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-full transition-all">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+        </svg>
+      </button>
+      
+      <h3 class="text-xl font-bold text-sky-700 text-center card-title">添加新用户</h3>
 
-      <div class="form-group">
-        <label for="newUsername">账号：</label>
-        <input type="text" id="newUsername" placeholder="请输入账号（3-20字符，不含中文）">
+      <div>
+        <label for="newUsername" class="block text-sm font-semibold leading-6 text-slate-700">账号</label>
+        <input type="text" id="newUsername" placeholder="请输入账号（3-20字符，不含中文）" class="input-field mt-1">
       </div>
 
-      <!-- 问题3修复：添加手机号字段（可选） -->
-      <div class="form-group">
-        <label for="newUserPhone">手机号（可选）：</label>
-        <input type="tel" id="newUserPhone" placeholder="请输入手机号" inputmode="numeric" pattern="[0-9]*">
+      <div>
+        <label for="newUserPhone" class="block text-sm font-semibold leading-6 text-slate-700">手机号（可选）</label>
+        <input type="tel" id="newUserPhone" placeholder="请输入手机号" inputmode="numeric" pattern="[0-9]*" class="input-field mt-1">
       </div>
 
-      <!-- 问题3修复：添加验证码字段（可选，仅当填写手机号时） -->
-      <div class="form-group" id="newUserSmsGroup" style="display:none;">
-        <label for="newUserSmsCode">验证码（可选）：</label>
-        <div style="display: flex; gap: 8px;">
-          <input type="text" id="newUserSmsCode" placeholder="请输入验证码" maxlength="6" inputmode="numeric"
-            pattern="[0-9]{6}" style="flex: 1;">
-          <button type="button" id="newUserSendCode" class="btn btn-primary"
-            style="min-height: 44px; white-space: nowrap;">发送验证码</button>
+      <div id="newUserSmsGroup" style="display:none;">
+        <label for="newUserSmsCode" class="block text-sm font-semibold leading-6 text-slate-700">验证码（可选）</label>
+        <div class="flex gap-2 mt-1">
+          <input type="text" id="newUserSmsCode" placeholder="请输入验证码" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" class="input-field flex-1">
+          <button type="button" id="newUserSendCode" class="btn btn-primary whitespace-nowrap" style="min-height: 44px;">发送验证码</button>
         </div>
       </div>
 
-      <!-- 问题3修复：添加昵称字段 -->
-      <div class="form-group">
-        <label for="newUserNickname">昵称：</label>
-        <input type="text" id="newUserNickname" placeholder="请输入昵称（可含中文）">
+      <div>
+        <label for="newUserNickname" class="block text-sm font-semibold leading-6 text-slate-700">昵称</label>
+        <input type="text" id="newUserNickname" placeholder="请输入昵称（可含中文）" class="input-field mt-1">
       </div>
 
-      <div class="form-group">
-        <label for="newPassword">密码：</label>
-        <input type="password" id="newPassword" placeholder="请输入密码（至少6字符）">
+      <div>
+        <label for="newPassword" class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
+        <input type="password" id="newPassword" placeholder="请输入密码（至少6字符）" class="input-field mt-1">
       </div>
 
-      <div class="form-group">
-        <label for="newPasswordConfirm">确认密码：</label>
-        <input type="password" id="newPasswordConfirm" placeholder="请再次输入密码">
+      <div>
+        <label for="newPasswordConfirm" class="block text-sm font-semibold leading-6 text-slate-700">确认密码</label>
+        <input type="password" id="newPasswordConfirm" placeholder="请再次输入密码" class="input-field mt-1">
       </div>
 
-      <div class="modal-actions">
-        <button id="newUserCancel">取消</button>
-        <button id="newUserConfirm">确认</button>
+      <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+        <button id="newUserCancel" class="btn btn-ghost">取消</button>
+        <button id="newUserConfirm" class="btn btn-primary">确认</button>
       </div>
     </div>
   </div>
@@ -1865,12 +1858,12 @@
         </div>
 
         <!-- ============================================================ -->
-        <!-- 任务20：短信服务配置Modal -->
+        <!-- 短信服务配置Modal -->
         <!-- ============================================================ -->
         <div id="admin-sms-config-modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">短信服务配置</h4>
-            <!-- 问题13修复：添加刷新按钮 -->
+            <!-- 添加刷新按钮 -->
             <button id="admin-refresh-sms_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadSMSConfig()">刷新</button>
           </div>
 
@@ -1929,7 +1922,7 @@
     </div>
   </div>
 
-  <!-- 问题9修复：管理员修改用户手机号的二级模态框 -->
+  <!-- 管理员修改用户手机号的二级模态框 -->
   <div id="admin-modify-phone-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
     <div class="absolute inset-0 bg-black/60" onclick="closeAdminModifyPhoneModal()"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
@@ -1974,10 +1967,10 @@
     </div>
   </div>
 
-  <!-- 问题10修复：用户日志查看的二级模态框 -->
+  <!-- 用户日志查看的二级模态框 -->
   <div id="user-logs-secondary-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
     <div class="absolute inset-0 bg-black/60" onclick="closeUserLogsSecondaryModal()"></div>
-    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] space-y-4 relative overflow-y-auto">
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[81vh] space-y-4 relative overflow-y-auto">
       <div class="flex items-center justify-between">
         <h3 class="text-xl font-bold text-sky-600">用户日志查看</h3>
         <button onclick="closeUserLogsSecondaryModal()"
@@ -3649,7 +3642,7 @@
 
         const modalAdminPanel = $('admin-panel-modal');
         if (modalAdminPanel) {
-          const modalUsersTab = $('admin-tab-users_modal'); // 直接使用新的唯一 ID
+          const modalUsersTab = $('admin-tab-users_modal');
           const modalGroupsTab = $('admin-tab-groups_modal');
           const modalLogsTab = $('admin-tab-logs_modal');
           const modalHealthTab = $('admin-tab-health_modal');
@@ -5632,10 +5625,7 @@
         if (result.success) {
           showModalAlert(`已清除用户 ${username} 的头像`, '成功');
           // 立即更新头像显示
-          const avatarDiv = document.getElementById(`avatar-${username}`);
-          if (avatarDiv) {
-            avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
-          }
+          loadUserAvatar(username);
         } else {
           showModalAlert(result.message || '清除失败', '错误');
         }
@@ -6596,6 +6586,44 @@
     }
 
     /**
+     * 辅助函数：根据日志对象生成状态徽章
+     * @param {object} log - 后端返回的日志条目
+     * @returns {string} HTML 字符串
+     */
+    function getLoginStatusBadge(log) {
+      if (log.success) {
+        if (log.reason === 'guest_login') {
+          return '<span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-600">游客登录</span>';
+        }
+        return '<span class="text-xs px-2 py-1 rounded bg-green-100 text-green-600">登录成功</span>';
+      }
+
+      // 处理失败原因
+      let reasonText = '登录失败';
+      let reasonClass = 'bg-red-100 text-red-700'; // 默认为红色
+
+      switch (log.reason) {
+        case 'brute_force_locked':
+          reasonText = '尝试过多';
+          break;
+        case 'user_not_found':
+          reasonText = '用户不存在';
+          break;
+        case 'user_banned':
+          reasonText = '账号已封禁';
+          break;
+        case 'wrong_password':
+          reasonText = '密码错误';
+          break;
+        case '2fa_failed':
+          reasonText = '2FA验证失败';
+          reasonClass = 'bg-orange-100 text-orange-700'; // 2FA失败使用橙色
+          break;
+      }
+      return `<span class="text-xs px-2 py-1 rounded ${reasonClass}">${reasonText}</span>`;
+    }
+
+    /**
      * 加载用户的登录记录（二级模态窗版本）
      * @param {string} username - 用户名
      */
@@ -6623,18 +6651,18 @@
               <div class="flex justify-between items-start">
                 <div class="flex-1">
                   <p class="text-sm font-semibold text-slate-700">
-                    登录时间: ${log.timestamp || 'N/A'}
+                    登录时间: ${(log.datetime || 'N/A').replace('T', ' ')}
                   </p>
                   <p class="text-sm text-slate-600 mt-1">
-                    IP地址: ${log.ip || 'N/A'}
+                    IP地址: ${log.ip_address || 'N/A'}
                   </p>
                   <p class="text-sm text-slate-600 mt-1">
                     设备信息: ${log.user_agent || 'N/A'}
                   </p>
                   ${log.location ? `<p class="text-sm text-slate-600 mt-1">位置: ${log.location}</p>` : ''}
                 </div>
-                <div class="text-xs px-2 py-1 rounded ${log.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
-                  ${log.status === 'success' ? '成功' : '失败'}
+                <div class="flex-shrink-0">
+                  ${getLoginStatusBadge(log)}
                 </div>
               </div>
             </div>
@@ -6675,7 +6703,7 @@
               <div class="flex justify-between items-start">
                 <div class="flex-1">
                   <p class="text-sm font-semibold text-slate-700">
-                    ${log.timestamp || 'N/A'}
+                    ${(log.datetime || 'N/A').replace('T', ' ')}
                   </p>
                   <p class="text-sm text-slate-600 mt-1">
                     操作类型: ${log.action || 'N/A'}
@@ -6684,7 +6712,7 @@
                     详情: ${log.details || 'N/A'}
                   </p>
                   <p class="text-sm text-slate-600 mt-1">
-                    IP地址: ${log.ip || 'N/A'}
+                    IP地址: ${log.ip_address || 'N/A'}
                   </p>
                 </div>
               </div>
@@ -6726,18 +6754,18 @@
               <div class="flex justify-between items-start">
                 <div class="flex-1">
                   <p class="text-sm font-semibold text-slate-700">
-                    登录时间: ${log.timestamp || 'N/A'}
+                    登录时间: ${(log.datetime || 'N/A').replace('T', ' ')}
                   </p>
                   <p class="text-sm text-slate-600 mt-1">
-                    IP地址: ${log.ip || 'N/A'}
+                    IP地址: ${log.ip_address || 'N/A'}
                   </p>
                   <p class="text-sm text-slate-600 mt-1">
                     设备信息: ${log.user_agent || 'N/A'}
                   </p>
                   ${log.location ? `<p class="text-sm text-slate-600 mt-1">位置: ${log.location}</p>` : ''}
                 </div>
-                <div class="text-xs px-2 py-1 rounded ${log.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
-                  ${log.status === 'success' ? '成功' : '失败'}
+                <div class="flex-shrink-0">
+                  ${getLoginStatusBadge(log)}
                 </div>
               </div>
             </div>
@@ -6780,21 +6808,14 @@
               <div class="flex justify-between items-start">
                 <div class="flex-1">
                   <p class="text-sm font-semibold text-slate-700">
-                    ${log.timestamp || 'N/A'}
+                    ${(log.datetime || 'N/A').replace('T', ' ')}
                   </p>
                   <p class="text-sm text-slate-600 mt-1">
                     操作: ${log.action || 'N/A'}
                   </p>
                   ${log.details ? `<p class="text-sm text-slate-500 mt-1">${log.details}</p>` : ''}
-                  ${log.ip ? `<p class="text-xs text-slate-400 mt-1">IP: ${log.ip}</p>` : ''}
+                  ${log.ip_address ? `<p class="text-xs text-slate-400 mt-1">IP: ${log.ip_address}</p>` : ''}
                 </div>
-                ${log.result ? `
-                  <div class="text-xs px-2 py-1 rounded ${log.result === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
-                    ${log.result === 'success' ? '成功' : '失败'}
-                  </div>
-                ` : ''}
-              </div>
-            </div>
           `).join('');
         } else {
           // 没有记录时显示提示
