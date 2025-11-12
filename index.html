@@ -499,6 +499,114 @@
     body.swal2-shown:not(.swal2-toast-shown) {
       padding-right: 0; /* 强制移除 SweetAlert 添加的 padding */
     }
+
+    /* ============================================================ */
+    /* 任务29-30：移动端优化CSS */
+    /* 为移动设备提供更好的响应式体验和交互优化 */
+    /* ============================================================ */
+    
+    /* 针对屏幕宽度小于等于768px的设备（手机和小平板） */
+    @media (max-width: 768px) {
+      /* Modal弹窗优化：在小屏幕上占据更多空间 */
+      .modal-content,
+      .panel.rounded-2xl {
+        width: 90% !important;        /* 宽度调整为屏幕的90% */
+        max-width: 90% !important;    /* 最大宽度也设为90% */
+        margin: 0 auto;               /* 水平居中 */
+      }
+      
+      /* 按钮和可点击元素优化：确保足够大以便手指点击 */
+      button,
+      input[type="submit"],
+      input[type="button"],
+      .btn {
+        min-height: 44px;             /* iOS人机界面指南推荐的最小触摸目标高度 */
+        padding: 12px 16px;           /* 增加内边距，扩大点击区域 */
+        font-size: 16px;              /* 增大字体，提高可读性 */
+      }
+      
+      /* 文本输入框优化 */
+      input[type="text"],
+      input[type="email"],
+      input[type="password"],
+      input[type="tel"],
+      input[type="number"],
+      textarea,
+      select {
+        min-height: 44px;             /* 确保输入框足够高 */
+        font-size: 16px;              /* 防止iOS自动缩放页面（iOS在字体小于16px时会自动缩放） */
+        padding: 10px 12px;           /* 舒适的内边距 */
+      }
+      
+      /* 电话号码输入框特别优化：防止iOS Safari自动缩放 */
+      input[type="tel"] {
+        font-size: 16px !important;   /* 强制16px，防止iOS缩放 */
+      }
+      
+      /* 表单容器优化：在移动端堆叠显示 */
+      .flex.gap-3,
+      .flex.gap-4 {
+        flex-direction: column;       /* 纵向排列 */
+        gap: 12px;                    /* 调整间距 */
+      }
+      
+      /* 管理面板Tab优化：更大的点击区域 */
+      [class*="admin-tab"] {
+        padding: 14px 20px;           /* 增大Tab的内边距 */
+        font-size: 15px;              /* 增大字体 */
+      }
+      
+      /* 卡片和列表项优化 */
+      .border.rounded-lg {
+        padding: 16px;                /* 增大内边距 */
+      }
+      
+      /* 滚动容器优化：添加滚动指示 */
+      .overflow-y-auto {
+        -webkit-overflow-scrolling: touch;  /* iOS平滑滚动 */
+      }
+      
+      /* 头像显示优化 */
+      [id^="avatar-"] {
+        width: 48px;                  /* 在移动端缩小头像 */
+        height: 48px;
+      }
+      
+      /* 响应式网格：在移动端改为单列 */
+      .grid.grid-cols-2,
+      .grid.grid-cols-3,
+      .grid.grid-cols-4 {
+        grid-template-columns: 1fr;   /* 单列布局 */
+      }
+    }
+    
+    /* 针对超小屏幕（宽度小于480px） */
+    @media (max-width: 480px) {
+      /* 进一步优化Modal宽度 */
+      .modal-content,
+      .panel.rounded-2xl {
+        width: 95% !important;
+        max-width: 95% !important;
+        padding: 16px;                /* 减小内边距以节省空间 */
+      }
+      
+      /* 字体大小调整 */
+      h1, .text-xl { font-size: 20px; }
+      h2, .text-lg { font-size: 18px; }
+      h3, .text-base { font-size: 16px; }
+      
+      /* 按钮组优化：垂直堆叠 */
+      .flex.gap-1,
+      .flex.gap-2 {
+        flex-direction: column;
+        width: 100%;
+      }
+      
+      .flex.gap-1 > button,
+      .flex.gap-2 > button {
+        width: 100%;                  /* 按钮占满宽度 */
+      }
+    }
   </style>
 
 </head>
@@ -523,7 +631,12 @@
       <p style="margin-top: 1.5rem; font-size: 0.875rem; color: #64748b;">请检查网络后，完全关闭并重启本程序。如果问题持续存在，您可能需要更换网络环境。</p>
     </div>
   </div>
-  <div id="guest-warning-toast" class="fixed top-4 left-1/2 -translate-x-1/2 w-11/12 max-w-2xl p-5 z-[1050] rounded-2xl hidden shadow-2xl transition-all duration-300 ease-out border-4 border-red-500" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); transform: translate(-50%, -150%);">
+  
+  <!-- 游客警告遮罩层（背景变暗）-->
+  <div id="guest_warning_overlay" class="fixed inset-0 bg-black bg-opacity-50 z-[1000] hidden"></div>
+  
+  <!-- 游客警告弹窗（居中显示）-->
+  <div id="guest-warning-toast" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-11/12 max-w-2xl p-5 z-[1001] rounded-2xl hidden shadow-2xl transition-all duration-300 ease-out border-4 border-red-500" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);">
     <div class="flex items-start gap-4" id="guest_warning">
       <div class="flex-shrink-0 w-10 h-10 text-red-600 mt-1 animate-pulse">
         <svg fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -1352,7 +1465,11 @@
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" id="health-auto-refresh-toggle"
                   class="w-4 h-4 accent-sky-600 rounded cursor-pointer" checked>
-                <span class="text-sm text-slate-600">自动刷新(5秒)</span>
+                <span class="text-sm text-slate-600">
+                  自动刷新(5秒)
+                  <!-- 任务23：倒计时显示 -->
+                  <span id="health-countdown-display" class="font-semibold text-sky-600"></span>
+                </span>
               </label>
               <button id="admin-refresh-health_modal" class="btn btn-ghost !py-1 !px-2">手动刷新</button>
             </div>
@@ -1389,6 +1506,28 @@
                 </button>
 
                 <!-- <p class="text-xs text-slate-500">💡 点击按钮选择图片以上传并更新头像</p> -->
+              </div>
+            </div>
+
+            <!-- 昵称和手机号 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">基本信息</h5>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">昵称</label>
+                  <input type="text" id="profile-nickname" class="input-field" placeholder="输入昵称">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">手机号</label>
+                  <div class="flex gap-2">
+                    <input type="text" id="profile-phone" class="input-field flex-1" placeholder="输入手机号" readonly>
+                    <button onclick="modifyPhone()" id="profile-modify-phone-btn" class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap">
+                      修改手机号
+                    </button>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-1" id="profile-phone-hint">💡 修改手机号需要短信验证</p>
+                </div>
+                <button onclick="updateBasicInfo()" class="btn btn-primary">保存基本信息</button>
               </div>
             </div>
 
@@ -1487,6 +1626,48 @@
           <!-- 留言列表 -->
           <div id="admin-messages-list_modal" class="space-y-3 max-h-[50vh] overflow-y-auto">
             <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 任务14：用户日志查看Modal -->
+        <!-- 此组件允许管理员查看指定用户的登录记录和操作记录 -->
+        <!-- ============================================================ -->
+        <div id="admin-user-logs-modal" class="hidden space-y-4">
+          <h4 class="font-semibold">用户日志查看</h4>
+          
+          <!-- 显示当前查看的用户名 -->
+          <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
+            <p class="text-sm text-slate-700">
+              当前查看用户: <span id="current-log-username" class="font-semibold text-sky-600">N/A</span>
+            </p>
+          </div>
+
+          <!-- Tab切换按钮 -->
+          <div class="flex border-b border-slate-200">
+            <!-- 登录记录Tab按钮，默认激活状态 -->
+            <button id="log-tab-login" class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">
+              登录记录
+            </button>
+            <!-- 操作记录Tab按钮，默认未激活 -->
+            <button id="log-tab-audit" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">
+              操作记录
+            </button>
+          </div>
+
+          <!-- 登录记录内容区域，默认显示 -->
+          <div id="log-login-content" class="space-y-2 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+
+          <!-- 操作记录内容区域，默认隐藏 -->
+          <div id="log-audit-content" class="hidden space-y-2 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+
+          <!-- 返回按钮 -->
+          <div class="flex justify-end">
+            <button onclick="closeUserLogsModal()" class="btn btn-ghost">返回</button>
           </div>
         </div>
       </div>
@@ -3409,6 +3590,15 @@
 
     // 处理主管理面板模态框的标签切换
     function switchAdminTab(tab) {
+      // ============================================================
+      // 任务12：管理面板角色隔离
+      // 根据用户组权限控制Tab的显示/隐藏
+      // ============================================================
+      
+      // 获取当前用户的用户组信息（从全局变量currentUserData中读取）
+      // currentUserData应在用户登录时被填充，包含username、group等字段
+      const userGroup = currentUserData?.group || 'user'; // 默认为普通用户（'user'）
+      
       // 获取主模态框内的标签按钮和内容面板的引用 (使用 _modal 后缀)
       const usersTab = $('admin-tab-users_modal');
       const groupsTab = $('admin-tab-groups_modal');
@@ -3424,6 +3614,26 @@
       const profilePanel = $('admin-profile-panel_modal');
       const sessionsPanel = $('admin-sessions-panel_modal');
       const messagesPanel = $('admin-messages-panel_modal');
+
+      // 根据用户组进行权限隔离
+      // 如果是普通用户（'user'），只显示健康状态和留言板，隐藏用户组管理
+      if (userGroup === 'user') {
+        // 隐藏用户组管理Tab（普通用户无权查看）
+        if (groupsTab) groupsTab.style.display = 'none';
+        // 显示健康状态Tab（普通用户可查看系统健康状况）
+        if (healthTab) healthTab.style.display = 'block';
+        // 显示留言板Tab（普通用户可发表和查看留言）
+        if (messagesTab) messagesTab.style.display = 'block';
+      } else if (userGroup === 'admin' || userGroup === 'super_admin') {
+        // 管理员和超级管理员可以看到所有Tab，确保全部显示
+        if (groupsTab) groupsTab.style.display = 'block';
+        if (healthTab) healthTab.style.display = 'block';
+        if (messagesTab) messagesTab.style.display = 'block';
+        if (usersTab) usersTab.style.display = 'block';
+        if (logsTab) logsTab.style.display = 'block';
+        if (profileTab) profileTab.style.display = 'block';
+        if (sessionsTab) sessionsTab.style.display = 'block';
+      }
 
       // 防御性编程：检查核心元素是否存在
       if (!sessionsTab || !sessionsPanel) {
@@ -3786,6 +3996,16 @@
       }
     }
 
+    // ============================================================
+    // 任务23：健康面板倒计时功能
+    // 在自动刷新时显示倒计时，让用户知道下次刷新的时间
+    // ============================================================
+    
+    // 全局变量：倒计时定时器
+    let healthCountdownInterval = null;
+    // 全局变量：当前倒计时秒数
+    let healthCountdownSeconds = 5;
+    
     // 启动健康状态自动刷新
     function startHealthAutoRefresh() {
       // 先清除已有的定时器
@@ -3797,23 +4017,67 @@
         return;
       }
 
-      // 设置5秒间隔的定时器
+      // 重置倒计时
+      healthCountdownSeconds = 5;
+      updateHealthCountdown();
+      
+      // 启动倒计时显示（每秒更新一次）
+      healthCountdownInterval = setInterval(() => {
+        healthCountdownSeconds--;
+        updateHealthCountdown();
+        
+        // 倒计时结束时重置为5秒
+        if (healthCountdownSeconds <= 0) {
+          healthCountdownSeconds = 5;
+        }
+      }, 1000);
+      
+      // 设置5秒间隔的定时器进行实际刷新
       healthAutoRefreshInterval = setInterval(() => {
         // 再次检查开关状态，防止用户关闭后仍在刷新
         const toggle = $('health-auto-refresh-toggle');
         if (toggle && toggle.checked) {
           loadHealthStatus();
+          // 刷新后重置倒计时
+          healthCountdownSeconds = 5;
         } else {
           stopHealthAutoRefresh();
         }
       }, 5000);
     }
+    
+    /**
+     * 更新倒计时显示
+     * 在页面上显示距离下次刷新还有多少秒
+     */
+    function updateHealthCountdown() {
+      const countdownDisplay = $('health-countdown-display');
+      if (countdownDisplay) {
+        // 如果倒计时大于0，显示剩余秒数；否则显示"刷新中..."
+        if (healthCountdownSeconds > 0) {
+          countdownDisplay.textContent = ` - ${healthCountdownSeconds}秒后刷新`;
+        } else {
+          countdownDisplay.textContent = ' - 刷新中...';
+        }
+      }
+    }
 
     // 停止健康状态自动刷新
     function stopHealthAutoRefresh() {
+      // 清除刷新定时器
       if (healthAutoRefreshInterval) {
         clearInterval(healthAutoRefreshInterval);
         healthAutoRefreshInterval = null;
+      }
+      // 任务23：清除倒计时定时器
+      if (healthCountdownInterval) {
+        clearInterval(healthCountdownInterval);
+        healthCountdownInterval = null;
+      }
+      // 清除倒计时显示
+      const countdownDisplay = $('health-countdown-display');
+      if (countdownDisplay) {
+        countdownDisplay.textContent = '';
       }
     }
 
@@ -4151,6 +4415,56 @@
         logMessage_Error("上传头像失败:", e);
         showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
       }
+    }
+
+    // 更新基本信息（昵称和手机号）
+    async function updateBasicInfo() {
+      const nickname = $('profile-nickname');
+      const phone = $('profile-phone');
+      
+      if (!nickname || !phone) return;
+      
+      if (!nickname.value.trim()) {
+        showModalAlert('昵称不能为空', '提示');
+        return;
+      }
+      
+      if (!currentAuthUsername) {
+        showModalAlert('无法获取当前用户信息，请重新加载', '错误');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/admin/users/' + encodeURIComponent(currentAuthUsername), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            nickname: nickname.value.trim()
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert('基本信息更新成功', '成功');
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (error) {
+        logMessage_Error('更新基本信息失败', error);
+        showModalAlert('网络错误，请稍后重试', '错误');
+      }
+    }
+    
+    // 修改手机号
+    async function modifyPhone() {
+      showModalAlert('修改手机号功能需要短信验证，当前版本暂未开放', '提示');
+      // TODO: 实现修改手机号流程
+      // 1. 发送验证码到新手机号
+      // 2. 输入验证码
+      // 3. 更新手机号
     }
 
     async function updatePassword() {
@@ -4656,6 +4970,7 @@
               <span class="text-xs text-slate-600">权限组:</span>
               ${groupSelect}
               <div class="flex gap-1 mt-2 flex-wrap justify-end">
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${user.auth_username}')">查看日志</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
@@ -5314,13 +5629,22 @@
           const isSystemGroup = group.system || ['guest', 'user', 'admin', 'super_admin'].includes(groupKey);
           const systemBadge = isSystemGroup ? '<span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full ml-2">系统预设</span>' : '';
 
+          // ============================================================
+          // 任务13：权限组Bug修复（URL编码和HTML转义）
+          // 对groupKey进行HTML转义，防止XSS攻击和特殊字符问题
+          // ============================================================
+          // 将单引号和双引号转义，确保在HTML属性中安全使用
+          const escapedGroupKey = groupKey.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+          // 对于显示的文本，也进行HTML实体转义
+          const displayGroupKey = groupKey.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
           return `
         <div class="border border-slate-200 rounded-lg p-4 mb-2">
           <div class="flex justify-between items-start mb-2">
-            <h5 class="font-semibold text-slate-800">${group.name} (${groupKey})${systemBadge}</h5>
+            <h5 class="font-semibold text-slate-800">${group.name} (${displayGroupKey})${systemBadge}</h5>
             <div class="flex gap-2">
-              <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="editGroupPermissions('${groupKey}')">编辑权限</button>
-              ${!isSystemGroup ? `<button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteGroup('${groupKey}')">删除</button>` : ''}
+              <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="editGroupPermissions('${escapedGroupKey}')">编辑权限</button>
+              ${!isSystemGroup ? `<button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteGroup('${escapedGroupKey}')">删除</button>` : ''}
             </div>
           </div>
           <div class="grid grid-cols-2 gap-2 text-sm">
@@ -5529,29 +5853,52 @@
         const currentUsername = currentUserData?.username;
 
         const html = messages.map(msg => {
-          const isOwnMessage = !msg.is_guest && msg.username === currentUsername;
+          // 判断是否为当前用户的留言
+          const isOwnMessage = !msg.is_guest && (msg.username === currentUsername || msg.auth_username === currentUsername);
+          // 检查删除权限
           const canDelete = canDeleteAny || (canDeleteOwn && isOwnMessage);
-          const displayName = msg.is_guest ? msg.nickname : msg.username;
+          // 显示名称：优先使用nickname，其次username或auth_username
+          const displayName = msg.nickname || msg.username || msg.auth_username || '匿名';
+          // 格式化时间戳为本地时间
           const date = new Date(msg.timestamp * 1000);
           const dateStr = date.toLocaleString('zh-CN');
+          // 获取头像URL，如果没有则使用默认头像
+          const avatarUrl = msg.avatar_url || 'default_avatar.png';
+          // 获取IP归属地，如果没有则不显示
+          const ipCity = msg.ip_city || '';
 
+          // ============================================================
+          // 任务16：修改留言渲染以显示头像、昵称和IP归属地
+          // ============================================================
           return `
             <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-              <div class="flex justify-between items-start">
-                <div class="flex-1">
-                  <div class="flex items-center gap-2">
-                    <span class="font-semibold text-slate-700">${displayName}</span>
-                    ${msg.is_guest ? '<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">游客</span>' : ''}
+              <div class="flex justify-between items-start gap-3">
+                <!-- 左侧：头像和用户信息 -->
+                <div class="flex gap-3 flex-1">
+                  <!-- 用户头像 -->
+                  <div class="flex-shrink-0 w-12 h-12 rounded-full bg-slate-200 overflow-hidden border-2 border-slate-300">
+                    <img src="/api/avatar/${avatarUrl}" alt="头像" class="w-full h-full object-cover"
+                      onerror="this.parentElement.innerHTML='<span class=\\'text-2xl text-slate-400\\'>👤</span>'; this.parentElement.classList.add('flex', 'items-center', 'justify-center');">
                   </div>
-                  ${msg.email ? `<p class="text-xs text-slate-500">${msg.email}</p>` : ''}
-                  <p class="text-xs text-slate-400">${dateStr}</p>
+                  <!-- 用户信息 -->
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-semibold text-slate-700">${escapeHtml(displayName)}</span>
+                      ${msg.is_guest ? '<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">游客</span>' : ''}
+                      ${ipCity ? `<span class="text-xs text-slate-500">来自 ${escapeHtml(ipCity)}</span>` : ''}
+                    </div>
+                    ${msg.email ? `<p class="text-xs text-slate-500">${escapeHtml(msg.email)}</p>` : ''}
+                    <p class="text-xs text-slate-400">${dateStr}</p>
+                  </div>
                 </div>
+                <!-- 右侧：删除按钮 -->
                 ${canDelete ? `
                   <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" 
                     onclick="deleteMessage('${msg.id}')">删除</button>
                 ` : ''}
               </div>
-              <p class="text-slate-700 whitespace-pre-wrap break-words">${escapeHtml(msg.content)}</p>
+              <!-- 留言内容 -->
+              <p class="text-slate-700 whitespace-pre-wrap break-words pl-15">${escapeHtml(msg.content)}</p>
             </div>
           `;
         }).join('');
@@ -5663,6 +6010,174 @@
         logMessage_Error('删除留言失败:', e);
         showModalAlert('删除留言失败: ' + e.message, '错误');
       }
+    }
+
+    // ============================================================
+    // 任务14：用户日志查看功能
+    // 提供查看用户登录记录和操作记录的功能
+    // ============================================================
+
+    /**
+     * 显示用户日志Modal并加载登录记录
+     * @param {string} username - 要查看日志的用户名
+     */
+    function showUserLogs(username) {
+      // 隐藏用户列表面板
+      const usersPanel = $('admin-users-panel_modal');
+      if (usersPanel) usersPanel.classList.add('hidden');
+      
+      // 显示用户日志面板
+      const logsModal = $('admin-user-logs-modal');
+      if (!logsModal) {
+        logMessage_Error('用户日志Modal不存在');
+        return;
+      }
+      logsModal.classList.remove('hidden');
+      
+      // 设置当前查看的用户名
+      const usernameDisplay = $('current-log-username');
+      if (usernameDisplay) usernameDisplay.textContent = username;
+      
+      // 重置Tab状态（显示登录记录）
+      const loginTab = $('log-tab-login');
+      const auditTab = $('log-tab-audit');
+      const loginContent = $('log-login-content');
+      const auditContent = $('log-audit-content');
+      
+      if (loginTab) {
+        loginTab.classList.add('text-sky-600', 'border-sky-600');
+        loginTab.classList.remove('text-slate-400', 'border-transparent');
+      }
+      if (auditTab) {
+        auditTab.classList.add('text-slate-400', 'border-transparent');
+        auditTab.classList.remove('text-sky-600', 'border-sky-600');
+      }
+      if (loginContent) loginContent.classList.remove('hidden');
+      if (auditContent) auditContent.classList.add('hidden');
+      
+      // 加载登录记录
+      loadUserLoginLogs(username);
+    }
+
+    /**
+     * 加载用户的登录记录
+     * @param {string} username - 用户名
+     */
+    async function loadUserLoginLogs(username) {
+      const content = $('log-login-content');
+      if (!content) return;
+      
+      // 显示加载中状态
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      
+      try {
+        // 调用后端API获取登录记录，使用encodeURIComponent对用户名进行URL编码
+        const response = await fetch(`/api/admin/logs/login_history?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.logs && data.logs.length > 0) {
+          // 渲染登录记录列表
+          content.innerHTML = data.logs.map(log => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-slate-700">
+                    登录时间: ${log.timestamp || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    IP地址: ${log.ip || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    设备信息: ${log.user_agent || 'N/A'}
+                  </p>
+                  ${log.location ? `<p class="text-sm text-slate-600 mt-1">位置: ${log.location}</p>` : ''}
+                </div>
+                <div class="text-xs px-2 py-1 rounded ${log.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                  ${log.status === 'success' ? '成功' : '失败'}
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          // 没有记录时显示提示
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无登录记录</p>';
+        }
+      } catch (e) {
+        logMessage_Error('加载登录记录失败:', e);
+        content.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    /**
+     * 加载用户的操作审计记录
+     * @param {string} username - 用户名
+     */
+    async function loadUserAuditLogs(username) {
+      const content = $('log-audit-content');
+      if (!content) return;
+      
+      // 显示加载中状态
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      
+      try {
+        // 调用后端API获取操作记录，使用encodeURIComponent对用户名进行URL编码
+        const response = await fetch(`/api/admin/logs/audit?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.logs && data.logs.length > 0) {
+          // 渲染操作记录列表
+          content.innerHTML = data.logs.map(log => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-slate-700">
+                    ${log.timestamp || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    操作: ${log.action || 'N/A'}
+                  </p>
+                  ${log.details ? `<p class="text-sm text-slate-500 mt-1">${log.details}</p>` : ''}
+                  ${log.ip ? `<p class="text-xs text-slate-400 mt-1">IP: ${log.ip}</p>` : ''}
+                </div>
+                ${log.result ? `
+                  <div class="text-xs px-2 py-1 rounded ${log.result === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                    ${log.result === 'success' ? '成功' : '失败'}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `).join('');
+        } else {
+          // 没有记录时显示提示
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无操作记录</p>';
+        }
+      } catch (e) {
+        logMessage_Error('加载操作记录失败:', e);
+        content.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    /**
+     * 关闭用户日志Modal，返回用户列表
+     */
+    function closeUserLogsModal() {
+      // 隐藏日志面板
+      const logsModal = $('admin-user-logs-modal');
+      if (logsModal) logsModal.classList.add('hidden');
+      
+      // 显示用户列表面板
+      const usersPanel = $('admin-users-panel_modal');
+      if (usersPanel) usersPanel.classList.remove('hidden');
     }
 
     function escapeHtml(unsafe) {
@@ -6939,10 +7454,13 @@
             // );
 
             const guestToast = $('guest-warning-toast');
+            const guestOverlay = $('guest_warning_overlay');
             if (guestToast) {
+              // 同时显示遮罩层和弹窗
+              if (guestOverlay) {
+                guestOverlay.classList.remove('hidden');
+              }
               guestToast.classList.remove('hidden');
-              // 添加一个小的弹出动画
-              setTimeout(() => guestToast.style.transform = 'translate(-50%, 0)', 100);
             }
 
           }
@@ -8228,18 +8746,94 @@
     $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
     $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
 
+    // ============================================================
+    // 任务14：用户日志Tab切换事件监听器
+    // 为登录记录和操作记录Tab添加点击事件
+    // ============================================================
+    
+    // 登录记录Tab点击事件：切换到登录记录视图
+    const loginTabBtn = $('log-tab-login');
+    if (loginTabBtn) {
+      loginTabBtn.addEventListener('click', () => {
+        // 激活登录记录Tab样式
+        loginTabBtn.classList.add('text-sky-600', 'border-sky-600');
+        loginTabBtn.classList.remove('text-slate-400', 'border-transparent');
+        
+        // 取消激活操作记录Tab样式
+        const auditTabBtn = $('log-tab-audit');
+        if (auditTabBtn) {
+          auditTabBtn.classList.remove('text-sky-600', 'border-sky-600');
+          auditTabBtn.classList.add('text-slate-400', 'border-transparent');
+        }
+        
+        // 显示登录记录内容，隐藏操作记录内容
+        const loginContent = $('log-login-content');
+        const auditContent = $('log-audit-content');
+        if (loginContent) loginContent.classList.remove('hidden');
+        if (auditContent) auditContent.classList.add('hidden');
+        
+        // 重新加载登录记录（如果需要）
+        const username = $('current-log-username')?.textContent;
+        if (username && username !== 'N/A') {
+          loadUserLoginLogs(username);
+        }
+      });
+    }
+    
+    // 操作记录Tab点击事件：切换到操作记录视图
+    const auditTabBtn = $('log-tab-audit');
+    if (auditTabBtn) {
+      auditTabBtn.addEventListener('click', () => {
+        // 激活操作记录Tab样式
+        auditTabBtn.classList.add('text-sky-600', 'border-sky-600');
+        auditTabBtn.classList.remove('text-slate-400', 'border-transparent');
+        
+        // 取消激活登录记录Tab样式
+        const loginTabBtn = $('log-tab-login');
+        if (loginTabBtn) {
+          loginTabBtn.classList.remove('text-sky-600', 'border-sky-600');
+          loginTabBtn.classList.add('text-slate-400', 'border-transparent');
+        }
+        
+        // 显示操作记录内容，隐藏登录记录内容
+        const loginContent = $('log-login-content');
+        const auditContent = $('log-audit-content');
+        if (loginContent) loginContent.classList.add('hidden');
+        if (auditContent) auditContent.classList.remove('hidden');
+        
+        // 加载操作记录
+        const username = $('current-log-username')?.textContent;
+        if (username && username !== 'N/A') {
+          loadUserAuditLogs(username);
+        }
+      });
+    }
+
     // 留言板刷新按钮
     $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
     // 绑定游客提示弹窗的关闭按钮
         const guestWarningCloseBtn = $('guest-warning-close-btn');
+        const guestWarningOverlay = $('guest_warning_overlay');
         if (guestWarningCloseBtn) {
           guestWarningCloseBtn.addEventListener('click', () => {
             const guestToast = $('guest-warning-toast');
+            // 同时隐藏弹窗和遮罩层
             if (guestToast) {
-              // 添加滑出动画
-              guestToast.style.transform = 'translate(-50%, 150%)';
-              setTimeout(() => guestToast.classList.add('hidden'), 300);
+              guestToast.classList.add('hidden');
             }
+            if (guestWarningOverlay) {
+              guestWarningOverlay.classList.add('hidden');
+            }
+          });
+        }
+        // 点击遮罩层也可以关闭弹窗
+        if (guestWarningOverlay) {
+          guestWarningOverlay.addEventListener('click', () => {
+            const guestToast = $('guest-warning-toast');
+            if (guestToast) {
+              guestToast.classList.add('hidden');
+            }
+            guestWarningOverlay.classList.add('hidden');
           });
         }
 
