@@ -1627,7 +1627,7 @@
                 <div>
                   <label class="block text-sm font-semibold text-slate-700 mb-1">手机号</label>
                   <div class="flex gap-2">
-                    <input type="tel" id="profile-phone" class="input-field flex-1" placeholder="输入手机号" readonly inputmode="numeric">
+                    <input type="tel" id="profile-phone" class="input-field flex-1" placeholder="未绑定手机号" readonly inputmode="numeric">
                     <button onclick="modifyPhone()" id="profile-modify-phone-btn" class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap">
                       修改手机号
                     </button>
@@ -8073,6 +8073,9 @@
           // 优先使用学校登录的用户信息，如果没有则使用会话中保存的离线模式用户数据
           currentUserData = initialData.userInfo || (sessionModeInfo && sessionModeInfo.user_data) || {};
 
+          // 必须将 auth_group 注入 currentUserData，否则权限系统会默认为 'user'
+          currentUserData.group = initialData.auth_group || 'guest';
+
           if (initialData.device_ua) {
             currentSessionUA = initialData.device_ua;
             logMessage_Info(`[会话恢复] 成功恢复 User-Agent: ${currentSessionUA.substring(0, 50)}...`);
@@ -9225,6 +9228,8 @@
         showMainApp();
         $('loading-overlay').classList.add('hidden');
         currentUserData = result.userInfo;
+        // 将 auth_group 注入 currentUserData
+          currentUserData.group = result.auth_group || 'user';
         currentSessionUA = uaOnLoginScreen;
         const name = currentUserData.name || '';
         $('user-name-label').textContent = `姓名: ${name}`;

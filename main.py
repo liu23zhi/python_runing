@@ -13988,7 +13988,7 @@ def start_web_server(args_param):
     @app.route('/static/default_avatar.png')
     def serve_default_avatar():
         """
-        [修复] 
+    
         为 default_avatar.png 提供根路径和 /static 路径的访问。
         
         问题：
@@ -14028,6 +14028,9 @@ def start_web_server(args_param):
     def serve_avatar(filename):
         """提供头像图片服务（需要会话认证，管理员可访问）"""
 
+        if filename == 'default_avatar.png':
+            return redirect('/default_avatar.png')
+            
 
         # 验证会话 - 支持从header、cookie或query参数获取session_id
         session_id = request.headers.get('X-Session-ID', '') or \
@@ -16844,7 +16847,7 @@ def start_web_server(args_param):
                         # 读取用户设置的昵称，如果没有则使用用户名
                         user_nickname = user_data.get('nickname', auth_username)
                         # 读取用户的头像URL
-                        avatar_url = user_data.get('avatar_url', 'default_avatar.png')
+                        avatar_url = user_data.get('avatar_url') or 'default_avatar.png'
             except Exception as e:
                 # 读取用户信息失败，使用默认值
                 logging.warning(f"[留言板] 读取用户信息失败: {str(e)}")
