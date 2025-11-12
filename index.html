@@ -1961,6 +1961,49 @@
     </div>
   </div>
 
+  <!-- 问题10修复：用户日志查看的二级模态框 -->
+  <div id="user-logs-secondary-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeUserLogsSecondaryModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] space-y-4 relative overflow-y-auto">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-sky-600">用户日志查看</h3>
+        <button onclick="closeUserLogsSecondaryModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+      
+      <!-- 显示当前查看的用户名 -->
+      <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
+        <p class="text-sm text-slate-700">
+          当前查看用户: <span id="current-log-username-secondary" class="font-semibold text-sky-600">N/A</span>
+        </p>
+      </div>
+
+      <!-- Tab切换按钮 -->
+      <div class="flex border-b border-slate-200">
+        <button id="log-tab-login-secondary" class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600" onclick="switchUserLogTab('login')">
+          登录记录
+        </button>
+        <button id="log-tab-audit-secondary" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent" onclick="switchUserLogTab('audit')">
+          操作记录
+        </button>
+      </div>
+
+      <!-- 登录记录内容区域 -->
+      <div id="log-login-content-secondary" class="space-y-2 max-h-[50vh] overflow-y-auto">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+
+      <!-- 操作记录内容区域 -->
+      <div id="log-audit-content-secondary" class="hidden space-y-2 max-h-[50vh] overflow-y-auto">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+
+      <!-- 关闭按钮 -->
+      <div class="flex justify-end">
+        <button onclick="closeUserLogsSecondaryModal()" class="btn btn-ghost">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <div id="confirm-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
     <div class="absolute inset-0 bg-black/60"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
@@ -6464,28 +6507,20 @@
      * 显示用户日志Modal并加载登录记录
      * @param {string} username - 要查看日志的用户名
      */
+    // 问题10修复：showUserLogs改为二级模态窗
     function showUserLogs(username) {
-      // 隐藏用户列表面板
-      const usersPanel = $('admin-users-panel_modal');
-      if (usersPanel) usersPanel.classList.add('hidden');
-      
-      // 显示用户日志面板
-      const logsModal = $('admin-user-logs-modal');
-      if (!logsModal) {
-        logMessage_Error('用户日志Modal不存在');
-        return;
-      }
-      logsModal.classList.remove('hidden');
+      // 打开二级模态框
+      $('user-logs-secondary-modal').classList.remove('hidden');
       
       // 设置当前查看的用户名
-      const usernameDisplay = $('current-log-username');
+      const usernameDisplay = $('current-log-username-secondary');
       if (usernameDisplay) usernameDisplay.textContent = username;
       
       // 重置Tab状态（显示登录记录）
-      const loginTab = $('log-tab-login');
-      const auditTab = $('log-tab-audit');
-      const loginContent = $('log-login-content');
-      const auditContent = $('log-audit-content');
+      const loginTab = $('log-tab-login-secondary');
+      const auditTab = $('log-tab-audit-secondary');
+      const loginContent = $('log-login-content-secondary');
+      const auditContent = $('log-audit-content-secondary');
       
       if (loginTab) {
         loginTab.classList.add('text-sky-600', 'border-sky-600');
@@ -6499,7 +6534,140 @@
       if (auditContent) auditContent.classList.add('hidden');
       
       // 加载登录记录
-      loadUserLoginLogs(username);
+      loadUserLoginLogsSecondary(username);
+    }
+    
+    function closeUserLogsSecondaryModal() {
+      $('user-logs-secondary-modal').classList.add('hidden');
+    }
+    
+    function switchUserLogTab(tab) {
+      const loginTab = $('log-tab-login-secondary');
+      const auditTab = $('log-tab-audit-secondary');
+      const loginContent = $('log-login-content-secondary');
+      const auditContent = $('log-audit-content-secondary');
+      const username = $('current-log-username-secondary').textContent;
+      
+      if (tab === 'login') {
+        loginTab.classList.add('text-sky-600', 'border-sky-600');
+        loginTab.classList.remove('text-slate-400', 'border-transparent');
+        auditTab.classList.add('text-slate-400', 'border-transparent');
+        auditTab.classList.remove('text-sky-600', 'border-sky-600');
+        loginContent.classList.remove('hidden');
+        auditContent.classList.add('hidden');
+        loadUserLoginLogsSecondary(username);
+      } else if (tab === 'audit') {
+        auditTab.classList.add('text-sky-600', 'border-sky-600');
+        auditTab.classList.remove('text-slate-400', 'border-transparent');
+        loginTab.classList.add('text-slate-400', 'border-transparent');
+        loginTab.classList.remove('text-sky-600', 'border-sky-600');
+        auditContent.classList.remove('hidden');
+        loginContent.classList.add('hidden');
+        loadUserAuditLogsSecondary(username);
+      }
+    }
+
+    /**
+     * 加载用户的登录记录（二级模态窗版本）
+     * @param {string} username - 用户名
+     */
+    async function loadUserLoginLogsSecondary(username) {
+      const content = $('log-login-content-secondary');
+      if (!content) return;
+      
+      // 显示加载中状态
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      
+      try {
+        // 调用后端API获取登录记录
+        const response = await fetch(`/api/admin/logs/login_history?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.logs && data.logs.length > 0) {
+          // 渲染登录记录列表
+          content.innerHTML = data.logs.map(log => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-slate-700">
+                    登录时间: ${log.timestamp || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    IP地址: ${log.ip || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    设备信息: ${log.user_agent || 'N/A'}
+                  </p>
+                  ${log.location ? `<p class="text-sm text-slate-600 mt-1">位置: ${log.location}</p>` : ''}
+                </div>
+                <div class="text-xs px-2 py-1 rounded ${log.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                  ${log.status === 'success' ? '成功' : '失败'}
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无登录记录</p>';
+        }
+      } catch (e) {
+        content.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+    
+    /**
+     * 加载用户的操作记录（二级模态窗版本）
+     * @param {string} username - 用户名
+     */
+    async function loadUserAuditLogsSecondary(username) {
+      const content = $('log-audit-content-secondary');
+      if (!content) return;
+      
+      // 显示加载中状态
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      
+      try {
+        // 调用后端API获取操作记录
+        const response = await fetch(`/api/admin/logs/audit?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.logs && data.logs.length > 0) {
+          // 渲染操作记录列表
+          content.innerHTML = data.logs.map(log => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-slate-700">
+                    ${log.timestamp || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    操作类型: ${log.action || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    详情: ${log.details || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    IP地址: ${log.ip || 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无操作记录</p>';
+        }
+      } catch (e) {
+        content.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
     }
 
     /**
