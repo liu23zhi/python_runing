@@ -1797,7 +1797,8 @@
                 <input type="text" id="sms-username" class="w-full border rounded px-2 py-1" placeholder="短信宝用户名">
                 <input type="password" id="sms-apikey" class="w-full border rounded px-2 py-1" placeholder="短信宝API Key">
                 <input type="text" id="sms-signature" class="w-full border rounded px-2 py-1" placeholder="短信签名(3-12字)" maxlength="12">
-                <textarea id="sms-template" class="w-full border rounded px-2 py-1" rows="3" placeholder="短信模板，使用{code}作为验证码占位符"></textarea>
+                <textarea id="sms-template" class="w-full border rounded px-2 py-1" rows="3" placeholder="短信模板，使用{code}作为验证码占位符，{minutes}作为有效期分钟数"></textarea>
+                <input type="number" id="sms-code-expire" class="w-full border rounded px-2 py-1" placeholder="验证码有效期（分钟），默认5分钟" min="1" max="60">
               </div>
             </div>
             
@@ -6489,6 +6490,7 @@
           $('sms-apikey').value = result.config.api_key || '';
           $('sms-signature').value = result.config.signature || '';
           $('sms-template').value = result.config.template_register || '';
+          $('sms-code-expire').value = result.config.code_expire_minutes || 5;
           $('sms-limit-account').value = result.config.rate_limit_per_account_day || 10;
           $('sms-limit-ip').value = result.config.rate_limit_per_ip_day || 20;
           $('sms-limit-phone').value = result.config.rate_limit_per_phone_day || 5;
@@ -6509,6 +6511,7 @@
         api_key: $('sms-apikey').value.trim(),
         signature: $('sms-signature').value.trim(),
         template_register: $('sms-template').value.trim(),
+        code_expire_minutes: parseInt($('sms-code-expire').value) || 5,
         rate_limit_per_account_day: parseInt($('sms-limit-account').value) || 10,
         rate_limit_per_ip_day: parseInt($('sms-limit-ip').value) || 20,
         rate_limit_per_phone_day: parseInt($('sms-limit-phone').value) || 5
@@ -12631,7 +12634,8 @@
           try {
             const result = await callPythonAPI('send_sms_code', phone, 'login');
             if (result && result.success) {
-              showTempMessage('验证码已发送', 'success');
+              const expireMin = result.expire_minutes || 5;
+              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
               
               const timer = setInterval(() => {
                 countdown--;
@@ -12699,7 +12703,8 @@
           try {
             const result = await callPythonAPI('send_sms_code', phone);
             if (result && result.success) {
-              showTempMessage('验证码已发送', 'success');
+              const expireMin = result.expire_minutes || 5;
+              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
               
               const timer = setInterval(() => {
                 countdown--;

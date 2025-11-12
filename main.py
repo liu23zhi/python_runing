@@ -1044,7 +1044,8 @@ def _get_default_config():
         'username': '',  # 短信宝账户用户名
         'api_key': '',  # 短信宝API密钥（在短信宝后台获取）
         'signature': '【您的签名】',  # 短信签名（需提前在短信宝审核通过）
-        'template_register': '您的验证码是：{code}，5分钟内有效。',  # 注册验证码短信模板
+        'template_register': '您的验证码是：{code}，{minutes}分钟内有效。',  # 注册验证码短信模板，支持{code}和{minutes}占位符
+        'code_expire_minutes': '5',  # 验证码有效期（分钟），默认5分钟，管理员可修改
         'rate_limit_per_account_day': '10',  # 单个账号每天最多发送次数
         'rate_limit_per_ip_day': '20',  # 单个IP每天最多发送次数
         'rate_limit_per_phone_day': '5',  # 单个手机号每天最多发送次数
@@ -1173,9 +1174,12 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 短信签名（需提前在短信宝审核通过，格式：【签名内容】）\n")
         f.write(
             f"signature = {config_obj.get('SMS_Service_SMSBao', 'signature', fallback='【您的签名】')}\n")
-        f.write("# 注册验证码短信模板（{code}会被替换为实际验证码）\n")
+        f.write("# 注册验证码短信模板（{code}会被替换为验证码，{minutes}会被替换为有效期分钟数）\n")
         f.write(
-            f"template_register = {config_obj.get('SMS_Service_SMSBao', 'template_register', fallback='您的验证码是：{code}，5分钟内有效。')}\n")
+            f"template_register = {config_obj.get('SMS_Service_SMSBao', 'template_register', fallback='您的验证码是：{{code}}，{{minutes}}分钟内有效。')}\n")
+        f.write("# 验证码有效期（分钟），默认5分钟，管理员可根据需要修改\n")
+        f.write(
+            f"code_expire_minutes = {config_obj.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5')}\n")
         f.write("# 单个账号每天最多发送次数（防止滥用）\n")
         f.write(
             f"rate_limit_per_account_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_account_day', fallback='10')}\n")
@@ -14587,13 +14591,15 @@ def start_web_server(args_param):
             username = config.get('SMS_Service_SMSBao', 'username', fallback='')
             api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
             signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【您的签名】')
-            template = config.get('SMS_Service_SMSBao', 'template_register', fallback='您的验证码是：{code}，5分钟内有效。')
+            code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+            template = config.get('SMS_Service_SMSBao', 'template_register', 
+                                 fallback=f'您的验证码是：{{code}}，{code_expire_minutes}分钟内有效。')
             
             if not username or not api_key:
                 return jsonify({"success": False, "message": "短信服务配置不完整，请联系管理员"})
             
-            # 构造短信内容（签名+模板）
-            content = signature + template.replace('{code}', code)
+            # 构造短信内容（签名+模板），支持{code}和{minutes}占位符
+            content = signature + template.replace('{code}', code).replace('{minutes}', str(code_expire_minutes))
             
             # 调用短信宝HTTP API
             import urllib.parse
@@ -14606,26 +14612,32 @@ def start_web_server(args_param):
                 
                 # 短信宝返回码：0=成功，其他为错误码
                 if result == '0':
-                    # 6. 存储验证码到缓存（5分钟有效期）
+                    # 6. 存储验证码到缓存（有效期可配置，默认5分钟）
+                    code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+                    code_expire_seconds = code_expire_minutes * 60
                     code_id = f"sms_code_{phone}_{int(time.time())}"
                     cache[code_id] = {
                         'code': code,
                         'phone': phone,
                         'scene': scene,
-                        'expires': time.time() + 300  # 5分钟有效期
+                        'expires': time.time() + code_expire_seconds  # 可配置有效期
                     }
+                    
+                    # 同时存储到sms_verification_codes（用于登录验证）
+                    sms_verification_codes[phone] = (code, time.time() + code_expire_seconds)
                     
                     # 更新速率限制计数
                     cache[ip_limit_key] = ip_count + 1
                     cache[phone_limit_key] = phone_count + 1
                     
                     # 记录日志
-                    app.logger.info(f"[短信服务] 向 {phone} 发送验证码成功，场景：{scene}")
+                    app.logger.info(f"[短信服务] 向 {phone} 发送验证码成功，场景：{scene}，有效期：{code_expire_minutes}分钟")
                     
                     return jsonify({
                         "success": True, 
-                        "message": "验证码已发送，请注意查收",
-                        "code_id": code_id
+                        "message": f"验证码已发送，{code_expire_minutes}分钟内有效",
+                        "code_id": code_id,
+                        "expire_minutes": code_expire_minutes
                     })
                 else:
                     # 短信宝错误码映射
@@ -15068,6 +15080,7 @@ def start_web_server(args_param):
                 'api_key': config.get('SMS_Service_SMSBao', 'api_key', fallback=''),
                 'signature': config.get('SMS_Service_SMSBao', 'signature', fallback=''),
                 'template_register': config.get('SMS_Service_SMSBao', 'template_register', fallback=''),
+                'code_expire_minutes': config.getint('SMS_Service_SMSBao', 'code_expire_minutes', fallback=5),
                 'rate_limit_per_account_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_account_day', fallback=10),
                 'rate_limit_per_ip_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_ip_day', fallback=20),
                 'rate_limit_per_phone_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback=5)
@@ -15108,6 +15121,7 @@ def start_web_server(args_param):
             config.set('SMS_Service_SMSBao', 'api_key', data.get('api_key', ''))
             config.set('SMS_Service_SMSBao', 'signature', data.get('signature', ''))
             config.set('SMS_Service_SMSBao', 'template_register', data.get('template_register', ''))
+            config.set('SMS_Service_SMSBao', 'code_expire_minutes', str(data.get('code_expire_minutes', 5)))
             config.set('SMS_Service_SMSBao', 'rate_limit_per_account_day', str(data.get('rate_limit_per_account_day', 10)))
             config.set('SMS_Service_SMSBao', 'rate_limit_per_ip_day', str(data.get('rate_limit_per_ip_day', 20)))
             config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', str(data.get('rate_limit_per_phone_day', 5)))
