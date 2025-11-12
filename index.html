@@ -1670,6 +1670,90 @@
             <button onclick="closeUserLogsModal()" class="btn btn-ghost">返回</button>
           </div>
         </div>
+
+        <!-- ============================================================ -->
+        <!-- 任务18：IP封禁管理Modal -->
+        <!-- ============================================================ -->
+        <div id="admin-ip-ban-modal" class="hidden space-y-4">
+          <h4 class="font-semibold">IP封禁管理</h4>
+          
+          <!-- 封禁列表 -->
+          <div id="ip-ban-list" class="space-y-2 max-h-[40vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+          
+          <!-- 添加封禁规则表单 -->
+          <div class="border-t pt-4">
+            <h5 class="font-semibold mb-2">添加封禁规则</h5>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input type="text" id="ban-target" class="border rounded px-2 py-1" placeholder="IP/IP段/城市名">
+              <select id="ban-type" class="border rounded px-2 py-1">
+                <option value="ip">单个IP</option>
+                <option value="cidr">IP段(CIDR)</option>
+                <option value="city">城市</option>
+              </select>
+              <select id="ban-scope" class="border rounded px-2 py-1">
+                <option value="all">封禁所有功能</option>
+                <option value="messages_only">仅封禁留言板</option>
+              </select>
+            </div>
+            <button onclick="addIPBan()" class="btn btn-primary mt-2 min-h-[44px]">添加封禁</button>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 任务20：短信服务配置Modal -->
+        <!-- ============================================================ -->
+        <div id="admin-sms-config-modal" class="hidden space-y-4">
+          <h4 class="font-semibold">短信服务配置</h4>
+          
+          <div class="space-y-3">
+            <!-- 全局开关 -->
+            <label class="flex items-center gap-2">
+              <input type="checkbox" id="sms-enabled" class="w-4 h-4">
+              <span>启用短信服务</span>
+            </label>
+            
+            <!-- 短信宝配置 -->
+            <div class="border-t pt-3">
+              <h5 class="font-semibold mb-2">短信宝配置</h5>
+              <div class="space-y-2">
+                <input type="text" id="sms-username" class="w-full border rounded px-2 py-1" placeholder="短信宝用户名">
+                <input type="password" id="sms-apikey" class="w-full border rounded px-2 py-1" placeholder="短信宝API Key">
+                <input type="text" id="sms-signature" class="w-full border rounded px-2 py-1" placeholder="短信签名(3-12字)" maxlength="12">
+                <textarea id="sms-template" class="w-full border rounded px-2 py-1" rows="3" placeholder="短信模板，使用{code}作为验证码占位符"></textarea>
+              </div>
+            </div>
+            
+            <!-- 速率限制 -->
+            <div class="border-t pt-3">
+              <h5 class="font-semibold mb-2">速率限制</h5>
+              <div class="grid grid-cols-3 gap-2">
+                <input type="number" id="sms-limit-account" class="border rounded px-2 py-1" placeholder="账户/天">
+                <input type="number" id="sms-limit-ip" class="border rounded px-2 py-1" placeholder="IP/天">
+                <input type="number" id="sms-limit-phone" class="border rounded px-2 py-1" placeholder="手机号/天">
+              </div>
+            </div>
+            
+            <!-- Webhook URL -->
+            <div class="border-t pt-3">
+              <h5 class="font-semibold mb-2">Webhook URL</h5>
+              <input type="text" id="sms-webhook-url" class="w-full border rounded px-2 py-1 bg-slate-100" readonly>
+              <p class="text-xs text-slate-500 mt-1">将此URL配置到短信宝后台以接收用户回复</p>
+            </div>
+            
+            <!-- 操作按钮 -->
+            <div class="flex gap-2 border-t pt-3">
+              <button onclick="checkSMSBalance()" class="btn btn-ghost min-h-[44px]">查询余额</button>
+              <button onclick="saveSMSConfig()" class="btn btn-primary min-h-[44px]">保存配置</button>
+            </div>
+            
+            <!-- 余额显示 -->
+            <div id="sms-balance-display" class="hidden border p-2 rounded bg-blue-50">
+              <p class="text-sm">余额：<span id="sms-balance-value">--</span> 条</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -3472,6 +3556,13 @@
       // 通知权限
       'send_notifications': '发送通知',
       'manage_notifications': '管理通知',
+
+      // 留言板权限 (任务17)
+      'view_messages': '查看留言板',
+      'post_messages': '发表留言',
+      'delete_own_messages': '删除自己的留言',
+      'delete_any_messages': '删除任何留言',
+      'view_all_messages': '查看所有留言',
 
       // 其他
       'admin_panel': '管理面板',
@@ -6178,6 +6269,188 @@
       // 显示用户列表面板
       const usersPanel = $('admin-users-panel_modal');
       if (usersPanel) usersPanel.classList.remove('hidden');
+    }
+
+    // ====================
+    // 任务18：IP封禁管理函数
+    // ====================
+    
+    /**
+     * 加载IP封禁列表
+     */
+    async function loadIPBans() {
+      try {
+        const response = await fetch('/api/admin/ip_bans', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        const listEl = $('ip-ban-list');
+        if (result.success && result.bans && result.bans.length > 0) {
+          listEl.innerHTML = result.bans.map(ban => `
+            <div class="border p-2 rounded flex justify-between items-center">
+              <div>
+                <span class="font-semibold">${escapeHtml(ban.target)}</span>
+                <span class="text-xs text-slate-500 ml-2">[${ban.type}]</span>
+                <span class="text-xs text-slate-500 ml-2">${ban.scope === 'all' ? '全部' : '仅留言板'}</span>
+              </div>
+              <button onclick="removeIPBan('${ban.id}')" class="btn btn-danger !py-1 !px-2 !text-xs min-h-[44px]">删除</button>
+            </div>
+          `).join('');
+        } else {
+          listEl.innerHTML = '<p class="text-center py-4">暂无封禁规则</p>';
+        }
+      } catch (e) {
+        showModalAlert('加载失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 添加IP封禁规则
+     */
+    async function addIPBan() {
+      const target = $('ban-target').value.trim();
+      const type = $('ban-type').value;
+      const scope = $('ban-scope').value;
+      
+      if (!target) {
+        showModalAlert('请输入封禁目标');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/admin/ip_bans', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ target, type, scope })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert('封禁规则已添加');
+          $('ban-target').value = '';
+          loadIPBans();
+        } else {
+          showModalAlert(result.message || '添加失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 删除IP封禁规则
+     */
+    async function removeIPBan(banId) {
+      const confirmed = await jsShowConfirm('确认删除', '确定要删除此封禁规则吗？');
+      if (!confirmed) return;
+      
+      try {
+        const response = await fetch(`/api/admin/ip_bans/${banId}`, {
+          method: 'DELETE',
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert('封禁规则已删除');
+          loadIPBans();
+        } else {
+          showModalAlert(result.message || '删除失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
+      }
+    }
+
+    // ====================
+    // 任务20：短信服务配置函数
+    // ====================
+    
+    /**
+     * 加载短信服务配置
+     */
+    async function loadSMSConfig() {
+      try {
+        const response = await fetch('/api/admin/sms/config', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          $('sms-enabled').checked = result.config.enable_sms_service || false;
+          $('sms-username').value = result.config.username || '';
+          $('sms-apikey').value = result.config.api_key || '';
+          $('sms-signature').value = result.config.signature || '';
+          $('sms-template').value = result.config.template_register || '';
+          $('sms-limit-account').value = result.config.rate_limit_per_account_day || 10;
+          $('sms-limit-ip').value = result.config.rate_limit_per_ip_day || 20;
+          $('sms-limit-phone').value = result.config.rate_limit_per_phone_day || 5;
+          $('sms-webhook-url').value = `${window.location.origin}/sms-reply-webhook`;
+        }
+      } catch (e) {
+        showModalAlert('加载配置失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 保存短信服务配置
+     */
+    async function saveSMSConfig() {
+      const config = {
+        enable_sms_service: $('sms-enabled').checked,
+        username: $('sms-username').value.trim(),
+        api_key: $('sms-apikey').value.trim(),
+        signature: $('sms-signature').value.trim(),
+        template_register: $('sms-template').value.trim(),
+        rate_limit_per_account_day: parseInt($('sms-limit-account').value) || 10,
+        rate_limit_per_ip_day: parseInt($('sms-limit-ip').value) || 20,
+        rate_limit_per_phone_day: parseInt($('sms-limit-phone').value) || 5
+      };
+      
+      try {
+        const response = await fetch('/api/admin/sms/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify(config)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert('配置已保存');
+        } else {
+          showModalAlert(result.message || '保存失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 查询短信余额
+     */
+    async function checkSMSBalance() {
+      try {
+        const response = await fetch('/api/admin/sms/check_balance', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          $('sms-balance-value').textContent = result.balance;
+          $('sms-balance-display').classList.remove('hidden');
+        } else {
+          showModalAlert(result.message || '查询失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
+      }
     }
 
     function escapeHtml(unsafe) {

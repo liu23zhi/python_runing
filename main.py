@@ -14842,6 +14842,301 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": str(e)}), 500
 
     # ====================
+    # 任务18：IP封禁管理API
+    # ====================
+    
+    # IP封禁数据存储文件路径
+    IP_BANS_FILE = os.path.join('logs', 'ip_bans.json')
+
+    @app.route('/api/admin/ip_bans', methods=['GET'])
+    @login_required
+    def get_ip_bans():
+        """
+        获取IP封禁列表
+        
+        权限要求：管理员
+        返回：所有IP封禁规则列表
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 读取封禁列表
+            if os.path.exists(IP_BANS_FILE):
+                with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                    bans = json.load(f)
+            else:
+                bans = []
+            
+            return jsonify({"success": True, "bans": bans})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 获取列表失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取列表失败"}), 500
+
+    @app.route('/api/admin/ip_bans', methods=['POST'])
+    @login_required
+    def add_ip_ban():
+        """
+        添加IP封禁规则
+        
+        权限要求：管理员
+        参数：
+        - target: 封禁目标（IP/IP段/城市）
+        - type: 类型（ip/cidr/city）
+        - scope: 范围（all/messages_only）
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            data = request.get_json() or {}
+            target = data.get('target', '').strip()
+            ban_type = data.get('type', 'ip')
+            scope = data.get('scope', 'all')
+            
+            if not target:
+                return jsonify({"success": False, "message": "封禁目标不能为空"})
+            
+            # 读取现有封禁列表
+            if os.path.exists(IP_BANS_FILE):
+                with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                    bans = json.load(f)
+            else:
+                bans = []
+            
+            # 添加新规则
+            new_ban = {
+                "id": str(time.time()),
+                "target": target,
+                "type": ban_type,
+                "scope": scope,
+                "created_at": time.time(),
+                "created_by": g.user
+            }
+            bans.append(new_ban)
+            
+            # 保存
+            os.makedirs(os.path.dirname(IP_BANS_FILE), exist_ok=True)
+            with open(IP_BANS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(bans, f, indent=2, ensure_ascii=False)
+            
+            app.logger.info(f"[IP封禁] {g.user} 添加封禁规则：{target} ({ban_type}, {scope})")
+            return jsonify({"success": True, "message": "封禁规则已添加"})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 添加规则失败：{str(e)}")
+            return jsonify({"success": False, "message": "添加失败"}), 500
+
+    @app.route('/api/admin/ip_bans/<ban_id>', methods=['DELETE'])
+    @login_required
+    def delete_ip_ban(ban_id):
+        """
+        删除IP封禁规则
+        
+        权限要求：管理员
+        参数：
+        - ban_id: 封禁规则ID
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            if not os.path.exists(IP_BANS_FILE):
+                return jsonify({"success": False, "message": "封禁列表不存在"})
+            
+            with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                bans = json.load(f)
+            
+            # 过滤掉要删除的规则
+            original_count = len(bans)
+            bans = [b for b in bans if b['id'] != ban_id]
+            
+            if len(bans) == original_count:
+                return jsonify({"success": False, "message": "封禁规则不存在"})
+            
+            with open(IP_BANS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(bans, f, indent=2, ensure_ascii=False)
+            
+            app.logger.info(f"[IP封禁] {g.user} 删除封禁规则：{ban_id}")
+            return jsonify({"success": True, "message": "封禁规则已删除"})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 删除规则失败：{str(e)}")
+            return jsonify({"success": False, "message": "删除失败"}), 500
+
+    def check_ip_ban(ip_address, scope='all'):
+        """
+        检查IP是否被封禁
+        
+        参数：
+        - ip_address: 要检查的IP地址
+        - scope: 检查范围（all或具体功能如messages_only）
+        
+        返回：True表示被封禁，False表示未被封禁
+        """
+        if not os.path.exists(IP_BANS_FILE):
+            return False
+        
+        try:
+            with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                bans = json.load(f)
+            
+            for ban in bans:
+                # 检查scope是否匹配
+                if ban['scope'] != 'all' and ban['scope'] != scope:
+                    continue
+                
+                if ban['type'] == 'ip':
+                    # 单个IP匹配
+                    if ip_address == ban['target']:
+                        return True
+                elif ban['type'] == 'cidr':
+                    # CIDR匹配（需要ipaddress模块）
+                    try:
+                        import ipaddress
+                        if ipaddress.ip_address(ip_address) in ipaddress.ip_network(ban['target']):
+                            return True
+                    except:
+                        pass
+                elif ban['type'] == 'city':
+                    # 城市匹配（需要IP归属地查询，这里简化处理）
+                    pass
+            
+            return False
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 检查失败：{str(e)}")
+            return False
+
+    # ====================
+    # 任务20：短信服务配置API
+    # ====================
+
+    @app.route('/api/admin/sms/config', methods=['GET'])
+    @login_required
+    def get_sms_config():
+        """
+        获取短信服务配置
+        
+        权限要求：管理员
+        返回：短信服务配置信息
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            
+            sms_config = {
+                'enable_sms_service': config.getboolean('Features', 'enable_sms_service', fallback=False),
+                'username': config.get('SMS_Service_SMSBao', 'username', fallback=''),
+                'api_key': config.get('SMS_Service_SMSBao', 'api_key', fallback=''),
+                'signature': config.get('SMS_Service_SMSBao', 'signature', fallback=''),
+                'template_register': config.get('SMS_Service_SMSBao', 'template_register', fallback=''),
+                'rate_limit_per_account_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_account_day', fallback=10),
+                'rate_limit_per_ip_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_ip_day', fallback=20),
+                'rate_limit_per_phone_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback=5)
+            }
+            
+            return jsonify({"success": True, "config": sms_config})
+        except Exception as e:
+            app.logger.error(f"[短信配置] 获取配置失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取配置失败"}), 500
+
+    @app.route('/api/admin/sms/config', methods=['POST'])
+    @login_required
+    def save_sms_config():
+        """
+        保存短信服务配置
+        
+        权限要求：管理员
+        参数：配置对象（enable_sms_service, username, api_key等）
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            data = request.get_json() or {}
+            
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            
+            # 更新配置
+            if 'Features' not in config:
+                config.add_section('Features')
+            config.set('Features', 'enable_sms_service', str(data.get('enable_sms_service', False)).lower())
+            
+            if 'SMS_Service_SMSBao' not in config:
+                config.add_section('SMS_Service_SMSBao')
+            config.set('SMS_Service_SMSBao', 'username', data.get('username', ''))
+            config.set('SMS_Service_SMSBao', 'api_key', data.get('api_key', ''))
+            config.set('SMS_Service_SMSBao', 'signature', data.get('signature', ''))
+            config.set('SMS_Service_SMSBao', 'template_register', data.get('template_register', ''))
+            config.set('SMS_Service_SMSBao', 'rate_limit_per_account_day', str(data.get('rate_limit_per_account_day', 10)))
+            config.set('SMS_Service_SMSBao', 'rate_limit_per_ip_day', str(data.get('rate_limit_per_ip_day', 20)))
+            config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', str(data.get('rate_limit_per_phone_day', 5)))
+            
+            # 保存配置文件
+            with open('config.ini', 'w', encoding='utf-8') as f:
+                config.write(f)
+            
+            app.logger.info(f"[短信配置] {g.user} 更新了短信服务配置")
+            return jsonify({"success": True, "message": "配置已保存"})
+        except Exception as e:
+            app.logger.error(f"[短信配置] 保存配置失败：{str(e)}")
+            return jsonify({"success": False, "message": "保存失败"}), 500
+
+    @app.route('/api/admin/sms/check_balance', methods=['GET'])
+    @login_required
+    def check_sms_balance():
+        """
+        查询短信宝余额
+        
+        权限要求：管理员
+        返回：短信余额
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            
+            username = config.get('SMS_Service_SMSBao', 'username', fallback='')
+            api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
+            
+            if not username or not api_key:
+                return jsonify({"success": False, "message": "短信宝配置不完整"})
+            
+            # 调用短信宝查询余额API
+            url = f'https://api.smsbao.com/query?u={username}&p={api_key}'
+            response = requests.get(url, timeout=10)
+            
+            # 短信宝返回数字表示余额
+            if response.text.isdigit():
+                balance = int(response.text)
+                return jsonify({"success": True, "balance": balance})
+            else:
+                # 返回错误码
+                error_codes = {
+                    '30': '密码错误',
+                    '40': '账号不存在',
+                    '41': '余额不足',
+                    '43': 'IP地址限制',
+                    '50': '内容含有敏感词',
+                    '51': '手机号码不正确'
+                }
+                error_msg = error_codes.get(response.text, f'未知错误码: {response.text}')
+                return jsonify({"success": False, "message": f"查询失败：{error_msg}"})
+        except Exception as e:
+            app.logger.error(f"[短信配置] 查询余额失败：{str(e)}")
+            return jsonify({"success": False, "message": f"查询失败：{str(e)}"}), 500
+
+    # ====================
     # 应用主路由
     # ====================
 
