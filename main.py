@@ -11655,7 +11655,6 @@ def start_web_server(args_param):
     # ====================
 
     @app.route('/auth/register', methods=['POST'])
-    @app.route('/auth/register', methods=['POST'])
     def auth_register():
         """
         用户注册API端点（已升级支持手机号、昵称、头像）。
@@ -11882,6 +11881,12 @@ def start_web_server(args_param):
         - 游客用户不受单会话限制
         - 旧会话清理是异步的，不影响新登录的响应速度
         """
+        global config
+
+        # 加载配置以检查功能开关
+        config = configparser.ConfigParser()
+        config.read(CONFIG_FILE, encoding='utf-8')
+        
         data = request.get_json() or {}
         
         # 支持login_id字段（可以是用户名或手机号）
@@ -12807,6 +12812,9 @@ def start_web_server(args_param):
         # 问题6修复：兼容group_key和group_name两种参数名
         group_name = data.get('group_key') or data.get('group_name', '')
         permissions = data.get('permissions', {})
+
+        if group_name == 'super_admin':
+            return jsonify({"success": False, "message": "不允许修改超级管理员组"})
 
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权"})
@@ -14864,6 +14872,11 @@ def start_web_server(args_param):
         - code_id: 验证码ID（用于后续验证）
         """
         try:
+            # 检查短信服务总开关
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "短信服务未启用"})
             # 1. 获取并验证请求参数
             data = request.get_json() or {}
             phone = data.get('phone', '').strip()
@@ -15561,12 +15574,35 @@ def start_web_server(args_param):
     # 应用主路由
     # ====================
 
+    def get_frontend_config():
+        """辅助函数：读取前端需要的功能开关配置"""
+        config = configparser.ConfigParser()
+        config.read(CONFIG_FILE, encoding='utf-8')
+        
+        sms_enabled = config.get('Features', 'enable_sms_service', fallback='false').lower() == 'true'
+        reg_verify_enabled = config.get('Features', 'enable_phone_registration_verify', fallback='false').lower() == 'true'
+        
+        return {
+            'sms_enabled': sms_enabled,
+            'reg_verify_enabled': reg_verify_enabled
+        }
+
     @app.route('/')
     def index():
         """首页：显示登录页面，等待用户认证后分配UUID"""
         # 不再自动分配UUID，直接返回HTML让前端处理认证
         # UUID将在用户完成认证（游客登录或系统账号登录）后由前端或后端API分配
-        return render_template_string(html_content)
+        # 注入前端配置
+        app_config = get_frontend_config()
+        config_script = f"""
+        <script>
+            window.APP_CONFIG = {json.dumps(app_config)};
+        </script>
+        """
+        # 注入到 </body> 标签之前
+        modified_html = html_content.replace('</body>', f'{config_script}</body>')
+        
+        return render_template_string(modified_html)
 
     @app.route('/uuid=<uuid>')
     def session_view(uuid):
@@ -15616,8 +15652,18 @@ def start_web_server(args_param):
                     api_instance._web_session_id = uuid
                 logging.debug(f"使用现有会话: {uuid[:32]}...")
 
+         # 注入前端配置
+        app_config = get_frontend_config()
+        config_script = f"""
+        <script>
+            window.APP_CONFIG = {json.dumps(app_config)};
+        </script>
+        """
+        # 注入到 </body> 标签之前
+        modified_html = html_content.replace('</body>', f'{config_script}</body>')
+
         # 返回HTML内容
-        return render_template_string(html_content)
+        return render_template_string(modified_html)
 
     # @app.route('/JavaScript.js', methods=['GET'])
     # def serve_full_javascript():
