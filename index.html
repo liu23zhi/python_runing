@@ -9498,6 +9498,57 @@
       }
     }
 
+    /**
+     * 任务24: 计算账户的状态文本（status_text）
+     * 根据only_incomplete和ignore_task_time参数，计算可执行任务数量
+     * @param {Object} account - 账户对象，包含tasks数组
+     * @param {boolean} onlyIncomplete - 是否只统计未完成任务
+     * @param {boolean} ignoreTaskTime - 是否忽略任务时间限制
+     * @returns {string} 状态文本，如"有3个任务可执行"或"无任务可执行"
+     */
+    function calculateStatusText(account, onlyIncomplete = false, ignoreTaskTime = false) {
+      if (!account || !account.tasks || !Array.isArray(account.tasks)) {
+        return '无任务数据';
+      }
+
+      let executableCount = 0;
+      const now = new Date();
+      
+      account.tasks.forEach(task => {
+        // 如果only_incomplete=true，跳过已完成的任务（status=1）
+        if (onlyIncomplete && task.status === 1) {
+          return;
+        }
+        
+        // 检查任务是否已过期
+        const isExpired = task.info_text === '已过期';
+        if (isExpired) {
+          return; // 过期任务不可执行
+        }
+        
+        // 如果ignore_task_time=false，需要检查任务时间窗口
+        if (!ignoreTaskTime) {
+          // 检查任务是否在可执行时间窗口内
+          if (task.start_time && task.end_time) {
+            const startTime = new Date(task.start_time);
+            const endTime = new Date(task.end_time);
+            if (now < startTime || now > endTime) {
+              return; // 不在时间窗口内
+            }
+          }
+        }
+        
+        // 满足条件，计入可执行任务
+        executableCount++;
+      });
+      
+      // 返回状态文本
+      if (executableCount === 0) {
+        return '无任务可执行';
+      } else {
+        return `有${executableCount}个任务可执行`;
+      }
+    }
 
     function renderMultiAccountList(accounts) {
       const listDiv = $('multi-account-list');
@@ -9801,6 +9852,7 @@
         '任务已完成',
         '全部完成',
         '无任务可执行',
+        '无可执行任务',  // 任务25: no_tasks_run状态（所有任务因无打卡点跳过）
         '已停止',
         '已中止',
         '待命'

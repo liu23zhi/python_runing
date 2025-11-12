@@ -5998,9 +5998,10 @@ class Api:
                     run_data = self.all_run_data[idx]
 
                 if not run_data.target_points:
-                    self.log(f"任务 '{run_data.run_name}' 无打卡点，无法自动生成，跳过。")
+                    # 任务25: 记录无打卡点日志，使用明确的提示格式
+                    self.log(f"跳过: 任务 '{run_data.run_name}' 无打卡点")
                     logging.warning(
-                        f"Skipping task {run_data.run_name}: no target points for auto-generation.")
+                        f"[Task Skipped] No checkpoints for task {run_data.run_name}, cannot auto-generate path.")
                     continue
 
                 # 2) 触发前端JS路径规划，使用与多账号相同的回调机制
@@ -8029,7 +8030,9 @@ class Api:
                 waypoints = [(float(p['lon']), float(p['lat'])) for p in details.get(
                     'geoCoorList', []) if p.get('lon') is not None]
                 if not waypoints:
-                    acc.log(f"任务无打卡点，无法自动规划，跳过。")
+                    # 任务25: 记录无打卡点日志，便于追溯
+                    task_name = details.get('title', run_data.run_name)
+                    acc.log(f"跳过: 任务 '{task_name}' 无打卡点")
                     continue
                 run_data.target_points = waypoints
 
