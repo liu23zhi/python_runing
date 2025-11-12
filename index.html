@@ -10172,6 +10172,19 @@
         btn.innerHTML = '录制路径'; btn.classList.remove('btn-danger'); btn.classList.add('btn-success');
         $('map-container').classList.remove('drawing');
         pendingUnlockMap = true; isPathDrawing = false; if (drawingInfoMarker) drawingInfoMarker.hide();
+        
+        // ========== 任务26：路径距离校验 ==========
+        // 检查路径总距离是否超过50km（50000米）
+        if (draftTotalDist > 50000) {
+          showModalAlert('路径过长（>' + (draftTotalDist / 1000).toFixed(2) + 'km > 50km），请重新录制');
+          discardBlackDraftPolyline(); // 拒绝保存并清除路径
+          logMessage_Warn(`路径录制失败：距离${(draftTotalDist / 1000).toFixed(2)}km超过50km限制`);
+          currentRunData.target_sequence = 0; draftTotalDist = 0;
+          updateDashboard(); drawMarkers(); resetMapView();
+          return; // 拒绝保存
+        }
+        // ==========================================
+        
         const totalTargets = (currentRunData.target_points?.length || 0);
         const inLastZone = totalTargets > 0 && currentRunData.target_sequence >= totalTargets && currentRunData.isInTargetZone === true;
         if (inLastZone) { if (draftPath.length > 0) callPythonAPI('set_draft_path', draftPath).then(() => processCurrentPath()); }
