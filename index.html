@@ -998,7 +998,7 @@
             <div class="flex justify-between items-center border-t pt-2 mt-2">
               <h4 class="text-sm font-semibold text-slate-700">签到任务列表</h4>
               <button id="refresh-attendance-list-btn" class="btn btn-ghost !py-0 !px-2 !text-xs text-sky-600"
-                onclick="refreshNotificationsUI()">
+                onclick="refreshNotificationsUI(true, false)">
                 刷新
               </button>
             </div>
@@ -8534,7 +8534,7 @@
     });
 
     $('mark-all-read-btn').addEventListener('click', markAllAsRead);
-    $('refresh-notifications-btn').addEventListener('click', refreshNotificationsUI);
+    $('refresh-notifications-btn').addEventListener('click', () => refreshNotificationsUI(true, true)); // 手动刷新
 
     $('multi-download-template-btn').addEventListener('click', multi_downloadTemplate);
 
@@ -11168,6 +11168,15 @@
     }
 
     function showTab(tabName, element) {
+      // ========== 任务27：切换tab时停止自动刷新 ==========
+      // 如果切换到非attendance tab，停止自动刷新
+      if (tabName !== 'attendance' && notificationAutoRefreshTimer) {
+        clearTimeout(notificationAutoRefreshTimer);
+        notificationAutoRefreshTimer = null;
+        logMessage_Info('[自动刷新] 已停止（切换到其他标签）');
+      }
+      // ==========================================
+      
       ['run-control', 'path-tools', 'history', 'params', 'log', 'checkpoints', 'attendance'].forEach(name => {
         $(`${name}-tab`).classList.add('hidden');
         const b = document.querySelector(`button[onclick="showTab('${name}', this)"]`);
@@ -11180,7 +11189,7 @@
         // onNotificationsUpdated() (由后台调用或 refreshNotificationsUI 间接调用) 会填充 attendance-list
         // refreshNotificationsUI() 自带防抖，所以这里直接调用是安全的
         logMessage_Info("Attendance tab opened, refreshing notifications list...");
-        refreshNotificationsUI();
+        refreshNotificationsUI(true, false); // 切换tab视为自动刷新，将开启定时刷新
       }
     }
 
@@ -11517,7 +11526,16 @@
       }
       return result; // <-- 4. 现在可以安全返回
     }
-    async function refreshNotificationsUI(useCache = true) {
+    // ========== 任务27：通知刷新修复 ==========
+    // 添加自动刷新定时器变量
+    let notificationAutoRefreshTimer = null;
+    
+    /**
+     * 刷新通知列表
+     * @param {boolean} useCache - 是否使用缓存
+     * @param {boolean} isManual - 是否为手动刷新（true=手动点击，false=自动刷新）
+     */
+    async function refreshNotificationsUI(useCache = true, isManual = false) {
       // --- BUG修复：防止重复点击 ---
       if (isRefreshingNotifications) {
         logMessage_Info("Notification refresh already in progress. Skipping.");
@@ -11671,6 +11689,30 @@
           refreshBtn.textContent = '刷新';
         }
         isRefreshingNotifications = false;
+        
+        // ========== 任务27：自动刷新逻辑修复 ==========
+        // 如果不是手动刷新，设置下一次自动刷新
+        if (!isManual) {
+          // 清除之前的定时器（防止重复）
+          if (notificationAutoRefreshTimer) {
+            clearTimeout(notificationAutoRefreshTimer);
+            notificationAutoRefreshTimer = null;
+          }
+          
+          // 获取刷新间隔参数（严格使用param-auto_attendance_refresh_s）
+          const refreshIntervalInput = $('param-auto_attendance_refresh_s');
+          const refreshInterval = refreshIntervalInput ? parseInt(refreshIntervalInput.value) : 300; // 默认300秒
+          
+          // 设置下一次自动刷新（使用配置的间隔，单位：秒）
+          if (refreshInterval > 0) {
+            logMessage_Info(`[自动刷新] 将在 ${refreshInterval} 秒后自动刷新通知`);
+            notificationAutoRefreshTimer = setTimeout(() => {
+              logMessage_Info('[自动刷新] 正在自动刷新通知...');
+              refreshNotificationsUI(true, false); // useCache=true, isManual=false
+            }, refreshInterval * 1000); // 转换为毫秒
+          }
+        }
+        // ==========================================
       }
     }
     
@@ -11782,8 +11824,8 @@
       // 1. 打开模态框
       toggleNotifications(true);
 
-      // 2. 触发UI刷新（这个新函数会处理加载、获取数据和渲染）
-      refreshNotificationsUI();
+      // 2. 触发UI刷新（打开模态框不视为手动刷新，开启自动刷新）
+      refreshNotificationsUI(true, false);
     }
 
     /**
