@@ -10371,6 +10371,13 @@
           return;
         }
 
+        if (currentRunData) {
+            currentRunData.target_sequence = 1; // 重置为第一个打卡点 (JS UI 使用 1-based 索引)
+            currentRunData.isInTargetZone = false;
+            updateDashboard(); // 立即更新仪表盘
+            drawMarkers();     // 立即重绘地图标记（高亮第一个点）
+        }
+
         const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
           task_indices: [selectedTaskIndex],
           auto_generate: autoGen
@@ -10433,6 +10440,14 @@
         if (taskIndices.length === 0) {
           showModalAlert('没有可执行的任务');
           return;
+        }
+
+        // （因为UI会显示第一个被执行的任务）
+        if (currentRunData) {
+            currentRunData.target_sequence = 1; // 重置为第一个打卡点 (JS UI 使用 1-based 索引)
+            currentRunData.isInTargetZone = false;
+            updateDashboard(); // 立即更新仪表盘
+            drawMarkers();     // 立即重绘地图标记
         }
 
         // 使用后台任务执行模式运行多个任务
@@ -10836,7 +10851,16 @@
       runAccumulatedMs += (duration || 0);
       currentRunData.distance_covered_m = distance || 0;
       $('current-location-label').textContent = `当前位置GPS坐标: ${(+lon).toFixed(4)}, ${(+lat).toFixed(4)}`;
-      if (currentRunData.target_sequence !== targetSequence) { currentRunData.target_sequence = targetSequence; drawMarkers(); }
+      
+      // Python后端使用0-based索引 (targetSequence)，而JS UI使用1-based索引。
+      // 在这里进行转换：(0-based index) + 1 = (1-based index)
+      const jsTargetSequence = targetSequence + 1;
+
+      // 使用转换后的 jsTargetSequence (1-based) 来更新JS的 currentRunData.target_sequence
+      if (currentRunData.target_sequence !== jsTargetSequence) { 
+          currentRunData.target_sequence = jsTargetSequence; 
+          drawMarkers(); 
+      }
       updateDashboard();
       // 每个GPS点到达后推进进度
       if (Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {

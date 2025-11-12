@@ -10634,10 +10634,13 @@ class BackgroundTaskManager:
                                     run_data, 'run_coords') else []
 
                                 # 添加打卡点进度信息
-                                task_state['checked_targets_count'] = getattr(
-                                    run_data, 'target_sequence', 0)  # 已打卡的打卡点数量
+
+                                server_target_sequence_0based = getattr(
+                                    run_data, 'target_sequence', 0)
+                                task_state['checked_targets_count'] = server_target_sequence_0based + 1  # 统一为 1-based
+                                
                                 task_state['total_targets_count'] = len(
-                                    run_data.target_points) if hasattr(run_data, 'target_points') else 0
+                                run_data.target_points) if hasattr(run_data, 'target_points') else 0
 
                                 # 添加时间和距离信息
                                 task_state['elapsed_time_s'] = time.time(
