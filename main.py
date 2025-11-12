@@ -8937,18 +8937,11 @@ class Api:
 
                 # 读取刷新间隔，并设置合理的默认值和最小值
                 refresh_interval_s = self.params.get(
-                    "auto_attendance_refresh_s", 30)  # 默认60秒
+                    "auto_attendance_refresh_s", 30)  # 默认30秒
                 # 确保间隔不小于一个最小值，例如15秒，防止过高频率
                 refresh_interval_s = max(15, refresh_interval_s)
 
-                # (修复：将等待日志移到 wait 之前)
-                self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
-
-                # 使用 wait() 替代 time.sleep()，以便在等待期间可以被 'stop_auto_refresh.set()' 立即中断
-                if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
-                    break  # 如果在等待时收到停止信号，则退出循环
-
-                # 再次检查登录状态 (可能在等待时退出了)
+                # 再次检查登录状态
                 if (self.is_multi_account_mode or not self.user_data.id):
                     continue
 
@@ -8989,6 +8982,12 @@ class Api:
                 else:
                     # 如果未启用，则不执行任何操作也不记录日志，保持安静
                     pass
+
+                # 问题15修复：刷新完成后等待，减轻服务器负担
+                self.log(f"自动刷新完成，等待 {refresh_interval_s} 秒后再次刷新...")
+                # 使用 wait() 替代 time.sleep()，以便在等待期间可以被 'stop_auto_refresh.set()' 立即中断
+                if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
+                    break  # 如果在等待时收到停止信号，则退出循环
 
             except Exception as e:
                 self.log(f"自动刷新线程出错: {e}")
