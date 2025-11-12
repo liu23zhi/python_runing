@@ -714,18 +714,48 @@
     </div>
   </div>
   <!-- 新用户添加模态框 -->
+  <!-- 问题3修复：添加新用户模态框（与注册表单一致，phone可选，验证码可发送但非必需） -->
   <div id="newUserModal" class="modal">
     <div class="modal-content">
       <span class="close" id="newUserClose">&times;</span>
       <h3>添加新用户</h3>
+      
       <div class="form-group">
         <label for="newUsername">账号：</label>
-        <input type="text" id="newUsername" placeholder="请输入账号">
+        <input type="text" id="newUsername" placeholder="请输入账号（3-20字符，不含中文）">
       </div>
+      
+      <!-- 问题3修复：添加手机号字段（可选） -->
+      <div class="form-group">
+        <label for="newUserPhone">手机号（可选）：</label>
+        <input type="tel" id="newUserPhone" placeholder="请输入手机号" inputmode="numeric" pattern="[0-9]*">
+      </div>
+      
+      <!-- 问题3修复：添加验证码字段（可选，仅当填写手机号时） -->
+      <div class="form-group" id="newUserSmsGroup" style="display:none;">
+        <label for="newUserSmsCode">验证码（可选）：</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="newUserSmsCode" placeholder="请输入验证码" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" style="flex: 1;">
+          <button type="button" id="newUserSendCode" class="btn btn-primary" style="min-height: 44px; white-space: nowrap;">发送验证码</button>
+        </div>
+      </div>
+      
+      <!-- 问题3修复：添加昵称字段 -->
+      <div class="form-group">
+        <label for="newUserNickname">昵称：</label>
+        <input type="text" id="newUserNickname" placeholder="请输入昵称（可含中文）">
+      </div>
+      
       <div class="form-group">
         <label for="newPassword">密码：</label>
-        <input type="password" id="newPassword" placeholder="请输入密码">
+        <input type="password" id="newPassword" placeholder="请输入密码（至少6字符）">
       </div>
+      
+      <div class="form-group">
+        <label for="newPasswordConfirm">确认密码：</label>
+        <input type="password" id="newPasswordConfirm" placeholder="请再次输入密码">
+      </div>
+      
       <div class="modal-actions">
         <button id="newUserCancel">取消</button>
         <button id="newUserConfirm">确认</button>
@@ -1797,7 +1827,11 @@
         <!-- 任务18：IP封禁管理Modal -->
         <!-- ============================================================ -->
         <div id="admin-ip-ban-modal" class="hidden space-y-4">
-          <h4 class="font-semibold">IP封禁管理</h4>
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">IP封禁管理</h4>
+            <!-- 问题13修复：添加刷新按钮 -->
+            <button id="admin-refresh-ipban_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadIPBans()">刷新</button>
+          </div>
           
           <!-- 封禁列表 -->
           <div id="ip-ban-list" class="space-y-2 max-h-[40vh] overflow-y-auto">
@@ -1827,7 +1861,11 @@
         <!-- 任务20：短信服务配置Modal -->
         <!-- ============================================================ -->
         <div id="admin-sms-config-modal" class="hidden space-y-4">
-          <h4 class="font-semibold">短信服务配置</h4>
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">短信服务配置</h4>
+            <!-- 问题13修复：添加刷新按钮 -->
+            <button id="admin-refresh-sms_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadSMSConfig()">刷新</button>
+          </div>
           
           <div class="space-y-3">
             <!-- 全局开关 -->
@@ -9422,9 +9460,26 @@
     }
 
     function openNewUserModal() {
+      // 问题3修复：清空所有表单字段
       $('newUsername').value = "";
       $('newPassword').value = "";
+      $('newPasswordConfirm').value = "";
+      $('newUserPhone').value = "";
+      $('newUserNickname').value = "";
+      $('newUserSmsCode').value = "";
+      $('newUserSmsGroup').style.display = "none";
       $('newUserModal').style.display = "flex"; /* 将 'block' 改为 'flex' 以启用居中 */
+      
+      // 问题3修复：监听手机号输入，显示/隐藏验证码字段
+      const phoneInput = $('newUserPhone');
+      phoneInput.oninput = () => {
+        const phone = phoneInput.value.trim();
+        if (phone) {
+          $('newUserSmsGroup').style.display = "block";
+        } else {
+          $('newUserSmsGroup').style.display = "none";
+        }
+      };
     }
 
     function closeNewUserModal() {
@@ -9432,6 +9487,61 @@
     }
     $('newUserClose').onclick = closeNewUserModal;
     $('newUserCancel').onclick = closeNewUserModal;
+    
+    // 问题3修复：为newUserModal添加发送验证码功能
+    $('newUserSendCode').onclick = async function() {
+      const phone = $('newUserPhone').value.trim();
+      if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+        showModalAlert('请输入正确的手机号');
+        return;
+      }
+      
+      const sendCodeBtn = $('newUserSendCode');
+      sendCodeBtn.disabled = true;
+      const originalText = sendCodeBtn.textContent;
+      
+      try {
+        const result = await callPythonAPI('send_sms_code', phone);
+        if (result && result.success) {
+          const expireMin = result.expire_minutes || 5;
+          const retryAfter = result.retry_after || 180;
+          showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
+          
+          // 倒计时
+          let countdown = retryAfter;
+          const timer = setInterval(() => {
+            countdown--;
+            sendCodeBtn.textContent = `${countdown}秒后重试`;
+            if (countdown <= 0) {
+              clearInterval(timer);
+              sendCodeBtn.disabled = false;
+              sendCodeBtn.textContent = originalText;
+            }
+          }, 1000);
+        } else {
+          // 处理频繁发送错误
+          if (result?.retry_after) {
+            let countdown = result.retry_after;
+            sendCodeBtn.textContent = `${countdown}秒后重试`;
+            const timer = setInterval(() => {
+              countdown--;
+              sendCodeBtn.textContent = `${countdown}秒后重试`;
+              if (countdown <= 0) {
+                clearInterval(timer);
+                sendCodeBtn.disabled = false;
+                sendCodeBtn.textContent = originalText;
+              }
+            }, 1000);
+          } else {
+            sendCodeBtn.disabled = false;
+          }
+          showModalAlert(result?.message || '发送失败');
+        }
+      } catch (error) {
+        sendCodeBtn.disabled = false;
+        showModalAlert('发送失败: ' + error.message);
+      }
+    };
 
 
     async function multi_addFromConfig() {
@@ -9445,36 +9555,71 @@
         confirmBtn.onclick = async () => {
           const inputUsername = $('newUsername').value.trim();
           const inputPassword = $('newPassword').value;
+          const inputPasswordConfirm = $('newPasswordConfirm').value; // 问题3修复：确认密码
+          const inputPhone = $('newUserPhone').value.trim(); // 问题3修复：手机号（可选）
+          const inputNickname = $('newUserNickname').value.trim(); // 问题3修复：昵称
+          const inputSmsCode = $('newUserSmsCode').value.trim(); // 问题3修复：验证码（可选）
 
           // --- 修复：添加密码校验 ---
           if (!inputUsername || !inputPassword) {
             showModalAlert("账号和密码均不能为空");
             return;
           }
-          // (注意: main.py中的 multi_add_account 也会校验，但前端校验UX更好)
+          
+          // 问题3修复：验证用户名格式（不含中文）
+          if (/[\u4e00-\u9fa5]/.test(inputUsername)) {
+            showModalAlert('用户名不能包含中文字符');
+            return;
+          }
+          
+          // 问题3修复：验证密码长度
           if (inputPassword.length < 6) {
              showModalAlert('密码长度至少为6个字符', '错误');
              return;
+          }
+          
+          // 问题3修复：验证密码一致性
+          if (inputPassword !== inputPasswordConfirm) {
+             showModalAlert('两次输入的密码不一致', '错误');
+             return;
+          }
+          
+          // 问题3修复：如果填写了手机号，验证格式（但不强制要求）
+          if (inputPhone && !/^1[3-9]\d{9}$/.test(inputPhone)) {
+            showModalAlert('请输入正确的手机号格式');
+            return;
           }
 
           // --- 修复：添加加载状态和try...finally ---
           setButtonLoading('newUserConfirm', true, '添加中...');
           
           try {
-            const result = await callPythonAPI('multi_add_account', inputUsername, inputPassword);
+            // 问题3修复：调用注册API而不是multi_add_account
+            // 因为需要支持phone、nickname等额外字段
+            const result = await callPythonAPI('auth_register', 
+              inputUsername, 
+              inputPassword, 
+              inputPhone, 
+              inputSmsCode, 
+              inputNickname
+            );
             
             // --- 修复：只在成功后关闭模态框 ---
-            if (result && result.accounts) {
-              renderMultiAccountList(result.accounts);
+            if (result && result.success) {
+              showModalAlert('用户添加成功', '成功');
               closeNewUserModal(); // 成功后关闭
+              // 刷新用户列表（如果在管理员面板中）
+              if (typeof loadAdminUsers === 'function') {
+                loadAdminUsers();
+              }
             } else {
-              // 显示后端返回的错误（例如：账号已存在但密码为空）
-              showModalAlert(result?.message || '添加失败，请检查账号是否已存在');
+              // 显示后端返回的错误
+              showModalAlert(result?.message || '添加失败');
             }
           } catch (e) {
             // 捕获 callPythonAPI 可能抛出的网络错误
             showModalAlert(`添加时发生错误: ${e.message}`);
-            logMessage_Error("多账号添加新用户时发生错误:", e);
+            logMessage_Error("添加新用户时发生错误:", e);
           } finally {
             // --- 修复：恢复按钮状态 ---
             setButtonLoading('newUserConfirm', false, '确认');
