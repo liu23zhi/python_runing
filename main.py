@@ -13583,6 +13583,108 @@ def start_web_server(args_param):
             app.logger.error(f"[更新基本信息] 失败：{str(e)}", exc_info=True)
             return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
 
+    @app.route('/auth/admin/update_user_phone', methods=['POST'])
+    def auth_admin_update_user_phone():
+        """
+        问题4修复：管理员更新用户手机号
+        
+        功能说明：
+        允许管理员更新用户的手机号（验证码非必需）
+        
+        请求体参数（JSON）:
+            username: 要更新的用户名
+            new_phone: 新手机号
+            sms_code: 验证码（可选）
+            
+        权限要求:
+            - 管理员权限
+            
+        返回:
+            操作结果
+        """
+        # 获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        # 验证会话
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        # 获取API实例和当前用户信息
+        api_instance = web_sessions[session_id]
+        current_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查管理员权限
+        if not auth_system.check_permission(current_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足：需要管理员权限"}), 403
+
+        # 获取请求数据
+        data = request.get_json() or {}
+        username = data.get('username', '').strip()
+        new_phone = data.get('new_phone', '').strip()
+        sms_code = data.get('sms_code', '').strip()
+
+        # 验证参数
+        if not username:
+            return jsonify({"success": False, "message": "缺少用户名参数"}), 400
+            
+        if not new_phone:
+            return jsonify({"success": False, "message": "新手机号不能为空"}), 400
+        
+        # 验证手机号格式
+        import re
+        if not re.match(r'^1[3-9]\d{9}$', new_phone):
+            return jsonify({"success": False, "message": "手机号格式不正确"}), 400
+
+        try:
+            # 获取用户文件路径
+            user_file_path = auth_system.get_user_file_path(username)
+            
+            # 检查用户是否存在
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "用户不存在"}), 404
+
+            # 如果提供了验证码，进行验证（可选）
+            if sms_code:
+                verify_result = auth_system.verify_sms_code(new_phone, sms_code)
+                if not verify_result.get('success'):
+                    # 验证码错误时给出提示，但不阻止管理员操作
+                    app.logger.warning(f"管理员 {current_username} 修改用户 {username} 手机号时验证码错误，但仍允许操作")
+
+            # 读取用户数据
+            with open(user_file_path, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+
+            # 更新手机号
+            user_data['phone'] = new_phone
+            
+            # 保存更新后的用户数据
+            with open(user_file_path, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            # 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                current_username,
+                'admin_update_phone',
+                f'管理员更新用户 {username} 的手机号为: {new_phone}',
+                ip_address,
+                session_id
+            )
+
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "手机号更新成功",
+                "data": {
+                    "username": username,
+                    "phone": new_phone
+                }
+            })
+
+        except Exception as e:
+            # 捕获异常并记录日志
+            app.logger.error(f"[管理员更新手机号] 失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+
     @app.route('/auth/admin/login_logs', methods=['GET'])
     def auth_admin_login_logs():
         """获取登录日志（管理员）"""

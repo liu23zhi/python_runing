@@ -1919,6 +1919,48 @@
     </div>
   </div>
 
+  <!-- 问题9修复：管理员修改用户手机号的二级模态框 -->
+  <div id="admin-modify-phone-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeAdminModifyPhoneModal()"></div>
+    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-sky-600">修改用户手机号</h3>
+        <button onclick="closeAdminModifyPhoneModal()" class="text-slate-400 hover:text-slate-600">&times;</button>
+      </div>
+      
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">用户名</label>
+          <input type="text" id="admin-modify-phone-username" class="input-field mt-1" readonly>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">当前手机号</label>
+          <input type="tel" id="admin-modify-phone-current" class="input-field mt-1" readonly>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">新手机号</label>
+          <input type="tel" id="admin-modify-phone-new" class="input-field mt-1" placeholder="请输入新手机号" inputmode="numeric" pattern="[0-9]*">
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700">验证码（可选）</label>
+          <div class="flex gap-2 mt-1">
+            <input type="text" id="admin-modify-phone-code" class="input-field flex-1" placeholder="验证码" maxlength="6" inputmode="numeric" pattern="[0-9]{6}">
+            <button onclick="sendAdminModifyPhoneCode()" id="admin-modify-phone-send-btn" class="btn btn-primary whitespace-nowrap">发送验证码</button>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">管理员修改手机号不强制要求验证码</p>
+        </div>
+      </div>
+      
+      <div class="flex justify-end gap-3 pt-4">
+        <button onclick="closeAdminModifyPhoneModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitAdminModifyPhone()" class="btn btn-primary">确认修改</button>
+      </div>
+    </div>
+  </div>
+
   <div id="confirm-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
     <div class="absolute inset-0 bg-black/60"></div>
     <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
@@ -5245,6 +5287,8 @@
               </div>
               <div class="flex-1">
                 <p class="font-semibold text-slate-800">${user.auth_username}${bannedBadge}</p>
+                <p class="text-xs text-slate-500">昵称: ${user.nickname || '未设置'}</p>
+                <p class="text-xs text-slate-500">手机号: ${user.phone || '未绑定'}</p>
                 <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                 <p class="text-xs text-slate-500">最后登录: ${lastLoginDate}</p>
                 <p class="text-xs text-slate-500">会话限制: ${user.max_sessions === -1 ? '无限制' : user.max_sessions + '个'}</p>
@@ -5258,6 +5302,7 @@
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${user.auth_username}')">查看日志</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserPhone('${user.auth_username}', '${user.phone || ''}')">修改手机</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
                 ${(user['2fa_enabled'] || user.tfa_enabled) ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
                 ${isBanned ?
@@ -5772,6 +5817,119 @@
       }
     }
 
+    // ====================
+    // 问题4和9修复：管理员修改用户手机号功能（二级模态窗）
+    // ====================
+    function modifyUserPhone(username, currentPhone) {
+      // 打开二级模态框
+      $('admin-modify-phone-username').value = username;
+      $('admin-modify-phone-current').value = currentPhone || '未绑定';
+      $('admin-modify-phone-new').value = '';
+      $('admin-modify-phone-code').value = '';
+      $('admin-modify-phone-modal').classList.remove('hidden');
+    }
+
+    function closeAdminModifyPhoneModal() {
+      $('admin-modify-phone-modal').classList.add('hidden');
+    }
+
+    async function sendAdminModifyPhoneCode() {
+      const newPhone = $('admin-modify-phone-new').value.trim();
+      if (!newPhone || !/^1[3-9]\d{9}$/.test(newPhone)) {
+        showModalAlert('请输入正确的手机号');
+        return;
+      }
+      
+      const sendBtn = $('admin-modify-phone-send-btn');
+      sendBtn.disabled = true;
+      const originalText = sendBtn.textContent;
+      
+      try {
+        const result = await callPythonAPI('send_sms_code', newPhone);
+        if (result && result.success) {
+          const expireMin = result.expire_minutes || 5;
+          const retryAfter = result.retry_after || 180;
+          showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
+          
+          // 倒计时
+          let countdown = retryAfter;
+          const timer = setInterval(() => {
+            countdown--;
+            sendBtn.textContent = `${countdown}秒后重试`;
+            if (countdown <= 0) {
+              clearInterval(timer);
+              sendBtn.disabled = false;
+              sendBtn.textContent = originalText;
+            }
+          }, 1000);
+        } else {
+          if (result?.retry_after) {
+            let countdown = result.retry_after;
+            sendBtn.textContent = `${countdown}秒后重试`;
+            const timer = setInterval(() => {
+              countdown--;
+              sendBtn.textContent = `${countdown}秒后重试`;
+              if (countdown <= 0) {
+                clearInterval(timer);
+                sendBtn.disabled = false;
+                sendBtn.textContent = originalText;
+              }
+            }, 1000);
+          } else {
+            sendBtn.disabled = false;
+          }
+          showModalAlert(result?.message || '发送失败');
+        }
+      } catch (error) {
+        sendBtn.disabled = false;
+        showModalAlert('发送失败: ' + error.message);
+      }
+    }
+
+    async function submitAdminModifyPhone() {
+      const username = $('admin-modify-phone-username').value;
+      const newPhone = $('admin-modify-phone-new').value.trim();
+      const code = $('admin-modify-phone-code').value.trim();
+      
+      if (!newPhone) {
+        showModalAlert('请输入新手机号');
+        return;
+      }
+      
+      if (!/^1[3-9]\d{9}$/.test(newPhone)) {
+        showModalAlert('请输入正确的手机号格式');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/auth/admin/update_user_phone', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: username,
+            new_phone: newPhone,
+            sms_code: code || ''
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert(`用户 ${username} 的手机号已更新`, '成功');
+          closeAdminModifyPhoneModal();
+          loadAdminUsers();
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    // ====================
+    // 加载用户头像
     // ====================
     // 权限组管理功能函数
     // ====================
