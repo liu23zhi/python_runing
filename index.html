@@ -42,6 +42,52 @@
     body {
       background: linear-gradient(180deg, rgba(245, 250, 255, 1) 0%, rgba(235, 245, 255, 1) 40%, rgba(250, 240, 255, 1) 100%);
       background-attachment: fixed;
+      /* 问题18修复：启用页面垂直滚动 */
+      overflow-y: auto;
+      min-height: 100vh;
+    }
+
+    /* 问题18修复：美化所有页面的滚动条样式 */
+    /* Webkit浏览器（Chrome, Safari, Edge）的滚动条样式 */
+    ::-webkit-scrollbar {
+      width: 12px; /* 垂直滚动条宽度 */
+      height: 12px; /* 水平滚动条高度 */
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05); /* 滚动条轨道背景 */
+      border-radius: 10px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(125, 211, 252, 0.6); /* 滚动条滑块颜色（使用主题色） */
+      border-radius: 10px;
+      border: 2px solid rgba(0, 0, 0, 0.05); /* 滑块边框 */
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(125, 211, 252, 0.8); /* 鼠标悬停时的颜色 */
+    }
+
+    /* Firefox浏览器的滚动条样式 */
+    * {
+      scrollbar-width: thin; /* 细滚动条 */
+      scrollbar-color: rgba(125, 211, 252, 0.6) rgba(0, 0, 0, 0.05); /* 滑块颜色 轨道颜色 */
+    }
+
+    /* 问题18修复：为模态框和面板添加滚动支持 */
+    .modal-content, .panel, [class*="modal"] > div:first-child {
+      max-height: 90vh; /* 限制最大高度为视口的90% */
+      overflow-y: auto; /* 启用垂直滚动 */
+    }
+
+    /* 为特定容器启用滚动 */
+    #attendance-list, 
+    #multi-account-list,
+    .admin-panel-content,
+    .scrollable-content {
+      overflow-y: auto;
+      max-height: 70vh; /* 根据需要调整 */
     }
 
     .panel {
@@ -3680,6 +3726,8 @@
       const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal'); // 会话标签页按钮
       const messagesTab = $('admin-tab-messages_modal'); // 留言板标签页按钮
+      const ipbanTab = $('admin-tab-ipban_modal'); // 问题2修复：IP封禁标签
+      const smsTab = $('admin-tab-sms_modal'); // 问题2修复：短信配置标签
       const godModeToggle = $('god-mode-toggle_modal');
 
       if (show) {
@@ -3716,6 +3764,10 @@
         if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
         if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
         if (messagesTab) messagesTab.style.display = canViewMessages ? 'block' : 'none';
+        
+        // 问题2修复：IP封禁和短信配置标签只对管理员显示
+        if (ipbanTab) ipbanTab.style.display = canManageUsers ? 'block' : 'none';
+        if (smsTab) smsTab.style.display = canManageUsers ? 'block' : 'none';
 
         // 游客模式：只显示会话管理和留言板，隐藏个人信息
         if (isGuest) {
