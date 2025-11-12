@@ -3220,13 +3220,25 @@
       const username = $('auth-username').value.trim();
       const password = $('auth-password').value.trim();
 
-      // 输入验证
-      if (!username || !password) {
-        // showAuthError('请输入用户名和密码');
-        showModalAlert('请输入用户名和密码', '登录失败');
-        return;
-      }
+      let login_mod
 
+      // 输入验证
+      if ($('auth-login-username-btn').classList.includes('font-semibold text-sm')) {
+        if (!username || (!password)) {
+          // showAuthError('请输入用户名和密码');
+          showModalAlert('请输入用户名和密码', '登录失败');
+          return;
+        }
+        
+      }
+      else if ($('auth-login-phone-btn').classList.includes('font-semibold text-sm')) {
+        if (username && !validateInput(username, 'phone').valid) {
+          // showAuthError('手机号格式不正确');
+          showModalAlert('手机号格式不正确', '登录失败');
+          return;
+      }
+      }
+      
       // 验证用户名格式
       const usernameValidation = validateInput(username, 'username');
       if (!usernameValidation.valid) {
