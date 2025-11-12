@@ -1029,6 +1029,29 @@ def _get_default_config():
         'amap_js_key': '',  # 高德地图JS API密钥
     }
 
+    # [Features] 功能开关配置
+    # 控制系统各项功能的启用/禁用状态，便于灵活管理
+    config['Features'] = {
+        'enable_phone_modification': 'false',  # 是否允许用户修改手机号
+        'enable_phone_login': 'false',  # 是否支持手机号登录
+        'enable_phone_registration_verify': 'false',  # 注册时是否需要短信验证
+        'enable_sms_service': 'false',  # 短信服务总开关（关闭则所有短信功能不可用）
+    }
+
+    # [SMS_Service_SMSBao] 短信宝服务配置
+    # 用于发送验证码、通知等短信，需要在短信宝官网注册账号获取凭证
+    config['SMS_Service_SMSBao'] = {
+        'username': '',  # 短信宝账户用户名
+        'api_key': '',  # 短信宝API密钥（在短信宝后台获取）
+        'signature': '【您的签名】',  # 短信签名（需提前在短信宝审核通过）
+        'template_register': '您的验证码是：{code}，{minutes}分钟内有效。',  # 注册验证码短信模板，支持{code}和{minutes}占位符
+        'code_expire_minutes': '5',  # 验证码有效期（分钟），默认5分钟，管理员可修改
+        'send_interval_seconds': '180',  # 发送间隔（秒），默认180秒（3分钟），防止频繁发送
+        'rate_limit_per_account_day': '10',  # 单个账号每天最多发送次数
+        'rate_limit_per_ip_day': '20',  # 单个IP每天最多发送次数
+        'rate_limit_per_phone_day': '5',  # 单个手机号每天最多发送次数
+    }
+
     return config
 
 
@@ -1118,6 +1141,58 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 申请类型：Web端(JS API)，服务平台：Web端\n")
         f.write(
             f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
+
+        # [Features] 功能开关配置
+        f.write("[Features]\n")
+        f.write("# 是否允许用户修改手机号（true/false）\n")
+        f.write("# true：用户可在个人资料中修改手机号\n")
+        f.write(
+            f"enable_phone_modification = {config_obj.get('Features', 'enable_phone_modification', fallback='false')}\n")
+        f.write("# 是否支持手机号登录（true/false）\n")
+        f.write("# true：用户可使用手机号+密码登录（手机号作为login_id）\n")
+        f.write(
+            f"enable_phone_login = {config_obj.get('Features', 'enable_phone_login', fallback='false')}\n")
+        f.write("# 注册时是否需要短信验证（true/false）\n")
+        f.write("# true：用户注册时必须填写手机号并通过短信验证码验证\n")
+        f.write(
+            f"enable_phone_registration_verify = {config_obj.get('Features', 'enable_phone_registration_verify', fallback='false')}\n")
+        f.write("# 短信服务总开关（true/false）\n")
+        f.write("# false：关闭所有短信功能，即使其他选项为true也不会发送短信\n")
+        f.write(
+            f"enable_sms_service = {config_obj.get('Features', 'enable_sms_service', fallback='false')}\n\n")
+
+        # [SMS_Service_SMSBao] 短信宝服务配置
+        f.write("[SMS_Service_SMSBao]\n")
+        f.write("# 短信宝服务配置（官网：https://www.smsbao.com/）\n")
+        f.write("# 用于发送验证码、通知等短信\n")
+        f.write("# 注意：使用前需要在短信宝注册账号并充值\n")
+        f.write("# 短信宝账户用户名\n")
+        f.write(
+            f"username = {config_obj.get('SMS_Service_SMSBao', 'username', fallback='')}\n")
+        f.write("# 短信宝API密钥（在短信宝后台获取）\n")
+        f.write(
+            f"api_key = {config_obj.get('SMS_Service_SMSBao', 'api_key', fallback='')}\n")
+        f.write("# 短信签名（需提前在短信宝审核通过，格式：【签名内容】）\n")
+        f.write(
+            f"signature = {config_obj.get('SMS_Service_SMSBao', 'signature', fallback='【您的签名】')}\n")
+        f.write("# 注册验证码短信模板（{code}会被替换为验证码，{minutes}会被替换为有效期分钟数）\n")
+        f.write(
+            f"template_register = {config_obj.get('SMS_Service_SMSBao', 'template_register', fallback='您的验证码是：{{code}}，{{minutes}}分钟内有效。')}\n")
+        f.write("# 验证码有效期（分钟），默认5分钟，管理员可根据需要修改\n")
+        f.write(
+            f"code_expire_minutes = {config_obj.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5')}\n")
+        f.write("# 发送间隔（秒），默认180秒（3分钟），防止频繁发送，增强安全性\n")
+        f.write(
+            f"send_interval_seconds = {config_obj.get('SMS_Service_SMSBao', 'send_interval_seconds', fallback='180')}\n")
+        f.write("# 单个账号每天最多发送次数（防止滥用）\n")
+        f.write(
+            f"rate_limit_per_account_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_account_day', fallback='10')}\n")
+        f.write("# 单个IP每天最多发送次数（防止攻击）\n")
+        f.write(
+            f"rate_limit_per_ip_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_ip_day', fallback='20')}\n")
+        f.write("# 单个手机号每天最多发送次数（防止骚扰）\n")
+        f.write(
+            f"rate_limit_per_phone_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback='5')}\n\n")
 
 
 def _create_config_ini():
@@ -1285,8 +1360,14 @@ def _create_permissions_json():
 
                     # UI按钮权限（细粒度控制）
                     "use_login_button": True,  # 登录按钮
-                    "use_multi_account_button": True,  # 多账号控制台按钮
-                    "use_import_button": True,  # 导入离线文件按钮
+                    "use_multi_account_button": False,  # 多账号控制台按钮（新用户默认关闭）
+                    "use_import_button": False,  # 导入离线文件按钮（新用户默认关闭）
+
+                    # 留言板权限
+                    "view_messages": True,  # 查看留言
+                    "post_messages": True,  # 发表留言
+                    "delete_own_messages": True,  # 删除自己的留言
+                    "delete_any_messages": False,  # 删除任何人的留言（仅管理员）
                 }
             },
             "admin": {
@@ -1446,18 +1527,22 @@ def _create_default_admin():
     print("[管理员账号] 创建默认管理员账号 (用户名: admin, 密码: admin)...")
     logging.info(
         f"[系统初始化] 开始创建默认管理员账号 --> 用户名: admin, 密码: admin (⚠️ 建议首次登录后立即修改), 权限组: super_admin, 文件路径: {admin_file}")
+    # 创建默认管理员账户数据，包含所有必要字段
+    # 新增字段：phone（手机号）、nickname（昵称）、avatar_url（头像URL）
     admin_data = {
-        "auth_username": "admin",
-        "password": "admin",
-        "group": "super_admin",
-        "created_at": time.time(),
-        "last_login": None,
-        "session_ids": [],
-        "2fa_enabled": False,
-        "2fa_secret": None,
-        "avatar_url": "",
-        "max_sessions": -1,
-        "theme": "light"
+        "auth_username": "admin",  # 管理员登录用户名
+        "password": "admin",  # 默认密码（实际使用时应加密存储）
+        "group": "super_admin",  # 权限组：超级管理员
+        "created_at": time.time(),  # 创建时间戳
+        "last_login": None,  # 最后登录时间（初始为空）
+        "session_ids": [],  # 活跃会话ID列表
+        "2fa_enabled": False,  # 双因素认证开关（默认关闭）
+        "2fa_secret": None,  # 双因素认证密钥
+        "avatar_url": "default_avatar.png",  # 默认头像文件名
+        "max_sessions": -1,  # 最大并发会话数（-1表示无限制）
+        "theme": "light",  # 界面主题（light/dark）
+        "phone": "",  # 手机号（初始为空，支持后续绑定）
+        "nickname": "管理员"  # 显示昵称（用于前端展示）
     }
 
     with open(admin_file, 'w', encoding='utf-8') as f:
@@ -1981,8 +2066,22 @@ class AuthSystem:
             logging.warning("2FA验证失败：pyotp库未安装")
             return True  # 如果库未安装，允许通过
 
-    def register_user(self, auth_username, auth_password, group='user'):
-        """注册新用户"""
+    def register_user(self, auth_username, auth_password, group='user', phone='', nickname='', avatar_url=''):
+        """
+        注册新用户（已升级支持扩展字段）
+        
+        参数：
+        - auth_username: 用户名（必填，唯一标识）
+        - auth_password: 密码（必填，将根据配置加密存储）
+        - group: 权限组（默认'user'）
+        - phone: 手机号（可选）
+        - nickname: 昵称（可选，默认为用户名）
+        - avatar_url: 头像URL（可选，默认为空）
+        
+        返回：
+        - success: 是否成功
+        - message: 提示信息
+        """
         logging.info(f"register_user: 开始注册新用户: {auth_username}, 权限组: {group}")
         print(f"[用户注册] 开始注册新用户: {auth_username}, 权限组: {group}")
         with self.lock:
@@ -1998,18 +2097,21 @@ class AuthSystem:
             print(f"[用户注册] 加密密码...")
             stored_password = self._encrypt_password(auth_password)
 
+            # 创建用户数据，包含扩展字段
             user_data = {
-                'auth_username': auth_username,
-                'password': stored_password,
-                'group': group,
-                'created_at': time.time(),
-                'last_login': None,
-                'session_ids': [],  # 用于关联用户的会话ID
-                '2fa_enabled': False,
-                '2fa_secret': None,
-                'avatar_url': '',  # 用户头像URL
+                'auth_username': auth_username,  # 用户名（登录凭证）
+                'password': stored_password,  # 加密后的密码
+                'group': group,  # 权限组
+                'created_at': time.time(),  # 创建时间戳
+                'last_login': None,  # 最后登录时间（初始为空）
+                'session_ids': [],  # 用于关联用户的会话ID列表
+                '2fa_enabled': False,  # 双因素认证开关
+                '2fa_secret': None,  # 双因素认证密钥
+                'avatar_url': avatar_url or 'default_avatar.png',  # 用户头像URL（新增）
                 'max_sessions': 1,  # 允许的最大会话数量 (1=单会话, >1=多会话, -1=无限制)
-                'theme': 'light'  # 主题偏好：light/dark
+                'theme': 'light',  # 主题偏好：light/dark
+                'phone': phone,  # 手机号（新增，用于登录和通知）
+                'nickname': nickname or auth_username  # 显示昵称（新增，用于前端展示）
             }
 
             logging.debug(f"register_user: 保存用户数据到文件: {user_file}")
@@ -2022,9 +2124,10 @@ class AuthSystem:
             self.permissions['user_groups'][auth_username] = group
             self._save_permissions()
 
-            logging.info(f"新用户注册: {auth_username} (组: {group})")
+            logging.info(f"新用户注册: {auth_username} (组: {group}, 手机: {phone}, 昵称: {nickname})")
             print(f"[用户注册] ✓ 用户注册成功: {auth_username} (组: {group})")
             return {"success": True, "message": "注册成功"}
+
 
     def authenticate(self, auth_username, auth_password, ip_address='', user_agent='', two_fa_code=''):
         """验证用户登录（支持2FA和暴力破解防护）"""
@@ -5903,9 +6006,10 @@ class Api:
                     run_data = self.all_run_data[idx]
 
                 if not run_data.target_points:
-                    self.log(f"任务 '{run_data.run_name}' 无打卡点，无法自动生成，跳过。")
+                    # 任务25: 记录无打卡点日志，使用明确的提示格式
+                    self.log(f"跳过: 任务 '{run_data.run_name}' 无打卡点")
                     logging.warning(
-                        f"Skipping task {run_data.run_name}: no target points for auto-generation.")
+                        f"[Task Skipped] No checkpoints for task {run_data.run_name}, cannot auto-generate path.")
                     continue
 
                 # 2) 触发前端JS路径规划，使用与多账号相同的回调机制
@@ -7934,7 +8038,9 @@ class Api:
                 waypoints = [(float(p['lon']), float(p['lat'])) for p in details.get(
                     'geoCoorList', []) if p.get('lon') is not None]
                 if not waypoints:
-                    acc.log(f"任务无打卡点，无法自动规划，跳过。")
+                    # 任务25: 记录无打卡点日志，便于追溯
+                    task_name = details.get('title', run_data.run_name)
+                    acc.log(f"跳过: 任务 '{task_name}' 无打卡点")
                     continue
                 run_data.target_points = waypoints
 
@@ -11506,18 +11612,23 @@ def start_web_server(args_param):
     # ====================
 
     @app.route('/auth/register', methods=['POST'])
+    @app.route('/auth/register', methods=['POST'])
     def auth_register():
         """
-        用户注册API端点。
+        用户注册API端点（已升级支持手机号、昵称、头像）。
 
         请求方法：POST
         请求路径：/auth/register
-        Content-Type：application/json
+        Content-Type：application/json 或 multipart/form-data（上传头像时）
 
-        请求体（JSON）：
+        请求体（JSON或表单）：
         {
-            "auth_username": "用户名",  # 必填，会被trim()处理
-            "auth_password": "密码"     # 必填，会被trim()处理
+            "auth_username": "用户名",  # 必填，会被trim()处理，不能包含中文
+            "auth_password": "密码",     # 必填，会被trim()处理
+            "phone": "手机号",           # 可选，11位数字
+            "nickname": "昵称",          # 可选，用户显示名称
+            "sms_code": "短信验证码",    # 可选，启用短信验证时必填
+            "avatar": <文件>             # 可选，头像图片文件
         }
 
         响应体（JSON）：
@@ -11527,36 +11638,125 @@ def start_web_server(args_param):
         }
 
         处理流程：
-        1. 解析JSON请求体（使用 or {} 防止None）
-        2. 提取并trim用户名和密码
-        3. 验证非空（两者都必填）
-        4. 调用auth_system.register_user()执行注册逻辑
-        5. 返回注册结果
+        1. 解析请求数据（JSON或表单）
+        2. 提取并验证用户名、密码（必填）
+        3. 验证用户名不包含中文字符
+        4. 如果启用短信验证，校验验证码
+        5. 如果上传头像，保存文件
+        6. 调用auth_system.register_user()执行注册逻辑
+        7. 返回注册结果
+
+        新增功能：
+        - 支持手机号注册（phone字段）
+        - 支持自定义昵称（nickname字段）
+        - 支持上传头像（avatar文件）
+        - 支持短信验证码校验（sms_code字段）
+        - 用户名禁止中文字符
 
         安全特性：
-        - 密码由AuthSystem内部加密存储（SHA256或明文，取决于配置）
-        - 用户名去除首尾空格，防止输入错误
-        - 所有验证逻辑委托给AuthSystem处理
+        - 密码由AuthSystem内部加密存储
+        - 用户名去除首尾空格并验证格式
+        - 手机号格式验证（11位，1开头）
+        - 短信验证码有效期检查（5分钟）
+        - 头像文件类型和大小限制
 
         错误情况：
-        - 用户名或密码为空：返回 {"success": false, "message": "用户名和密码不能为空"}
-        - 用户名已存在：由auth_system返回相应错误信息
-        - 其他错误：由auth_system捕获并返回
-
-        注意：
-        - 此接口不需要认证（公开接口）
-        - 注册成功后用户需要再调用 /auth/login 登录
-        - 默认分组由AuthSystem配置决定
+        - 用户名或密码为空：返回错误
+        - 用户名包含中文：返回错误
+        - 手机号格式不正确：返回错误
+        - 短信验证码错误或过期：返回错误
+        - 用户名已存在：由auth_system返回错误
         """
-        data = request.get_json() or {}
-        auth_username = data.get('auth_username', '').strip()
-        auth_password = data.get('auth_password', '').strip()
+        try:
+            # 1. 解析请求数据（支持JSON和表单两种方式）
+            data = request.get_json() or {}
+            form_data = request.form.to_dict() if request.form else {}
+            data.update(form_data)  # 合并表单数据
+            
+            # 2. 提取基本字段并去除首尾空格
+            auth_username = data.get('auth_username', '').strip()
+            auth_password = data.get('auth_password', '').strip()
+            phone = data.get('phone', '').strip()
+            nickname = data.get('nickname', '').strip()
+            sms_code = data.get('sms_code', '').strip()
+            
+            # 3. 验证必填字段
+            if not auth_username or not auth_password:
+                return jsonify({"success": False, "message": "用户名和密码不能为空"})
+            
+            # 4. 验证用户名不包含中文字符（防止显示和排序问题）
+            if re.search(r'[\u4e00-\u9fff]', auth_username):
+                return jsonify({"success": False, "message": "用户名不能包含中文字符"})
+            
+            # 5. 验证手机号格式（如果提供）
+            if phone and not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+            # 6. 校验短信验证码（如果启用了注册验证功能）
+            if config.get('Features', 'enable_phone_registration_verify', fallback='false').lower() == 'true':
+                if not phone:
+                    return jsonify({"success": False, "message": "注册需要填写手机号"})
+                if not sms_code:
+                    return jsonify({"success": False, "message": "请输入短信验证码"})
+                
+                # 查找验证码记录
+                code_verified = False
+                for key in list(cache.keys()):
+                    if key.startswith(f"sms_code_{phone}_"):
+                        code_data = cache.get(key)
+                        if code_data and code_data.get('code') == sms_code:
+                            # 检查是否过期（5分钟）
+                            if time.time() <= code_data.get('expires', 0):
+                                code_verified = True
+                                # 验证成功后删除验证码（一次性使用）
+                                del cache[key]
+                                break
+                
+                if not code_verified:
+                    return jsonify({"success": False, "message": "验证码错误或已过期"})
+            
+            # 7. 处理头像上传（如果提供）
+            avatar_url = "default_avatar.png"  # 默认头像
+            avatar_file = request.files.get('avatar')
+            if avatar_file and avatar_file.filename:
+                # 验证文件类型（仅允许图片）
+                allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+                file_ext = avatar_file.filename.rsplit('.', 1)[-1].lower()
+                if file_ext not in allowed_extensions:
+                    return jsonify({"success": False, "message": "头像文件格式不支持，请使用png/jpg/gif"})
+                
+                # 验证文件大小（限制5MB）
+                avatar_file.seek(0, os.SEEK_END)
+                file_size = avatar_file.tell()
+                avatar_file.seek(0)  # 重置文件指针
+                if file_size > 5 * 1024 * 1024:
+                    return jsonify({"success": False, "message": "头像文件过大，请小于5MB"})
+                
+                # 保存文件到uploads目录
+                import uuid
+                uploads_dir = 'static/uploads/avatars'
+                os.makedirs(uploads_dir, exist_ok=True)
+                avatar_filename = f"{uuid.uuid4().hex}.{file_ext}"
+                avatar_path = os.path.join(uploads_dir, avatar_filename)
+                avatar_file.save(avatar_path)
+                avatar_url = f"uploads/avatars/{avatar_filename}"
+            
+            # 8. 调用auth_system.register_user()执行注册逻辑
+            # 传递额外参数：phone, nickname, avatar_url
+            result = auth_system.register_user(
+                auth_username, 
+                auth_password,
+                phone=phone,
+                nickname=nickname or auth_username,  # 默认昵称为用户名
+                avatar_url=avatar_url
+            )
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            app.logger.error(f"[注册] 处理异常：{str(e)}")
+            return jsonify({"success": False, "message": "注册失败，请稍后重试"})
 
-        if not auth_username or not auth_password:
-            return jsonify({"success": False, "message": "用户名和密码不能为空"})
-
-        result = auth_system.register_user(auth_username, auth_password)
-        return jsonify(result)
 
     @app.route('/auth/login', methods=['POST'])
     def auth_login():
@@ -11570,7 +11770,8 @@ def start_web_server(args_param):
 
         请求体（JSON）：
         {
-            "auth_username": "用户名",      # 必填
+            "auth_username": "用户名",      # 必填（或使用login_id）
+            "login_id": "用户名或手机号",    # 可选，支持手机号登录
             "auth_password": "密码",        # 必填
             "two_fa_code": "双因素认证码"   # 可选，仅在启用2FA时需要
         }
@@ -11586,11 +11787,13 @@ def start_web_server(args_param):
 
         处理流程：
         1. 解析请求体和请求头（session_id、IP、User-Agent）
-        2. 调用auth_system.authenticate()验证用户凭据
-        3. 验证成功后创建或获取Api实例
-        4. 将认证信息附加到web_sessions
-        5. 执行单会话强制策略（可选，非游客用户）
-        6. 返回认证结果
+        2. 支持login_id字段（可以是用户名或手机号）
+        3. 如果是手机号，查找对应的用户名
+        4. 调用auth_system.authenticate()验证用户凭据
+        5. 验证成功后创建或获取Api实例
+        6. 将认证信息附加到web_sessions
+        7. 执行单会话强制策略（可选，非游客用户）
+        8. 返回认证结果
 
         会话管理：
         - 每个客户端通过X-Session-ID标识唯一会话
@@ -11637,30 +11840,99 @@ def start_web_server(args_param):
         - 旧会话清理是异步的，不影响新登录的响应速度
         """
         data = request.get_json() or {}
-        auth_username = data.get('auth_username', '').strip()
+        
+        # 支持login_id字段（可以是用户名或手机号）
+        login_id = data.get('login_id') or data.get('auth_username', '').strip()
         auth_password = data.get('auth_password', '').strip()
+        sms_code = data.get('sms_code', '').strip()  # 新增：短信验证码
         two_fa_code = data.get('two_fa_code', '').strip()
         session_id = request.headers.get('X-Session-ID', '')
-
-        # 获取IP和UA
-        # 用于安全审计和登录日志记录
-        ip_address = request.remote_addr or ''
-        user_agent = request.headers.get('User-Agent', '')
-
-        # if not session_id:
-        #     return jsonify({"success": False, "message": "缺少会话ID"})
-
-        # # 更新会话活动时间
-        # update_session_activity(session_id)
-
-        # 验证用户
-        # authenticate()方法会：
-        # 1. 验证密码（明文或加密比较）
-        # 2. 验证2FA代码（如果启用）
-        # 3. 检查账号状态（是否锁定等）
-        # 4. 记录登录日志（IP、UA、时间、结果）
-        auth_result = auth_system.authenticate(
-            auth_username, auth_password, ip_address, user_agent, two_fa_code)
+        
+        # 判断login_id是手机号还是用户名
+        # 如果是手机号（11位数字，1开头），则查找对应的用户名
+        auth_username = login_id
+        is_phone_login = False
+        if re.match(r'^1[3-9]\d{9}$', login_id):
+            is_phone_login = True
+            # 这是手机号，需要查找对应的用户名
+            # 检查是否启用了手机号登录功能
+            if config.get('Features', 'enable_phone_login', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "手机号登录功能未启用"})
+            
+            # 遍历所有用户查找匹配的手机号
+            found_username = None
+            system_accounts_dir = config.get('System', 'system_accounts_dir', fallback='system_accounts')
+            school_accounts_dir = config.get('System', 'school_accounts_dir', fallback='school_accounts')
+            
+            for accounts_dir in [system_accounts_dir, school_accounts_dir]:
+                if not os.path.exists(accounts_dir):
+                    continue
+                for filename in os.listdir(accounts_dir):
+                    if filename.endswith('.json'):
+                        user_file = os.path.join(accounts_dir, filename)
+                        try:
+                            import json
+                            with open(user_file, 'r', encoding='utf-8') as f:
+                                user_data = json.load(f)
+                                if user_data.get('phone') == login_id:
+                                    found_username = user_data.get('auth_username')
+                                    break
+                        except:
+                            continue
+                if found_username:
+                    break
+            
+            if not found_username:
+                return jsonify({"success": False, "message": "手机号未注册或密码错误"})
+            
+            auth_username = found_username
+        
+        # 新增：手机号验证码登录（不需要密码）
+        if is_phone_login and sms_code:
+            # 检查是否启用了手机号登录功能
+            if config.get('Features', 'enable_phone_login', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "手机号登录功能未启用"})
+            
+            # 验证短信验证码
+            stored_code = sms_verification_codes.get(login_id)
+            if not stored_code:
+                return jsonify({"success": False, "message": "请先获取验证码"})
+            
+            code_value, expires_at = stored_code
+            if time.time() > expires_at:
+                del sms_verification_codes[login_id]
+                return jsonify({"success": False, "message": "验证码已过期，请重新获取"})
+            
+            if code_value != sms_code:
+                return jsonify({"success": False, "message": "验证码错误"})
+            
+            # 验证码正确，清除验证码
+            del sms_verification_codes[login_id]
+            
+            # 跳过密码验证，直接登录成功
+            # 获取用户信息用于登录
+            auth_result = {
+                'success': True,
+                'auth_username': auth_username,
+                'group': auth_system.get_user_group(auth_username),
+                'is_guest': False,
+                'message': '登录成功'
+            }
+            
+            # 记录登录日志
+            ip_address = request.remote_addr or ''
+            user_agent = request.headers.get('User-Agent', '')
+            auth_system._log_login_attempt(auth_username, True, ip_address, user_agent, 'SMS code login')
+        else:
+            # 原有的密码登录逻辑
+            # 获取IP和UA
+            ip_address = request.remote_addr or ''
+            user_agent = request.headers.get('User-Agent', '')
+            
+            # 验证用户密码
+            auth_result = auth_system.authenticate(
+                auth_username, auth_password, ip_address, user_agent, two_fa_code)
+        
         if not auth_result['success']:
             return jsonify(auth_result)
 
@@ -14265,6 +14537,301 @@ def start_web_server(args_param):
         })
 
     # ====================
+    # 短信服务API
+    # ====================
+
+    @app.route('/api/sms/send_code', methods=['POST'])
+    def sms_send_code():
+        """
+        发送短信验证码API
+        功能：向指定手机号发送验证码，用于注册、登录或修改手机号等场景
+        
+        请求参数：
+        - phone: 手机号（必填）
+        - scene: 使用场景（register/login/modify，默认register）
+        
+        返回：
+        - success: 是否成功
+        - message: 提示信息
+        - code_id: 验证码ID（用于后续验证）
+        """
+        try:
+            # 1. 获取并验证请求参数
+            data = request.get_json() or {}
+            phone = data.get('phone', '').strip()
+            scene = data.get('scene', 'register').strip()  # 使用场景
+            
+            # 验证手机号格式（11位数字，1开头）
+            if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+            # 2. 检查短信服务总开关
+            if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "短信服务未启用"})
+            
+            # 3. 检查发送间隔限制（安全增强）
+            sms_interval_seconds = int(config.get('SMS_Service_SMSBao', 'send_interval_seconds', fallback='180'))
+            last_send_key = f"sms_last_send_{phone}"
+            last_send_time = cache.get(last_send_key, 0)
+            current_time = time.time()
+            
+            if last_send_time and (current_time - last_send_time) < sms_interval_seconds:
+                remaining_seconds = int(sms_interval_seconds - (current_time - last_send_time))
+                return jsonify({
+                    "success": False, 
+                    "message": f"发送过于频繁，请{remaining_seconds}秒后再试",
+                    "retry_after": remaining_seconds
+                })
+            
+            # 4. 执行速率限制检查（防止滥用和攻击）
+            client_ip = request.remote_addr
+            current_date = time.strftime('%Y-%m-%d')
+            
+            # 检查IP限制
+            ip_limit_key = f"sms_ip_{client_ip}_{current_date}"
+            ip_count = cache.get(ip_limit_key, 0)
+            ip_limit = int(config.get('SMS_Service_SMSBao', 'rate_limit_per_ip_day', fallback='20'))
+            if ip_count >= ip_limit:
+                return jsonify({"success": False, "message": f"IP每日发送次数已达上限({ip_limit}次)"})
+            
+            # 检查手机号限制
+            phone_limit_key = f"sms_phone_{phone}_{current_date}"
+            phone_count = cache.get(phone_limit_key, 0)
+            phone_limit = int(config.get('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback='5'))
+            if phone_count >= phone_limit:
+                return jsonify({"success": False, "message": f"该手机号每日发送次数已达上限({phone_limit}次)"})
+            
+            # 5. 生成6位数字验证码（安全：仅后端存储，不返回前端）
+            import random
+            code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            
+            # 6. 调用短信宝API发送短信
+            username = config.get('SMS_Service_SMSBao', 'username', fallback='')
+            api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
+            signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【您的签名】')
+            code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+            template = config.get('SMS_Service_SMSBao', 'template_register', 
+                                 fallback=f'您的验证码是：{{code}}，{code_expire_minutes}分钟内有效。')
+            
+            if not username or not api_key:
+                return jsonify({"success": False, "message": "短信服务配置不完整，请联系管理员"})
+            
+            # 构造短信内容（签名+模板），支持{code}和{minutes}占位符
+            content = signature + template.replace('{code}', code).replace('{minutes}', str(code_expire_minutes))
+            
+            # 调用短信宝HTTP API
+            import urllib.parse
+            import urllib.request
+            url = f"http://api.smsbao.com/sms?u={username}&p={api_key}&m={phone}&c={urllib.parse.quote(content)}"
+            
+            try:
+                response = urllib.request.urlopen(url, timeout=10)
+                result = response.read().decode('utf-8').strip()
+                
+                # 短信宝返回码：0=成功，其他为错误码
+                if result == '0':
+                    # 7. 存储验证码到缓存（有效期可配置，默认5分钟）
+                    # 安全增强：验证码仅存储在后端，不返回前端
+                    code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+                    code_expire_seconds = code_expire_minutes * 60
+                    
+                    # 存储验证码到sms_verification_codes（用于后端验证）
+                    sms_verification_codes[phone] = (code, time.time() + code_expire_seconds)
+                    
+                    # 更新速率限制计数
+                    cache[ip_limit_key] = ip_count + 1
+                    cache[phone_limit_key] = phone_count + 1
+                    
+                    # 更新最后发送时间（用于间隔限制）
+                    cache[last_send_key] = current_time
+                    
+                    # 记录日志（安全：不记录验证码内容）
+                    app.logger.info(f"[短信服务] 向 {phone} 发送验证码成功，场景：{scene}，有效期：{code_expire_minutes}分钟")
+                    
+                    # 安全：返回信息中不包含验证码
+                    return jsonify({
+                        "success": True, 
+                        "message": f"验证码已发送，{code_expire_minutes}分钟内有效",
+                        "expire_minutes": code_expire_minutes,
+                        "retry_after": sms_interval_seconds  # 告知前端下次可发送的间隔
+                    })
+                else:
+                    # 短信宝错误码映射
+                    error_map = {
+                        '30': '密码错误', '40': '账号不存在', '41': '余额不足',
+                        '42': '账户已过期', '43': 'IP地址限制', '50': '内容含有敏感词'
+                    }
+                    error_msg = error_map.get(result, f'短信发送失败(错误码:{result})')
+                    app.logger.error(f"[短信服务] 发送失败：{error_msg}")
+                    return jsonify({"success": False, "message": error_msg})
+                    
+            except Exception as e:
+                app.logger.error(f"[短信服务] API调用异常：{str(e)}")
+                return jsonify({"success": False, "message": "短信发送失败，请稍后重试"})
+                
+        except Exception as e:
+            app.logger.error(f"[短信服务] 处理请求异常：{str(e)}")
+            return jsonify({"success": False, "message": "服务器内部错误"})
+
+    @app.route('/sms-reply-webhook', methods=['GET'])
+    def sms_reply_webhook():
+        """
+        接收短信宝的用户回复推送（Webhook）
+        
+        短信宝会通过GET请求推送用户回复内容：
+        - m: 手机号
+        - c: 回复内容（UTF-8编码）
+        
+        功能：记录所有用户回复到日志文件，便于后续分析
+        """
+        try:
+            # 1. 获取推送参数
+            phone = request.args.get('m', '')  # 手机号
+            content = request.args.get('c', '')  # 回复内容（可能需要解码）
+            
+            if not phone or not content:
+                return "0"  # 短信宝要求返回"0"表示接收成功
+            
+            # 2. 解码UTF-8内容（如果需要）
+            try:
+                import urllib.parse
+                content = urllib.parse.unquote(content, encoding='utf-8')
+            except:
+                pass  # 解码失败则使用原始内容
+            
+            # 3. 记录到日志文件（JSONL格式，每行一条记录）
+            log_dir = 'logs'
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = os.path.join(log_dir, 'sms_replies.jsonl')
+            
+            import json
+            log_entry = {
+                'timestamp': time.time(),
+                'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'phone': phone,
+                'content': content,
+                'ip': request.remote_addr
+            }
+            
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            
+            app.logger.info(f"[短信回复] 收到用户 {phone} 的回复：{content}")
+            
+            # 4. 返回"0"告知短信宝接收成功
+            return "0"
+            
+        except Exception as e:
+            app.logger.error(f"[短信回复] 处理异常：{str(e)}")
+            return "0"  # 即使出错也返回0，避免短信宝重复推送
+
+    # ====================
+    # 管理员日志查看API
+    # ====================
+
+    @app.route('/api/admin/logs/login_history', methods=['GET'])
+    @login_required
+    def admin_logs_login_history():
+        """
+        查看用户登录历史记录
+        
+        权限要求：管理员或用户本人
+        
+        参数：
+        - username: 用户名（可选，管理员可查看任意用户，普通用户只能查看自己）
+        - limit: 返回条数（默认100）
+        
+        返回：登录记录列表
+        """
+        try:
+            # 获取当前登录用户
+            current_user = g.user
+            
+            # 获取查询参数
+            target_username = request.args.get('username', '').strip()
+            limit = int(request.args.get('limit', 100))
+            
+            # 权限检查：非管理员只能查看自己的记录
+            if not auth_system.is_admin(current_user):
+                if target_username and target_username != current_user:
+                    return jsonify({"success": False, "message": "权限不足"}), 403
+                target_username = current_user
+            
+            # 如果未指定用户名且是管理员，则查看所有用户
+            if not target_username:
+                if not auth_system.is_admin(current_user):
+                    target_username = current_user
+            
+            # 读取登录日志文件
+            log_file = os.path.join('logs', 'login_audit.jsonl')
+            history = []
+            
+            if os.path.exists(log_file):
+                with open(log_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        try:
+                            import json
+                            entry = json.loads(line.strip())
+                            # 过滤用户名（如果指定）
+                            if target_username and entry.get('username') != target_username:
+                                continue
+                            history.append(entry)
+                        except:
+                            continue
+            
+            # 按时间倒序排序并限制数量
+            history.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+            history = history[:limit]
+            
+            return jsonify({
+                "success": True,
+                "logs": history,  # 改为logs以匹配前端期望
+                "total": len(history)
+            })
+            
+        except Exception as e:
+            app.logger.error(f"[登录历史] 查询失败：{str(e)}")
+            return jsonify({"success": False, "message": "查询失败"}), 500
+
+    @app.route('/api/admin/logs/audit', methods=['GET'])
+    @login_required
+    def admin_logs_audit():
+        """
+        查看用户审计日志（操作记录）
+        
+        权限要求：管理员
+        
+        参数：
+        - username: 用户名（可选）
+        - action: 操作类型（可选，如login/logout/update_profile等）
+        - limit: 返回条数（默认100）
+        
+        返回：审计日志列表
+        """
+        try:
+            # 权限检查：仅管理员可访问
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 获取查询参数
+            username = request.args.get('username', '').strip()
+            action = request.args.get('action', '').strip()
+            limit = int(request.args.get('limit', 100))
+            
+            # 调用AuthSystem的审计日志方法
+            logs = auth_system.get_audit_logs(username, action, limit)
+            
+            return jsonify({
+                "success": True,
+                "logs": logs,
+                "total": len(logs)
+            })
+            
+        except Exception as e:
+            app.logger.error(f"[审计日志] 查询失败：{str(e)}")
+            return jsonify({"success": False, "message": "查询失败"}), 500
+
+    # ====================
     # 前端日志接收API
     # ====================
 
@@ -14334,6 +14901,303 @@ def start_web_server(args_param):
             logging.error(
                 f"[前端日志处理错误][IP:{ip_address_err}][Sess:{session_id_err[:8]}] {e}", exc_info=True)
             return jsonify({"success": False, "message": str(e)}), 500
+
+    # ====================
+    # 任务18：IP封禁管理API
+    # ====================
+    
+    # IP封禁数据存储文件路径
+    IP_BANS_FILE = os.path.join('logs', 'ip_bans.json')
+
+    @app.route('/api/admin/ip_bans', methods=['GET'])
+    @login_required
+    def get_ip_bans():
+        """
+        获取IP封禁列表
+        
+        权限要求：管理员
+        返回：所有IP封禁规则列表
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 读取封禁列表
+            if os.path.exists(IP_BANS_FILE):
+                with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                    bans = json.load(f)
+            else:
+                bans = []
+            
+            return jsonify({"success": True, "bans": bans})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 获取列表失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取列表失败"}), 500
+
+    @app.route('/api/admin/ip_bans', methods=['POST'])
+    @login_required
+    def add_ip_ban():
+        """
+        添加IP封禁规则
+        
+        权限要求：管理员
+        参数：
+        - target: 封禁目标（IP/IP段/城市）
+        - type: 类型（ip/cidr/city）
+        - scope: 范围（all/messages_only）
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            data = request.get_json() or {}
+            target = data.get('target', '').strip()
+            ban_type = data.get('type', 'ip')
+            scope = data.get('scope', 'all')
+            
+            if not target:
+                return jsonify({"success": False, "message": "封禁目标不能为空"})
+            
+            # 读取现有封禁列表
+            if os.path.exists(IP_BANS_FILE):
+                with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                    bans = json.load(f)
+            else:
+                bans = []
+            
+            # 添加新规则
+            new_ban = {
+                "id": str(time.time()),
+                "target": target,
+                "type": ban_type,
+                "scope": scope,
+                "created_at": time.time(),
+                "created_by": g.user
+            }
+            bans.append(new_ban)
+            
+            # 保存
+            os.makedirs(os.path.dirname(IP_BANS_FILE), exist_ok=True)
+            with open(IP_BANS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(bans, f, indent=2, ensure_ascii=False)
+            
+            app.logger.info(f"[IP封禁] {g.user} 添加封禁规则：{target} ({ban_type}, {scope})")
+            return jsonify({"success": True, "message": "封禁规则已添加"})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 添加规则失败：{str(e)}")
+            return jsonify({"success": False, "message": "添加失败"}), 500
+
+    @app.route('/api/admin/ip_bans/<ban_id>', methods=['DELETE'])
+    @login_required
+    def delete_ip_ban(ban_id):
+        """
+        删除IP封禁规则
+        
+        权限要求：管理员
+        参数：
+        - ban_id: 封禁规则ID
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            if not os.path.exists(IP_BANS_FILE):
+                return jsonify({"success": False, "message": "封禁列表不存在"})
+            
+            with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                bans = json.load(f)
+            
+            # 过滤掉要删除的规则
+            original_count = len(bans)
+            bans = [b for b in bans if b['id'] != ban_id]
+            
+            if len(bans) == original_count:
+                return jsonify({"success": False, "message": "封禁规则不存在"})
+            
+            with open(IP_BANS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(bans, f, indent=2, ensure_ascii=False)
+            
+            app.logger.info(f"[IP封禁] {g.user} 删除封禁规则：{ban_id}")
+            return jsonify({"success": True, "message": "封禁规则已删除"})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 删除规则失败：{str(e)}")
+            return jsonify({"success": False, "message": "删除失败"}), 500
+
+    def check_ip_ban(ip_address, scope='all'):
+        """
+        检查IP是否被封禁
+        
+        参数：
+        - ip_address: 要检查的IP地址
+        - scope: 检查范围（all或具体功能如messages_only）
+        
+        返回：True表示被封禁，False表示未被封禁
+        """
+        if not os.path.exists(IP_BANS_FILE):
+            return False
+        
+        try:
+            with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                bans = json.load(f)
+            
+            for ban in bans:
+                # 检查scope是否匹配
+                if ban['scope'] != 'all' and ban['scope'] != scope:
+                    continue
+                
+                if ban['type'] == 'ip':
+                    # 单个IP匹配
+                    if ip_address == ban['target']:
+                        return True
+                elif ban['type'] == 'cidr':
+                    # CIDR匹配（需要ipaddress模块）
+                    try:
+                        import ipaddress
+                        if ipaddress.ip_address(ip_address) in ipaddress.ip_network(ban['target']):
+                            return True
+                    except:
+                        pass
+                elif ban['type'] == 'city':
+                    # 城市匹配（需要IP归属地查询，这里简化处理）
+                    pass
+            
+            return False
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 检查失败：{str(e)}")
+            return False
+
+    # ====================
+    # 任务20：短信服务配置API
+    # ====================
+
+    @app.route('/api/admin/sms/config', methods=['GET'])
+    @login_required
+    def get_sms_config():
+        """
+        获取短信服务配置
+        
+        权限要求：管理员
+        返回：短信服务配置信息
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            
+            sms_config = {
+                'enable_sms_service': config.getboolean('Features', 'enable_sms_service', fallback=False),
+                'username': config.get('SMS_Service_SMSBao', 'username', fallback=''),
+                'api_key': config.get('SMS_Service_SMSBao', 'api_key', fallback=''),
+                'signature': config.get('SMS_Service_SMSBao', 'signature', fallback=''),
+                'template_register': config.get('SMS_Service_SMSBao', 'template_register', fallback=''),
+                'code_expire_minutes': config.getint('SMS_Service_SMSBao', 'code_expire_minutes', fallback=5),
+                'rate_limit_per_account_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_account_day', fallback=10),
+                'rate_limit_per_ip_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_ip_day', fallback=20),
+                'rate_limit_per_phone_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback=5)
+            }
+            
+            return jsonify({"success": True, "config": sms_config})
+        except Exception as e:
+            app.logger.error(f"[短信配置] 获取配置失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取配置失败"}), 500
+
+    @app.route('/api/admin/sms/config', methods=['POST'])
+    @login_required
+    def save_sms_config():
+        """
+        保存短信服务配置
+        
+        权限要求：管理员
+        参数：配置对象（enable_sms_service, username, api_key等）
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            data = request.get_json() or {}
+            
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            
+            # 更新配置
+            if 'Features' not in config:
+                config.add_section('Features')
+            config.set('Features', 'enable_sms_service', str(data.get('enable_sms_service', False)).lower())
+            
+            if 'SMS_Service_SMSBao' not in config:
+                config.add_section('SMS_Service_SMSBao')
+            config.set('SMS_Service_SMSBao', 'username', data.get('username', ''))
+            config.set('SMS_Service_SMSBao', 'api_key', data.get('api_key', ''))
+            config.set('SMS_Service_SMSBao', 'signature', data.get('signature', ''))
+            config.set('SMS_Service_SMSBao', 'template_register', data.get('template_register', ''))
+            config.set('SMS_Service_SMSBao', 'code_expire_minutes', str(data.get('code_expire_minutes', 5)))
+            config.set('SMS_Service_SMSBao', 'rate_limit_per_account_day', str(data.get('rate_limit_per_account_day', 10)))
+            config.set('SMS_Service_SMSBao', 'rate_limit_per_ip_day', str(data.get('rate_limit_per_ip_day', 20)))
+            config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', str(data.get('rate_limit_per_phone_day', 5)))
+            
+            # 保存配置文件
+            with open('config.ini', 'w', encoding='utf-8') as f:
+                config.write(f)
+            
+            app.logger.info(f"[短信配置] {g.user} 更新了短信服务配置")
+            return jsonify({"success": True, "message": "配置已保存"})
+        except Exception as e:
+            app.logger.error(f"[短信配置] 保存配置失败：{str(e)}")
+            return jsonify({"success": False, "message": "保存失败"}), 500
+
+    @app.route('/api/admin/sms/check_balance', methods=['GET'])
+    @login_required
+    def check_sms_balance():
+        """
+        查询短信宝余额
+        
+        权限要求：管理员
+        返回：短信余额
+        """
+        try:
+            # 权限检查
+            if not auth_system.is_admin(g.user):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            
+            username = config.get('SMS_Service_SMSBao', 'username', fallback='')
+            api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
+            
+            if not username or not api_key:
+                return jsonify({"success": False, "message": "短信宝配置不完整"})
+            
+            # 调用短信宝查询余额API
+            url = f'https://api.smsbao.com/query?u={username}&p={api_key}'
+            response = requests.get(url, timeout=10)
+            
+            # 短信宝返回数字表示余额
+            if response.text.isdigit():
+                balance = int(response.text)
+                return jsonify({"success": True, "balance": balance})
+            else:
+                # 返回错误码
+                error_codes = {
+                    '30': '密码错误',
+                    '40': '账号不存在',
+                    '41': '余额不足',
+                    '43': 'IP地址限制',
+                    '50': '内容含有敏感词',
+                    '51': '手机号码不正确'
+                }
+                error_msg = error_codes.get(response.text, f'未知错误码: {response.text}')
+                return jsonify({"success": False, "message": f"查询失败：{error_msg}"})
+        except Exception as e:
+            app.logger.error(f"[短信配置] 查询余额失败：{str(e)}")
+            return jsonify({"success": False, "message": f"查询失败：{str(e)}"}), 500
 
     # ====================
     # 应用主路由
@@ -15508,6 +16372,56 @@ def start_web_server(args_param):
 
         return jsonify({"success": True, "messages": messages})
 
+    # ============================================================
+    # 任务15：IP归属地获取辅助函数
+    # 用于获取IP地址的地理位置（城市）信息
+    # ============================================================
+    def get_ip_location(ip_address):
+        """
+        获取IP地址的地理位置信息（城市）
+        
+        参数:
+            ip_address (str): IP地址字符串
+        
+        返回:
+            str: 城市名称，如果获取失败则返回'未知'
+        
+        实现说明:
+            - 使用免费的IP地理位置API（ip-api.com）
+            - 设置3秒超时，防止阻塞请求
+            - 异常情况返回'未知'，确保不影响主业务流程
+        """
+        # 对于本地IP地址，直接返回本地
+        if ip_address in ['127.0.0.1', 'localhost', '::1']:
+            return '本地'
+        
+        try:
+            # 使用ip-api.com的免费API获取IP位置
+            # 注意：此API有速率限制（45请求/分钟），生产环境建议使用本地IP数据库
+            import requests
+            response = requests.get(
+                f'http://ip-api.com/json/{ip_address}?lang=zh-CN&fields=status,message,city',
+                timeout=3  # 设置3秒超时
+            )
+            data = response.json()
+            
+            # 检查API响应状态
+            if data.get('status') == 'success':
+                city = data.get('city', '未知')
+                return city if city else '未知'
+            else:
+                # API返回错误状态
+                logging.warning(f"[IP定位] API返回错误: {data.get('message', '未知错误')}")
+                return '未知'
+        except requests.exceptions.Timeout:
+            # 请求超时
+            logging.warning(f"[IP定位] 请求超时: {ip_address}")
+            return '未知'
+        except Exception as e:
+            # 其他异常（网络错误、JSON解析错误等）
+            logging.warning(f"[IP定位] 获取失败: {str(e)}")
+            return '未知'
+
     @app.route('/api/messages/post', methods=['POST'])
     def post_message():
         """发表留言"""
@@ -15548,17 +16462,51 @@ def start_web_server(args_param):
             if not re.match(email_pattern, email):
                 return jsonify({"success": False, "message": "邮箱格式不正确"})
 
-        # 构建留言对象
-
+        # ============================================================
+        # 任务15：获取用户信息（昵称、头像）和IP归属地
+        # 为留言添加更丰富的用户信息和位置信息
+        # ============================================================
+        
+        # 获取客户端IP地址
+        client_ip = request.remote_addr
+        
+        # 获取IP归属地（城市）
+        ip_city = get_ip_location(client_ip)
+        
+        # 获取用户的昵称和头像（对于已登录用户）
+        user_nickname = nickname  # 默认使用提交的昵称
+        avatar_url = 'default_avatar.png'  # 默认头像
+        
+        if not is_guest and auth_username:
+            # 已登录用户：从用户文件中读取昵称和头像
+            try:
+                user_hash = hashlib.sha256(auth_username.encode()).hexdigest()
+                user_file = os.path.join(SYSTEM_ACCOUNTS_DIR, f"{user_hash}.json")
+                
+                if os.path.exists(user_file):
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                        # 读取用户设置的昵称，如果没有则使用用户名
+                        user_nickname = user_data.get('nickname', auth_username)
+                        # 读取用户的头像URL
+                        avatar_url = user_data.get('avatar_url', 'default_avatar.png')
+            except Exception as e:
+                # 读取用户信息失败，使用默认值
+                logging.warning(f"[留言板] 读取用户信息失败: {str(e)}")
+                user_nickname = auth_username
+        
+        # 构建留言对象（增强版，包含更多信息）
         message = {
-            "id": str(uuid.uuid4()),
-            "content": content,
-            "username": auth_username if not is_guest else None,
-            "nickname": nickname if is_guest else None,
-            "email": email if is_guest else None,
-            "is_guest": is_guest,
-            "timestamp": time.time(),
-            "ip": request.remote_addr
+            "id": str(uuid.uuid4()),                           # 留言唯一ID
+            "content": content,                                # 留言内容
+            "auth_username": auth_username if not is_guest else None,  # 用户名（已登录用户）
+            "nickname": user_nickname,                         # 显示昵称
+            "email": email if is_guest else None,              # 邮箱（游客）
+            "avatar_url": avatar_url,                          # 头像URL
+            "is_guest": is_guest,                              # 是否游客
+            "ip_city": ip_city,                                # IP归属地（城市）
+            "timestamp": time.time(),                          # 发表时间戳
+            "ip": request.remote_addr                          # IP地址（用于管理）
         }
 
         # 读取现有留言
@@ -15658,6 +16606,88 @@ def start_web_server(args_param):
         except OSError as e:
             logging.error(f"[留言板] 保存留言失败: {e}")
             return jsonify({"success": False, "message": "保存留言失败"}), 500
+
+    # ============================================================
+    # 任务22：高德地图Key验证API
+    # 用于验证用户输入的高德地图API Key是否有效
+    # ============================================================
+    @app.route('/api/validate_amap_key', methods=['POST'])
+    def validate_amap_key():
+        """
+        验证高德地图API Key的有效性
+        
+        请求体:
+            {
+                "key": "高德地图API Key字符串"
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "验证结果消息"
+            }
+        
+        实现说明:
+            - 调用高德地图的地理编码API进行验证
+            - 使用固定坐标（天安门）作为测试参数
+            - 根据返回的status字段判断Key是否有效
+        """
+        try:
+            # 从请求体中获取要验证的API Key
+            data = request.get_json() or {}
+            amap_key = data.get('key', '').strip()
+            
+            # 验证Key不能为空
+            if not amap_key:
+                return jsonify({
+                    "success": False,
+                    "message": "API Key不能为空"
+                })
+            
+            # 调用高德地图逆地理编码API进行验证
+            # 使用天安门的坐标（116.397428,39.90923）作为测试参数
+            import requests
+            test_url = f'https://restapi.amap.com/v3/geocode/regeo?location=116.397428,39.90923&key={amap_key}'
+            
+            # 设置5秒超时，防止长时间等待
+            response = requests.get(test_url, timeout=5)
+            result = response.json()
+            
+            # 检查高德API返回的status字段
+            # status='1' 表示成功，Key有效
+            # status='0' 表示失败，Key无效或其他错误
+            if result.get('status') == '1':
+                return jsonify({
+                    "success": True,
+                    "message": "API Key验证成功，该Key有效"
+                })
+            else:
+                # 获取错误信息
+                error_info = result.get('info', '未知错误')
+                return jsonify({
+                    "success": False,
+                    "message": f"API Key无效: {error_info}"
+                })
+                
+        except requests.exceptions.Timeout:
+            # 请求超时
+            return jsonify({
+                "success": False,
+                "message": "验证超时，请检查网络连接"
+            })
+        except requests.exceptions.RequestException as e:
+            # 网络错误
+            return jsonify({
+                "success": False,
+                "message": f"网络请求失败: {str(e)}"
+            })
+        except Exception as e:
+            # 其他异常
+            logging.error(f"[高德Key验证] 验证失败: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": f"验证失败: {str(e)}"
+            })
 
     @app.route('/health')
     def health():

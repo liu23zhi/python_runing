@@ -499,6 +499,114 @@
     body.swal2-shown:not(.swal2-toast-shown) {
       padding-right: 0; /* 强制移除 SweetAlert 添加的 padding */
     }
+
+    /* ============================================================ */
+    /* 任务29-30：移动端优化CSS */
+    /* 为移动设备提供更好的响应式体验和交互优化 */
+    /* ============================================================ */
+    
+    /* 针对屏幕宽度小于等于768px的设备（手机和小平板） */
+    @media (max-width: 768px) {
+      /* Modal弹窗优化：在小屏幕上占据更多空间 */
+      .modal-content,
+      .panel.rounded-2xl {
+        width: 90% !important;        /* 宽度调整为屏幕的90% */
+        max-width: 90% !important;    /* 最大宽度也设为90% */
+        margin: 0 auto;               /* 水平居中 */
+      }
+      
+      /* 按钮和可点击元素优化：确保足够大以便手指点击 */
+      button,
+      input[type="submit"],
+      input[type="button"],
+      .btn {
+        min-height: 44px;             /* iOS人机界面指南推荐的最小触摸目标高度 */
+        padding: 12px 16px;           /* 增加内边距，扩大点击区域 */
+        font-size: 16px;              /* 增大字体，提高可读性 */
+      }
+      
+      /* 文本输入框优化 */
+      input[type="text"],
+      input[type="email"],
+      input[type="password"],
+      input[type="tel"],
+      input[type="number"],
+      textarea,
+      select {
+        min-height: 44px;             /* 确保输入框足够高 */
+        font-size: 16px;              /* 防止iOS自动缩放页面（iOS在字体小于16px时会自动缩放） */
+        padding: 10px 12px;           /* 舒适的内边距 */
+      }
+      
+      /* 电话号码输入框特别优化：防止iOS Safari自动缩放 */
+      input[type="tel"] {
+        font-size: 16px !important;   /* 强制16px，防止iOS缩放 */
+      }
+      
+      /* 表单容器优化：在移动端堆叠显示 */
+      .flex.gap-3,
+      .flex.gap-4 {
+        flex-direction: column;       /* 纵向排列 */
+        gap: 12px;                    /* 调整间距 */
+      }
+      
+      /* 管理面板Tab优化：更大的点击区域 */
+      [class*="admin-tab"] {
+        padding: 14px 20px;           /* 增大Tab的内边距 */
+        font-size: 15px;              /* 增大字体 */
+      }
+      
+      /* 卡片和列表项优化 */
+      .border.rounded-lg {
+        padding: 16px;                /* 增大内边距 */
+      }
+      
+      /* 滚动容器优化：添加滚动指示 */
+      .overflow-y-auto {
+        -webkit-overflow-scrolling: touch;  /* iOS平滑滚动 */
+      }
+      
+      /* 头像显示优化 */
+      [id^="avatar-"] {
+        width: 48px;                  /* 在移动端缩小头像 */
+        height: 48px;
+      }
+      
+      /* 响应式网格：在移动端改为单列 */
+      .grid.grid-cols-2,
+      .grid.grid-cols-3,
+      .grid.grid-cols-4 {
+        grid-template-columns: 1fr;   /* 单列布局 */
+      }
+    }
+    
+    /* 针对超小屏幕（宽度小于480px） */
+    @media (max-width: 480px) {
+      /* 进一步优化Modal宽度 */
+      .modal-content,
+      .panel.rounded-2xl {
+        width: 95% !important;
+        max-width: 95% !important;
+        padding: 16px;                /* 减小内边距以节省空间 */
+      }
+      
+      /* 字体大小调整 */
+      h1, .text-xl { font-size: 20px; }
+      h2, .text-lg { font-size: 18px; }
+      h3, .text-base { font-size: 16px; }
+      
+      /* 按钮组优化：垂直堆叠 */
+      .flex.gap-1,
+      .flex.gap-2 {
+        flex-direction: column;
+        width: 100%;
+      }
+      
+      .flex.gap-1 > button,
+      .flex.gap-2 > button {
+        width: 100%;                  /* 按钮占满宽度 */
+      }
+    }
   </style>
 
 </head>
@@ -523,7 +631,12 @@
       <p style="margin-top: 1.5rem; font-size: 0.875rem; color: #64748b;">请检查网络后，完全关闭并重启本程序。如果问题持续存在，您可能需要更换网络环境。</p>
     </div>
   </div>
-  <div id="guest-warning-toast" class="fixed top-4 left-1/2 -translate-x-1/2 w-11/12 max-w-2xl p-5 z-[1050] rounded-2xl hidden shadow-2xl transition-all duration-300 ease-out border-4 border-red-500" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); transform: translate(-50%, -150%);">
+  
+  <!-- 游客警告遮罩层（背景变暗）-->
+  <div id="guest_warning_overlay" class="fixed inset-0 bg-black bg-opacity-50 z-[1000] hidden"></div>
+  
+  <!-- 游客警告弹窗（居中显示）-->
+  <div id="guest-warning-toast" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-11/12 max-w-2xl p-5 z-[1001] rounded-2xl hidden shadow-2xl transition-all duration-300 ease-out border-4 border-red-500" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);">
     <div class="flex items-start gap-4" id="guest_warning">
       <div class="flex-shrink-0 w-10 h-10 text-red-600 mt-1 animate-pulse">
         <svg fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -599,16 +712,51 @@
 
       <!-- 登录表单 -->
       <div id="auth-login-form" class="space-y-4">
+        <!-- 任务9: 手机号/用户名登录切换 -->
+        <div id="auth-login-type-toggle" class="flex justify-center gap-2 pb-2">
+          <button id="auth-login-username-btn" class="px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm">
+            用户名登录
+          </button>
+          <button id="auth-login-phone-btn" class="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm">
+            手机号登录
+          </button>
+        </div>
+        
         <div>
-          <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
+          <label class="block text-sm font-semibold leading-6 text-slate-700" id="auth-login-label">用户名</label>
           <input type="text" id="auth-username" class="input-field mt-1" placeholder="请输入用户名" autocomplete="username">
         </div>
-        <div>
-          <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
+        
+        <!-- 密码登录区域 -->
+        <div id="auth-password-section">
+          <div class="flex justify-between items-center">
+            <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
+            <button type="button" id="auth-switch-to-sms" class="text-xs text-sky-600 hover:text-sky-700 hidden">
+              使用验证码登录
+            </button>
+          </div>
           <input type="password" id="auth-password" class="input-field mt-1" placeholder="请输入密码"
             autocomplete="current-password">
         </div>
-        <button id="auth-login-btn" class="btn btn-primary w-full py-3">登录</button>
+        
+        <!-- 验证码登录区域（默认隐藏） -->
+        <div id="auth-sms-section" class="hidden">
+          <div class="flex justify-between items-center">
+            <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+            <button type="button" id="auth-switch-to-password" class="text-xs text-sky-600 hover:text-sky-700">
+              使用密码登录
+            </button>
+          </div>
+          <div class="flex gap-2 mt-1">
+            <input type="text" id="auth-sms-code" class="input-field flex-1" placeholder="请输入验证码"
+              maxlength="6" inputmode="numeric" pattern="[0-9]{6}">
+            <button type="button" id="auth-send-login-code" class="btn btn-primary whitespace-nowrap" style="min-height: 44px;">
+              发送验证码
+            </button>
+          </div>
+        </div>
+        
+        <button id="auth-login-btn" class="btn btn-primary w-full py-3" style="min-height: 44px;">登录</button>
         <div id="guest-login-section" class="text-center hidden">
           <div class="relative flex py-2 items-center">
             <div class="flex-grow border-t border-slate-200"></div>
@@ -639,11 +787,48 @@
 
       <!-- 注册表单 -->
       <div id="auth-register-form" class="hidden space-y-4">
+        <!-- 任务8: 用户名（禁止中文） -->
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
-          <input type="text" id="auth-reg-username" class="input-field mt-1" placeholder="请输入用户名（3-20字符）"
+          <input type="text" id="auth-reg-username" class="input-field mt-1" placeholder="请输入用户名（3-20字符，不含中文）"
             autocomplete="username">
         </div>
+        
+        <!-- 任务8: 手机号（type="tel"触控优化） -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">手机号</label>
+          <input type="tel" id="auth-reg-phone" class="input-field mt-1" placeholder="请输入手机号" 
+            autocomplete="tel" inputmode="numeric" pattern="[0-9]*">
+        </div>
+        
+        <!-- 任务8: 短信验证码 + 发送按钮 -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+          <div class="flex gap-2">
+            <input type="text" id="auth-reg-sms-code" class="input-field mt-1 flex-1" placeholder="请输入验证码"
+              maxlength="6" inputmode="numeric" pattern="[0-9]{6}">
+            <button id="auth-reg-send-code-btn" class="btn btn-primary mt-1 whitespace-nowrap" style="min-height: 44px;">
+              发送验证码
+            </button>
+          </div>
+        </div>
+        
+        <!-- 任务8: 昵称（允许中文） -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">昵称</label>
+          <input type="text" id="auth-reg-nickname" class="input-field mt-1" placeholder="请输入昵称（可含中文）">
+        </div>
+        
+        <!-- 任务8: 头像上传 -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">头像</label>
+          <div class="flex items-center gap-3 mt-1">
+            <img id="auth-reg-avatar-preview" src="/static/default_avatar.png" 
+              class="w-16 h-16 rounded-full object-cover border-2 border-slate-200">
+            <input type="file" id="auth-reg-avatar" accept="image/*" class="flex-1">
+          </div>
+        </div>
+        
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
           <input type="password" id="auth-reg-password" class="input-field mt-1" placeholder="请输入密码（至少6字符）"
@@ -654,7 +839,7 @@
           <input type="password" id="auth-reg-password-confirm" class="input-field mt-1" placeholder="请再次输入密码"
             autocomplete="new-password">
         </div>
-        <button id="auth-register-btn" class="btn btn-success w-full py-3">注册</button>
+        <button id="auth-register-btn" class="btn btn-success w-full py-3" style="min-height: 44px;">注册</button>
       </div>
 
       <!-- 2FA验证表单 -->
@@ -885,7 +1070,7 @@
             <div class="flex justify-between items-center border-t pt-2 mt-2">
               <h4 class="text-sm font-semibold text-slate-700">签到任务列表</h4>
               <button id="refresh-attendance-list-btn" class="btn btn-ghost !py-0 !px-2 !text-xs text-sky-600"
-                onclick="refreshNotificationsUI()">
+                onclick="refreshNotificationsUI(true, true)">
                 刷新
               </button>
             </div>
@@ -1265,6 +1450,10 @@
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
         <button id="admin-tab-messages_modal"
           class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">留言板</button>
+        <button id="admin-tab-ipban_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">IP封禁</button>
+        <button id="admin-tab-sms_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">短信配置</button>
       </div>
 
       <div class="overflow-y-auto overflow-x-hidden flex-grow min-h-0">
@@ -1352,7 +1541,11 @@
               <label class="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" id="health-auto-refresh-toggle"
                   class="w-4 h-4 accent-sky-600 rounded cursor-pointer" checked>
-                <span class="text-sm text-slate-600">自动刷新(5秒)</span>
+                <span class="text-sm text-slate-600">
+                  自动刷新(5秒)
+                  <!-- 任务23：倒计时显示 -->
+                  <span id="health-countdown-display" class="font-semibold text-sky-600"></span>
+                </span>
               </label>
               <button id="admin-refresh-health_modal" class="btn btn-ghost !py-1 !px-2">手动刷新</button>
             </div>
@@ -1389,6 +1582,28 @@
                 </button>
 
                 <!-- <p class="text-xs text-slate-500">💡 点击按钮选择图片以上传并更新头像</p> -->
+              </div>
+            </div>
+
+            <!-- 昵称和手机号 -->
+            <div class="border-t border-slate-200 pt-4">
+              <h5 class="font-semibold text-slate-700 mb-3">基本信息</h5>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">昵称</label>
+                  <input type="text" id="profile-nickname" class="input-field" placeholder="输入昵称">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">手机号</label>
+                  <div class="flex gap-2">
+                    <input type="tel" id="profile-phone" class="input-field flex-1" placeholder="输入手机号" readonly inputmode="numeric">
+                    <button onclick="modifyPhone()" id="profile-modify-phone-btn" class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap">
+                      修改手机号
+                    </button>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-1" id="profile-phone-hint">💡 修改手机号需要短信验证</p>
+                </div>
+                <button onclick="updateBasicInfo()" class="btn btn-primary">保存基本信息</button>
               </div>
             </div>
 
@@ -1487,6 +1702,133 @@
           <!-- 留言列表 -->
           <div id="admin-messages-list_modal" class="space-y-3 max-h-[50vh] overflow-y-auto">
             <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 任务14：用户日志查看Modal -->
+        <!-- 此组件允许管理员查看指定用户的登录记录和操作记录 -->
+        <!-- ============================================================ -->
+        <div id="admin-user-logs-modal" class="hidden space-y-4">
+          <h4 class="font-semibold">用户日志查看</h4>
+          
+          <!-- 显示当前查看的用户名 -->
+          <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
+            <p class="text-sm text-slate-700">
+              当前查看用户: <span id="current-log-username" class="font-semibold text-sky-600">N/A</span>
+            </p>
+          </div>
+
+          <!-- Tab切换按钮 -->
+          <div class="flex border-b border-slate-200">
+            <!-- 登录记录Tab按钮，默认激活状态 -->
+            <button id="log-tab-login" class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600">
+              登录记录
+            </button>
+            <!-- 操作记录Tab按钮，默认未激活 -->
+            <button id="log-tab-audit" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">
+              操作记录
+            </button>
+          </div>
+
+          <!-- 登录记录内容区域，默认显示 -->
+          <div id="log-login-content" class="space-y-2 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+
+          <!-- 操作记录内容区域，默认隐藏 -->
+          <div id="log-audit-content" class="hidden space-y-2 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+
+          <!-- 返回按钮 -->
+          <div class="flex justify-end">
+            <button onclick="closeUserLogsModal()" class="btn btn-ghost">返回</button>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 任务18：IP封禁管理Modal -->
+        <!-- ============================================================ -->
+        <div id="admin-ip-ban-modal" class="hidden space-y-4">
+          <h4 class="font-semibold">IP封禁管理</h4>
+          
+          <!-- 封禁列表 -->
+          <div id="ip-ban-list" class="space-y-2 max-h-[40vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+          
+          <!-- 添加封禁规则表单 -->
+          <div class="border-t pt-4">
+            <h5 class="font-semibold mb-2">添加封禁规则</h5>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input type="text" id="ban-target" class="border rounded px-2 py-1" placeholder="IP/IP段/城市名">
+              <select id="ban-type" class="border rounded px-2 py-1">
+                <option value="ip">单个IP</option>
+                <option value="cidr">IP段(CIDR)</option>
+                <option value="city">城市</option>
+              </select>
+              <select id="ban-scope" class="border rounded px-2 py-1">
+                <option value="all">封禁所有功能</option>
+                <option value="messages_only">仅封禁留言板</option>
+              </select>
+            </div>
+            <button onclick="addIPBan()" class="btn btn-primary mt-2 min-h-[44px]">添加封禁</button>
+          </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- 任务20：短信服务配置Modal -->
+        <!-- ============================================================ -->
+        <div id="admin-sms-config-modal" class="hidden space-y-4">
+          <h4 class="font-semibold">短信服务配置</h4>
+          
+          <div class="space-y-3">
+            <!-- 全局开关 -->
+            <label class="flex items-center gap-2">
+              <input type="checkbox" id="sms-enabled" class="w-4 h-4">
+              <span>启用短信服务</span>
+            </label>
+            
+            <!-- 短信宝配置 -->
+            <div class="border-t pt-3">
+              <h5 class="font-semibold mb-2">短信宝配置</h5>
+              <div class="space-y-2">
+                <input type="text" id="sms-username" class="w-full border rounded px-2 py-1" placeholder="短信宝用户名">
+                <input type="password" id="sms-apikey" class="w-full border rounded px-2 py-1" placeholder="短信宝API Key">
+                <input type="text" id="sms-signature" class="w-full border rounded px-2 py-1" placeholder="短信签名(3-12字)" maxlength="12">
+                <textarea id="sms-template" class="w-full border rounded px-2 py-1" rows="3" placeholder="短信模板，使用{code}作为验证码占位符，{minutes}作为有效期分钟数"></textarea>
+                <input type="number" id="sms-code-expire" class="w-full border rounded px-2 py-1" placeholder="验证码有效期（分钟），默认5分钟" min="1" max="60">
+              </div>
+            </div>
+            
+            <!-- 速率限制 -->
+            <div class="border-t pt-3">
+              <h5 class="font-semibold mb-2">速率限制</h5>
+              <div class="grid grid-cols-3 gap-2">
+                <input type="number" id="sms-limit-account" class="border rounded px-2 py-1" placeholder="账户/天">
+                <input type="number" id="sms-limit-ip" class="border rounded px-2 py-1" placeholder="IP/天">
+                <input type="number" id="sms-limit-phone" class="border rounded px-2 py-1" placeholder="手机号/天">
+              </div>
+            </div>
+            
+            <!-- Webhook URL -->
+            <div class="border-t pt-3">
+              <h5 class="font-semibold mb-2">Webhook URL</h5>
+              <input type="text" id="sms-webhook-url" class="w-full border rounded px-2 py-1 bg-slate-100" readonly>
+              <p class="text-xs text-slate-500 mt-1">将此URL配置到短信宝后台以接收用户回复</p>
+            </div>
+            
+            <!-- 操作按钮 -->
+            <div class="flex gap-2 border-t pt-3">
+              <button onclick="checkSMSBalance()" class="btn btn-ghost min-h-[44px]">查询余额</button>
+              <button onclick="saveSMSConfig()" class="btn btn-primary min-h-[44px]">保存配置</button>
+            </div>
+            
+            <!-- 余额显示 -->
+            <div id="sms-balance-display" class="hidden border p-2 rounded bg-blue-50">
+              <p class="text-sm">余额：<span id="sms-balance-value">--</span> 条</p>
+            </div>
           </div>
         </div>
       </div>
@@ -3292,6 +3634,13 @@
       'send_notifications': '发送通知',
       'manage_notifications': '管理通知',
 
+      // 留言板权限 (任务17)
+      'view_messages': '查看留言板',
+      'post_messages': '发表留言',
+      'delete_own_messages': '删除自己的留言',
+      'delete_any_messages': '删除任何留言',
+      'view_all_messages': '查看所有留言',
+
       // 其他
       'admin_panel': '管理面板',
       'debug_mode': '调试模式'
@@ -3409,6 +3758,15 @@
 
     // 处理主管理面板模态框的标签切换
     function switchAdminTab(tab) {
+      // ============================================================
+      // 任务12：管理面板角色隔离
+      // 根据用户组权限控制Tab的显示/隐藏
+      // ============================================================
+      
+      // 获取当前用户的用户组信息（从全局变量currentUserData中读取）
+      // currentUserData应在用户登录时被填充，包含username、group等字段
+      const userGroup = currentUserData?.group || 'user'; // 默认为普通用户（'user'）
+      
       // 获取主模态框内的标签按钮和内容面板的引用 (使用 _modal 后缀)
       const usersTab = $('admin-tab-users_modal');
       const groupsTab = $('admin-tab-groups_modal');
@@ -3417,6 +3775,8 @@
       const profileTab = $('admin-tab-profile_modal');
       const sessionsTab = $('admin-tab-sessions_modal');
       const messagesTab = $('admin-tab-messages_modal');
+      const ipbanTab = $('admin-tab-ipban_modal');
+      const smsTab = $('admin-tab-sms_modal');
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
       const logsPanel = $('admin-logs-panel_modal');
@@ -3424,6 +3784,33 @@
       const profilePanel = $('admin-profile-panel_modal');
       const sessionsPanel = $('admin-sessions-panel_modal');
       const messagesPanel = $('admin-messages-panel_modal');
+      const ipbanPanel = $('admin-ip-ban-modal');
+      const smsPanel = $('admin-sms-config-modal');
+
+      // 根据用户组进行权限隔离
+      // 如果是普通用户（'user'），只显示健康状态和留言板，隐藏用户组管理
+      if (userGroup === 'user') {
+        // 隐藏用户组管理Tab（普通用户无权查看）
+        if (groupsTab) groupsTab.style.display = 'none';
+        // 显示健康状态Tab（普通用户可查看系统健康状况）
+        if (healthTab) healthTab.style.display = 'block';
+        // 显示留言板Tab（普通用户可发表和查看留言）
+        if (messagesTab) messagesTab.style.display = 'block';
+        // 隐藏管理员专用Tab
+        if (ipbanTab) ipbanTab.style.display = 'none';
+        if (smsTab) smsTab.style.display = 'none';
+      } else if (userGroup === 'admin' || userGroup === 'super_admin') {
+        // 管理员和超级管理员可以看到所有Tab，确保全部显示
+        if (groupsTab) groupsTab.style.display = 'block';
+        if (healthTab) healthTab.style.display = 'block';
+        if (messagesTab) messagesTab.style.display = 'block';
+        if (usersTab) usersTab.style.display = 'block';
+        if (logsTab) logsTab.style.display = 'block';
+        if (profileTab) profileTab.style.display = 'block';
+        if (sessionsTab) sessionsTab.style.display = 'block';
+        if (ipbanTab) ipbanTab.style.display = 'block';
+        if (smsTab) smsTab.style.display = 'block';
+      }
 
       // 防御性编程：检查核心元素是否存在
       if (!sessionsTab || !sessionsPanel) {
@@ -3432,13 +3819,13 @@
       }
 
       // 重置所有标签按钮的样式
-      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab].filter(t => t).forEach(t => {
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab].filter(t => t).forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
       // 隐藏所有内容面板
-      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel].filter(p => p).forEach(p => {
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel].filter(p => p).forEach(p => {
         p.classList.add('hidden');
       });
 
@@ -3491,6 +3878,24 @@
           messagesTab.classList.remove('text-slate-400', 'border-transparent');
           messagesPanel.classList.remove('hidden');
           loadMessages();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
+      } else if (tab === 'ipban') {
+        if (ipbanTab && ipbanPanel) {
+          ipbanTab.classList.add('text-sky-600', 'border-sky-600');
+          ipbanTab.classList.remove('text-slate-400', 'border-transparent');
+          ipbanPanel.classList.remove('hidden');
+          loadIPBans();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
+      } else if (tab === 'sms') {
+        if (smsTab && smsPanel) {
+          smsTab.classList.add('text-sky-600', 'border-sky-600');
+          smsTab.classList.remove('text-slate-400', 'border-transparent');
+          smsPanel.classList.remove('hidden');
+          loadSMSConfig();
           // 停止健康状态自动刷新
           stopHealthAutoRefresh();
         }
@@ -3786,6 +4191,16 @@
       }
     }
 
+    // ============================================================
+    // 任务23：健康面板倒计时功能
+    // 在自动刷新时显示倒计时，让用户知道下次刷新的时间
+    // ============================================================
+    
+    // 全局变量：倒计时定时器
+    let healthCountdownInterval = null;
+    // 全局变量：当前倒计时秒数
+    let healthCountdownSeconds = 5;
+    
     // 启动健康状态自动刷新
     function startHealthAutoRefresh() {
       // 先清除已有的定时器
@@ -3797,23 +4212,67 @@
         return;
       }
 
-      // 设置5秒间隔的定时器
+      // 重置倒计时
+      healthCountdownSeconds = 5;
+      updateHealthCountdown();
+      
+      // 启动倒计时显示（每秒更新一次）
+      healthCountdownInterval = setInterval(() => {
+        healthCountdownSeconds--;
+        updateHealthCountdown();
+        
+        // 倒计时结束时重置为5秒
+        if (healthCountdownSeconds <= 0) {
+          healthCountdownSeconds = 5;
+        }
+      }, 1000);
+      
+      // 设置5秒间隔的定时器进行实际刷新
       healthAutoRefreshInterval = setInterval(() => {
         // 再次检查开关状态，防止用户关闭后仍在刷新
         const toggle = $('health-auto-refresh-toggle');
         if (toggle && toggle.checked) {
           loadHealthStatus();
+          // 刷新后重置倒计时
+          healthCountdownSeconds = 5;
         } else {
           stopHealthAutoRefresh();
         }
       }, 5000);
     }
+    
+    /**
+     * 更新倒计时显示
+     * 在页面上显示距离下次刷新还有多少秒
+     */
+    function updateHealthCountdown() {
+      const countdownDisplay = $('health-countdown-display');
+      if (countdownDisplay) {
+        // 如果倒计时大于0，显示剩余秒数；否则显示"刷新中..."
+        if (healthCountdownSeconds > 0) {
+          countdownDisplay.textContent = ` - ${healthCountdownSeconds}秒后刷新`;
+        } else {
+          countdownDisplay.textContent = ' - 刷新中...';
+        }
+      }
+    }
 
     // 停止健康状态自动刷新
     function stopHealthAutoRefresh() {
+      // 清除刷新定时器
       if (healthAutoRefreshInterval) {
         clearInterval(healthAutoRefreshInterval);
         healthAutoRefreshInterval = null;
+      }
+      // 任务23：清除倒计时定时器
+      if (healthCountdownInterval) {
+        clearInterval(healthCountdownInterval);
+        healthCountdownInterval = null;
+      }
+      // 清除倒计时显示
+      const countdownDisplay = $('health-countdown-display');
+      if (countdownDisplay) {
+        countdownDisplay.textContent = '';
       }
     }
 
@@ -4151,6 +4610,56 @@
         logMessage_Error("上传头像失败:", e);
         showModalAlert(`上传失败: ${e.message}\n\n⚠️ 此功能需要后端API /auth/user/upload_avatar 支持`, '错误');
       }
+    }
+
+    // 更新基本信息（昵称和手机号）
+    async function updateBasicInfo() {
+      const nickname = $('profile-nickname');
+      const phone = $('profile-phone');
+      
+      if (!nickname || !phone) return;
+      
+      if (!nickname.value.trim()) {
+        showModalAlert('昵称不能为空', '提示');
+        return;
+      }
+      
+      if (!currentAuthUsername) {
+        showModalAlert('无法获取当前用户信息，请重新加载', '错误');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/admin/users/' + encodeURIComponent(currentAuthUsername), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            nickname: nickname.value.trim()
+          })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert('基本信息更新成功', '成功');
+        } else {
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+      } catch (error) {
+        logMessage_Error('更新基本信息失败', error);
+        showModalAlert('网络错误，请稍后重试', '错误');
+      }
+    }
+    
+    // 修改手机号
+    async function modifyPhone() {
+      showModalAlert('修改手机号功能需要短信验证，当前版本暂未开放', '提示');
+      // TODO: 实现修改手机号流程
+      // 1. 发送验证码到新手机号
+      // 2. 输入验证码
+      // 3. 更新手机号
     }
 
     async function updatePassword() {
@@ -4656,6 +5165,7 @@
               <span class="text-xs text-slate-600">权限组:</span>
               ${groupSelect}
               <div class="flex gap-1 mt-2 flex-wrap justify-end">
+                <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${user.auth_username}')">查看日志</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
                 <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${user.auth_username}')">重置密码</button>
@@ -5314,13 +5824,22 @@
           const isSystemGroup = group.system || ['guest', 'user', 'admin', 'super_admin'].includes(groupKey);
           const systemBadge = isSystemGroup ? '<span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full ml-2">系统预设</span>' : '';
 
+          // ============================================================
+          // 任务13：权限组Bug修复（URL编码和HTML转义）
+          // 对groupKey进行HTML转义，防止XSS攻击和特殊字符问题
+          // ============================================================
+          // 将单引号和双引号转义，确保在HTML属性中安全使用
+          const escapedGroupKey = groupKey.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+          // 对于显示的文本，也进行HTML实体转义
+          const displayGroupKey = groupKey.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
           return `
         <div class="border border-slate-200 rounded-lg p-4 mb-2">
           <div class="flex justify-between items-start mb-2">
-            <h5 class="font-semibold text-slate-800">${group.name} (${groupKey})${systemBadge}</h5>
+            <h5 class="font-semibold text-slate-800">${group.name} (${displayGroupKey})${systemBadge}</h5>
             <div class="flex gap-2">
-              <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="editGroupPermissions('${groupKey}')">编辑权限</button>
-              ${!isSystemGroup ? `<button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteGroup('${groupKey}')">删除</button>` : ''}
+              <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="editGroupPermissions('${escapedGroupKey}')">编辑权限</button>
+              ${!isSystemGroup ? `<button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteGroup('${escapedGroupKey}')">删除</button>` : ''}
             </div>
           </div>
           <div class="grid grid-cols-2 gap-2 text-sm">
@@ -5529,29 +6048,52 @@
         const currentUsername = currentUserData?.username;
 
         const html = messages.map(msg => {
-          const isOwnMessage = !msg.is_guest && msg.username === currentUsername;
+          // 判断是否为当前用户的留言
+          const isOwnMessage = !msg.is_guest && (msg.username === currentUsername || msg.auth_username === currentUsername);
+          // 检查删除权限
           const canDelete = canDeleteAny || (canDeleteOwn && isOwnMessage);
-          const displayName = msg.is_guest ? msg.nickname : msg.username;
+          // 显示名称：优先使用nickname，其次username或auth_username
+          const displayName = msg.nickname || msg.username || msg.auth_username || '匿名';
+          // 格式化时间戳为本地时间
           const date = new Date(msg.timestamp * 1000);
           const dateStr = date.toLocaleString('zh-CN');
+          // 获取头像URL，如果没有则使用默认头像
+          const avatarUrl = msg.avatar_url || 'default_avatar.png';
+          // 获取IP归属地，如果没有则不显示
+          const ipCity = msg.ip_city || '';
 
+          // ============================================================
+          // 任务16：修改留言渲染以显示头像、昵称和IP归属地
+          // ============================================================
           return `
             <div class="bg-white border border-slate-200 rounded-lg p-4 space-y-2">
-              <div class="flex justify-between items-start">
-                <div class="flex-1">
-                  <div class="flex items-center gap-2">
-                    <span class="font-semibold text-slate-700">${displayName}</span>
-                    ${msg.is_guest ? '<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">游客</span>' : ''}
+              <div class="flex justify-between items-start gap-3">
+                <!-- 左侧：头像和用户信息 -->
+                <div class="flex gap-3 flex-1">
+                  <!-- 用户头像 -->
+                  <div class="flex-shrink-0 w-12 h-12 rounded-full bg-slate-200 overflow-hidden border-2 border-slate-300">
+                    <img src="/api/avatar/${avatarUrl}" alt="头像" class="w-full h-full object-cover"
+                      onerror="this.parentElement.innerHTML='<span class=\\'text-2xl text-slate-400\\'>👤</span>'; this.parentElement.classList.add('flex', 'items-center', 'justify-center');">
                   </div>
-                  ${msg.email ? `<p class="text-xs text-slate-500">${msg.email}</p>` : ''}
-                  <p class="text-xs text-slate-400">${dateStr}</p>
+                  <!-- 用户信息 -->
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-semibold text-slate-700">${escapeHtml(displayName)}</span>
+                      ${msg.is_guest ? '<span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">游客</span>' : ''}
+                      ${ipCity ? `<span class="text-xs text-slate-500">来自 ${escapeHtml(ipCity)}</span>` : ''}
+                    </div>
+                    ${msg.email ? `<p class="text-xs text-slate-500">${escapeHtml(msg.email)}</p>` : ''}
+                    <p class="text-xs text-slate-400">${dateStr}</p>
+                  </div>
                 </div>
+                <!-- 右侧：删除按钮 -->
                 ${canDelete ? `
                   <button class="btn btn-ghost !py-1 !px-2 !text-red-600 text-xs" 
                     onclick="deleteMessage('${msg.id}')">删除</button>
                 ` : ''}
               </div>
-              <p class="text-slate-700 whitespace-pre-wrap break-words">${escapeHtml(msg.content)}</p>
+              <!-- 留言内容 -->
+              <p class="text-slate-700 whitespace-pre-wrap break-words pl-15">${escapeHtml(msg.content)}</p>
             </div>
           `;
         }).join('');
@@ -5662,6 +6204,358 @@
       } catch (e) {
         logMessage_Error('删除留言失败:', e);
         showModalAlert('删除留言失败: ' + e.message, '错误');
+      }
+    }
+
+    // ============================================================
+    // 任务14：用户日志查看功能
+    // 提供查看用户登录记录和操作记录的功能
+    // ============================================================
+
+    /**
+     * 显示用户日志Modal并加载登录记录
+     * @param {string} username - 要查看日志的用户名
+     */
+    function showUserLogs(username) {
+      // 隐藏用户列表面板
+      const usersPanel = $('admin-users-panel_modal');
+      if (usersPanel) usersPanel.classList.add('hidden');
+      
+      // 显示用户日志面板
+      const logsModal = $('admin-user-logs-modal');
+      if (!logsModal) {
+        logMessage_Error('用户日志Modal不存在');
+        return;
+      }
+      logsModal.classList.remove('hidden');
+      
+      // 设置当前查看的用户名
+      const usernameDisplay = $('current-log-username');
+      if (usernameDisplay) usernameDisplay.textContent = username;
+      
+      // 重置Tab状态（显示登录记录）
+      const loginTab = $('log-tab-login');
+      const auditTab = $('log-tab-audit');
+      const loginContent = $('log-login-content');
+      const auditContent = $('log-audit-content');
+      
+      if (loginTab) {
+        loginTab.classList.add('text-sky-600', 'border-sky-600');
+        loginTab.classList.remove('text-slate-400', 'border-transparent');
+      }
+      if (auditTab) {
+        auditTab.classList.add('text-slate-400', 'border-transparent');
+        auditTab.classList.remove('text-sky-600', 'border-sky-600');
+      }
+      if (loginContent) loginContent.classList.remove('hidden');
+      if (auditContent) auditContent.classList.add('hidden');
+      
+      // 加载登录记录
+      loadUserLoginLogs(username);
+    }
+
+    /**
+     * 加载用户的登录记录
+     * @param {string} username - 用户名
+     */
+    async function loadUserLoginLogs(username) {
+      const content = $('log-login-content');
+      if (!content) return;
+      
+      // 显示加载中状态
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      
+      try {
+        // 调用后端API获取登录记录，使用encodeURIComponent对用户名进行URL编码
+        const response = await fetch(`/api/admin/logs/login_history?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.logs && data.logs.length > 0) {
+          // 渲染登录记录列表
+          content.innerHTML = data.logs.map(log => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-slate-700">
+                    登录时间: ${log.timestamp || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    IP地址: ${log.ip || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    设备信息: ${log.user_agent || 'N/A'}
+                  </p>
+                  ${log.location ? `<p class="text-sm text-slate-600 mt-1">位置: ${log.location}</p>` : ''}
+                </div>
+                <div class="text-xs px-2 py-1 rounded ${log.status === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                  ${log.status === 'success' ? '成功' : '失败'}
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          // 没有记录时显示提示
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无登录记录</p>';
+        }
+      } catch (e) {
+        logMessage_Error('加载登录记录失败:', e);
+        content.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    /**
+     * 加载用户的操作审计记录
+     * @param {string} username - 用户名
+     */
+    async function loadUserAuditLogs(username) {
+      const content = $('log-audit-content');
+      if (!content) return;
+      
+      // 显示加载中状态
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      
+      try {
+        // 调用后端API获取操作记录，使用encodeURIComponent对用户名进行URL编码
+        const response = await fetch(`/api/admin/logs/audit?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.logs && data.logs.length > 0) {
+          // 渲染操作记录列表
+          content.innerHTML = data.logs.map(log => `
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="flex justify-between items-start">
+                <div class="flex-1">
+                  <p class="text-sm font-semibold text-slate-700">
+                    ${log.timestamp || 'N/A'}
+                  </p>
+                  <p class="text-sm text-slate-600 mt-1">
+                    操作: ${log.action || 'N/A'}
+                  </p>
+                  ${log.details ? `<p class="text-sm text-slate-500 mt-1">${log.details}</p>` : ''}
+                  ${log.ip ? `<p class="text-xs text-slate-400 mt-1">IP: ${log.ip}</p>` : ''}
+                </div>
+                ${log.result ? `
+                  <div class="text-xs px-2 py-1 rounded ${log.result === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                    ${log.result === 'success' ? '成功' : '失败'}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `).join('');
+        } else {
+          // 没有记录时显示提示
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无操作记录</p>';
+        }
+      } catch (e) {
+        logMessage_Error('加载操作记录失败:', e);
+        content.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    /**
+     * 关闭用户日志Modal，返回用户列表
+     */
+    function closeUserLogsModal() {
+      // 隐藏日志面板
+      const logsModal = $('admin-user-logs-modal');
+      if (logsModal) logsModal.classList.add('hidden');
+      
+      // 显示用户列表面板
+      const usersPanel = $('admin-users-panel_modal');
+      if (usersPanel) usersPanel.classList.remove('hidden');
+    }
+
+    // ====================
+    // 任务18：IP封禁管理函数
+    // ====================
+    
+    /**
+     * 加载IP封禁列表
+     */
+    async function loadIPBans() {
+      try {
+        const response = await fetch('/api/admin/ip_bans', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        const listEl = $('ip-ban-list');
+        if (result.success && result.bans && result.bans.length > 0) {
+          listEl.innerHTML = result.bans.map(ban => `
+            <div class="border p-2 rounded flex justify-between items-center">
+              <div>
+                <span class="font-semibold">${escapeHtml(ban.target)}</span>
+                <span class="text-xs text-slate-500 ml-2">[${ban.type}]</span>
+                <span class="text-xs text-slate-500 ml-2">${ban.scope === 'all' ? '全部' : '仅留言板'}</span>
+              </div>
+              <button onclick="removeIPBan('${ban.id}')" class="btn btn-danger !py-1 !px-2 !text-xs min-h-[44px]">删除</button>
+            </div>
+          `).join('');
+        } else {
+          listEl.innerHTML = '<p class="text-center py-4">暂无封禁规则</p>';
+        }
+      } catch (e) {
+        showModalAlert('加载失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 添加IP封禁规则
+     */
+    async function addIPBan() {
+      const target = $('ban-target').value.trim();
+      const type = $('ban-type').value;
+      const scope = $('ban-scope').value;
+      
+      if (!target) {
+        showModalAlert('请输入封禁目标');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/admin/ip_bans', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ target, type, scope })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert('封禁规则已添加');
+          $('ban-target').value = '';
+          loadIPBans();
+        } else {
+          showModalAlert(result.message || '添加失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 删除IP封禁规则
+     */
+    async function removeIPBan(banId) {
+      const confirmed = await jsShowConfirm('确认删除', '确定要删除此封禁规则吗？');
+      if (!confirmed) return;
+      
+      try {
+        const response = await fetch(`/api/admin/ip_bans/${banId}`, {
+          method: 'DELETE',
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert('封禁规则已删除');
+          loadIPBans();
+        } else {
+          showModalAlert(result.message || '删除失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
+      }
+    }
+
+    // ====================
+    // 任务20：短信服务配置函数
+    // ====================
+    
+    /**
+     * 加载短信服务配置
+     */
+    async function loadSMSConfig() {
+      try {
+        const response = await fetch('/api/admin/sms/config', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          $('sms-enabled').checked = result.config.enable_sms_service || false;
+          $('sms-username').value = result.config.username || '';
+          $('sms-apikey').value = result.config.api_key || '';
+          $('sms-signature').value = result.config.signature || '';
+          $('sms-template').value = result.config.template_register || '';
+          $('sms-code-expire').value = result.config.code_expire_minutes || 5;
+          $('sms-limit-account').value = result.config.rate_limit_per_account_day || 10;
+          $('sms-limit-ip').value = result.config.rate_limit_per_ip_day || 20;
+          $('sms-limit-phone').value = result.config.rate_limit_per_phone_day || 5;
+          $('sms-webhook-url').value = `${window.location.origin}/sms-reply-webhook`;
+        }
+      } catch (e) {
+        showModalAlert('加载配置失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 保存短信服务配置
+     */
+    async function saveSMSConfig() {
+      const config = {
+        enable_sms_service: $('sms-enabled').checked,
+        username: $('sms-username').value.trim(),
+        api_key: $('sms-apikey').value.trim(),
+        signature: $('sms-signature').value.trim(),
+        template_register: $('sms-template').value.trim(),
+        code_expire_minutes: parseInt($('sms-code-expire').value) || 5,
+        rate_limit_per_account_day: parseInt($('sms-limit-account').value) || 10,
+        rate_limit_per_ip_day: parseInt($('sms-limit-ip').value) || 20,
+        rate_limit_per_phone_day: parseInt($('sms-limit-phone').value) || 5
+      };
+      
+      try {
+        const response = await fetch('/api/admin/sms/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify(config)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          showModalAlert('配置已保存');
+        } else {
+          showModalAlert(result.message || '保存失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 查询短信余额
+     */
+    async function checkSMSBalance() {
+      try {
+        const response = await fetch('/api/admin/sms/check_balance', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          $('sms-balance-value').textContent = result.balance;
+          $('sms-balance-display').classList.remove('hidden');
+        } else {
+          showModalAlert(result.message || '查询失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
       }
     }
 
@@ -6939,10 +7833,13 @@
             // );
 
             const guestToast = $('guest-warning-toast');
+            const guestOverlay = $('guest_warning_overlay');
             if (guestToast) {
+              // 同时显示遮罩层和弹窗
+              if (guestOverlay) {
+                guestOverlay.classList.remove('hidden');
+              }
               guestToast.classList.remove('hidden');
-              // 添加一个小的弹出动画
-              setTimeout(() => guestToast.style.transform = 'translate(-50%, 0)', 100);
             }
 
           }
@@ -7712,7 +8609,7 @@
     });
 
     $('mark-all-read-btn').addEventListener('click', markAllAsRead);
-    $('refresh-notifications-btn').addEventListener('click', refreshNotificationsUI);
+    $('refresh-notifications-btn').addEventListener('click', () => refreshNotificationsUI(true, true)); // 手动刷新
 
     $('multi-download-template-btn').addEventListener('click', multi_downloadTemplate);
 
@@ -8227,19 +9124,97 @@
     $('admin-tab-profile_modal')?.addEventListener('click', () => switchAdminTab('profile'));
     $('admin-tab-sessions_modal')?.addEventListener('click', () => switchAdminTab('sessions'));
     $('admin-tab-messages_modal')?.addEventListener('click', () => switchAdminTab('messages'));
+    $('admin-tab-ipban_modal')?.addEventListener('click', () => switchAdminTab('ipban'));
+    $('admin-tab-sms_modal')?.addEventListener('click', () => switchAdminTab('sms'));
+
+    // ============================================================
+    // 任务14：用户日志Tab切换事件监听器
+    // 为登录记录和操作记录Tab添加点击事件
+    // ============================================================
+    
+    // 登录记录Tab点击事件：切换到登录记录视图
+    const loginTabBtn = $('log-tab-login');
+    if (loginTabBtn) {
+      loginTabBtn.addEventListener('click', () => {
+        // 激活登录记录Tab样式
+        loginTabBtn.classList.add('text-sky-600', 'border-sky-600');
+        loginTabBtn.classList.remove('text-slate-400', 'border-transparent');
+        
+        // 取消激活操作记录Tab样式
+        const auditTabBtn = $('log-tab-audit');
+        if (auditTabBtn) {
+          auditTabBtn.classList.remove('text-sky-600', 'border-sky-600');
+          auditTabBtn.classList.add('text-slate-400', 'border-transparent');
+        }
+        
+        // 显示登录记录内容，隐藏操作记录内容
+        const loginContent = $('log-login-content');
+        const auditContent = $('log-audit-content');
+        if (loginContent) loginContent.classList.remove('hidden');
+        if (auditContent) auditContent.classList.add('hidden');
+        
+        // 重新加载登录记录（如果需要）
+        const username = $('current-log-username')?.textContent;
+        if (username && username !== 'N/A') {
+          loadUserLoginLogs(username);
+        }
+      });
+    }
+    
+    // 操作记录Tab点击事件：切换到操作记录视图
+    const auditTabBtn = $('log-tab-audit');
+    if (auditTabBtn) {
+      auditTabBtn.addEventListener('click', () => {
+        // 激活操作记录Tab样式
+        auditTabBtn.classList.add('text-sky-600', 'border-sky-600');
+        auditTabBtn.classList.remove('text-slate-400', 'border-transparent');
+        
+        // 取消激活登录记录Tab样式
+        const loginTabBtn = $('log-tab-login');
+        if (loginTabBtn) {
+          loginTabBtn.classList.remove('text-sky-600', 'border-sky-600');
+          loginTabBtn.classList.add('text-slate-400', 'border-transparent');
+        }
+        
+        // 显示操作记录内容，隐藏登录记录内容
+        const loginContent = $('log-login-content');
+        const auditContent = $('log-audit-content');
+        if (loginContent) loginContent.classList.add('hidden');
+        if (auditContent) auditContent.classList.remove('hidden');
+        
+        // 加载操作记录
+        const username = $('current-log-username')?.textContent;
+        if (username && username !== 'N/A') {
+          loadUserAuditLogs(username);
+        }
+      });
+    }
 
     // 留言板刷新按钮
     $('admin-refresh-messages_modal')?.addEventListener('click', loadMessages);
     // 绑定游客提示弹窗的关闭按钮
         const guestWarningCloseBtn = $('guest-warning-close-btn');
+        const guestWarningOverlay = $('guest_warning_overlay');
         if (guestWarningCloseBtn) {
           guestWarningCloseBtn.addEventListener('click', () => {
             const guestToast = $('guest-warning-toast');
+            // 同时隐藏弹窗和遮罩层
             if (guestToast) {
-              // 添加滑出动画
-              guestToast.style.transform = 'translate(-50%, 150%)';
-              setTimeout(() => guestToast.classList.add('hidden'), 300);
+              guestToast.classList.add('hidden');
             }
+            if (guestWarningOverlay) {
+              guestWarningOverlay.classList.add('hidden');
+            }
+          });
+        }
+        // 点击遮罩层也可以关闭弹窗
+        if (guestWarningOverlay) {
+          guestWarningOverlay.addEventListener('click', () => {
+            const guestToast = $('guest-warning-toast');
+            if (guestToast) {
+              guestToast.classList.add('hidden');
+            }
+            guestWarningOverlay.classList.add('hidden');
           });
         }
 
@@ -8598,6 +9573,57 @@
       }
     }
 
+    /**
+     * 任务24: 计算账户的状态文本（status_text）
+     * 根据only_incomplete和ignore_task_time参数，计算可执行任务数量
+     * @param {Object} account - 账户对象，包含tasks数组
+     * @param {boolean} onlyIncomplete - 是否只统计未完成任务
+     * @param {boolean} ignoreTaskTime - 是否忽略任务时间限制
+     * @returns {string} 状态文本，如"有3个任务可执行"或"无任务可执行"
+     */
+    function calculateStatusText(account, onlyIncomplete = false, ignoreTaskTime = false) {
+      if (!account || !account.tasks || !Array.isArray(account.tasks)) {
+        return '无任务数据';
+      }
+
+      let executableCount = 0;
+      const now = new Date();
+      
+      account.tasks.forEach(task => {
+        // 如果only_incomplete=true，跳过已完成的任务（status=1）
+        if (onlyIncomplete && task.status === 1) {
+          return;
+        }
+        
+        // 检查任务是否已过期
+        const isExpired = task.info_text === '已过期';
+        if (isExpired) {
+          return; // 过期任务不可执行
+        }
+        
+        // 如果ignore_task_time=false，需要检查任务时间窗口
+        if (!ignoreTaskTime) {
+          // 检查任务是否在可执行时间窗口内
+          if (task.start_time && task.end_time) {
+            const startTime = new Date(task.start_time);
+            const endTime = new Date(task.end_time);
+            if (now < startTime || now > endTime) {
+              return; // 不在时间窗口内
+            }
+          }
+        }
+        
+        // 满足条件，计入可执行任务
+        executableCount++;
+      });
+      
+      // 返回状态文本
+      if (executableCount === 0) {
+        return '无任务可执行';
+      } else {
+        return `有${executableCount}个任务可执行`;
+      }
+    }
 
     function renderMultiAccountList(accounts) {
       const listDiv = $('multi-account-list');
@@ -8901,6 +9927,7 @@
         '任务已完成',
         '全部完成',
         '无任务可执行',
+        '无可执行任务',  // 任务25: no_tasks_run状态（所有任务因无打卡点跳过）
         '已停止',
         '已中止',
         '待命'
@@ -9272,6 +10299,19 @@
         btn.innerHTML = '录制路径'; btn.classList.remove('btn-danger'); btn.classList.add('btn-success');
         $('map-container').classList.remove('drawing');
         pendingUnlockMap = true; isPathDrawing = false; if (drawingInfoMarker) drawingInfoMarker.hide();
+        
+        // ========== 任务26：路径距离校验 ==========
+        // 检查路径总距离是否超过50km（50000米）
+        if (draftTotalDist > 50000) {
+          showModalAlert('路径过长（>' + (draftTotalDist / 1000).toFixed(2) + 'km > 50km），请重新录制');
+          discardBlackDraftPolyline(); // 拒绝保存并清除路径
+          logMessage_Warn(`路径录制失败：距离${(draftTotalDist / 1000).toFixed(2)}km超过50km限制`);
+          currentRunData.target_sequence = 0; draftTotalDist = 0;
+          updateDashboard(); drawMarkers(); resetMapView();
+          return; // 拒绝保存
+        }
+        // ==========================================
+        
         const totalTargets = (currentRunData.target_points?.length || 0);
         const inLastZone = totalTargets > 0 && currentRunData.target_sequence >= totalTargets && currentRunData.isInTargetZone === true;
         if (inLastZone) { if (draftPath.length > 0) callPythonAPI('set_draft_path', draftPath).then(() => processCurrentPath()); }
@@ -10255,6 +11295,15 @@
     }
 
     function showTab(tabName, element) {
+      // ========== 任务27：切换tab时停止自动刷新 ==========
+      // 如果切换到非attendance tab，停止自动刷新
+      if (tabName !== 'attendance' && notificationAutoRefreshTimer) {
+        clearTimeout(notificationAutoRefreshTimer);
+        notificationAutoRefreshTimer = null;
+        logMessage_Info('[自动刷新] 已停止（切换到其他标签）');
+      }
+      // ==========================================
+      
       ['run-control', 'path-tools', 'history', 'params', 'log', 'checkpoints', 'attendance'].forEach(name => {
         $(`${name}-tab`).classList.add('hidden');
         const b = document.querySelector(`button[onclick="showTab('${name}', this)"]`);
@@ -10267,7 +11316,7 @@
         // onNotificationsUpdated() (由后台调用或 refreshNotificationsUI 间接调用) 会填充 attendance-list
         // refreshNotificationsUI() 自带防抖，所以这里直接调用是安全的
         logMessage_Info("Attendance tab opened, refreshing notifications list...");
-        refreshNotificationsUI();
+        refreshNotificationsUI(true, false); // 切换tab视为自动刷新，将开启定时刷新
       }
     }
 
@@ -10604,7 +11653,16 @@
       }
       return result; // <-- 4. 现在可以安全返回
     }
-    async function refreshNotificationsUI(useCache = true) {
+    // ========== 任务27：通知刷新修复 ==========
+    // 添加自动刷新定时器变量
+    let notificationAutoRefreshTimer = null;
+    
+    /**
+     * 刷新通知列表
+     * @param {boolean} useCache - 是否使用缓存
+     * @param {boolean} isManual - 是否为手动刷新（true=手动点击，false=自动刷新）
+     */
+    async function refreshNotificationsUI(useCache = true, isManual = false) {
       // --- BUG修复：防止重复点击 ---
       if (isRefreshingNotifications) {
         logMessage_Info("Notification refresh already in progress. Skipping.");
@@ -10758,6 +11816,30 @@
           refreshBtn.textContent = '刷新';
         }
         isRefreshingNotifications = false;
+        
+        // ========== 任务27：自动刷新逻辑修复 ==========
+        // 如果不是手动刷新，设置下一次自动刷新
+        if (!isManual) {
+          // 清除之前的定时器（防止重复）
+          if (notificationAutoRefreshTimer) {
+            clearTimeout(notificationAutoRefreshTimer);
+            notificationAutoRefreshTimer = null;
+          }
+          
+          // 获取刷新间隔参数（严格使用param-auto_attendance_refresh_s）
+          const refreshIntervalInput = $('param-auto_attendance_refresh_s');
+          const refreshInterval = refreshIntervalInput ? parseInt(refreshIntervalInput.value) : 300; // 默认300秒
+          
+          // 设置下一次自动刷新（使用配置的间隔，单位：秒）
+          if (refreshInterval > 0) {
+            logMessage_Info(`[自动刷新] 将在 ${refreshInterval} 秒后自动刷新通知`);
+            notificationAutoRefreshTimer = setTimeout(() => {
+              logMessage_Info('[自动刷新] 正在自动刷新通知...');
+              refreshNotificationsUI(true, false); // useCache=true, isManual=false
+            }, refreshInterval * 1000); // 转换为毫秒
+          }
+        }
+        // ==========================================
       }
     }
     
@@ -10869,8 +11951,8 @@
       // 1. 打开模态框
       toggleNotifications(true);
 
-      // 2. 触发UI刷新（这个新函数会处理加载、获取数据和渲染）
-      refreshNotificationsUI();
+      // 2. 触发UI刷新（打开模态框不视为手动刷新，开启自动刷新）
+      refreshNotificationsUI(true, false);
     }
 
     /**
@@ -11417,6 +12499,377 @@
     $('multi-refresh-selected-btn').addEventListener('click', multi_refreshSelected);
 
   </script>
+
+  <!-- 任务10: 修改手机号Modal -->
+  <div id="modify-phone-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-slate-800">修改绑定手机号</h3>
+        <button onclick="closeModifyPhoneModal()" class="text-slate-400 hover:text-slate-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">当前手机号</label>
+          <input type="tel" id="modify-phone-current" class="input-field" readonly>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">新手机号</label>
+          <input type="tel" id="modify-phone-new" class="input-field" placeholder="请输入新手机号" 
+            inputmode="numeric" pattern="[0-9]*" style="min-height: 44px;">
+        </div>
+        
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">短信验证码</label>
+          <div class="flex gap-2">
+            <input type="text" id="modify-phone-code" class="input-field flex-1" placeholder="请输入验证码"
+              maxlength="6" inputmode="numeric" pattern="[0-9]{6}" style="min-height: 44px;">
+            <button onclick="sendModifyPhoneCode()" id="modify-phone-send-btn" 
+              class="btn btn-primary whitespace-nowrap" style="min-height: 44px;">
+              发送验证码
+            </button>
+          </div>
+        </div>
+        
+        <div class="flex gap-3 pt-4">
+          <button onclick="confirmModifyPhone()" class="btn btn-success flex-1" style="min-height: 44px;">
+            确认修改
+          </button>
+          <button onclick="closeModifyPhoneModal()" class="btn btn-ghost flex-1" style="min-height: 44px;">
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <script>
+    // ==================== 任务8-10: 注册登录和个人资料功能 ====================
+    
+    // 任务9: 手机号/用户名登录切换
+    let isPhoneLogin = false;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      const usernameBtn = document.getElementById('auth-login-username-btn');
+      const phoneBtn = document.getElementById('auth-login-phone-btn');
+      const authInput = document.getElementById('auth-username');
+      const authLabel = document.getElementById('auth-login-label');
+      
+      if (usernameBtn && phoneBtn) {
+        usernameBtn.addEventListener('click', function() {
+          isPhoneLogin = false;
+          usernameBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
+          phoneBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
+          authInput.type = 'text';
+          authInput.placeholder = '请输入用户名';
+          authInput.removeAttribute('inputmode');
+          if (authLabel) authLabel.textContent = '用户名';
+          
+          // 隐藏"使用验证码登录"按钮
+          const switchToSms = document.getElementById('auth-switch-to-sms');
+          if (switchToSms) switchToSms.classList.add('hidden');
+          
+          // 确保显示密码输入
+          const passwordSection = document.getElementById('auth-password-section');
+          const smsSection = document.getElementById('auth-sms-section');
+          if (passwordSection) passwordSection.classList.remove('hidden');
+          if (smsSection) smsSection.classList.add('hidden');
+        });
+        
+        phoneBtn.addEventListener('click', function() {
+          isPhoneLogin = true;
+          phoneBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
+          usernameBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
+          authInput.type = 'tel';
+          authInput.placeholder = '请输入手机号';
+          authInput.setAttribute('inputmode', 'numeric');
+          if (authLabel) authLabel.textContent = '手机号';
+          
+          // 显示"使用验证码登录"按钮
+          const switchToSms = document.getElementById('auth-switch-to-sms');
+          if (switchToSms) switchToSms.classList.remove('hidden');
+        });
+      }
+      
+      // 验证码/密码登录切换
+      const switchToSms = document.getElementById('auth-switch-to-sms');
+      const switchToPassword = document.getElementById('auth-switch-to-password');
+      const passwordSection = document.getElementById('auth-password-section');
+      const smsSection = document.getElementById('auth-sms-section');
+      
+      if (switchToSms) {
+        switchToSms.addEventListener('click', function() {
+          passwordSection.classList.add('hidden');
+          smsSection.classList.remove('hidden');
+        });
+      }
+      
+      if (switchToPassword) {
+        switchToPassword.addEventListener('click', function() {
+          smsSection.classList.add('hidden');
+          passwordSection.classList.remove('hidden');
+        });
+      }
+      
+      // 发送登录验证码
+      const sendLoginCodeBtn = document.getElementById('auth-send-login-code');
+      if (sendLoginCodeBtn) {
+        sendLoginCodeBtn.addEventListener('click', async function() {
+          const phone = document.getElementById('auth-username').value;
+          if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+            showModalAlert('请输入正确的手机号');
+            return;
+          }
+          
+          sendLoginCodeBtn.disabled = true;
+          const originalText = sendLoginCodeBtn.textContent;
+          
+          try {
+            const result = await callPythonAPI('send_sms_code', phone, 'login');
+            if (result && result.success) {
+              const expireMin = result.expire_minutes || 5;
+              const retryAfter = result.retry_after || 180;
+              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
+              
+              let countdown = retryAfter;
+              const timer = setInterval(() => {
+                countdown--;
+                sendLoginCodeBtn.textContent = countdown + '秒';
+                if (countdown <= 0) {
+                  clearInterval(timer);
+                  sendLoginCodeBtn.disabled = false;
+                  sendLoginCodeBtn.textContent = originalText;
+                }
+              }, 1000);
+            } else {
+              if (result?.retry_after) {
+                const retrySeconds = result.retry_after;
+                let countdown = retrySeconds;
+                sendLoginCodeBtn.textContent = countdown + '秒';
+                const timer = setInterval(() => {
+                  countdown--;
+                  sendLoginCodeBtn.textContent = countdown + '秒';
+                  if (countdown <= 0) {
+                    clearInterval(timer);
+                    sendLoginCodeBtn.disabled = false;
+                    sendLoginCodeBtn.textContent = originalText;
+                  }
+                }, 1000);
+              } else {
+                sendLoginCodeBtn.disabled = false;
+              }
+              showModalAlert(result?.message || '发送失败');
+            }
+          } catch (error) {
+            sendLoginCodeBtn.disabled = false;
+            showModalAlert('发送失败: ' + error.message);
+          }
+        });
+      }
+      
+      // 任务8: 注册表单验证
+      const regUsernameInput = document.getElementById('auth-reg-username');
+      if (regUsernameInput) {
+        regUsernameInput.addEventListener('input', function(e) {
+          // 禁止输入中文
+          const value = e.target.value;
+          const noChinese = value.replace(/[一-龥]/g, '');
+          if (value !== noChinese) {
+            e.target.value = noChinese;
+            showTempMessage('用户名不能包含中文字符', 'warning');
+          }
+        });
+      }
+      
+      // 任务8: 头像预览
+      const avatarInput = document.getElementById('auth-reg-avatar');
+      if (avatarInput) {
+        avatarInput.addEventListener('change', function(e) {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              document.getElementById('auth-reg-avatar-preview').src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+      }
+      
+      // 任务8: 发送注册验证码
+      const sendCodeBtn = document.getElementById('auth-reg-send-code-btn');
+      if (sendCodeBtn) {
+        sendCodeBtn.addEventListener('click', async function() {
+          const phone = document.getElementById('auth-reg-phone').value;
+          if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+            showModalAlert('请输入正确的手机号');
+            return;
+          }
+          
+          sendCodeBtn.disabled = true;
+          const originalText = sendCodeBtn.textContent;
+          
+          try {
+            const result = await callPythonAPI('send_sms_code', phone);
+            if (result && result.success) {
+              const expireMin = result.expire_minutes || 5;
+              const retryAfter = result.retry_after || 180;  // 获取发送间隔
+              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
+              
+              // 使用服务器返回的间隔时间进行倒计时
+              let countdown = retryAfter;
+              const timer = setInterval(() => {
+                countdown--;
+                sendCodeBtn.textContent = `${countdown}秒后重试`;
+                if (countdown <= 0) {
+                  clearInterval(timer);
+                  sendCodeBtn.disabled = false;
+                  sendCodeBtn.textContent = originalText;
+                }
+              }, 1000);
+            } else {
+              // 处理频繁发送错误，显示剩余等待时间
+              if (result?.retry_after) {
+                const retrySeconds = result.retry_after;
+                let countdown = retrySeconds;
+                sendCodeBtn.textContent = `${countdown}秒后重试`;
+                const timer = setInterval(() => {
+                  countdown--;
+                  sendCodeBtn.textContent = `${countdown}秒后重试`;
+                  if (countdown <= 0) {
+                    clearInterval(timer);
+                    sendCodeBtn.disabled = false;
+                    sendCodeBtn.textContent = originalText;
+                  }
+                }, 1000);
+              } else {
+                sendCodeBtn.disabled = false;
+              }
+              showModalAlert(result?.message || '发送失败');
+            }
+          } catch (error) {
+            sendCodeBtn.disabled = false;
+            showModalAlert('发送失败: ' + error.message);
+          }
+        });
+      }
+    });
+    
+    // 任务10: 修改手机号功能
+    function modifyPhone() {
+      const currentPhone = document.getElementById('profile-phone').value;
+      document.getElementById('modify-phone-current').value = currentPhone;
+      document.getElementById('modify-phone-new').value = '';
+      document.getElementById('modify-phone-code').value = '';
+      document.getElementById('modify-phone-modal').classList.remove('hidden');
+    }
+    
+    function closeModifyPhoneModal() {
+      document.getElementById('modify-phone-modal').classList.add('hidden');
+    }
+    
+    async function sendModifyPhoneCode() {
+      const newPhone = document.getElementById('modify-phone-new').value;
+      if (!newPhone || !/^1[3-9]\d{9}$/.test(newPhone)) {
+        showModalAlert('请输入正确的新手机号');
+        return;
+      }
+      
+      const btn = document.getElementById('modify-phone-send-btn');
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      
+      try {
+        const result = await callPythonAPI('send_sms_code', newPhone, 'modify');
+        if (result && result.success) {
+          const expireMin = result.expire_minutes || 5;
+          const retryAfter = result.retry_after || 180;
+          showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
+          
+          let countdown = retryAfter;
+          const timer = setInterval(() => {
+            countdown--;
+            btn.textContent = `${countdown}秒`;
+            if (countdown <= 0) {
+              clearInterval(timer);
+              btn.disabled = false;
+              btn.textContent = originalText;
+            }
+          }, 1000);
+        } else {
+          if (result?.retry_after) {
+            const retrySeconds = result.retry_after;
+            let countdown = retrySeconds;
+            btn.textContent = `${countdown}秒`;
+            const timer = setInterval(() => {
+              countdown--;
+              btn.textContent = `${countdown}秒`;
+              if (countdown <= 0) {
+                clearInterval(timer);
+                btn.disabled = false;
+                btn.textContent = originalText;
+              }
+            }, 1000);
+          } else {
+            btn.disabled = false;
+          }
+          showModalAlert(result?.message || '发送失败');
+        }
+      } catch (error) {
+        btn.disabled = false;
+        showModalAlert('发送失败: ' + error.message);
+      }
+    }
+    
+    async function confirmModifyPhone() {
+      const newPhone = document.getElementById('modify-phone-new').value;
+      const code = document.getElementById('modify-phone-code').value;
+      
+      if (!newPhone || !code) {
+        showModalAlert('请填写完整信息');
+        return;
+      }
+      
+      try {
+        const result = await callPythonAPI('update_user_phone', newPhone, code);
+        if (result && result.success) {
+          showModalAlert('手机号修改成功');
+          document.getElementById('profile-phone').value = newPhone;
+          closeModifyPhoneModal();
+        } else {
+          showModalAlert(result?.message || '修改失败');
+        }
+      } catch (error) {
+        showModalAlert('修改失败: ' + error.message);
+      }
+    }
+    
+    function showTempMessage(msg, type = 'info') {
+      // 临时消息提示（3秒自动消失）
+      const colors = {
+        success: 'bg-green-100 text-green-700 border-green-300',
+        warning: 'bg-amber-100 text-amber-700 border-amber-300',
+        error: 'bg-red-100 text-red-700 border-red-300',
+        info: 'bg-blue-100 text-blue-700 border-blue-300'
+      };
+      
+      const div = document.createElement('div');
+      div.className = `fixed top-4 right-4 px-4 py-2 rounded-lg border-2 ${colors[type]} z-50 shadow-lg`;
+      div.textContent = msg;
+      document.body.appendChild(div);
+      
+      setTimeout(() => {
+        div.remove();
+      }, 3000);
+    }
+  </script>
+
 </body>
 
 </html>
