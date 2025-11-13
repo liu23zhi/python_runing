@@ -15252,6 +15252,58 @@ def start_web_server(args_param):
                     # 记录日志（安全：不记录验证码内容）
                     app.logger.info(f"[短信服务] 向 {phone} 发送验证码成功，场景：{scene}，有效期：{code_expire_minutes}分钟")
                     
+                    # 8. 记录短信发送历史到JSON文件
+                    try:
+                        # 确保log目录存在
+                        log_dir = os.path.join(os.path.dirname(__file__), 'log')
+                        os.makedirs(log_dir, exist_ok=True)
+                        
+                        # 获取会话ID（如果存在）
+                        session_id = request.headers.get('X-Session-ID', None)
+                        
+                        # 确定用户名
+                        username = None
+                        if scene == 'register':
+                            # 注册场景：使用手机号作为用户名（因为用户还未创建）
+                            username = f"注册用户({phone})"
+                        elif scene == 'modify':
+                            # 修改手机号场景：需要从会话中获取当前用户
+                            if g and hasattr(g, 'user'):
+                                username = g.user
+                            else:
+                                username = "未知用户"
+                        elif scene == 'admin_modify':
+                            # 管理员修改用户手机号：从请求数据中获取目标用户名
+                            username = data.get('target_username', '未知用户')
+                        else:
+                            # 其他场景（如登录）：尝试从会话获取
+                            if g and hasattr(g, 'user'):
+                                username = g.user
+                            else:
+                                username = phone  # 使用手机号作为标识
+                        
+                        # 构建历史记录
+                        history_entry = {
+                            'session_id': session_id,
+                            'username': username,
+                            'phone': phone,
+                            'scene': scene,
+                            'timestamp': time.time(),
+                            'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+                            'content': content,
+                            'ip': client_ip
+                        }
+                        
+                        # 追加到JSON文件（每行一个JSON对象）
+                        history_file = os.path.join(log_dir, 'sms_history.jsonl')
+                        with open(history_file, 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
+                        
+                        app.logger.debug(f"[短信历史] 已记录发送历史: {phone} -> {username}")
+                    except Exception as e:
+                        # 记录历史失败不应影响主流程
+                        app.logger.error(f"[短信历史] 记录失败: {str(e)}")
+                    
                     # 安全：返回信息中不包含验证码
                     return jsonify({
                         "success": True, 
@@ -15809,27 +15861,42 @@ def start_web_server(args_param):
         获取短信服务配置
         
         权限要求：管理员
-        返回：短信服务配置信息
+        返回：短信服务配置信息（包含三个新增的功能开关）
         """
         try:
             # 问题5修复：使用check_permission替代is_admin
-            # 权限检查
+            # 权限检查：只有具有manage_users权限的用户才能访问
             if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
             # 问题12修复：自动补全config.ini配置
+            # 读取配置文件
             config = configparser.ConfigParser()
             config.read('config.ini', encoding='utf-8')
             
-            # 确保所需的配置节存在
+            # 确保所需的配置节存在，如果不存在则创建
             if 'Features' not in config:
                 config.add_section('Features')
             if 'SMS_Service_SMSBao' not in config:
                 config.add_section('SMS_Service_SMSBao')
             
             # 补全缺失的配置项（使用默认值）
+            # 主开关：启用短信服务
             if not config.has_option('Features', 'enable_sms_service'):
                 config.set('Features', 'enable_sms_service', 'false')
+            
+            # 新增：三个功能开关配置项
+            # 允许用户修改手机号
+            if not config.has_option('Features', 'enable_phone_modification'):
+                config.set('Features', 'enable_phone_modification', 'false')
+            # 允许手机号登录
+            if not config.has_option('Features', 'enable_phone_login'):
+                config.set('Features', 'enable_phone_login', 'false')
+            # 注册时需要短信验证
+            if not config.has_option('Features', 'enable_phone_registration_verify'):
+                config.set('Features', 'enable_phone_registration_verify', 'false')
+            
+            # 短信宝服务配置项
             if not config.has_option('SMS_Service_SMSBao', 'username'):
                 config.set('SMS_Service_SMSBao', 'username', '')
             if not config.has_option('SMS_Service_SMSBao', 'api_key'):
@@ -15847,12 +15914,21 @@ def start_web_server(args_param):
             if not config.has_option('SMS_Service_SMSBao', 'rate_limit_per_phone_day'):
                 config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', '5')
             
-            # 保存补全后的配置
+            # 保存补全后的配置（如果有修改的话）
             with open('config.ini', 'w', encoding='utf-8') as f:
                 config.write(f)
             
+            # 构建返回的配置对象
             sms_config = {
+                # 主开关
                 'enable_sms_service': config.getboolean('Features', 'enable_sms_service', fallback=False),
+                
+                # 新增：三个功能开关
+                'enable_phone_modification': config.getboolean('Features', 'enable_phone_modification', fallback=False),
+                'enable_phone_login': config.getboolean('Features', 'enable_phone_login', fallback=False),
+                'enable_phone_registration_verify': config.getboolean('Features', 'enable_phone_registration_verify', fallback=False),
+                
+                # 短信宝服务配置
                 'username': config.get('SMS_Service_SMSBao', 'username', fallback=''),
                 'api_key': config.get('SMS_Service_SMSBao', 'api_key', fallback=''),
                 'signature': config.get('SMS_Service_SMSBao', 'signature', fallback=''),
@@ -15865,6 +15941,7 @@ def start_web_server(args_param):
             
             return jsonify({"success": True, "config": sms_config})
         except Exception as e:
+            # 捕获异常并记录日志
             app.logger.error(f"[短信配置] 获取配置失败：{str(e)}")
             return jsonify({"success": False, "message": "获取配置失败"}), 500
 
@@ -15875,27 +15952,43 @@ def start_web_server(args_param):
         保存短信服务配置
         
         权限要求：管理员
-        参数：配置对象（enable_sms_service, username, api_key等）
+        参数：配置对象（enable_sms_service, enable_phone_modification等）
+        使用 _write_config_with_comments 函数保存配置，确保注释不会丢失
         """
         try:
             # 问题5修复：使用check_permission替代is_admin
-            # 权限检查
+            # 权限检查：只有具有manage_users权限的用户才能保存配置
             if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
+            # 获取前端提交的配置数据
             data = request.get_json() or {}
             
+            # 读取现有配置文件
             config = configparser.ConfigParser()
             config.read('config.ini', encoding='utf-8')
             
             # 问题12修复：确保配置节存在
-            # 更新配置
+            # 更新 [Features] 节的配置
             if 'Features' not in config:
                 config.add_section('Features')
+            
+            # 更新主开关：启用短信服务
             config.set('Features', 'enable_sms_service', str(data.get('enable_sms_service', False)).lower())
             
+            # 新增：更新三个功能开关配置项
+            # 允许用户修改手机号
+            config.set('Features', 'enable_phone_modification', str(data.get('enable_phone_modification', False)).lower())
+            # 允许手机号登录
+            config.set('Features', 'enable_phone_login', str(data.get('enable_phone_login', False)).lower())
+            # 注册时需要短信验证
+            config.set('Features', 'enable_phone_registration_verify', str(data.get('enable_phone_registration_verify', False)).lower())
+            
+            # 更新 [SMS_Service_SMSBao] 节的配置
             if 'SMS_Service_SMSBao' not in config:
                 config.add_section('SMS_Service_SMSBao')
+            
+            # 更新短信宝服务配置项
             config.set('SMS_Service_SMSBao', 'username', data.get('username', ''))
             config.set('SMS_Service_SMSBao', 'api_key', data.get('api_key', ''))
             config.set('SMS_Service_SMSBao', 'signature', data.get('signature', ''))
@@ -15905,13 +15998,15 @@ def start_web_server(args_param):
             config.set('SMS_Service_SMSBao', 'rate_limit_per_ip_day', str(data.get('rate_limit_per_ip_day', 20)))
             config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', str(data.get('rate_limit_per_phone_day', 5)))
             
-            # 保存配置文件
-            with open('config.ini', 'w', encoding='utf-8') as f:
-                config.write(f)
+            # 使用 _write_config_with_comments 函数保存配置文件
+            # 这个函数会保留配置文件中的所有注释，而不是简单的 config.write()
+            _write_config_with_comments(config, 'config.ini')
             
+            # 记录操作日志
             app.logger.info(f"[短信配置] {g.user} 更新了短信服务配置")
             return jsonify({"success": True, "message": "配置已保存"})
         except Exception as e:
+            # 捕获异常并记录日志
             app.logger.error(f"[短信配置] 保存配置失败：{str(e)}")
             return jsonify({"success": False, "message": "保存失败"}), 500
 
@@ -15962,6 +16057,178 @@ def start_web_server(args_param):
         except Exception as e:
             app.logger.error(f"[短信配置] 查询余额失败：{str(e)}")
             return jsonify({"success": False, "message": f"查询失败：{str(e)}"}), 500
+
+    @app.route('/api/admin/sms/history', methods=['GET'])
+    @login_required
+    def get_sms_history():
+        """
+        获取短信发送历史记录
+        
+        权限要求：管理员
+        查询参数：
+        - date: 按日期过滤（格式：YYYY-MM-DD）
+        - phone: 按手机号过滤
+        返回：短信发送历史记录列表
+        """
+        try:
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 获取过滤参数
+            date_filter = request.args.get('date', '').strip()
+            phone_filter = request.args.get('phone', '').strip()
+            
+            # 读取历史记录文件
+            history_file = os.path.join(os.path.dirname(__file__), 'log', 'sms_history.jsonl')
+            
+            if not os.path.exists(history_file):
+                return jsonify({"success": True, "records": []})
+            
+            records = []
+            with open(history_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        record = json.loads(line.strip())
+                        
+                        # 应用过滤条件
+                        if date_filter and not record.get('datetime', '').startswith(date_filter):
+                            continue
+                        if phone_filter and phone_filter not in record.get('phone', ''):
+                            continue
+                        
+                        records.append(record)
+                    except json.JSONDecodeError:
+                        continue
+            
+            # 按时间倒序排列（最新的在前）
+            records.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+            
+            # 限制返回数量（最多100条）
+            records = records[:100]
+            
+            return jsonify({"success": True, "records": records})
+        except Exception as e:
+            app.logger.error(f"[短信历史] 获取历史失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取历史失败"}), 500
+
+    @app.route('/api/admin/sms/verification_codes', methods=['GET'])
+    @login_required
+    def get_verification_codes():
+        """
+        获取当前有效的验证码列表
+        
+        权限要求：管理员
+        返回：当前有效的验证码列表
+        """
+        try:
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            current_time = time.time()
+            codes = []
+            
+            # 遍历所有验证码
+            for phone, (code, expire_time) in list(sms_verification_codes.items()):
+                # 检查是否过期
+                if expire_time > current_time:
+                    codes.append({
+                        'phone': phone,
+                        'code': code,
+                        'expires_at': expire_time,
+                        'expires_in': int(expire_time - current_time)  # 剩余秒数
+                    })
+            
+            # 按过期时间排序（最快过期的在前）
+            codes.sort(key=lambda x: x['expires_at'])
+            
+            return jsonify({"success": True, "codes": codes})
+        except Exception as e:
+            app.logger.error(f"[验证码管理] 获取列表失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取列表失败"}), 500
+
+    @app.route('/api/admin/sms/invalidate_code', methods=['POST'])
+    @login_required
+    def invalidate_verification_code():
+        """
+        使指定手机号的验证码失效
+        
+        权限要求：管理员
+        参数：
+        - phone: 手机号
+        返回：操作结果
+        """
+        try:
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            data = request.get_json() or {}
+            phone = data.get('phone', '').strip()
+            
+            if not phone:
+                return jsonify({"success": False, "message": "手机号不能为空"})
+            
+            # 从验证码字典中删除
+            if phone in sms_verification_codes:
+                del sms_verification_codes[phone]
+                app.logger.info(f"[验证码管理] {g.user} 使 {phone} 的验证码失效")
+                return jsonify({"success": True, "message": "验证码已失效"})
+            else:
+                return jsonify({"success": False, "message": "未找到该手机号的验证码"})
+        except Exception as e:
+            app.logger.error(f"[验证码管理] 使验证码失效失败：{str(e)}")
+            return jsonify({"success": False, "message": "操作失败"}), 500
+
+    @app.route('/api/admin/sms/add_manual_code', methods=['POST'])
+    @login_required
+    def add_manual_verification_code():
+        """
+        手动添加验证码（模拟发送，用于测试或紧急情况）
+        
+        权限要求：管理员
+        参数：
+        - phone: 手机号
+        - code: 验证码（6位数字）
+        返回：操作结果
+        """
+        try:
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            data = request.get_json() or {}
+            phone = data.get('phone', '').strip()
+            code = data.get('code', '').strip()
+            
+            # 验证手机号格式
+            if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+            # 验证验证码格式
+            if not code or not re.match(r'^\d{6}$', code):
+                return jsonify({"success": False, "message": "验证码必须是6位数字"})
+            
+            # 获取验证码有效期配置
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+            code_expire_seconds = code_expire_minutes * 60
+            
+            # 添加到验证码字典
+            expire_time = time.time() + code_expire_seconds
+            sms_verification_codes[phone] = (code, expire_time)
+            
+            app.logger.info(f"[验证码管理] {g.user} 手动添加验证码: {phone} (有效期{code_expire_minutes}分钟)")
+            
+            return jsonify({
+                "success": True, 
+                "message": f"验证码已添加，{code_expire_minutes}分钟内有效"
+            })
+        except Exception as e:
+            app.logger.error(f"[验证码管理] 添加验证码失败：{str(e)}")
+            return jsonify({"success": False, "message": "添加失败"}), 500
 
     # ====================
     # 应用主路由
