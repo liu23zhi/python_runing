@@ -2330,6 +2330,23 @@ class AuthSystem:
         权限计算顺序：
         1. 获取用户所属权限组的基础权限
         2. 应用用户的自定义权限（added/removed）
+        
+        重要说明：
+        此方法已完全支持 user_custom_permissions 差分授权！
+        - 即使用户所在组没有某权限，也可以通过 user_custom_permissions.added 单独授予
+        - 即使用户所在组有某权限，也可以通过 user_custom_permissions.removed 单独撤销
+        
+        示例：用户 zelly 在 user 组（默认无 use_multi_account_button 权限）
+        通过在 permissions.json 中添加：
+        {
+          "user_custom_permissions": {
+            "zelly": {
+              "added": ["use_multi_account_button"],
+              "removed": []
+            }
+          }
+        }
+        该用户即可获得该权限，check_permission 会正确返回 True。
         """
         # 获取用户组（此函数已包含 super_admin 检查）
         group = self.get_user_group(auth_username)
@@ -2338,21 +2355,34 @@ class AuthSystem:
         group_perms = self.permissions['permission_groups'].get(
             group, {}).get('permissions', {})
         has_permission = group_perms.get(permission, False)
+        
+        # 记录组权限检查结果（用于调试）
+        logging.debug(f"[权限检查] 用户 {auth_username} 的组 {group} 对权限 {permission} 的基础权限: {has_permission}")
 
-        # 应用用户的差分化权限
+        # 应用用户的差分化权限（user_custom_permissions）
+        # 这是差分授权的核心：允许在不改变用户组的情况下，为特定用户添加或移除权限
         user_custom = self.permissions.get(
             'user_custom_permissions', {}).get(auth_username, {})
         added_perms = user_custom.get('added', [])
         removed_perms = user_custom.get('removed', [])
 
-        # 如果权限在added列表中，则有权限
+        # 记录用户自定义权限（用于调试）
+        if added_perms or removed_perms:
+            logging.debug(f"[权限检查] 用户 {auth_username} 的自定义权限 - 添加: {added_perms}, 移除: {removed_perms}")
+
+        # 如果权限在added列表中，则有权限（覆盖组权限）
         if permission in added_perms:
             has_permission = True
+            logging.debug(f"[权限检查] 用户 {auth_username} 通过 user_custom_permissions.added 获得权限 {permission}")
 
-        # 如果权限在removed列表中，则无权限
+        # 如果权限在removed列表中，则无权限（覆盖组权限和added）
         if permission in removed_perms:
             has_permission = False
+            logging.debug(f"[权限检查] 用户 {auth_username} 通过 user_custom_permissions.removed 被撤销权限 {permission}")
 
+        # 记录最终权限结果
+        logging.debug(f"[权限检查] 最终结果 - 用户 {auth_username} 对权限 {permission}: {has_permission}")
+        
         return has_permission
 
     def get_user_permissions(self, auth_username):
@@ -12839,10 +12869,28 @@ def start_web_server(args_param):
         - 格式：permission_name = group1,group2,group3
         - 例如：admin_panel = admin
         - 支持多组共享同一权限
+        
+        差分授权支持（user_custom_permissions）：
+        - 此API完全支持差分授权功能
+        - 通过 auth_system.check_permission() 调用，该方法会自动：
+          1. 检查用户所在组的基础权限
+          2. 应用 user_custom_permissions 中的 added 权限（授予）
+          3. 应用 user_custom_permissions 中的 removed 权限（撤销）
+        - 示例：用户在 'user' 组，但通过 user_custom_permissions.added 获得了特定权限
+          {
+            "user_custom_permissions": {
+              "zelly": {
+                "added": ["use_multi_account_button"],
+                "removed": []
+              }
+            }
+          }
+          该用户调用 /auth/check_permission 检查 use_multi_account_button 时会返回 true
 
         常见权限示例：
         - "admin_panel"：访问管理面板
-        - "multi_account"：多账号管理
+        - "execute_multi_account"：多账号管理
+        - "use_multi_account_button"：多账号控制台按钮
         - "export_data"：导出数据
         - "view_logs"：查看日志
         - "manage_users"：用户管理
