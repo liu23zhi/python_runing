@@ -3591,7 +3591,7 @@
       let login_mod
 
       // 输入验证
-      if ($('auth-login-username-btn').classList.includes('font-semibold text-sm')) {
+      if ($('auth-login-username-btn').classList.contains('font-semibold')) {
         if (!username || (!password)) {
           // showAuthError('请输入用户名和密码');
           showModalAlert('请输入用户名和密码', '登录失败');
@@ -3599,7 +3599,7 @@
         }
         
       }
-      else if ($('auth-login-phone-btn').classList.includes('font-semibold text-sm')) {
+      else if ($('auth-login-phone-btn').classList.contains('font-semibold')) {
         if (username && !validateInput(username, 'phone').valid) {
           // showAuthError('手机号格式不正确');
           showModalAlert('手机号格式不正确', '登录失败');
