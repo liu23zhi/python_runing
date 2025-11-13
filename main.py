@@ -15809,27 +15809,42 @@ def start_web_server(args_param):
         获取短信服务配置
         
         权限要求：管理员
-        返回：短信服务配置信息
+        返回：短信服务配置信息（包含三个新增的功能开关）
         """
         try:
             # 问题5修复：使用check_permission替代is_admin
-            # 权限检查
+            # 权限检查：只有具有manage_users权限的用户才能访问
             if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
             # 问题12修复：自动补全config.ini配置
+            # 读取配置文件
             config = configparser.ConfigParser()
             config.read('config.ini', encoding='utf-8')
             
-            # 确保所需的配置节存在
+            # 确保所需的配置节存在，如果不存在则创建
             if 'Features' not in config:
                 config.add_section('Features')
             if 'SMS_Service_SMSBao' not in config:
                 config.add_section('SMS_Service_SMSBao')
             
             # 补全缺失的配置项（使用默认值）
+            # 主开关：启用短信服务
             if not config.has_option('Features', 'enable_sms_service'):
                 config.set('Features', 'enable_sms_service', 'false')
+            
+            # 新增：三个功能开关配置项
+            # 允许用户修改手机号
+            if not config.has_option('Features', 'enable_phone_modification'):
+                config.set('Features', 'enable_phone_modification', 'false')
+            # 允许手机号登录
+            if not config.has_option('Features', 'enable_phone_login'):
+                config.set('Features', 'enable_phone_login', 'false')
+            # 注册时需要短信验证
+            if not config.has_option('Features', 'enable_phone_registration_verify'):
+                config.set('Features', 'enable_phone_registration_verify', 'false')
+            
+            # 短信宝服务配置项
             if not config.has_option('SMS_Service_SMSBao', 'username'):
                 config.set('SMS_Service_SMSBao', 'username', '')
             if not config.has_option('SMS_Service_SMSBao', 'api_key'):
@@ -15847,12 +15862,21 @@ def start_web_server(args_param):
             if not config.has_option('SMS_Service_SMSBao', 'rate_limit_per_phone_day'):
                 config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', '5')
             
-            # 保存补全后的配置
+            # 保存补全后的配置（如果有修改的话）
             with open('config.ini', 'w', encoding='utf-8') as f:
                 config.write(f)
             
+            # 构建返回的配置对象
             sms_config = {
+                # 主开关
                 'enable_sms_service': config.getboolean('Features', 'enable_sms_service', fallback=False),
+                
+                # 新增：三个功能开关
+                'enable_phone_modification': config.getboolean('Features', 'enable_phone_modification', fallback=False),
+                'enable_phone_login': config.getboolean('Features', 'enable_phone_login', fallback=False),
+                'enable_phone_registration_verify': config.getboolean('Features', 'enable_phone_registration_verify', fallback=False),
+                
+                # 短信宝服务配置
                 'username': config.get('SMS_Service_SMSBao', 'username', fallback=''),
                 'api_key': config.get('SMS_Service_SMSBao', 'api_key', fallback=''),
                 'signature': config.get('SMS_Service_SMSBao', 'signature', fallback=''),
@@ -15865,6 +15889,7 @@ def start_web_server(args_param):
             
             return jsonify({"success": True, "config": sms_config})
         except Exception as e:
+            # 捕获异常并记录日志
             app.logger.error(f"[短信配置] 获取配置失败：{str(e)}")
             return jsonify({"success": False, "message": "获取配置失败"}), 500
 
@@ -15875,27 +15900,43 @@ def start_web_server(args_param):
         保存短信服务配置
         
         权限要求：管理员
-        参数：配置对象（enable_sms_service, username, api_key等）
+        参数：配置对象（enable_sms_service, enable_phone_modification等）
+        使用 _write_config_with_comments 函数保存配置，确保注释不会丢失
         """
         try:
             # 问题5修复：使用check_permission替代is_admin
-            # 权限检查
+            # 权限检查：只有具有manage_users权限的用户才能保存配置
             if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
             
+            # 获取前端提交的配置数据
             data = request.get_json() or {}
             
+            # 读取现有配置文件
             config = configparser.ConfigParser()
             config.read('config.ini', encoding='utf-8')
             
             # 问题12修复：确保配置节存在
-            # 更新配置
+            # 更新 [Features] 节的配置
             if 'Features' not in config:
                 config.add_section('Features')
+            
+            # 更新主开关：启用短信服务
             config.set('Features', 'enable_sms_service', str(data.get('enable_sms_service', False)).lower())
             
+            # 新增：更新三个功能开关配置项
+            # 允许用户修改手机号
+            config.set('Features', 'enable_phone_modification', str(data.get('enable_phone_modification', False)).lower())
+            # 允许手机号登录
+            config.set('Features', 'enable_phone_login', str(data.get('enable_phone_login', False)).lower())
+            # 注册时需要短信验证
+            config.set('Features', 'enable_phone_registration_verify', str(data.get('enable_phone_registration_verify', False)).lower())
+            
+            # 更新 [SMS_Service_SMSBao] 节的配置
             if 'SMS_Service_SMSBao' not in config:
                 config.add_section('SMS_Service_SMSBao')
+            
+            # 更新短信宝服务配置项
             config.set('SMS_Service_SMSBao', 'username', data.get('username', ''))
             config.set('SMS_Service_SMSBao', 'api_key', data.get('api_key', ''))
             config.set('SMS_Service_SMSBao', 'signature', data.get('signature', ''))
@@ -15905,13 +15946,15 @@ def start_web_server(args_param):
             config.set('SMS_Service_SMSBao', 'rate_limit_per_ip_day', str(data.get('rate_limit_per_ip_day', 20)))
             config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', str(data.get('rate_limit_per_phone_day', 5)))
             
-            # 保存配置文件
-            with open('config.ini', 'w', encoding='utf-8') as f:
-                config.write(f)
+            # 使用 _write_config_with_comments 函数保存配置文件
+            # 这个函数会保留配置文件中的所有注释，而不是简单的 config.write()
+            _write_config_with_comments(config, 'config.ini')
             
+            # 记录操作日志
             app.logger.info(f"[短信配置] {g.user} 更新了短信服务配置")
             return jsonify({"success": True, "message": "配置已保存"})
         except Exception as e:
+            # 捕获异常并记录日志
             app.logger.error(f"[短信配置] 保存配置失败：{str(e)}")
             return jsonify({"success": False, "message": "保存失败"}), 500
 

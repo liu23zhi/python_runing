@@ -360,6 +360,59 @@
       box-shadow: 0 0 0 3px rgba(34, 211, 238, .25);
     }
 
+    /* +86前缀容器样式 - 让输入框和前缀看起来像一个整体 */
+    .phone-input-wrapper {
+      /* 使用flex布局，将前缀和输入框横向排列 */
+      display: flex;
+      align-items: center; /* 垂直居中对齐 */
+      width: 100%; /* 占满父容器宽度 */
+      border-radius: 14px; /* 与input-field保持一致的圆角 */
+      /* 使用与input-field相同的背景渐变效果 */
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
+      border: 1px solid rgba(148, 163, 184, 0.35); /* 与input-field一致的边框 */
+      /* 与input-field一致的阴影效果 */
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 14px rgba(16, 24, 40, 0.06);
+      transition: box-shadow .2s ease, border-color .2s ease; /* 平滑的过渡动画 */
+      overflow: hidden; /* 隐藏溢出内容，保持圆角完整 */
+    }
+
+    /* 当内部输入框获得焦点时，整个容器也要显示焦点样式 */
+    .phone-input-wrapper:focus-within {
+      border-color: var(--base-color-600); /* 焦点时的边框颜色 */
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, .25); /* 焦点时的外发光效果 */
+    }
+
+    /* +86前缀标签样式 - 显示不可编辑的国家代码 */
+    .phone-prefix {
+      /* 内边距：左右0.9rem与input-field保持一致，上下使用.7rem */
+      padding: .7rem 0 .7rem .9rem;
+      color: #64748b; /* 使用稍浅的颜色区分前缀和用户输入 */
+      font-weight: 500; /* 中等字重 */
+      user-select: none; /* 禁止用户选中文本（因为这是不可编辑的） */
+      white-space: nowrap; /* 文本不换行 */
+      flex-shrink: 0; /* 不允许前缀被压缩 */
+    }
+
+    /* 带前缀的输入框样式 - 需要移除自身的边框和背景 */
+    .phone-input-wrapper .input-field {
+      /* 移除自身的边框、背景和阴影，因为这些效果已经由容器提供 */
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      /* 移除左侧内边距，因为前缀已经提供了左侧间距 */
+      padding-left: 0;
+      padding-right: .9rem; /* 保留右侧内边距 */
+      flex: 1; /* 占据剩余空间 */
+      min-width: 0; /* 允许输入框缩小，避免溢出 */
+    }
+
+    /* 移除带前缀输入框的焦点样式，因为焦点样式由容器提供 */
+    .phone-input-wrapper .input-field:focus {
+      outline: none; /* 移除浏览器默认的焦点轮廓 */
+      border: none; /* 确保没有边框 */
+      box-shadow: none; /* 确保没有阴影 */
+    }
+
     .badge {
       display: inline-block;
       padding: .25rem .6rem;
@@ -790,9 +843,14 @@
           </button>
         </div>
 
+        <!-- 用户名/手机号输入区域 - 支持动态切换+86前缀 -->
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700" id="auth-login-label">用户名</label>
-          <input type="text" id="auth-username" class="input-field mt-1" placeholder="请输入用户名" autocomplete="username">
+          <!-- auth-username-container: 容器用于包裹输入框，支持动态添加/移除phone-input-wrapper -->
+          <div id="auth-username-container">
+            <!-- 默认状态：用户名登录，无前缀 -->
+            <input type="text" id="auth-username" class="input-field mt-1" placeholder="请输入用户名" autocomplete="username">
+          </div>
         </div>
 
         <!-- 密码登录区域 -->
@@ -864,10 +922,17 @@
         </div>
 
         <!-- 任务8: 手机号（type="tel"触控优化） -->
+        <!-- 添加了+86前缀显示，使用phone-input-wrapper容器实现前缀和输入框的视觉整合 -->
         <div id="auth-reg-phone-wrapper">
           <label class="block text-sm font-semibold leading-6 text-slate-700">手机号</label>
-          <input type="tel" id="auth-reg-phone" class="input-field mt-1" placeholder="请输入手机号" autocomplete="tel"
-            inputmode="numeric" pattern="[0-9]*">
+          <!-- phone-input-wrapper: 包裹前缀和输入框，提供统一的外观样式 -->
+          <div class="phone-input-wrapper mt-1">
+            <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
+            <span class="phone-prefix">+86 </span>
+            <!-- 输入框：移除了mt-1类，因为容器已经有了mt-1 -->
+            <input type="tel" id="auth-reg-phone" class="input-field" placeholder="请输入手机号" autocomplete="tel"
+              inputmode="numeric" pattern="[0-9]*">
+          </div>
         </div>
 
         <!-- 任务8: 短信验证码 + 发送按钮 -->
@@ -1677,8 +1742,15 @@
                   <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-1">手机号</label>
                     <div class="flex gap-2">
-                      <input type="tel" id="profile-phone" class="input-field flex-1" placeholder="未绑定手机号" readonly
-                        inputmode="numeric">
+                      <!-- phone-input-wrapper: 为手机号输入框添加+86前缀容器 -->
+                      <div class="phone-input-wrapper flex-1">
+                        <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
+                        <span class="phone-prefix">+86 </span>
+                        <!-- 输入框：只读状态，用于显示当前绑定的手机号 -->
+                        <input type="tel" id="profile-phone" class="input-field" placeholder="未绑定手机号" readonly
+                          inputmode="numeric">
+                      </div>
+                      <!-- 修改手机号按钮 -->
                       <button onclick="modifyPhone()" id="profile-modify-phone-btn"
                         class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap">
                         修改手机号
@@ -1872,62 +1944,269 @@
         <!-- ============================================================ -->
         <!-- 短信服务配置Modal -->
         <!-- ============================================================ -->
+        <!-- 短信服务配置模态框 - 重构版本 -->
+        <!-- 采用卡片式布局，条理清晰，视觉层次分明 -->
         <div id="admin-sms-config-modal" class="hidden space-y-4">
+          <!-- 模态框标题栏：显示标题和刷新按钮 -->
           <div class="flex justify-between items-center">
-            <h4 class="font-semibold">短信服务配置</h4>
-            <!-- 添加刷新按钮 -->
-            <button id="admin-refresh-sms_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadSMSConfig()">刷新</button>
+            <h4 class="font-semibold text-lg">📱 短信服务配置</h4>
+            <!-- 刷新按钮：点击后重新加载配置 -->
+            <button id="admin-refresh-sms_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadSMSConfig()">🔄 刷新</button>
           </div>
 
-          <div class="space-y-3">
-            <!-- 全局开关 -->
-            <label class="flex items-center gap-2">
-              <input type="checkbox" id="sms-enabled" class="w-4 h-4">
-              <span>启用短信服务</span>
-            </label>
+          <!-- 配置区域容器：使用垂直间距组织各个配置卡片 -->
+          <div class="space-y-4">
+            
+            <!-- ========== 第一部分：功能开关卡片 ========== -->
+            <!-- 使用渐变背景和阴影效果，突出显示这是最重要的配置项 -->
+            <div class="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-4 shadow-sm">
+              <!-- 卡片标题：使用图标和较大字体增强视觉效果 -->
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-2xl">🔌</span>
+                <h5 class="font-bold text-base text-purple-900">功能开关</h5>
+              </div>
+              
+              <!-- 主开关：启用短信服务（最重要的配置项） -->
+              <!-- 添加 onchange 事件，当主开关关闭时同步关闭所有子开关 -->
+              <label class="flex items-center gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                <input type="checkbox" id="sms-enabled" class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500" 
+                  onchange="handleSmsMainSwitchChange()">
+                <div class="flex-1">
+                  <span class="font-semibold text-slate-800 block">启用短信服务</span>
+                  <span class="text-xs text-slate-500">关闭此开关将禁用所有短信功能</span>
+                </div>
+              </label>
 
-            <!-- 短信宝配置 -->
-            <div class="border-t pt-3">
-              <h5 class="font-semibold mb-2">短信宝配置</h5>
-              <div class="space-y-2">
-                <input type="text" id="sms-username" class="w-full border rounded px-2 py-1" placeholder="短信宝用户名">
-                <input type="password" id="sms-apikey" class="w-full border rounded px-2 py-1" placeholder="短信宝 ApiKey">
-                <input type="text" id="sms-signature" class="w-full border rounded px-2 py-1" placeholder="短信签名(3-12字)"
-                  maxlength="12">
-                <textarea id="sms-template" class="w-full border rounded px-2 py-1" rows="3"
-                  placeholder="短信模板，使用{code}作为验证码占位符，{minutes}作为有效期分钟数"></textarea>
-                <input type="number" id="sms-code-expire" class="w-full border rounded px-2 py-1"
-                  placeholder="验证码有效期（分钟），默认5分钟" min="1" max="60">
+              <!-- 子开关组：功能细分配置项 -->
+              <!-- 使用缩进和较小尺寸表示这些是子选项 -->
+              <div class="ml-8 mt-3 space-y-2 border-l-2 border-purple-200 pl-4">
+                <!-- 子开关1：允许用户修改手机号 -->
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input type="checkbox" id="sms-enable-phone-modification" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                  <div class="flex-1">
+                    <span class="text-sm text-slate-700 group-hover:text-slate-900">允许用户修改手机号</span>
+                    <span class="text-xs text-slate-400 block">用户可在个人资料中修改绑定的手机号</span>
+                  </div>
+                </label>
+
+                <!-- 子开关2：允许手机号登录 -->
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input type="checkbox" id="sms-enable-phone-login" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                  <div class="flex-1">
+                    <span class="text-sm text-slate-700 group-hover:text-slate-900">允许手机号登录</span>
+                    <span class="text-xs text-slate-400 block">用户可使用手机号+密码进行登录</span>
+                  </div>
+                </label>
+
+                <!-- 子开关3：注册时需要短信验证 -->
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input type="checkbox" id="sms-enable-phone-registration-verify" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                  <div class="flex-1">
+                    <span class="text-sm text-slate-700 group-hover:text-slate-900">注册时需要短信验证</span>
+                    <span class="text-xs text-slate-400 block">用户注册时必须填写手机号并验证</span>
+                  </div>
+                </label>
               </div>
             </div>
 
-            <!-- 速率限制 -->
-            <div class="border-t pt-3">
-              <h5 class="font-semibold mb-2">速率限制</h5>
-              <div class="grid grid-cols-3 gap-2">
-                <input type="number" id="sms-limit-account" class="border rounded px-2 py-1" placeholder="账户/天">
-                <input type="number" id="sms-limit-ip" class="border rounded px-2 py-1" placeholder="IP/天">
-                <input type="number" id="sms-limit-phone" class="border rounded px-2 py-1" placeholder="手机号/天">
+            <!-- ========== 第二部分：短信宝配置卡片 ========== -->
+            <!-- 使用蓝色系主题，清晰区分不同配置区域 -->
+            <div class="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-lg p-4 shadow-sm">
+              <!-- 卡片标题 -->
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-2xl">📧</span>
+                <h5 class="font-bold text-base text-blue-900">短信宝配置</h5>
+              </div>
+
+              <!-- 配置表单：所有输入框使用统一样式 -->
+              <div class="space-y-3">
+                <!-- 短信宝用户名 -->
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">
+                    <span class="inline-flex items-center gap-1">
+                      👤 用户名
+                    </span>
+                  </label>
+                  <input type="text" id="sms-username" 
+                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
+                    placeholder="请输入短信宝用户名">
+                  <p class="text-xs text-slate-500 mt-1">在短信宝官网注册后获取</p>
+                </div>
+
+                <!-- 短信宝 API Key -->
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">
+                    <span class="inline-flex items-center gap-1">
+                      🔑 API Key
+                    </span>
+                  </label>
+                  <input type="password" id="sms-apikey" 
+                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
+                    placeholder="请输入短信宝 API Key">
+                  <p class="text-xs text-slate-500 mt-1">在短信宝后台的"API接口"页面获取</p>
+                </div>
+
+                <!-- 短信签名 -->
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">
+                    <span class="inline-flex items-center gap-1">
+                      ✍️ 短信签名
+                    </span>
+                  </label>
+                  <input type="text" id="sms-signature" 
+                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
+                    placeholder="【您的签名】" maxlength="12">
+                  <p class="text-xs text-slate-500 mt-1">签名长度3-12字，需在短信宝后台审核通过</p>
+                </div>
+
+                <!-- 短信模板 -->
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">
+                    <span class="inline-flex items-center gap-1">
+                      📝 短信模板
+                    </span>
+                  </label>
+                  <textarea id="sms-template" 
+                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
+                    rows="3" 
+                    placeholder="您的验证码是：{code}，{minutes}分钟内有效。"></textarea>
+                  <p class="text-xs text-slate-500 mt-1">使用 {code} 表示验证码，{minutes} 表示有效期分钟数</p>
+                </div>
+
+                <!-- 验证码有效期 -->
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">
+                    <span class="inline-flex items-center gap-1">
+                      ⏱️ 验证码有效期
+                    </span>
+                  </label>
+                  <div class="flex items-center gap-2">
+                    <input type="number" id="sms-code-expire" 
+                      class="flex-1 border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
+                      placeholder="5" min="1" max="60">
+                    <span class="text-sm text-slate-600">分钟</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-1">建议设置为5-10分钟，过长不安全，过短体验差</p>
+                </div>
               </div>
             </div>
 
-            <!-- Webhook URL -->
-            <div class="border-t pt-3">
-              <h5 class="font-semibold mb-2">Webhook URL</h5>
-              <input type="text" id="sms-webhook-url" class="w-full border rounded px-2 py-1 bg-slate-100" readonly>
-              <p class="text-xs text-slate-500 mt-1">将此URL配置到短信宝后台以接收用户回复</p>
+            <!-- ========== 第三部分：速率限制卡片 ========== -->
+            <!-- 使用橙色系主题，表示这是安全相关的配置 -->
+            <div class="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-lg p-4 shadow-sm">
+              <!-- 卡片标题 -->
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-2xl">⚡</span>
+                <h5 class="font-bold text-base text-orange-900">速率限制</h5>
+              </div>
+              <p class="text-xs text-slate-600 mb-3">防止滥用和恶意攻击，保护系统安全</p>
+
+              <!-- 速率限制表单：使用网格布局在大屏幕上横向排列 -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <!-- 单个账号每天最多发送次数 -->
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">
+                    <span class="inline-flex items-center gap-1">
+                      👤 账户限制
+                    </span>
+                  </label>
+                  <div class="flex items-center gap-1">
+                    <input type="number" id="sms-limit-account" 
+                      class="w-full border-2 border-orange-200 rounded-lg px-3 py-2 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all" 
+                      placeholder="10" min="1">
+                    <span class="text-sm text-slate-600 whitespace-nowrap">条/天</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-1">单个账号每天最多</p>
+                </div>
+
+                <!-- 单个IP每天最多发送次数 -->
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">
+                    <span class="inline-flex items-center gap-1">
+                      🌐 IP限制
+                    </span>
+                  </label>
+                  <div class="flex items-center gap-1">
+                    <input type="number" id="sms-limit-ip" 
+                      class="w-full border-2 border-orange-200 rounded-lg px-3 py-2 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all" 
+                      placeholder="20" min="1">
+                    <span class="text-sm text-slate-600 whitespace-nowrap">条/天</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-1">单个IP每天最多</p>
+                </div>
+
+                <!-- 单个手机号每天最多发送次数 -->
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">
+                    <span class="inline-flex items-center gap-1">
+                      📱 手机号限制
+                    </span>
+                  </label>
+                  <div class="flex items-center gap-1">
+                    <input type="number" id="sms-limit-phone" 
+                      class="w-full border-2 border-orange-200 rounded-lg px-3 py-2 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all" 
+                      placeholder="5" min="1">
+                    <span class="text-sm text-slate-600 whitespace-nowrap">条/天</span>
+                  </div>
+                  <p class="text-xs text-slate-500 mt-1">单个手机号每天最多</p>
+                </div>
+              </div>
             </div>
 
-            <!-- 操作按钮 -->
-            <div class="flex gap-2 border-t pt-3">
-              <button onclick="checkSMSBalance()" class="btn btn-ghost min-h-[44px]">查询余额</button>
-              <button onclick="saveSMSConfig()" class="btn btn-primary min-h-[44px]">保存配置</button>
+            <!-- ========== 第四部分：Webhook配置卡片 ========== -->
+            <!-- 使用绿色系主题，表示这是集成相关的配置 -->
+            <div class="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 shadow-sm">
+              <!-- 卡片标题 -->
+              <div class="flex items-center gap-2 mb-3">
+                <span class="text-2xl">🔗</span>
+                <h5 class="font-bold text-base text-green-900">Webhook 回调地址</h5>
+              </div>
+
+              <!-- Webhook URL 显示 -->
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">回调地址（只读）</label>
+                <input type="text" id="sms-webhook-url" 
+                  class="w-full border-2 border-green-200 rounded-lg px-3 py-2 bg-green-50 text-slate-700 font-mono text-sm" 
+                  readonly>
+                <p class="text-xs text-slate-600 mt-2 flex items-start gap-1">
+                  <span>💡</span>
+                  <span>将此URL配置到短信宝后台的"短信回复"功能中，即可接收用户回复的短信</span>
+                </p>
+              </div>
             </div>
 
-            <!-- 余额显示 -->
-            <div id="sms-balance-display" class="hidden border p-2 rounded bg-blue-50">
-              <p class="text-sm">余额：<span id="sms-balance-value">--</span> 条</p>
+            <!-- ========== 第五部分：操作区卡片 ========== -->
+            <!-- 使用灰色系主题，包含操作按钮和余额显示 -->
+            <div class="bg-gradient-to-br from-slate-50 to-gray-50 border-2 border-slate-200 rounded-lg p-4 shadow-sm">
+              <!-- 操作按钮组：查询余额和保存配置 -->
+              <div class="flex flex-col sm:flex-row gap-3">
+                <!-- 查询余额按钮：使用次要样式 -->
+                <button onclick="checkSMSBalance()" 
+                  class="flex-1 btn btn-ghost min-h-[44px] border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 transition-all">
+                  💰 查询余额
+                </button>
+                <!-- 保存配置按钮：使用主要样式，视觉上更突出 -->
+                <button onclick="saveSMSConfig()" 
+                  class="flex-1 btn btn-primary min-h-[44px] shadow-md hover:shadow-lg transition-all">
+                  💾 保存配置
+                </button>
+              </div>
+
+              <!-- 余额显示区域：默认隐藏，查询余额后显示 -->
+              <div id="sms-balance-display" class="hidden mt-3 border-2 border-blue-300 bg-blue-50 rounded-lg p-3">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="text-2xl">💵</span>
+                    <span class="font-medium text-slate-700">当前余额</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span id="sms-balance-value" class="text-2xl font-bold text-blue-600">--</span>
+                    <span class="text-sm text-slate-600">条</span>
+                  </div>
+                </div>
+              </div>
             </div>
+
           </div>
         </div>
       </div>
@@ -1979,13 +2258,25 @@
 
         <div>
           <label class="block text-sm font-semibold text-slate-700">当前手机号</label>
-          <input type="tel" id="admin-modify-phone-current" class="input-field mt-1" readonly>
+          <!-- phone-input-wrapper: 为当前手机号添加+86前缀容器 -->
+          <div class="phone-input-wrapper mt-1">
+            <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
+            <span class="phone-prefix">+86 </span>
+            <!-- 输入框：只读状态，用于显示用户当前绑定的手机号 -->
+            <input type="tel" id="admin-modify-phone-current" class="input-field" readonly>
+          </div>
         </div>
 
         <div>
           <label class="block text-sm font-semibold text-slate-700">新手机号</label>
-          <input type="tel" id="admin-modify-phone-new" class="input-field mt-1" placeholder="请输入新手机号"
-            inputmode="numeric" pattern="[0-9]*">
+          <!-- phone-input-wrapper: 为新手机号添加+86前缀容器 -->
+          <div class="phone-input-wrapper mt-1">
+            <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
+            <span class="phone-prefix">+86 </span>
+            <!-- 输入框：管理员输入新手机号 -->
+            <input type="tel" id="admin-modify-phone-new" class="input-field" placeholder="请输入新手机号"
+              inputmode="numeric" pattern="[0-9]*">
+          </div>
         </div>
 
         <div id="admin-modify-phone-sms-group">
@@ -7348,40 +7639,74 @@
     /**
      * 加载短信服务配置
      */
+    /**
+     * 加载短信服务配置
+     * 从后端API获取短信配置并填充到表单中
+     */
     async function loadSMSConfig() {
       try {
+        // 发送GET请求获取短信配置
         const response = await fetch('/api/admin/sms/config', {
           headers: { 'X-Session-ID': sessionUUID }
         });
         const result = await response.json();
 
+        // 检查请求是否成功
         if (result.success) {
+          // 主开关：启用短信服务
           $('sms-enabled').checked = result.config.enable_sms_service || false;
+          
+          // 新增：三个子开关配置项
+          // 允许用户修改手机号
+          $('sms-enable-phone-modification').checked = result.config.enable_phone_modification || false;
+          // 允许手机号登录
+          $('sms-enable-phone-login').checked = result.config.enable_phone_login || false;
+          // 注册时需要短信验证
+          $('sms-enable-phone-registration-verify').checked = result.config.enable_phone_registration_verify || false;
+          
+          // 短信宝配置信息
           $('sms-username').value = result.config.username || '';
           $('sms-apikey').value = result.config.api_key || '';
           $('sms-signature').value = result.config.signature || '';
           $('sms-template').value = result.config.template_register || '';
           $('sms-code-expire').value = result.config.code_expire_minutes || 5;
+          
+          // 速率限制配置
           $('sms-limit-account').value = result.config.rate_limit_per_account_day || 10;
           $('sms-limit-ip').value = result.config.rate_limit_per_ip_day || 20;
           $('sms-limit-phone').value = result.config.rate_limit_per_phone_day || 5;
+          
+          // Webhook回调地址（只读，自动生成）
           $('sms-webhook-url').value = `${window.location.origin}/sms-reply-webhook`;
         }
       } catch (e) {
+        // 捕获异常并显示错误信息
         showModalAlert('加载配置失败: ' + e.message);
       }
     }
 
     /**
      * 保存短信服务配置
+     * 收集表单数据并发送到后端API保存
      */
     async function saveSMSConfig() {
+      // 收集所有配置项的值
       const config = {
+        // 主开关：启用短信服务
         enable_sms_service: $('sms-enabled').checked,
+        
+        // 新增：三个子开关配置项
+        enable_phone_modification: $('sms-enable-phone-modification').checked,
+        enable_phone_login: $('sms-enable-phone-login').checked,
+        enable_phone_registration_verify: $('sms-enable-phone-registration-verify').checked,
+        
+        // 短信宝配置信息（trim()去除首尾空格）
         username: $('sms-username').value.trim(),
         api_key: $('sms-apikey').value.trim(),
         signature: $('sms-signature').value.trim(),
         template_register: $('sms-template').value.trim(),
+        
+        // 数值类型配置（使用parseInt转换，如果转换失败则使用默认值）
         code_expire_minutes: parseInt($('sms-code-expire').value) || 5,
         rate_limit_per_account_day: parseInt($('sms-limit-account').value) || 10,
         rate_limit_per_ip_day: parseInt($('sms-limit-ip').value) || 20,
@@ -7389,6 +7714,7 @@
       };
 
       try {
+        // 发送POST请求保存配置
         const response = await fetch('/api/admin/sms/config', {
           method: 'POST',
           headers: {
@@ -7398,15 +7724,40 @@
           body: JSON.stringify(config)
         });
 
+        // 解析响应结果
         const result = await response.json();
         if (result.success) {
+          // 保存成功，显示成功消息
           showModalAlert('配置已保存');
         } else {
+          // 保存失败，显示错误消息
           showModalAlert(result.message || '保存失败');
         }
       } catch (e) {
+        // 捕获网络异常或其他错误
         showModalAlert('操作失败: ' + e.message);
       }
+    }
+
+    /**
+     * 处理短信服务主开关的变化事件
+     * 当主开关被关闭时，自动关闭所有子开关
+     * 当主开关被打开时，不自动修改子开关状态
+     */
+    function handleSmsMainSwitchChange() {
+      // 获取主开关的当前状态
+      const mainSwitchEnabled = $('sms-enabled').checked;
+      
+      // 如果主开关被关闭（false），则自动关闭所有子开关
+      if (!mainSwitchEnabled) {
+        // 关闭"允许用户修改手机号"开关
+        $('sms-enable-phone-modification').checked = false;
+        // 关闭"允许手机号登录"开关
+        $('sms-enable-phone-login').checked = false;
+        // 关闭"注册时需要短信验证"开关
+        $('sms-enable-phone-registration-verify').checked = false;
+      }
+      // 如果主开关被打开（true），不修改子开关状态，由用户自行决定
     }
 
     /**
@@ -13553,13 +13904,25 @@
       <div class="space-y-4">
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-2">当前手机号</label>
-          <input type="tel" id="modify-phone-current" class="input-field" readonly>
+          <!-- phone-input-wrapper: 为当前手机号添加+86前缀容器 -->
+          <div class="phone-input-wrapper">
+            <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
+            <span class="phone-prefix">+86 </span>
+            <!-- 输入框：只读状态，用于显示用户当前绑定的手机号 -->
+            <input type="tel" id="modify-phone-current" class="input-field" readonly>
+          </div>
         </div>
 
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-2">新手机号</label>
-          <input type="tel" id="modify-phone-new" class="input-field" placeholder="请输入新手机号" inputmode="numeric"
-            pattern="[0-9]*" style="min-height: 44px;">
+          <!-- phone-input-wrapper: 为新手机号添加+86前缀容器 -->
+          <div class="phone-input-wrapper">
+            <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
+            <span class="phone-prefix">+86 </span>
+            <!-- 输入框：用户输入新手机号 -->
+            <input type="tel" id="modify-phone-new" class="input-field" placeholder="请输入新手机号" inputmode="numeric"
+              pattern="[0-9]*" style="min-height: 44px;">
+          </div>
         </div>
 
         <div>
@@ -13591,45 +13954,94 @@
     // ==================== 任务8-10: 注册登录和个人资料功能 ====================
 
     // 任务9: 手机号/用户名登录切换
+    // isPhoneLogin: 标记当前是否为手机号登录模式（true=手机号，false=用户名）
     let isPhoneLogin = false;
 
     document.addEventListener('DOMContentLoaded', function () {
+      // 获取DOM元素：用户名/手机号切换按钮
       const usernameBtn = document.getElementById('auth-login-username-btn');
       const phoneBtn = document.getElementById('auth-login-phone-btn');
+      // authInput: 输入框元素（id=auth-username）
       const authInput = document.getElementById('auth-username');
+      // authLabel: 输入框上方的label标签
       const authLabel = document.getElementById('auth-login-label');
+      // authUsernameContainer: 输入框的父容器，用于动态添加/移除+86前缀wrapper
+      const authUsernameContainer = document.getElementById('auth-username-container');
 
       if (usernameBtn && phoneBtn) {
+        // ===== 用户名登录按钮点击事件 =====
         usernameBtn.addEventListener('click', function () {
+          // 设置为用户名登录模式
           isPhoneLogin = false;
+          // 更新按钮样式：用户名按钮高亮（active），手机号按钮变灰
           usernameBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
           phoneBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
+          
+          // 更新输入框属性：切换为文本输入模式
           authInput.type = 'text';
           authInput.placeholder = '请输入用户名';
-          authInput.removeAttribute('inputmode');
+          authInput.removeAttribute('inputmode'); // 移除数字键盘属性
+          // 更新label文本为"用户名"
           if (authLabel) authLabel.textContent = '用户名';
 
-          // 隐藏"使用验证码登录"按钮
+          // ===== 移除+86前缀（如果存在） =====
+          // 策略：将容器内的HTML替换为不带前缀的纯输入框
+          if (authUsernameContainer) {
+            // 保存当前输入框的值（防止切换时丢失用户输入）
+            const currentValue = authInput.value;
+            // 重新渲染容器内容：不带phone-input-wrapper，直接是input元素
+            authUsernameContainer.innerHTML = `
+              <input type="text" id="auth-username" class="input-field mt-1" 
+                     placeholder="请输入用户名" autocomplete="username">
+            `;
+            // 恢复之前保存的输入值
+            document.getElementById('auth-username').value = currentValue;
+          }
+
+          // 隐藏"使用验证码登录"按钮（用户名登录只能用密码）
           const switchToSms = document.getElementById('auth-switch-to-sms');
           if (switchToSms) switchToSms.classList.add('hidden');
 
-          // 确保显示密码输入
+          // 确保显示密码输入区域，隐藏验证码输入区域
           const passwordSection = document.getElementById('auth-password-section');
           const smsSection = document.getElementById('auth-sms-section');
           if (passwordSection) passwordSection.classList.remove('hidden');
           if (smsSection) smsSection.classList.add('hidden');
         });
 
+        // ===== 手机号登录按钮点击事件 =====
         phoneBtn.addEventListener('click', function () {
+          // 设置为手机号登录模式
           isPhoneLogin = true;
+          // 更新按钮样式：手机号按钮高亮（active），用户名按钮变灰
           phoneBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
           usernameBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
+          
+          // 更新输入框属性：切换为手机号输入模式
           authInput.type = 'tel';
           authInput.placeholder = '请输入手机号';
-          authInput.setAttribute('inputmode', 'numeric');
+          authInput.setAttribute('inputmode', 'numeric'); // 触发数字键盘
+          // 更新label文本为"手机号"
           if (authLabel) authLabel.textContent = '手机号';
 
-          // 显示"使用验证码登录"按钮
+          // ===== 添加+86前缀 =====
+          // 策略：将容器内的HTML替换为带phone-input-wrapper的结构
+          if (authUsernameContainer) {
+            // 保存当前输入框的值（防止切换时丢失用户输入）
+            const currentValue = authInput.value;
+            // 重新渲染容器内容：使用phone-input-wrapper包裹，添加+86前缀
+            authUsernameContainer.innerHTML = `
+              <div class="phone-input-wrapper mt-1">
+                <span class="phone-prefix">+86 </span>
+                <input type="tel" id="auth-username" class="input-field" 
+                       placeholder="请输入手机号" autocomplete="tel" inputmode="numeric">
+              </div>
+            `;
+            // 恢复之前保存的输入值
+            document.getElementById('auth-username').value = currentValue;
+          }
+
+          // 显示"使用验证码登录"按钮（手机号登录支持密码或验证码）
           const switchToSms = document.getElementById('auth-switch-to-sms');
           if (switchToSms) switchToSms.classList.remove('hidden');
         });
