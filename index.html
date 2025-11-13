@@ -2192,6 +2192,20 @@
                 </button>
               </div>
 
+              <!-- 管理功能按钮组：短信历史和验证码管理 -->
+              <div class="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t-2 border-slate-200">
+                <!-- 短信发送历史按钮 -->
+                <button onclick="openSMSHistoryModal()" 
+                  class="flex-1 btn btn-ghost min-h-[44px] border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 transition-all">
+                  📋 短信发送历史
+                </button>
+                <!-- 验证码管理按钮 -->
+                <button onclick="openVerificationCodesModal()" 
+                  class="flex-1 btn btn-ghost min-h-[44px] border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 transition-all">
+                  🔑 验证码管理
+                </button>
+              </div>
+
               <!-- 余额显示区域：默认隐藏，查询余额后显示 -->
               <div id="sms-balance-display" class="hidden mt-3 border-2 border-blue-300 bg-blue-50 rounded-lg p-3">
                 <div class="flex items-center justify-between">
@@ -2209,6 +2223,69 @@
 
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 短信发送历史二级模态窗 ========== -->
+  <div id="sms-history-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/70" onclick="closeSMSHistoryModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[90%] max-w-5xl max-h-[85vh] space-y-4 relative overflow-hidden">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-sky-600">📋 短信发送历史</h3>
+        <button onclick="closeSMSHistoryModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+
+      <!-- 过滤和刷新 -->
+      <div class="flex gap-2 items-center">
+        <input type="date" id="sms-history-date-filter" class="input-field flex-1" placeholder="按日期过滤">
+        <input type="text" id="sms-history-phone-filter" class="input-field flex-1" placeholder="按手机号过滤">
+        <button onclick="loadSMSHistory()" class="btn btn-primary whitespace-nowrap">🔄 刷新</button>
+      </div>
+
+      <!-- 历史记录列表 -->
+      <div id="sms-history-list" class="space-y-2 max-h-[55vh] overflow-y-auto">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+
+      <div class="flex justify-end border-t pt-4">
+        <button onclick="closeSMSHistoryModal()" class="btn btn-ghost">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 验证码管理二级模态窗 ========== -->
+  <div id="verification-codes-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/70" onclick="closeVerificationCodesModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[90%] max-w-4xl max-h-[85vh] space-y-4 relative overflow-hidden">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-sky-600">🔑 验证码状态管理</h3>
+        <button onclick="closeVerificationCodesModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+
+      <!-- 添加验证码表单 -->
+      <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+        <h5 class="font-semibold mb-3 text-green-900">➕ 手动添加验证码（模拟发送）</h5>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input type="tel" id="manual-code-phone" class="input-field" placeholder="手机号" pattern="[0-9]*">
+          <input type="text" id="manual-code-value" class="input-field" placeholder="验证码（6位数字）" maxlength="6" pattern="[0-9]{6}">
+          <button onclick="addManualVerificationCode()" class="btn btn-primary">添加验证码</button>
+        </div>
+        <p class="text-xs text-slate-600 mt-2">💡 此功能用于测试或紧急情况下手动添加验证码，不会实际发送短信</p>
+      </div>
+
+      <!-- 刷新按钮 -->
+      <div class="flex justify-end">
+        <button onclick="loadVerificationCodes()" class="btn btn-ghost">🔄 刷新列表</button>
+      </div>
+
+      <!-- 当前有效验证码列表 -->
+      <div id="verification-codes-list" class="space-y-2 max-h-[45vh] overflow-y-auto">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+
+      <div class="flex justify-end border-t pt-4">
+        <button onclick="closeVerificationCodesModal()" class="btn btn-ghost">关闭</button>
       </div>
     </div>
   </div>
@@ -7775,6 +7852,228 @@
           $('sms-balance-display').classList.remove('hidden');
         } else {
           showModalAlert(result.message || '查询失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
+      }
+    }
+
+    // ==================== 短信发送历史功能 ====================
+    
+    /**
+     * 打开短信发送历史模态窗
+     */
+    function openSMSHistoryModal() {
+      $('sms-history-modal').classList.remove('hidden');
+      loadSMSHistory();
+    }
+
+    /**
+     * 关闭短信发送历史模态窗
+     */
+    function closeSMSHistoryModal() {
+      $('sms-history-modal').classList.add('hidden');
+    }
+
+    /**
+     * 加载短信发送历史记录
+     */
+    async function loadSMSHistory() {
+      try {
+        // 获取过滤条件
+        const dateFilter = $('sms-history-date-filter').value;
+        const phoneFilter = $('sms-history-phone-filter').value.trim();
+        
+        // 构建查询参数
+        const params = new URLSearchParams();
+        if (dateFilter) params.append('date', dateFilter);
+        if (phoneFilter) params.append('phone', phoneFilter);
+        
+        const response = await fetch(`/api/admin/sms/history?${params.toString()}`, {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+
+        const listContainer = $('sms-history-list');
+        
+        if (result.success && result.records && result.records.length > 0) {
+          listContainer.innerHTML = result.records.map(record => `
+            <div class="border-2 border-slate-200 rounded-lg p-4 hover:border-sky-300 transition-colors bg-white">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <span class="text-xs text-slate-500">📱 手机号</span>
+                  <p class="font-semibold text-slate-700">+86 ${record.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <span class="text-xs text-slate-500">👤 用户名</span>
+                  <p class="font-semibold text-slate-700">${record.username || '未知'}</p>
+                </div>
+                <div>
+                  <span class="text-xs text-slate-500">🕐 时间</span>
+                  <p class="text-sm text-slate-600">${record.datetime || 'N/A'}</p>
+                </div>
+                <div>
+                  <span class="text-xs text-slate-500">🌐 IP地址</span>
+                  <p class="text-sm text-slate-600">${record.ip || 'N/A'}</p>
+                </div>
+                <div class="md:col-span-2">
+                  <span class="text-xs text-slate-500">💬 短信内容</span>
+                  <p class="text-sm text-slate-600 bg-slate-50 p-2 rounded mt-1">${escapeHtml(record.content || '')}</p>
+                </div>
+                ${record.session_id ? `
+                <div class="md:col-span-2">
+                  <span class="text-xs text-slate-500">🔐 会话ID</span>
+                  <p class="text-xs text-slate-400 font-mono">${record.session_id}</p>
+                </div>
+                ` : ''}
+              </div>
+            </div>
+          `).join('');
+        } else {
+          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">暂无记录</p>';
+        }
+      } catch (e) {
+        showModalAlert('加载历史记录失败: ' + e.message);
+      }
+    }
+
+    // ==================== 验证码管理功能 ====================
+    
+    /**
+     * 打开验证码管理模态窗
+     */
+    function openVerificationCodesModal() {
+      $('verification-codes-modal').classList.remove('hidden');
+      loadVerificationCodes();
+    }
+
+    /**
+     * 关闭验证码管理模态窗
+     */
+    function closeVerificationCodesModal() {
+      $('verification-codes-modal').classList.add('hidden');
+    }
+
+    /**
+     * 加载当前有效的验证码列表
+     */
+    async function loadVerificationCodes() {
+      try {
+        const response = await fetch('/api/admin/sms/verification_codes', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+
+        const listContainer = $('verification-codes-list');
+        
+        if (result.success && result.codes && result.codes.length > 0) {
+          listContainer.innerHTML = result.codes.map(item => {
+            const expiresIn = Math.max(0, Math.floor(item.expires_in / 60));
+            const expiresSec = Math.max(0, item.expires_in % 60);
+            return `
+            <div class="border-2 border-slate-200 rounded-lg p-4 bg-white hover:border-sky-300 transition-colors">
+              <div class="flex items-center justify-between gap-4">
+                <div class="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <span class="text-xs text-slate-500">📱 手机号</span>
+                    <p class="font-semibold text-slate-700">+86 ${item.phone}</p>
+                  </div>
+                  <div>
+                    <span class="text-xs text-slate-500">🔢 验证码</span>
+                    <p class="font-mono text-lg font-bold text-sky-600">${item.code}</p>
+                  </div>
+                  <div>
+                    <span class="text-xs text-slate-500">⏰ 剩余时间</span>
+                    <p class="text-sm ${expiresIn < 2 ? 'text-red-600 font-semibold' : 'text-slate-600'}">
+                      ${expiresIn}分${expiresSec}秒
+                    </p>
+                  </div>
+                </div>
+                <button onclick="invalidateVerificationCode('${item.phone}')" 
+                  class="btn btn-ghost border border-red-300 text-red-600 hover:bg-red-50 whitespace-nowrap">
+                  ❌ 失效
+                </button>
+              </div>
+            </div>
+          `}).join('');
+        } else {
+          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">当前没有有效的验证码</p>';
+        }
+      } catch (e) {
+        showModalAlert('加载验证码列表失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 使验证码失效
+     */
+    async function invalidateVerificationCode(phone) {
+      if (!confirm(`确定要使手机号 +86 ${phone} 的验证码失效吗？`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/sms/invalidate_code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ phone: phone })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('验证码已失效', 'success');
+          loadVerificationCodes(); // 刷新列表
+        } else {
+          showModalAlert(result.message || '操作失败');
+        }
+      } catch (e) {
+        showModalAlert('操作失败: ' + e.message);
+      }
+    }
+
+    /**
+     * 手动添加验证码（模拟发送）
+     */
+    async function addManualVerificationCode() {
+      const phone = $('manual-code-phone').value.trim();
+      const code = $('manual-code-value').value.trim();
+
+      // 验证手机号格式
+      if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+        showModalAlert('请输入正确的手机号（11位数字）');
+        return;
+      }
+
+      // 验证验证码格式
+      if (!code || !/^\d{6}$/.test(code)) {
+        showModalAlert('请输入6位数字验证码');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/admin/sms/add_manual_code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ 
+            phone: phone,
+            code: code
+          })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('验证码已添加', 'success');
+          $('manual-code-phone').value = '';
+          $('manual-code-value').value = '';
+          loadVerificationCodes(); // 刷新列表
+        } else {
+          showModalAlert(result.message || '添加失败');
         }
       } catch (e) {
         showModalAlert('操作失败: ' + e.message);
