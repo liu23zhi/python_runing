@@ -3257,6 +3257,18 @@
           } else {
             // showModalAlert(errorMsg, '登录失效');
             logMessage_Info(`[安全提示] ${errorMsg}`);
+
+
+            // 清除本地状态并返回登录页 - 等待用户确认
+            Swal.fire({
+              icon: 'warning',
+              title: '需要重新登录',
+              text: errorMsg,
+              confirmButtonText: '返回登录',
+              allowOutsideClick: false
+            }).then(() => {
+              window.location.href = '/';
+            });
           }
 
           // 停止可能的刷新定时器 (也适用于 token 过期等情况)
@@ -3266,16 +3278,7 @@
             refreshUserListInterval = null;
           }
 
-          // 清除本地状态并返回登录页 - 等待用户确认
-          Swal.fire({
-            icon: 'warning',
-            title: '需要重新登录',
-            text: errorMsg,
-            confirmButtonText: '返回登录',
-            allowOutsideClick: false
-          }).then(() => {
-            window.location.href = '/';
-          });
+          
 
           throw new Error(errorMsg);
         }
@@ -4993,28 +4996,7 @@
 
       // 根据用户组进行权限隔离
       // 如果是普通用户（'user'），只显示健康状态和留言板，隐藏用户组管理
-      if (userGroup === 'user') {
-        // 隐藏用户组管理Tab（普通用户无权查看）
-        if (groupsTab) groupsTab.style.display = 'none';
-        // 显示健康状态Tab（普通用户可查看系统健康状况）
-        if (healthTab) healthTab.style.display = 'block';
-        // 显示留言板Tab（普通用户可发表和查看留言）
-        if (messagesTab) messagesTab.style.display = 'block';
-        // 隐藏管理员专用Tab
-        if (ipbanTab) ipbanTab.style.display = 'none';
-        if (smsTab) smsTab.style.display = 'none';
-      } else if (userGroup === 'admin' || userGroup === 'super_admin') {
-        // 管理员和超级管理员可以看到所有Tab，确保全部显示
-        if (groupsTab) groupsTab.style.display = 'block';
-        if (healthTab) healthTab.style.display = 'block';
-        if (messagesTab) messagesTab.style.display = 'block';
-        if (usersTab) usersTab.style.display = 'block';
-        if (logsTab) logsTab.style.display = 'block';
-        if (profileTab) profileTab.style.display = 'block';
-        if (sessionsTab) sessionsTab.style.display = 'block';
-        if (ipbanTab) ipbanTab.style.display = 'block';
-        if (smsTab) smsTab.style.display = 'block';
-      }
+      
 
       // 防御性编程：检查核心元素是否存在
       if (!sessionsTab || !sessionsPanel) {

@@ -1044,7 +1044,7 @@ def _get_default_config():
     config['SMS_Service_SMSBao'] = {
         'username': '',  # 短信宝账户用户名
         'api_key': '',  # 短信宝API密钥（在短信宝后台获取）
-        'signature': '【您的签名】',  # 短信签名（需提前在短信宝审核通过）
+        'signature': '【电科大跑步助手】',  # 短信签名（需提前在短信宝审核通过）
         'template_register': '您的验证码是：{code}，{minutes}分钟内有效。',  # 注册验证码短信模板，支持{code}和{minutes}占位符
         'code_expire_minutes': '5',  # 验证码有效期（分钟），默认5分钟，管理员可修改
         'send_interval_seconds': '180',  # 发送间隔（秒），默认180秒（3分钟），防止频繁发送
@@ -1183,7 +1183,7 @@ def _write_config_with_comments(config_obj, filepath):
             f"api_key = {config_obj.get('SMS_Service_SMSBao', 'api_key', fallback='')}\n")
         f.write("# 短信签名（需提前在短信宝审核通过，格式：【签名内容】）\n")
         f.write(
-            f"signature = {config_obj.get('SMS_Service_SMSBao', 'signature', fallback='【您的签名】')}\n")
+            f"signature = {config_obj.get('SMS_Service_SMSBao', 'signature', fallback='【电科大跑步助手】')}\n")
         f.write("# 注册验证码短信模板（{code}会被替换为验证码，{minutes}会被替换为有效期分钟数）\n")
         f.write(
             f"template_register = {config_obj.get('SMS_Service_SMSBao', 'template_register', fallback='您的验证码是：{{code}}，{{minutes}}分钟内有效。')}\n")
@@ -15527,7 +15527,7 @@ def start_web_server(args_param):
             # 6. 调用短信宝API发送短信
             username = config.get('SMS_Service_SMSBao', 'username', fallback='')
             api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
-            signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【您的签名】')
+            signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【电科大跑步助手】')
             code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
             template = config.get('SMS_Service_SMSBao', 'template_register', 
                                  fallback=f'您的验证码是：{{code}}，{code_expire_minutes}分钟内有效。')
