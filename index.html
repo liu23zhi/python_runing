@@ -4388,8 +4388,152 @@
     };
 
     // 权限翻译函数
+    // 功能：将英文权限键名转换为中文翻译
+    // 优先使用 permissionTranslations 中预定义的翻译，
+    // 如果未定义则智能解析权限键名并生成合理的中文翻译
     function translatePermission(permissionKey) {
-      return permissionTranslations[permissionKey] || permissionKey;
+      // 第一步：检查是否有预定义的翻译
+      // 如果 permissionTranslations 对象中已经定义了该权限的中文翻译，直接返回
+      if (permissionTranslations[permissionKey]) {
+        return permissionTranslations[permissionKey];
+      }
+
+      // 第二步：如果没有预定义翻译，进行智能翻译
+      // 创建常见动词的中英文映射表
+      // 这些是权限系统中最常用的操作动词
+      const verbMap = {
+        'view': '查看',           // 查看、浏览操作
+        'create': '创建',         // 创建、新建操作
+        'delete': '删除',         // 删除、移除操作
+        'edit': '编辑',           // 编辑、修改操作
+        'modify': '修改',         // 修改操作
+        'update': '更新',         // 更新操作
+        'manage': '管理',         // 管理操作（通常包含多种子操作）
+        'start': '启动',          // 启动操作
+        'stop': '停止',           // 停止操作
+        'execute': '执行',        // 执行操作
+        'run': '运行',            // 运行操作
+        'use': '使用',            // 使用操作
+        'access': '访问',         // 访问操作
+        'add': '添加',            // 添加操作
+        'remove': '移除',         // 移除操作
+        'export': '导出',         // 导出操作
+        'import': '导入',         // 导入操作
+        'backup': '备份',         // 备份操作
+        'restore': '恢复',        // 恢复操作
+        'assign': '分配',         // 分配操作
+        'revoke': '撤销',         // 撤销操作
+        'grant': '授予',          // 授予操作
+        'clear': '清空',          // 清空操作
+        'reset': '重置',          // 重置操作
+        'force': '强制',          // 强制操作
+        'post': '发表',           // 发表操作
+        'send': '发送',           // 发送操作
+        'receive': '接收',        // 接收操作
+        'download': '下载',       // 下载操作
+        'upload': '上传',         // 上传操作
+        'approve': '审批',        // 审批操作
+        'reject': '拒绝',         // 拒绝操作
+        'enable': '启用',         // 启用操作
+        'disable': '禁用',        // 禁用操作
+        'configure': '配置',      // 配置操作
+        'monitor': '监控'         // 监控操作
+      };
+
+      // 创建常见名词的中英文映射表
+      // 这些是权限系统中最常用的资源对象
+      const nounMap = {
+        'users': '用户',          // 用户
+        'user': '用户',           // 单数形式的用户
+        'tasks': '任务',          // 任务
+        'task': '任务',           // 单数形式的任务
+        'logs': '日志',           // 日志
+        'log': '日志',            // 单数形式的日志
+        'sessions': '会话',       // 会话
+        'session': '会话',        // 单数形式的会话
+        'notifications': '通知',  // 通知
+        'notification': '通知',   // 单数形式的通知
+        'messages': '留言',       // 留言/消息
+        'message': '留言',        // 单数形式的留言
+        'permissions': '权限',    // 权限
+        'permission': '权限',     // 单数形式的权限
+        'groups': '权限组',       // 权限组
+        'group': '权限组',        // 单数形式的权限组
+        'settings': '设置',       // 设置
+        'setting': '设置',        // 单数形式的设置
+        'system': '系统',         // 系统
+        'api': 'API',             // API（保持大写）
+        'data': '数据',           // 数据
+        'files': '文件',          // 文件
+        'file': '文件',           // 单数形式的文件
+        'accounts': '账号',       // 账号
+        'account': '账号',        // 单数形式的账号
+        'password': '密码',       // 密码
+        'passwords': '密码',      // 复数形式的密码
+        'panel': '面板',          // 面板
+        'mode': '模式',           // 模式
+        'button': '按钮',         // 按钮
+        'buttons': '按钮',        // 复数形式的按钮
+        'audit': '审计',          // 审计
+        'details': '详情',        // 详情
+        'detail': '详情',         // 单数形式的详情
+        'params': '参数',         // 参数
+        'param': '参数',          // 单数形式的参数
+        'offline': '离线文件',    // 离线文件
+        'multi': '多',            // 多（用于复合词）
+        'own': '自己的',          // 自己的
+        'all': '所有',            // 所有
+        'any': '任何',            // 任何
+        'attendance': '签到',     // 签到功能
+        'console': '控制台',      // 控制台
+        'logout': '登出',         // 登出
+        'login': '登录',          // 登录
+        'admin': '管理',          // 管理
+        'god': '上帝',            // 上帝（特殊权限）
+        'debug': '调试'           // 调试
+      };
+
+      // 第三步：解析权限键名
+      // 将权限键名按下划线分割成单词数组
+      // 例如："view_user_logs" -> ["view", "user", "logs"]
+      const words = permissionKey.toLowerCase().split('_');
+
+      // 第四步：翻译每个单词
+      // 创建一个数组来存储翻译后的中文单词
+      const translatedWords = [];
+
+      // 遍历分割后的每个英文单词
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i]; // 当前处理的单词
+
+        // 优先检查是否为动词（通常动词在最前面）
+        // 如果是第一个单词且在动词映射表中找到了对应翻译
+        if (i === 0 && verbMap[word]) {
+          translatedWords.push(verbMap[word]);
+        }
+        // 检查是否为名词
+        // 如果在名词映射表中找到了对应翻译
+        else if (nounMap[word]) {
+          translatedWords.push(nounMap[word]);
+        }
+        // 如果既不是已知动词也不是已知名词
+        // 保留原始单词但进行首字母大写处理，使其更易读
+        else {
+          // 将单词首字母大写，其余字母小写
+          // 例如："unknown" -> "Unknown"
+          translatedWords.push(word.charAt(0).toUpperCase() + word.slice(1));
+        }
+      }
+
+      // 第五步：组合翻译结果
+      // 将所有翻译后的中文单词拼接成一个字符串
+      // 例如：["查看", "用户", "日志"] -> "查看用户日志"
+      const result = translatedWords.join('');
+
+      // 第六步：返回智能翻译的结果
+      // 如果翻译成功，返回中文翻译；否则返回原始权限键名
+      // 这确保了即使翻译失败，也不会导致功能异常
+      return result || permissionKey;
     }
 
     // 在 toggleAdminPanel 函数内部或之前添加一个辅助函数来检查权限
