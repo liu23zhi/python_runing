@@ -17305,13 +17305,56 @@ def start_web_server(args_param):
 
         # 调用对应的API方法
         try:
-            # 权限检查：需要特定权限的方法
+            # ============================================================
+            # 权限检查：细粒度权限控制
+            # 为不同的API方法配置所需的权限
+            # ============================================================
             permission_required_methods = {
+                # 通知相关权限
                 'mark_notification_read': 'mark_notifications_read',
                 'mark_all_read': 'mark_notifications_read',
+                
+                # 签到相关权限
                 'trigger_attendance': 'use_attendance',
+                
+                # 多账号相关权限
                 'multi_start_single_account': 'execute_multi_account',
                 'multi_start_all_accounts': 'execute_multi_account',
+                'enter_multi_account_mode': 'execute_multi_account',
+                'multi_add_account': 'execute_multi_account',
+                'multi_remove_account': 'execute_multi_account',
+                
+                # 任务相关权限
+                'create_task': 'create_tasks',
+                'delete_task': 'delete_tasks',
+                'start_single_run': 'start_tasks',
+                'start_all_runs': 'start_tasks',
+                'stop_current_run': 'stop_tasks',
+                
+                # 数据操作权限
+                'import_offline_file': 'import_offline',
+                'export_offline_file': 'export_data',
+                
+                # 路径操作权限
+                'record_path': 'record_path',
+                'auto_generate_path': 'auto_generate_path',
+                'set_draft_path': 'record_path',
+                'clear_path': 'record_path',
+                
+                # 参数修改权限
+                'update_param': 'modify_params',
+                'generate_new_ua': 'modify_params',
+                
+                # 地图查看权限
+                'get_map_data': 'view_map',
+                
+                # 用户信息权限
+                'get_user_info': 'view_user_details',
+                'update_user_settings': 'modify_user_settings',
+                
+                # 日志权限
+                'get_logs': 'view_logs',
+                'clear_logs': 'clear_logs',
             }
 
             if method in permission_required_methods:
