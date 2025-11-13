@@ -3104,155 +3104,21 @@
             logMessage_Info('[安全提示] 检测到账号在其他设备登录，已自动登出');
             logMessage_Info('[API调用] ✗ 多设备登录检测');
 
-            // 创建全屏遮罩层，遮住所有内容
-                        const logoutOverlay = document.createElement('div');
-                        logoutOverlay.id = 'logout-elsewhere-overlay';
-                        logoutOverlay.style.cssText = `
-                          position: fixed;
-                          top: 0;
-                          left: 0;
-                          width: 100%;
-                          height: 100%;
-                          background: rgba(0, 0, 0, 0.85);
-                          z-index: 9999;
-                          display: flex;
-                          align-items: center;
-                          justify-content: center;
-                        `;
-
-                        // 创建拟态窗口（模态框内容）
-                        const modalContent = document.createElement('div');
-                        modalContent.style.cssText = `
-                          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                          padding: 40px;
-                          border-radius: 20px;
-                          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-                          max-width: 500px;
-                          width: 90%;
-                          text-align: center;
-                          color: white;
-                        `;
-
-                        // 图标
-                        const icon = document.createElement('div');
-                        icon.innerHTML = `
-                          <svg style="width: 80px; height: 80px; margin: 0 auto 20px;" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                          </svg>
-                        `;
-
-                        // 标题
-                        const title = document.createElement('h2');
-                        title.textContent = '多设备登录检测';
-                        title.style.cssText = `
-                          font-size: 24px;
-                          font-weight: bold;
-                          margin: 0 0 20px 0;
-                        `;
-
-                        // 说明文本
-                        const text = document.createElement('p');
-                        text.textContent = '您的账号已在其他设备登录，本设备已自动登出。2分钟后将自动跳转到登录页面。';
-                        text.style.cssText = `
-                          font-size: 16px;
-                          line-height: 1.6;
-                          margin: 0 0 30px 0;
-                          opacity: 0.95;
-                        `;
-
-                        // 倒计时显示
-                        const countdown = document.createElement('div');
-                        countdown.style.cssText = `
-                          font-size: 32px;
-                          font-weight: bold;
-                          margin: 0 0 30px 0;
-                        `;
-
-                        // 按钮
-                        const button = document.createElement('button');
-                        button.textContent = '立即返回登录';
-                        button.style.cssText = `
-                          background: white;
-                          color: #667eea;
-                          border: none;
-                          padding: 12px 30px;
-                          border-radius: 25px;
-                          font-size: 16px;
-                          font-weight: bold;
-                          cursor: pointer;
-                          transition: all 0.3s;
-                        `;
-                        button.onmouseover = () => {
-                          button.style.transform = 'scale(1.05)';
-                          button.style.boxShadow = '0 5px 15px rgba(255, 255, 255, 0.3)';
-                        };
-                        button.onmouseout = () => {
-                          button.style.transform = 'scale(1)';
-                          button.style.boxShadow = 'none';
-                        };
-
-                        // 组装模态框
-                        modalContent.appendChild(icon);
-                        modalContent.appendChild(title);
-                        modalContent.appendChild(text);
-                        modalContent.appendChild(countdown);
-                        modalContent.appendChild(button);
-                        logoutOverlay.appendChild(modalContent);
-                        document.body.appendChild(logoutOverlay);
-
-                        // 倒计时逻辑：120秒 (2分钟)
-                        let remainingSeconds = 120;
-                        const updateCountdown = () => {
-                          const minutes = Math.floor(remainingSeconds / 60);
-                          const seconds = remainingSeconds % 60;
-                          countdown.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                        };
-                        updateCountdown();
-
-                        // 每秒更新倒计时
-                        const countdownInterval = setInterval(() => {
-                          remainingSeconds--;
-                          updateCountdown();
-              
-                          if (remainingSeconds <= 0) {
-                            clearInterval(countdownInterval);
-                            window.location.href = '/';
-                          }
-                        }, 1000);
-
-                        // 点击按钮立即跳转
-                        button.onclick = () => {
-                          clearInterval(countdownInterval);
-                          window.location.href = '/';
-                        };
-
-                        // 用户活动检测：如果用户在2分钟内有任何操作，重置倒计时
-                        // （但保留遮罩层，确保用户意识到需要重新登录）
-                        const userActivityEvents = ['mousedown', 'keydown', 'touchstart'];
-                        const resetCountdown = () => {
-                          // 重置倒计时到120秒
-                          remainingSeconds = 120;
-                          updateCountdown();
-                          logMessage_Info('[安全提示] 检测到用户活动，倒计时已重置');
-                        };
-
-                        userActivityEvents.forEach(eventType => {
-                          document.addEventListener(eventType, resetCountdown, { once: false });
-                        });
-
-                        // 清理事件监听器的函数（在跳转前调用）
-                        const cleanupListeners = () => {
-                          userActivityEvents.forEach(eventType => {
-                            document.removeEventListener(eventType, resetCountdown);
-                          });
-                        };
-
-                        // 更新按钮点击处理，包含清理
-                        button.onclick = () => {
-                          clearInterval(countdownInterval);
-                          cleanupListeners();
-                          window.location.href = '/';
-                        };
+            Swal.fire({
+                    icon: 'warning',
+                    title: '多设备登录检测',
+                    text: '您的账号已在其他设备登录，本设备已自动登出。2分钟后将自动跳转到登录页面。',
+                    confirmButtonText: '立即返回登录',
+                    allowOutsideClick: false,
+                    timer: 120000, // 120秒 (2分钟)
+                    timerProgressBar: true,
+                    // 当弹窗关闭时（无论是点击按钮还是计时器结束）
+                  }).then((result) => {
+                    // 无论用户是点击了“确认”还是等待计时器结束，都跳转
+                    if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
+                      window.location.href = '/';
+                    }
+                  });
 
           } else {
             // showModalAlert(errorMsg, '登录失效');
