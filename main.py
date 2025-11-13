@@ -17497,10 +17497,7 @@ def start_web_server(args_param):
         
         返回:
             str: 地理位置信息字符串，格式为去重后的"info1 info2 info3 isp"
-                 特殊情况：
-                 - 127.0.0.1 返回"保留IP"
-                 - localhost、::1 返回"本地"
-                 - 获取失败返回"未知"
+                 获取失败返回"未知"
         
         实现说明:
             - 调用第三方API（https://api.vore.top/api/IPdata）查询IP归属地
@@ -17511,18 +17508,9 @@ def start_web_server(args_param):
             - 异常情况返回'未知'，确保不影响主业务流程
         
         返回示例:
-            - 127.0.0.1 -> "保留IP"
+            - 127.0.0.1 -> "保留IP"（由API返回）
             - 2409:8a00:3271:7750:acde:d0a7:9544:2ddf -> "北京市 丰台区 移动"
         """
-        # 特殊处理：对于本地回环地址，返回特定标识
-        if ip_address == '127.0.0.1':
-            # 根据需求，127.0.0.1 必须返回"保留IP"
-            return '保留IP'
-        
-        if ip_address in ['localhost', '::1']:
-            # 其他本地地址返回"本地"
-            return '本地'
-        
         try:
             # 调用VORE-API的IP归属地查询接口
             # 该接口支持IPv4和IPv6，格式：https://api.vore.top/api/IPdata?ip=<IP地址>
