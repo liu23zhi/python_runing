@@ -1632,38 +1632,116 @@
     </div>
   </div>
 
+  <!-- 
+    ===================================================================
+    管理面板模态框 - 优化美化版
+    功能说明：提供系统管理功能的统一入口，包括用户管理、日志查看、系统配置等
+    优化内容：
+    1. 增强视觉效果：添加渐变背景、阴影、圆角等现代化设计元素
+    2. 改善交互体验：优化标签页切换动画、按钮悬停效果
+    3. 提升可访问性：添加图标、改善对比度、优化移动端适配
+    ===================================================================
+  -->
   <div id="admin-panel-modal" class="fixed inset-0 hidden items-center justify-center z-50">
-    <div class="absolute inset-0 bg-black/40" onclick="toggleAdminPanel(false)"></div>
-    <div class="panel rounded-2xl p-6 w-[60rem] max-h-[80vh] overflow-x-hidden space-y-4 relative flex flex-col">
+    <!-- 半透明遮罩层，点击关闭面板 -->
+    <div class="absolute inset-0 bg-gradient-to-br from-black/50 to-slate-900/60 backdrop-blur-sm" onclick="toggleAdminPanel(false)"></div>
+    
+    <!-- 主面板容器 - 添加阴影和动画效果 -->
+    <div class="panel rounded-3xl p-8 w-[65rem] max-h-[85vh] overflow-x-hidden space-y-5 relative flex flex-col shadow-2xl border-2 border-white/20">
 
-      <div class="relative mb-4 text-center flex-shrink-0">
-        <h3 class="text-2xl font-bold text-sky-600 inline-block">管理面板</h3>
+      <!-- 标题栏 - 添加渐变背景和图标 -->
+      <div class="relative mb-2 text-center flex-shrink-0">
+        <div class="flex items-center justify-center gap-3">
+          <!-- 管理面板图标 -->
+          <svg class="w-8 h-8 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+          <h3 class="text-3xl font-bold bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent inline-block">管理面板</h3>
+        </div>
 
+        <!-- 关闭按钮 - 改进样式和悬停效果 -->
         <button id="admin-modal-close-btn"
-          class="absolute top-1/2 right-0 transform -translate-y-1/2 btn btn-ghost !py-1 !px-3"
-          onclick="toggleAdminPanel(false)">关闭</button>
+          class="absolute top-1/2 right-0 transform -translate-y-1/2 btn btn-ghost !py-2 !px-4 hover:bg-red-50 hover:text-red-600 transition-all duration-200 rounded-xl"
+          onclick="toggleAdminPanel(false)">
+          <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+          关闭
+        </button>
       </div>
-      <div class="flex border-b border-slate-200 flex-shrink-0">
-        <button id="admin-tab-users_modal" class="px-4 py-2 font-semibold text-sky-600 border-b-2 border-sky-600"
-          style="display:none;">用户管理</button>
-        <button id="admin-tab-groups_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
-          style="display:none;">权限组管理</button>
-        <button id="admin-tab-logs_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
-          style="display:none;">日志查看</button>
-        <button id="admin-tab-health_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
-          style="display:none;">系统状态</button>
+
+      <!-- 标签页导航栏 - 优化样式和间距 -->
+      <div class="flex border-b-2 border-slate-200 flex-shrink-0 overflow-x-auto gap-1 pb-0">
+        <!-- 用户管理标签 - 添加图标 -->
+        <button id="admin-tab-users_modal" class="px-5 py-3 font-semibold text-sky-600 border-b-3 border-sky-600 hover:bg-sky-50 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          用户管理
+        </button>
+        
+        <!-- 权限组管理标签 -->
+        <button id="admin-tab-groups_modal" class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+          权限组
+        </button>
+        
+        <!-- 日志查看标签 -->
+        <button id="admin-tab-logs_modal" class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          日志查看
+        </button>
+        
+        <!-- 系统状态标签 -->
+        <button id="admin-tab-health_modal" class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+          系统状态
+        </button>
+        
+        <!-- 个人信息标签 -->
         <button id="admin-tab-profile_modal"
-          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">个人信息</button>
+          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+          个人信息
+        </button>
+        
+        <!-- 会话管理标签 -->
         <button id="admin-tab-sessions_modal"
-          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">会话管理</button>
+          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          会话管理
+        </button>
+        
+        <!-- 留言板标签 -->
         <button id="admin-tab-messages_modal"
-          class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent">留言板</button>
-        <button id="admin-tab-ipban_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
-          style="display:none;">IP封禁</button>
-        <button id="admin-tab-sms_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
-          style="display:none;">短信配置</button>
-        <button id="admin-tab-config_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
-          style="display:none;">系统配置</button>
+          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+          留言板
+        </button>
+        
+        <!-- IP封禁标签 -->
+        <button id="admin-tab-ipban_modal" class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+          IP封禁
+        </button>
+        
+        <!-- 短信配置标签 -->
+        <button id="admin-tab-sms_modal" class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+          短信配置
+        </button>
+        
+        <!-- 系统配置标签 -->
+        <button id="admin-tab-config_modal" class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+          系统配置
+        </button>
       </div>
 
       <div class="overflow-x-hidden flex-grow min-h-0">
@@ -4961,11 +5039,17 @@
       const godModeToggle = $('god-mode-toggle_modal');
 
       if (show) {
+        // ===================================================================
+        // 【修复1】canViewLogs变量作用域问题修复
+        // 问题描述：canViewLogs原本在try块内用let声明，导致在外部无法访问
+        // 解决方案：将canViewLogs声明提升到if块作用域，使其在整个if (show)块中可见
+        // ===================================================================
         let canViewMessages = false;
         let canManageSystem = false;
         let hasGodMode = false; // <-- 修正 #1: 在此处声明变量并设置默认值
         let isAuthenticated = skipAuthCheck;
         let canManageUsers = false; // <-- 修正 #1.1: 声明 canManageUsers
+        let canViewLogs = false; // ★★★ 修复：将canViewLogs声明提升到外层作用域 ★★★
 
         if (!skipAuthCheck) {
           // --- 性能优化：并行检查所有权限 ---
@@ -4984,7 +5068,7 @@
             canManageSystem = permissionChecks[2];
             hasGodMode = permissionChecks[3]; // <-- 修正 #3: 为 hasGodMode 赋值
             isAuthenticated = permissionChecks[4];
-            let canViewLogs = permissionChecks[5];
+            canViewLogs = permissionChecks[5]; // ★★★ 修复：移除let关键字，使用外层变量 ★★★
 
           } catch (e) {
             logMessage_Error('并行检查权限时出错:', e);
@@ -4994,6 +5078,7 @@
             canManageSystem = false;
             hasGodMode = false;
             isAuthenticated = false; // 视为未认证
+            canViewLogs = false; // ★★★ 修复：确保异常情况下canViewLogs也有默认值 ★★★
           }
         }
 
@@ -5002,7 +5087,11 @@
          // (新) 修复：为 users, groups, logs, health 添加显示逻辑
         if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
         if (groupsTab) groupsTab.style.display = canManageUsers ? 'block' : 'none';
-        // 假设查看日志和健康状态都依赖 'view_logs' 权限 (因为 'admin' 组有此权限)
+        // ===================================================================
+        // 【修复2】管理员标签页显示逻辑
+        // 功能说明：根据canViewLogs权限控制日志和健康状态标签的显示
+        // 权限要求：需要'view_logs'权限（管理员组默认拥有此权限）
+        // ===================================================================
         if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
         if (healthTab) healthTab.style.display = canViewLogs ? 'block' : 'none';
         
@@ -5010,7 +5099,12 @@
         // 问题2修复：IP封禁和短信配置标签只对管理员显示
         if (ipbanTab) ipbanTab.style.display = canManageUsers ? 'block' : 'none';
         if (smsTab) smsTab.style.display = canManageUsers ? 'block' : 'none';
-        if (configTab) configTab.style.display = canManageSystem ? 'block' : 'none'; // 新增：控制系统配置Tab
+        // ===================================================================
+        // 【修复3】系统配置标签显示逻辑
+        // 功能说明：根据canManageSystem权限控制系统配置标签的显示
+        // 权限要求：需要'manage_system'权限（仅管理员拥有）
+        // ===================================================================
+        if (configTab) configTab.style.display = canManageSystem ? 'block' : 'none';
 
         // 游客模式：只显示会话管理和留言板，隐藏个人信息
         if (isGuest) {
