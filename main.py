@@ -11533,6 +11533,112 @@ def start_web_server(args_param):
         return decorated_function
     # ===============================
 
+    # ============================================================
+    # IP封禁全局检查 - before_request拦截器
+    # 在所有请求之前执行，检查IP是否被封禁
+    # ============================================================
+    @app.before_request
+    def check_ip_ban_before_request():
+        """
+        全局IP封禁检查拦截器
+        
+        功能说明：
+            在处理每个请求之前，检查客户端IP是否被封禁。
+            如果IP被封禁且封禁类型为"全部"(scope='all')，则直接返回封禁页面。
+            
+        检查范围：
+            - 排除静态资源请求（/static/, /css/, /js/等）
+            - 排除健康检查端点（/health）
+            - 对所有其他请求进行IP封禁检查
+            
+        返回：
+            如果IP被封禁，返回403状态码和封禁提示页面
+            否则允许请求继续处理
+        """
+        # 获取客户端IP地址
+        client_ip = request.remote_addr
+        
+        # 跳过静态资源和健康检查端点（这些不需要IP封禁检查）
+        # 静态资源路径示例：/static/, /css/, /js/, /default_avatar.png
+        if request.path.startswith('/static/') or \
+           request.path.startswith('/css/') or \
+           request.path.startswith('/js/') or \
+           request.path == '/health' or \
+           request.path.endswith('.png') or \
+           request.path.endswith('.jpg') or \
+           request.path.endswith('.ico'):
+            return None  # 允许请求继续处理
+        
+        # 检查IP是否被全局封禁（scope='all'）
+        # check_ip_ban函数定义在下方，用于检查IP封禁列表
+        is_banned = check_ip_ban(client_ip, scope='all')
+        
+        if is_banned:
+            # IP被全局封禁，返回封禁提示页面
+            logging.warning(f"[IP封禁] 全局封禁拦截：IP {client_ip} 尝试访问 {request.path}")
+            
+            # 返回HTML格式的封禁提示页面（使用简单的内联HTML）
+            banned_html = """
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>访问被拒绝</title>
+                <style>
+                    body {
+                        font-family: 'Microsoft YaHei', Arial, sans-serif;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        height: 100vh;
+                        margin: 0;
+                        color: #333;
+                    }
+                    .container {
+                        background: white;
+                        padding: 40px;
+                        border-radius: 15px;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                        text-align: center;
+                        max-width: 500px;
+                    }
+                    h1 {
+                        color: #e74c3c;
+                        font-size: 48px;
+                        margin: 0 0 20px 0;
+                    }
+                    p {
+                        font-size: 18px;
+                        color: #555;
+                        line-height: 1.6;
+                    }
+                    .ip {
+                        background: #f8f9fa;
+                        padding: 10px;
+                        border-radius: 5px;
+                        font-family: monospace;
+                        color: #495057;
+                        margin-top: 20px;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🚫 访问被拒绝</h1>
+                    <p>您的IP地址已被系统封禁。</p>
+                    <p>如有疑问，请联系系统管理员。</p>
+                    <div class="ip">您的IP: """ + client_ip + """</div>
+                </div>
+            </body>
+            </html>
+            """
+            return make_response(banned_html, 403)
+        
+        # IP未被封禁，允许请求继续处理
+        return None
+
     # ====================
     # JavaScript 压缩工具函数
     # ====================
@@ -15983,6 +16089,41 @@ def start_web_server(args_param):
             app.logger.error(f"[IP封禁] 删除规则失败：{str(e)}")
             return jsonify({"success": False, "message": "删除失败"}), 500
 
+    @app.route('/api/admin/check_ip_ban', methods=['POST'])
+    def check_ip_ban_api():
+        """
+        检查IP封禁状态API
+        
+        功能说明：
+            供前端调用，检查当前客户端IP是否被封禁。
+            前端在切换到留言板标签或发表留言前调用此接口。
+        
+        请求参数：
+            - scope: 检查范围（'all'或'messages_only'），可选，默认为'all'
+        
+        返回：
+            {
+                "success": True,
+                "is_banned": True/False  # true表示IP被封禁
+            }
+        """
+        try:
+            # 获取客户端IP地址
+            client_ip = request.remote_addr
+            
+            # 获取检查范围（默认为'all'）
+            data = request.get_json() or {}
+            scope = data.get('scope', 'all')
+            
+            # 调用check_ip_ban函数进行检查
+            is_banned = check_ip_ban(client_ip, scope=scope)
+            
+            return jsonify({"success": True, "is_banned": is_banned})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 检查失败：{str(e)}")
+            # 出错时默认返回未被封禁（避免误伤用户）
+            return jsonify({"success": True, "is_banned": False})
+
     def check_ip_ban(ip_address, scope='all'):
         """
         检查IP是否被封禁
@@ -17807,6 +17948,15 @@ def start_web_server(args_param):
     @app.route('/api/messages/list', methods=['GET'])
     def get_messages():
         """获取留言列表"""
+        # ============================================================
+        # IP封禁检查：留言板功能专项封禁
+        # 检查客户端IP是否被封禁（scope='messages_only'或'all'）
+        # ============================================================
+        client_ip = request.remote_addr
+        if check_ip_ban(client_ip, scope='messages_only'):
+            logging.warning(f"[IP封禁] 留言功能封禁拦截：IP {client_ip} 尝试访问 /api/messages/list")
+            return jsonify({"success": False, "message": "您的IP已被限制访问留言功能"}), 403
+        
         # 验证会话
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
@@ -17978,6 +18128,15 @@ def start_web_server(args_param):
     @app.route('/api/messages/post', methods=['POST'])
     def post_message():
         """发表留言"""
+        # ============================================================
+        # IP封禁检查：留言板功能专项封禁
+        # 检查客户端IP是否被封禁（scope='messages_only'或'all'）
+        # ============================================================
+        client_ip = request.remote_addr
+        if check_ip_ban(client_ip, scope='messages_only'):
+            logging.warning(f"[IP封禁] 留言功能封禁拦截：IP {client_ip} 尝试发表留言")
+            return jsonify({"success": False, "message": "您的IP已被限制访问留言功能"}), 403
+        
         # 验证会话
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
