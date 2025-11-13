@@ -4498,6 +4498,11 @@
           const modalHealthTab = $('admin-tab-health_modal');
           const modalProfileTab = $('admin-tab-profile_modal');
           const modalSessionsTab = $('admin-tab-sessions_modal');
+          // (新) 获取缺失的标签页
+          const modalMessagesTab = $('admin-tab-messages_modal');
+          const modalIpbanTab = $('admin-tab-ipban_modal');
+          const modalSmsTab = $('admin-tab-sms_modal');
+          const modalConfigTab = $('admin-tab-config_modal');
 
           if (modalUsersTab) modalUsersTab.addEventListener('click', () => switchAdminTab('users'));
           if (modalGroupsTab) modalGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
@@ -4505,6 +4510,12 @@
           if (modalHealthTab) modalHealthTab.addEventListener('click', () => switchAdminTab('health'));
           if (modalProfileTab) modalProfileTab.addEventListener('click', () => switchAdminTab('profile'));
           if (modalSessionsTab) modalSessionsTab.addEventListener('click', () => switchAdminTab('sessions'));
+          // (新) 绑定缺失的点击事件
+          if (modalMessagesTab) modalMessagesTab.addEventListener('click', () => switchAdminTab('messages'));
+          if (modalIpbanTab) modalIpbanTab.addEventListener('click', () => switchAdminTab('ipban'));
+          if (modalSmsTab) modalSmsTab.addEventListener('click', () => switchAdminTab('sms'));
+          if (modalConfigTab) modalConfigTab.addEventListener('click', () => switchAdminTab('config'));
+
           logMessage_Info("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
         } else {
           logMessage_Error("Could not find admin panel modal element to bind tab events.");
@@ -4614,7 +4625,7 @@
         // 会话管理按钮（多个位置）
         const showSessionsLogin = $('show-sessions-login');
         const showSessionsMain = $('show-admin-panel');
-        const showSessionsMulti = $('show-sessions-multi');
+        const showSessionsMulti = $('show-admin-panel-multi');
         if (showSessionsLogin) showSessionsLogin.addEventListener('click', () => {
           toggleAdminPanel(true);
           switchAdminTab('sessions');
@@ -4964,7 +4975,8 @@
               checkAdminPermission('view_messages'),
               checkAdminPermission('manage_system'),
               checkAdminPermission('god_mode'), // <-- 修正 #2: 添加 'god_mode' 权限检查
-              checkAuthStatus()
+              checkAuthStatus(),
+              checkAdminPermission('view_logs') 
             ]);
 
             canManageUsers = permissionChecks[0];
@@ -4972,19 +4984,29 @@
             canManageSystem = permissionChecks[2];
             hasGodMode = permissionChecks[3]; // <-- 修正 #3: 为 hasGodMode 赋值
             isAuthenticated = permissionChecks[4];
-            
+            let canViewLogs = permissionChecks[5];
+
           } catch (e) {
-             logMessage_Error('并行检查权限时出错:', e);
-             // 发生错误时，所有权限默认为 false
-             canManageUsers = false;
-             canViewMessages = false;
-             canManageSystem = false;
-             hasGodMode = false;
-             isAuthenticated = false; // 视为未认证
+            logMessage_Error('并行检查权限时出错:', e);
+            // 发生错误时，所有权限默认为 false
+            canManageUsers = false;
+            canViewMessages = false;
+            canManageSystem = false;
+            hasGodMode = false;
+            isAuthenticated = false; // 视为未认证
           }
         }
 
         const isGuest = currentUserIsGuest;
+
+         // (新) 修复：为 users, groups, logs, health 添加显示逻辑
+        if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
+        if (groupsTab) groupsTab.style.display = canManageUsers ? 'block' : 'none';
+        // 假设查看日志和健康状态都依赖 'view_logs' 权限 (因为 'admin' 组有此权限)
+        if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
+        if (healthTab) healthTab.style.display = canViewLogs ? 'block' : 'none';
+        
+
         // 问题2修复：IP封禁和短信配置标签只对管理员显示
         if (ipbanTab) ipbanTab.style.display = canManageUsers ? 'block' : 'none';
         if (smsTab) smsTab.style.display = canManageUsers ? 'block' : 'none';
@@ -5008,6 +5030,12 @@
 
         // --- 默认显示会话管理标签页 ---
         switchAdminTab('sessions'); // 将会话管理设为默认打开的标签
+
+        // --- 修复：添加以下三行代码以显示模态框 ---
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('modal-visible');
+        // --- 修复结束 ---
 
       } else {
         modal.classList.add('hidden');
