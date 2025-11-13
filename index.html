@@ -1936,11 +1936,11 @@
                 <label class="block text-sm font-medium text-slate-700 mb-1">🏷️ 封禁类型</label>
                 <select id="ban-type" class="select-field">
                   <option value="ip">单个IP</option>
-                  <option value="cidr">IP段(CIDR)</option>
+                  <option value="range">IP范围(Range)</option>
                   </select>
                 <p class="mt-1 text-xs text-slate-500">
                   - <strong>单个IP</strong>: 封禁一个特定的IP地址 (例如: 1.2.3.4)<br>
-                  - <strong>IP段(CIDR)</strong>: 封禁一个IP地址范围 (例如: 1.2.3.0/24)
+                  - <strong>IP范围(Range)</strong>: 封禁一个IP地址范围 (例如: 192.168.1.1-192.168.1.100)
                 </p>
               </div>
 
@@ -4310,47 +4310,22 @@
         const banTargetHint = $('ban-target-hint');
         const banTargetError = $('ban-target-error');
 
-        // IP和CIDR的正则表达式
-        const ipRegex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-        const cidrRegex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/([0-9]|[1-2][0-9]|3[0-2])$/;
+        
 
-        /**
-         * 验证IP封禁目标输入
-         * @returns {boolean} - 是否验证通过
-         */
-        function validateIPBanTarget() {
-          if (!banTypeSelect || !banTargetInput || !banTargetError) return false;
-
-          const type = banTypeSelect.value;
-          const target = banTargetInput.value.trim();
-          
-          if (!target) {
-            banTargetError.textContent = '封禁目标不能为空';
-            banTargetError.classList.remove('hidden');
-            banTargetInput.classList.add('border-red-500');
-            return false;
-          }
-
-          if (type === 'ip' && !ipRegex.test(target)) {
-            banTargetError.textContent = '格式错误，请输入有效的单个IP地址 (例如: 1.2.3.4)';
-            banTargetError.classList.remove('hidden');
-            banTargetInput.classList.add('border-red-500');
-            return false;
-          }
-
-          if (type === 'cidr' && !cidrRegex.test(target)) {
-            banTargetError.textContent = '格式错误，请输入有效的CIDR IP段 (例如: 1.2.3.0/24)';
-            banTargetError.classList.remove('hidden');
-            banTargetInput.classList.add('border-red-500');
-            return false;
-          }
-
-          // 验证通过
-          banTargetError.classList.add('hidden');
-          banTargetInput.classList.remove('border-red-500');
-          return true;
+        // 监听目标输入框的实时输入
+        if (banTargetInput) {
+          banTargetInput.addEventListener('input', validateIPBanTarget);
         }
 
+
+        // ============================================================
+        // IP封禁模态框事件绑定 (在DOM加载后执行)
+        // ============================================================
+        // const banTypeSelect = $('ban-type');
+        // const banTargetInput = $('ban-target');
+        // const banTargetHint = $('ban-target-hint');
+        // const banTargetError = $('ban-target-error');
+        
         // 监听类型选择框的变化
         if (banTypeSelect) {
           banTypeSelect.addEventListener('change', () => {
@@ -4358,15 +4333,14 @@
             if (type === 'ip') {
               if (banTargetInput) banTargetInput.placeholder = '请输入IP地址 (例如: 1.2.3.4)';
               if (banTargetHint) banTargetHint.textContent = '示例: 1.2.3.4';
-            } else if (type === 'cidr') {
-              if (banTargetInput) banTargetInput.placeholder = '请输入IP段 (例如: 1.2.3.0/24)';
-              if (banTargetHint) banTargetHint.textContent = '示例: 1.2.3.0/24 或 1.2.3.4/32';
+            } else if (type === 'range') {
+              if (banTargetInput) banTargetInput.placeholder = '请输入IP范围 (例如: 192.168.1.1-192.168.1.100)';
+              if (banTargetHint) banTargetHint.textContent = '示例: 192.168.1.1-192.168.1.100';
             }
             // 切换类型时也进行一次验证
             validateIPBanTarget();
           });
         }
-
         // 监听目标输入框的实时输入
         if (banTargetInput) {
           banTargetInput.addEventListener('input', validateIPBanTarget);
@@ -7987,6 +7961,85 @@
       }
     }
 
+    // ====================
+    // IP封禁管理函数
+    // ====================
+
+    // IP正则表达式
+    const ipRegex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+
+    // IP转整数辅助函数
+    function ipToInt(ip) {
+      try {
+        // 使用位运算将IP地址的四个八位字节转换为一个32位整数
+        return ip.split('.').reduce((int, octet) => (int << 8) + parseInt(octet, 10), 0) >>> 0;
+      } catch (e) {
+        return 0; // 解析失败返回0
+      }
+    }
+    
+    // ============================================================
+    // IP封禁模态框验证逻辑
+    // ============================================================
+    
+    /**
+     * 验证IP封禁目标输入
+     * @returns {boolean} - 是否验证通过
+     */
+    function validateIPBanTarget() {
+      // DOM元素在函数调用时才获取
+      const banTypeSelect = $('ban-type');
+      const banTargetInput = $('ban-target');
+      const banTargetError = $('ban-target-error');
+
+      if (!banTypeSelect || !banTargetInput || !banTargetError) {
+        logMessage_Error("validateIPBanTarget: 无法找到IP封禁模态框的DOM元素");
+        return false;
+      }
+
+      const type = banTypeSelect.value;
+      const target = banTargetInput.value.trim();
+      
+      if (!target) {
+        banTargetError.textContent = '封禁目标不能为空';
+        banTargetError.classList.remove('hidden');
+        banTargetInput.classList.add('border-red-500');
+        return false;
+      }
+
+      if (type === 'ip' && !ipRegex.test(target)) {
+        banTargetError.textContent = '格式错误，请输入有效的单个IP地址 (例如: 1.2.3.4)';
+        banTargetError.classList.remove('hidden');
+        banTargetInput.classList.add('border-red-500');
+        return false;
+      }
+
+      if (type === 'range') {
+        const parts = target.split('-');
+        if (parts.length !== 2 || !ipRegex.test(parts[0].trim()) || !ipRegex.test(parts[1].trim())) {
+          banTargetError.textContent = '格式错误，请输入有效的IP范围 (例如: 192.168.1.1-192.168.1.100)';
+          banTargetError.classList.remove('hidden');
+          banTargetInput.classList.add('border-red-500');
+          return false;
+        }
+        // 验证IP大小
+        const startIpInt = ipToInt(parts[0].trim());
+        const endIpInt = ipToInt(parts[1].trim());
+        if (startIpInt > endIpInt) {
+          banTargetError.textContent = '格式错误：起始IP必须小于或等于结束IP';
+          banTargetError.classList.remove('hidden');
+          banTargetInput.classList.add('border-red-500');
+          return false;
+        }
+      }
+
+      // 验证通过
+      banTargetError.classList.add('hidden');
+      banTargetInput.classList.remove('border-red-500');
+      return true;
+    }
+
+
     /**
      * 添加IP封禁规则
      */
@@ -8018,6 +8071,13 @@
         if (result.success) {
           showModalAlert('封禁规则已添加');
           $('ban-target').value = ''; // 清空输入框
+
+          const banTargetError = $('ban-target-error');
+          const banTargetInput = $('ban-target');
+          
+          if (banTargetError) banTargetError.classList.add('hidden');
+
+
           banTargetError.classList.add('hidden'); // 隐藏错误提示
           banTargetInput.classList.remove('border-red-500'); // 移除错误样式
           loadIPBans(); // 重新加载列表

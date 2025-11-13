@@ -152,7 +152,8 @@ def import_standard_libraries():
         ('atexit', 'import atexit'),
         ('io', 'import io'),
         ('zipfile', 'import zipfile'),
-        ('functools', 'import functools')
+        ('functools', 'import functools'),
+        ('ipaddress', 'import ipaddress')
     ]
 
     failed_imports = []
@@ -12360,7 +12361,7 @@ def start_web_server(args_param):
                     auth_system.link_session_to_user(auth_username, session_id)
 
                     # 记录审计日志
-                    if session_id=='' or session_id is None:
+                    if session_id=='' or session_id is None or session_id=='null':
                         audit_details = f'登录成功'
                     else:
                         audit_details = f'登录成功，会话ID: {session_id}'
@@ -16008,13 +16009,23 @@ def start_web_server(args_param):
                     # 单个IP匹配
                     if ip_address == ban['target']:
                         return True
-                elif ban['type'] == 'cidr':
-                    # CIDR匹配（需要ipaddress模块）
+                elif ban['type'] == 'range':
+                    # IP范围匹配
                     try:
-                        import ipaddress
-                        if ipaddress.ip_address(ip_address) in ipaddress.ip_network(ban['target']):
+                        # 解析范围，例如 "192.168.1.1-192.168.1.100"
+                        start_ip_str, end_ip_str = ban['target'].split('-')
+                        
+                        # 使用 ipaddress 模块将IP转换为整数
+                        start_ip = int(ipaddress.ip_address(start_ip_str.strip()))
+                        end_ip = int(ipaddress.ip_address(end_ip_str.strip()))
+                        current_ip = int(ipaddress.ip_address(ip_address))
+                        
+                        # 检查当前IP是否在范围内
+                        if start_ip <= current_ip <= end_ip:
                             return True
-                    except:
+                    except (ValueError, TypeError) as e:
+                        # 记录解析错误，但继续检查其他规则
+                        app.logger.warning(f"[IP封禁] 解析IP范围失败: {ban['target']}, 错误: {e}")
                         pass
                 elif ban['type'] == 'city':
                     # 城市匹配（需要IP归属地查询，这里简化处理）
