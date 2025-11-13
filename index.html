@@ -14543,8 +14543,15 @@
         badge.classList.add('hidden');
       }
 
-      // 2. 缓存最新数据
-      // window.currentNotifications = result.notices || [];
+      // 2. 智能更新缓存数据
+      // 【关键修复】更新全局通知缓存，确保后续的过滤和显示操作使用最新数据
+      // 如果此行被注释，会导致 attendance-list 和 notifications-content 无法正常加载
+      // 
+      // 【优化策略】先显示缓存，后台拉取最新数据，然后智能合并：
+      // - 服务器返回的是全量最新数据，直接替换缓存
+      // - 这样可以确保 attendance-list 和 notifications-content 显示最新状态
+      // - 用户在界面上会先看到缓存（快速加载），然后自动刷新为最新数据
+      window.currentNotifications = result.notices || [];
 
       // 3. 渲染“签到”Tab (如果该Tab存在)
       const attList = $('attendance-list');
