@@ -15312,22 +15312,31 @@ def start_web_server(args_param):
                         "retry_after": sms_interval_seconds  # 告知前端下次可发送的间隔
                     })
                 else:
-                    # 短信宝错误码映射
+                    # 短信宝错误码映射（仅用于日志记录）
+                    # 安全策略：不向前端暴露具体错误原因，只记录到日志
                     error_map = {
                         '30': '密码错误', '40': '账号不存在', '41': '余额不足',
                         '42': '账户已过期', '43': 'IP地址限制', '50': '内容含有敏感词'
                     }
-                    error_msg = error_map.get(result, f'短信发送失败(错误码:{result})')
-                    app.logger.error(f"[短信服务] 发送失败：{error_msg}")
-                    return jsonify({"success": False, "message": error_msg})
+                    # 将详细错误信息记录到日志（包含错误码和具体原因）
+                    detailed_error_msg = error_map.get(result, f'未知错误(错误码:{result})')
+                    app.logger.error(f"[短信服务] 短信宝API返回错误码: {result}, 原因: {detailed_error_msg}, 手机号: {phone}")
+                    
+                    # 向前端返回通用错误提示，不暴露具体错误原因
+                    # 这样可以防止攻击者通过错误信息探测系统配置
+                    return jsonify({"success": False, "message": "验证码发送失败，请稍后重试"})
                     
             except Exception as e:
-                app.logger.error(f"[短信服务] API调用异常：{str(e)}")
-                return jsonify({"success": False, "message": "短信发送失败，请稍后重试"})
+                # 网络或其他异常：详细错误记录到日志，前端显示通用提示
+                app.logger.error(f"[短信服务] API调用异常：{str(e)}, 手机号: {phone}", exc_info=True)
+                # 向前端返回通用错误提示
+                return jsonify({"success": False, "message": "验证码发送失败，请稍后重试"})
                 
         except Exception as e:
-            app.logger.error(f"[短信服务] 处理请求异常：{str(e)}")
-            return jsonify({"success": False, "message": "服务器内部错误"})
+            # 请求处理异常：详细错误记录到日志，前端显示通用提示
+            app.logger.error(f"[短信服务] 处理请求异常：{str(e)}", exc_info=True)
+            # 向前端返回通用错误提示
+            return jsonify({"success": False, "message": "验证码发送失败，请稍后重试"})
 
     @app.route('/sms-reply-webhook', methods=['GET'])
     def sms_reply_webhook():
@@ -17476,53 +17485,107 @@ def start_web_server(args_param):
 
     # ============================================================
     # 任务15：IP归属地获取辅助函数
-    # 用于获取IP地址的地理位置（城市）信息
+    # 用于获取IP地址的地理位置信息
     # ============================================================
     global get_ip_location
     def get_ip_location(ip_address):
         """
-        获取IP地址的地理位置信息（城市）
+        获取IP地址的地理位置信息
         
         参数:
-            ip_address (str): IP地址字符串
+            ip_address (str): IP地址字符串（支持IPv4和IPv6）
         
         返回:
-            str: 城市名称，如果获取失败则返回'未知'
+            str: 地理位置信息字符串，格式为去重后的"info1 info2 info3 isp"
+                 获取失败返回"未知"
         
         实现说明:
-            - 使用免费的IP地理位置API（ip-api.com）
-            - 设置3秒超时，防止阻塞请求
+            - 调用第三方API（https://api.vore.top/api/IPdata）查询IP归属地
+            - 支持IPv4和IPv6地址查询
+            - 对返回的ipdata字段（info1、info2、info3、isp）进行去重
+            - 拼接去重后的非空字段，用空格分隔
+            - 设置5秒超时，防止阻塞请求
             - 异常情况返回'未知'，确保不影响主业务流程
-        """
-        # 对于本地IP地址，直接返回本地
-        if ip_address in ['127.0.0.1', 'localhost', '::1']:
-            return '本地'
         
+        返回示例:
+            - 127.0.0.1 -> "保留IP"（由API返回）
+            - 2409:8a00:3271:7750:acde:d0a7:9544:2ddf -> "北京市 丰台区 移动"
+        """
         try:
-            # 使用ip-api.com的免费API获取IP位置
-            # 注意：此API有速率限制（45请求/分钟），生产环境建议使用本地IP数据库
-            # import requests (requests 已经在 check_and_import_dependencies 导入)
-            response = requests.get(
-                f'http://ip-api.com/json/{ip_address}?lang=zh-CN&fields=status,message,city',
-                timeout=3  # 设置3秒超时
-            )
+            # 调用VORE-API的IP归属地查询接口
+            # 该接口支持IPv4和IPv6，格式：https://api.vore.top/api/IPdata?ip=<IP地址>
+            api_url = f'https://api.vore.top/api/IPdata?ip={ip_address}'
+            
+            # 发送GET请求，设置5秒超时
+            response = requests.get(api_url, timeout=5)
+            
+            # 解析返回的JSON数据
             data = response.json()
             
-            # 检查API响应状态
-            if data.get('status') == 'success':
-                city = data.get('city', '未知')
-                return city if city else '未知'
-            else:
-                # API返回错误状态
-                logging.warning(f"[IP定位] API返回错误: {data.get('message', '未知错误')}")
+            # 检查API返回的状态码
+            # code: 200表示请求正常，500表示请求错误
+            code = data.get('code')
+            msg = data.get('msg', '')
+            
+            if code != 200:
+                # 请求失败（code=500或其他错误码）
+                logging.warning(f"[IP定位] API返回错误码: code={code}, msg={msg}, ip={ip_address}")
                 return '未知'
+            
+            # 请求成功（code=200），提取ipdata字段
+            ipdata = data.get('ipdata', {})
+            
+            # 提取地理位置信息字段
+            info1 = ipdata.get('info1', '').strip()  # 例如：省份/直辖市
+            info2 = ipdata.get('info2', '').strip()  # 例如：城市/区
+            info3 = ipdata.get('info3', '').strip()  # 例如：详细地址（通常为空）
+            isp = ipdata.get('isp', '').strip()      # 例如：运营商（移动/联通/电信）
+            
+            # 将所有字段放入列表中进行去重处理
+            location_parts = [info1, info2, info3, isp]
+            
+            # 去重逻辑：
+            # 1. 移除空字符串
+            # 2. 保持顺序的同时去除重复值（使用dict.fromkeys()方法）
+            # 3. 拼接成最终的地理位置字符串
+            seen = {}  # 用于记录已出现的值（保持顺序）
+            unique_parts = []
+            
+            for part in location_parts:
+                # 只保留非空且未出现过的值
+                if part and part not in seen:
+                    seen[part] = True
+                    unique_parts.append(part)
+            
+            # 用空格拼接所有去重后的部分
+            if unique_parts:
+                # 至少有一个有效的地理位置信息
+                location_str = ' '.join(unique_parts)
+                logging.debug(f"[IP定位] 成功获取: ip={ip_address}, 位置={location_str}")
+                return location_str
+            else:
+                # 所有字段都为空（这种情况很少见）
+                logging.warning(f"[IP定位] API返回空数据: ip={ip_address}")
+                return '未知'
+        
         except requests.exceptions.Timeout:
-            # 请求超时
-            logging.warning(f"[IP定位] 请求超时: {ip_address}")
+            # 请求超时（超过5秒）
+            logging.warning(f"[IP定位] 请求超时: ip={ip_address}")
             return '未知'
+        
+        except requests.exceptions.RequestException as e:
+            # 网络相关错误（连接失败、DNS解析失败等）
+            logging.warning(f"[IP定位] 网络请求失败: ip={ip_address}, 错误={str(e)}")
+            return '未知'
+        
+        except (ValueError, KeyError, TypeError) as e:
+            # JSON解析错误或字段缺失
+            logging.warning(f"[IP定位] 数据解析失败: ip={ip_address}, 错误={str(e)}")
+            return '未知'
+        
         except Exception as e:
-            # 其他异常（网络错误、JSON解析错误等）
-            logging.warning(f"[IP定位] 获取失败: {str(e)}")
+            # 其他未预期的异常
+            logging.error(f"[IP定位] 未知错误: ip={ip_address}, 错误={str(e)}", exc_info=True)
             return '未知'
 
     @app.route('/api/messages/post', methods=['POST'])
