@@ -839,6 +839,38 @@
   </div>
 
 
+  <div id="multi-add-user-modal" class="modal">
+    <div class="panel rounded-2xl w-full max-w-md p-6 space-y-4 relative bg-white/95 shadow-xl">
+      <button id="multi-add-user-close"
+        class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-full transition-all">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <path fill-rule="evenodd"
+            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+            clip-rule="evenodd"></path>
+        </svg>
+      </button>
+      <h3 class="text-xl font-bold text-sky-700 text-center card-title">添加新账号</h3>
+      <!-- <p class="text-sm text-slate-500 text-center -mt-2">（此操作将创建一个新的学校账号 .ini 配置文件）</p> -->
+
+      <div>
+        <label for="multi-add-username" class="block text-sm font-semibold leading-6 text-slate-700">账号 (必填)</label>
+        <input type="text" id="multi-add-username" placeholder="请输入账号（例如学号）" class="input-field mt-1">
+      </div>
+      <div>
+        <label for="multi-add-password" class="block text-sm font-semibold leading-6 text-slate-700">密码 (必填)</label>
+        <input type="password" id="multi-add-password" placeholder="请输入密码 (至少6字符)" class="input-field mt-1">
+      </div>
+      <div>
+        <label for="multi-add-tag" class="block text-sm font-semibold leading-6 text-slate-700">标记 (可选)</label>
+        <input type="text" id="multi-add-tag" placeholder="可选，用于分组 (例如: 'A组')" class="input-field mt-1">
+      </div>
+      <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+        <button id="multi-add-user-cancel" class="btn btn-ghost">取消</button>
+        <button id="multi-add-user-confirm" class="btn btn-primary">确认添加</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 加载遮罩层 -->
   <div id="loading-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/80">
     <div class="loader"></div>
@@ -1364,7 +1396,8 @@
         <div class="flex justify-between items-center mb-1">
           <div class="flex items-center gap-2">
             <h2 class="text-lg font-bold text-slate-800">账号列表 (<span id="multi-account-count">0</span>)</h2>
-            <input type="checkbox" id="multi-select-all-check" class="w-4 h-4 accent-sky-600 rounded" title="全选/取消全选">
+            <input type="checkbox" id="multi-select-all-check" class="w-4 h-4 accent-sky-600 rounded" title="全选/取消全选"
+              style="display: none;">
           </div>
           <div class="flex gap-2">
             <button id="multi-import-excel-btn" class="btn btn-ghost !py-1 !px-3" title="从文件导入">导入</button>
@@ -1601,7 +1634,7 @@
 
   <div id="admin-panel-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="toggleAdminPanel(false)"></div>
-    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-x-hidden space-y-4 relative flex flex-col">
+    <div class="panel rounded-2xl p-6 w-[60rem] max-h-[80vh] overflow-x-hidden space-y-4 relative flex flex-col">
 
       <div class="relative mb-4 text-center flex-shrink-0">
         <h3 class="text-2xl font-bold text-sky-600 inline-block">管理面板</h3>
@@ -1629,6 +1662,8 @@
           style="display:none;">IP封禁</button>
         <button id="admin-tab-sms_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
           style="display:none;">短信配置</button>
+        <button id="admin-tab-config_modal" class="px-4 py-2 font-semibold text-slate-400 border-b-2 border-transparent"
+          style="display:none;">系统配置</button>
       </div>
 
       <div class="overflow-x-hidden flex-grow min-h-0">
@@ -1671,7 +1706,7 @@
               <button id="admin-refresh-logs_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
           </div>
-          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[49vh]">
+          <div class="bg-slate-900 text-green-400 rounded-lg p-4 font-mono text-xs overflow-auto max-h-[47vh]">
             <pre id="admin-logs-content_modal" class="whitespace-pre-wrap overflow-visible">加载中...</pre>
           </div>
           <div id="admin-logs-pagination"
@@ -1947,8 +1982,7 @@
         <div id="admin-ip-ban-modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold text-lg">🚫 IP封禁管理</h4>
-            <button id="admin-refresh-ipban_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadIPBans()">🔄
-              刷新</button>
+            <button id="admin-refresh-ipban_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadIPBans()">刷新</button>
           </div>
 
           <div class="bg-gradient-to-br from-slate-50 to-gray-50 border-2 border-slate-200 rounded-lg p-4 shadow-sm">
@@ -2006,8 +2040,7 @@
           <div class="flex justify-between items-center">
             <h4 class="font-semibold text-lg">📱 短信服务配置</h4>
             <!-- 刷新按钮：点击后重新加载配置 -->
-            <button id="admin-refresh-sms_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadSMSConfig()">🔄
-              刷新</button>
+            <button id="admin-refresh-sms_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadSMSConfig()">刷新</button>
           </div>
 
           <!-- 配置区域容器：使用垂直间距组织各个配置卡片 -->
@@ -2285,6 +2318,26 @@
 
           </div>
         </div>
+
+        <div id="admin-config-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold text-lg">⚙️ 系统配置 (config.ini)</h4>
+            <div class="flex gap-2">
+              <button id="admin-refresh-config_modal" class="btn btn-ghost !py-1 !px-2"
+                onclick="loadSystemConfig()">刷新</button>
+              <button id="admin-save-config_modal" class="btn btn-primary !py-1 !px-2"
+                onclick="saveSystemConfig()">保存配置</button>
+            </div>
+          </div>
+          <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded-md">⚠️
+            警告：修改这些配置可能会影响系统稳定性。保存后，部分配置（如路径）需要**重启程序**才能生效。</p>
+
+          <div id="admin-config-form" class="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+
+        </div>
+
       </div>
     </div>
   </div>
@@ -2996,7 +3049,7 @@
           method: 'POST',
           headers: headers,
           credentials: 'include',  // 重要：包含cookies
-          body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' ? args[0] : args)
+          body: JSON.stringify(args.length === 1 && typeof args[0] === 'object' && args[0] !== null && !Array.isArray(args[0]) ? args[0] : args)
         });
       } catch (networkError) {
         // 捕获 fetch 本身的网络错误 (例如 DNS 解析失败、服务器无法连接)
@@ -3105,9 +3158,9 @@
             logMessage_Info('[API调用] ✗ 多设备登录检测');
 
             // 创建全屏遮罩层，遮住所有内容
-                        const logoutOverlay = document.createElement('div');
-                        logoutOverlay.id = 'logout-elsewhere-overlay';
-                        logoutOverlay.style.cssText = `
+            const logoutOverlay = document.createElement('div');
+            logoutOverlay.id = 'logout-elsewhere-overlay';
+            logoutOverlay.style.cssText = `
                           position: fixed;
                           top: 0;
                           left: 0;
@@ -3120,9 +3173,9 @@
                           justify-content: center;
                         `;
 
-                        // 创建拟态窗口（模态框内容）
-                        const modalContent = document.createElement('div');
-                        modalContent.style.cssText = `
+            // 创建拟态窗口（模态框内容）
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
                           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                           padding: 40px;
                           border-radius: 20px;
@@ -3133,45 +3186,45 @@
                           color: white;
                         `;
 
-                        // 图标
-                        const icon = document.createElement('div');
-                        icon.innerHTML = `
+            // 图标
+            const icon = document.createElement('div');
+            icon.innerHTML = `
                           <svg style="width: 80px; height: 80px; margin: 0 auto 20px;" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
                           </svg>
                         `;
 
-                        // 标题
-                        const title = document.createElement('h2');
-                        title.textContent = '多设备登录检测';
-                        title.style.cssText = `
+            // 标题
+            const title = document.createElement('h2');
+            title.textContent = '多设备登录检测';
+            title.style.cssText = `
                           font-size: 24px;
                           font-weight: bold;
                           margin: 0 0 20px 0;
                         `;
 
-                        // 说明文本
-                        const text = document.createElement('p');
-                        text.textContent = '您的账号已在其他设备登录，本设备已自动登出。2分钟后将自动跳转到登录页面。';
-                        text.style.cssText = `
+            // 说明文本
+            const text = document.createElement('p');
+            text.textContent = '您的账号已在其他设备登录，本设备已自动登出。2分钟后将自动跳转到登录页面。';
+            text.style.cssText = `
                           font-size: 16px;
                           line-height: 1.6;
                           margin: 0 0 30px 0;
                           opacity: 0.95;
                         `;
 
-                        // 倒计时显示
-                        const countdown = document.createElement('div');
-                        countdown.style.cssText = `
+            // 倒计时显示
+            const countdown = document.createElement('div');
+            countdown.style.cssText = `
                           font-size: 32px;
                           font-weight: bold;
                           margin: 0 0 30px 0;
                         `;
 
-                        // 按钮
-                        const button = document.createElement('button');
-                        button.textContent = '立即返回登录';
-                        button.style.cssText = `
+            // 按钮
+            const button = document.createElement('button');
+            button.textContent = '立即返回登录';
+            button.style.cssText = `
                           background: white;
                           color: #667eea;
                           border: none;
@@ -3182,77 +3235,77 @@
                           cursor: pointer;
                           transition: all 0.3s;
                         `;
-                        button.onmouseover = () => {
-                          button.style.transform = 'scale(1.05)';
-                          button.style.boxShadow = '0 5px 15px rgba(255, 255, 255, 0.3)';
-                        };
-                        button.onmouseout = () => {
-                          button.style.transform = 'scale(1)';
-                          button.style.boxShadow = 'none';
-                        };
+            button.onmouseover = () => {
+              button.style.transform = 'scale(1.05)';
+              button.style.boxShadow = '0 5px 15px rgba(255, 255, 255, 0.3)';
+            };
+            button.onmouseout = () => {
+              button.style.transform = 'scale(1)';
+              button.style.boxShadow = 'none';
+            };
 
-                        // 组装模态框
-                        modalContent.appendChild(icon);
-                        modalContent.appendChild(title);
-                        modalContent.appendChild(text);
-                        modalContent.appendChild(countdown);
-                        modalContent.appendChild(button);
-                        logoutOverlay.appendChild(modalContent);
-                        document.body.appendChild(logoutOverlay);
+            // 组装模态框
+            modalContent.appendChild(icon);
+            modalContent.appendChild(title);
+            modalContent.appendChild(text);
+            modalContent.appendChild(countdown);
+            modalContent.appendChild(button);
+            logoutOverlay.appendChild(modalContent);
+            document.body.appendChild(logoutOverlay);
 
-                        // 倒计时逻辑：120秒 (2分钟)
-                        let remainingSeconds = 120;
-                        const updateCountdown = () => {
-                          const minutes = Math.floor(remainingSeconds / 60);
-                          const seconds = remainingSeconds % 60;
-                          countdown.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                        };
-                        updateCountdown();
+            // 倒计时逻辑：120秒 (2分钟)
+            let remainingSeconds = 120;
+            const updateCountdown = () => {
+              const minutes = Math.floor(remainingSeconds / 60);
+              const seconds = remainingSeconds % 60;
+              countdown.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            };
+            updateCountdown();
 
-                        // 每秒更新倒计时
-                        const countdownInterval = setInterval(() => {
-                          remainingSeconds--;
-                          updateCountdown();
-              
-                          if (remainingSeconds <= 0) {
-                            clearInterval(countdownInterval);
-                            window.location.href = '/';
-                          }
-                        }, 1000);
+            // 每秒更新倒计时
+            const countdownInterval = setInterval(() => {
+              remainingSeconds--;
+              updateCountdown();
 
-                        // 点击按钮立即跳转
-                        button.onclick = () => {
-                          clearInterval(countdownInterval);
-                          window.location.href = '/';
-                        };
+              if (remainingSeconds <= 0) {
+                clearInterval(countdownInterval);
+                window.location.href = '/';
+              }
+            }, 1000);
 
-                        // 用户活动检测：如果用户在2分钟内有任何操作，重置倒计时
-                        // （但保留遮罩层，确保用户意识到需要重新登录）
-                        const userActivityEvents = ['mousedown', 'keydown', 'touchstart'];
-                        const resetCountdown = () => {
-                          // 重置倒计时到120秒
-                          remainingSeconds = 120;
-                          updateCountdown();
-                          logMessage_Info('[安全提示] 检测到用户活动，倒计时已重置');
-                        };
+            // 点击按钮立即跳转
+            button.onclick = () => {
+              clearInterval(countdownInterval);
+              window.location.href = '/';
+            };
 
-                        userActivityEvents.forEach(eventType => {
-                          document.addEventListener(eventType, resetCountdown, { once: false });
-                        });
+            // 用户活动检测：如果用户在2分钟内有任何操作，重置倒计时
+            // （但保留遮罩层，确保用户意识到需要重新登录）
+            const userActivityEvents = ['mousedown', 'keydown', 'touchstart'];
+            const resetCountdown = () => {
+              // 重置倒计时到120秒
+              remainingSeconds = 120;
+              updateCountdown();
+              logMessage_Info('[安全提示] 检测到用户活动，倒计时已重置');
+            };
 
-                        // 清理事件监听器的函数（在跳转前调用）
-                        const cleanupListeners = () => {
-                          userActivityEvents.forEach(eventType => {
-                            document.removeEventListener(eventType, resetCountdown);
-                          });
-                        };
+            userActivityEvents.forEach(eventType => {
+              document.addEventListener(eventType, resetCountdown, { once: false });
+            });
 
-                        // 更新按钮点击处理，包含清理
-                        button.onclick = () => {
-                          clearInterval(countdownInterval);
-                          cleanupListeners();
-                          window.location.href = '/';
-                        };
+            // 清理事件监听器的函数（在跳转前调用）
+            const cleanupListeners = () => {
+              userActivityEvents.forEach(eventType => {
+                document.removeEventListener(eventType, resetCountdown);
+              });
+            };
+
+            // 更新按钮点击处理，包含清理
+            button.onclick = () => {
+              clearInterval(countdownInterval);
+              cleanupListeners();
+              window.location.href = '/';
+            };
 
           } else {
             // showModalAlert(errorMsg, '登录失效');
@@ -3278,7 +3331,7 @@
             refreshUserListInterval = null;
           }
 
-          
+
 
           throw new Error(errorMsg);
         }
@@ -3837,7 +3890,7 @@
     async function handleAuthLogin() {
       const loginBtn = $('auth-login-btn');
       // 'username' input field holds either the username OR the phone number
-      const login_id = $('auth-username').value.trim(); 
+      const login_id = $('auth-username').value.trim();
       const password = $('auth-password').value.trim();
       const sms_code = $('auth-sms-code').value.trim();
 
@@ -3871,7 +3924,7 @@
           showModalAlert('密码长度至少6个字符', '登录失败');
           return;
         }
-      } 
+      }
       else if (login_mode === 'phone') {
         // 手机号登录: 验证手机号格式
         if (!validateInput(login_id, 'phone').valid) {
@@ -3889,7 +3942,7 @@
             showModalAlert('密码长度至少6个字符', '登录失败');
             return;
           }
-        } 
+        }
         else if (login_verification_method === 'sms') {
           // 手机号 + 验证码
           if (!sms_code) {
@@ -3904,11 +3957,11 @@
       }
 
       // 4. 构建请求体 (Request Body)
-      const request_body={}
+      const request_body = {}
 
-      if(login_mode === 'username'){
+      if (login_mode === 'username') {
         request_body.auth_username = login_id; // 使用用户名登录
-      } else if (login_mode === 'phone'){
+      } else if (login_mode === 'phone') {
         request_body.auth_phone = login_id; // 使用手机号登录
       }
 
@@ -3943,7 +3996,7 @@
           // 检查是否需要2FA验证
           if (result.requires_2fa) {
             // 保存用户名用于2FA验证 (后端必定返回 auth_username)
-            window.temp2FAUsername = result.auth_username || login_id; 
+            window.temp2FAUsername = result.auth_username || login_id;
 
             // 清除登录按钮加载状态
             setButtonLoading('auth-login-btn', false);
@@ -4056,7 +4109,7 @@
         } else {
           // 登录失败 (result.success is false)
           // (修正：移除了重复的2FA检查逻辑)
-          
+
           setButtonLoading('auth-login-btn', false);
           showButtonError('auth-login-btn', '登录失败');
           showModalAlert(result.message || '登录失败', '登录失败');
@@ -4602,6 +4655,16 @@
             }
           });
         }
+
+
+
+        const multiAddClose = $('multi-add-user-close');
+        const multiAddCancel = $('multi-add-user-cancel');
+        const multiAddConfirm = $('multi-add-user-confirm');
+
+        if (multiAddClose) multiAddClose.addEventListener('click', closeMultiAddUserModal);
+        if (multiAddCancel) multiAddCancel.addEventListener('click', closeMultiAddUserModal);
+        if (multiAddConfirm) multiAddConfirm.addEventListener('click', submitMultiAddUser);
       });
     }
 
@@ -4883,46 +4946,49 @@
       const messagesTab = $('admin-tab-messages_modal'); // 留言板标签页按钮
       const ipbanTab = $('admin-tab-ipban_modal'); // 问题2修复：IP封禁标签
       const smsTab = $('admin-tab-sms_modal'); // 问题2修复：短信配置标签
+      const configTab = $('admin-tab-config_modal'); // 新增：系统配置标签
       const godModeToggle = $('god-mode-toggle_modal');
 
       if (show) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        document.body.classList.add('modal-visible'); // 添加 body class
-
-        // --- 权限检查 ---
-        // 当 skipAuthCheck=true 时（例如系统登录后打开），跳过学校账号认证检查
-        let canManageUsers = false;
-        let canManageGroups = false;
-        let canViewLogs = false;
-        let canViewHealth = false;
-        let hasGodMode = false;
         let canViewMessages = false;
-        let isAuthenticated = skipAuthCheck; // 如果跳过检查，假定已认证
+        let canManageSystem = false;
+        let hasGodMode = false; // <-- 修正 #1: 在此处声明变量并设置默认值
+        let isAuthenticated = skipAuthCheck;
+        let canManageUsers = false; // <-- 修正 #1.1: 声明 canManageUsers
 
         if (!skipAuthCheck) {
-          canManageUsers = await checkAdminPermission('manage_users');
-          canManageGroups = await checkAdminPermission('manage_permissions');
-          canViewLogs = await checkAdminPermission('view_logs');
-          canViewHealth = await checkAdminPermission('manage_users'); // 管理员可以查看健康状态
-          hasGodMode = await checkAdminPermission('god_mode');
-          canViewMessages = await checkAdminPermission('view_messages');
-          isAuthenticated = await checkAuthStatus();
+          // --- 性能优化：并行检查所有权限 ---
+          try {
+            const permissionChecks = await Promise.all([
+              checkAdminPermission('manage_users'),
+              checkAdminPermission('view_messages'),
+              checkAdminPermission('manage_system'),
+              checkAdminPermission('god_mode'), // <-- 修正 #2: 添加 'god_mode' 权限检查
+              checkAuthStatus()
+            ]);
+
+            canManageUsers = permissionChecks[0];
+            canViewMessages = permissionChecks[1];
+            canManageSystem = permissionChecks[2];
+            hasGodMode = permissionChecks[3]; // <-- 修正 #3: 为 hasGodMode 赋值
+            isAuthenticated = permissionChecks[4];
+            
+          } catch (e) {
+             logMessage_Error('并行检查权限时出错:', e);
+             // 发生错误时，所有权限默认为 false
+             canManageUsers = false;
+             canViewMessages = false;
+             canManageSystem = false;
+             hasGodMode = false;
+             isAuthenticated = false; // 视为未认证
+          }
         }
 
         const isGuest = currentUserIsGuest;
-        const canManageSessions = isAuthenticated && !isGuest;
-
-        // --- 控制标签页可见性 ---
-        if (usersTab) usersTab.style.display = canManageUsers ? 'block' : 'none';
-        if (groupsTab) groupsTab.style.display = canManageGroups ? 'block' : 'none';
-        if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
-        if (healthTab) healthTab.style.display = canViewHealth ? 'block' : 'none';
-        if (messagesTab) messagesTab.style.display = canViewMessages ? 'block' : 'none';
-
         // 问题2修复：IP封禁和短信配置标签只对管理员显示
         if (ipbanTab) ipbanTab.style.display = canManageUsers ? 'block' : 'none';
         if (smsTab) smsTab.style.display = canManageUsers ? 'block' : 'none';
+        if (configTab) configTab.style.display = canManageSystem ? 'block' : 'none'; // 新增：控制系统配置Tab
 
         // 游客模式：只显示会话管理和留言板，隐藏个人信息
         if (isGuest) {
@@ -4938,7 +5004,7 @@
         }
 
         // 控制上帝模式开关可见性
-        if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none';
+        if (godModeToggle) godModeToggle.style.display = hasGodMode ? 'flex' : 'none'; // <-- 修正 #4: 此处 hasGodMode 已被安全定义
 
         // --- 默认显示会话管理标签页 ---
         switchAdminTab('sessions'); // 将会话管理设为默认打开的标签
@@ -4984,6 +5050,7 @@
       const messagesTab = $('admin-tab-messages_modal');
       const ipbanTab = $('admin-tab-ipban_modal');
       const smsTab = $('admin-tab-sms_modal');
+      const configTab = $('admin-tab-config_modal');
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
       const logsPanel = $('admin-logs-panel_modal');
@@ -4993,10 +5060,11 @@
       const messagesPanel = $('admin-messages-panel_modal');
       const ipbanPanel = $('admin-ip-ban-modal');
       const smsPanel = $('admin-sms-config-modal');
+      const configPanel = $('admin-config-panel_modal');
 
       // 根据用户组进行权限隔离
       // 如果是普通用户（'user'），只显示健康状态和留言板，隐藏用户组管理
-      
+
 
       // 防御性编程：检查核心元素是否存在
       if (!sessionsTab || !sessionsPanel) {
@@ -5005,15 +5073,16 @@
       }
 
       // 重置所有标签按钮的样式
-      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab].filter(t => t).forEach(t => {
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab, configTab].filter(t => t).forEach(t => { // 新增 configTab
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
       // 隐藏所有内容面板
-      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel].filter(p => p).forEach(p => {
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel, configPanel].filter(p => p).forEach(p => { // 新增 configPanel
         p.classList.add('hidden');
       });
+
 
       // 根据传入的 tab 参数，激活对应的标签按钮和内容面板，并调用加载函数
       if (tab === 'users') {
@@ -5101,6 +5170,15 @@
           smsTab.classList.remove('text-slate-400', 'border-transparent');
           smsPanel.classList.remove('hidden');
           loadSMSConfig();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
+      } else if (tab === 'config') { // 新增
+        if (configTab && configPanel) {
+          configTab.classList.add('text-sky-600', 'border-sky-600');
+          configTab.classList.remove('text-slate-400', 'border-transparent');
+          configPanel.classList.remove('hidden');
+          loadSystemConfig();
           // 停止健康状态自动刷新
           stopHealthAutoRefresh();
         }
@@ -5226,7 +5304,7 @@
                              ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                             <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                             <p class="text-xs text-slate-500">状态: ${session.is_multi_account_mode
-                ? '<span class="font-semibold text-purple-600">多账号模式</span>'
+                ? (session.login_success ? '<span class="font-semibold text-purple-600">多账号模式 (已登录)</span>' : '<span class="font-semibold text-purple-400">多账号模式 (未登录)</span>')
                 : (session.login_success ? '<span class="font-semibold text-green-600">已登录</span>' : '未登录')
               }</p>
                             ${ownerInfo}
@@ -7553,7 +7631,7 @@
                 ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                 <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                 <p class="text-xs text-slate-500">状态: ${session.is_multi_account_mode
-                ? '<span class="font-semibold text-purple-600">多账号模式</span>'
+                ? (session.login_success ? '<span class="font-semibold text-purple-600">多账号模式 (已登录)</span>' : '<span class="font-semibold text-purple-400">多账号模式 (未登录)</span>')
                 : (session.login_success ? '<span class="font-semibold text-green-600">已登录</span>' : '未登录')
               }</p>
                 ${ownerInfo}
@@ -9201,12 +9279,12 @@
                   <p class="text-xs text-slate-500 mt-1">创建时间: ${createdDate}</p>
                   <p class="text-xs mt-1">
                     <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${session.is_multi_account_mode
-              ? 'bg-purple-100 text-purple-700'
-              : (session.login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700')
+              ? (session.login_success ? 'bg-purple-100 text-purple-700' : 'bg-purple-50 text-purple-400') // 多账号 (已登录/未登录)
+              : (session.login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700') // 单账号
             }">
                       ${session.is_multi_account_mode
-              ? '❖ 多账号'
-              : (session.login_success ? '✓ 已登录' : '○ 未登录')
+              ? (session.login_success ? '❖ 多账号 (已登录)' : '❖ 多账号 (未登录)') // 多账号
+              : (session.login_success ? '✓ 已登录' : '○ 未登录') // 单账号
             }
                     </span>
                   </p>
@@ -11292,6 +11370,10 @@
         refreshUserListInterval = null;
         logMessage_Info('refreshUserList interval cleared on logout.');
       }
+
+      // 等待 0.5 秒以便完成清理，再加载管理会话
+      await new Promise(resolve => setTimeout(resolve, 500));
+      loadAdminSessions_inline();
     }
 
 
@@ -11497,6 +11579,16 @@
     // $('multi-zoom-in').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomIn(); });
     // $('multi-zoom-out').addEventListener('click', () => { if (multiAccountMap) multiAccountMap.zoomOut(); });
     // $('multi-reset-view-btn').addEventListener('click', multi_resetMapView);
+
+    // 为多账号列表工具栏绑定事件监听器
+    $('multi-remove-all-btn').addEventListener('click', multi_removeAll);
+    $('multi-remove-selected-btn').addEventListener('click', multi_removeSelected);
+    $('multi-refresh-all-btn').addEventListener('click', multi_refreshAll);
+    $('multi-select-all-check').addEventListener('change', multi_toggleSelectAll);
+    $('multi-start-selected-btn').addEventListener('click', multi_startSelected);
+    $('multi-stop-selected-btn').addEventListener('click', multi_stopSelected);
+    $('multi-refresh-selected-btn').addEventListener('click', multi_refreshSelected);
+
 
     // --- 管理面板标签页事件监听 ---
     $('admin-tab-users_modal')?.addEventListener('click', () => switchAdminTab('users'));
@@ -11743,12 +11835,26 @@
         logMessage_Info('refreshUserList interval cleared on exiting multi mode.');
       }
 
+      // 等待 0.5 秒以便完成清理，再加载管理会话
+      await new Promise(resolve => setTimeout(resolve, 500));
+      loadAdminSessions_inline();
+
     }
 
 
     async function multi_loadAllFromConfig() {
       const result = await callPythonAPI('multi_load_accounts_from_config');
-      if (result && result.accounts) renderMultiAccountList(result.accounts);
+      if (result && result.accounts) {
+        renderMultiAccountList(result.accounts);
+      }
+
+      // 修正：检查是否有账号缺少密码
+      if (result && result.accounts_missing_password && result.accounts_missing_password.length > 0) {
+        const missingAccount = result.accounts_missing_password[0];
+        // 弹窗提示用户为第一个缺密码的账号补全
+        showModalAlert(`检测到 ${result.accounts_missing_password.length} 个账号缺少密码。\n请先为以下账号补全密码： ${missingAccount.username}`, '提示');
+        openMultiAddUserModalForPassword(missingAccount.username, missingAccount.tag);
+      }
     }
 
     function openNewUserModal() {
@@ -11779,6 +11885,71 @@
     }
     $('newUserClose').onclick = closeNewUserModal;
     $('newUserCancel').onclick = closeNewUserModal;
+
+
+    // 打开多账号添加模态框
+    function openMultiAddUserModal() {
+      // 清空输入
+      $('multi-add-username').value = "";
+      $('multi-add-password').value = "";
+      $('multi-add-tag').value = "";
+      // 显示模态框
+      $('multi-add-user-modal').style.display = 'flex';
+    }
+
+    // 关闭多账号添加模态框
+    function closeMultiAddUserModal() {
+      // 1. [新增] 清理可能存在的只读状态
+      const usernameInput = $('multi-add-username');
+      const passwordInput = $('multi-add-password');
+      if (usernameInput) {
+        usernameInput.readOnly = false;
+        usernameInput.classList.remove('bg-slate-100', 'cursor-not-allowed');
+      }
+      if (passwordInput) {
+        passwordInput.placeholder = '请输入密码 (至少6字符)';
+      }
+
+      // 2. 隐藏模态框
+      $('multi-add-user-modal').style.display = 'none';
+    }
+
+    /**
+     * 修正：打开多账号模态框，用于为缺少密码的账号补全密码
+     * @param {string} username - 缺少密码的用户名
+     * @param {string} tag - 该账号已有的标记 (可选)
+     */
+    function openMultiAddUserModalForPassword(username, tag) {
+      // 1. 预填充字段
+      const usernameInput = $('multi-add-username');
+      const tagInput = $('multi-add-tag');
+      const passwordInput = $('multi-add-password');
+
+      if (usernameInput) {
+        usernameInput.value = username;
+        usernameInput.readOnly = true; // 用户名不可修改
+        usernameInput.classList.add('bg-slate-100', 'cursor-not-allowed');
+      }
+      if (tagInput) {
+        tagInput.value = tag || '';
+      }
+      if (passwordInput) {
+        passwordInput.value = ''; // 清空密码
+        passwordInput.placeholder = '该账号缺少密码，请补全';
+      }
+
+      // 2. 确保按钮绑定的是原始的关闭和提交函数
+      // (在 DOMContentLoaded 中已经绑定了，无需重绑)
+
+      // 3. 显示模态框
+      $('multi-add-user-modal').style.display = 'flex';
+
+      // 4. 聚焦到密码框
+      if (passwordInput) {
+        passwordInput.focus();
+      }
+    }
+
 
     // 问题3修复：为newUserModal添加发送验证码功能
     $('newUserSendCode').onclick = async function () {
@@ -11852,91 +12023,82 @@
     async function multi_addFromConfig() {
       const user = $('multi-config-user-select').value;
       if (!user) {
-        // 打开模态框
-        openNewUserModal();
-
-        // 绑定确认按钮事件（只绑定一次）
-        const confirmBtn = $('newUserConfirm'); // 获取按钮引用
-        confirmBtn.onclick = async () => {
-          const inputUsername = $('newUsername').value.trim();
-          const inputPassword = $('newPassword').value;
-          const inputPasswordConfirm = $('newPasswordConfirm').value; // 问题3修复：确认密码
-          const inputPhone = $('newUserPhone').value.trim(); // 问题3修复：手机号（可选）
-          const inputNickname = $('newUserNickname').value.trim(); // 问题3修复：昵称
-          const inputSmsCode = $('newUserSmsCode').value.trim(); // 问题3修复：验证码（可选）
-
-          // --- 修复：添加密码校验 ---
-          if (!inputUsername || !inputPassword) {
-            showModalAlert("账号和密码均不能为空");
-            return;
-          }
-
-          // 问题3修复：验证用户名格式（不含中文）
-          if (/[\u4e00-\u9fa5]/.test(inputUsername)) {
-            showModalAlert('用户名不能包含中文字符');
-            return;
-          }
-
-          // 问题3修复：验证密码长度
-          if (inputPassword.length < 6) {
-            showModalAlert('密码长度至少为6个字符', '错误');
-            return;
-          }
-
-          // 问题3修复：验证密码一致性
-          if (inputPassword !== inputPasswordConfirm) {
-            showModalAlert('两次输入的密码不一致', '错误');
-            return;
-          }
-
-          // 问题3修复：如果填写了手机号，验证格式（但不强制要求）
-          if (inputPhone && !/^1[3-9]\d{9}$/.test(inputPhone)) {
-            showModalAlert('请输入正确的手机号格式');
-            return;
-          }
-
-          // --- 修复：添加加载状态和try...finally ---
-          setButtonLoading('newUserConfirm', true, '添加中...');
-
-          try {
-            // 问题3修复：调用注册API而不是multi_add_account
-            // 因为需要支持phone、nickname等额外字段
-            const result = await callPythonAPI('auth_register',
-              inputUsername,
-              inputPassword,
-              inputPhone,
-              inputSmsCode,
-              inputNickname
-            );
-
-            // --- 修复：只在成功后关闭模态框 ---
-            if (result && result.success) {
-              showModalAlert('用户添加成功', '成功');
-              closeNewUserModal(); // 成功后关闭
-              // 刷新用户列表（如果在管理员面板中）
-              if (typeof loadAdminUsers === 'function') {
-                loadAdminUsers();
-              }
-            } else {
-              // 显示后端返回的错误
-              showModalAlert(result?.message || '添加失败');
-            }
-          } catch (e) {
-            // 捕获 callPythonAPI 可能抛出的网络错误
-            showModalAlert(`添加时发生错误: ${e.message}`);
-            logMessage_Error("添加新用户时发生错误:", e);
-          } finally {
-            // --- 修复：恢复按钮状态 ---
-            setButtonLoading('newUserConfirm', false, '确认');
-          }
-        };
+        // (新) 修正：打开专用的多账号添加模态框
+        openMultiAddUserModal();
+        // (注意：确认按钮的逻辑已移至 submitMultiAddUser 并全局绑定)
         return;
       }
-      // 已有配置用户
+      // 已有配置用户 (此逻辑不变)
       const result = await callPythonAPI('multi_add_account', user, "");
-      if (result && result.accounts) renderMultiAccountList(result.accounts);
+
+      // 修正：检查是否需要补全密码
+      if (result && result.success === false && result.action === 'request_password') {
+        showModalAlert(`账号 ${result.username} 缺少密码，请在弹窗中补全。`, '缺少密码');
+        openMultiAddUserModalForPassword(result.username, result.tag);
+      }
+      else if (result && result.accounts) {
+        renderMultiAccountList(result.accounts);
+      }
     }
 
+    // (新) 处理多账号模态框的确认按钮点击
+    async function submitMultiAddUser() {
+      // 修正：在函数开始时获取输入框 DOM 引用
+      const inputUsername = $('multi-add-username');
+      const inputPassword = $('multi-add-password');
+      const inputTag = $('multi-add-tag');
+
+      const usernameVal = inputUsername.value.trim();
+      const passwordVal = inputPassword.value;
+      const tagVal = inputTag.value.trim();
+
+      // 验证
+      if (!usernameVal || !passwordVal) {
+        showModalAlert("账号和密码均不能为空");
+        return;
+      }
+      if (passwordVal.length < 6) {
+        showModalAlert('密码长度至少为6个字符', '错误');
+        return;
+      }
+
+      setButtonLoading('multi-add-user-confirm', true, '添加中...');
+
+      try {
+        // (新) 多账号模式下，调用 'multi_add_account'
+        // 它会处理创建/保存/刷新
+        const result = await callPythonAPI(
+          'multi_add_account',
+          usernameVal, // 使用值
+          passwordVal, // 使用值
+          tagVal // 使用值
+        );
+
+        if (result && result.accounts) {
+          showModalAlert('账号添加成功', '成功');
+          closeMultiAddUserModal(); // 成功后关闭 (这个函数现在会自动清理只读状态)
+          renderMultiAccountList(result.accounts); // 刷新列表
+        } else {
+          // 显示后端返回的错误
+          showModalAlert(result?.message || '添加失败');
+        }
+      } catch (e) {
+        // 捕获 callPythonAPI 可能抛出的网络错误
+        showModalAlert(`添加时发生错误: ${e.message}`);
+        logMessage_Error("添加新账号时发生错误:", e);
+      } finally {
+        // 恢复按钮状态
+        setButtonLoading('multi-add-user-confirm', false, '确认添加');
+
+        // 修正：如果提交失败，模态框未关闭，也需要清理只读状态
+        // (如果成功，closeMultiAddUserModal 已经清理了)
+        if (inputUsername && inputUsername.readOnly) {
+          inputUsername.readOnly = false;
+          inputUsername.classList.remove('bg-slate-100', 'cursor-not-allowed');
+          $('multi-add-password').placeholder = '请输入密码 (至少6字符)';
+        }
+      }
+    }
 
     async function multi_importFromExcel() {
       // [BUG 修复] 后端 open_file_dialog 在 Web 模式下无效 (main.py L3605)。
@@ -13851,7 +14013,7 @@
         // refreshNotificationsUI() 会获取最新通知
         // onNotificationsUpdated() (由后台调用或 refreshNotificationsUI 间接调用) 会填充 attendance-list
         // refreshNotificationsUI() 自带防抖，所以这里直接调用是安全的
-        logMessage_Info("Attendance tab opened, refreshing notifications list...");
+        logMessage_Info('[自动刷新] 切换到签到标签，启动自动刷新');
         refreshNotificationsUI(true, false); // 切换tab视为自动刷新，将开启定时刷新
       }
     }
@@ -14209,7 +14371,7 @@
      * @param {boolean} isManual - 是否为手动刷新（true=手动点击，false=自动刷新）
      */
     async function refreshNotificationsUI(useCache = true, isManual = false) {
-      // --- BUG修复：防止重复点击 ---
+      // --- 防止重复点击 ---
       if (isRefreshingNotifications) {
         logMessage_Info("Notification refresh already in progress. Skipping.");
         return; // 如果已在刷新，则直接退出
@@ -14278,6 +14440,33 @@
         let firstLoad = true;
         let finalResult = null; // 修正：用于存储第一个批次的结果（包含正确的角标数）
 
+        // ========== 任务27：自动刷新逻辑（重构为函数） ==========
+        function startAutoRefreshTimer() {
+          // 如果不是手动刷新，设置下一次自动刷新
+          if (!isManual) {
+            // 清除之前的定时器（防止重复）
+            if (notificationAutoRefreshTimer) {
+              clearTimeout(notificationAutoRefreshTimer);
+              notificationAutoRefreshTimer = null;
+            }
+
+            // 获取刷新间隔参数（严格使用param-auto_attendance_refresh_s）
+            const refreshIntervalInput = $('param-auto_attendance_refresh_s');
+            const refreshInterval = refreshIntervalInput ? parseInt(refreshIntervalInput.value) : 300; // 默认300秒
+
+            // 设置下一次自动刷新（使用配置的间隔，单位：秒）
+            if (refreshInterval > 0) {
+              // 优化：在日志中明确指出是“加载完成”后开始计时
+              logMessage_Info(`[自动刷新] (加载完成) 将在 ${refreshInterval} 秒后自动刷新通知`);
+              notificationAutoRefreshTimer = setTimeout(() => {
+                logMessage_Info('[自动刷新] 正在自动刷新通知...');
+                refreshNotificationsUI(true, false); // useCache=true, isManual=false
+              }, refreshInterval * 1000); // 转换为毫秒
+            }
+          }
+        }
+        // ==========================================
+
         // 定义递归加载函数
         const loadNextBatch = async () => {
           if (!hasMore) {
@@ -14285,10 +14474,14 @@
             // 在这里（而不是循环中）调用 onNotificationsUpdated
             // 传递 finalResult，因为它包含了正确的 unreadCount
             if (finalResult) {
-              onNotificationsUpdated(finalResult); 
+              onNotificationsUpdated(finalResult);
             }
             logMessage_Info("所有通知加载完成（模态框）");
             // --- 修正结束 ---
+
+
+            startAutoRefreshTimer(); // <--- 优化：在此处（加载完成时）启动计时器
+
             return;
           }
 
@@ -14353,14 +14546,16 @@
             content.appendChild(loadingMore);
 
             // 短暂延迟后加载下一批（让用户看到前一批的内容）
-            ssetTimeout(loadNextBatch, 100);
+            setTimeout(loadNextBatch, 100);
           } else {
-            // --- 修正：所有批次加载完成 ---
+            // --- 所有批次加载完成 ---
             if (finalResult) {
               onNotificationsUpdated(finalResult);
             }
             logMessage_Info("所有通知加载完成（模态框）");
             // --- 修正结束 ---
+
+            startAutoRefreshTimer(); // <--- 优化：在此处（加载完成时）启动计时器
           }
 
           // [已删除] 移除在第一批加载后就调用 onNotificationsUpdated 的错误逻辑
@@ -14385,27 +14580,27 @@
         isRefreshingNotifications = false;
 
         // ========== 任务27：自动刷新逻辑修复 ==========
-        // 如果不是手动刷新，设置下一次自动刷新
-        if (!isManual) {
-          // 清除之前的定时器（防止重复）
-          if (notificationAutoRefreshTimer) {
-            clearTimeout(notificationAutoRefreshTimer);
-            notificationAutoRefreshTimer = null;
-          }
+        // // 如果不是手动刷新，设置下一次自动刷新
+        // if (!isManual) {
+        //   // 清除之前的定时器（防止重复）
+        //   if (notificationAutoRefreshTimer) {
+        //     clearTimeout(notificationAutoRefreshTimer);
+        //     notificationAutoRefreshTimer = null;
+        //   }
 
-          // 获取刷新间隔参数（严格使用param-auto_attendance_refresh_s）
-          const refreshIntervalInput = $('param-auto_attendance_refresh_s');
-          const refreshInterval = refreshIntervalInput ? parseInt(refreshIntervalInput.value) : 300; // 默认300秒
+        //   // 获取刷新间隔参数（严格使用param-auto_attendance_refresh_s）
+        //   const refreshIntervalInput = $('param-auto_attendance_refresh_s');
+        //   const refreshInterval = refreshIntervalInput ? parseInt(refreshIntervalInput.value) : 300; // 默认300秒
 
-          // 设置下一次自动刷新（使用配置的间隔，单位：秒）
-          if (refreshInterval > 0) {
-            logMessage_Info(`[自动刷新] 将在 ${refreshInterval} 秒后自动刷新通知`);
-            notificationAutoRefreshTimer = setTimeout(() => {
-              logMessage_Info('[自动刷新] 正在自动刷新通知...');
-              refreshNotificationsUI(true, false); // useCache=true, isManual=false
-            }, refreshInterval * 1000); // 转换为毫秒
-          }
-        }
+        //   // 设置下一次自动刷新（使用配置的间隔，单位：秒）
+        //   if (refreshInterval > 0) {
+        //     logMessage_Info(`[自动刷新] 将在 ${refreshInterval} 秒后自动刷新通知`);
+        //     notificationAutoRefreshTimer = setTimeout(() => {
+        //       logMessage_Info('[自动刷新] 正在自动刷新通知...');
+        //       refreshNotificationsUI(true, false); // useCache=true, isManual=false
+        //     }, refreshInterval * 1000); // 转换为毫秒
+        //   }
+        // }
         // ==========================================
       }
     }
@@ -14438,24 +14633,28 @@
               try {
                 const coordsStr = (n.updateBy || "").trim();
                 const [lat, lon] = coordsStr.split(',').map(Number);
-                if (isNaN(lon) || isNaN(lat)) throw new Error('坐标无效');
-                const targetCoords = `[${lon}, ${lat}]`;
 
-                attendanceHtml = `
-                  <span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span>
-                  <div class="relative inline-block group">
-                    <button class="btn btn-warning !py-0 !px-2 !text-xs inline-flex items-center" title="补签此任务">
-                      <span>补签</span>
-                      <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
-                    </button>
-                    <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-32 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
-                      <button class="btn btn-warning !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleMakeupAttendance(event, '${n.id}', ${targetCoords})">随机补签</button>
-                      <button class="btn btn-warning !bg-orange-400 hover:!bg-orange-500 !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualMakeupAttendance(event, '${n.id}', ${targetCoords})">手动选点补签</button>
-                    </div>
-                  </div>
-                `;
+                // 修正：使用 if 检查替换 throw new Error
+                if (isNaN(lon) || isNaN(lat)) {
+                  attendanceHtml = `<span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span> <span class="text-xs text-slate-400">(坐标无效)</span>`;
+                } else {
+                  const targetCoords = `[${lon}, ${lat}]`;
+                  attendanceHtml = `
+                      <span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span>
+                      <div class="relative inline-block group">
+                        <button class="btn btn-warning !py-0 !px-2 !text-xs inline-flex items-center" title="补签此任务">
+                          <span>补签</span>
+                          <svg class="w-2.5 h-2.5 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 10 6"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 4 4 4-4"/></svg>
+                        </button>
+                        <div class="hidden group-hover:block absolute right-0 z-[1051] pt-1 w-32 bg-white/90 backdrop-blur-sm rounded-lg shadow-xl border border-slate-200 p-1 space-y-1">
+                          <button class="btn btn-warning !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleMakeupAttendance(event, '${n.id}', ${targetCoords})">随机补签</button>
+                          <button class="btn btn-warning !bg-orange-400 hover:!bg-orange-500 !py-1 !px-3 !text-xs !w-full !justify-start" onclick="handleManualMakeupAttendance(event, '${n.id}', ${targetCoords})">手动选点补签</button>
+                        </div>
+                      </div>
+                    `;
+                }
               } catch (e) {
-                attendanceHtml = `<span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span> <span class="text-xs text-slate-400">(坐标无效)</span>`;
+                attendanceHtml = `<span class="text-xs font-semibold text-red-500 px-2 py-0.5 rounded-full bg-red-100">已过期</span> <span class="text-xs text-slate-400">(坐标解析失败)</span>`;
               }
               break;
             case 1:
@@ -14518,8 +14717,11 @@
       // 1. 打开模态框
       toggleNotifications(true);
 
-      // 2. 触发UI刷新（打开模态框不视为手动刷新，开启自动刷新）
-      refreshNotificationsUI(true, false);
+      // 2. 触发UI刷新
+      // 修正：将 isManual 设置为 true。
+      // 打开模态框是一个用户手动操作，它不应该启动一个新的自动刷新循环。
+      // 自动刷新循环由 main.py 中的 _auto_refresh_worker 统一管理。
+      refreshNotificationsUI(true, true);
     }
 
     /**
@@ -14544,14 +14746,7 @@
       }
 
       // 2. 智能更新缓存数据
-      // 【关键修复】更新全局通知缓存，确保后续的过滤和显示操作使用最新数据
-      // 如果此行被注释，会导致 attendance-list 和 notifications-content 无法正常加载
-      // 
-      // 【优化策略】先显示缓存，后台拉取最新数据，然后智能合并：
-      // - 服务器返回的是全量最新数据，直接替换缓存
-      // - 这样可以确保 attendance-list 和 notifications-content 显示最新状态
-      // - 用户在界面上会先看到缓存（快速加载），然后自动刷新为最新数据
-      window.currentNotifications = result.notices || [];
+      // window.currentNotifications = result.notices || [];
 
       // 3. 渲染“签到”Tab (如果该Tab存在)
       const attList = $('attendance-list');
@@ -14660,11 +14855,13 @@
         }
       }
 
-      // 4. (可选) 如果通知模态框当前是打开的，也刷新它
+      // 4. 如果通知模态框当前是打开的，也刷新它
       const modal = $('notifications-modal');
-      if (modal && !modal.classList.contains('hidden')) {
-        refreshNotificationsUI();
-      }
+      // 移除递归调用。
+
+      // if (modal && !modal.classList.contains('hidden')) {
+      //   refreshNotificationsUI();
+      // }
     }
 
     // --- 处理签到点击的函数 ---
@@ -15586,6 +15783,163 @@
         showModalAlert('修改失败: ' + error.message);
       }
     }
+
+    async function loadSystemConfig() {
+      const formContainer = $('admin-config-form');
+      formContainer.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+      try {
+        const response = await fetch('/api/admin/config/load', {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          formContainer.innerHTML = `<p class="text-red-500 text-center py-10">加载配置失败: ${result.message}</p>`;
+          return;
+        }
+
+        const config = result.config;
+        formContainer.innerHTML = ''; // 清空加载提示
+
+        // 辅助函数：创建表单项
+        const createInput = (section, key, label, type = 'text', help = '') => {
+          const value = config[section]?.[key];
+          let inputHtml = '';
+          if (type === 'boolean') {
+            inputHtml = `
+              <select id="config-${section}-${key}" class="select-field">
+                <option value="true" ${value === true ? 'selected' : ''}>True (启用)</option>
+                <option value="false" ${value === false ? 'selected' : ''}>False (禁用)</option>
+              </select>
+            `;
+          } else if (type === 'number') {
+            inputHtml = `<input type="number" id="config-${section}-${key}" value="${value}" class="input-field">`;
+          } else if (type === 'password_storage') {
+            inputHtml = `
+              <select id="config-${section}-${key}" class="select-field">
+                <option value="plaintext" ${value === 'plaintext' ? 'selected' : ''}>plaintext (明文, 不推荐)</option>
+                <option value="sha256" ${value === 'sha256' ? 'selected' : ''}>sha256 (已弃用)</option>
+                <option value="bcrypt" ${value === 'bcrypt' ? 'selected' : ''}>bcrypt (推荐)</option>
+              </select>
+            `;
+          } else {
+            inputHtml = `<input type="text" id="config-${section}-${key}" value="${value}" class="input-field">`;
+          }
+
+          return `
+            <div class="mb-3">
+              <label for="config-${section}-${key}" class="block text-sm font-semibold text-slate-700">${label} <span class="text-xs font-mono text-slate-400">[${section}] ${key}</span></label>
+              ${inputHtml}
+              ${help ? `<p class="text-xs text-slate-500 mt-1">${help}</p>` : ''}
+            </div>
+          `;
+        };
+
+        let html = '';
+
+        // [Guest]
+        html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mb-2">游客配置</h5>';
+        html += createInput('Guest', 'allow_guest_login', '允许游客登录', 'boolean', '是否允许未注册用户以游客身份使用系统。');
+
+        // [System]
+        html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mt-4 mb-2">系统配置</h5>';
+        html += createInput('System', 'session_expiry_days', '会话过期时间 (天)', 'number', '超过此时间未访问的会话将被自动清理。');
+        html += createInput('System', 'school_accounts_dir', '学校账号目录', 'text', '存储 school_accounts/*.ini 文件的目录。');
+        html += createInput('System', 'system_accounts_dir', '系统账号目录', 'text', '存储 system_accounts/*.json 文件的目录。');
+        html += createInput('System', 'permissions_file', '权限文件名', 'text', '存储权限配置的JSON文件名。');
+        html += createInput('System', 'session_monitor_check_interval', '会话监控间隔 (秒)', 'number', '系统检查会话活跃状态的间隔。');
+        html += createInput('System', 'session_inactivity_timeout', '会话不活跃超时 (秒)', 'number', '会话无活动超过此时间将被清理。');
+
+        // [Logging]
+        html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mt-4 mb-2">日志配置</h5>';
+        html += createInput('Logging', 'log_rotation_size_mb', '日志轮转大小 (MB)', 'number', '单个日志文件最大大小。');
+        html += createInput('Logging', 'archive_max_size_mb', '归档目录最大 (MB)', 'number', '归档目录总大小限制，0为不限制。');
+        html += createInput('Logging', 'log_dir', '日志目录', 'text', '存储 zx-slm-tool.log 文件的目录。');
+        html += createInput('Logging', 'archive_dir', '归档目录', 'text', '存储压缩日志 (logs/archive) 的目录。');
+
+        // [Security]
+        html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mt-4 mb-2">安全配置</h5>';
+        html += createInput('Security', 'password_storage', '密码存储方式', 'password_storage', '修改此项可能导致旧密码失效。');
+        html += createInput('Security', 'brute_force_protection', '启用暴力破解防护', 'boolean', '限制登录尝试次数。');
+        html += createInput('Security', 'login_log_retention_days', '登录日志保留 (天)', 'number', '登录审计日志的保留天数。');
+
+        // [Map]
+        html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mt-4 mb-2">地图配置</h5>';
+        html += createInput('Map', 'amap_js_key', '高德地图 API Key', 'text', '用于前端地图显示的JS API Key。');
+
+        formContainer.innerHTML = html;
+
+      } catch (e) {
+        formContainer.innerHTML = `<p class="text-red-500 text-center py-10">加载配置时发生错误: ${e.message}</p>`;
+      }
+    }
+
+    /**
+     * 保存 config.ini 配置项
+     */
+    async function saveSystemConfig() {
+      const btn = $('admin-save-config_modal');
+      setButtonLoading(btn, true, '保存中...');
+
+      try {
+        // 收集所有数据
+        const configData = {
+          'Guest': {
+            'allow_guest_login': $('config-Guest-allow_guest_login').value === 'true'
+          },
+          'System': {
+            'session_expiry_days': parseInt($('config-System-session_expiry_days').value, 10),
+            'school_accounts_dir': $('config-System-school_accounts_dir').value,
+            'system_accounts_dir': $('config-System-system_accounts_dir').value,
+            'permissions_file': $('config-System-permissions_file').value,
+            'session_monitor_check_interval': parseInt($('config-System-session_monitor_check_interval').value, 10),
+            'session_inactivity_timeout': parseInt($('config-System-session_inactivity_timeout').value, 10)
+          },
+          'Logging': {
+            'log_rotation_size_mb': parseInt($('config-Logging-log_rotation_size_mb').value, 10),
+            'archive_max_size_mb': parseInt($('config-Logging-archive_max_size_mb').value, 10),
+            'log_dir': $('config-Logging-log_dir').value,
+            'archive_dir': $('config-Logging-archive_dir').value
+          },
+          'Security': {
+            'password_storage': $('config-Security-password_storage').value,
+            'brute_force_protection': $('config-Security-brute_force_protection').value === 'true',
+            'login_log_retention_days': parseInt($('config-Security-login_log_retention_days').value, 10)
+          },
+          'Map': {
+            'amap_js_key': $('config-Map-amap_js_key').value
+          }
+        };
+
+        // 发送到后端
+        const response = await fetch('/api/admin/config/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify(configData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('配置已保存。请注意，部分配置（如路径）需要重启程序才能生效。', '保存成功');
+          showButtonSuccess(btn, '保存成功', 2000);
+        } else {
+          showModalAlert(`保存失败: ${result.message}`, '保存失败');
+          showButtonError(btn, '保存失败', 2000);
+        }
+      } catch (e) {
+        showModalAlert(`保存配置时发生错误: ${e.message}`, '保存失败');
+        showButtonError(btn, '保存失败', 2000);
+      } finally {
+        setButtonLoading(btn, false, '保存配置');
+      }
+    }
+
+
 
     function showTempMessage(msg, type = 'info') {
       // 临时消息提示（3秒自动消失）

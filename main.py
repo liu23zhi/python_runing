@@ -4596,7 +4596,7 @@ class Api:
         resp = self.api_client.login(input_username, password)
         if not resp or not resp.get('success'):
             msg = resp.get('message', '未知错误') if resp else '网络连接失败'
-            self.log(f"登录失败：{msg}")
+            self.log(f"服务器反馈登录失败：{msg}")
             logging.warning(f"用户登录失败: {msg}")
             return {"success": False, "message": msg}
 
@@ -6743,11 +6743,22 @@ class Api:
         users = sorted([os.path.splitext(f)[0]
                        for f in os.listdir(self.user_dir) if f.endswith(".ini")])
         loaded_count = 0
+        accounts_missing_password = []
         for username in users:
             if username not in self.accounts:
-                self.multi_add_account(username, "")
-                loaded_count += 1
+                # 内部调用 multi_add_account 并检查其返回值
+                add_result = self.multi_add_account(username, "")
+                if add_result and add_result.get('action') == 'request_password':
+                    # 修正：存储完整的对象(包含username和tag)
+                    accounts_missing_password.append({
+                        "username": add_result.get("username"),
+                        "tag": add_result.get("tag")
+                    })
+                elif add_result and add_result.get('success'):
+                    loaded_count += 1
         self.log(f"已加载 {loaded_count} 个账号。")
+        if accounts_missing_password:
+            self.log(f"发现 {len(accounts_missing_password)} 个账号缺少密码，等待用户手动添加。")
         self._update_multi_global_buttons()
 
         # # 批量加载后立即触发一次“刷新全部”，便于自动拉取状态与汇总
@@ -6756,7 +6767,9 @@ class Api:
         # except Exception:
         #     logging.error(f"触发刷新全部失败: {traceback.format_exc()}")
 
-        return self.multi_get_all_accounts_status()
+        final_status = self.multi_get_all_accounts_status()
+        final_status['accounts_missing_password'] = accounts_missing_password
+        return final_status
 
     def multi_add_account(self, username, password, tag=None):
         """模式二：手动或选择性添加账号
@@ -6837,20 +6850,9 @@ class Api:
             except Exception:
                 pass
             self.log(f"账号 {username} 缺少密码，已弹出输入框以完善密码。")
-            if self.window:
-                # 复用已有的“新用户”模态框，预填用户名
-                js = (
-                    f'openNewUserModal();'
-                    f'document.getElementById("newUsername").value = {json.dumps(username)};'
-                    f'document.getElementById("newPassword").value = "";'
-                )
-                try:
-                    self.window.evaluate_js(js)
-                except Exception:
-                    logging.debug("打开新用户模态框失败（非致命错误）")
-            # 返回当前状态列表（不新增该账号）
-            self._update_multi_global_buttons()
-            return self.multi_get_all_accounts_status()
+            # [修正] 返回一个特定动作，由前端JS处理弹窗
+            # 修正：同时返回tag，以便前端预填充
+            return {"success": False, "message": "缺少密码", "action": "request_password", "username": username, "tag": final_tag}
 
         # 检查是否需要首次验证
         # 如果导入的密码与已有配置文件中的密码不同，或者配置文件不存在，则需要首次验证
@@ -9417,6 +9419,14 @@ def update_session_activity(session_id):
         session_activity[session_id] = time.time()
 
 
+def update_session_activity(session_id):
+    """更新会话活动时间（线程安全）"""
+    if not session_id:
+        return
+    with session_activity_lock:
+        session_activity[session_id] = time.time()
+        logging.debug(f"[会话活跃] 更新会话 {session_id} 的活跃时间")
+
 def cleanup_session(session_id, reason="manual"):
     """清理指定会话（支持指定原因）"""
     # 跳过无效的session_id
@@ -9485,21 +9495,17 @@ def cleanup_inactive_session(session_id):
 
 def monitor_session_inactivity():
     """
-    监控会话不活跃状态并清理
+    监控会话不活跃状态并清理 (已优化)
     
     功能说明：
-    1. 在会话调用get_initial_data时记录最后活跃时间（内存中）
-    2. 检查会话是否有正在执行的跑步任务或自动签到任务
-    3. 如果会话有活跃任务，则更新最后活跃时间
-    4. 如果会话超过配置的不活跃时间且无活跃任务，则清理会话
-    
-    配置项：
-    - session_monitor_check_interval: 检查间隔（秒），默认60秒
-    - session_inactivity_timeout: 不活跃超时（秒），默认300秒
+    1. 定期检查所有会话。
+    2. 如果会话有正在执行的跑步任务或自动签到任务，则自动更新其“最后活跃时间”。
+    3. 如果会话没有活跃任务，则检查其“最后活跃时间”是否超时。
+    4. 如果超时，则调用 cleanup_inactive_session 清理该会话。
     """
     # 从config.ini读取配置参数
-    check_interval = 60  # 默认60秒检查一次
-    inactivity_timeout = 300  # 默认300秒（5分钟）无活动则清理
+    check_interval = 60
+    inactivity_timeout = 300
     
     try:
         if os.path.exists('config.ini'):
@@ -9519,97 +9525,101 @@ def monitor_session_inactivity():
             time.sleep(check_interval)
             
             current_time = time.time()
-            inactive_sessions = []
-            
-            with session_activity_lock:
-                for session_id, last_activity in list(session_activity.items()):
-                    # 计算距离最后活跃时间的时间差
-                    time_since_activity = current_time - last_activity
+            inactive_sessions_to_cleanup = []
+            active_sessions_to_update = []
+
+            # 1. 锁定 web_sessions 以安全迭代
+            with web_sessions_lock:
+                logging.debug(f"[会话监控] 开始检查 {len(web_sessions)} 个内存会话...")
+                
+                # 遍历所有在内存中的会话
+                for session_id, api_instance in list(web_sessions.items()):
                     
-                    # 只有超过配置的不活跃时间才考虑清理
-                    if time_since_activity > inactivity_timeout:
-                        with web_sessions_lock:
-                            if session_id in web_sessions:
-                                api_instance = web_sessions[session_id]
-                                
-                                # 检查是否已认证
-                                is_authenticated = getattr(api_instance, 'is_authenticated', False)
-                                is_logged_in = getattr(api_instance, 'login_success', False)
-                                
-                                # 检查是否有任务正在执行
-                                has_active_task = False
-                                
-                                # 1. 检查单账号模式：跑步任务是否正在执行
-                                # 使用stop_run_flag.is_set()判断：False表示正在运行，True表示已停止
-                                if hasattr(api_instance, 'stop_run_flag'):
-                                    if not api_instance.stop_run_flag.is_set():
-                                        has_active_task = True
-                                        logging.debug(f"会话 {session_id[:8]}... 有单账号跑步任务正在执行")
-                                        # 更新最后活跃时间，因为任务正在运行
-                                        session_activity[session_id] = current_time
-                                
-                                # 2. 检查多账号模式：跑步任务是否正在执行
-                                if hasattr(api_instance, 'multi_run_stop_flag'):
-                                    if not api_instance.multi_run_stop_flag.is_set():
-                                        has_active_task = True
-                                        logging.debug(f"会话 {session_id[:8]}... 有多账号跑步任务正在执行")
-                                        # 更新最后活跃时间
-                                        session_activity[session_id] = current_time
-                                
-                                # 3. 检查单账号模式：自动签到线程是否正在运行
-                                if hasattr(api_instance, 'auto_refresh_thread'):
-                                    thread = api_instance.auto_refresh_thread
-                                    if thread is not None and thread.is_alive():
-                                        has_active_task = True
-                                        logging.debug(f"会话 {session_id[:8]}... 有单账号自动签到任务正在执行")
-                                        # 更新最后活跃时间
-                                        session_activity[session_id] = current_time
-                                
-                                # 4. 检查多账号模式：自动签到线程是否正在运行
-                                if hasattr(api_instance, 'multi_auto_refresh_thread'):
-                                    thread = api_instance.multi_auto_refresh_thread
-                                    if thread is not None and thread.is_alive():
-                                        has_active_task = True
-                                        logging.debug(f"会话 {session_id[:8]}... 有多账号自动签到任务正在执行")
-                                        # 更新最后活跃时间
-                                        session_activity[session_id] = current_time
-                                
-                                # 5. 检查多账号模式：各个子账号的任务线程是否正在运行
-                                if hasattr(api_instance, 'multi_accounts'):
-                                    for acc in api_instance.multi_accounts:
-                                        if hasattr(acc, 'worker_thread'):
-                                            thread = acc.worker_thread
-                                            if thread is not None and thread.is_alive():
-                                                has_active_task = True
-                                                logging.debug(f"会话 {session_id[:8]}... 的多账号子账号有任务正在执行")
-                                                # 更新最后活跃时间
-                                                session_activity[session_id] = current_time
-                                                break  # 找到一个即可
-                                
-                                # 只清理：已认证但未登录应用，并且没有任务正在执行的会话
-                                if is_authenticated and not is_logged_in and not has_active_task:
-                                    # 重新计算时间差（可能在检查任务时更新了活跃时间）
-                                    updated_last_activity = session_activity.get(session_id, last_activity)
-                                    updated_time_since_activity = current_time - updated_last_activity
-                                    
-                                    # 再次确认超时（如果任务更新了时间，这里会阻止清理）
-                                    if updated_time_since_activity > inactivity_timeout:
-                                        inactive_sessions.append(session_id)
-                                        logging.debug(
-                                            f"会话 {session_id[:8]}... 标记为不活跃（超时{int(updated_time_since_activity)}秒，无任务执行）")
-                                    else:
-                                        logging.debug(
-                                            f"会话 {session_id[:8]}... 由于任务活跃，时间已更新，取消清理")
-                                elif has_active_task:
-                                    logging.debug(
-                                        f"会话 {session_id[:8]}... 有活跃任务，跳过清理")
+                    if not api_instance:
+                        inactive_sessions_to_cleanup.append(session_id)
+                        continue
+
+                    # --- 核心逻辑：检查该会话是否有活跃任务 ---
+                    has_active_task = False
+                    
+                    try:
+                        # 1. 检查单账号模式：跑步任务是否正在执行
+                        if hasattr(api_instance, 'stop_run_flag') and not api_instance.stop_run_flag.is_set():
+                            has_active_task = True
+                            logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有单账号跑步任务正在执行")
+                        
+                        # 2. 检查多账号模式：跑步任务是否正在执行
+                        if not has_active_task and hasattr(api_instance, 'multi_run_stop_flag') and not api_instance.multi_run_stop_flag.is_set():
+                            has_active_task = True
+                            logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有多账号跑步任务正在执行")
+
+                        # 3. 检查单账号模式：自动签到线程是否正在运行
+                        if not has_active_task and hasattr(api_instance, 'auto_refresh_thread'):
+                            thread = api_instance.auto_refresh_thread
+                            if thread is not None and thread.is_alive():
+                                has_active_task = True
+                                logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有单账号自动签到任务正在执行")
+
+                        # 4. 检查多账号模式：自动签到线程是否正在运行
+                        if not has_active_task and hasattr(api_instance, 'multi_auto_refresh_thread'):
+                            thread = api_instance.multi_auto_refresh_thread
+                            if thread is not None and thread.is_alive():
+                                has_active_task = True
+                                logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有多账号自动签到任务正在执行")
+
+                        # 5. 检查多账号模式：各个子账号的任务线程是否正在运行
+                        if not has_active_task and getattr(api_instance, 'is_multi_account_mode', False) and hasattr(api_instance, 'accounts'):
+                            for acc in api_instance.accounts.values():
+                                if hasattr(acc, 'worker_thread') and acc.worker_thread and acc.worker_thread.is_alive():
+                                    has_active_task = True
+                                    logging.debug(f"[会话监控] 会话 {session_id[:8]}... 的多账号子账号有任务正在执行")
+                                    break  # 找到一个即可
+                    
+                    except Exception as e:
+                        logging.error(f"[会话监控] 检查会话 {session_id[:8]}... 活跃状态时出错: {e}")
+                        # 出现异常时，保守起见，视为活跃
+                        has_active_task = True
+
+                    # --- 根据活跃状态决定操作 ---
+                    if has_active_task:
+                        # 如果有活跃任务，则将其加入“更新活跃时间”列表
+                        active_sessions_to_update.append(session_id)
+                    else:
+                        # 如果没有活跃任务，检查是否超时
+                        last_activity = 0
+                        # 嵌套锁定 session_activity_lock 来读取时间
+                        with session_activity_lock:
+                            # 满足用户要求：尝试读取，如果未定义，默认为0 (即“空”)
+                            last_activity = session_activity.get(session_id, 0)
+                        
+                        # 只有在 last_activity > 0 (即至少活跃过一次) 且超时的情况下才清理
+                        if last_activity > 0 and (current_time - last_activity > inactivity_timeout):
+                            inactive_sessions_to_cleanup.append(session_id)
+                            time_since_activity = current_time - last_activity
+                            logging.debug(
+                                f"[会话监控] 会话 {session_id[:8]}... 标记为不活跃（超时{int(time_since_activity)}秒，无任务执行）")
             
-            # 清理不活跃会话
-            for session_id in inactive_sessions:
-                cleanup_inactive_session(session_id)
+            # --- 2. 释放 web_sessions_lock ---
+
+            # 3. 批量更新活跃会话的时间（在主循环外）
+            if active_sessions_to_update:
+                logging.debug(f"[会话监控] 更新 {len(active_sessions_to_update)} 个活跃会话的时间...")
+                # 重新获取锁以进行写操作
+                with session_activity_lock:
+                    for session_id in active_sessions_to_update:
+                        session_activity[session_id] = current_time
+
+            # 4. 批量清理不活跃会话
+            if inactive_sessions_to_cleanup:
+                logging.info(f"[会话监控] 准备清理 {len(inactive_sessions_to_cleanup)} 个不活跃会话...")
+                for session_id in inactive_sessions_to_cleanup:
+                    # cleanup_inactive_session 包含自己的锁，是安全的
+                    cleanup_inactive_session(session_id)
         
         except Exception as e:
             logging.error(f"会话监控线程错误: {e}", exc_info=True)
+            # 即使出错，也继续下一次循环
+            time.sleep(check_interval) # 发生错误时也保持间隔休眠
 
 # 启动会话监控线程
 
@@ -9794,7 +9804,7 @@ def save_session_state(session_id, api_instance, force_save=False):
             # 如果是多账号模式，保存多账号相关信息
             if getattr(api_instance, 'is_multi_account_mode', False):
 
-                # --- [BUG修复] 保存多账号列表的状态 ---
+                
                 # 保存全局参数
                 if hasattr(api_instance, 'global_params'):
                     global_params_to_save = api_instance.global_params.copy()
@@ -9812,7 +9822,7 @@ def save_session_state(session_id, api_instance, force_save=False):
                         account_state = {
                             # 'username': username, # 键名就是 username，无需重复
                             'status_text': getattr(account_session, 'status_text', '待命'),
-                            'school_account_logged_in': getattr(account_session, 'login_success', False),
+                            'school_account_logged_in': bool(getattr(account_session, 'user_data', None) and getattr(account_session.user_data, 'id', '')) and getattr(account_session, 'is_first_login_verified', False),
                             
                             # [BUG 修复] 必须保存 summary 字典，UI 恢复依赖此信息
                             'summary': getattr(account_session, 'summary', {}),
@@ -9850,7 +9860,7 @@ def save_session_state(session_id, api_instance, force_save=False):
                         account_state = {
                             # 'username': username, # 键名就是 username，无需重复
                             'status_text': getattr(account_session, 'status_text', '待命'),
-                            'school_account_logged_in': getattr(account_session, 'login_success', False),
+                            'school_account_logged_in': bool(getattr(account_session, 'user_data', None) and getattr(account_session.user_data, 'id', '')) and getattr(account_session, 'is_first_login_verified', False),
                             
                             # [BUG 修复] 必须保存 summary 字典，UI 恢复依赖此信息
                             'summary': getattr(account_session, 'summary', {}),
@@ -14996,6 +15006,20 @@ def start_web_server(args_param):
 
                         # 确保加载的数据属于当前用户
                         if session_data.get('auth_username') == auth_username:
+                            # 15. 修正多账号模式下的“未登录”状态
+                            is_multi_mode = session_data.get('is_multi_account_mode', False)
+                            session_login_success = session_data.get('login_success', False) # 单账号模式的状态
+                            
+                            if is_multi_mode:
+                                # 多账号模式：检查是否有任何一个子账号已登录
+                                account_states = session_data.get('multi_account_states', {})
+                                # 检查是否有任何一个 'school_account_logged_in' 为 True
+                                # (这依赖于步骤1中 save_session_state 的修正)
+                                session_login_success = any(
+                                    acc.get('school_account_logged_in', False) 
+                                    for acc in account_states.values()
+                                )
+
                             sessions_info.append({
                                 'session_id': sid,
                                 # 添加哈希
@@ -15004,7 +15028,8 @@ def start_web_server(args_param):
                                 # 使用 last_accessed
                                 'last_activity': session_data.get('last_accessed', 0),
                                 'is_current': sid == session_id,
-                                'login_success': session_data.get('login_success', False),
+                                'login_success': session_login_success, # <-- 使用修正后的状态
+                                'is_multi_account_mode': is_multi_mode, # <-- 确保传递此标志
                                 'user_data': session_data.get('user_data', {})
                             })
                     except Exception as e:
@@ -15328,6 +15353,20 @@ def start_web_server(args_param):
                         if not sid or sid in session_ids_in_memory:
                             continue  # 跳过已在内存中的会话
 
+                        # 15. 修正多账号模式下的“未登录”状态
+                        is_multi_mode = state.get('is_multi_account_mode', False)
+                        session_login_success = state.get('login_success', False) # 单账号模式的状态
+                        
+                        if is_multi_mode:
+                            # 多账号模式：检查是否有任何一个子账号已登录
+                            account_states = state.get('multi_account_states', {})
+                            # 检查是否有任何一个 'school_account_logged_in' 为 True
+                            # (这依赖于步骤1中 save_session_state 的修正)
+                            session_login_success = any(
+                                acc.get('school_account_logged_in', False) 
+                                for acc in account_states.values()
+                            )
+
                         # 从文件中读取会话信息
                         session_info = {
                             'session_id': sid,
@@ -15337,7 +15376,8 @@ def start_web_server(args_param):
                             'is_authenticated': state.get('is_authenticated', False),
                             'is_guest': state.get('is_guest', False),
                             'created_at': state.get('created_at', 0),
-                            'login_success': state.get('login_success', False),
+                            'login_success': session_login_success, # <-- 使用修正后的状态
+                            'is_multi_account_mode': is_multi_mode, # <-- 传递多账号模式标志
                             'user_info': state.get('user_info', {}),
                             'is_current': sid == session_id,
                             # 添加username字段供前端使用
@@ -15825,6 +15865,227 @@ def start_web_server(args_param):
         except Exception as e:
             app.logger.error(f"[审计日志] 查询失败：{str(e)}")
             return jsonify({"success": False, "message": "查询失败"}), 500
+
+    # ============================================================
+    # 任务：系统配置API (config.ini)
+    # ============================================================
+    
+    def _get_config_value(config, section, key, type_func=str, fallback=None):
+        """
+        辅助函数：从 configparser 安全地获取值，并应用类型转换。
+        如果 key 不存在，返回 fallback。
+        """
+        if config.has_option(section, key):
+            try:
+                # 尝试从 config 对象获取并转换
+                return type_func(config.get(section, key))
+            except (ValueError, TypeError):
+                # 转换失败，返回 fallback
+                return fallback
+        # 选项不存在，返回 fallback
+        return fallback
+
+    @app.route('/api/admin/config/load', methods=['GET'])
+    @login_required
+    def admin_config_load():
+        """
+        加载 config.ini 中的可配置项
+        权限要求: manage_system
+        """
+        try:
+            # 1. 权限检查
+            if not auth_system.check_permission(g.user, 'manage_system'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 2. 获取默认配置作为回退
+            default_config = _get_default_config()
+            
+            # 3. 读取当前配置
+            config = configparser.ConfigParser()
+            # 确保 config.ini 存在（如果不存在，_get_default_config() 逻辑在 auto_init 中已处理)
+            if os.path.exists(CONFIG_FILE):
+                config.read(CONFIG_FILE, encoding='utf-8')
+            else:
+                # 如果文件意外丢失，使用默认值
+                config = default_config
+            
+            # 4. 提取用户请求的特定配置项
+            config_data = {
+                'Guest': {
+                    'allow_guest_login': _get_config_value(
+                        config, 'Guest', 'allow_guest_login', 
+                        type_func=config.getboolean, 
+                        fallback=default_config.getboolean('Guest', 'allow_guest_login', fallback=True)
+                    )
+                },
+                'System': {
+                    'session_expiry_days': _get_config_value(
+                        config, 'System', 'session_expiry_days', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('System', 'session_expiry_days', fallback=7)
+                    ),
+                    'school_accounts_dir': _get_config_value(
+                        config, 'System', 'school_accounts_dir', 
+                        fallback=default_config.get('System', 'school_accounts_dir', fallback='school_accounts')
+                    ),
+                    'system_accounts_dir': _get_config_value(
+                        config, 'System', 'system_accounts_dir', 
+                        fallback=default_config.get('System', 'system_accounts_dir', fallback='system_accounts')
+                    ),
+                    'permissions_file': _get_config_value(
+                        config, 'System', 'permissions_file', 
+                        fallback=default_config.get('System', 'permissions_file', fallback='permissions.json')
+                    ),
+                    'session_monitor_check_interval': _get_config_value(
+                        config, 'System', 'session_monitor_check_interval', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('System', 'session_monitor_check_interval', fallback=60)
+                    ),
+                    'session_inactivity_timeout': _get_config_value(
+                        config, 'System', 'session_inactivity_timeout', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('System', 'session_inactivity_timeout', fallback=300)
+                    ),
+                },
+                'Logging': {
+                    'log_rotation_size_mb': _get_config_value(
+                        config, 'Logging', 'log_rotation_size_mb', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('Logging', 'log_rotation_size_mb', fallback=10)
+                    ),
+                    'archive_max_size_mb': _get_config_value(
+                        config, 'Logging', 'archive_max_size_mb', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('Logging', 'archive_max_size_mb', fallback=500)
+                    ),
+                    'log_dir': _get_config_value(
+                        config, 'Logging', 'log_dir', 
+                        fallback=default_config.get('Logging', 'log_dir', fallback='logs')
+                    ),
+                    'archive_dir': _get_config_value(
+                        config, 'Logging', 'archive_dir', 
+                        fallback=default_config.get('Logging', 'archive_dir', fallback='logs/archive')
+                    ),
+                },
+                'Security': {
+                    'password_storage': _get_config_value(
+                        config, 'Security', 'password_storage', 
+                        fallback=default_config.get('Security', 'password_storage', fallback='plaintext')
+                    ),
+                    'brute_force_protection': _get_config_value(
+                        config, 'Security', 'brute_force_protection', 
+                        type_func=config.getboolean,
+                        fallback=default_config.getboolean('Security', 'brute_force_protection', fallback=True)
+                    ),
+                    'login_log_retention_days': _get_config_value(
+                        config, 'Security', 'login_log_retention_days', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('Security', 'login_log_retention_days', fallback=90)
+                    ),
+                },
+                'Map': {
+                    'amap_js_key': _get_config_value(
+                        config, 'Map', 'amap_js_key', 
+                        fallback=default_config.get('Map', 'amap_js_key', fallback='')
+                    )
+                }
+            }
+            
+            return jsonify({"success": True, "config": config_data})
+            
+        except Exception as e:
+            app.logger.error(f"[系统配置] 加载配置失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": "加载配置失败"}), 500
+
+    @app.route('/api/admin/config/save', methods=['POST'])
+    @login_required
+    def admin_config_save():
+        """
+        保存 config.ini 中的可配置项
+        权限要求: manage_system
+        """
+        try:
+            # 1. 权限检查
+            if not auth_system.check_permission(g.user, 'manage_system'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+
+            data = request.get_json() or {}
+            
+            # 2. 读取现有配置（必须保留注释和其他未修改项）
+            config = configparser.ConfigParser()
+            config.optionxform = str # 保持键的大小写
+            if os.path.exists(CONFIG_FILE):
+                config.read(CONFIG_FILE, encoding='utf-8')
+            else:
+                # 如果文件不存在，从默认值创建
+                config = _get_default_config()
+
+            # 3. 逐项更新配置
+            # 辅助函数：确保节存在
+            def ensure_section(cfg, section_name):
+                if not cfg.has_section(section_name):
+                    cfg.add_section(section_name)
+
+            # [Guest]
+            if 'Guest' in data and 'allow_guest_login' in data['Guest']:
+                ensure_section(config, 'Guest')
+                config.set('Guest', 'allow_guest_login', str(data['Guest']['allow_guest_login']).lower())
+
+            # [System]
+            if 'System' in data:
+                ensure_section(config, 'System')
+                system_data = data['System']
+                for key in ['session_expiry_days', 'school_accounts_dir', 'system_accounts_dir', 'permissions_file', 'session_monitor_check_interval', 'session_inactivity_timeout']:
+                    if key in system_data:
+                        config.set('System', key, str(system_data[key]))
+            
+            # [Logging]
+            if 'Logging' in data:
+                ensure_section(config, 'Logging')
+                logging_data = data['Logging']
+                for key in ['log_rotation_size_mb', 'archive_max_size_mb', 'log_dir', 'archive_dir']:
+                    if key in logging_data:
+                        config.set('Logging', key, str(logging_data[key]))
+
+            # [Security]
+            if 'Security' in data:
+                ensure_section(config, 'Security')
+                security_data = data['Security']
+                if 'password_storage' in security_data:
+                    # 验证 password_storage 是否为允许的值
+                    allowed_storage = ['plaintext', 'sha256', 'bcrypt']
+                    if security_data['password_storage'] in allowed_storage:
+                        config.set('Security', 'password_storage', security_data['password_storage'])
+                    else:
+                        return jsonify({"success": False, "message": f"无效的 password_storage 值，必须是 {allowed_storage} 之一"}), 400
+                if 'brute_force_protection' in security_data:
+                    config.set('Security', 'brute_force_protection', str(security_data['brute_force_protection']).lower())
+                if 'login_log_retention_days' in security_data:
+                    config.set('Security', 'login_log_retention_days', str(security_data['login_log_retention_days']))
+
+            # [Map]
+            if 'Map' in data and 'amap_js_key' in data['Map']:
+                ensure_section(config, 'Map')
+                config.set('Map', 'amap_js_key', data['Map']['amap_js_key'])
+
+            # 4. 使用 _write_config_with_comments 保存以保留注释
+            _write_config_with_comments(config, CONFIG_FILE)
+
+            # 5. 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                g.user,
+                'update_system_config',
+                '管理员更新了 config.ini 系统配置',
+                ip_address,
+                g.api_instance._web_session_id if hasattr(g, 'api_instance') else ''
+            )
+
+            return jsonify({"success": True, "message": "系统配置已保存"})
+
+        except Exception as e:
+            app.logger.error(f"[系统配置] 保存配置失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": "保存配置失败"}), 500
 
     # ====================
     # 前端日志接收API
@@ -17833,10 +18094,9 @@ def start_web_server(args_param):
             # ============================================================
             if method == 'get_initial_data':
                 # 记录当前时间为会话最后活跃时间
-                # 使用session_activity_lock确保线程安全
-                with session_activity_lock:
-                    session_activity[session_id] = time.time()
-                    logging.debug(f"记录 get_initial_data 调用，更新会话 {session_id[:8]}... 的活跃时间")
+                # (已提取到 update_session_activity 函数)
+                update_session_activity(session_id)
+                logging.debug(f"会话 {session_id[:8]}... 调用 get_initial_data，更新活跃时间戳")
 
             if hasattr(api_instance, method):
                 func = getattr(api_instance, method)
