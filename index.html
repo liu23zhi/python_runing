@@ -14167,6 +14167,15 @@
 
         // 3. 检查 result 是否为 null (防止网络错误)
         if (result && result.success) {
+
+          if (offset === 0) {
+            // 如果是第一批 (offset=0)，则*替换*全局缓存
+            window.currentNotifications = result.notices || [];
+          } else {
+            // 如果是后续批次，则*追加*到全局缓存
+            window.currentNotifications = (window.currentNotifications || []).concat(result.notices || []);
+          }
+
           // 更新徽章
           if (result.unreadCount > 0) {
             badge.textContent = result.unreadCount > 9 ? '9+' : result.unreadCount;
@@ -14220,9 +14229,9 @@
       if (markReadBtn) markReadBtn.disabled = true;
 
       try {
-        // 【优化】步骤1：如果启用缓存，先尝试显示缓存的通知
+        // 如果启用缓存，先尝试显示缓存的通知
         let cachedDisplayed = false;
-        if (useCache) {
+        if (useCache && content) { // <--- 修正 #1: 检查 content 是否存在
           content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载缓存通知...</p>';
 
           try {
@@ -14251,14 +14260,14 @@
               refreshingIndicator.id = 'refreshing-indicator';
               refreshingIndicator.className = 'p-3 text-center text-slate-400 text-sm';
               refreshingIndicator.innerHTML = '正在刷新最新通知...';
-              content.appendChild(refreshingIndicator);
+              if (content) content.appendChild(refreshingIndicator);
             }
           } catch (e) {
             logMessage_Warning("获取缓存通知失败，将直接加载最新通知", e);
           }
         }
 
-        if (!cachedDisplayed) {
+        if (!cachedDisplayed && content) {
           content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载前5条通知...</p>';
         }
 
@@ -14267,15 +14276,30 @@
         const batchSize = 5;
         let hasMore = true;
         let firstLoad = true;
+        let finalResult = null; // 修正：用于存储第一个批次的结果（包含正确的角标数）
 
         // 定义递归加载函数
         const loadNextBatch = async () => {
           if (!hasMore) {
+            // --- 修正：所有批次加载完成 ---
+            // 在这里（而不是循环中）调用 onNotificationsUpdated
+            // 传递 finalResult，因为它包含了正确的 unreadCount
+            if (finalResult) {
+              onNotificationsUpdated(finalResult); 
+            }
+            logMessage_Info("所有通知加载完成（模态框）");
+            // --- 修正结束 ---
             return;
           }
 
           logMessage_Info(`正在加载通知：offset=${currentOffset}, limit=${batchSize}`);
           const result = await fetchNotifications(batchSize, currentOffset);
+
+          // 修正：保存第一个批次的结果
+          if (firstLoad) {
+            finalResult = result;
+          }
+
 
           if (!result || !result.success) {
             if (firstLoad && !cachedDisplayed) {
@@ -14286,14 +14310,14 @@
 
           const notices = result.notices || [];
 
-          if (firstLoad) {
+          if (firstLoad && content) { // <--- 修正 #5: 检查 content 是否存在
             // 首次加载新数据，清空之前的内容（包括缓存或"正在加载"提示）
             content.innerHTML = '';
             firstLoad = false;
             logMessage_Info(`首批新通知加载完成，${cachedDisplayed ? '已替换' : '正在显示'}缓存数据`);
           }
 
-          if (notices.length === 0 && currentOffset === 0) {
+          if (notices.length === 0 && currentOffset === 0 && content) { // <--- 修正 #6: 检查 content 是否存在
             content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无通知</p>';
             if (markReadBtn) markReadBtn.disabled = true;
             return;
@@ -14306,7 +14330,7 @@
           }
 
           // 渲染这一批通知
-          if (notices.length > 0) {
+          if (notices.length > 0 && content) { // <--- 修正 #7: 检查 content 是否存在
             logMessage_Info(`第${Math.floor(currentOffset / batchSize) + 1}批加载完成：显示 ${notices.length} 条通知`);
             renderNotificationBatch(notices, content);
 
@@ -14321,7 +14345,7 @@
           hasMore = result.hasMore || false;
 
           // 如果还有更多数据，显示"正在加载更多"提示，并继续加载
-          if (hasMore) {
+          if (hasMore && content) { // <--- 修正 #8: 检查 content 是否存在
             const loadingMore = document.createElement('div');
             loadingMore.id = 'loading-more-indicator';
             loadingMore.className = 'p-3 text-center text-slate-400 text-sm';
@@ -14329,19 +14353,25 @@
             content.appendChild(loadingMore);
 
             // 短暂延迟后加载下一批（让用户看到前一批的内容）
-            setTimeout(loadNextBatch, 100);
+            ssetTimeout(loadNextBatch, 100);
           } else {
-            logMessage_Info("所有通知加载完成");
+            // --- 修正：所有批次加载完成 ---
+            if (finalResult) {
+              onNotificationsUpdated(finalResult);
+            }
+            logMessage_Info("所有通知加载完成（模态框）");
+            // --- 修正结束 ---
           }
 
-          // 第一批加载完成后，调用 onNotificationsUpdated 来刷新"签到"Tab
-          if (currentOffset === batchSize && result.success) {
-            onNotificationsUpdated(result);
-          }
+          // [已删除] 移除在第一批加载后就调用 onNotificationsUpdated 的错误逻辑
+          // if (currentOffset === batchSize && result.success) {
+          //   onNotificationsUpdated(result);
+          // }
         };
 
         // 开始加载第一批
         await loadNextBatch();
+
 
       } catch (e) {
         logMessage_Error("Failed to refresh notifications UI", e);
@@ -14514,7 +14544,7 @@
       }
 
       // 2. 缓存最新数据
-      window.currentNotifications = result.notices || [];
+      // window.currentNotifications = result.notices || [];
 
       // 3. 渲染“签到”Tab (如果该Tab存在)
       const attList = $('attendance-list');
