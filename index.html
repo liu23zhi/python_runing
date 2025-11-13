@@ -14544,7 +14544,9 @@
       }
 
       // 2. 缓存最新数据
-      // window.currentNotifications = result.notices || [];
+      // 【关键修复】更新全局通知缓存，确保后续的过滤和显示操作使用最新数据
+      // 如果此行被注释，会导致 attendance-list 和 notifications-content 无法正常加载
+      window.currentNotifications = result.notices || [];
 
       // 3. 渲染“签到”Tab (如果该Tab存在)
       const attList = $('attendance-list');
