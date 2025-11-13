@@ -1007,7 +1007,9 @@ def _get_default_config():
         'system_accounts_dir': 'system_accounts',
         'sessions_dir': 'sessions',  # 新增：会话存储目录
         'tokens_dir': 'tokens',  # 新增：Token存储目录
-        'permissions_file': 'permissions.json'
+        'permissions_file': 'permissions.json',
+        'session_monitor_check_interval': '60',  # 会话监控检查间隔（秒），默认60秒
+        'session_inactivity_timeout': '300'  # 会话不活跃超时时间（秒），默认300秒（5分钟）
     }
 
     # [Logging] 日志配置
@@ -1099,7 +1101,15 @@ def _write_config_with_comments(config_obj, filepath):
             f"system_accounts_dir = {config_obj.get('System', 'system_accounts_dir', fallback='system_accounts')}\n")
         f.write("# 权限配置文件路径\n")
         f.write(
-            f"permissions_file = {config_obj.get('System', 'permissions_file', fallback='permissions.json')}\n\n")
+            f"permissions_file = {config_obj.get('System', 'permissions_file', fallback='permissions.json')}\n")
+        f.write("# 会话监控检查间隔时间（秒）\n")
+        f.write("# 系统每隔此时间检查一次会话活跃状态，默认60秒\n")
+        f.write(
+            f"session_monitor_check_interval = {config_obj.get('System', 'session_monitor_check_interval', fallback='60')}\n")
+        f.write("# 会话不活跃超时时间（秒）\n")
+        f.write("# 会话超过此时间无活动（且无正在执行的任务）将被自动清理，默认300秒（5分钟）\n")
+        f.write(
+            f"session_inactivity_timeout = {config_obj.get('System', 'session_inactivity_timeout', fallback='300')}\n\n")
 
         # [Logging] 配置
         f.write("[Logging]\n")
@@ -9386,69 +9396,132 @@ def cleanup_inactive_session(session_id):
 
 
 def monitor_session_inactivity():
-    """监控会话不活跃状态并清理（5分钟无活动）"""
+    """
+    监控会话不活跃状态并清理
+    
+    功能说明：
+    1. 在会话调用get_initial_data时记录最后活跃时间（内存中）
+    2. 检查会话是否有正在执行的跑步任务或自动签到任务
+    3. 如果会话有活跃任务，则更新最后活跃时间
+    4. 如果会话超过配置的不活跃时间且无活跃任务，则清理会话
+    
+    配置项：
+    - session_monitor_check_interval: 检查间隔（秒），默认60秒
+    - session_inactivity_timeout: 不活跃超时（秒），默认300秒
+    """
+    # 从config.ini读取配置参数
+    check_interval = 60  # 默认60秒检查一次
+    inactivity_timeout = 300  # 默认300秒（5分钟）无活动则清理
+    
+    try:
+        if os.path.exists('config.ini'):
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            if config.has_section('System'):
+                check_interval = config.getint('System', 'session_monitor_check_interval', fallback=60)
+                inactivity_timeout = config.getint('System', 'session_inactivity_timeout', fallback=300)
+        
+        logging.info(f"会话监控配置：检查间隔={check_interval}秒，不活跃超时={inactivity_timeout}秒")
+    except Exception as e:
+        logging.warning(f"读取会话监控配置失败，使用默认值: {e}")
+    
     while True:
         try:
-            time.sleep(60)  # 每分钟检查一次
-
+            # 按配置的间隔时间进行检查
+            time.sleep(check_interval)
+            
             current_time = time.time()
             inactive_sessions = []
-
+            
             with session_activity_lock:
                 for session_id, last_activity in list(session_activity.items()):
-                    # 检查是否在登录页面且5分钟无活动
-                    if current_time - last_activity > 300:  # 5分钟 = 300秒
+                    # 计算距离最后活跃时间的时间差
+                    time_since_activity = current_time - last_activity
+                    
+                    # 只有超过配置的不活跃时间才考虑清理
+                    if time_since_activity > inactivity_timeout:
                         with web_sessions_lock:
                             if session_id in web_sessions:
                                 api_instance = web_sessions[session_id]
-                                # 只清理已认证但未登录应用的会话
-                                is_authenticated = getattr(
-                                    api_instance, 'is_authenticated', False)
-                                is_logged_in = getattr(
-                                    api_instance, 'login_success', False)
-
+                                
+                                # 检查是否已认证
+                                is_authenticated = getattr(api_instance, 'is_authenticated', False)
+                                is_logged_in = getattr(api_instance, 'login_success', False)
+                                
                                 # 检查是否有任务正在执行
                                 has_active_task = False
-
-                                # 单账号模式：检查是否有跑步任务正在执行
+                                
+                                # 1. 检查单账号模式：跑步任务是否正在执行
+                                # 使用stop_run_flag.is_set()判断：False表示正在运行，True表示已停止
                                 if hasattr(api_instance, 'stop_run_flag'):
-                                    has_active_task = has_active_task or not api_instance.stop_run_flag.is_set()
-
-                                # 单账号模式：检查自动签到是否正在运行
+                                    if not api_instance.stop_run_flag.is_set():
+                                        has_active_task = True
+                                        logging.debug(f"会话 {session_id[:8]}... 有单账号跑步任务正在执行")
+                                        # 更新最后活跃时间，因为任务正在运行
+                                        session_activity[session_id] = current_time
+                                
+                                # 2. 检查多账号模式：跑步任务是否正在执行
+                                if hasattr(api_instance, 'multi_run_stop_flag'):
+                                    if not api_instance.multi_run_stop_flag.is_set():
+                                        has_active_task = True
+                                        logging.debug(f"会话 {session_id[:8]}... 有多账号跑步任务正在执行")
+                                        # 更新最后活跃时间
+                                        session_activity[session_id] = current_time
+                                
+                                # 3. 检查单账号模式：自动签到线程是否正在运行
                                 if hasattr(api_instance, 'auto_refresh_thread'):
                                     thread = api_instance.auto_refresh_thread
-                                    has_active_task = has_active_task or (
-                                        thread is not None and thread.is_alive())
-
-                                # 多账号模式：检查多账号自动签到是否正在运行
+                                    if thread is not None and thread.is_alive():
+                                        has_active_task = True
+                                        logging.debug(f"会话 {session_id[:8]}... 有单账号自动签到任务正在执行")
+                                        # 更新最后活跃时间
+                                        session_activity[session_id] = current_time
+                                
+                                # 4. 检查多账号模式：自动签到线程是否正在运行
                                 if hasattr(api_instance, 'multi_auto_refresh_thread'):
                                     thread = api_instance.multi_auto_refresh_thread
-                                    has_active_task = has_active_task or (
-                                        thread is not None and thread.is_alive())
-
-                                # 多账号模式：检查是否有账号的任务线程正在运行
+                                    if thread is not None and thread.is_alive():
+                                        has_active_task = True
+                                        logging.debug(f"会话 {session_id[:8]}... 有多账号自动签到任务正在执行")
+                                        # 更新最后活跃时间
+                                        session_activity[session_id] = current_time
+                                
+                                # 5. 检查多账号模式：各个子账号的任务线程是否正在运行
                                 if hasattr(api_instance, 'multi_accounts'):
                                     for acc in api_instance.multi_accounts:
                                         if hasattr(acc, 'worker_thread'):
                                             thread = acc.worker_thread
-                                            has_active_task = has_active_task or (
-                                                thread is not None and thread.is_alive())
-
+                                            if thread is not None and thread.is_alive():
+                                                has_active_task = True
+                                                logging.debug(f"会话 {session_id[:8]}... 的多账号子账号有任务正在执行")
+                                                # 更新最后活跃时间
+                                                session_activity[session_id] = current_time
+                                                break  # 找到一个即可
+                                
                                 # 只清理：已认证但未登录应用，并且没有任务正在执行的会话
                                 if is_authenticated and not is_logged_in and not has_active_task:
-                                    inactive_sessions.append(session_id)
-                                    logging.debug(
-                                        f"会话 {session_id[:32]}... 标记为不活跃（无任务执行）")
+                                    # 重新计算时间差（可能在检查任务时更新了活跃时间）
+                                    updated_last_activity = session_activity.get(session_id, last_activity)
+                                    updated_time_since_activity = current_time - updated_last_activity
+                                    
+                                    # 再次确认超时（如果任务更新了时间，这里会阻止清理）
+                                    if updated_time_since_activity > inactivity_timeout:
+                                        inactive_sessions.append(session_id)
+                                        logging.debug(
+                                            f"会话 {session_id[:8]}... 标记为不活跃（超时{int(updated_time_since_activity)}秒，无任务执行）")
+                                    else:
+                                        logging.debug(
+                                            f"会话 {session_id[:8]}... 由于任务活跃，时间已更新，取消清理")
                                 elif has_active_task:
                                     logging.debug(
-                                        f"会话 {session_id[:32]}... 有活跃任务，跳过清理")
-
+                                        f"会话 {session_id[:8]}... 有活跃任务，跳过清理")
+            
             # 清理不活跃会话
             for session_id in inactive_sessions:
                 cleanup_inactive_session(session_id)
-
+        
         except Exception as e:
-            logging.error(f"会话监控线程错误: {e}")
+            logging.error(f"会话监控线程错误: {e}", exc_info=True)
 
 # 启动会话监控线程
 
@@ -17232,13 +17305,56 @@ def start_web_server(args_param):
 
         # 调用对应的API方法
         try:
-            # 权限检查：需要特定权限的方法
+            # ============================================================
+            # 权限检查：细粒度权限控制
+            # 为不同的API方法配置所需的权限
+            # ============================================================
             permission_required_methods = {
+                # 通知相关权限
                 'mark_notification_read': 'mark_notifications_read',
                 'mark_all_read': 'mark_notifications_read',
+                
+                # 签到相关权限
                 'trigger_attendance': 'use_attendance',
+                
+                # 多账号相关权限
                 'multi_start_single_account': 'execute_multi_account',
                 'multi_start_all_accounts': 'execute_multi_account',
+                'enter_multi_account_mode': 'execute_multi_account',
+                'multi_add_account': 'execute_multi_account',
+                'multi_remove_account': 'execute_multi_account',
+                
+                # 任务相关权限
+                'create_task': 'create_tasks',
+                'delete_task': 'delete_tasks',
+                'start_single_run': 'start_tasks',
+                'start_all_runs': 'start_tasks',
+                'stop_current_run': 'stop_tasks',
+                
+                # 数据操作权限
+                'import_offline_file': 'import_offline',
+                'export_offline_file': 'export_data',
+                
+                # 路径操作权限
+                'record_path': 'record_path',
+                'auto_generate_path': 'auto_generate_path',
+                'set_draft_path': 'record_path',
+                'clear_path': 'record_path',
+                
+                # 参数修改权限
+                'update_param': 'modify_params',
+                'generate_new_ua': 'modify_params',
+                
+                # 地图查看权限
+                'get_map_data': 'view_map',
+                
+                # 用户信息权限
+                'get_user_info': 'view_user_details',
+                'update_user_settings': 'modify_user_settings',
+                
+                # 日志权限
+                'get_logs': 'view_logs',
+                'clear_logs': 'clear_logs',
             }
 
             if method in permission_required_methods:

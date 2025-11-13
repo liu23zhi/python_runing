@@ -4294,59 +4294,95 @@
     // ====================
 
     // 权限中英文翻译映射
+    // 权限翻译字典 - 将权限键名翻译为中文显示名称
+    // 确保所有权限都能被正确识别和翻译
     const permissionTranslations = {
-      // 基础权限
+      // 基础任务权限
       'view_dashboard': '查看仪表板',
       'view_tasks': '查看任务',
+      'create_tasks': '创建任务',
+      'delete_tasks': '删除任务',
+      'start_tasks': '启动任务',
+      'stop_tasks': '停止任务',
       'execute_tasks': '执行任务',
+      'modify_tasks': '修改任务',
+      'schedule_tasks': '定时任务',
       'view_history': '查看历史记录',
 
-      // 用户管理
-      'manage_users': '管理用户',
-      'create_users': '创建用户',
-      'delete_users': '删除用户',
-      'ban_users': '封禁用户',
-      'view_users': '查看用户',
-
-      // 权限管理
-      'manage_permissions': '管理权限',
-      'manage_groups': '管理权限组',
-      'assign_permissions': '分配权限',
-
-      // 会话管理
-      'manage_sessions': '管理会话',
-      'view_all_sessions': '查看所有会话',
-      'delete_sessions': '删除会话',
-      'god_mode': '上帝模式',
-
-      // 系统管理
-      'view_logs': '查看日志',
-      'system_settings': '系统设置',
-      'manage_api': '管理API',
-
-      // 任务相关
-      'create_tasks': '创建任务',
-      'modify_tasks': '修改任务',
-      'delete_tasks': '删除任务',
-      'schedule_tasks': '定时任务',
-
-      // 数据权限
-      'export_data': '导出数据',
-      'import_data': '导入数据',
-      'backup_data': '备份数据',
+      // 地图相关权限
+      'view_map': '查看地图',
+      'record_path': '记录路径',
+      'auto_generate_path': '自动生成路径',
 
       // 通知权限
+      'view_notifications': '查看通知',
+      'mark_notifications_read': '标记通知已读',
       'send_notifications': '发送通知',
       'manage_notifications': '管理通知',
 
-      // 留言板权限 (任务17)
+      // 用户信息权限
+      'view_user_details': '查看用户详情',
+      'modify_user_settings': '修改用户设置',
+      'view_users': '查看用户',
+      'ban_users': '封禁用户',
+
+      // 多账号和签到权限
+      'execute_multi_account': '执行多账号任务',
+      'use_attendance': '使用签到功能',
+
+      // 日志权限
+      'view_logs': '查看日志',
+      'clear_logs': '清空日志',
+
+      // 管理权限
+      'manage_users': '管理用户',
+      'create_users': '创建用户',
+      'delete_users': '删除用户',
+      'manage_permissions': '管理权限',
+      'manage_groups': '管理权限组',
+      'assign_permissions': '分配权限',
+      'reset_user_password': '重置用户密码',
+      'view_audit_logs': '查看审计日志',
+      'view_all_sessions': '查看所有会话',
+      'force_logout_users': '强制用户登出',
+      'manage_system': '系统管理',
+      'create_permission_groups': '创建权限组',
+      'delete_permission_groups': '删除权限组',
+      'modify_permission_groups': '修改权限组',
+
+      // 细分权限
+      'auto_fill_password': '自动填充密码',
+      'import_offline': '导入离线文件',
+      'export_data': '导出数据',
+      'import_data': '导入数据',
+      'backup_data': '备份数据',
+      'modify_params': '修改参数',
+      'manage_own_sessions': '管理自己的会话',
+      'manage_user_sessions': '管理用户会话',
+      'view_session_details': '查看会话详情',
+      'god_mode': '上帝模式',
+
+      // UI按钮权限（细粒度控制）
+      'use_login_button': '使用登录按钮',
+      'use_multi_account_button': '使用多账号控制台按钮',
+      'use_import_button': '使用导入离线文件按钮',
+
+      // 留言板权限
       'view_messages': '查看留言板',
       'post_messages': '发表留言',
       'delete_own_messages': '删除自己的留言',
       'delete_any_messages': '删除任何留言',
       'view_all_messages': '查看所有留言',
 
-      // 其他
+      // 会话管理权限
+      'manage_sessions': '管理会话',
+      'delete_sessions': '删除会话',
+
+      // 系统管理权限
+      'system_settings': '系统设置',
+      'manage_api': '管理API',
+
+      // 其他权限
       'admin_panel': '管理面板',
       'debug_mode': '调试模式'
     };
