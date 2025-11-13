@@ -1317,6 +1317,7 @@ def _create_permissions_json():
                     "import_offline": True,
                     "export_data": True,
                     "modify_params": True,
+                    "manage_own_sessions": False,  # 管理自己的会话（游客默认不能）
 
                     # UI按钮权限（细粒度控制）
                     "use_login_button": True,  # 登录按钮（游客默认有）
@@ -17309,52 +17310,108 @@ def start_web_server(args_param):
             # 权限检查：细粒度权限控制
             # 为不同的API方法配置所需的权限
             # ============================================================
+            # 说明：
+            # - 未列出的方法（如login、logout、get_initial_data等）无需权限检查
+            # - 内部方法和回调方法也不需要权限检查
+            # - 权限名称遵循"动词_名词"格式（如view_tasks, execute_multi_account）
+            # ============================================================
             permission_required_methods = {
-                # 通知相关权限
-                'mark_notification_read': 'mark_notifications_read',
-                'mark_all_read': 'mark_notifications_read',
+                # ===== 通知相关权限 =====
+                'mark_notification_read': 'mark_notifications_read',  # 标记单个通知已读
+                'mark_all_read': 'mark_notifications_read',  # 标记所有通知已读
+                'get_notifications': 'view_notifications',  # 获取通知列表
+                'get_cached_notifications': 'view_notifications',  # 获取缓存的通知
                 
-                # 签到相关权限
-                'trigger_attendance': 'use_attendance',
+                # ===== 签到相关权限 =====
+                'trigger_attendance': 'use_attendance',  # 触发签到操作
                 
-                # 多账号相关权限
-                'multi_start_single_account': 'execute_multi_account',
-                'multi_start_all_accounts': 'execute_multi_account',
-                'enter_multi_account_mode': 'execute_multi_account',
-                'multi_add_account': 'execute_multi_account',
-                'multi_remove_account': 'execute_multi_account',
+                # ===== 多账号管理相关权限 =====
+                # 多账号模式切换
+                'enter_multi_account_mode': 'execute_multi_account',  # 进入多账号模式
+                'exit_multi_account_mode': 'execute_multi_account',  # 退出多账号模式
                 
-                # 任务相关权限
-                'create_task': 'create_tasks',
-                'delete_task': 'delete_tasks',
-                'start_single_run': 'start_tasks',
-                'start_all_runs': 'start_tasks',
-                'stop_current_run': 'stop_tasks',
+                # 多账号的账户管理
+                'multi_add_account': 'execute_multi_account',  # 添加多账号
+                'multi_remove_account': 'execute_multi_account',  # 删除单个多账号
+                'multi_remove_selected_accounts': 'execute_multi_account',  # 删除选中的多个账号
+                'multi_remove_all_accounts': 'execute_multi_account',  # 删除所有多账号
                 
-                # 数据操作权限
-                'import_offline_file': 'import_offline',
-                'export_offline_file': 'export_data',
+                # 多账号的配置管理
+                'multi_get_all_config_users': 'execute_multi_account',  # 获取配置文件中的所有用户
+                'multi_load_accounts_from_config': 'execute_multi_account',  # 从配置文件加载账号
+                'multi_import_accounts': 'execute_multi_account',  # 导入多账号数据
+                'multi_export_accounts_summary': 'execute_multi_account',  # 导出多账号摘要
+                'multi_download_import_template': 'execute_multi_account',  # 下载导入模板
                 
-                # 路径操作权限
-                'record_path': 'record_path',
-                'auto_generate_path': 'auto_generate_path',
-                'set_draft_path': 'record_path',
-                'clear_path': 'record_path',
+                # 多账号的状态查询
+                'multi_refresh_all_statuses': 'execute_multi_account',  # 刷新所有账号状态
+                'multi_refresh_single_status': 'execute_multi_account',  # 刷新单个账号状态
+                'multi_get_all_accounts_status': 'execute_multi_account',  # 获取所有账号状态
                 
-                # 参数修改权限
-                'update_param': 'modify_params',
-                'generate_new_ua': 'modify_params',
+                # 多账号的参数管理
+                'multi_get_account_params': 'execute_multi_account',  # 获取账号参数
+                'multi_update_account_param': 'execute_multi_account',  # 更新账号参数
                 
-                # 地图查看权限
-                'get_map_data': 'view_map',
+                # 多账号的任务执行
+                'multi_start_single_account': 'execute_multi_account',  # 启动单个账号任务
+                'multi_start_all_accounts': 'execute_multi_account',  # 启动所有账号任务
+                'multi_stop_single_account': 'execute_multi_account',  # 停止单个账号任务
+                'multi_stop_all_accounts': 'execute_multi_account',  # 停止所有账号任务
                 
-                # 用户信息权限
-                'get_user_info': 'view_user_details',
-                'update_user_settings': 'modify_user_settings',
+                # ===== 任务管理相关权限 =====
+                # 任务查看
+                'load_tasks': 'view_tasks',  # 加载任务列表
+                'get_task_details': 'view_tasks',  # 获取任务详情
+                'get_task_history': 'view_tasks',  # 获取任务历史记录
+                'get_historical_track': 'view_tasks',  # 获取历史轨迹数据
+                'get_run_status': 'view_tasks',  # 获取运行状态
                 
-                # 日志权限
-                'get_logs': 'view_logs',
-                'clear_logs': 'clear_logs',
+                # 任务创建和删除
+                'create_task': 'create_tasks',  # 创建新任务
+                'delete_task': 'delete_tasks',  # 删除任务
+                
+                # 任务执行控制
+                'start_single_run': 'start_tasks',  # 启动单个任务
+                'start_all_runs': 'start_tasks',  # 启动所有任务
+                'stop_run': 'stop_tasks',  # 停止当前运行的任务
+                'stop_current_run': 'stop_tasks',  # 停止当前运行（别名）
+                
+                # ===== 数据操作权限 =====
+                'import_offline_file': 'import_offline',  # 导入离线数据文件
+                'import_task_data': 'import_offline',  # 导入任务数据
+                'export_offline_file': 'export_data',  # 导出离线数据文件
+                'export_task_data': 'export_data',  # 导出任务数据
+                
+                # ===== 路径操作权限 =====
+                'record_path': 'record_path',  # 记录路径
+                'set_draft_path': 'record_path',  # 设置草稿路径
+                'clear_path': 'record_path',  # 清除路径
+                'process_path': 'record_path',  # 处理路径数据
+                'clear_current_task_draft': 'record_path',  # 清除当前任务草稿
+                
+                # 路径自动生成
+                'auto_generate_path': 'auto_generate_path',  # 自动生成路径
+                'auto_generate_path_with_api': 'auto_generate_path',  # 使用API自动生成路径
+                
+                # ===== 参数修改权限 =====
+                'update_param': 'modify_params',  # 更新参数
+                'generate_new_ua': 'modify_params',  # 生成新的User-Agent
+                'save_amap_key': 'modify_params',  # 保存高德地图API密钥
+                
+                # ===== 地图查看权限 =====
+                'get_map_data': 'view_map',  # 获取地图数据
+                
+                # ===== 用户信息权限 =====
+                'get_user_info': 'view_user_details',  # 获取用户信息
+                'on_user_selected': 'view_user_details',  # 选择用户时查看详情
+                'update_user_settings': 'modify_user_settings',  # 更新用户设置
+                
+                # ===== 会话管理权限 =====
+                'get_user_sessions': 'manage_own_sessions',  # 查看自己的会话列表
+                
+                # ===== 日志权限 =====
+                'get_logs': 'view_logs',  # 查看日志
+                'clear_logs': 'clear_logs',  # 清除日志
             }
 
             if method in permission_required_methods:
@@ -17364,6 +17421,22 @@ def start_web_server(args_param):
                         return jsonify({"success": False, "message": f"权限不足：需要 {required_permission} 权限"}), 403
                 else:
                     return jsonify({"success": False, "message": "请先登录认证"}), 401
+
+            # ============================================================
+            # 特殊处理：记录get_initial_data调用时的会话活跃时间
+            # 说明：
+            # - get_initial_data是前端初始化时调用的核心方法
+            # - 每次调用都表示用户在活跃使用应用
+            # - 通过更新session_activity时间戳，配合monitor_session_inactivity
+            #   实现基于实际用户活跃度的会话管理
+            # - 这个记录会覆盖前面的update_session_activity(session_id)调用
+            # ============================================================
+            if method == 'get_initial_data':
+                # 记录当前时间为会话最后活跃时间
+                # 使用session_activity_lock确保线程安全
+                with session_activity_lock:
+                    session_activity[session_id] = time.time()
+                    logging.debug(f"记录 get_initial_data 调用，更新会话 {session_id[:8]}... 的活跃时间")
 
             if hasattr(api_instance, method):
                 func = getattr(api_instance, method)
