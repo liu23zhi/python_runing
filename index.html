@@ -364,33 +364,46 @@
     .phone-input-wrapper {
       /* 使用flex布局，将前缀和输入框横向排列 */
       display: flex;
-      align-items: center; /* 垂直居中对齐 */
-      width: 100%; /* 占满父容器宽度 */
-      border-radius: 14px; /* 与input-field保持一致的圆角 */
+      align-items: center;
+      /* 垂直居中对齐 */
+      width: 100%;
+      /* 占满父容器宽度 */
+      border-radius: 14px;
+      /* 与input-field保持一致的圆角 */
       /* 使用与input-field相同的背景渐变效果 */
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
-      border: 1px solid rgba(148, 163, 184, 0.35); /* 与input-field一致的边框 */
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      /* 与input-field一致的边框 */
       /* 与input-field一致的阴影效果 */
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 14px rgba(16, 24, 40, 0.06);
-      transition: box-shadow .2s ease, border-color .2s ease; /* 平滑的过渡动画 */
-      overflow: hidden; /* 隐藏溢出内容，保持圆角完整 */
+      transition: box-shadow .2s ease, border-color .2s ease;
+      /* 平滑的过渡动画 */
+      overflow: hidden;
+      /* 隐藏溢出内容，保持圆角完整 */
     }
 
     /* 当内部输入框获得焦点时，整个容器也要显示焦点样式 */
     .phone-input-wrapper:focus-within {
-      border-color: var(--base-color-600); /* 焦点时的边框颜色 */
-      box-shadow: 0 0 0 3px rgba(34, 211, 238, .25); /* 焦点时的外发光效果 */
+      border-color: var(--base-color-600);
+      /* 焦点时的边框颜色 */
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, .25);
+      /* 焦点时的外发光效果 */
     }
 
     /* +86前缀标签样式 - 显示不可编辑的国家代码 */
     .phone-prefix {
       /* 内边距：左右0.9rem与input-field保持一致，上下使用.7rem */
       padding: .7rem 0 .7rem .9rem;
-      color: #64748b; /* 使用稍浅的颜色区分前缀和用户输入 */
-      font-weight: 500; /* 中等字重 */
-      user-select: none; /* 禁止用户选中文本（因为这是不可编辑的） */
-      white-space: nowrap; /* 文本不换行 */
-      flex-shrink: 0; /* 不允许前缀被压缩 */
+      color: #64748b;
+      /* 使用稍浅的颜色区分前缀和用户输入 */
+      font-weight: 500;
+      /* 中等字重 */
+      user-select: none;
+      /* 禁止用户选中文本（因为这是不可编辑的） */
+      white-space: nowrap;
+      /* 文本不换行 */
+      flex-shrink: 0;
+      /* 不允许前缀被压缩 */
     }
 
     /* 带前缀的输入框样式 - 需要移除自身的边框和背景 */
@@ -401,16 +414,22 @@
       box-shadow: none;
       /* 移除左侧内边距，因为前缀已经提供了左侧间距 */
       padding-left: 0;
-      padding-right: .9rem; /* 保留右侧内边距 */
-      flex: 1; /* 占据剩余空间 */
-      min-width: 0; /* 允许输入框缩小，避免溢出 */
+      padding-right: .9rem;
+      /* 保留右侧内边距 */
+      flex: 1;
+      /* 占据剩余空间 */
+      min-width: 0;
+      /* 允许输入框缩小，避免溢出 */
     }
 
     /* 移除带前缀输入框的焦点样式，因为焦点样式由容器提供 */
     .phone-input-wrapper .input-field:focus {
-      outline: none; /* 移除浏览器默认的焦点轮廓 */
-      border: none; /* 确保没有边框 */
-      box-shadow: none; /* 确保没有阴影 */
+      outline: none;
+      /* 移除浏览器默认的焦点轮廓 */
+      border: none;
+      /* 确保没有边框 */
+      box-shadow: none;
+      /* 确保没有阴影 */
     }
 
     /* 当 wrapper 标记为 prefix-hidden 时 (即+86被隐藏)，
@@ -764,13 +783,16 @@
   <!-- 问题3修复：添加新用户模态框（与注册表单一致，phone可选，验证码可发送但非必需） -->
   <div id="newUserModal" class="modal">
     <div class="panel rounded-2xl w-full max-w-md p-6 space-y-4 relative bg-white/95 shadow-xl">
-      
-      <button id="newUserClose" class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-full transition-all">
+
+      <button id="newUserClose"
+        class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-full transition-all">
         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+          <path fill-rule="evenodd"
+            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+            clip-rule="evenodd"></path>
         </svg>
       </button>
-      
+
       <h3 class="text-xl font-bold text-sky-700 text-center card-title">添加新用户</h3>
 
       <div>
@@ -780,14 +802,17 @@
 
       <div>
         <label for="newUserPhone" class="block text-sm font-semibold leading-6 text-slate-700">手机号（可选）</label>
-        <input type="tel" id="newUserPhone" placeholder="请输入手机号" inputmode="numeric" pattern="[0-9]*" class="input-field mt-1">
+        <input type="tel" id="newUserPhone" placeholder="请输入手机号" inputmode="numeric" pattern="[0-9]*"
+          class="input-field mt-1">
       </div>
 
       <div id="newUserSmsGroup" style="display:none;">
         <label for="newUserSmsCode" class="block text-sm font-semibold leading-6 text-slate-700">验证码（可选）</label>
         <div class="flex gap-2 mt-1">
-          <input type="text" id="newUserSmsCode" placeholder="请输入验证码" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" class="input-field flex-1">
-          <button type="button" id="newUserSendCode" class="btn btn-primary whitespace-nowrap" style="min-height: 44px;">发送验证码</button>
+          <input type="text" id="newUserSmsCode" placeholder="请输入验证码" maxlength="6" inputmode="numeric"
+            pattern="[0-9]{6}" class="input-field flex-1">
+          <button type="button" id="newUserSendCode" class="btn btn-primary whitespace-nowrap"
+            style="min-height: 44px;">发送验证码</button>
         </div>
       </div>
 
@@ -967,9 +992,12 @@
             <img id="auth-reg-avatar-preview" src="/static/default_avatar.png"
               class="w-16 h-16 rounded-full object-cover border-2 border-slate-200">
             <input type="file" id="auth-reg-avatar" accept="image/*" class="hidden">
-            <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm" onclick="document.getElementById('auth-reg-avatar').click(); return false;">
-              <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+            <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm"
+              onclick="document.getElementById('auth-reg-avatar').click(); return false;">
+              <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
               </svg>
               上传头像
             </button>
@@ -1708,129 +1736,129 @@
 
         <!-- 个人信息面板 -->
         <div id="admin-profile-panel_modal" class="hidden space-y-4">
-            <div class="flex justify-between items-center">
-              <h4 class="font-semibold">个人信息</h4>
-              <button id="admin-refresh-profile_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold">个人信息</h4>
+            <button id="admin-refresh-profile_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
+          </div>
+
+          <div id="admin-profile-content_modal" class="space-y-6 text-slate-800">
+
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+              <h5 class="font-semibold text-slate-700 mb-2">头像</h5>
+              <div class="flex items-center gap-4">
+                <img id="profile-avatar-display" src="" alt="用户头像"
+                  class="w-20 h-20 rounded-full border-2 border-slate-200"
+                  onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+                <div class="flex-1 space-y-2">
+                  <input type="file" id="profile-avatar-file" accept="image/*" class="hidden"
+                    onchange="previewAvatar(event)">
+
+                  <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm"
+                    onclick="document.getElementById('profile-avatar-file').click();">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    上传头像
+                  </button>
+                </div>
+              </div>
             </div>
-            
-            <div id="admin-profile-content_modal" class="space-y-6 text-slate-800">
-              
-              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                <h5 class="font-semibold text-slate-700 mb-2">头像</h5>
-                <div class="flex items-center gap-4">
-                  <img id="profile-avatar-display" src="" alt="用户头像"
-                    class="w-20 h-20 rounded-full border-2 border-slate-200"
-                    onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
-                  <div class="flex-1 space-y-2">
-                    <input type="file" id="profile-avatar-file" accept="image/*" class="hidden"
-                      onchange="previewAvatar(event)">
-    
-                    <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm"
-                      onclick="document.getElementById('profile-avatar-file').click();">
-                      <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-                      </svg>
-                      上传头像
+
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+              <h5 class="font-semibold text-slate-700 mb-3">基本信息</h5>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">昵称</label>
+                  <input type="text" id="profile-nickname" class="input-field" placeholder="输入昵称">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">手机号</label>
+                  <div class="flex gap-2">
+                    <!-- phone-input-wrapper: 为手机号输入框添加+86前缀容器 -->
+                    <div class="phone-input-wrapper flex-1">
+                      <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
+                      <span class="phone-prefix">+86 </span>
+                      <!-- 输入框：只读状态，用于显示当前绑定的手机号 -->
+                      <input type="tel" id="profile-phone" class="input-field" placeholder="未绑定" readonly
+                        inputmode="numeric">
+                    </div>
+                    <!-- 修改手机号按钮 -->
+                    <button onclick="modifyPhone()" id="profile-modify-phone-btn"
+                      class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap">
+                      修改手机号
                     </button>
                   </div>
+                  <p class="text-xs text-slate-500 mt-1" id="profile-phone-hint">💡 修改手机号需要短信验证</p>
+                </div>
+                <div class="flex justify-end">
+                  <button onclick="updateBasicInfo()" class="btn btn-primary">保存基本信息</button>
                 </div>
               </div>
-
-              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                <h5 class="font-semibold text-slate-700 mb-3">基本信息</h5>
-                <div class="space-y-3">
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">昵称</label>
-                    <input type="text" id="profile-nickname" class="input-field" placeholder="输入昵称">
-                  </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">手机号</label>
-                    <div class="flex gap-2">
-                      <!-- phone-input-wrapper: 为手机号输入框添加+86前缀容器 -->
-                      <div class="phone-input-wrapper flex-1">
-                        <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
-                        <span class="phone-prefix">+86 </span>
-                        <!-- 输入框：只读状态，用于显示当前绑定的手机号 -->
-                        <input type="tel" id="profile-phone" class="input-field" placeholder="未绑定" readonly
-                          inputmode="numeric">
-                      </div>
-                      <!-- 修改手机号按钮 -->
-                      <button onclick="modifyPhone()" id="profile-modify-phone-btn"
-                        class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap">
-                        修改手机号
-                      </button>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-1" id="profile-phone-hint">💡 修改手机号需要短信验证</p>
-                  </div>
-                  <div class="flex justify-end">
-                    <button onclick="updateBasicInfo()" class="btn btn-primary">保存基本信息</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
-                <div class="space-y-3">
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">当前密码</label>
-                    <input type="password" id="profile-current-password" class="input-field" placeholder="输入当前密码">
-                  </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
-                    <input type="password" id="profile-new-password" class="input-field" placeholder="输入新密码">
-                  </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">确认新密码</label>
-                    <input type="password" id="profile-confirm-password" class="input-field" placeholder="再次输入新密码">
-                  </div>
-                  <div class="flex justify-end">
-                    <button onclick="updatePassword()" class="btn btn-primary">修改密码</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                <h5 class="font-semibold text-slate-700 mb-3">双因素认证(2FA)</h5>
-                <div id="profile-2fa-status" class="mb-3">
-                  <p class="text-sm text-slate-600">状态: <span id="profile-2fa-enabled">检测中...</span></p>
-                </div>
-                <div id="profile-2fa-setup" class="space-y-3 hidden">
-                  <div class="bg-slate-100 border border-slate-200 rounded-lg p-4 text-center">
-                    <canvas id="profile-2fa-qr" class="mx-auto"></canvas>
-                    <p class="text-xs text-slate-600 mt-2">密钥: <span id="profile-2fa-secret" class="font-mono"></span></p>
-                    <p class="text-xs text-slate-600 mt-1">请使用Google Authenticator或类似应用扫描此二维码</p>
-                  </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">验证码</label>
-                    <input type="text" id="profile-2fa-code" class="input-field" placeholder="输入6位验证码">
-                  </div>
-                  <div class="flex justify-end">
-                    <button onclick="enable2FA()" class="btn btn-primary">启用2FA</button>
-                  </div>
-                </div>
-                <div id="profile-2fa-actions" class="space-y-2 flex justify-end">
-                  <button onclick="generate2FA()" class="btn btn-primary">生成2FA密钥</button>
-                </div>
-                <div id="profile-2fa-enabled-actions" class="space-y-2 hidden flex justify-end gap-2">
-                  <button onclick="test2FA()" class="btn btn-ghost">测试2FA</button>
-                  <button onclick="disable2FA()" class="btn btn-warning">关闭2FA</button>
-                </div>
-              </div>
-
-              <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                <h5 class="font-semibold text-slate-700 mb-3">主题设置</h5>
-                <select id="profile-theme-select" onchange="updateTheme()" class="select-field">
-                  <option value="light">浅色主题</option>
-                  <option value="dark">深色主题</option>
-                </select>
-              </div>
-              
             </div>
+
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+              <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">当前密码</label>
+                  <input type="password" id="profile-current-password" class="input-field" placeholder="输入当前密码">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">新密码</label>
+                  <input type="password" id="profile-new-password" class="input-field" placeholder="输入新密码">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">确认新密码</label>
+                  <input type="password" id="profile-confirm-password" class="input-field" placeholder="再次输入新密码">
+                </div>
+                <div class="flex justify-end">
+                  <button onclick="updatePassword()" class="btn btn-primary">修改密码</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+              <h5 class="font-semibold text-slate-700 mb-3">双因素认证(2FA)</h5>
+              <div id="profile-2fa-status" class="mb-3">
+                <p class="text-sm text-slate-600">状态: <span id="profile-2fa-enabled">检测中...</span></p>
+              </div>
+              <div id="profile-2fa-setup" class="space-y-3 hidden">
+                <div class="bg-slate-100 border border-slate-200 rounded-lg p-4 text-center">
+                  <canvas id="profile-2fa-qr" class="mx-auto"></canvas>
+                  <p class="text-xs text-slate-600 mt-2">密钥: <span id="profile-2fa-secret" class="font-mono"></span></p>
+                  <p class="text-xs text-slate-600 mt-1">请使用Google Authenticator或类似应用扫描此二维码</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-1">验证码</label>
+                  <input type="text" id="profile-2fa-code" class="input-field" placeholder="输入6位验证码">
+                </div>
+                <div class="flex justify-end">
+                  <button onclick="enable2FA()" class="btn btn-primary">启用2FA</button>
+                </div>
+              </div>
+              <div id="profile-2fa-actions" class="space-y-2 flex justify-end">
+                <button onclick="generate2FA()" class="btn btn-primary">生成2FA密钥</button>
+              </div>
+              <div id="profile-2fa-enabled-actions" class="space-y-2 hidden flex justify-end gap-2">
+                <button onclick="test2FA()" class="btn btn-ghost">测试2FA</button>
+                <button onclick="disable2FA()" class="btn btn-warning">关闭2FA</button>
+              </div>
+            </div>
+
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+              <h5 class="font-semibold text-slate-700 mb-3">主题设置</h5>
+              <select id="profile-theme-select" onchange="updateTheme()" class="select-field">
+                <option value="light">浅色主题</option>
+                <option value="dark">深色主题</option>
+              </select>
+            </div>
+
+          </div>
         </div>
 
-        
+
         <!-- 留言板面板 -->
         <div id="admin-messages-panel_modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
@@ -1919,7 +1947,8 @@
         <div id="admin-ip-ban-modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
             <h4 class="font-semibold text-lg">🚫 IP封禁管理</h4>
-            <button id="admin-refresh-ipban_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadIPBans()">🔄 刷新</button>
+            <button id="admin-refresh-ipban_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadIPBans()">🔄
+              刷新</button>
           </div>
 
           <div class="bg-gradient-to-br from-slate-50 to-gray-50 border-2 border-slate-200 rounded-lg p-4 shadow-sm">
@@ -1928,7 +1957,7 @@
               <p class="text-slate-400 text-center py-10">加载中...</p>
             </div>
           </div>
-          
+
           <div class="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-lg p-4 shadow-sm">
             <h5 class="font-bold text-base text-blue-900 mb-3">➕ 添加封禁规则</h5>
             <div class="space-y-3">
@@ -1937,7 +1966,7 @@
                 <select id="ban-type" class="select-field">
                   <option value="ip">单个IP</option>
                   <option value="range">IP范围(Range)</option>
-                  </select>
+                </select>
                 <p class="mt-1 text-xs text-slate-500">
                   - <strong>单个IP</strong>: 封禁一个特定的IP地址 (例如: 1.2.3.4)<br>
                   - <strong>IP范围(Range)</strong>: 封禁一个IP地址范围 (例如: 192.168.1.1-192.168.1.100)
@@ -1955,7 +1984,7 @@
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end pt-2 border-t border-blue-100">
                 <div class="md:col-span-2">
-                   <label class="block text-sm font-medium text-slate-700 mb-1">🔒 封禁范围</label>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">🔒 封禁范围</label>
                   <select id="ban-scope" class="select-field">
                     <option value="all">封禁所有功能</option>
                     <option value="messages_only">仅封禁留言板</option>
@@ -1977,25 +2006,28 @@
           <div class="flex justify-between items-center">
             <h4 class="font-semibold text-lg">📱 短信服务配置</h4>
             <!-- 刷新按钮：点击后重新加载配置 -->
-            <button id="admin-refresh-sms_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadSMSConfig()">🔄 刷新</button>
+            <button id="admin-refresh-sms_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadSMSConfig()">🔄
+              刷新</button>
           </div>
 
           <!-- 配置区域容器：使用垂直间距组织各个配置卡片 -->
           <div class="space-y-4">
-            
+
             <!-- ========== 第一部分：功能开关卡片 ========== -->
             <!-- 使用渐变背景和阴影效果，突出显示这是最重要的配置项 -->
-            <div class="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-4 shadow-sm">
+            <div
+              class="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-4 shadow-sm">
               <!-- 卡片标题：使用图标和较大字体增强视觉效果 -->
               <div class="flex items-center gap-2 mb-3">
                 <span class="text-2xl">🔌</span>
                 <h5 class="font-bold text-base text-purple-900">功能开关</h5>
               </div>
-              
+
               <!-- 主开关：启用短信服务（最重要的配置项） -->
               <!-- 添加 onchange 事件，当主开关关闭时同步关闭所有子开关 -->
-              <label class="flex items-center gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                <input type="checkbox" id="sms-enabled" class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500" 
+              <label
+                class="flex items-center gap-3 p-3 bg-white rounded-lg border border-purple-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                <input type="checkbox" id="sms-enabled" class="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
                   onchange="handleSmsMainSwitchChange()">
                 <div class="flex-1">
                   <span class="font-semibold text-slate-800 block">启用短信服务</span>
@@ -2008,7 +2040,8 @@
               <div class="ml-8 mt-3 space-y-2 border-l-2 border-purple-200 pl-4">
                 <!-- 子开关1：允许用户修改手机号 -->
                 <label class="flex items-center gap-2 cursor-pointer group">
-                  <input type="checkbox" id="sms-enable-phone-modification" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                  <input type="checkbox" id="sms-enable-phone-modification"
+                    class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
                   <div class="flex-1">
                     <span class="text-sm text-slate-700 group-hover:text-slate-900">允许用户修改手机号</span>
                     <span class="text-xs text-slate-400 block">用户可在个人资料中修改绑定的手机号</span>
@@ -2017,7 +2050,8 @@
 
                 <!-- 子开关2：允许手机号登录 -->
                 <label class="flex items-center gap-2 cursor-pointer group">
-                  <input type="checkbox" id="sms-enable-phone-login" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                  <input type="checkbox" id="sms-enable-phone-login"
+                    class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
                   <div class="flex-1">
                     <span class="text-sm text-slate-700 group-hover:text-slate-900">允许手机号登录</span>
                     <span class="text-xs text-slate-400 block">用户可使用手机号+密码进行登录</span>
@@ -2026,7 +2060,8 @@
 
                 <!-- 子开关3：注册时需要短信验证 -->
                 <label class="flex items-center gap-2 cursor-pointer group">
-                  <input type="checkbox" id="sms-enable-phone-registration-verify" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                  <input type="checkbox" id="sms-enable-phone-registration-verify"
+                    class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
                   <div class="flex-1">
                     <span class="text-sm text-slate-700 group-hover:text-slate-900">注册时需要短信验证</span>
                     <span class="text-xs text-slate-400 block">用户注册时必须填写手机号并验证</span>
@@ -2053,8 +2088,8 @@
                       👤 用户名
                     </span>
                   </label>
-                  <input type="text" id="sms-username" 
-                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
+                  <input type="text" id="sms-username"
+                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
                     placeholder="请输入短信宝用户名">
                   <p class="text-xs text-slate-500 mt-1">在短信宝官网注册后获取</p>
                 </div>
@@ -2066,8 +2101,8 @@
                       🔑 API Key
                     </span>
                   </label>
-                  <input type="password" id="sms-apikey" 
-                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
+                  <input type="password" id="sms-apikey"
+                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
                     placeholder="请输入短信宝 API Key">
                   <p class="text-xs text-slate-500 mt-1">在短信宝后台的"API接口"页面获取</p>
                 </div>
@@ -2079,8 +2114,8 @@
                       ✍️ 短信签名
                     </span>
                   </label>
-                  <input type="text" id="sms-signature" 
-                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
+                  <input type="text" id="sms-signature"
+                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
                     placeholder="【您的签名】" maxlength="12">
                   <p class="text-xs text-slate-500 mt-1">签名长度3-12字，需在短信宝后台审核通过</p>
                 </div>
@@ -2092,10 +2127,9 @@
                       📝 短信模板
                     </span>
                   </label>
-                  <textarea id="sms-template" 
-                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
-                    rows="3" 
-                    placeholder="您的验证码是：{code}，{minutes}分钟内有效。"></textarea>
+                  <textarea id="sms-template"
+                    class="w-full border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
+                    rows="3" placeholder="您的验证码是：{code}，{minutes}分钟内有效。"></textarea>
                   <p class="text-xs text-slate-500 mt-1">使用 {code} 表示验证码，{minutes} 表示有效期分钟数</p>
                 </div>
 
@@ -2107,8 +2141,8 @@
                     </span>
                   </label>
                   <div class="flex items-center gap-2">
-                    <input type="number" id="sms-code-expire" 
-                      class="flex-1 border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all" 
+                    <input type="number" id="sms-code-expire"
+                      class="flex-1 border-2 border-blue-200 rounded-lg px-3 py-2 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all"
                       placeholder="5" min="1" max="60">
                     <span class="text-sm text-slate-600">分钟</span>
                   </div>
@@ -2119,7 +2153,8 @@
 
             <!-- ========== 第三部分：速率限制卡片 ========== -->
             <!-- 使用橙色系主题，表示这是安全相关的配置 -->
-            <div class="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-lg p-4 shadow-sm">
+            <div
+              class="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-lg p-4 shadow-sm">
               <!-- 卡片标题 -->
               <div class="flex items-center gap-2 mb-3">
                 <span class="text-2xl">⚡</span>
@@ -2137,8 +2172,8 @@
                     </span>
                   </label>
                   <div class="flex items-center gap-1">
-                    <input type="number" id="sms-limit-account" 
-                      class="w-full border-2 border-orange-200 rounded-lg px-3 py-2 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all" 
+                    <input type="number" id="sms-limit-account"
+                      class="w-full border-2 border-orange-200 rounded-lg px-3 py-2 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all"
                       placeholder="10" min="1">
                     <span class="text-sm text-slate-600 whitespace-nowrap">条/天</span>
                   </div>
@@ -2153,8 +2188,8 @@
                     </span>
                   </label>
                   <div class="flex items-center gap-1">
-                    <input type="number" id="sms-limit-ip" 
-                      class="w-full border-2 border-orange-200 rounded-lg px-3 py-2 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all" 
+                    <input type="number" id="sms-limit-ip"
+                      class="w-full border-2 border-orange-200 rounded-lg px-3 py-2 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all"
                       placeholder="20" min="1">
                     <span class="text-sm text-slate-600 whitespace-nowrap">条/天</span>
                   </div>
@@ -2169,8 +2204,8 @@
                     </span>
                   </label>
                   <div class="flex items-center gap-1">
-                    <input type="number" id="sms-limit-phone" 
-                      class="w-full border-2 border-orange-200 rounded-lg px-3 py-2 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all" 
+                    <input type="number" id="sms-limit-phone"
+                      class="w-full border-2 border-orange-200 rounded-lg px-3 py-2 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 transition-all"
                       placeholder="5" min="1">
                     <span class="text-sm text-slate-600 whitespace-nowrap">条/天</span>
                   </div>
@@ -2181,7 +2216,8 @@
 
             <!-- ========== 第四部分：Webhook配置卡片 ========== -->
             <!-- 使用绿色系主题，表示这是集成相关的配置 -->
-            <div class="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 shadow-sm">
+            <div
+              class="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 shadow-sm">
               <!-- 卡片标题 -->
               <div class="flex items-center gap-2 mb-3">
                 <span class="text-2xl">🔗</span>
@@ -2191,8 +2227,8 @@
               <!-- Webhook URL 显示 -->
               <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">回调地址</label>
-                <input type="text" id="sms-webhook-url" 
-                  class="w-full border-2 border-green-200 rounded-lg px-3 py-2 bg-green-50 text-slate-700 font-mono text-sm" 
+                <input type="text" id="sms-webhook-url"
+                  class="w-full border-2 border-green-200 rounded-lg px-3 py-2 bg-green-50 text-slate-700 font-mono text-sm"
                   readonly>
                 <p class="text-xs text-slate-600 mt-2 flex items-start gap-1">
                   <span>💡</span>
@@ -2207,12 +2243,12 @@
               <!-- 操作按钮组：查询余额和保存配置 -->
               <div class="flex flex-col sm:flex-row gap-3">
                 <!-- 查询余额按钮：使用次要样式 -->
-                <button id="btn-check-sms-balance" onclick="checkSMSBalance()" 
+                <button id="btn-check-sms-balance" onclick="checkSMSBalance()"
                   class="flex-1 btn btn-ghost min-h-[44px] border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 transition-all">
                   💰 查询余额
                 </button>
                 <!-- 保存配置按钮：使用主要样式，视觉上更突出 -->
-                <button onclick="saveSMSConfig()" 
+                <button onclick="saveSMSConfig()"
                   class="flex-1 btn btn-primary min-h-[44px] shadow-md hover:shadow-lg transition-all">
                   💾 保存配置
                 </button>
@@ -2221,12 +2257,12 @@
               <!-- 管理功能按钮组：短信历史和验证码管理 -->
               <div class="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t-2 border-slate-200">
                 <!-- 短信发送历史按钮 -->
-                <button onclick="openSMSHistoryModal()" 
+                <button onclick="openSMSHistoryModal()"
                   class="flex-1 btn btn-ghost min-h-[44px] border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 transition-all">
                   📋 短信发送历史
                 </button>
                 <!-- 验证码管理按钮 -->
-                <button onclick="openVerificationCodesModal()" 
+                <button onclick="openVerificationCodesModal()"
                   class="flex-1 btn btn-ghost min-h-[44px] border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 transition-all">
                   🔑 验证码管理
                 </button>
@@ -2253,14 +2289,15 @@
     </div>
   </div>
 
-<div id="sms-balance-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
+  <div id="sms-balance-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
     <div class="absolute inset-0 bg-black/70" onclick="closeSMSBalanceModal()"></div>
     <div class="panel rounded-2xl p-6 w-[90%] max-w-md max-h-[85vh] space-y-4 relative overflow-hidden">
       <div class="flex items-center justify-between">
         <h3 class="text-xl font-bold text-sky-600">💰 短信余额</h3>
-        <button onclick="closeSMSBalanceModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+        <button onclick="closeSMSBalanceModal()"
+          class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
       </div>
-  
+
       <div class="space-y-3">
         <div class="text-center">
           <span class="text-sm text-slate-500">剩余条数</span>
@@ -2274,7 +2311,7 @@
           <p id="sms-balance-modal-message" class="text-xs text-slate-500 bg-slate-50 p-2 rounded-md">查询中...</p>
         </div>
       </div>
-  
+
       <div class="flex justify-end border-t pt-4">
         <button onclick="closeSMSBalanceModal()" class="btn btn-primary w-full">关闭</button>
       </div>
@@ -2287,7 +2324,8 @@
     <div class="panel rounded-2xl p-6 w-[90%] max-w-5xl max-h-[85vh] space-y-4 relative overflow-hidden">
       <div class="flex items-center justify-between">
         <h3 class="text-xl font-bold text-sky-600">📋 短信发送历史</h3>
-        <button onclick="closeSMSHistoryModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+        <button onclick="closeSMSHistoryModal()"
+          class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
       </div>
 
       <!-- 过滤和刷新 -->
@@ -2314,20 +2352,23 @@
     <div class="panel rounded-2xl p-6 w-[90%] max-w-4xl max-h-[85vh] space-y-4 relative overflow-hidden">
       <div class="flex items-center justify-between">
         <h3 class="text-xl font-bold text-sky-600">🔑 验证码状态管理</h3>
-        <button onclick="closeVerificationCodesModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+        <button onclick="closeVerificationCodesModal()"
+          class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
       </div>
 
       <!-- 添加验证码表单 -->
       <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4">
         <h5 class="font-semibold mb-3 text-green-900">➕ 手动添加验证码</h5>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          
+
           <div class="phone-input-wrapper">
             <span class="phone-prefix">+86 </span>
-            <input type="tel" id="manual-code-phone" class="input-field" placeholder="手机号" pattern="[0-9]*" maxlength="11">
+            <input type="tel" id="manual-code-phone" class="input-field" placeholder="手机号" pattern="[0-9]*"
+              maxlength="11">
           </div>
-          
-          <input type="text" id="manual-code-value" class="input-field" placeholder="验证码（6位数字）" maxlength="6" pattern="[0-9]{6}">
+
+          <input type="text" id="manual-code-value" class="input-field" placeholder="验证码（6位数字）" maxlength="6"
+            pattern="[0-9]{6}">
           <button onclick="addManualVerificationCode()" class="btn btn-primary">添加验证码</button>
         </div>
         <p class="text-xs text-slate-600 mt-2">💡 此功能用于测试或紧急情况下手动添加验证码，不会实际发送短信</p>
@@ -2410,8 +2451,8 @@
             <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
             <span class="phone-prefix">+86 </span>
             <!-- 输入框：管理员输入新手机号 -->
-            <input type="tel" id="admin-modify-phone-new" class="input-field" placeholder="请输入新手机号"
-              inputmode="numeric" pattern="[0-9]*">
+            <input type="tel" id="admin-modify-phone-new" class="input-field" placeholder="请输入新手机号" inputmode="numeric"
+              pattern="[0-9]*">
           </div>
         </div>
 
@@ -3059,14 +3100,28 @@
 
           // 如果是在其他设备登录导致的
           if (errorData.logged_out_elsewhere) {
-            showModalAlert(
-              '您的账号已在其他设备登录，本设备已自动登出。请重新登录。',
-              '多设备登录检测'
-            );
+
             logMessage_Info('[安全提示] 检测到账号在其他设备登录，已自动登出');
             logMessage_Info('[API调用] ✗ 多设备登录检测');
+
+            Swal.fire({
+                    icon: 'warning',
+                    title: '多设备登录检测',
+                    text: '您的账号已在其他设备登录，本设备已自动登出。2分钟后将自动跳转到登录页面。',
+                    confirmButtonText: '立即返回登录',
+                    allowOutsideClick: false,
+                    timer: 120000, // 120秒 (2分钟)
+                    timerProgressBar: true,
+                    // 当弹窗关闭时（无论是点击按钮还是计时器结束）
+                  }).then((result) => {
+                    // 无论用户是点击了“确认”还是等待计时器结束，都跳转
+                    if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
+                      window.location.href = '/';
+                    }
+                  });
+
           } else {
-            showModalAlert(errorMsg, '登录失效');
+            // showModalAlert(errorMsg, '登录失效');
             logMessage_Info(`[安全提示] ${errorMsg}`);
           }
 
@@ -3644,49 +3699,95 @@
     // 用户登录
     async function handleAuthLogin() {
       const loginBtn = $('auth-login-btn');
-      const username = $('auth-username').value.trim();
+      // 'username' input field holds either the username OR the phone number
+      const login_id = $('auth-username').value.trim(); 
       const password = $('auth-password').value.trim();
+      const sms_code = $('auth-sms-code').value.trim();
 
-      let login_mod
+      let login_mode = 'username'; // Default to username
+      let login_verification_method = 'password'; // Default to password
 
-      // 输入验证
-      if ($('auth-login-username-btn').classList.contains('font-semibold')) {
-        if (!username || (!password)) {
-          // showAuthError('请输入用户名和密码');
-          showModalAlert('请输入用户名和密码', '登录失败');
+      // 1. 确定登录模式 (用户名 or 手机号)
+      if ($('auth-login-phone-btn').classList.contains('font-semibold')) {
+        login_mode = 'phone';
+      }
+
+      // 2. 确定验证方式 (密码 or 短信)
+      // 检查 'auth-sms-section' (短信区域) 是否 *不* 包含 'hidden'
+      if (!$('auth-sms-section').classList.contains('hidden')) {
+        login_verification_method = 'sms';
+      }
+
+      // 3. 执行验证
+      if (!login_id) {
+        showModalAlert('请输入用户名或手机号', '登录失败');
+        return;
+      }
+
+      if (login_mode === 'username') {
+        // 用户名登录: 必须使用密码
+        if (!password) {
+          showModalAlert('请输入密码', '登录失败');
           return;
         }
-        
-      }
-      else if ($('auth-login-phone-btn').classList.contains('font-semibold')) {
-        if (username && !validateInput(username, 'phone').valid) {
-          // showAuthError('手机号格式不正确');
+        if (password.length < 6 && login_id !== 'admin') {
+          showModalAlert('密码长度至少6个字符', '登录失败');
+          return;
+        }
+      } 
+      else if (login_mode === 'phone') {
+        // 手机号登录: 验证手机号格式
+        if (!validateInput(login_id, 'phone').valid) {
           showModalAlert('手机号格式不正确', '登录失败');
           return;
-      }
-      }
-      
-      // 验证用户名格式
-      const usernameValidation = validateInput(username, 'username');
-      if (!usernameValidation.valid) {
-        // showAuthError(usernameValidation.message);
-        showModalAlert(usernameValidation.message, '登录失败');
-        return;
+        }
+
+        if (login_verification_method === 'password') {
+          // 手机号 + 密码
+          if (!password) {
+            showModalAlert('请输入密码', '登录失败');
+            return;
+          }
+          if (password.length < 6) {
+            showModalAlert('密码长度至少6个字符', '登录失败');
+            return;
+          }
+        } 
+        else if (login_verification_method === 'sms') {
+          // 手机号 + 验证码
+          if (!sms_code) {
+            showModalAlert('请输入短信验证码', '登录失败');
+            return;
+          }
+          if (sms_code.length !== 6 || !/^\d{6}$/.test(sms_code)) {
+            showModalAlert('短信验证码格式不正确', '登录失败');
+            return;
+          }
+        }
       }
 
-      // 验证密码长度
-      if (password.length < 6 && username !== 'admin') {
-        // showAuthError('密码长度至少6个字符');
-        showModalAlert('密码长度至少6个字符', '登录失败');
-        return;
+      // 4. 构建请求体 (Request Body)
+      const request_body={}
+
+      if(login_mode === 'username'){
+        request_body.auth_username = login_id; // 使用用户名登录
+      } else if (login_mode === 'phone'){
+        request_body.auth_phone = login_id; // 使用手机号登录
       }
+
+      // 根据验证方式添加密码或短信
+      if (login_verification_method === 'password') {
+        request_body.auth_password = password;
+      } else if (login_verification_method === 'sms') {
+        request_body.auth_sms_code = sms_code;
+      }
+      // (2FA code is handled by handle2FAVerify, not here)
 
       // 显示加载状态
       setButtonLoading('auth-login-btn', true, '登录中...');
 
       try {
         // 构建请求头
-        // 对于系统登录，如果没有sessionUUID，发送null
         const headers = {
           'Content-Type': 'application/json',
           'X-Session-ID': sessionUUID || null
@@ -3696,10 +3797,7 @@
           method: 'POST',
           headers: headers,
           credentials: 'include',  // 重要：包含cookies
-          body: JSON.stringify({
-            auth_username: username,
-            auth_password: password
-          })
+          body: JSON.stringify(request_body) // <-- 5. 发送构建好的 request_body
         });
 
         const result = await response.json();
@@ -3707,8 +3805,8 @@
         if (result.success) {
           // 检查是否需要2FA验证
           if (result.requires_2fa) {
-            // 保存用户名用于2FA验证
-            window.temp2FAUsername = username;
+            // 保存用户名用于2FA验证 (后端必定返回 auth_username)
+            window.temp2FAUsername = result.auth_username || login_id; 
 
             // 清除登录按钮加载状态
             setButtonLoading('auth-login-btn', false);
@@ -3819,40 +3917,17 @@
             }
           }, 1000);
         } else {
-          // 检查是否需要2FA验证
-          if (result.requires_2fa || result.message === '需要2FA验证' || result.message?.includes('2FA')) {
-            // 保存用户名用于2FA验证
-            window.temp2FAUsername = username;
-
-            // 清除登录按钮加载状态
-            setButtonLoading('auth-login-btn', false);
-
-            // 隐藏登录表单，显示2FA表单
-            const loginForm = $('auth-login-form');
-            const tfaForm = $('auth-2fa-form');
-            if (loginForm) loginForm.classList.add('hidden');
-            if (tfaForm) tfaForm.classList.remove('hidden');
-
-            // 清空并聚焦到2FA输入框
-            const tfaCodeInput = $('auth-2fa-code');
-            if (tfaCodeInput) {
-              tfaCodeInput.value = '';
-              tfaCodeInput.focus();
-            }
-
-            showAuthSuccess('密码验证成功，请输入2FA验证码');
-          } else {
-            setButtonLoading('auth-login-btn', false);
-            showButtonError('auth-login-btn', '登录失败');
-            // showAuthError(result.message || '登录失败');
-            showModalAlert(result.message || '登录失败', '登录失败');
-          }
+          // 登录失败 (result.success is false)
+          // (修正：移除了重复的2FA检查逻辑)
+          
+          setButtonLoading('auth-login-btn', false);
+          showButtonError('auth-login-btn', '登录失败');
+          showModalAlert(result.message || '登录失败', '登录失败');
         }
       } catch (e) {
         logMessage_Error('登录请求失败:', e);
         setButtonLoading('auth-login-btn', false);
         showButtonError('auth-login-btn', '网络错误');
-        // showAuthError('网络错误，请检查连接后重试');
         showModalAlert('网络错误，请检查连接后重试', '登录失败');
       }
     }
@@ -3959,16 +4034,16 @@
       const smsCode = $('auth-reg-sms-code').value.trim();
       const nickname_Raw = $('auth-reg-nickname').value.trim();
 
-      
-      let nickname; 
-      if(nickname_Raw === '' || nickname_Raw === null ){
+
+      let nickname;
+      if (nickname_Raw === '' || nickname_Raw === null) {
         // 如果昵称为空，使用用户名作为昵称
         nickname = username; // 赋值
       } else {
         nickname = nickname_Raw; // 赋值
       }
-      
-      
+
+
       const avatarFile = registrationCroppedAvatarBlob; // 获取裁剪后的文件 Blob
       const password = $('auth-reg-password').value.trim();
       const passwordConfirm = $('auth-reg-password-confirm').value.trim();
@@ -3992,7 +4067,7 @@
       if (/[一-龥]/.test(username)) {
         //  showAuthError('用户名不能包含中文字符');
         showModalAlert('用户名不能包含中文字符', '注册失败');
-         return;
+        return;
       }
 
       // 验证密码
@@ -4017,31 +4092,31 @@
       }
 
       if (phone) {
-          try {
-              const bindResult = await callPythonAPI_raw('/api/auth/check_phone', 'POST', { phone: phone });
-              
-              if (bindResult && bindResult.is_bound) {
-                  // 如果手机号已被绑定，弹出拟态窗警告
-                  const confirmed = await jsShowConfirm(
-                      '手机号已被绑定', 
-                      `您输入的手机号 ${phone} 已被用户 ${bindResult.bound_to_user} 绑定。\n\n是否继续注册？\n\n如果继续，该手机号将从原账号上强制解绑。`
-                  );
-                  
-                  if (!confirmed) {
-                      logMessage_Info("[注册] 用户取消操作，因为手机号已被绑定。");
-                      return; // 用户取消，停止注册
-                  }
-                  // 用户确认，继续执行注册（后端会自动处理解绑）
-                  logMessage_Info("[注册] 用户已确认强制解绑手机号，继续注册...");
-              }
-          } catch (e) {
-              logMessage_Error('检查手机号绑定失败:', e);
-              showModalAlert(`检查手机号失败: ${e.message}，请稍后重试`, '网络错误');
-              return;
+        try {
+          const bindResult = await callPythonAPI_raw('/api/auth/check_phone', 'POST', { phone: phone });
+
+          if (bindResult && bindResult.is_bound) {
+            // 如果手机号已被绑定，弹出拟态窗警告
+            const confirmed = await jsShowConfirm(
+              '手机号已被绑定',
+              `您输入的手机号 ${phone} 已被用户 ${bindResult.bound_to_user} 绑定。\n\n是否继续注册？\n\n如果继续，该手机号将从原账号上强制解绑。`
+            );
+
+            if (!confirmed) {
+              logMessage_Info("[注册] 用户取消操作，因为手机号已被绑定。");
+              return; // 用户取消，停止注册
+            }
+            // 用户确认，继续执行注册（后端会自动处理解绑）
+            logMessage_Info("[注册] 用户已确认强制解绑手机号，继续注册...");
           }
+        } catch (e) {
+          logMessage_Error('检查手机号绑定失败:', e);
+          showModalAlert(`检查手机号失败: ${e.message}，请稍后重试`, '网络错误');
+          return;
+        }
       }
       // ==============================================================================
-      
+
       // 注意：后端的 APP_CONFIG.reg_verify_enabled 会决定是否*强制*要求手机和验证码
       // 前端在这里只做基本格式校验
 
@@ -4053,7 +4128,7 @@
       formData.append('auth_username', username);
       formData.append('auth_password', password);
       formData.append('phone', phone);
-      formData.append('nickname', nickname); 
+      formData.append('nickname', nickname);
       formData.append('sms_code', smsCode);
 
       // 4. 添加头像文件（如果存在）
@@ -4068,7 +4143,7 @@
         const response = await fetch('/auth/register', {
           method: 'POST',
           // 移除 headers，浏览器会为 FormData 自动设置 Content-Type: multipart/form-data
-          body: formData 
+          body: formData
         });
 
         const result = await response.json();
@@ -4076,7 +4151,7 @@
         if (result.success) {
           showButtonSuccess('auth-register-btn', '注册成功');
           showAuthSuccess('注册成功！请登录');
-          
+
           // // 注册成功后，自动切换到登录标签页并填充用户名
           // setTimeout(() => {
           //   setButtonLoading('auth-register-btn', false);
@@ -4310,7 +4385,7 @@
         const banTargetHint = $('ban-target-hint');
         const banTargetError = $('ban-target-error');
 
-        
+
 
         // 监听目标输入框的实时输入
         if (banTargetInput) {
@@ -4325,7 +4400,7 @@
         // const banTargetInput = $('ban-target');
         // const banTargetHint = $('ban-target-hint');
         // const banTargetError = $('ban-target-error');
-        
+
         // 监听类型选择框的变化
         if (banTypeSelect) {
           banTypeSelect.addEventListener('change', () => {
@@ -4881,7 +4956,7 @@
               // 不切换到messages标签，保持当前标签
               return;
             }
-            
+
             // IP未被封禁，正常切换到留言板标签
             messagesTab.classList.add('text-sky-600', 'border-sky-600');
             messagesTab.classList.remove('text-slate-400', 'border-transparent');
@@ -5329,33 +5404,33 @@
 
         const phoneWrapper = phoneInput ? phoneInput.closest('.phone-input-wrapper') : null;
         if (phoneWrapper) {
-            const prefix = phoneWrapper.querySelector('.phone-prefix');
-            // 缓存判断结果
-            const isUnbound = (!phoneInput.value || phoneInput.value === '未绑定');
-            
-            if (prefix) {
-                // 如果值是"未绑定"或空字符串，则隐藏前缀
-                prefix.style.display = isUnbound ? 'none' : 'inline';
-            }
-            // [新修复] 根据前缀是否隐藏，切换 wrapper 上的 class
-            phoneWrapper.classList.toggle('prefix-hidden', isUnbound);
+          const prefix = phoneWrapper.querySelector('.phone-prefix');
+          // 缓存判断结果
+          const isUnbound = (!phoneInput.value || phoneInput.value === '未绑定');
+
+          if (prefix) {
+            // 如果值是"未绑定"或空字符串，则隐藏前缀
+            prefix.style.display = isUnbound ? 'none' : 'inline';
+          }
+          // [新修复] 根据前缀是否隐藏，切换 wrapper 上的 class
+          phoneWrapper.classList.toggle('prefix-hidden', isUnbound);
         }
-        
+
         // 根据 config 决定是否显示“修改手机号”按钮
         const modifyPhoneBtn = $('profile-modify-phone-btn');
         const phoneHint = $('profile-phone-hint');
-        
+
         // 确保 window.APP_CONFIG 存在
         const config = window.APP_CONFIG || { enable_phone_modification: false };
-        
+
         if (config.enable_phone_modification) {
-            if (modifyPhoneBtn) modifyPhoneBtn.style.display = 'block';
-            if (phoneHint) phoneHint.style.display = 'block';
+          if (modifyPhoneBtn) modifyPhoneBtn.style.display = 'block';
+          if (phoneHint) phoneHint.style.display = 'block';
         } else {
-            if (modifyPhoneBtn) modifyPhoneBtn.style.display = 'none';
-            if (phoneHint) phoneHint.style.display = 'none';
-            // 如果功能关闭，手机号输入框也应只读
-            if (phoneInput) phoneInput.readOnly = true;
+          if (modifyPhoneBtn) modifyPhoneBtn.style.display = 'none';
+          if (phoneHint) phoneHint.style.display = 'none';
+          // 如果功能关闭，手机号输入框也应只读
+          if (phoneInput) phoneInput.readOnly = true;
         }
         // ==============================================================================
 
@@ -5579,7 +5654,7 @@
       if (fileInput) fileInput.value = '';
       const regFileInput = $('auth-reg-avatar');
       if (regFileInput) regFileInput.value = '';
-      
+
       isRegistrationCrop = false; // 重置标志
 
       hideModal('avatar-crop-modal');
@@ -5591,7 +5666,7 @@
         showModalAlert('裁剪器未初始化', '错误');
         return;
       }
-      
+
       const canvas = avatarCropper.getCroppedCanvas({
         width: 200, height: 200, imageSmoothingQuality: 'high'
       });
@@ -5603,13 +5678,13 @@
       // 将 canvas 转换为 blob 并暂存
       canvas.toBlob(function (blob) {
         registrationCroppedAvatarBlob = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-        
+
         // 更新注册表单的预览图
         const previewImg = $('auth-reg-avatar-preview');
         if (previewImg) {
           previewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
         }
-        
+
         // 关闭模态框
         closeCropModal();
       }, 'image/jpeg', 0.9);
@@ -5621,7 +5696,7 @@
         showModalAlert('裁剪器未初始化', '错误');
         return;
       }
-      
+
       const canvas = avatarCropper.getCroppedCanvas({
         width: 200, height: 200, imageSmoothingQuality: 'high'
       });
@@ -5634,14 +5709,14 @@
       canvas.toBlob(function (blob) {
         // 暂存裁剪后的文件 Blob，用于注册时提交
         registrationCroppedAvatarBlob = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-        
+
         // 更新注册表单的预览图
         const previewImg = $('auth-reg-avatar-preview');
         if (previewImg) {
           // 使用 createObjectURL 更新预览图
           previewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
         }
-        
+
         // 关闭模态框
         closeCropModal();
       }, 'image/jpeg', 0.9);
@@ -6336,9 +6411,9 @@
                 <div class="flex gap-1 flex-wrap justify-end">
                   ${(user['2fa_enabled'] || user.tfa_enabled) ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>` : ''}
                   ${isBanned ?
-                `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
-                `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
-              }
+              `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>` :
+              `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
+            }
                   <button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="clearUserAvatar('${user.auth_username}')">清除头像</button>
                   <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${user.auth_username}')">删除</button>
                 </div>
@@ -6687,7 +6762,7 @@
         if (nameEl) nameEl.textContent = username;
         if (groupEl) groupEl.textContent = result.group || 'guest';
 
-        if (groupEl==='super_admin'){
+        if (groupEl === 'super_admin') {
           showModalAlert('无法修改超级管理员的权限', '错误');
         }
         // 渲染权限列表（显示差分化权限）
@@ -6862,15 +6937,15 @@
       const adminCurrentPhoneInput = $('admin-modify-phone-current');
       const adminCurrentPhoneWrapper = adminCurrentPhoneInput ? adminCurrentPhoneInput.closest('.phone-input-wrapper') : null;
       if (adminCurrentPhoneWrapper) {
-          const prefix = adminCurrentPhoneWrapper.querySelector('.phone-prefix');
-          // 缓存判断结果
-          const isUnbound = (!adminCurrentPhoneInput.value || adminCurrentPhoneInput.value === '未绑定');
+        const prefix = adminCurrentPhoneWrapper.querySelector('.phone-prefix');
+        // 缓存判断结果
+        const isUnbound = (!adminCurrentPhoneInput.value || adminCurrentPhoneInput.value === '未绑定');
 
-          if (prefix) {
-              prefix.style.display = isUnbound ? 'none' : 'inline';
-          }
-          // [新修复] 根据前缀是否隐藏，切换 wrapper 上的 class
-          adminCurrentPhoneWrapper.classList.toggle('prefix-hidden', isUnbound);
+        if (prefix) {
+          prefix.style.display = isUnbound ? 'none' : 'inline';
+        }
+        // [新修复] 根据前缀是否隐藏，切换 wrapper 上的 class
+        adminCurrentPhoneWrapper.classList.toggle('prefix-hidden', isUnbound);
       }
 
     }
@@ -6904,7 +6979,7 @@
           })
         });
         const result = await response.json();
-        
+
         if (result && result.success) {
           const expireMin = result.expire_minutes || 5;
           const retryAfter = result.retry_after || 180;
@@ -6962,34 +7037,34 @@
 
       // 在提交前，先检查手机号是否已被绑定
       try {
-          const bindResult = await callPythonAPI_raw('/api/auth/check_phone', 'POST', { phone: newPhone });
-          
-          // 检查是否已绑定，并且绑定的不是当前正在编辑的这个用户
-          if (bindResult && bindResult.is_bound && bindResult.bound_to_user !== username) {
-              // 手机号被其他人占用了，弹窗确认
-              const confirmed = await jsShowConfirm(
-                  '手机号已被绑定', 
-                  `您输入的新手机号 ${newPhone} 已被用户 ${bindResult.bound_to_user} 绑定。\n\n是否继续？\n\n如果继续，该手机号将从原账号上强制解绑并绑定到 ${username} 账号上。`
-              );
-              
-              if (!confirmed) {
-                  logMessage_Info("[管理员修改手机号] 用户取消操作，因为手机号已被绑定。");
-                  return; // 用户取消操作
-              }
-              logMessage_Info("[管理员修改手机号] 用户已确认强制解绑，继续操作...");
-          } else if (bindResult && bindResult.is_bound && bindResult.bound_to_user === username) {
-              // 手机号已经绑定在当前用户身上了，这不算错误，直接提示并关闭即可
-              showModalAlert('此手机号已绑定到该用户。', '提示');
-              closeAdminModifyPhoneModal();
-              return;
+        const bindResult = await callPythonAPI_raw('/api/auth/check_phone', 'POST', { phone: newPhone });
+
+        // 检查是否已绑定，并且绑定的不是当前正在编辑的这个用户
+        if (bindResult && bindResult.is_bound && bindResult.bound_to_user !== username) {
+          // 手机号被其他人占用了，弹窗确认
+          const confirmed = await jsShowConfirm(
+            '手机号已被绑定',
+            `您输入的新手机号 ${newPhone} 已被用户 ${bindResult.bound_to_user} 绑定。\n\n是否继续？\n\n如果继续，该手机号将从原账号上强制解绑并绑定到 ${username} 账号上。`
+          );
+
+          if (!confirmed) {
+            logMessage_Info("[管理员修改手机号] 用户取消操作，因为手机号已被绑定。");
+            return; // 用户取消操作
           }
-          // 如果未绑定 (is_bound: false) 或 检查API失败 (bindResult is null/false)，
-          // 则继续执行（后端API会做最终验证，例如验证码）
-      
+          logMessage_Info("[管理员修改手机号] 用户已确认强制解绑，继续操作...");
+        } else if (bindResult && bindResult.is_bound && bindResult.bound_to_user === username) {
+          // 手机号已经绑定在当前用户身上了，这不算错误，直接提示并关闭即可
+          showModalAlert('此手机号已绑定到该用户。', '提示');
+          closeAdminModifyPhoneModal();
+          return;
+        }
+        // 如果未绑定 (is_bound: false) 或 检查API失败 (bindResult is null/false)，
+        // 则继续执行（后端API会做最终验证，例如验证码）
+
       } catch (e) {
-          logMessage_Error('检查手机号绑定失败:', e);
-          showModalAlert(`检查手机号失败: ${e.message}，请稍后重试`, '网络错误');
-          return; // 检查失败时停止操作
+        logMessage_Error('检查手机号绑定失败:', e);
+        showModalAlert(`检查手机号失败: ${e.message}，请稍后重试`, '网络错误');
+        return; // 检查失败时停止操作
       }
 
 
@@ -7422,9 +7497,9 @@
           },
           body: JSON.stringify({ scope: scope })
         });
-        
+
         const result = await response.json();
-        
+
         // result.is_banned: true表示IP被封禁，false表示未被封禁
         return result.is_banned === true;
       } catch (err) {
@@ -7516,12 +7591,12 @@
           // 为头像URL附加 session_id 查询参数以通过认证
           // 确保 sessionUUID 全局变量可用
           if (typeof sessionUUID !== 'undefined' && sessionUUID) {
-             // 检查URL是否已有查询参数
-             if (finalAvatarSrc.includes('?')) {
-                finalAvatarSrc += `&session_id=${sessionUUID}`;
-             } else {
-                finalAvatarSrc += `?session_id=${sessionUUID}`;
-             }
+            // 检查URL是否已有查询参数
+            if (finalAvatarSrc.includes('?')) {
+              finalAvatarSrc += `&session_id=${sessionUUID}`;
+            } else {
+              finalAvatarSrc += `?session_id=${sessionUUID}`;
+            }
           }
 
           return `
@@ -7576,7 +7651,7 @@
         showModalAlert('您的IP已被限制访问留言功能', '访问被拒绝');
         return;
       }
-      
+
       const contentInput = $('message-content');
       const nicknameInput = $('message-nickname');
       const emailInput = $('message-email');
@@ -8052,11 +8127,11 @@
         return 0; // 解析失败返回0
       }
     }
-    
+
     // ============================================================
     // IP封禁模态框验证逻辑
     // ============================================================
-    
+
     /**
      * 验证IP封禁目标输入
      * @returns {boolean} - 是否验证通过
@@ -8074,7 +8149,7 @@
 
       const type = banTypeSelect.value;
       const target = banTargetInput.value.trim();
-      
+
       if (!target) {
         banTargetError.textContent = '封禁目标不能为空';
         banTargetError.classList.remove('hidden');
@@ -8149,7 +8224,7 @@
 
           const banTargetError = $('ban-target-error');
           const banTargetInput = $('ban-target');
-          
+
           if (banTargetError) banTargetError.classList.add('hidden');
 
 
@@ -8212,7 +8287,7 @@
         if (result.success) {
           // 主开关：启用短信服务
           $('sms-enabled').checked = result.config.enable_sms_service || false;
-          
+
           // 新增：三个子开关配置项
           // 允许用户修改手机号
           $('sms-enable-phone-modification').checked = result.config.enable_phone_modification || false;
@@ -8220,19 +8295,19 @@
           $('sms-enable-phone-login').checked = result.config.enable_phone_login || false;
           // 注册时需要短信验证
           $('sms-enable-phone-registration-verify').checked = result.config.enable_phone_registration_verify || false;
-          
+
           // 短信宝配置信息
           $('sms-username').value = result.config.username || '';
           $('sms-apikey').value = result.config.api_key || '';
           $('sms-signature').value = result.config.signature || '';
           $('sms-template').value = result.config.template_register || '';
           $('sms-code-expire').value = result.config.code_expire_minutes || 5;
-          
+
           // 速率限制配置
           $('sms-limit-account').value = result.config.rate_limit_per_account_day || 10;
           $('sms-limit-ip').value = result.config.rate_limit_per_ip_day || 20;
           $('sms-limit-phone').value = result.config.rate_limit_per_phone_day || 5;
-          
+
           // Webhook回调地址（只读，自动生成）
           $('sms-webhook-url').value = `${window.location.origin}/sms-reply-webhook`;
         }
@@ -8251,18 +8326,18 @@
       const config = {
         // 主开关：启用短信服务
         enable_sms_service: $('sms-enabled').checked,
-        
+
         // 新增：三个子开关配置项
         enable_phone_modification: $('sms-enable-phone-modification').checked,
         enable_phone_login: $('sms-enable-phone-login').checked,
         enable_phone_registration_verify: $('sms-enable-phone-registration-verify').checked,
-        
+
         // 短信宝配置信息（trim()去除首尾空格）
         username: $('sms-username').value.trim(),
         api_key: $('sms-apikey').value.trim(),
         signature: $('sms-signature').value.trim(),
         template_register: $('sms-template').value.trim(),
-        
+
         // 数值类型配置（使用parseInt转换，如果转换失败则使用默认值）
         code_expire_minutes: parseInt($('sms-code-expire').value) || 5,
         rate_limit_per_account_day: parseInt($('sms-limit-account').value) || 10,
@@ -8304,7 +8379,7 @@
     function handleSmsMainSwitchChange() {
       // 获取主开关的当前状态
       const mainSwitchEnabled = $('sms-enabled').checked;
-      
+
       // 如果主开关被关闭（false），则自动关闭所有子开关
       if (!mainSwitchEnabled) {
         // 关闭"允许用户修改手机号"开关
@@ -8346,7 +8421,7 @@
           if (sentEl) sentEl.textContent = result.sent_today;
           if (msgEl) {
             msgEl.textContent = result.message;
-            
+
             // 3. 处理速率限制或错误消息的样式
             if (result.message && (result.message.includes('频繁') || result.message.includes('失败'))) {
               // 警告/限制消息
@@ -8358,7 +8433,7 @@
               msgEl.classList.add('text-slate-500', 'bg-slate-50');
             }
           }
-          
+
           // 4. 显示模态框
           openSMSBalanceModal();
 
@@ -8393,7 +8468,7 @@
     }
 
     // ==================== 短信发送历史功能 ====================
-    
+
     /**
      * 打开短信发送历史模态窗
      */
@@ -8417,19 +8492,19 @@
         // 获取过滤条件
         const dateFilter = $('sms-history-date-filter').value;
         const phoneFilter = $('sms-history-phone-filter').value.trim();
-        
+
         // 构建查询参数
         const params = new URLSearchParams();
         if (dateFilter) params.append('date', dateFilter);
         if (phoneFilter) params.append('phone', phoneFilter);
-        
+
         const response = await fetch(`/api/admin/sms/history?${params.toString()}`, {
           headers: { 'X-Session-ID': sessionUUID }
         });
         const result = await response.json();
 
         const listContainer = $('sms-history-list');
-        
+
         if (result.success && result.records && result.records.length > 0) {
           listContainer.innerHTML = result.records.map(record => `
             <div class="border-2 border-slate-200 rounded-lg p-4 hover:border-sky-300 transition-colors bg-white">
@@ -8472,7 +8547,7 @@
     }
 
     // ==================== 验证码管理功能 ====================
-    
+
     // 全局倒计时定时器变量
     let verificationCodesCountdownInterval = null;
 
@@ -8560,7 +8635,7 @@
         const result = await response.json();
 
         const listContainer = $('verification-codes-list');
-        
+
         if (result.success && result.codes && result.codes.length > 0) {
           listContainer.innerHTML = result.codes.map(item => {
             const expiresIn = Math.max(0, Math.floor(item.expires_in / 60));
@@ -8669,7 +8744,7 @@
             'Content-Type': 'application/json',
             'X-Session-ID': sessionUUID
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             phone: phone,
             code: code
           })
@@ -10192,15 +10267,15 @@
 
       // 监听验证码列表更新事件
       socket.on('verification_codes_updated', () => {
-          logMessage_Info("[Socket] 收到验证码列表更新推送");
-          // 检查模态框是否打开
-          const modal = $('verification-codes-modal');
-          if (modal && !modal.classList.contains('hidden')) {
-              logMessage_Info("验证码模态框已打开，正在刷新列表...");
-              loadVerificationCodes(); // 重新加载列表
-          } else {
-              logMessage_Info("验证码模态框未打开，跳过刷新。");
-          }
+        logMessage_Info("[Socket] 收到验证码列表更新推送");
+        // 检查模态框是否打开
+        const modal = $('verification-codes-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+          logMessage_Info("验证码模态框已打开，正在刷新列表...");
+          loadVerificationCodes(); // 重新加载列表
+        } else {
+          logMessage_Info("验证码模态框未打开，跳过刷新。");
+        }
       });
 
 
@@ -10693,7 +10768,7 @@
       if (loginBtn) {
         loginBtn.disabled = true;  // 禁用登录按钮
       }
-      
+
       try {
         const username = e.target.value.trim();
         $('password-entry').value = "";
@@ -10964,7 +11039,7 @@
       if (loginBtn) {
         loginBtn.disabled = true;  // 禁用登录按钮
       }
-      
+
       try {
         const username = $('user-combo').value;
         const data = await callPythonAPI('on_user_selected', username);
@@ -11615,7 +11690,7 @@
           })
         });
         const result = await response.json();
-        
+
         if (result && result.success) {
           const expireMin = result.expire_minutes || 5;
           const retryAfter = result.retry_after || 180;
@@ -14933,11 +15008,12 @@
           // 更新按钮样式：用户名按钮高亮（active），手机号按钮变灰
           usernameBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
           phoneBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
-          
+
           // 更新输入框属性：切换为文本输入模式
           authInput.type = 'text';
           authInput.placeholder = '请输入用户名';
           authInput.removeAttribute('inputmode'); // 移除数字键盘属性
+          authInput.removeAttribute('maxlength'); // 移除长度限制
           // 更新label文本为"用户名"
           if (authLabel) authLabel.textContent = '用户名';
 
@@ -14952,7 +15028,9 @@
                      placeholder="请输入用户名" autocomplete="username">
             `;
             // 恢复之前保存的输入值
-            document.getElementById('auth-username').value = currentValue;
+            const newAuthInput = document.getElementById('auth-username');
+            newAuthInput.value = currentValue;
+            newAuthInput.removeAttribute('maxlength'); // 确保新输入框也移除限制
           }
 
           // 隐藏"使用验证码登录"按钮（用户名登录只能用密码）
@@ -14973,11 +15051,12 @@
           // 更新按钮样式：手机号按钮高亮（active），用户名按钮变灰
           phoneBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
           usernameBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
-          
-          // 更新输入框属性：切换为手机号输入模式
+
+          /// 更新输入框属性：切换为手机号输入模式
           authInput.type = 'tel';
           authInput.placeholder = '请输入手机号';
           authInput.setAttribute('inputmode', 'numeric'); // 触发数字键盘
+          authInput.setAttribute('maxlength', '11'); // 限制11位
           // 更新label文本为"手机号"
           if (authLabel) authLabel.textContent = '手机号';
 
@@ -14991,9 +15070,9 @@
               <div class="phone-input-wrapper mt-1">
                 <span class="phone-prefix">+86 </span>
                 <input type="tel" id="auth-username" class="input-field" 
-                       placeholder="请输入手机号" autocomplete="tel" inputmode="numeric">
+                       placeholder="请输入手机号" autocomplete="tel" inputmode="numeric" maxlength="11">
               </div>
-            `;
+            `; // <-- 已在input中加入 maxlength="11"
             // 恢复之前保存的输入值
             document.getElementById('auth-username').value = currentValue;
           }
@@ -15051,7 +15130,7 @@
               })
             });
             const result = await response.json();
-            
+
             if (result && result.success) {
               const expireMin = result.expire_minutes || 5;
               const retryAfter = result.retry_after || 180;
@@ -15141,7 +15220,7 @@
               })
             });
             const result = await response.json();
-            
+
             if (result && result.success) {
               const expireMin = result.expire_minutes || 5;
               const retryAfter = result.retry_after || 180;  // 获取发送间隔
@@ -15199,15 +15278,15 @@
       const currentPhoneInput = document.getElementById('modify-phone-current');
       const currentPhoneWrapper = currentPhoneInput ? currentPhoneInput.closest('.phone-input-wrapper') : null;
       if (currentPhoneWrapper) {
-          const prefix = currentPhoneWrapper.querySelector('.phone-prefix');
-          // 缓存判断结果
-          const isUnbound = (!currentPhoneInput.value || currentPhoneInput.value === '未绑定');
+        const prefix = currentPhoneWrapper.querySelector('.phone-prefix');
+        // 缓存判断结果
+        const isUnbound = (!currentPhoneInput.value || currentPhoneInput.value === '未绑定');
 
-          if (prefix) {
-              prefix.style.display = isUnbound ? 'none' : 'inline';
-          }
-          // [新修复] 根据前缀是否隐藏，切换 wrapper 上的 class
-          currentPhoneWrapper.classList.toggle('prefix-hidden', isUnbound);
+        if (prefix) {
+          prefix.style.display = isUnbound ? 'none' : 'inline';
+        }
+        // [新修复] 根据前缀是否隐藏，切换 wrapper 上的 class
+        currentPhoneWrapper.classList.toggle('prefix-hidden', isUnbound);
       }
 
     }
@@ -15242,7 +15321,7 @@
           })
         });
         const result = await response.json();
-        
+
         if (result && result.success) {
           const expireMin = result.expire_minutes || 5;
           const retryAfter = result.retry_after || 180;
@@ -15283,66 +15362,66 @@
       }
     }
 
-    
+
 
 
     async function confirmModifyPhone() {
       const newPhone = document.getElementById('modify-phone-new').value;
       const code = document.getElementById('modify-phone-code').value;
 
-      
+
 
       // 验证手机号格式
       if (!/^1[3-9]\d{9}$/.test(newPhone)) {
-          showModalAlert('请输入正确的新手机号格式');
-          return;
-      }
-      
-      // 检查手机号是否已被绑定
-      try {
-          // 必须使用 callPythonAPI_raw (或 fetch) 来调用 /api/auth/check_phone
-          const bindResult = await callPythonAPI_raw('/api/auth/check_phone', 'POST', { phone: newPhone });
-          
-          // currentAuthUsername 是在登录时设置的全局JS变量
-          if (bindResult && bindResult.is_bound && bindResult.bound_to_user !== currentAuthUsername) {
-              // 手机号被其他人占用了，弹窗确认
-              const confirmed = await jsShowConfirm(
-                  '手机号已被绑定', 
-                  `您输入的新手机号 ${newPhone} 已被用户 ${bindResult.bound_to_user} 绑定。\n\n是否继续？\n\n如果继续，该手机号将从原账号上强制解绑并绑定到您的账号上。`
-              );
-              
-              if (!confirmed) {
-                  logMessage_Info("[修改手机号] 用户取消操作，因为手机号已被绑定。");
-                  return; // 用户取消
-              }
-              logMessage_Info("[修改手机号] 用户已确认强制解绑，继续操作...");
-          } else if (bindResult && bindResult.is_bound && bindResult.bound_to_user === currentAuthUsername) {
-              // 手机号已经绑定在自己身上
-              showModalAlert('此手机号已绑定到您的账号。', '提示');
-              closeModifyPhoneModal();
-              return;
-          }
-          // 未绑定或检查失败，继续执行（后端会验证验证码）
-
-          if (!newPhone || !code) {
-        showModalAlert('请填写完整信息');
+        showModalAlert('请输入正确的新手机号格式');
         return;
       }
-      
+
+      // 检查手机号是否已被绑定
+      try {
+        // 必须使用 callPythonAPI_raw (或 fetch) 来调用 /api/auth/check_phone
+        const bindResult = await callPythonAPI_raw('/api/auth/check_phone', 'POST', { phone: newPhone });
+
+        // currentAuthUsername 是在登录时设置的全局JS变量
+        if (bindResult && bindResult.is_bound && bindResult.bound_to_user !== currentAuthUsername) {
+          // 手机号被其他人占用了，弹窗确认
+          const confirmed = await jsShowConfirm(
+            '手机号已被绑定',
+            `您输入的新手机号 ${newPhone} 已被用户 ${bindResult.bound_to_user} 绑定。\n\n是否继续？\n\n如果继续，该手机号将从原账号上强制解绑并绑定到您的账号上。`
+          );
+
+          if (!confirmed) {
+            logMessage_Info("[修改手机号] 用户取消操作，因为手机号已被绑定。");
+            return; // 用户取消
+          }
+          logMessage_Info("[修改手机号] 用户已确认强制解绑，继续操作...");
+        } else if (bindResult && bindResult.is_bound && bindResult.bound_to_user === currentAuthUsername) {
+          // 手机号已经绑定在自己身上
+          showModalAlert('此手机号已绑定到您的账号。', '提示');
+          closeModifyPhoneModal();
+          return;
+        }
+        // 未绑定或检查失败，继续执行（后端会验证验证码）
+
+        if (!newPhone || !code) {
+          showModalAlert('请填写完整信息');
+          return;
+        }
+
       } catch (e) {
-          logMessage_Error('检查手机号绑定失败:', e);
-          showModalAlert(`检查手机号失败: ${e.message}，请稍后重试`, '网络错误');
-          return; // 检查失败时停止
+        logMessage_Error('检查手机号绑定失败:', e);
+        showModalAlert(`检查手机号失败: ${e.message}，请稍后重试`, '网络错误');
+        return; // 检查失败时停止
       }
 
 
       try {
         // 修正：必须使用 callPythonAPI_raw (或 fetch) 来调用 /api/user/update_phone
         const result = await callPythonAPI_raw('/api/user/update_phone', 'POST', {
-            new_phone: newPhone,
-            sms_code: code
+          new_phone: newPhone,
+          sms_code: code
         });
-        
+
         if (result && result.success) {
           showModalAlert('手机号修改成功');
           document.getElementById('profile-phone').value = newPhone;

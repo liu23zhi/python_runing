@@ -2278,7 +2278,8 @@ class AuthSystem:
                 if not two_fa_code:
                     logging.info(f"authenticate: 需要2FA验证码: {auth_username}")
                     print(f"[用户认证] 需要2FA验证码: {auth_username}")
-                    return {"success": False, "message": "需要2FA验证码", "requires_2fa": True}
+                    # 返回 success: True，并附带 auth_username，以便前端JS正确处理
+                    return {"success": True, "message": "需要2FA验证码", "requires_2fa": True, "auth_username": auth_username}
 
                 if not self.verify_2fa(auth_username, two_fa_code):
                     logging.warning(f"authenticate: 2FA验证失败: {auth_username}")
@@ -2330,13 +2331,8 @@ class AuthSystem:
         1. 获取用户所属权限组的基础权限
         2. 应用用户的自定义权限（added/removed）
         """
-        # 获取用户组
-        group = self.permissions['user_groups'].get(auth_username, 'guest')
-
-        # 检查是否为超级管理员
-        super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
-        if auth_username == super_admin:
-            group = 'super_admin'
+        # 获取用户组（此函数已包含 super_admin 检查）
+        group = self.get_user_group(auth_username)
 
         # 获取组权限（基础权限）
         group_perms = self.permissions['permission_groups'].get(
@@ -12269,7 +12265,7 @@ def start_web_server(args_param):
 
         处理流程：
         1. 解析请求体和请求头（session_id、IP、User-Agent）
-        2. 支持login_id字段（可以是用户名或手机号）
+        2. 根据 auth_phone, auth_username, auth_password, auth_sms_code 决定登录模式
         3. 如果是手机号，查找对应的用户名
         4. 调用auth_system.authenticate()验证用户凭据
         5. 验证成功后创建或获取Api实例
@@ -12329,99 +12325,119 @@ def start_web_server(args_param):
         
         data = request.get_json() or {}
         
-        # 支持login_id字段（可以是用户名或手机号）
-        login_id = data.get('login_id') or data.get('auth_username', '').strip()
+        # --- 提取所有可能的字段 ---
+        auth_phone = data.get('auth_phone', '').strip()
+        auth_username = data.get('auth_username', '').strip()
         auth_password = data.get('auth_password', '').strip()
-        sms_code = data.get('sms_code', '').strip()  # 新增：短信验证码
+        sms_code = data.get('auth_sms_code', '').strip()
         two_fa_code = data.get('two_fa_code', '').strip()
+        
         session_id = request.headers.get('X-Session-ID', '')
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr) or ''
+        user_agent = request.headers.get('User-Agent', '')
+
+        auth_result = None
+        target_username = None # 用于2FA和日志记录
         
-        # 判断login_id是手机号还是用户名
-        # 如果是手机号（11位数字，1开头），则查找对应的用户名
-        auth_username = login_id
-        is_phone_login = False
-        if re.match(r'^1[3-9]\d{9}$', login_id):
-            is_phone_login = True
-            # 这是手机号，需要查找对应的用户名
-            # 检查是否启用了手机号登录功能
+
+        # 模式1: 手机号 + 验证码
+        if auth_phone and sms_code:
+            target_username = auth_system.find_user_by_phone(auth_phone)
+            if not target_username:
+                return jsonify({"success": False, "message": "该手机号未注册"})
+                
+            logging.info(f"[登录] 模式: 手机号/验证码 (用户: {target_username})")
+            
             if config.get('Features', 'enable_phone_login', fallback='false').lower() != 'true':
                 return jsonify({"success": False, "message": "手机号登录功能未启用"})
-            
-            # 遍历所有用户查找匹配的手机号
-            found_username = None
-            system_accounts_dir = config.get('System', 'system_accounts_dir', fallback='system_accounts')
-            school_accounts_dir = config.get('System', 'school_accounts_dir', fallback='school_accounts')
-            
-            for accounts_dir in [system_accounts_dir, school_accounts_dir]:
-                if not os.path.exists(accounts_dir):
-                    continue
-                for filename in os.listdir(accounts_dir):
-                    if filename.endswith('.json'):
-                        user_file = os.path.join(accounts_dir, filename)
-                        try:
-                            import json
-                            with open(user_file, 'r', encoding='utf-8') as f:
-                                user_data = json.load(f)
-                                if user_data.get('phone') == login_id:
-                                    found_username = user_data.get('auth_username')
-                                    break
-                        except:
-                            continue
-                if found_username:
-                    break
-            
-            if not found_username:
-                return jsonify({"success": False, "message": "手机号未注册或密码错误"})
-            
-            auth_username = found_username
-        
-        # 新增：手机号验证码登录（不需要密码）
-        if is_phone_login and sms_code:
-            # 检查是否启用了手机号登录功能
-            if config.get('Features', 'enable_phone_login', fallback='false').lower() != 'true':
-                return jsonify({"success": False, "message": "手机号登录功能未启用"})
-            
+            if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "短信服务未启用"})
+
             # 验证短信验证码
-            stored_code = sms_verification_codes.get(login_id)
-            if not stored_code:
+            global sms_verification_codes
+            stored_code_info = sms_verification_codes.get(auth_phone)
+            if not stored_code_info:
                 return jsonify({"success": False, "message": "请先获取验证码"})
             
-            code_value, expires_at = stored_code
+            code_value, expires_at = stored_code_info
             if time.time() > expires_at:
-                del sms_verification_codes[login_id]
+                del sms_verification_codes[auth_phone]
                 return jsonify({"success": False, "message": "验证码已过期，请重新获取"})
             
             if code_value != sms_code:
                 return jsonify({"success": False, "message": "验证码错误"})
             
-            # 验证码正确，清除验证码
-            del sms_verification_codes[login_id]
+            # 验证码正确，清除
+            del sms_verification_codes[auth_phone]
             
-            # 跳过密码验证，直接登录成功
-            # 获取用户信息用于登录
+            # 检查2FA
+            user_file = auth_system.get_user_file_path(target_username)
+            if os.path.exists(user_file):
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                if user_data.get('2fa_enabled', False):
+                    if not two_fa_code:
+                        # 需要2FA
+                        return jsonify({"success": True, "message": "需要2FA验证码", "requires_2fa": True, "auth_username": target_username})
+                    if not auth_system.verify_2fa(target_username, two_fa_code):
+                        auth_system._log_login_attempt(target_username, False, ip_address, user_agent, '2fa_failed')
+                        return jsonify({"success": False, "message": "2FA验证码错误"})
+            
+            # 登录成功 (短信 + 2FA通过)
+            # 手动构建 auth_result
             auth_result = {
                 'success': True,
-                'auth_username': auth_username,
-                'group': auth_system.get_user_group(auth_username),
+                'auth_username': target_username,
+                'group': auth_system.get_user_group(target_username),
                 'is_guest': False,
                 'message': '登录成功'
             }
+            auth_system._log_login_attempt(target_username, True, ip_address, user_agent, 'SMS code login')
+
+        # 模式2: 手机号 + 密码
+        elif auth_phone and auth_password:
+            target_username = auth_system.find_user_by_phone(auth_phone)
+            if not target_username:
+                return jsonify({"success": False, "message": "该手机号未注册"})
             
-            # 记录登录日志
-            ip_address = request.remote_addr or ''
-            user_agent = request.headers.get('User-Agent', '')
-            auth_system._log_login_attempt(auth_username, True, ip_address, user_agent, 'SMS code login')
-        else:
-            # 原有的密码登录逻辑
-            # 获取IP和UA
-            ip_address = request.remote_addr or ''
-            user_agent = request.headers.get('User-Agent', '')
+            logging.info(f"[登录] 模式: 手机号/密码 (用户: {target_username})")
             
-            # 验证用户密码
+            if config.get('Features', 'enable_phone_login', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "手机号登录功能未启用"})
+
+            # 调用authenticate进行密码和2FA验证
+            auth_result = auth_system.authenticate(
+                target_username, auth_password, ip_address, user_agent, two_fa_code)
+
+        # 模式3: 用户名 + 密码
+        elif auth_username and auth_password:
+            target_username = auth_username
+            logging.info(f"[登录] 模式: 用户名/密码 (用户: {target_username})")
+            
+            # 调用authenticate进行密码和2FA验证
+            auth_result = auth_system.authenticate(
+                target_username, auth_password, ip_address, user_agent, two_fa_code)
+
+        # 模式4: 游客 (特殊处理)
+        elif auth_username == 'guest' and not auth_password:
+            logging.info(f"[登录] 模式: 游客")
             auth_result = auth_system.authenticate(
                 auth_username, auth_password, ip_address, user_agent, two_fa_code)
+                
+        else:
+            return jsonify({"success": False, "message": "无效的登录凭据"})
+
         
-        if not auth_result['success']:
+        if not auth_result:
+             return jsonify({"success": False, "message": "认证时发生未知错误"})
+
+        # 如果需要2FA (来自密码验证)
+        if auth_result.get('requires_2fa'):
+            return jsonify(auth_result)
+
+        # 如果登录失败 (密码错误, 2FA错误等)
+        if not auth_result.get('success'):
             return jsonify(auth_result)
 
         # 将认证信息附加到会话
@@ -12593,7 +12609,6 @@ def start_web_server(args_param):
                 "group": auth_result.get('group', 'user'),
                 "is_guest": False
             })
-
     @app.route('/auth/guest_login', methods=['POST'])
     def auth_guest_login():
         """
