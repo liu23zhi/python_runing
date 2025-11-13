@@ -4868,13 +4868,32 @@
         // 停止健康状态自动刷新
         stopHealthAutoRefresh();
       } else if (tab === 'messages') {
+        // ============================================================
+        // IP封禁检查：留言板功能
+        // 在切换到留言板标签时，先通过API检查当前客户端IP是否被封禁
+        // ============================================================
         if (messagesTab && messagesPanel) {
-          messagesTab.classList.add('text-sky-600', 'border-sky-600');
-          messagesTab.classList.remove('text-slate-400', 'border-transparent');
-          messagesPanel.classList.remove('hidden');
-          loadMessages();
-          // 停止健康状态自动刷新
-          stopHealthAutoRefresh();
+          // 立即检查IP封禁状态（调用后端API）
+          checkIPBanAndProceed('messages_only').then(isBanned => {
+            if (isBanned) {
+              // IP被封禁，显示提示并阻止切换
+              showModalAlert('您的IP已被限制访问留言功能', '访问被拒绝');
+              // 不切换到messages标签，保持当前标签
+              return;
+            }
+            
+            // IP未被封禁，正常切换到留言板标签
+            messagesTab.classList.add('text-sky-600', 'border-sky-600');
+            messagesTab.classList.remove('text-slate-400', 'border-transparent');
+            messagesPanel.classList.remove('hidden');
+            loadMessages();
+            // 停止健康状态自动刷新
+            stopHealthAutoRefresh();
+          }).catch(err => {
+            // 检查出错，为安全起见也阻止访问
+            logMessage_Error('[IP封禁检查] 检查失败:', err);
+            showModalAlert('无法验证访问权限，请稍后重试', '错误');
+          });
         }
       } else if (tab === 'ipban') {
         if (ipbanTab && ipbanPanel) {
@@ -7371,6 +7390,51 @@
 
     // ========== 留言板功能 ========== //
 
+    /**
+     * ============================================================
+     * IP封禁检查辅助函数
+     * 用于在前端执行IP封禁检查（调用后端API）
+     * ============================================================
+     * 
+     * @param {string} scope - 检查范围（'all'或'messages_only'）
+     * @returns {Promise<boolean>} - 返回true表示IP被封禁，false表示未被封禁
+     * 
+     * 功能说明：
+     *   通过调用后端的/api/admin/check_ip_ban接口，检查当前客户端IP是否被封禁。
+     *   这个函数被用在switchAdminTab('messages')和postMessage()函数中。
+     * 
+     * 使用示例：
+     *   const isBanned = await checkIPBanAndProceed('messages_only');
+     *   if (isBanned) {
+     *     showModalAlert('您的IP已被限制访问留言功能');
+     *     return;
+     *   }
+     */
+    async function checkIPBanAndProceed(scope = 'all') {
+      try {
+        // 调用后端API检查IP封禁状态
+        // 后端会自动从request.remote_addr获取客户端IP
+        const response = await fetch('/api/admin/check_ip_ban', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ scope: scope })
+        });
+        
+        const result = await response.json();
+        
+        // result.is_banned: true表示IP被封禁，false表示未被封禁
+        return result.is_banned === true;
+      } catch (err) {
+        // 网络错误或解析错误，为安全起见返回false（允许访问）
+        // 实际项目中可以根据需求调整此行为
+        logMessage_Error('[IP封禁检查] 检查失败:', err);
+        return false;
+      }
+    }
+
     async function loadMessages() {
       const listEl = $('admin-messages-list_modal');
       const guestFields = $('message-guest-fields');
@@ -7502,6 +7566,17 @@
     }
 
     async function postMessage() {
+      // ============================================================
+      // IP封禁检查：发表留言功能
+      // 在发表留言前，先检查当前客户端IP是否被封禁
+      // ============================================================
+      const isBanned = await checkIPBanAndProceed('messages_only');
+      if (isBanned) {
+        // IP被封禁，阻止发表留言
+        showModalAlert('您的IP已被限制访问留言功能', '访问被拒绝');
+        return;
+      }
+      
       const contentInput = $('message-content');
       const nicknameInput = $('message-nickname');
       const emailInput = $('message-email');
@@ -10611,30 +10686,47 @@
     // --- 事件监听绑定 ---
     $('user-combo').addEventListener('change', onUserChange);
     $('username-entry').addEventListener('input', async (e) => {
-      const username = e.target.value.trim();
-      $('password-entry').value = "";
-      const userCombo = $('user-combo');
-      const exists = [...userCombo.options].some(o => o.value === username);
-      userCombo.value = exists ? username : "";
-      // if (!username) {
-      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
-      //   return;
-      // }
-      const data = await callPythonAPI('on_user_selected', username);
-      if (data && data.password) $('password-entry').value = data.password;
-      logMessage_Info('获取到的data.ua:', data ? data.ua : 'null');
-      const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
-      $('ua-label').textContent = ua_data;
-      logMessage_Info('User ua label set to:', ua_data);
+      // ============================================================
+      // 登录按钮禁用：开始执行时禁用login-button
+      // ============================================================
+      const loginBtn = $('login-button');
+      if (loginBtn) {
+        loginBtn.disabled = true;  // 禁用登录按钮
+      }
+      
+      try {
+        const username = e.target.value.trim();
+        $('password-entry').value = "";
+        const userCombo = $('user-combo');
+        const exists = [...userCombo.options].some(o => o.value === username);
+        userCombo.value = exists ? username : "";
+        // if (!username) {
+        //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
+        //   return;
+        // }
+        const data = await callPythonAPI('on_user_selected', username);
+        if (data && data.password) $('password-entry').value = data.password;
+        logMessage_Info('获取到的data.ua:', data ? data.ua : 'null');
+        const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
+        $('ua-label').textContent = ua_data;
+        logMessage_Info('User ua label set to:', ua_data);
 
-      // if (data && data.ua) {
-      //   $('ua-label').textContent = data.ua;
-      // } else {
-      //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
-      // }
-      pythonParams = (data && data.params) ? data.params : pythonParams;
-      updateParamInputs($('params-container'), 'param', pythonParams);
-      const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
+        // if (data && data.ua) {
+        //   $('ua-label').textContent = data.ua;
+        // } else {
+        //   $('ua-label').textContent = '(新用户将在登录时自动生成)';
+        // }
+        pythonParams = (data && data.params) ? data.params : pythonParams;
+        updateParamInputs($('params-container'), 'param', pythonParams);
+        const base = pythonParams.theme_base_color || '#7dd3fc'; setBaseColor(base, base);
+      } finally {
+        // ============================================================
+        // 登录按钮恢复：执行完成后恢复login-button
+        // ============================================================
+        if (loginBtn) {
+          loginBtn.disabled = false;  // 恢复登录按钮
+        }
+      }
     });
     $('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
     $('login-button').addEventListener('click', async (e) => {
@@ -10865,21 +10957,38 @@
 
 
     async function onUserChange() {
-      const username = $('user-combo').value;
-      const data = await callPythonAPI('on_user_selected', username);
-      $('username-entry').value = username;
-      $('password-entry').value = data.password || "";
-      $('ua-label').textContent = data.ua || '(新用户将在登录时自动生成)';
-      pythonParams = data.params || pythonParams;
-      updateParamInputs($('params-container'), 'param', pythonParams);
+      // ============================================================
+      // 登录按钮禁用：开始执行时禁用login-button
+      // ============================================================
+      const loginBtn = $('login-button');
+      if (loginBtn) {
+        loginBtn.disabled = true;  // 禁用登录按钮
+      }
+      
+      try {
+        const username = $('user-combo').value;
+        const data = await callPythonAPI('on_user_selected', username);
+        $('username-entry').value = username;
+        $('password-entry').value = data.password || "";
+        $('ua-label').textContent = data.ua || '(新用户将在登录时自动生成)';
+        pythonParams = data.params || pythonParams;
+        updateParamInputs($('params-container'), 'param', pythonParams);
 
-      // 应用主题颜色
-      const base = pythonParams.theme_base_color || '#7dd3fc';
-      setBaseColor(base, base);
+        // 应用主题颜色
+        const base = pythonParams.theme_base_color || '#7dd3fc';
+        setBaseColor(base, base);
 
-      // 新增：应用主题风格
-      const style = pythonParams.theme_style || 'default';
-      setThemeStyle(style);
+        // 新增：应用主题风格
+        const style = pythonParams.theme_style || 'default';
+        setThemeStyle(style);
+      } finally {
+        // ============================================================
+        // 登录按钮恢复：执行完成后恢复login-button
+        // ============================================================
+        if (loginBtn) {
+          loginBtn.disabled = false;  // 恢复登录按钮
+        }
+      }
     }
 
     async function onLogin() {
