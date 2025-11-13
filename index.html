@@ -2164,7 +2164,7 @@
 
               <!-- Webhook URL 显示 -->
               <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">回调地址（只读）</label>
+                <label class="block text-sm font-medium text-slate-700 mb-1">回调地址</label>
                 <input type="text" id="sms-webhook-url" 
                   class="w-full border-2 border-green-200 rounded-lg px-3 py-2 bg-green-50 text-slate-700 font-mono text-sm" 
                   readonly>
@@ -2265,9 +2265,14 @@
 
       <!-- 添加验证码表单 -->
       <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-        <h5 class="font-semibold mb-3 text-green-900">➕ 手动添加验证码（模拟发送）</h5>
+        <h5 class="font-semibold mb-3 text-green-900">➕ 手动添加验证码</h5>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input type="tel" id="manual-code-phone" class="input-field" placeholder="手机号" pattern="[0-9]*">
+          
+          <div class="phone-input-wrapper">
+            <span class="phone-prefix">+86 </span>
+            <input type="tel" id="manual-code-phone" class="input-field" placeholder="手机号" pattern="[0-9]*" maxlength="11">
+          </div>
+          
           <input type="text" id="manual-code-value" class="input-field" placeholder="验证码（6位数字）" maxlength="6" pattern="[0-9]{6}">
           <button onclick="addManualVerificationCode()" class="btn btn-primary">添加验证码</button>
         </div>
@@ -4364,8 +4369,8 @@
 
       // UI按钮权限（细粒度控制）
       'use_login_button': '使用登录按钮',
-      'use_multi_account_button': '使用多账号控制台按钮',
-      'use_import_button': '使用导入离线文件按钮',
+      'use_multi_account_button': '使用多账号控制台',
+      'use_import_button': '导入离线文件',
 
       // 留言板权限
       'view_messages': '查看留言板',
@@ -5203,6 +5208,15 @@
         const phoneInput = $('profile-phone');
         if (nicknameInput) nicknameInput.value = user.nickname || '';
         if (phoneInput) phoneInput.value = user.phone || '未绑定';
+
+        const phoneWrapper = phoneInput ? phoneInput.closest('.phone-input-wrapper') : null;
+        if (phoneWrapper) {
+            const prefix = phoneWrapper.querySelector('.phone-prefix');
+            if (prefix) {
+                // 如果值是"未绑定"或空字符串，则隐藏前缀
+                prefix.style.display = (!phoneInput.value || phoneInput.value === '未绑定') ? 'none' : 'inline';
+            }
+        }
         
         // 根据 config 决定是否显示“修改手机号”按钮
         const modifyPhoneBtn = $('profile-modify-phone-btn');
@@ -6721,6 +6735,16 @@
       $('admin-modify-phone-new').value = '';
       $('admin-modify-phone-code').value = '';
       $('admin-modify-phone-modal').classList.remove('hidden');
+
+      const adminCurrentPhoneInput = $('admin-modify-phone-current');
+      const adminCurrentPhoneWrapper = adminCurrentPhoneInput ? adminCurrentPhoneInput.closest('.phone-input-wrapper') : null;
+      if (adminCurrentPhoneWrapper) {
+          const prefix = adminCurrentPhoneWrapper.querySelector('.phone-prefix');
+          if (prefix) {
+              prefix.style.display = (!adminCurrentPhoneInput.value || adminCurrentPhoneInput.value === '未绑定') ? 'none' : 'inline';
+          }
+      }
+
     }
 
     function closeAdminModifyPhoneModal() {
@@ -8119,12 +8143,72 @@
 
     // ==================== 验证码管理功能 ====================
     
+    // 全局倒计时定时器变量
+    let verificationCodesCountdownInterval = null;
+
+    /**
+     * 更新验证码倒计时的函数
+     */
+    function updateVerificationCodeCountdowns() {
+      const countdownElements = document.querySelectorAll('.verification-code-countdown');
+      if (countdownElements.length === 0) {
+        // 如果没有倒计时元素（例如列表为空或已关闭），停止定时器
+        stopVerificationCodesCountdown();
+        return;
+      }
+
+      const now = Math.floor(Date.now() / 1000); // 当前时间（秒）
+
+      countdownElements.forEach(el => {
+        const expiresAt = parseInt(el.dataset.expiresAt, 10);
+        if (isNaN(expiresAt)) {
+          el.textContent = "已失效";
+          return;
+        }
+
+        const expiresIn = Math.max(0, expiresAt - now);
+        const minutes = Math.floor(expiresIn / 60);
+        const seconds = expiresIn % 60;
+
+        el.textContent = `${minutes}分${seconds}秒`;
+
+        if (expiresIn <= 0) {
+          el.textContent = "已失效";
+          el.classList.add('text-red-600', 'font-semibold');
+        } else if (expiresIn < 120) { // 小于2分钟
+          el.classList.add('text-red-600', 'font-semibold');
+          el.classList.remove('text-slate-600');
+        }
+      });
+    }
+
+    /**
+     * 启动倒计时定时器
+     */
+    function startVerificationCodesCountdown() {
+      stopVerificationCodesCountdown(); // 先停止旧的
+      updateVerificationCodeCountdowns(); // 立即执行一次
+      verificationCodesCountdownInterval = setInterval(updateVerificationCodeCountdowns, 1000); // 每秒更新
+    }
+
+    /**
+     * 停止倒计时定时器
+     */
+    function stopVerificationCodesCountdown() {
+      if (verificationCodesCountdownInterval) {
+        clearInterval(verificationCodesCountdownInterval);
+        verificationCodesCountdownInterval = null;
+      }
+    }
+
+
     /**
      * 打开验证码管理模态窗
      */
     function openVerificationCodesModal() {
       $('verification-codes-modal').classList.remove('hidden');
       loadVerificationCodes();
+      startVerificationCodesCountdown();
     }
 
     /**
@@ -8132,6 +8216,7 @@
      */
     function closeVerificationCodesModal() {
       $('verification-codes-modal').classList.add('hidden');
+      stopVerificationCodesCountdown();
     }
 
     /**
@@ -9760,6 +9845,21 @@
           onNotificationsUpdated(data);
         }
       });
+
+      // 监听验证码列表更新事件
+      socket.on('verification_codes_updated', () => {
+          logMessage_Info("[Socket] 收到验证码列表更新推送");
+          // 检查模态框是否打开
+          const modal = $('verification-codes-modal');
+          if (modal && !modal.classList.contains('hidden')) {
+              logMessage_Info("验证码模态框已打开，正在刷新列表...");
+              loadVerificationCodes(); // 重新加载列表
+          } else {
+              logMessage_Info("验证码模态框未打开，跳过刷新。");
+          }
+      });
+
+
 
     }
 
@@ -14716,6 +14816,17 @@
       document.getElementById('modify-phone-code').value = '';
       document.getElementById('modify-phone-modal').style.display = 'flex';
       document.body.classList.add('modal-visible'); // 隐藏地图版权
+
+
+      const currentPhoneInput = document.getElementById('modify-phone-current');
+      const currentPhoneWrapper = currentPhoneInput ? currentPhoneInput.closest('.phone-input-wrapper') : null;
+      if (currentPhoneWrapper) {
+          const prefix = currentPhoneWrapper.querySelector('.phone-prefix');
+          if (prefix) {
+              prefix.style.display = (!currentPhoneInput.value || currentPhoneInput.value === '未绑定') ? 'none' : 'inline';
+          }
+      }
+
     }
 
     function closeModifyPhoneModal() {

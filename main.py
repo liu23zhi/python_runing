@@ -9323,6 +9323,45 @@ def check_port_available(host, port):
 # ==============================================================================
 
 
+IP_CACHE_FILE = os.path.join('logs', 'ip_location_cache.json')
+ip_location_cache = {}  # 内存缓存
+ip_cache_lock = threading.Lock()  # 线程安全锁
+CACHE_DURATION_SECONDS = 86400  # 缓存有效期：1天
+
+def _load_ip_cache():
+    """启动时加载IP归属地缓存文件"""
+    global ip_location_cache
+    if not os.path.exists(IP_CACHE_FILE):
+        logging.info("[IP缓存] 缓存文件不存在，将创建新缓存")
+        return
+    
+    with ip_cache_lock:
+        try:
+            with open(IP_CACHE_FILE, 'r', encoding='utf-8') as f:
+                ip_location_cache = json.load(f)
+            logging.info(f"[IP缓存] 成功加载 {len(ip_location_cache)} 条IP缓存记录")
+        except (json.JSONDecodeError, OSError) as e:
+            logging.warning(f"[IP缓存] 加载缓存文件失败: {e}，将创建新缓存")
+            ip_location_cache = {}
+
+def _save_ip_cache():
+    """保存IP归属地缓存到文件（线程安全）"""
+    with ip_cache_lock:
+        try:
+            # 确保logs目录存在
+            os.makedirs(os.path.dirname(IP_CACHE_FILE), exist_ok=True)
+            # 创建缓存的临时副本以进行写入
+            cache_copy = ip_location_cache.copy()
+            
+            with open(IP_CACHE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(cache_copy, f, indent=2, ensure_ascii=False)
+            logging.debug("[IP缓存] IP缓存已保存到文件")
+        except OSError as e:
+            logging.error(f"[IP缓存] 保存缓存文件失败: {e}")
+        except Exception as e:
+            logging.error(f"[IP缓存] 序列化缓存数据失败: {e}")
+
+
 
 def update_session_activity(session_id):
     """更新会话活动时间"""
@@ -15374,6 +15413,25 @@ def start_web_server(args_param):
                             f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
                         
                         app.logger.debug(f"[短信历史] 已记录发送历史: {phone} -> {username}")
+
+                        # 如果场景是管理员操作，则推送SocketIO更新
+                        # 检查是否是管理员在“验证码管理”中
+                        if scene in ['admin_modify', 'register']: # 假设 register 也可能在管理面板触发
+                            # 尝试从 g 对象获取 session_id
+                            session_id = getattr(g, 'api_instance', None)
+                            if session_id:
+                                session_id = getattr(session_id, '_web_session_id', None)
+                            
+                            if session_id:
+                                # 修正：只在 admin_add_manual 场景下触发
+                                # send_code 本身不应触发，因为它可能是用户自己注册
+                                # 让我们把这个逻辑移到 add_manual_verification_code
+                                pass
+                            else:
+                                # 如果 g.api_instance 不可用（例如非Flask请求上下文），则无法推送
+                                logging.debug("[SocketIO] sms_send_code：无法获取 session_id，跳过推送")
+
+
                     except Exception as e:
                         # 记录历史失败不应影响主流程
                         app.logger.error(f"[短信历史] 记录失败: {str(e)}")
@@ -16119,7 +16177,9 @@ def start_web_server(args_param):
             
             # 调用短信宝查询余额API
             url = f'https://api.smsbao.com/query?u={username}&p={api_key}'
+            logging.debug(f"[短信配置] 查询余额URL: {url}")
             response = requests.get(url, timeout=10)
+            logging.debug(f"[短信配置] 查询余额响应: {response.text}")
             
             # 短信宝返回数字表示余额
             if response.text.isdigit():
@@ -16189,6 +16249,9 @@ def start_web_server(args_param):
             
             # 限制返回数量（最多100条）
             records = records[:100]
+
+            # 在函数末尾添加对 g.api_instance._web_session_id 的引用
+            _ = getattr(g, 'api_instance', None)
             
             return jsonify({"success": True, "records": records})
         except Exception as e:
@@ -16257,6 +16320,8 @@ def start_web_server(args_param):
             if phone in sms_verification_codes:
                 del sms_verification_codes[phone]
                 app.logger.info(f"[验证码管理] {g.user} 使 {phone} 的验证码失效")
+                # 推送SocketIO更新
+                _emit_verification_codes_update(g.api_instance._web_session_id)
                 return jsonify({"success": True, "message": "验证码已失效"})
             else:
                 return jsonify({"success": False, "message": "未找到该手机号的验证码"})
@@ -16304,6 +16369,8 @@ def start_web_server(args_param):
             sms_verification_codes[phone] = (code, expire_time)
             
             app.logger.info(f"[验证码管理] {g.user} 手动添加验证码: {phone} (有效期{code_expire_minutes}分钟)")
+            # 推送SocketIO更新
+            _emit_verification_codes_update(g.api_instance._web_session_id)
             
             return jsonify({
                 "success": True, 
@@ -17679,7 +17746,7 @@ def start_web_server(args_param):
     global get_ip_location
     def get_ip_location(ip_address):
         """
-        获取IP地址的地理位置信息
+        获取IP地址的地理位置信息 (带1天缓存)
         
         参数:
             ip_address (str): IP地址字符串（支持IPv4和IPv6）
@@ -17689,91 +17756,93 @@ def start_web_server(args_param):
                  获取失败返回"未知"
         
         实现说明:
-            - 调用第三方API（https://api.vore.top/api/IPdata）查询IP归属地
-            - 支持IPv4和IPv6地址查询
-            - 对返回的ipdata字段（info1、info2、info3、isp）进行去重
-            - 拼接去重后的非空字段，用空格分隔
-            - 设置5秒超时，防止阻塞请求
+            - 优先从内存和文件缓存 (logs/ip_location_cache.json) 中读取
+            - 缓存有效期为1天 (CACHE_DURATION_SECONDS)
+            - 缓存未命中或过期时，调用第三方API（https://api.vore.top/api/IPdata）查询
+            - 查询成功后更新内存缓存和文件缓存
             - 异常情况返回'未知'，确保不影响主业务流程
-        
-        返回示例:
-            - 127.0.0.1 -> "保留IP"（由API返回）
-            - 2409:8a00:3271:7750:acde:d0a7:9544:2ddf -> "北京市 丰台区 移动"
         """
+        if not ip_address:
+            return '未知'
+
+        current_time = time.time()
+        
+        # 1. 检查内存缓存
+        with ip_cache_lock:
+            cached_entry = ip_location_cache.get(ip_address)
+        
+        if cached_entry:
+            timestamp = cached_entry.get('timestamp', 0)
+            location = cached_entry.get('location')
+            
+            # 检查缓存是否在有效期内
+            if (current_time - timestamp < CACHE_DURATION_SECONDS) and location:
+                logging.debug(f"[IP缓存] 命中: ip={ip_address}, 位置={location}")
+                return location
+            else:
+                logging.debug(f"[IP缓存] 过期: ip={ip_address}")
+
+        # 2. 缓存未命中或已过期，调用API
         try:
-            # 调用VORE-API的IP归属地查询接口
-            # 该接口支持IPv4和IPv6，格式：https://api.vore.top/api/IPdata?ip=<IP地址>
             api_url = f'https://api.vore.top/api/IPdata?ip={ip_address}'
             
             # 发送GET请求，设置5秒超时
             response = requests.get(api_url, timeout=5)
-            
-            # 解析返回的JSON数据
             data = response.json()
             
-            # 检查API返回的状态码
-            # code: 200表示请求正常，500表示请求错误
             code = data.get('code')
             msg = data.get('msg', '')
             
             if code != 200:
-                # 请求失败（code=500或其他错误码）
                 logging.warning(f"[IP定位] API返回错误码: code={code}, msg={msg}, ip={ip_address}")
                 return '未知'
             
-            # 请求成功（code=200），提取ipdata字段
             ipdata = data.get('ipdata', {})
             
-            # 提取地理位置信息字段
-            info1 = ipdata.get('info1', '').strip()  # 例如：省份/直辖市
-            info2 = ipdata.get('info2', '').strip()  # 例如：城市/区
-            info3 = ipdata.get('info3', '').strip()  # 例如：详细地址（通常为空）
-            isp = ipdata.get('isp', '').strip()      # 例如：运营商（移动/联通/电信）
+            info1 = ipdata.get('info1', '').strip()
+            info2 = ipdata.get('info2', '').strip()
+            info3 = ipdata.get('info3', '').strip()
+            isp = ipdata.get('isp', '').strip()
             
-            # 将所有字段放入列表中进行去重处理
             location_parts = [info1, info2, info3, isp]
             
-            # 去重逻辑：
-            # 1. 移除空字符串
-            # 2. 保持顺序的同时去除重复值（使用dict.fromkeys()方法）
-            # 3. 拼接成最终的地理位置字符串
-            seen = {}  # 用于记录已出现的值（保持顺序）
+            seen = {}
             unique_parts = []
             
             for part in location_parts:
-                # 只保留非空且未出现过的值
                 if part and part not in seen:
                     seen[part] = True
                     unique_parts.append(part)
             
-            # 用空格拼接所有去重后的部分
             if unique_parts:
-                # 至少有一个有效的地理位置信息
                 location_str = ' '.join(unique_parts)
                 logging.debug(f"[IP定位] 成功获取: ip={ip_address}, 位置={location_str}")
+                
+                # 3. 存入缓存并保存
+                with ip_cache_lock:
+                    ip_location_cache[ip_address] = {
+                        "location": location_str,
+                        "timestamp": current_time
+                    }
+                # 立即保存到文件
+                _save_ip_cache() 
+                
                 return location_str
             else:
-                # 所有字段都为空（这种情况很少见）
                 logging.warning(f"[IP定位] API返回空数据: ip={ip_address}")
                 return '未知'
         
         except requests.exceptions.Timeout:
-            # 请求超时（超过5秒）
             logging.warning(f"[IP定位] 请求超时: ip={ip_address}")
             return '未知'
-        
         except requests.exceptions.RequestException as e:
-            # 网络相关错误（连接失败、DNS解析失败等）
             logging.warning(f"[IP定位] 网络请求失败: ip={ip_address}, 错误={str(e)}")
             return '未知'
-        
-        except (ValueError, KeyError, TypeError) as e:
-            # JSON解析错误或字段缺失
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
+            # 添加 JSONDecodeError
             logging.warning(f"[IP定位] 数据解析失败: ip={ip_address}, 错误={str(e)}")
             return '未知'
-        
         except Exception as e:
-            # 其他未预期的异常
             logging.error(f"[IP定位] 未知错误: ip={ip_address}, 错误={str(e)}", exc_info=True)
             return '未知'
 
@@ -18093,6 +18162,18 @@ def start_web_server(args_param):
     def handle_disconnect():
         logging.info(f"WebSocket client disconnected: {request.sid}")
 
+    # 辅助函数，用于向指定会话推送验证码列表更新
+    def _emit_verification_codes_update(session_id):
+        """辅助函数：向指定会话推送验证码列表更新事件"""
+        if not session_id or not socketio:
+            logging.debug(f"[SocketIO] 跳过 'verification_codes_updated' 推送（缺少 session_id 或 socketio）")
+            return
+        try:
+            socketio.emit('verification_codes_updated', {}, room=session_id)
+            logging.debug(f"[SocketIO] 已向会话 {session_id[:8]}... 推送 'verification_codes_updated' 事件")
+        except Exception as e:
+            logging.error(f"[SocketIO] 推送 'verification_codes_updated' 失败: {e}")
+
     # 定期清理过期会话
 
     def cleanup_sessions():
@@ -18299,6 +18380,8 @@ def main():
         print(f"[错误] 日志系统初始化失败: {e}")
         traceback.print_exc()
         # 不退出，继续尝试运行
+        # 启动时加载IP缓存
+        _load_ip_cache()
 
     # ========== 第3步：导入所有依赖库 ==========
     # 导入标准库 (socket, math, etc.)
