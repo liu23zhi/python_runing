@@ -578,10 +578,6 @@ def archive_old_logs():
     支持归档 zx-slm-tool.log 和 zx-slm-tool-*.log 格式的文件。
     """
 
-
-    log_dir = 'logs'
-    archive_dir = os.path.join(log_dir, 'archive')
-
     # 确保归档目录存在
     if not os.path.exists(archive_dir):
         os.makedirs(archive_dir, exist_ok=True)
@@ -710,6 +706,7 @@ def setup_logging():
     # 读取配置（如果配置文件存在）
     log_rotation_size_mb = 10  # 默认10MB
     archive_max_size_mb = 500  # 默认500MB
+    global log_dir, archive_dir
     log_dir = 'logs'
     archive_dir = os.path.join(log_dir, 'archive')
 
@@ -4600,11 +4597,36 @@ class Api:
         ud.school_name = dept_info.get('schoolName', '')
         ud.attribute_type = dept_info.get('typeValue', '')
 
+        # ---备份 user_info 到 school_accounts/<username>_backup.json ---
+        try:
+            # 确保 self.user_dir (即 school_accounts) 存在
+            if ud.username and os.path.exists(self.user_dir):
+                backup_filename = f"{ud.username}_backup.json"
+                backup_filepath = os.path.join(self.user_dir, backup_filename)
+                
+                # 将 user_info 和 dept_info 合并备份
+                backup_data = {
+                    'userInfo': user_info,
+                    'deptInfo': dept_info,
+                    'backup_timestamp': time.time()
+                }
+                
+                with open(backup_filepath, 'w', encoding='utf-8') as f:
+                    json.dump(backup_data, f, indent=2, ensure_ascii=False)
+                
+                logging.info(f"已成功备份 user_info 到: {backup_filepath}")
+            elif not ud.username:
+                logging.warning("备份 user_info 失败：无法确定用户名(学号)")
+            
+        except Exception as e:
+            logging.error(f"备份 user_info 失败: {e}", exc_info=True)
+            # 备份失败不应阻止登录流程，仅记录日志
+
         # 至此，ud.username 已经是“用于保存配置的主键”（学号优先）
         # 现在再保存配置（文件名与 LastUser 都用 ud.username）
         self._save_config(ud.username, password, self.device_ua)
 
-        # --- 新增：登录成功后，立即获取并缓存签到半径 ---
+        # --- 登录成功后，立即获取并缓存签到半径 ---
         try:
             # None 表示这是在单账号模式下调用
             self._fetch_server_attendance_radius_if_needed(
@@ -4613,7 +4635,6 @@ class Api:
             self.log(f"获取签到半径失败: {e}")
             logging.warning(
                 f"Failed to fetch attendance radius post-login: {e}")
-        # --- 结束新增 ---
 
         self._first_center_done = False
         logging.info(
@@ -4637,7 +4658,7 @@ class Api:
 
         # 构造要返回给前端的 userInfo 字典
         user_info_dict = self._get_full_user_info_dict()
-        # --- 新增：将获取到的半径附加到返回信息中 ---
+        # --- 将获取到的半径附加到返回信息中 ---
         user_info_dict['server_attendance_radius_m'] = self.server_attendance_radius_m
 
         # 修复Issue 5: 设置登录状态标志用于会话持久化
@@ -4646,7 +4667,7 @@ class Api:
         logging.info(
             f"会话状态已保存: login_success={self.login_success}, user_id={ud.id}")
 
-        # --- 新增：预加载前5条通知并缓存到会话 ---
+        # --- 预加载前5条通知并缓存到会话 ---
         cached_notifications = None
         try:
             logging.info("登录成功后预加载前5条通知...")
@@ -4662,9 +4683,9 @@ class Api:
                 logging.info(f"成功预加载并缓存 {len(cached_notifications['notices'])} 条通知")
         except Exception as e:
             logging.warning(f"预加载通知失败（非致命错误）: {e}")
-        # --- 结束预加载通知 ---
 
-        # --- 新增: 在成功登录的返回结果中包含 auth_group ---
+
+        # --- 在成功登录的返回结果中包含 auth_group ---
         auth_group = getattr(self, 'auth_group', 'guest')  # 从 Api 实例获取认证时确定的组
 
         return {
@@ -14217,8 +14238,21 @@ def start_web_server(args_param):
                 return jsonify({"success": False, "message": "请提供当前密码"})
 
             # 验证原密码
-            if not auth_system.verify_password(target_username, old_password):
-                return jsonify({"success": False, "message": "当前密码错误"}), 401
+            user_file = auth_system.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return jsonify({"success": False, "message": "用户不存在"}), 404
+                
+            try:
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                stored_password = user_data.get('password')
+            except Exception as e:
+                logging.error(f"读取用户 {auth_username} 密码失败: {e}")
+                return jsonify({"success": False, "message": "无法验证密码"}), 500
+
+                # 验证原密码 (修正：使用 _verify_password 并比较 input vs stored)
+                if not auth_system._verify_password(old_password, stored_password):
+                    return jsonify({"success": False, "message": "当前密码错误"}), 401
         else:
             # 管理员重置他人密码：需要管理权限
             if not auth_system.check_permission(auth_username, 'reset_user_password'):
@@ -15368,7 +15402,7 @@ def start_web_server(args_param):
                     # 8. 记录短信发送历史到JSON文件
                     try:
                         # 确保log目录存在
-                        log_dir = os.path.join(os.path.dirname(__file__), 'log')
+                        log_dir = LOGIN_LOGS_DIR
                         os.makedirs(log_dir, exist_ok=True)
                         
                         # 获取会话ID（如果存在）
@@ -15497,7 +15531,7 @@ def start_web_server(args_param):
                 pass  # 解码失败则使用原始内容
             
             # 3. 记录到日志文件（JSONL格式，每行一条记录）
-            log_dir = 'logs'
+            log_dir = LOGIN_LOGS_DIR
             os.makedirs(log_dir, exist_ok=True)
             log_file = os.path.join(log_dir, 'sms_replies.jsonl')
             
@@ -16159,13 +16193,35 @@ def start_web_server(args_param):
         
         权限要求：管理员
         返回：短信余额
+        
+        修正：
+        1. 增加了120秒的速率限制，限制期间返回缓存数据。
+        2. 修正了解析逻辑，以正确处理 "0\n今日条数,剩余条数" 格式的响应。
         """
         try:
-            # 问题5修复：使用check_permission替代is_admin
             # 权限检查
             if not auth_system.check_permission(g.user, 'manage_users'):
                 return jsonify({"success": False, "message": "权限不足"}), 403
-            
+
+            # --- 1. 增加速率限制（120秒） ---
+            # cache 和 time 模块在 start_web_server 和文件顶部已导入
+            cache_key = "sms_balance_cache"
+            current_time = time.time()
+            rate_limit_seconds = 120  # 2分钟
+
+            if cache_key in cache:
+                last_request_time, cached_data = cache[cache_key]
+                if (current_time - last_request_time) < rate_limit_seconds:
+                    # 在限制时间内，返回缓存数据
+                    remaining_wait = int(rate_limit_seconds - (current_time - last_request_time))
+                    # 复制缓存数据以安全地添加提示消息
+                    response_data = cached_data.copy()
+                    response_data['message'] = f"查询过于频繁，请 {remaining_wait} 秒后再试 (返回上次结果)"
+                    
+                    logging.debug(f"[短信配置] 查询余额命中速率限制，返回缓存数据。")
+                    return jsonify(response_data)
+
+            # --- 2. 执行查询 ---
             config = configparser.ConfigParser()
             config.read('config.ini', encoding='utf-8')
             
@@ -16179,14 +16235,46 @@ def start_web_server(args_param):
             url = f'https://api.smsbao.com/query?u={username}&p={api_key}'
             logging.debug(f"[短信配置] 查询余额URL: {url}")
             response = requests.get(url, timeout=10)
-            logging.debug(f"[短信配置] 查询余额响应: {response.text}")
+            response_text = response.text.strip()
+            logging.debug(f"[短信配置] 查询余额响应: {response_text}")
             
-            # 短信宝返回数字表示余额
-            if response.text.isdigit():
-                balance = int(response.text)
-                return jsonify({"success": True, "balance": balance})
+            # --- 3. 修正解析逻辑 ---
+            lines = response_text.split('\n')
+            
+            # 检查第一行是否为 '0' (成功)
+            if lines and lines[0] == '0':
+                if len(lines) > 1:
+                    # 第二行格式为 "今日条数,剩余条数"
+                    parts = lines[1].split(',')
+                    if len(parts) == 2:
+                        try:
+                            sent_today = int(parts[0])
+                            remaining_balance = int(parts[1])
+                            
+                            # 准备成功的数据
+                            result_data = {
+                                "success": True,
+                                "balance": remaining_balance,
+                                "sent_today": sent_today,
+                                "message": "查询成功"
+                            }
+                            
+                            # 存入缓存
+                            cache[cache_key] = (current_time, result_data)
+                            
+                            return jsonify(result_data)
+                        except (ValueError, IndexError):
+                            # 解析第二行失败
+                            return jsonify({"success": False, "message": f"查询成功，但解析余额失败: {lines[1]}"})
+                    else:
+                        # 格式不符合 "x,y"
+                        return jsonify({"success": False, "message": f"查询成功，但余额格式不正确: {lines[1]}"})
+                else:
+                    # 只有 '0'，没有第二行（异常情况）
+                    return jsonify({"success": False, "message": "查询成功，但未返回余额数据"})
             else:
-                # 返回错误码
+                # 失败：第一行不是 '0'，是错误码
+                status_code = lines[0] if lines else response_text
                 error_codes = {
                     '30': '密码错误',
                     '40': '账号不存在',
@@ -16195,7 +16283,7 @@ def start_web_server(args_param):
                     '50': '内容含有敏感词',
                     '51': '手机号码不正确'
                 }
-                error_msg = error_codes.get(response.text, f'未知错误码: {response.text}')
+                error_msg = error_codes.get(status_code, f'未知错误码: {status_code}')
                 return jsonify({"success": False, "message": f"查询失败：{error_msg}"})
         except Exception as e:
             app.logger.error(f"[短信配置] 查询余额失败：{str(e)}")
@@ -16223,7 +16311,7 @@ def start_web_server(args_param):
             phone_filter = request.args.get('phone', '').strip()
             
             # 读取历史记录文件
-            history_file = os.path.join(os.path.dirname(__file__), 'log', 'sms_history.jsonl')
+            history_file = os.path.join(LOGIN_LOGS_DIR, 'sms_history.jsonl')
             
             if not os.path.exists(history_file):
                 return jsonify({"success": True, "records": []})
@@ -16369,6 +16457,36 @@ def start_web_server(args_param):
             sms_verification_codes[phone] = (code, expire_time)
             
             app.logger.info(f"[验证码管理] {g.user} 手动添加验证码: {phone} (有效期{code_expire_minutes}分钟)")
+
+            try:
+                
+                os.makedirs(log_dir, exist_ok=True)
+                
+                session_id = g.api_instance._web_session_id if hasattr(g, 'api_instance') else None
+                client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+                
+                # 构造一个内容，模仿真实短信
+                content = f"管理员 {g.user} 手动添加的验证码: {code}，{code_expire_minutes}分钟内有效。"
+                
+                history_entry = {
+                    'session_id': session_id,
+                    'username': g.user, # 操作的管理员
+                    'phone': phone, # 目标手机号
+                    'scene': 'admin_manual_add', # 场景
+                    'timestamp': time.time(),
+                    'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'content': content,
+                    'ip': client_ip
+                }
+                
+                history_file = os.path.join(log_dir, 'sms_history.jsonl')
+                with open(history_file, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
+                
+                app.logger.debug(f"[短信历史] 已记录手动添加验证码: {phone} -> {g.user}")
+            except Exception as e:
+                app.logger.error(f"[短信历史] 记录手动添加验证码失败: {str(e)}")
+
             # 推送SocketIO更新
             _emit_verification_codes_update(g.api_instance._web_session_id)
             

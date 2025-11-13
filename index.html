@@ -413,6 +413,12 @@
       box-shadow: none; /* 确保没有阴影 */
     }
 
+    /* 当 wrapper 标记为 prefix-hidden 时 (即+86被隐藏)，
+       恢复输入框的左侧内边距，使其与常规输入框对齐 */
+    .phone-input-wrapper.prefix-hidden .input-field {
+      padding-left: .9rem;
+    }
+
     .badge {
       display: inline-block;
       padding: .25rem .6rem;
@@ -1747,7 +1753,7 @@
                         <!-- phone-prefix: 不可编辑的国家代码前缀 (+86后面有空格) -->
                         <span class="phone-prefix">+86 </span>
                         <!-- 输入框：只读状态，用于显示当前绑定的手机号 -->
-                        <input type="tel" id="profile-phone" class="input-field" placeholder="未绑定手机号" readonly
+                        <input type="tel" id="profile-phone" class="input-field" placeholder="未绑定" readonly
                           inputmode="numeric">
                       </div>
                       <!-- 修改手机号按钮 -->
@@ -1912,32 +1918,52 @@
         <!-- ============================================================ -->
         <div id="admin-ip-ban-modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
-            <h4 class="font-semibold">IP封禁管理</h4>
-            <!-- 问题13修复：添加刷新按钮 -->
-            <button id="admin-refresh-ipban_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadIPBans()">刷新</button>
+            <h4 class="font-semibold text-lg">🚫 IP封禁管理</h4>
+            <button id="admin-refresh-ipban_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadIPBans()">🔄 刷新</button>
           </div>
 
-          <!-- 封禁列表 -->
-          <div id="ip-ban-list" class="space-y-2 max-h-[40vh] overflow-y-auto">
-            <p class="text-slate-400 text-center py-10">加载中...</p>
-          </div>
-
-          <!-- 添加封禁规则表单 -->
-          <div class="border-t pt-4">
-            <h5 class="font-semibold mb-2">添加封禁规则</h5>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-              <input type="text" id="ban-target" class="border rounded px-2 py-1" placeholder="IP/IP段/城市名">
-              <select id="ban-type" class="border rounded px-2 py-1">
-                <option value="ip">单个IP</option>
-                <option value="cidr">IP段(CIDR)</option>
-                <option value="city">城市</option>
-              </select>
-              <select id="ban-scope" class="border rounded px-2 py-1">
-                <option value="all">封禁所有功能</option>
-                <option value="messages_only">仅封禁留言板</option>
-              </select>
+          <div class="bg-gradient-to-br from-slate-50 to-gray-50 border-2 border-slate-200 rounded-lg p-4 shadow-sm">
+            <h5 class="font-bold text-base text-slate-800 mb-3">📜 现有封禁规则</h5>
+            <div id="ip-ban-list" class="space-y-2 max-h-[35vh] overflow-y-auto -mr-2 pr-2">
+              <p class="text-slate-400 text-center py-10">加载中...</p>
             </div>
-            <button onclick="addIPBan()" class="btn btn-primary mt-2 min-h-[44px]">添加封禁</button>
+          </div>
+          
+          <div class="bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-lg p-4 shadow-sm">
+            <h5 class="font-bold text-base text-blue-900 mb-3">➕ 添加封禁规则</h5>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">🏷️ 封禁类型</label>
+                <select id="ban-type" class="select-field">
+                  <option value="ip">单个IP</option>
+                  <option value="cidr">IP段(CIDR)</option>
+                  </select>
+                <p class="mt-1 text-xs text-slate-500">
+                  - <strong>单个IP</strong>: 封禁一个特定的IP地址 (例如: 1.2.3.4)<br>
+                  - <strong>IP段(CIDR)</strong>: 封禁一个IP地址范围 (例如: 1.2.3.0/24)
+                </p>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">🎯 封禁目标</label>
+                <input type="text" id="ban-target" class="input-field" placeholder="请输入IP地址 (例如: 1.2.3.4)">
+                <p id="ban-target-hint" class="mt-1 text-xs text-slate-500">
+                  示例: 1.2.3.4
+                </p>
+                <p id="ban-target-error" class="hidden mt-1 text-xs text-red-600 font-semibold"></p>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end pt-2 border-t border-blue-100">
+                <div class="md:col-span-2">
+                   <label class="block text-sm font-medium text-slate-700 mb-1">🔒 封禁范围</label>
+                  <select id="ban-scope" class="select-field">
+                    <option value="all">封禁所有功能</option>
+                    <option value="messages_only">仅封禁留言板</option>
+                  </select>
+                </div>
+                <button onclick="addIPBan()" class="btn btn-primary w-full min-h-[44px]">添加封禁</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2181,7 +2207,7 @@
               <!-- 操作按钮组：查询余额和保存配置 -->
               <div class="flex flex-col sm:flex-row gap-3">
                 <!-- 查询余额按钮：使用次要样式 -->
-                <button onclick="checkSMSBalance()" 
+                <button id="btn-check-sms-balance" onclick="checkSMSBalance()" 
                   class="flex-1 btn btn-ghost min-h-[44px] border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 transition-all">
                   💰 查询余额
                 </button>
@@ -2223,6 +2249,34 @@
 
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+<div id="sms-balance-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
+    <div class="absolute inset-0 bg-black/70" onclick="closeSMSBalanceModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[90%] max-w-md max-h-[85vh] space-y-4 relative overflow-hidden">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-sky-600">💰 短信余额</h3>
+        <button onclick="closeSMSBalanceModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+  
+      <div class="space-y-3">
+        <div class="text-center">
+          <span class="text-sm text-slate-500">剩余条数</span>
+          <p id="sms-balance-modal-value" class="text-4xl font-bold text-sky-600">--</p>
+        </div>
+        <div class="text-center mt-2">
+          <span class="text-sm text-slate-500">今日已发送</span>
+          <p id="sms-balance-modal-sent" class="text-2xl font-semibold text-slate-700">--</p>
+        </div>
+        <div class="mt-4 text-center">
+          <p id="sms-balance-modal-message" class="text-xs text-slate-500 bg-slate-50 p-2 rounded-md">查询中...</p>
+        </div>
+      </div>
+  
+      <div class="flex justify-end border-t pt-4">
+        <button onclick="closeSMSBalanceModal()" class="btn btn-primary w-full">关闭</button>
       </div>
     </div>
   </div>
@@ -4247,6 +4301,77 @@
         if (refreshSessionsBtnModal) refreshSessionsBtnModal.addEventListener('click', loadAdminSessions);
         logMessage_Info("Admin Panel Modal Refresh Buttons event listeners bound (using _modal IDs).");
 
+
+        // ============================================================
+        // IP封禁模态框验证逻辑
+        // ============================================================
+        const banTypeSelect = $('ban-type');
+        const banTargetInput = $('ban-target');
+        const banTargetHint = $('ban-target-hint');
+        const banTargetError = $('ban-target-error');
+
+        // IP和CIDR的正则表达式
+        const ipRegex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+        const cidrRegex = /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/([0-9]|[1-2][0-9]|3[0-2])$/;
+
+        /**
+         * 验证IP封禁目标输入
+         * @returns {boolean} - 是否验证通过
+         */
+        function validateIPBanTarget() {
+          if (!banTypeSelect || !banTargetInput || !banTargetError) return false;
+
+          const type = banTypeSelect.value;
+          const target = banTargetInput.value.trim();
+          
+          if (!target) {
+            banTargetError.textContent = '封禁目标不能为空';
+            banTargetError.classList.remove('hidden');
+            banTargetInput.classList.add('border-red-500');
+            return false;
+          }
+
+          if (type === 'ip' && !ipRegex.test(target)) {
+            banTargetError.textContent = '格式错误，请输入有效的单个IP地址 (例如: 1.2.3.4)';
+            banTargetError.classList.remove('hidden');
+            banTargetInput.classList.add('border-red-500');
+            return false;
+          }
+
+          if (type === 'cidr' && !cidrRegex.test(target)) {
+            banTargetError.textContent = '格式错误，请输入有效的CIDR IP段 (例如: 1.2.3.0/24)';
+            banTargetError.classList.remove('hidden');
+            banTargetInput.classList.add('border-red-500');
+            return false;
+          }
+
+          // 验证通过
+          banTargetError.classList.add('hidden');
+          banTargetInput.classList.remove('border-red-500');
+          return true;
+        }
+
+        // 监听类型选择框的变化
+        if (banTypeSelect) {
+          banTypeSelect.addEventListener('change', () => {
+            const type = banTypeSelect.value;
+            if (type === 'ip') {
+              if (banTargetInput) banTargetInput.placeholder = '请输入IP地址 (例如: 1.2.3.4)';
+              if (banTargetHint) banTargetHint.textContent = '示例: 1.2.3.4';
+            } else if (type === 'cidr') {
+              if (banTargetInput) banTargetInput.placeholder = '请输入IP段 (例如: 1.2.3.0/24)';
+              if (banTargetHint) banTargetHint.textContent = '示例: 1.2.3.0/24 或 1.2.3.4/32';
+            }
+            // 切换类型时也进行一次验证
+            validateIPBanTarget();
+          });
+        }
+
+        // 监听目标输入框的实时输入
+        if (banTargetInput) {
+          banTargetInput.addEventListener('input', validateIPBanTarget);
+        }
+
         // 会话管理按钮（多个位置）
         const showSessionsLogin = $('show-sessions-login');
         const showSessionsMain = $('show-admin-panel');
@@ -5212,10 +5337,15 @@
         const phoneWrapper = phoneInput ? phoneInput.closest('.phone-input-wrapper') : null;
         if (phoneWrapper) {
             const prefix = phoneWrapper.querySelector('.phone-prefix');
+            // 缓存判断结果
+            const isUnbound = (!phoneInput.value || phoneInput.value === '未绑定');
+            
             if (prefix) {
                 // 如果值是"未绑定"或空字符串，则隐藏前缀
-                prefix.style.display = (!phoneInput.value || phoneInput.value === '未绑定') ? 'none' : 'inline';
+                prefix.style.display = isUnbound ? 'none' : 'inline';
             }
+            // [新修复] 根据前缀是否隐藏，切换 wrapper 上的 class
+            phoneWrapper.classList.toggle('prefix-hidden', isUnbound);
         }
         
         // 根据 config 决定是否显示“修改手机号”按钮
@@ -6740,9 +6870,14 @@
       const adminCurrentPhoneWrapper = adminCurrentPhoneInput ? adminCurrentPhoneInput.closest('.phone-input-wrapper') : null;
       if (adminCurrentPhoneWrapper) {
           const prefix = adminCurrentPhoneWrapper.querySelector('.phone-prefix');
+          // 缓存判断结果
+          const isUnbound = (!adminCurrentPhoneInput.value || adminCurrentPhoneInput.value === '未绑定');
+
           if (prefix) {
-              prefix.style.display = (!adminCurrentPhoneInput.value || adminCurrentPhoneInput.value === '未绑定') ? 'none' : 'inline';
+              prefix.style.display = isUnbound ? 'none' : 'inline';
           }
+          // [新修复] 根据前缀是否隐藏，切换 wrapper 上的 class
+          adminCurrentPhoneWrapper.classList.toggle('prefix-hidden', isUnbound);
       }
 
     }
@@ -7856,15 +7991,19 @@
      * 添加IP封禁规则
      */
     async function addIPBan() {
+      // 1. 执行验证
+      if (!validateIPBanTarget()) {
+        // 验证函数 validateIPBanTarget() 会自动显示错误提示
+        showModalAlert('输入格式不正确，请检查红色提示', '添加失败');
+        return;
+      }
+
+      // 2. 验证通过，获取值
       const target = $('ban-target').value.trim();
       const type = $('ban-type').value;
       const scope = $('ban-scope').value;
 
-      if (!target) {
-        showModalAlert('请输入封禁目标');
-        return;
-      }
-
+      // 3. 发送请求
       try {
         const response = await fetch('/api/admin/ip_bans', {
           method: 'POST',
@@ -7878,8 +8017,10 @@
         const result = await response.json();
         if (result.success) {
           showModalAlert('封禁规则已添加');
-          $('ban-target').value = '';
-          loadIPBans();
+          $('ban-target').value = ''; // 清空输入框
+          banTargetError.classList.add('hidden'); // 隐藏错误提示
+          banTargetInput.classList.remove('border-red-500'); // 移除错误样式
+          loadIPBans(); // 重新加载列表
         } else {
           showModalAlert(result.message || '添加失败');
         }
@@ -8045,6 +8186,15 @@
      * 查询短信余额
      */
     async function checkSMSBalance() {
+      const btn = $('btn-check-sms-balance');
+      const originalText = '💰 查询余额';
+
+      // 1. 设置加载状态
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '查询中...';
+      }
+
       try {
         const response = await fetch('/api/admin/sms/check_balance', {
           headers: { 'X-Session-ID': sessionUUID }
@@ -8052,14 +8202,59 @@
         const result = await response.json();
 
         if (result.success) {
-          $('sms-balance-value').textContent = result.balance;
-          $('sms-balance-display').classList.remove('hidden');
+          // 2. 填充新的二级模态框
+          const valEl = $('sms-balance-modal-value');
+          const sentEl = $('sms-balance-modal-sent');
+          const msgEl = $('sms-balance-modal-message');
+
+          if (valEl) valEl.textContent = result.balance;
+          if (sentEl) sentEl.textContent = result.sent_today;
+          if (msgEl) {
+            msgEl.textContent = result.message;
+            
+            // 3. 处理速率限制或错误消息的样式
+            if (result.message && (result.message.includes('频繁') || result.message.includes('失败'))) {
+              // 警告/限制消息
+              msgEl.classList.add('text-amber-600', 'bg-amber-50');
+              msgEl.classList.remove('text-slate-500', 'bg-slate-50');
+            } else {
+              // 成功消息
+              msgEl.classList.remove('text-amber-600', 'bg-amber-50');
+              msgEl.classList.add('text-slate-500', 'bg-slate-50');
+            }
+          }
+          
+          // 4. 显示模态框
+          openSMSBalanceModal();
+
         } else {
+          // 5. 显示查询失败（非success）
           showModalAlert(result.message || '查询失败');
         }
       } catch (e) {
+        // 6. 捕获网络等异常
         showModalAlert('操作失败: ' + e.message);
+      } finally {
+        // 7. 恢复按钮状态
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
       }
+    }
+
+    /**
+     * 打开短信余额模态窗
+     */
+    function openSMSBalanceModal() {
+      showModal('sms-balance-modal');
+    }
+
+    /**
+     * 关闭短信余额模态窗
+     */
+    function closeSMSBalanceModal() {
+      hideModal('sms-balance-modal');
     }
 
     // ==================== 短信发送历史功能 ====================
@@ -8208,7 +8403,7 @@
     function openVerificationCodesModal() {
       $('verification-codes-modal').classList.remove('hidden');
       loadVerificationCodes();
-      startVerificationCodesCountdown();
+      // startVerificationCodesCountdown();
     }
 
     /**
@@ -8249,7 +8444,8 @@
                   </div>
                   <div>
                     <span class="text-xs text-slate-500">⏰ 剩余时间</span>
-                    <p class="text-sm ${expiresIn < 2 ? 'text-red-600 font-semibold' : 'text-slate-600'}">
+                    <p class="verification-code-countdown text-sm ${expiresIn < 2 ? 'text-red-600 font-semibold' : 'text-slate-600'}"
+                       data-expires-at="${item.expires_at}">
                       ${expiresIn}分${expiresSec}秒
                     </p>
                   </div>
@@ -8264,8 +8460,14 @@
         } else {
           listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">当前没有有效的验证码</p>';
         }
+
+        // --- 修正：在此处启动倒计时，确保元素已渲染 ---
+        startVerificationCodesCountdown();
+
       } catch (e) {
         showModalAlert('加载验证码列表失败: ' + e.message);
+        // --- 修正：加载失败时停止倒计时 ---
+        stopVerificationCodesCountdown();
       }
     }
 
@@ -8273,7 +8475,8 @@
      * 使验证码失效
      */
     async function invalidateVerificationCode(phone) {
-      if (!confirm(`确定要使手机号 +86 ${phone} 的验证码失效吗？`)) {
+      const confirmed = await jsShowConfirm('确认失效', `确定要使手机号 +86 ${phone} 的验证码失效吗？`);
+      if (!confirmed) {
         return;
       }
 
@@ -8289,7 +8492,7 @@
         const result = await response.json();
 
         if (result.success) {
-          showModalAlert('验证码已失效', 'success');
+          showModalAlert('验证码已失效', '成功');
           loadVerificationCodes(); // 刷新列表
         } else {
           showModalAlert(result.message || '操作失败');
@@ -8304,11 +8507,17 @@
      */
     async function addManualVerificationCode() {
       const phone = $('manual-code-phone').value.trim();
-      const code = $('manual-code-value').value.trim();
+      let code = $('manual-code-value').value.trim();
 
-      // 验证手机号格式
-      if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
-        showModalAlert('请输入正确的手机号（11位数字）');
+      // 验证验证码格式
+      if (!code) {
+        // 如果验证码为空，随机生成一个6位数验证码
+        code = Math.floor(100000 + Math.random() * 900000).toString();
+        // 将生成的代码回填到输入框
+        $('manual-code-value').value = code;
+      } else if (!/^\d{6}$/.test(code)) {
+        // --- 修正：如果不为空，但格式不正确 ---
+        showModalAlert('验证码必须是6位数字');
         return;
       }
 
@@ -8333,7 +8542,7 @@
         const result = await response.json();
 
         if (result.success) {
-          showModalAlert('验证码已添加', 'success');
+          showModalAlert('验证码已添加', '成功');
           $('manual-code-phone').value = '';
           $('manual-code-value').value = '';
           loadVerificationCodes(); // 刷新列表
@@ -14822,9 +15031,14 @@
       const currentPhoneWrapper = currentPhoneInput ? currentPhoneInput.closest('.phone-input-wrapper') : null;
       if (currentPhoneWrapper) {
           const prefix = currentPhoneWrapper.querySelector('.phone-prefix');
+          // 缓存判断结果
+          const isUnbound = (!currentPhoneInput.value || currentPhoneInput.value === '未绑定');
+
           if (prefix) {
-              prefix.style.display = (!currentPhoneInput.value || currentPhoneInput.value === '未绑定') ? 'none' : 'inline';
+              prefix.style.display = isUnbound ? 'none' : 'inline';
           }
+          // [新修复] 根据前缀是否隐藏，切换 wrapper 上的 class
+          currentPhoneWrapper.classList.toggle('prefix-hidden', isUnbound);
       }
 
     }
