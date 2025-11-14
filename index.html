@@ -2777,7 +2777,7 @@
       </div>
 
       <!-- 右侧：菜单按钮 -->
-      <button id="mobile-menu-btn" class="p-2" aria-label="菜单">
+      <button id="mobile-menu-btn" class="p-2" aria-label="菜单" style="display:none;">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-700" fill="none" viewBox="0 0 24 24"
           stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -5820,6 +5820,11 @@
             const username = document.getElementById('mobile-username-entry').value.trim();
             const password = document.getElementById('mobile-password-entry').value;
 
+            if (!username || !password) {
+              showMobileMessage('请输入用户名和密码', 'error');
+              return;
+            }
+
             document.getElementById('username-entry').value = username;
             document.getElementById('password-entry').value = password;
 
@@ -5828,18 +5833,69 @@
             // 调用桌面端的 onLogin 函数
             await onLogin();
 
-            // onLogin 成功后会显示 #main-app，我们必须再次检查并隐藏它
-            if (isMobileMode && !document.getElementById('main-app').classList.contains('hidden')) {
-              console.error("[Mobile Init] 单账号主应用在移动端UI上不受支持。");
-              document.getElementById('main-app').classList.add('hidden');
-              document.getElementById('main-app').classList.remove('grid');
-              // 重新显示移动端登录选择器
-              document.getElementById('mobile-login-container').classList.remove('hidden');
-              showModalAlert("移动端尚不支持主应用界面。请使用桌面浏览器访问。", "功能限制");
+            // onLogin 成功后，显示移动端主应用界面
+            if (isMobileMode) {
+              // 隐藏桌面端的main-app
+              const desktopMainApp = document.getElementById('main-app');
+              if (desktopMainApp && !desktopMainApp.classList.contains('hidden')) {
+                desktopMainApp.classList.add('hidden');
+                desktopMainApp.classList.remove('grid');
+              }
+              
+              // 隐藏登录容器
+              document.getElementById('mobile-login-container').classList.add('hidden');
+              
+              // 显示移动端主应用
+              const mobileMainApp = document.getElementById('mobile-main-app');
+              if (mobileMainApp) {
+                mobileMainApp.classList.remove('hidden');
+                console.log('[移动端UI] 已显示 mobile-main-app');
+              }
+              
+              // 显示底部导航和菜单按钮
+              updateMobileNavVisibility(true);
+              
+              // 刷新移动端通知
+              if (typeof mobileRefreshNotifications === 'function') {
+                await mobileRefreshNotifications();
+              }
             }
           } catch (e) {
             console.error("代理[学校登录]失败:", e);
             showMobileMessage('学校登录时发生内部错误', 'error');
+          }
+        });
+      }
+
+      // === 9.5. 绑定移动端用户下拉框change事件 ===
+      const mobileUserCombo = document.getElementById('mobile-user-combo');
+      if (mobileUserCombo) {
+        mobileUserCombo.addEventListener('change', onMobileUserChange);
+      }
+
+      // === 9.6. 绑定移动端用户名输入框，实现与下拉框的联动 ===
+      const mobileUsernameEntry = document.getElementById('mobile-username-entry');
+      if (mobileUsernameEntry && mobileUserCombo) {
+        mobileUsernameEntry.addEventListener('input', async function() {
+          const username = this.value.trim();
+          // 检查下拉框中是否有此用户
+          const exists = [...mobileUserCombo.options].some(o => o.value === username);
+          mobileUserCombo.value = exists ? username : "";
+          
+          // 清空密码
+          const mobilePasswordEntry = document.getElementById('mobile-password-entry');
+          if (mobilePasswordEntry) mobilePasswordEntry.value = '';
+          
+          // 如果用户存在，加载其密码
+          if (exists && username) {
+            try {
+              const data = await callPythonAPI('on_user_selected', username);
+              if (data && data.password && mobilePasswordEntry) {
+                mobilePasswordEntry.value = data.password;
+              }
+            } catch (error) {
+              console.error('[Mobile] 获取用户数据失败:', error);
+            }
           }
         });
       }
@@ -5857,7 +5913,212 @@
         });
       });
 
+      // === 11. 绑定移动端菜单按钮 ===
+      const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+      if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener('click', function() {
+          console.log('[移动端UI] 菜单按钮点击');
+          // TODO: 显示移动端菜单（个人资料、设置等）
+          showModalAlert('菜单功能开发中...', '提示');
+        });
+      }
+
+      // === 12. 绑定移动端多账号模式按钮 ===
+      const mobileMultiAccountBtn = document.getElementById('mobile-multi-account-btn');
+      if (mobileMultiAccountBtn) {
+        mobileMultiAccountBtn.addEventListener('click', function() {
+          console.log('[移动端UI] 多账号模式按钮点击');
+          // 隐藏登录容器，显示多账号应用
+          const mobileLoginContainer = document.getElementById('mobile-login-container');
+          const mobileMultiApp = document.getElementById('mobile-multi-account-app');
+          if (mobileLoginContainer) mobileLoginContainer.classList.add('hidden');
+          if (mobileMultiApp) mobileMultiApp.classList.remove('hidden');
+          // 显示底部导航和菜单按钮
+          updateMobileNavVisibility(true);
+        });
+      }
+
       console.log('[移动端UI] 移动端UI初始化完成');
+    }
+
+    /**
+     * 加载移动端会话列表（mobile-login-container中的sessions list）
+     * 这个函数用于填充 mobile-sessions-list 容器
+     */
+    async function loadMobileSessionsList() {
+      const listEl = document.getElementById('mobile-sessions-list');
+      const countEl = document.getElementById('mobile-session-count-display');
+      
+      if (!listEl) {
+        console.error('[Mobile] 找不到 mobile-sessions-list 元素');
+        return;
+      }
+
+      listEl.innerHTML = '<p class="text-slate-400 text-center py-8">加载中...</p>';
+
+      try {
+        const headers = { 'X-Session-ID': sessionUUID || null };
+        const response = await fetch('/auth/user/sessions', { headers: headers });
+        const result = await response.json();
+
+        if (!result.success) {
+          listEl.innerHTML = `<p class="text-red-500 text-center py-8">${result.message}</p>`;
+          return;
+        }
+
+        const sessions = result.sessions || [];
+        const validSessions = sessions.filter(session => 
+          session.session_id && session.session_id !== 'null' && session.session_id.trim() !== ''
+        );
+
+        // 更新会话计数
+        if (countEl) {
+          const maxSessions = result.max_sessions || 1;
+          const currentCount = validSessions.length;
+          if (maxSessions === -1) {
+            countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+          } else {
+            const colorClass = currentCount >= maxSessions ? 'text-red-600' : 'text-slate-600';
+            countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
+          }
+        }
+
+        if (validSessions.length === 0) {
+          listEl.innerHTML = '<p class="text-slate-400 text-center py-8">暂无会话</p>';
+          return;
+        }
+
+        // 渲染会话列表
+        listEl.innerHTML = validSessions.map(session => {
+          const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
+          const isCurrent = session.is_current || session.session_id === sessionUUID;
+          const sessionHash = session.session_hash || session.session_id.substring(0, 16);
+
+          return `
+            <div class="mobile-list-item ${isCurrent ? 'border-l-4 border-sky-500 bg-sky-50' : ''}" 
+                 onclick="switchToSession('${session.session_id}')">
+              <div class="flex-1">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm font-semibold text-slate-800">${sessionHash}</span>
+                  ${isCurrent ? '<span class="text-xs px-2 py-1 rounded-full bg-sky-500 text-white">当前</span>' : ''}
+                </div>
+                <p class="text-xs text-slate-600">创建: ${createdDate}</p>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (error) {
+        console.error('[Mobile] 加载会话列表失败:', error);
+        listEl.innerHTML = '<p class="text-red-500 text-center py-8">加载失败，请重试</p>';
+      }
+    }
+
+    /**
+     * 加载移动端用户下拉框（mobile-user-combo）
+     * 从后端获取所有用户并填充到下拉框
+     */
+    async function loadMobileUserCombo() {
+      const mobileUserCombo = document.getElementById('mobile-user-combo');
+      if (!mobileUserCombo) {
+        console.error('[Mobile] 找不到 mobile-user-combo 元素');
+        return;
+      }
+
+      try {
+        const initialData = await callPythonAPI('get_initial_data');
+        
+        // 清空并重新填充
+        mobileUserCombo.innerHTML = '<option value="">(新用户)</option>';
+        
+        if (initialData.users && initialData.users.length > 0) {
+          initialData.users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = option.textContent = user;
+            mobileUserCombo.appendChild(option);
+          });
+        }
+
+        // 设置上次选择的用户
+        if (initialData.lastUser) {
+          mobileUserCombo.value = initialData.lastUser;
+          // 触发用户选择事件以加载对应数据
+          await onMobileUserChange();
+        }
+
+        console.log('[Mobile] 用户下拉框已加载');
+      } catch (error) {
+        console.error('[Mobile] 加载用户列表失败:', error);
+      }
+    }
+
+    /**
+     * 移动端用户下拉框change事件处理
+     */
+    async function onMobileUserChange() {
+      const mobileUserCombo = document.getElementById('mobile-user-combo');
+      const mobileUsernameEntry = document.getElementById('mobile-username-entry');
+      const mobilePasswordEntry = document.getElementById('mobile-password-entry');
+      
+      if (!mobileUserCombo) return;
+
+      const username = mobileUserCombo.value;
+      
+      // 同步用户名到输入框
+      if (mobileUsernameEntry) {
+        mobileUsernameEntry.value = username;
+      }
+      
+      // 清空密码
+      if (mobilePasswordEntry) {
+        mobilePasswordEntry.value = '';
+      }
+
+      if (username) {
+        try {
+          const data = await callPythonAPI('on_user_selected', username);
+          if (data && data.password && mobilePasswordEntry) {
+            mobilePasswordEntry.value = data.password;
+          }
+        } catch (error) {
+          console.error('[Mobile] 获取用户数据失败:', error);
+        }
+      }
+    }
+
+    /**
+     * 更新移动端导航栏和菜单按钮的显示/隐藏状态
+     * @param {boolean} show - true显示，false隐藏
+     */
+    function updateMobileNavVisibility(show) {
+      const mobileBottomNav = document.getElementById('mobile-bottom-nav');
+      const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+      const mobileHeader = document.getElementById('mobile-header');
+
+      if (show) {
+        // 显示导航栏
+        if (mobileBottomNav) {
+          mobileBottomNav.classList.remove('hidden');
+          mobileBottomNav.style.display = '';
+        }
+        if (mobileMenuBtn) {
+          mobileMenuBtn.style.display = '';
+        }
+        if (mobileHeader) {
+          mobileHeader.classList.remove('hidden');
+          mobileHeader.style.display = '';
+        }
+      } else {
+        // 隐藏导航栏
+        if (mobileBottomNav) {
+          mobileBottomNav.classList.add('hidden');
+          mobileBottomNav.style.display = 'none';
+        }
+        if (mobileMenuBtn) {
+          mobileMenuBtn.style.display = 'none';
+        }
+        // 注意：header仍然显示，只隐藏菜单按钮
+      }
     }
 
     /**
@@ -13626,6 +13887,19 @@
             // 确保桌面端隐藏
             $('auth-login-container').classList.add('hidden');
             $('login-container').classList.add('hidden');
+            
+            // 【新增】隐藏底部导航栏和菜单按钮（用户尚未登录学校账号）
+            updateMobileNavVisibility(false);
+            
+            // 【新增】加载移动端会话列表和用户下拉框
+            setTimeout(async () => {
+              try {
+                await loadMobileSessionsList();
+                await loadMobileUserCombo();
+              } catch (e) {
+                console.error('[Mobile Init] 加载移动端数据失败:', e);
+              }
+            }, 100);
           } else {
             // 桌面端：显示桌面端学校登录选择器
             console.log("[Desktop Init] 已认证，显示桌面端学校账号登录/会话管理");
@@ -19136,6 +19410,8 @@
       document.getElementById('mobile-multi-account-app').classList.add('hidden');
       // 显示登录容器
       document.getElementById('mobile-login-container').classList.remove('hidden');
+      // 隐藏底部导航和菜单按钮（返回到未登录学校账号状态）
+      updateMobileNavVisibility(false);
     }
 
     /**
