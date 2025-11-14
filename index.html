@@ -1393,6 +1393,163 @@
       /* 滑入到正常位置 */
     }
 
+    /* ============================================================ */
+    /* 移动端新增容器专用样式 */
+    /* 为新增的通知面板、任务面板、控制面板等提供样式支持 */
+    /* ============================================================ */
+
+    /* 移动端通知面板样式增强 */
+    .mobile-mode #mobile-notification-panel {
+      position: relative;
+      /* 为角标定位提供参照 */
+    }
+
+    /* 移动端通知列表项样式 */
+    .mobile-mode #mobile-all-notifications-list .mobile-list-item,
+    .mobile-mode #mobile-attendance-notifications-list .mobile-list-item {
+      cursor: pointer;
+      /* 显示手型光标，表明可点击 */
+      border-left: 3px solid transparent;
+      /* 预留左侧边框空间 */
+      transition: all 0.2s ease;
+      /* 添加过渡动画 */
+    }
+
+    /* 未读通知项样式 - 左侧显示蓝色边框 */
+    .mobile-mode #mobile-all-notifications-list .mobile-list-item:not(.opacity-60) {
+      border-left-color: #3b82f6;
+      /* 蓝色左边框表示未读 */
+      background: rgba(59, 130, 246, 0.05);
+      /* 浅蓝背景 */
+    }
+
+    /* 通知项悬停效果（触摸设备按下效果） */
+    .mobile-mode #mobile-all-notifications-list .mobile-list-item:active,
+    .mobile-mode #mobile-attendance-notifications-list .mobile-list-item:active {
+      background: rgba(59, 130, 246, 0.1);
+      /* 按下时背景色加深 */
+      transform: scale(0.98);
+      /* 轻微缩小，提供触觉反馈 */
+    }
+
+    /* 移动端任务面板样式 */
+    .mobile-mode #mobile-task-panel .mobile-list-item {
+      border-left: 3px solid #10b981;
+      /* 绿色左边框 */
+      background: rgba(16, 185, 129, 0.03);
+      /* 浅绿背景 */
+    }
+
+    /* 移动端地图容器样式 */
+    .mobile-mode #mobile-map-container {
+      touch-action: pan-x pan-y;
+      /* 允许地图的拖动手势 */
+      -webkit-overflow-scrolling: touch;
+      /* iOS平滑滚动 */
+    }
+
+    /* 地图加载占位符动画 */
+    .mobile-mode #mobile-map-container .text-slate-400 svg {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      /* 脉冲动画 */
+    }
+
+    /* 控制面板按钮禁用状态 */
+    .mobile-mode #mobile-control-panel button:disabled {
+      opacity: 0.5;
+      /* 半透明 */
+      cursor: not-allowed;
+      /* 禁止光标 */
+      background: #cbd5e1 !important;
+      /* 灰色背景 */
+      color: #64748b !important;
+      /* 灰色文字 */
+    }
+
+    /* 控制面板状态指示器样式 */
+    .mobile-mode #mobile-status-indicator {
+      animation: fadeIn 0.3s ease;
+      /* 淡入动画 */
+    }
+
+    /* 状态指示器不同状态的颜色 */
+    .mobile-mode #mobile-status-indicator.status-idle {
+      background: #e2e8f0;
+      color: #64748b;
+    }
+
+    .mobile-mode #mobile-status-indicator.status-running {
+      background: #dcfce7;
+      color: #16a34a;
+      /* 绿色：运行中 */
+    }
+
+    .mobile-mode #mobile-status-indicator.status-paused {
+      background: #fef3c7;
+      color: #d97706;
+      /* 黄色：已暂停 */
+    }
+
+    .mobile-mode #mobile-status-indicator.status-error {
+      background: #fee2e2;
+      color: #dc2626;
+      /* 红色：错误 */
+    }
+
+    /* 进度条动画 */
+    .mobile-mode #mobile-progress-bar {
+      transition: width 0.5s ease-out;
+      /* 平滑的宽度过渡 */
+    }
+
+    /* 多账号列表样式 */
+    .mobile-mode #mobile-multi-account-list .mobile-list-item {
+      position: relative;
+      /* 为复选框定位提供参照 */
+      padding-left: 48px;
+      /* 为复选框留出空间 */
+    }
+
+    /* 多账号列表复选框样式 */
+    .mobile-mode #mobile-multi-account-list input[type="checkbox"] {
+      position: absolute;
+      /* 绝对定位 */
+      left: 16px;
+      /* 左侧对齐 */
+      top: 50%;
+      /* 垂直居中 */
+      transform: translateY(-50%);
+      /* 精确居中 */
+    }
+
+    /* 账号状态标签样式 */
+    .mobile-mode .account-status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      /* 完全圆角 */
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      /* 大写 */
+      letter-spacing: 0.5px;
+    }
+
+    .mobile-mode .account-status-running {
+      background: #dcfce7;
+      color: #16a34a;
+    }
+
+    .mobile-mode .account-status-stopped {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    .mobile-mode .account-status-error {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
     /* 移动端横屏适配 */
     @media (orientation: landscape) and (max-height: 500px) {
 
@@ -1419,6 +1576,21 @@
         /* 减小卡片内边距 */
         margin: 12px;
         /* 减小卡片外边距 */
+      }
+
+      /* 横屏时优化地图高度 */
+      .mobile-mode #mobile-map-container {
+        height: 200px !important;
+        /* 横屏时减小地图高度 */
+      }
+
+      /* 横屏时优化列表最大高度 */
+      .mobile-mode #mobile-all-notifications-list,
+      .mobile-mode #mobile-attendance-notifications-list,
+      .mobile-mode #mobile-task-list,
+      .mobile-mode #mobile-multi-account-list {
+        max-height: 30vh !important;
+        /* 横屏时减小列表最大高度 */
       }
     }
 
