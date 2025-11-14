@@ -3794,8 +3794,8 @@
     <!-- 单账号模式底部导航栏 - 用于mobile-main-app -->
     <nav class="mobile-bottom-nav hidden" id="mobile-bottom-nav-single-account" style="display:none;">
       
-      <!-- 1. 控制按钮 - 滚动到控制面板 -->
-      <a href="#" class="mobile-nav-btn" data-nav="control" onclick="scrollToMobileSection('mobile-control-panel')">
+      <!-- 1. 控制按钮 - 切换到控制面板 -->
+      <a href="#" class="mobile-nav-btn" data-nav="control" onclick="switchMobilePanel('mobile-control-panel', 'single')">
         <!-- 控制图标：滑动条/调节器图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -3803,8 +3803,8 @@
         <span>控制</span>
       </a>
 
-      <!-- 2. 地图按钮 - 滚动到地图面板 -->
-      <a href="#" class="mobile-nav-btn" data-nav="map" onclick="scrollToMobileSection('mobile-map-panel')">
+      <!-- 2. 地图按钮 - 切换到地图面板 -->
+      <a href="#" class="mobile-nav-btn" data-nav="map" onclick="switchMobilePanel('mobile-map-panel', 'single')">
         <!-- 地图图标：折叠地图图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
@@ -3812,8 +3812,8 @@
         <span>地图</span>
       </a>
 
-      <!-- 3. 任务按钮 - 滚动到任务面板 -->
-      <a href="#" class="mobile-nav-btn active" data-nav="home" onclick="scrollToMobileSection('mobile-task-panel')">
+      <!-- 3. 任务按钮 - 切换到任务面板 -->
+      <a href="#" class="mobile-nav-btn active" data-nav="home" onclick="switchMobilePanel('mobile-task-panel', 'single')">
         <!-- 任务图标：剪贴板/任务列表图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
@@ -3821,8 +3821,8 @@
         <span>任务</span>
       </a>
 
-      <!-- 4. 通知按钮 - 滚动到通知面板 -->
-      <a href="#" class="mobile-nav-btn" data-nav="notifications" onclick="scrollToMobileSection('mobile-notification-panel')">
+      <!-- 4. 通知按钮 - 切换到通知面板 -->
+      <a href="#" class="mobile-nav-btn" data-nav="notifications" onclick="switchMobilePanel('mobile-notification-panel', 'single')">
         <!-- 通知图标：铃铛图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
@@ -3830,8 +3830,8 @@
         <span>通知</span>
       </a>
 
-      <!-- 5. 签到按钮 - 打开签到任务面板 -->
-      <a href="#" class="mobile-nav-btn" data-nav="attendance" onclick="scrollToMobileSection('mobile-notification-panel'); setTimeout(() => switchMobileNotifTab('attendance'), 100);">
+      <!-- 5. 签到按钮 - 切换到通知面板的签到标签 -->
+      <a href="#" class="mobile-nav-btn" data-nav="attendance" onclick="switchMobilePanel('mobile-notification-panel', 'single'); setTimeout(() => switchMobileNotifTab('attendance'), 100);">
         <!-- 签到图标：日历带勾选标记 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
@@ -3863,8 +3863,8 @@
     <!-- 多账号模式底部导航栏 - 用于mobile-multi-account-app -->
     <nav class="mobile-bottom-nav hidden" id="mobile-bottom-nav-multi-account" style="display:none;">
       
-      <!-- 1. 账号按钮 - 滚动到账号列表面板 -->
-      <a href="#" class="mobile-nav-btn active" data-nav="accounts" onclick="scrollToMobileSection('mobile-multi-account-panel')">
+      <!-- 1. 账号按钮 - 切换到账号列表面板 -->
+      <a href="#" class="mobile-nav-btn active" data-nav="accounts" onclick="switchMobilePanel('mobile-multi-account-panel', 'multi')">
         <!-- 多账号图标：多个用户头像 -->
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
           <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
@@ -3872,8 +3872,8 @@
         <span>账号</span>
       </a>
 
-      <!-- 2. 地图按钮 - 滚动到地图面板 -->
-      <a href="#" class="mobile-nav-btn" data-nav="map" onclick="scrollToMobileSection('mobile-multi-map-panel')">
+      <!-- 2. 地图按钮 - 切换到地图面板 -->
+      <a href="#" class="mobile-nav-btn" data-nav="map" onclick="switchMobilePanel('mobile-multi-map-panel', 'multi')">
         <!-- 地图图标：折叠地图图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
@@ -3881,8 +3881,8 @@
         <span>地图</span>
       </a>
 
-      <!-- 3. 控制按钮 - 滚动到批量控制面板 -->
-      <a href="#" class="mobile-nav-btn" data-nav="control" onclick="scrollToMobileSection('mobile-multi-control-panel')">
+      <!-- 3. 控制按钮 - 切换到批量控制面板 -->
+      <a href="#" class="mobile-nav-btn" data-nav="control" onclick="switchMobilePanel('mobile-multi-control-panel', 'multi')">
         <!-- 闪电图标：代表控制和操作 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -6167,6 +6167,8 @@
               if (mobileMainApp) {
                 mobileMainApp.classList.remove('hidden');
                 console.log('[移动端UI] 已显示 mobile-main-app');
+                // 初始化面板显示：默认显示任务面板
+                switchMobilePanel('mobile-task-panel', 'single');
               }
               
               // 显示底部导航和菜单按钮 - 单账号模式
@@ -6249,7 +6251,11 @@
           const mobileLoginContainer = document.getElementById('mobile-login-container');
           const mobileMultiApp = document.getElementById('mobile-multi-account-app');
           if (mobileLoginContainer) mobileLoginContainer.classList.add('hidden');
-          if (mobileMultiApp) mobileMultiApp.classList.remove('hidden');
+          if (mobileMultiApp) {
+            mobileMultiApp.classList.remove('hidden');
+            // 初始化面板显示：默认显示账号列表面板
+            switchMobilePanel('mobile-multi-account-panel', 'multi');
+          }
           // 显示底部导航和菜单按钮 - 多账号模式
           updateMobileNavVisibility(true, 'multi');
         });
@@ -19934,6 +19940,56 @@
     }
 
     /**
+     * 切换移动端面板显示（类似Tab切换）
+     * @param {string} panelId - 要显示的面板ID
+     * @param {string} mode - 'single' 或 'multi'，指定是单账号模式还是多账号模式
+     * 
+     * 功能说明：
+     * - 隐藏所有面板，只显示指定的面板
+     * - 类似Tab页切换，而不是滚动定位
+     * - 更新底部导航栏的激活状态
+     */
+    function switchMobilePanel(panelId, mode = 'single') {
+      // 根据模式定义面板列表
+      const singleModePanels = [
+        'mobile-control-panel',
+        'mobile-map-panel',
+        'mobile-task-panel',
+        'mobile-notification-panel'
+      ];
+      
+      const multiModePanels = [
+        'mobile-multi-account-panel',
+        'mobile-multi-map-panel',
+        'mobile-multi-control-panel'
+      ];
+      
+      // 选择要操作的面板列表
+      const panelList = mode === 'single' ? singleModePanels : multiModePanels;
+      
+      // 隐藏所有面板
+      panelList.forEach(id => {
+        const panel = document.getElementById(id);
+        if (panel) {
+          panel.classList.add('hidden');
+        }
+      });
+      
+      // 显示目标面板
+      const targetPanel = document.getElementById(panelId);
+      if (targetPanel) {
+        targetPanel.classList.remove('hidden');
+        // 滚动到页面顶部，确保面板从顶部显示
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        console.warn(`找不到ID为 ${panelId} 的面板`);
+      }
+      
+      // 更新导航栏激活状态
+      updateMobileNavActiveState(panelId);
+    }
+
+    /**
      * 滚动到指定的移动端面板
      * @param {string} sectionId - 目标面板的DOM元素ID
      * 
@@ -19942,6 +19998,8 @@
      * - 支持smooth（平滑）滚动动画
      * - 滚动后将目标面板置于视口顶部
      * - 用于底部导航栏的导航功能
+     * 
+     * @deprecated 已弃用，请使用 switchMobilePanel() 实现面板切换
      */
     function scrollToMobileSection(sectionId) {
       // 获取目标面板元素
