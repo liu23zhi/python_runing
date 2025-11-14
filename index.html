@@ -5424,11 +5424,34 @@
           if (isMobileMode) {
             // 关闭桌面版并打开移动版会话选择器
             closeSessionPicker(); // 关闭桌面版
+            
+            // 关键修复：在显示移动端会话选择器之前，确保登录容器不可见
+            // 虽然依赖z-index理论上应该足够，但实践中发现需要显式隐藏
+            const mobileLogin = $('mobile-login-container');
+            const mobileAuth = $('mobile-auth-login-container');
+            if (mobileLogin && !mobileLogin.classList.contains('hidden')) {
+              mobileLogin.classList.add('hidden');
+            }
+            if (mobileAuth && !mobileAuth.classList.contains('hidden')) {
+              mobileAuth.classList.add('hidden');
+            }
+            
             showMobileSessionPicker(); // 打开移动版
             console.log('[窗口调整-FIX] 步骤2-3：切换UI容器并显示移动端会话选择器');
           } else {
             // 关闭移动版并打开桌面版会话选择器
             closeMobileSessionPicker(); // 关闭移动版
+            
+            // 关键修复：在显示桌面会话选择器之前，确保登录容器不可见
+            const desktopLogin = $('login-container');
+            const desktopAuth = $('auth-login-container');
+            if (desktopLogin && !desktopLogin.classList.contains('hidden')) {
+              desktopLogin.classList.add('hidden');
+            }
+            if (desktopAuth && !desktopAuth.classList.contains('hidden')) {
+              desktopAuth.classList.add('hidden');
+            }
+            
             showSessionPicker(); // 打开桌面版
             console.log('[窗口调整-FIX] 步骤2-3：切换UI容器并显示桌面会话选择器');
           }
