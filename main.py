@@ -793,24 +793,11 @@ def setup_logging():
 
 
 
-# ==============================================================================
-# 自动初始化系统 (整合自 auto_init.py)
-# ==============================================================================
-# 这一部分实现"零配置启动"功能：
-# - 首次运行时自动创建所有必需的目录和文件
-# - 生成默认的配置文件和权限设置
-# - 创建初始管理员账号（admin/admin）
-# 设计理念：让用户只需要main.py和index.html就能启动程序
+# 自动初始化系统
 
 def auto_init_system():
     """
     自动初始化系统，创建所有必需的文件和目录。
-
-    功能清单：
-    1. 创建目录结构（logs、账号存储、会话存储）
-    2. 生成或更新config.ini配置文件
-    3. 创建permissions.json权限配置
-    4. 创建默认管理员账号（用户名：admin，密码：admin）
     """
     logging.info("="*80)
     logging.info("开始自动初始化系统...")
@@ -1541,18 +1528,18 @@ def _create_default_admin():
     # 新增字段：phone（手机号）、nickname（昵称）、avatar_url（头像URL）
     admin_data = {
         "auth_username": "admin",  # 管理员登录用户名
-        "password": "admin",  # 默认密码（实际使用时应加密存储）
+        "password": "admin",  # 默认密码
         "group": "super_admin",  # 权限组：超级管理员
         "created_at": time.time(),  # 创建时间戳
-        "last_login": None,  # 最后登录时间（初始为空）
+        "last_login": None,  # 最后登录时间
         "session_ids": [],  # 活跃会话ID列表
-        "2fa_enabled": False,  # 双因素认证开关（默认关闭）
+        "2fa_enabled": False,  # 双因素认证开关
         "2fa_secret": None,  # 双因素认证密钥
         "avatar_url": "default_avatar.png",  # 默认头像文件名
-        "max_sessions": -1,  # 最大并发会话数（-1表示无限制）
-        "theme": "light",  # 界面主题（light/dark）
-        "phone": "",  # 手机号（初始为空，支持后续绑定）
-        "nickname": "管理员"  # 显示昵称（用于前端展示）
+        "max_sessions": -1,  # 最大并发会话数
+        "theme": "light",  # 界面主题
+        "phone": "",  # 手机号
+        "nickname": "超级管理员"  # 显示昵称
     }
 
     with open(admin_file, 'w', encoding='utf-8') as f:
@@ -11378,76 +11365,6 @@ def start_background_auto_attendance(args):
 def start_web_server(args_param):
     """
     启动Flask Web服务器主函数，集成SocketIO实时通信和Chrome浏览器自动化。
-
-    功能说明：
-    - 初始化Flask应用和所有必需的全局组件
-    - 配置跨域请求（CORS）和WebSocket实时通信（SocketIO）
-    - 启动Chrome浏览器池用于服务端JS渲染
-    - 初始化后台任务管理器
-    - 设置会话管理和安全密钥
-
-    主要组件：
-
-    **1. Chrome浏览器池（ChromeBrowserPool）**
-    - 管理可重用的浏览器实例
-    - 支持headless模式（无界面运行）
-    - 自动清理和资源回收
-
-    **2. 后台任务管理器（BackgroundTaskManager）**
-    - 管理长时间运行的任务（如批量任务执行）
-    - 任务状态持久化到文件
-    - 启动时清理历史任务记录
-
-    **3. 会话管理系统**
-    - web_sessions: 存储用户会话状态（登录信息、Api实例）
-    - session_file_locks: 防止会话文件并发冲突
-    - session_activity: 跟踪会话活跃时间
-    - 所有会话数据都有对应的线程锁保护
-
-    **4. SocketIO实时通信**
-    - async_mode='threading': 使用线程模式处理异步请求
-    - 支持后台任务进度实时推送
-    - 双向通信（服务器可主动推送消息到客户端）
-
-    参数说明：
-    - args_param: 命令行参数对象，包含headless、port等配置
-
-    初始化流程：
-    1. 重置所有内存锁和会话状态（防止重启后的状态污染）
-    2. 初始化Chrome浏览器池并注册退出清理函数
-    3. 初始化后台任务管理器并清理历史任务
-    4. 创建Flask应用并配置CORS、SocketIO
-    5. 配置会话管理（SESSION_TYPE=filesystem，7天有效期）
-    6. 注册所有Flask路由（在后续代码中）
-    7. 启动Flask开发服务器
-
-    全局变量：
-    - chrome_pool: ChromeBrowserPool实例
-    - background_task_manager: BackgroundTaskManager实例
-    - web_sessions: 用户会话字典 {session_id: {'api': Api实例, ...}}
-    - web_sessions_lock: 保护web_sessions的线程锁
-    - session_file_locks: 会话文件锁字典 {username: Lock}
-    - session_file_locks_lock: 保护session_file_locks的线程锁
-    - session_activity: 会话活跃时间字典 {session_id: timestamp}
-    - session_activity_lock: 保护session_activity的线程锁
-    - socketio: SocketIO实例用于实时通信
-    - args: 命令行参数（全局可访问）
-
-    安全特性：
-    - 使用secrets.token_hex(32)生成强随机密钥（256位）
-    - 会话数据加密存储在文件系统中
-    - 跨域请求受CORS控制
-
-    错误处理：
-    - Chrome池或任务管理器初始化失败会sys.exit(1)终止程序
-    - 单个任务文件删除失败只记录错误，不影响整体启动
-
-    注意事项：
-    - 此函数会阻塞当前线程（Flask服务器运行在主线程）
-    - 需要先调用check_install_dependencies()确保依赖已安装
-    - 建议在后台自动签到服务启动后调用
-
-    使用示例：
     """
     global chrome_pool, background_task_manager, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
 
@@ -11577,19 +11494,6 @@ def start_web_server(args_param):
     def check_ip_ban_before_request():
         """
         全局IP封禁检查拦截器
-        
-        功能说明：
-            在处理每个请求之前，检查客户端IP是否被封禁。
-            如果IP被封禁且封禁类型为"全部"(scope='all')，则直接返回封禁页面。
-            
-        检查范围：
-            - 排除静态资源请求（/static/, /css/, /js/等）
-            - 排除健康检查端点（/health）
-            - 对所有其他请求进行IP封禁检查
-            
-        返回：
-            如果IP被封禁，返回403状态码和封禁提示页面
-            否则允许请求继续处理
         """
         # 获取客户端IP地址
         client_ip = request.remote_addr
@@ -11674,354 +11578,7 @@ def start_web_server(args_param):
         
         # IP未被封禁，允许请求继续处理
         return None
-
-    # ====================
-    # JavaScript 压缩工具函数
-    # ====================
     
-    def minify_javascript(code):
-        """
-        JavaScript 代码压缩函数
-        
-        功能说明：
-            对 JavaScript 代码进行压缩，移除注释、多余空白和换行符，减小文件大小。
-            这是一个轻量级的压缩实现，不依赖外部库。
-        
-        压缩策略：
-            1. 移除单行注释（// ...）
-            2. 移除多行注释（/* ... */）
-            3. 移除多余的空白字符和换行符
-            4. 保留字符串和正则表达式中的内容不变
-            5. 保留必要的空格（如关键字后的空格）
-        
-        参数：
-            code (str): 原始 JavaScript 代码
-        
-        返回：
-            str: 压缩后的 JavaScript 代码
-        
-        压缩效果：
-            通常可减小 30-50% 的文件大小
-        
-        注意事项：
-            - 此实现为基础版本，不处理复杂的边缘情况
-            - 生产环境建议使用专业工具（如 jsmin、uglifyjs）
-            - 压缩后的代码难以阅读，仅用于生产环境
-        """
-        if not code:
-            return code
-        
-        # 压缩结果
-        result = []
-        
-        # 状态标志
-        in_string = False          # 是否在字符串中
-        string_delimiter = None    # 字符串分隔符（' 或 "）
-        in_regex = False           # 是否在正则表达式中
-        in_single_comment = False  # 是否在单行注释中
-        in_multi_comment = False   # 是否在多行注释中
-        
-        # 遍历每个字符
-        i = 0
-        length = len(code)
-        
-        while i < length:
-            char = code[i]
-            next_char = code[i + 1] if i + 1 < length else ''
-            prev_char = result[-1] if result else ''
-            
-            # 处理多行注释结束
-            if in_multi_comment:
-                if char == '*' and next_char == '/':
-                    in_multi_comment = False
-                    i += 2  # 跳过 */
-                    continue
-                i += 1
-                continue
-            
-            # 处理单行注释结束
-            if in_single_comment:
-                if char == '\n':
-                    in_single_comment = False
-                    # 换行符在某些情况下需要保留（如语句结束）
-                    if result and result[-1] not in [';', '{', '}', '\n']:
-                        result.append('\n')
-                i += 1
-                continue
-            
-            # 检测多行注释开始
-            if not in_string and not in_regex and char == '/' and next_char == '*':
-                in_multi_comment = True
-                i += 2
-                continue
-            
-            # 检测单行注释开始
-            if not in_string and not in_regex and char == '/' and next_char == '/':
-                in_single_comment = True
-                i += 2
-                continue
-            
-            # 处理字符串
-            if char in ['"', "'", '`'] and not in_regex:
-                if not in_string:
-                    # 进入字符串
-                    in_string = True
-                    string_delimiter = char
-                    result.append(char)
-                elif char == string_delimiter and (not result or result[-1] != '\\'):
-                    # 退出字符串（检查是否被转义）
-                    in_string = False
-                    string_delimiter = None
-                    result.append(char)
-                else:
-                    # 字符串内部
-                    result.append(char)
-                i += 1
-                continue
-            
-            # 字符串内部：保留所有字符
-            if in_string:
-                result.append(char)
-                i += 1
-                continue
-            
-            # 处理正则表达式（简化处理：检测 / 前后的上下文）
-            # 注意：这是一个简化的正则检测，可能不完美
-            if char == '/' and not in_string:
-                # 检查是否是正则表达式的开始
-                # 正则通常出现在 =、(、[、,、:、; 等符号后
-                if result and result[-1] in ['=', '(', '[', ',', ':', ';', '!', '&', '|', '?', '{', '}', '\n']:
-                    in_regex = True
-                    result.append(char)
-                    i += 1
-                    continue
-            
-            # 正则表达式内部
-            if in_regex:
-                result.append(char)
-                if char == '/' and (not result or result[-2] != '\\'):
-                    in_regex = False
-                i += 1
-                continue
-            
-            # 压缩空白字符
-            if char in [' ', '\t', '\n', '\r']:
-                # 检查前一个字符
-                if result and result[-1] not in [' ', '\n', '{', '}', '(', ')', '[', ']', ';', ',', ':', '=', '+', '-', '*', '/', '%', '<', '>', '!', '&', '|', '?']:
-                    # 检查下一个字符
-                    next_non_space = ''
-                    j = i + 1
-                    while j < length and code[j] in [' ', '\t', '\n', '\r']:
-                        j += 1
-                    if j < length:
-                        next_non_space = code[j]
-                    
-                    # 如果下一个字符不是特殊字符，保留一个空格
-                    if next_non_space and next_non_space not in ['{', '}', '(', ')', '[', ']', ';', ',', ':', '=', '+', '-', '*', '/', '%', '<', '>', '!', '&', '|', '?']:
-                        result.append(' ')
-                i += 1
-                continue
-            
-            # 普通字符：直接添加
-            result.append(char)
-            i += 1
-        
-        # 返回压缩后的代码
-        minified = ''.join(result)
-        
-        # 记录压缩效果
-        original_size = len(code)
-        minified_size = len(minified)
-        compression_ratio = (1 - minified_size / original_size) * 100 if original_size > 0 else 0
-        
-        logging.debug(f"JavaScript 压缩完成：原始大小 {original_size} 字节，压缩后 {minified_size} 字节，压缩率 {compression_ratio:.1f}%")
-        
-        return minified
-
-    def minify_html(html):
-        """
-        HTML 代码压缩函数
-        
-        功能说明：
-            对 HTML 代码进行压缩，移除注释、多余空白和换行符，减小文件大小。
-            保留标签结构和属性，不影响页面功能。
-        
-        压缩策略：
-            1. 移除 HTML 注释（<!-- ... -->）
-            2. 移除标签之间的多余空白和换行
-            3. 移除属性值周围的多余空格
-            4. 保留 <script>、<style>、<pre> 标签内的格式
-            5. 保留必要的空格（防止标签粘连）
-        
-        参数：
-            html (str): 原始 HTML 代码
-        
-        返回：
-            str: 压缩后的 HTML 代码
-        
-        压缩效果：
-            通常可减小 20-40% 的文件大小
-        
-        注意事项：
-            - 保留 <script> 和 <style> 标签内的空白（避免破坏代码）
-            - 保留 <pre> 标签内的格式（预格式化文本）
-            - 不会改变 HTML 结构和语义
-        """
-        if not html:
-            return html
-        
-        result = []
-        i = 0
-        length = len(html)
-        
-        # 状态标志
-        in_script = False      # 是否在 <script> 标签内
-        in_style = False       # 是否在 <style> 标签内
-        in_pre = False         # 是否在 <pre> 标签内
-        in_tag = False         # 是否在标签内 < >
-        in_comment = False     # 是否在注释内
-        
-        while i < length:
-            # 检查是否进入注释
-            if not in_comment and i + 4 < length and html[i:i+4] == '<!--':
-                in_comment = True
-                i += 4
-                continue
-            
-            # 检查是否退出注释
-            if in_comment:
-                if i + 3 < length and html[i:i+3] == '-->':
-                    in_comment = False
-                    i += 3
-                else:
-                    i += 1
-                continue
-            
-            # 检查是否进入 <script> 标签
-            if not in_script and i + 7 < length and html[i:i+7].lower() == '<script':
-                in_script = True
-                # 找到标签结束位置
-                while i < length and html[i] != '>':
-                    result.append(html[i])
-                    i += 1
-                if i < length:
-                    result.append(html[i])  # 添加 >
-                    i += 1
-                continue
-            
-            # 检查是否退出 <script> 标签
-            if in_script and i + 9 < length and html[i:i+9].lower() == '</script>':
-                in_script = False
-                result.append(html[i:i+9])
-                i += 9
-                continue
-            
-            # 检查是否进入 <style> 标签
-            if not in_style and i + 6 < length and html[i:i+6].lower() == '<style':
-                in_style = True
-                while i < length and html[i] != '>':
-                    result.append(html[i])
-                    i += 1
-                if i < length:
-                    result.append(html[i])
-                    i += 1
-                continue
-            
-            # 检查是否退出 <style> 标签
-            if in_style and i + 8 < length and html[i:i+8].lower() == '</style>':
-                in_style = False
-                result.append(html[i:i+8])
-                i += 8
-                continue
-            
-            # 检查是否进入 <pre> 标签
-            if not in_pre and i + 4 < length and html[i:i+4].lower() == '<pre':
-                in_pre = True
-                while i < length and html[i] != '>':
-                    result.append(html[i])
-                    i += 1
-                if i < length:
-                    result.append(html[i])
-                    i += 1
-                continue
-            
-            # 检查是否退出 <pre> 标签
-            if in_pre and i + 6 < length and html[i:i+6].lower() == '</pre>':
-                in_pre = False
-                result.append(html[i:i+6])
-                i += 6
-                continue
-            
-            # 在 <script>、<style>、<pre> 标签内：保留所有内容
-            if in_script or in_style or in_pre:
-                result.append(html[i])
-                i += 1
-                continue
-            
-            # 检测标签开始
-            if html[i] == '<':
-                in_tag = True
-                result.append(html[i])
-                i += 1
-                continue
-            
-            # 检测标签结束
-            if html[i] == '>':
-                in_tag = False
-                result.append(html[i])
-                i += 1
-                continue
-            
-            # 在标签内：保留内容（但压缩多余空格）
-            if in_tag:
-                # 压缩标签内的多个空白为一个空格
-                if html[i] in [' ', '\t', '\n', '\r']:
-                    if result and result[-1] not in [' ', '<', '=']:
-                        result.append(' ')
-                    i += 1
-                    continue
-                else:
-                    result.append(html[i])
-                    i += 1
-                    continue
-            
-            # 标签之间的空白：移除或压缩
-            if html[i] in [' ', '\t', '\n', '\r']:
-                # 查看前一个字符
-                if result and result[-1] == '>':
-                    # 跳过标签后的空白
-                    i += 1
-                    continue
-                # 查看下一个字符
-                j = i + 1
-                while j < length and html[j] in [' ', '\t', '\n', '\r']:
-                    j += 1
-                if j < length and html[j] == '<':
-                    # 空白后面是标签，跳过所有空白
-                    i = j
-                    continue
-                # 保留一个空格（防止文本粘连）
-                if result and result[-1] not in [' ', '>']:
-                    result.append(' ')
-                i += 1
-                continue
-            
-            # 普通字符：直接添加
-            result.append(html[i])
-            i += 1
-        
-        # 返回压缩后的 HTML
-        minified = ''.join(result)
-        
-        # 记录压缩效果
-        original_size = len(html)
-        minified_size = len(minified)
-        compression_ratio = (1 - minified_size / original_size) * 100 if original_size > 0 else 0
-        
-        logging.debug(f"HTML 压缩完成：原始大小 {original_size} 字节，压缩后 {minified_size} 字节，压缩率 {compression_ratio:.1f}%")
-        
-        return minified
-
     # ====================
     # 认证相关API路由
     # ====================
@@ -12030,56 +11587,6 @@ def start_web_server(args_param):
     def auth_register():
         """
         用户注册API端点（已升级支持手机号、昵称、头像）。
-
-        请求方法：POST
-        请求路径：/auth/register
-        Content-Type：application/json 或 multipart/form-data（上传头像时）
-
-        请求体（JSON或表单）：
-        {
-            "auth_username": "用户名",  # 必填，会被trim()处理，不能包含中文
-            "auth_password": "密码",     # 必填，会被trim()处理
-            "phone": "手机号",           # 可选，11位数字
-            "nickname": "昵称",          # 可选，用户显示名称
-            "sms_code": "短信验证码",    # 可选，启用短信验证时必填
-            "avatar": <文件>             # 可选，头像图片文件
-        }
-
-        响应体（JSON）：
-        {
-            "success": true/false,
-            "message": "成功/失败信息"
-        }
-
-        处理流程：
-        1. 解析请求数据（JSON或表单）
-        2. 提取并验证用户名、密码（必填）
-        3. 验证用户名不包含中文字符
-        4. 如果启用短信验证，校验验证码
-        5. 如果上传头像，保存文件
-        6. 调用auth_system.register_user()执行注册逻辑
-        7. 返回注册结果
-
-        新增功能：
-        - 支持手机号注册（phone字段）
-        - 支持自定义昵称（nickname字段）
-        - 支持上传头像（avatar文件）
-        - 支持短信验证码校验（sms_code字段）
-        - 用户名禁止中文字符
-
-        安全特性：
-        - 密码由AuthSystem内部加密存储
-        - 用户名去除首尾空格并验证格式
-        - 手机号格式验证（11位，1开头）
-        - 短信验证码有效期检查（5分钟）
-        - 头像文件类型和大小限制
-
-        错误情况：
-        - 用户名或密码为空：返回错误
-        - 用户名包含中文：返回错误
-        - 手机号格式不正确：返回错误
-        - 短信验证码错误或过期：返回错误
-        - 用户名已存在：由auth_system返回错误
         """
         try:
 
@@ -12280,82 +11787,6 @@ def start_web_server(args_param):
     def auth_login():
         """
         用户登录认证API端点。
-
-        请求方法：POST
-        请求路径：/auth/login
-        Content-Type：application/json
-        请求头：X-Session-ID: <客户端会话ID>（可选）
-
-        请求体（JSON）：
-        {
-            "auth_username": "用户名",      # 必填（或使用login_id）
-            "login_id": "用户名或手机号",    # 可选，支持手机号登录
-            "auth_password": "密码",        # 必填
-            "two_fa_code": "双因素认证码"   # 可选，仅在启用2FA时需要
-        }
-
-        响应体（JSON）：
-        {
-            "success": true/false,
-            "message": "成功/失败信息",
-            "auth_username": "用户名",
-            "group": "用户组",
-            "is_guest": false
-        }
-
-        处理流程：
-        1. 解析请求体和请求头（session_id、IP、User-Agent）
-        2. 根据 auth_phone, auth_username, auth_password, auth_sms_code 决定登录模式
-        3. 如果是手机号，查找对应的用户名
-        4. 调用auth_system.authenticate()验证用户凭据
-        5. 验证成功后创建或获取Api实例
-        6. 将认证信息附加到web_sessions
-        7. 执行单会话强制策略（可选，非游客用户）
-        8. 返回认证结果
-
-        会话管理：
-        - 每个客户端通过X-Session-ID标识唯一会话
-        - 如果session_id已存在，复用现有Api实例
-        - 如果session_id不存在，创建新的Api实例
-        - Api实例包含：
-          * auth_username: 认证用户名
-          * auth_group: 用户组
-          * is_guest: 是否为游客
-          * is_authenticated: 认证状态标志
-          * _session_created_at: 会话创建时间戳
-          * _web_session_id: 关联的会话ID
-
-        单会话强制策略（仅注册用户）：
-        - check_single_session_enforcement()检查同一用户的活跃会话数
-        - 如果超过限制，返回需要清理的旧会话列表
-        - 使用后台线程异步清理旧会话（不阻塞登录响应）
-        - 清理过程：
-          1. 从web_sessions中移除旧会话
-          2. 尝试关闭旧会话的Api实例资源
-          3. 记录清理结果到日志
-
-        安全特性：
-        - 密码由AuthSystem验证（支持明文或加密存储）
-        - IP地址和User-Agent用于登录日志和安全审计
-        - 双因素认证支持（如果用户启用）
-        - 会话数量限制防止会话劫持
-        - 所有会话操作都有web_sessions_lock保护（线程安全）
-
-        双因素认证（2FA）：
-        - 如果用户启用了2FA，必须提供正确的two_fa_code
-        - AuthSystem会验证TOTP代码（Time-based One-Time Password）
-        - 验证失败会拒绝登录
-
-        错误情况：
-        - 用户名或密码错误：由auth_system返回 {"success": false, "message": "..."}
-        - 2FA代码错误：由auth_system返回相应错误
-        - 内部错误：捕获并返回错误信息
-
-        注意：
-        - 此接口不需要预先认证（公开接口）
-        - 注释掉的session_id检查代码表明曾经需要会话ID，现在已改为可选
-        - 游客用户不受单会话限制
-        - 旧会话清理是异步的，不影响新登录的响应速度
         """
         global config
 
@@ -12653,59 +12084,6 @@ def start_web_server(args_param):
     def auth_guest_login():
         """
         游客登录API - 无需密码的快速访问入口。
-
-        功能说明：
-        - 为未注册用户提供受限的访问权限
-        - 无需用户名和密码，只需会话ID
-        - 适用于试用、演示或临时访问场景
-
-        请求格式：
-        - 方法：POST
-        - 路径：/auth/guest_login
-        - 请求头：
-          * X-Session-ID: 会话标识符（必需）
-        - 请求体：无需
-
-        响应格式：
-        {
-          "success": true/false,
-          "message": "错误信息（仅失败时）",
-          "auth_username": "guest",
-          "group": "guest",
-          "is_guest": true
-        }
-
-        处理流程：
-        1. 从请求头获取session_id
-        2. 验证session_id存在性
-        3. 更新会话活动时间（防止超时）
-        4. 检查系统是否允许游客登录（从配置文件读取）
-        5. 创建或获取游客的Api实例
-        6. 设置游客属性（auth_username='guest', auth_group='guest', is_guest=True）
-        7. 保存会话状态到磁盘
-        8. 返回成功响应
-
-        游客权限限制：
-        - 无法使用需要认证的高级功能
-        - 会话不支持多设备同步
-        - 可能无法访问某些敏感API
-        - 数据不会长期保存
-
-        配置项：
-        - auth.ini [Guest] allow_guest_login：控制是否允许游客登录（默认true）
-
-        错误情况：
-        - 缺少session_id：返回400错误
-        - 系统不允许游客登录：返回失败消息
-
-        安全考虑：
-        - 游客会话不受单会话强制限制
-        - 游客不生成token和cookie
-        - 游客数据可能被定期清理
-
-        注意：
-        - 游客会话不会记录到登录日志
-        - 游客切换到注册用户需要重新登录
         """
         session_id = request.headers.get('X-Session-ID', '')
 
@@ -17633,11 +17011,6 @@ def start_web_server(args_param):
     def serve_css(css_path):
         """
         CSS 样式分段动态加载 API 端点
-        
-        使用示例：
-            - /css/body.css
-            - /css/.panel.css
-            - /css/#admin-modal-close-btn:hover.css
         """
         
         # --- 1. 代码复用：定义统一的 CSS 文件路径常量 ---
@@ -17756,60 +17129,6 @@ def start_web_server(args_param):
     def serve_html_fragment(fragment_name):
         """
         HTML 片段动态加载 API 端点（支持自动压缩，从统一文件读取）
-        
-        功能说明：
-            根据请求的片段名称，从 html_fragments.html 统一文件中提取对应的 HTML 片段。
-            支持自动压缩和浏览器缓存，大幅减小传输大小。
-        
-        参数：
-            fragment_name (str): HTML 片段名称（不含 .html 后缀）
-              例如：'admin-panel-modal', 'main-app', 'auto-gen-modal', 'notifications-modal'
-        
-        查询参数：
-            - minify: 是否压缩 HTML（默认 true）
-              * true/1/yes: 压缩 HTML（移除注释和空白）
-              * false/0/no: 返回原始 HTML（保留格式）
-        
-        返回：
-            - 200: 成功返回 HTML 片段
-            - 304: 使用缓存版本（内容未修改）
-            - 404: 片段未找到
-            - 500: 服务器内部错误
-        
-        缓存策略：
-            - 设置 Cache-Control 头，允许浏览器缓存 1 小时
-            - 使用 Last-Modified 和 ETag 支持条件请求
-            - 压缩版和原始版使用不同的 ETag
-        
-        压缩效果：
-            - 通常可减小 20-40% 的文件大小
-            - 首次加载后浏览器会缓存压缩版本
-        
-        使用示例：
-            - /html/admin-panel-modal.html             --> 返回压缩版本（推荐）
-            - /html/auto-gen-modal.html?minify=true    --> 返回压缩版本
-            - /html/notifications-modal.html?minify=false --> 返回原始版本（调试）
-        
-        支持的片段：
-            大区域：
-            - admin-panel-modal      (13.5 KB) - 管理员面板模态框
-            - main-app               (10.0 KB) - 主应用界面
-            - multi-account-app      (6.1 KB)  - 多账号控制台
-            - auth-login-container   (4.8 KB)  - 认证登录容器
-            - login-container        (4.4 KB)  - 登录容器
-            
-            模态框：
-            - auto-gen-modal          (1.2 KB) - 自动生成路径模态框
-            - notifications-modal     (0.9 KB) - 通知模态框
-            - session-picker-modal    (1.9 KB) - 会话选择器
-            - create-group-modal      (1.7 KB) - 创建权限组
-            - 以及其他 10+ 个模态框
-        
-        实现细节：
-            片段存储在 html_fragments.html 文件中，格式如下：
-            <!-- 段落开始： fragment-name -->
-            <div id="fragment-name">...</div>
-            <!-- 段落结束： fragment-name -->
         """
         try:
             # 统一的 HTML 片段文件

@@ -1527,21 +1527,7 @@
        ======================================== -->
   <div id="desktop-container">
     <!-- 登录界面 -->
-    <!-- ========================================
-         登录容器主体 - 三列响应式布局
-         - 左侧：多账号模式入口（紫色主题）
-         - 中间：会话管理面板（管理员功能）
-         - 右侧：单账号登录表单（天蓝色主题）
-         - 响应式：移动端垂直堆叠，桌面端三列并排
-         ======================================== -->
     <div id="login-container" class="w-full h-full grid grid-cols-1 lg:grid-cols-3">
-
-    <!-- ========================================
-         【左侧区域】多账号模式入口
-         - 紫色渐变背景与图标呼应
-         - 毛玻璃卡片效果增强视觉层次
-         - 悬停动画提升交互体验
-         ======================================== -->
     <div class="flex flex-col items-center justify-center p-8 lg:p-12 bg-gradient-to-br from-purple-50 via-violet-50 to-purple-100 relative overflow-hidden">
       <!-- 背景装饰圆形 - 增加视觉深度 -->
       <div class="absolute top-0 right-0 w-64 h-64 bg-violet-200 rounded-full opacity-20 blur-3xl -translate-y-1/2 translate-x-1/2"></div>
@@ -1586,84 +1572,9 @@
       </div>
     </div>
 
-    <!-- ========================================
-         【中间区域】会话管理面板（管理员专用）
-         - 渐变背景营造层次感
-         - 面板内嵌滚动容器支持大量会话
-         - 上帝模式切换（高权限功能）
-         ======================================== -->
-    <div class="flex flex-col items-center justify-center p-6 md:p-10 lg:p-12 bg-gradient-to-br from-sky-50 via-white to-cyan-50 relative overflow-hidden" id="admin-panel-modal-Inline">
-      
-      <!-- 背景装饰波纹 - 增加视觉趣味性 -->
-      <div class="absolute top-0 left-0 w-72 h-72 bg-sky-200 rounded-full opacity-10 blur-3xl -translate-y-1/3 -translate-x-1/3"></div>
-      <div class="absolute bottom-0 right-0 w-56 h-56 bg-cyan-300 rounded-full opacity-10 blur-2xl translate-y-1/3 translate-x-1/3"></div>
-      
-      <!-- 会话管理主面板 - 毛玻璃卡片，支持垂直滚动 -->
-      <div class="relative panel rounded-3xl w-full max-w-2xl p-8 space-y-5 bg-white/80 backdrop-blur-xl flex flex-col overflow-x-hidden shadow-2xl border border-white/60 hover:shadow-sky-200/50 transition-shadow duration-300" style="max-height: calc(100vh - 12rem);">
-        
-        <!-- 面板标题 - 天蓝色主题与系统统一 -->
-        <div class="flex items-center justify-center gap-2 pb-2 border-b border-sky-100">
-          <!-- 管理图标 -->
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-          </svg>
-          <h3 class="text-2xl font-bold text-sky-700 text-center">会话管理</h3>
-        </div>
 
-        <!-- 会话管理核心区域 - 可滚动容器 -->
-        <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0 pr-2">
-          
-          <!-- 工具栏：标题、上帝模式开关、计数、刷新按钮 -->
-          <div class="flex justify-between items-center bg-gradient-to-r from-sky-50 to-transparent p-4 rounded-xl">
-            <h4 class="font-bold text-slate-700 text-lg">会话列表</h4>
-            
-            <!-- 右侧工具组 -->
-            <div class="flex items-center gap-4">
-              
-              <!-- 上帝模式切换 - 默认隐藏，管理员可见 -->
-              <label id="god-mode-toggle" class="flex items-center gap-2 cursor-pointer bg-red-50 px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors" style="display:none;">
-                <input type="checkbox" id="god-mode-checkbox" class="w-4 h-4 accent-red-600 rounded cursor-pointer">
-                <span class="text-sm font-bold text-red-600">⚠️ 上帝模式</span>
-              </label>
-              
-              <!-- 会话计数显示 - 动态更新 -->
-              <div id="admin-session-count-display-inline" class="text-sm font-medium text-slate-600 bg-white/70 px-3 py-1.5 rounded-full border border-slate-200">
-                <!-- 会话计数将由JavaScript动态填充 -->
-              </div>
-              
-              <!-- 刷新按钮 - 手动重新加载会话列表 -->
-              <button id="admin-refresh-sessions-inline" class="btn btn-ghost !py-1.5 !px-3 hover:bg-sky-100 transition-colors">
-                <!-- 刷新图标 -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>刷新</span>
-              </button>
-            </div>
-          </div>
-          
-          <!-- 会话列表容器 - 动态内容由JavaScript填充 -->
-          <div id="admin-sessions-list-inline" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-            <!-- 加载中占位符 - 首次加载时显示 -->
-            <p class="text-slate-400 text-center py-12 text-base">
-              <!-- 加载动画图标 -->
-              <svg class="animate-spin h-8 w-8 mx-auto mb-3 text-sky-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              正在加载会话数据...
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    
 
-    <!-- ========================================
-         【右侧区域】单账号登录表单
-         - 天蓝色主题与系统主色调一致
-         - 优化的表单输入体验
-         - 清晰的视觉层次和间距
-         ======================================== -->
     <div class="flex items-center justify-center p-6 lg:p-8 bg-gradient-to-br from-white via-sky-50/30 to-cyan-50/40 relative overflow-hidden">
       
       <!-- 背景装饰元素 - 柔和的几何图形 -->
@@ -1785,6 +1696,84 @@
         </div>
       </div>
     </div>
+
+
+
+
+    
+
+
+    
+
+    <div class="flex flex-col items-center justify-center p-6 md:p-10 lg:p-12 bg-gradient-to-br from-sky-50 via-white to-cyan-50 relative overflow-hidden" id="admin-panel-modal-Inline">
+      
+      <!-- 背景装饰波纹 - 增加视觉趣味性 -->
+      <div class="absolute top-0 left-0 w-72 h-72 bg-sky-200 rounded-full opacity-10 blur-3xl -translate-y-1/3 -translate-x-1/3"></div>
+      <div class="absolute bottom-0 right-0 w-56 h-56 bg-cyan-300 rounded-full opacity-10 blur-2xl translate-y-1/3 translate-x-1/3"></div>
+      
+      <!-- 会话管理主面板 - 毛玻璃卡片，支持垂直滚动 -->
+      <div class="relative panel rounded-3xl w-full max-w-2xl p-8 space-y-5 bg-white/80 backdrop-blur-xl flex flex-col overflow-x-hidden shadow-2xl border border-white/60 hover:shadow-sky-200/50 transition-shadow duration-300" style="max-height: calc(100vh - 12rem);">
+        
+        <!-- 面板标题 - 天蓝色主题与系统统一 -->
+        <div class="flex items-center justify-center gap-2 pb-2 border-b border-sky-100">
+          <!-- 管理图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <h3 class="text-2xl font-bold text-sky-700 text-center">会话管理</h3>
+        </div>
+
+        <!-- 会话管理核心区域 - 可滚动容器 -->
+        <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0 pr-2">
+          
+          <!-- 工具栏：标题、上帝模式开关、计数、刷新按钮 -->
+          <div class="flex justify-between items-center bg-gradient-to-r from-sky-50 to-transparent p-4 rounded-xl">
+            <h4 class="font-bold text-slate-700 text-lg">会话列表</h4>
+            
+            <!-- 右侧工具组 -->
+            <div class="flex items-center gap-4">
+              
+              <!-- 上帝模式切换 - 默认隐藏，管理员可见 -->
+              <label id="god-mode-toggle" class="flex items-center gap-2 cursor-pointer bg-red-50 px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors" style="display:none;">
+                <input type="checkbox" id="god-mode-checkbox" class="w-4 h-4 accent-red-600 rounded cursor-pointer">
+                <span class="text-sm font-bold text-red-600">⚠️ 上帝模式</span>
+              </label>
+              
+              <!-- 会话计数显示 - 动态更新 -->
+              <div id="admin-session-count-display-inline" class="text-sm font-medium text-slate-600 bg-white/70 px-3 py-1.5 rounded-full border border-slate-200">
+                <!-- 会话计数将由JavaScript动态填充 -->
+              </div>
+              
+              <!-- 刷新按钮 - 手动重新加载会话列表 -->
+              <button id="admin-refresh-sessions-inline" class="btn btn-ghost !py-1.5 !px-3 hover:bg-sky-100 transition-colors">
+                <!-- 刷新图标 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>刷新</span>
+              </button>
+            </div>
+          </div>
+          
+          <!-- 会话列表容器 - 动态内容由JavaScript填充 -->
+          <div id="admin-sessions-list-inline" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+            <!-- 加载中占位符 - 首次加载时显示 -->
+            <p class="text-slate-400 text-center py-12 text-base">
+              <!-- 加载动画图标 -->
+              <svg class="animate-spin h-8 w-8 mx-auto mb-3 text-sky-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              正在加载会话数据...
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+
 
   </div>
 
@@ -3532,7 +3521,7 @@
 
         <div id="admin-config-panel_modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
-            <h4 class="font-semibold text-lg">⚙️ 系统配置 (config.ini)</h4>
+            <h4 class="font-semibold text-lg">⚙️ 系统配置</h4>
             <div class="flex gap-2">
               <button id="admin-refresh-config_modal" class="btn btn-ghost !py-1 !px-2"
                 onclick="loadSystemConfig()">刷新</button>
@@ -3541,7 +3530,7 @@
             </div>
           </div>
           <p class="text-xs text-amber-700 bg-amber-50 p-2 rounded-md">⚠️
-            警告：修改这些配置可能会影响系统稳定性。保存后，部分配置（如路径）需要**重启程序**才能生效。</p>
+            警告：修改这些配置可能会影响系统稳定性。保存后，部分配置需要**重启程序**才能生效。</p>
 
           <div id="admin-config-form" class="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
             <p class="text-slate-400 text-center py-10">加载中...</p>
@@ -17558,8 +17547,8 @@
           if (type === 'boolean') {
             inputHtml = `
               <select id="config-${section}-${key}" class="select-field">
-                <option value="true" ${value === true ? 'selected' : ''}>True (启用)</option>
-                <option value="false" ${value === false ? 'selected' : ''}>False (禁用)</option>
+                <option value="true" ${value === true ? 'selected' : ''}>启用</option>
+                <option value="false" ${value === false ? 'selected' : ''}>禁用</option>
               </select>
             `;
           } else if (type === 'number') {
@@ -17567,9 +17556,9 @@
           } else if (type === 'password_storage') {
             inputHtml = `
               <select id="config-${section}-${key}" class="select-field">
-                <option value="plaintext" ${value === 'plaintext' ? 'selected' : ''}>plaintext (明文, 不推荐)</option>
-                <option value="sha256" ${value === 'sha256' ? 'selected' : ''}>sha256 (已弃用)</option>
-                <option value="bcrypt" ${value === 'bcrypt' ? 'selected' : ''}>bcrypt (推荐)</option>
+                <option value="plaintext" ${value === 'plaintext' ? 'selected' : ''}>明文</option>
+                <option value="sha256" ${value === 'sha256' ? 'selected' : ''}>sha256</option>
+                <option value="bcrypt" ${value === 'bcrypt' ? 'selected' : ''}>bcrypt(自动加盐)</option>
               </select>
             `;
           } else {
@@ -17578,7 +17567,7 @@
 
           return `
             <div class="mb-3">
-              <label for="config-${section}-${key}" class="block text-sm font-semibold text-slate-700">${label} <span class="text-xs font-mono text-slate-400">[${section}] ${key}</span></label>
+              <label for="config-${section}-${key}" class="block text-sm font-semibold text-slate-700">${label} <!-- <span class="text-xs font-mono text-slate-400">[${section}] ${key}</span> --></label>
               ${inputHtml}
               ${help ? `<p class="text-xs text-slate-500 mt-1">${help}</p>` : ''}
             </div>
