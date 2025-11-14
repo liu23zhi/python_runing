@@ -3151,7 +3151,7 @@
       </div>
 
       <!-- 底部提示信息 - 解释会话的概念 -->
-      <div class="border-t pt-4 text-xs text-slate-500">
+      <div class="border-t pt-4 text-xs text-slate-500 relative">
         <p>💡 提示：每个会话都是独立的学校账号登录状态。您可以创建多个会话来管理不同的账号。</p>
       </div>
     </div>
@@ -4508,7 +4508,7 @@
         </div>
       </div>
 
-      <div class="border-t pt-3 text-xs text-slate-500">
+      <div class="border-t pt-3 text-xs text-slate-500 relative">
         <p>💡 提示：每个会话都是独立的学校账号登录状态。您可以创建多个会话来管理不同的账号。</p>
       </div>
     </div>
@@ -5391,47 +5391,69 @@
         // 声明 isModalSwap 变量 ---
         let isModalSwap = false;
 
-        // 重新执行UI容器切换 (这会更新全局变量 isMobileMode)
-        switchUIContainer();
+        // 关键修复：检测新的设备模式（在调用 switchUIContainer 之前）
+        const willBeMobileMode = detectMobileDevice();
 
-        // 修复：在切换后，根据新的 isMobileMode 状态，
-        // 自动关闭旧的模态框并打开新的模态框，保持状态同步。
-        if (isMobileMode && wasDesktopModalOpen) {
+        // 关键修复：在 switchUIContainer() 之前，根据模态框状态先隐藏登录界面
+        // 这样可以防止 switchUIContainer() 显示移动端容器时，登录界面短暂可见
+        if (willBeMobileMode && wasDesktopModalOpen) {
           // 场景：从桌面切换到移动端，且桌面模态框是打开的
           console.log('[窗口调整] 正在从桌面会话选择器切换到移动版...');
-          closeSessionPicker(); // 关闭桌面版
-          showMobileSessionPicker(); // 打开移动版
+          
+          // 步骤1：设置 isModalSwap 标记，表示需要切换模态框
           isModalSwap = true;
-        } else if (!isMobileMode && wasMobileModalOpen) {
+          
+          console.log('[窗口调整-FIX] 步骤1：标记模态框需要切换');
+          
+        } else if (!willBeMobileMode && wasMobileModalOpen) {
           // 场景：从移动端切换到桌面，且移动模态框是打开的
           console.log('[窗口调整] 正在从移动会话选择器切换到桌面版...');
-          closeMobileSessionPicker(); // 关闭移动版
-          showSessionPicker(); // 打开桌面版
+          
+          // 步骤1：设置 isModalSwap 标记，表示需要切换模态框
           isModalSwap = true;
+          
+          console.log('[窗口调整-FIX] 步骤1：标记模态框需要切换');
         }
-                if (isModalSwap) {
+
+        // 步骤2：重新执行UI容器切换 (这会更新全局变量 isMobileMode)
+        // 注意：此时登录界面已经被隐藏（如果需要的话）
+        switchUIContainer();
+
+        // 步骤3：根据新的 isMobileMode 状态，关闭旧的模态框并打开新的模态框
+        if (isModalSwap) {
           if (isMobileMode) {
-            // 修复：确保移动端的 login-container 可见 (并隐藏 auth-container)
+            // 关闭桌面版并打开移动版会话选择器
+            closeSessionPicker(); // 关闭桌面版
+            
+            // 关键修复：在显示移动端会话选择器之前，确保登录容器不可见
+            // 虽然依赖z-index理论上应该足够，但实践中发现需要显式隐藏
             const mobileLogin = $('mobile-login-container');
             const mobileAuth = $('mobile-auth-login-container');
+            if (mobileLogin && !mobileLogin.classList.contains('hidden')) {
+              mobileLogin.classList.add('hidden');
+            }
+            if (mobileAuth && !mobileAuth.classList.contains('hidden')) {
+              mobileAuth.classList.add('hidden');
+            }
             
-            // 强制使用内联样式
-            if (mobileLogin) mobileLogin.style.display = 'block'; // <-- 修复：显示三卡片布局
-            // mobile-auth-login-container 默认是 block/flex (space-y-4)
-            if (mobileAuth) mobileAuth.style.display = 'none';  // <-- 修复：隐藏登录表单
-
-            console.log('[窗口调整-FIX] 确保移动端 login-container 可见');
+            showMobileSessionPicker(); // 打开移动版
+            console.log('[窗口调整-FIX] 步骤2-3：切换UI容器并显示移动端会话选择器');
           } else {
-            // 修复：确保桌面端的 login-container 可见 (并隐藏 auth-container)
+            // 关闭移动版并打开桌面版会话选择器
+            closeMobileSessionPicker(); // 关闭移动版
+            
+            // 关键修复：在显示桌面会话选择器之前，确保登录容器不可见
             const desktopLogin = $('login-container');
             const desktopAuth = $('auth-login-container');
-
-            // 强制使用内联样式
-            if (desktopLogin) desktopLogin.style.display = 'grid'; // <-- 修复：显示三栏布局 (grid)
-            // auth-login-container 使用 flex 布局
-            if (desktopAuth) desktopAuth.style.display = 'none'; // <-- 修复：隐藏登录表单
+            if (desktopLogin && !desktopLogin.classList.contains('hidden')) {
+              desktopLogin.classList.add('hidden');
+            }
+            if (desktopAuth && !desktopAuth.classList.contains('hidden')) {
+              desktopAuth.classList.add('hidden');
+            }
             
-            console.log('[窗口调整-FIX] 确保桌面端 login-container 可见');
+            showSessionPicker(); // 打开桌面版
+            console.log('[窗口调整-FIX] 步骤2-3：切换UI容器并显示桌面会话选择器');
           }
         }
       }, 300); // 防抖延迟：300毫秒
@@ -5466,6 +5488,27 @@
           switchUIContainer();
         }, 100);
       });
+
+      // 监听媒体查询变化（用于浏览器设备仿真）
+      // 当浏览器的设备仿真切换时，matchMedia 可以检测到视口变化
+      // 这比 resize 事件更可靠，因为设备仿真不总是触发 resize
+      const mobileMediaQuery = window.matchMedia('(max-width: 768px)');
+      
+      // 定义媒体查询变化处理函数
+      function handleMediaQueryChange(e) {
+        console.log('[媒体查询] 检测到视口宽度变化，当前是否为移动端:', e.matches);
+        // 调用 handleResize 来处理模态框切换
+        handleResize();
+      }
+      
+      // 添加监听器 - 兼容新旧API
+      if (mobileMediaQuery.addEventListener) {
+        // 现代浏览器使用 addEventListener
+        mobileMediaQuery.addEventListener('change', handleMediaQueryChange);
+      } else {
+        // 旧版浏览器使用 addListener
+        mobileMediaQuery.addListener(handleMediaQueryChange);
+      }
 
       console.log('[页面加载] 移动端检测和切换功能已启动');
     });
