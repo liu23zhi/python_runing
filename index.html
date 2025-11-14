@@ -47,12 +47,16 @@
         // 检测到移动设备：添加'mobile-ui'类名到body元素
         // CSS将根据此类名应用移动端专用样式
         body.classList.add('mobile-ui');
+        body.setAttribute('data-ui-mode', 'mobile');
         console.log('[UI适配] 检测到移动设备，已启用移动端UI');
+        console.log('[UI适配] 屏幕宽度:', window.innerWidth, 'px');
       } else {
         // 检测到PC设备：添加'desktop-ui'类名到body元素
         // CSS将根据此类名应用桌面端样式（或保持默认样式）
         body.classList.add('desktop-ui');
+        body.setAttribute('data-ui-mode', 'desktop');
         console.log('[UI适配] 检测到桌面设备，已启用桌面端UI');
+        console.log('[UI适配] 屏幕宽度:', window.innerWidth, 'px');
       }
       
       // 监听窗口大小变化事件（用户旋转屏幕或调整浏览器窗口）
@@ -72,10 +76,12 @@
             if (nowMobile) {
               body.classList.remove('desktop-ui');
               body.classList.add('mobile-ui');
+              body.setAttribute('data-ui-mode', 'mobile');
               console.log('[UI适配] 切换到移动端UI');
             } else {
               body.classList.remove('mobile-ui');
               body.classList.add('desktop-ui');
+              body.setAttribute('data-ui-mode', 'desktop');
               console.log('[UI适配] 切换到桌面端UI');
             }
           }
@@ -999,6 +1005,39 @@
     body.desktop-ui #login-container {
       display: grid !important;
       grid-template-columns: repeat(3, 1fr) !important;
+    }
+    
+    /* ============================================================ */
+    /* 开发调试：UI模式指示器（可选，生产环境可删除）
+    /* 显示当前使用的UI模式（移动端/桌面端），方便调试
+    /* ============================================================ */
+    body::before {
+      content: attr(data-ui-mode);
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+      z-index: 9999;
+      pointer-events: none;
+      /* 注意：此调试指示器在生产环境中可以通过删除body::before规则来移除 */
+    }
+    
+    /* 移动端指示器样式 */
+    body.mobile-ui::before {
+      content: '📱 移动端模式';
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
+    
+    /* 桌面端指示器样式 */
+    body.desktop-ui::before {
+      content: '🖥️ 桌面端模式';
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
     }
   </style>
 
