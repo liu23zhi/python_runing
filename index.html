@@ -6394,6 +6394,15 @@
         });
       }
 
+      // === 绑定移动端会话刷新按钮 ===
+      const mobileRefreshSessionsBtn = document.getElementById('mobile-refresh-sessions-btn');
+      if (mobileRefreshSessionsBtn) {
+        mobileRefreshSessionsBtn.addEventListener('click', async function() {
+          console.log('[移动端UI] 刷新会话列表');
+          await loadMobileSessionsList();
+        });
+      }
+
       // (新) 修复：在移动UI初始化时立即加载用户下拉列表
       // 这样即使用户未认证，登录页面上的下拉框也能显示
       // (不使用 await，让其在后台加载)
