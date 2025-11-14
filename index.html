@@ -2234,181 +2234,372 @@
       </button>
     </header>
 
-    <!-- 移动端内容区域 -->
+    <!-- ========================================
+         【移动端内容区域】主容器
+         - 包含所有移动端UI组件
+         - 默认隐藏，由JavaScript根据设备类型控制显示
+         ======================================== -->
     <main class="mobile-content">
       
-      <!-- 登录/注册卡片 -->
-      <div class="mobile-card" id="mobile-auth-card">
-        <!-- 欢迎标题 -->
-        <div class="text-center mb-6">
-          <h1 class="mobile-title">欢迎使用</h1>
-          <p class="mobile-subtitle">请登录您的账号开始使用</p>
-        </div>
-
-        <!-- 登录表单 -->
-        <div id="mobile-login-form" class="space-y-4">
-          <!-- 用户名输入 -->
-          <div class="mobile-form-group">
-            <label class="mobile-form-label">用户名</label>
-            <input type="text" id="mobile-login-username" class="w-full" placeholder="请输入用户名" autocomplete="username">
+      <!-- ========================================
+           【容器1】移动端用户认证容器
+           - 对应PC端的 auth-login-container
+           - 包含登录/注册标签切换功能
+           - 包含登录表单和注册表单
+           - 使用移动端友好的卡片布局
+           ======================================== -->
+      <div id="mobile-auth-login-container" class="space-y-4">
+        
+        <!-- 认证卡片 - 白色背景，圆角阴影 -->
+        <div class="mobile-card">
+          
+          <!-- 欢迎标题区域 - 提供友好的问候信息 -->
+          <div class="text-center mb-6">
+            <h1 class="mobile-title">欢迎使用跑步助手</h1>
+            <p class="mobile-subtitle">请登录或注册以继续使用</p>
           </div>
 
-          <!-- 密码输入 -->
+          <!-- 登录/注册标签切换 - 模仿PC端的标签设计 -->
+          <div class="flex border-b border-slate-200 mb-4">
+            <!-- 登录标签按钮 - 默认激活状态（蓝色边框） -->
+            <button id="mobile-auth-tab-login" 
+              class="flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition">
+              登录
+            </button>
+            <!-- 注册标签按钮 - 默认非激活状态（灰色） -->
+            <button id="mobile-auth-tab-register" 
+              class="flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition">
+              注册
+            </button>
+          </div>
+
+          <!-- ========================================
+               【登录表单】- 默认显示
+               - id保持为 mobile-login-form 便于JavaScript操作
+               ======================================== -->
+          <div id="mobile-login-form" class="space-y-4">
+            
+            <!-- 用户名输入框 -->
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">用户名</label>
+              <!-- autocomplete属性帮助浏览器自动填充 -->
+              <input type="text" id="mobile-login-username" class="w-full" 
+                placeholder="请输入用户名" autocomplete="username">
+            </div>
+
+            <!-- 密码输入框 -->
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">密码</label>
+              <!-- type="password" 确保输入内容被隐藏 -->
+              <input type="password" id="mobile-login-password" class="w-full" 
+                placeholder="请输入密码" autocomplete="current-password">
+            </div>
+
+            <!-- 登录按钮 - 使用移动端主按钮样式 -->
+            <button id="mobile-login-btn" class="mobile-primary-btn">
+              登录
+            </button>
+
+            <!-- 切换到注册的提示链接 - 蓝色文字按钮 -->
+            <div class="text-center">
+              <button id="mobile-switch-to-register" class="text-sky-600 text-sm font-medium">
+                还没有账号？点击注册
+              </button>
+            </div>
+          </div>
+
+          <!-- ========================================
+               【注册表单】- 默认隐藏
+               - id保持为 mobile-register-form
+               - 包含用户名、密码、确认密码、手机号字段
+               ======================================== -->
+          <div id="mobile-register-form" class="space-y-4 hidden">
+            
+            <!-- 用户名输入框 -->
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">用户名</label>
+              <input type="text" id="mobile-reg-username" class="w-full" 
+                placeholder="请输入用户名" autocomplete="username">
+            </div>
+
+            <!-- 密码输入框 -->
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">密码</label>
+              <!-- autocomplete="new-password" 提示这是新密码 -->
+              <input type="password" id="mobile-reg-password" class="w-full" 
+                placeholder="请输入密码" autocomplete="new-password">
+            </div>
+
+            <!-- 确认密码输入框 - 用于验证用户输入一致性 -->
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">确认密码</label>
+              <input type="password" id="mobile-reg-password-confirm" class="w-full" 
+                placeholder="请再次输入密码" autocomplete="new-password">
+            </div>
+
+            <!-- 手机号输入框（可选） - 用于找回密码或接收验证码 -->
+            <div class="mobile-form-group" id="mobile-reg-phone-wrapper">
+              <label class="mobile-form-label">手机号（可选）</label>
+              <!-- type="tel" 在移动设备上会弹出数字键盘 -->
+              <input type="tel" id="mobile-reg-phone" class="w-full" 
+                placeholder="请输入手机号" autocomplete="tel">
+            </div>
+
+            <!-- 注册按钮 -->
+            <button id="mobile-register-btn" class="mobile-primary-btn">
+              注册
+            </button>
+
+            <!-- 切换到登录的提示链接 -->
+            <div class="text-center">
+              <button id="mobile-switch-to-login" class="text-sky-600 text-sm font-medium">
+                已有账号？点击登录
+              </button>
+            </div>
+          </div>
+
+          <!-- 2FA验证表单 - 两步验证（默认隐藏） -->
+          <div id="mobile-auth-2fa-form" class="space-y-4 hidden">
+            <div class="text-center mb-4">
+              <h3 class="font-bold text-lg text-slate-800">两步验证</h3>
+              <p class="text-sm text-slate-600 mt-2">请输入您的验证码</p>
+            </div>
+            
+            <!-- 2FA验证码输入框 -->
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">验证码</label>
+              <!-- maxlength限制输入长度，inputmode优化移动端键盘 -->
+              <input type="text" id="mobile-2fa-code" class="w-full" 
+                placeholder="请输入6位验证码" maxlength="6" inputmode="numeric">
+            </div>
+
+            <!-- 提交2FA验证按钮 -->
+            <button id="mobile-2fa-submit-btn" class="mobile-primary-btn">
+              验证
+            </button>
+
+            <!-- 返回登录按钮 -->
+            <div class="text-center">
+              <button id="mobile-2fa-back-btn" class="text-sky-600 text-sm font-medium">
+                返回登录
+              </button>
+            </div>
+          </div>
+
+          <!-- 错误提示框 - 显示认证失败信息（默认隐藏） -->
+          <div id="mobile-auth-error" class="hidden mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm text-center"></div>
+          
+          <!-- 成功提示框 - 显示认证成功信息（默认隐藏） -->
+          <div id="mobile-auth-success" class="hidden mt-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-600 text-sm text-center"></div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           【容器2】移动端登录容器（三栏布局）
+           - 对应PC端的 login-container
+           - 垂直堆叠三个功能区域：
+             1. 多账号模式入口
+             2. 会话管理面板
+             3. 单账号登录面板
+           - 默认隐藏，登录后显示
+           ======================================== -->
+      <div id="mobile-login-container" class="space-y-4 hidden">
+        
+        <!-- ========================================
+             【区域1】多账号模式入口卡片
+             - 对应PC端左栏的多账号模式
+             - 紫色渐变主题凸显高级功能
+             ======================================== -->
+        <div class="mobile-card" id="mobile-multi-account-card">
+          
+          <!-- 图标区域 - 双人图标象征多账号功能 -->
+          <div class="text-center mb-4">
+            <div class="inline-block p-4 bg-violet-100 rounded-full">
+              <!-- 双人图标SVG - 使用紫色主题 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-violet-600" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- 标题和描述 - 居中对齐 -->
+          <h2 class="mobile-title text-center">多账号模式</h2>
+          <p class="mobile-subtitle text-center">批量管理多个账号，一键执行任务</p>
+
+          <!-- 功能列表 - 使用Emoji图标增强视觉效果 -->
+          <div class="space-y-3 mb-6">
+            <div class="flex items-center">
+              <span class="text-2xl mr-3">✨</span>
+              <span class="text-slate-700">支持批量导入账号</span>
+            </div>
+            <div class="flex items-center">
+              <span class="text-2xl mr-3">🎯</span>
+              <span class="text-slate-700">统一管理所有任务</span>
+            </div>
+            <div class="flex items-center">
+              <span class="text-2xl mr-3">⚡</span>
+              <span class="text-slate-700">一键执行全部流程</span>
+            </div>
+          </div>
+
+          <!-- 进入按钮 - 紫色渐变背景与阴影增强视觉吸引力 -->
+          <button id="mobile-multi-account-btn" class="mobile-primary-btn" 
+            style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);">
+            进入多账号控制台
+          </button>
+        </div>
+
+        <!-- ========================================
+             【区域2】会话管理面板卡片
+             - 对应PC端中栏的会话管理
+             - 显示活跃会话列表和管理功能
+             ======================================== -->
+        <div class="mobile-card" id="mobile-session-panel-card">
+          
+          <!-- 面板标题 - 使用天蓝色主题 -->
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-sky-100">
+            <div class="flex items-center gap-2">
+              <!-- 管理图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <h3 class="text-xl font-bold text-sky-700">会话管理</h3>
+            </div>
+            
+            <!-- 刷新按钮 - 用于手动更新会话列表 -->
+            <button id="mobile-refresh-sessions-btn" class="p-2 hover:bg-sky-50 rounded-lg transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- 会话计数显示 - 动态显示当前会话数量 -->
+          <div id="mobile-session-count-display" class="text-sm text-slate-600 bg-sky-50 px-3 py-2 rounded-lg mb-4 text-center">
+            <!-- 会话计数将由JavaScript动态填充 -->
+          </div>
+
+          <!-- 会话列表容器 - 滚动显示所有会话 -->
+          <div id="mobile-sessions-list" class="space-y-3 max-h-[40vh] overflow-y-auto">
+            <!-- 加载中占位符 - 首次加载时显示 -->
+            <p class="text-slate-400 text-center py-8">
+              加载会话列表中...
+            </p>
+          </div>
+        </div>
+
+        <!-- ========================================
+             【区域3】单账号登录面板卡片
+             - 对应PC端右栏的单账号登录
+             - 提供用户下拉选择和密码输入
+             ======================================== -->
+        <div class="mobile-card" id="mobile-single-login-card">
+          
+          <!-- 标题 -->
+          <h3 class="text-lg font-bold text-slate-800 mb-4">单账号登录</h3>
+
+          <!-- 用户选择下拉框 - 对应PC端的user-combo -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">选择用户</label>
+            <!-- select下拉菜单，用于选择已保存的用户 -->
+            <select id="mobile-user-combo" class="w-full">
+              <option value="">请选择用户</option>
+              <!-- 用户列表将由JavaScript动态填充 -->
+            </select>
+          </div>
+
+          <!-- 用户名输入框 - 对应PC端的username-entry -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">用户名</label>
+            <input type="text" id="mobile-username-entry" class="w-full" 
+              placeholder="或直接输入用户名" autocomplete="username">
+          </div>
+
+          <!-- 密码输入框 - 对应PC端的password-entry -->
           <div class="mobile-form-group">
             <label class="mobile-form-label">密码</label>
-            <input type="password" id="mobile-login-password" class="w-full" placeholder="请输入密码" autocomplete="current-password">
+            <input type="password" id="mobile-password-entry" class="w-full" 
+              placeholder="请输入密码" autocomplete="current-password">
           </div>
 
           <!-- 登录按钮 -->
-          <button id="mobile-login-btn" class="mobile-primary-btn">
+          <button id="mobile-single-login-btn" class="mobile-primary-btn">
             登录
           </button>
+        </div>
 
-          <!-- 切换到注册 -->
-          <div class="text-center">
-            <button id="mobile-switch-to-register" class="text-sky-600 text-sm font-medium">
-              还没有账号？点击注册
+        <!-- ========================================
+             【快速操作卡片】- 登录成功后显示
+             - 提供常用功能的快速入口
+             - 默认隐藏
+             ======================================== -->
+        <div class="mobile-card hidden" id="mobile-quick-actions">
+          <h2 class="mobile-title">快速操作</h2>
+          
+          <!-- 操作按钮列表 - 每个按钮都包含图标和右箭头 -->
+          <div class="space-y-3">
+            
+            <!-- 开始跑步按钮 -->
+            <button class="mobile-list-item justify-between">
+              <div class="flex items-center">
+                <!-- 播放图标 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="font-medium">开始跑步</span>
+              </div>
+              <!-- 右箭头 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              </svg>
+            </button>
+
+            <!-- 查看任务按钮 -->
+            <button class="mobile-list-item justify-between">
+              <div class="flex items-center">
+                <!-- 完成图标 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-green-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="font-medium">查看任务</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              </svg>
+            </button>
+
+            <!-- 历史记录按钮 -->
+            <button class="mobile-list-item justify-between">
+              <div class="flex items-center">
+                <!-- 时钟图标 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-purple-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="font-medium">历史记录</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              </svg>
+            </button>
+
+            <!-- 设置按钮 -->
+            <button class="mobile-list-item justify-between">
+              <div class="flex items-center">
+                <!-- 设置图标 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-orange-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span class="font-medium">设置</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              </svg>
             </button>
           </div>
         </div>
 
-        <!-- 注册表单（默认隐藏） -->
-        <div id="mobile-register-form" class="space-y-4 hidden">
-          <!-- 用户名输入 -->
-          <div class="mobile-form-group">
-            <label class="mobile-form-label">用户名</label>
-            <input type="text" id="mobile-reg-username" class="w-full" placeholder="请输入用户名" autocomplete="username">
-          </div>
-
-          <!-- 密码输入 -->
-          <div class="mobile-form-group">
-            <label class="mobile-form-label">密码</label>
-            <input type="password" id="mobile-reg-password" class="w-full" placeholder="请输入密码" autocomplete="new-password">
-          </div>
-
-          <!-- 确认密码 -->
-          <div class="mobile-form-group">
-            <label class="mobile-form-label">确认密码</label>
-            <input type="password" id="mobile-reg-password-confirm" class="w-full" placeholder="请再次输入密码" autocomplete="new-password">
-          </div>
-
-          <!-- 手机号输入（可选） -->
-          <div class="mobile-form-group" id="mobile-reg-phone-wrapper">
-            <label class="mobile-form-label">手机号（可选）</label>
-            <input type="tel" id="mobile-reg-phone" class="w-full" placeholder="请输入手机号" autocomplete="tel">
-          </div>
-
-          <!-- 注册按钮 -->
-          <button id="mobile-register-btn" class="mobile-primary-btn">
-            注册
-          </button>
-
-          <!-- 切换到登录 -->
-          <div class="text-center">
-            <button id="mobile-switch-to-login" class="text-sky-600 text-sm font-medium">
-              已有账号？点击登录
-            </button>
-          </div>
-        </div>
-
-        <!-- 错误/成功提示 -->
-        <div id="mobile-auth-error" class="hidden mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm text-center"></div>
-        <div id="mobile-auth-success" class="hidden mt-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-600 text-sm text-center"></div>
-      </div>
-
-      <!-- 多账号模式入口卡片 -->
-      <div class="mobile-card" id="mobile-multi-account-card">
-        <!-- 图标 -->
-        <div class="text-center mb-4">
-          <div class="inline-block p-4 bg-violet-100 rounded-full">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-violet-600" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-            </svg>
-          </div>
-        </div>
-
-        <!-- 标题和描述 -->
-        <h2 class="mobile-title text-center">多账号模式</h2>
-        <p class="mobile-subtitle text-center">批量管理多个账号，一键执行任务</p>
-
-        <!-- 功能列表 -->
-        <div class="space-y-3 mb-6">
-          <div class="flex items-center">
-            <span class="text-2xl mr-3">✨</span>
-            <span class="text-slate-700">支持批量导入账号</span>
-          </div>
-          <div class="flex items-center">
-            <span class="text-2xl mr-3">🎯</span>
-            <span class="text-slate-700">统一管理所有任务</span>
-          </div>
-          <div class="flex items-center">
-            <span class="text-2xl mr-3">⚡</span>
-            <span class="text-slate-700">一键执行全部流程</span>
-          </div>
-        </div>
-
-        <!-- 进入按钮 -->
-        <button id="mobile-multi-account-btn" class="mobile-primary-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);">
-          进入多账号控制台
-        </button>
-      </div>
-
-      <!-- 快速操作卡片（登录后显示） -->
-      <div class="mobile-card hidden" id="mobile-quick-actions">
-        <h2 class="mobile-title">快速操作</h2>
-        
-        <!-- 操作按钮列表 -->
-        <div class="space-y-3">
-          <button class="mobile-list-item justify-between">
-            <div class="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="font-medium">开始跑步</span>
-            </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-            </svg>
-          </button>
-
-          <button class="mobile-list-item justify-between">
-            <div class="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-green-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="font-medium">查看任务</span>
-            </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-            </svg>
-          </button>
-
-          <button class="mobile-list-item justify-between">
-            <div class="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-purple-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span class="font-medium">历史记录</span>
-            </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-            </svg>
-          </button>
-
-          <button class="mobile-list-item justify-between">
-            <div class="flex items-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-orange-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span class="font-medium">设置</span>
-            </div>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-            </svg>
-          </button>
-        </div>
       </div>
 
     </main>
@@ -2451,6 +2642,74 @@
 
   </div>
   <!-- 结束：移动端容器 -->
+
+  <!-- ========================================
+       【容器3】移动端会话选择模态框
+       - 对应PC端的 session-picker-modal
+       - 从底部向上弹出的移动端样式
+       - 显示可用会话列表，支持创建新会话
+       ======================================== -->
+  <div id="mobile-session-picker-modal" class="fixed inset-0 hidden z-[1052]">
+    
+    <!-- 半透明黑色背景遮罩 - 点击关闭模态框 -->
+    <div class="absolute inset-0 bg-black/60" onclick="closeMobileSessionPicker()"></div>
+    
+    <!-- 模态框主体 - 从底部弹出，圆角顶部 -->
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+      
+      <!-- 顶部拖动指示器 - 视觉提示可以向下滑动关闭 -->
+      <div class="flex justify-center mb-2">
+        <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+      </div>
+
+      <!-- 模态框标题栏 -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+        <h3 class="text-xl font-bold text-sky-600">会话管理</h3>
+        <!-- 会话计数显示 - 动态显示当前会话数量 -->
+        <div id="mobile-session-picker-count-display" class="text-sm text-slate-600 bg-sky-50 px-3 py-1 rounded-full">
+          <!-- 会话计数将由JavaScript动态填充 -->
+        </div>
+      </div>
+
+      <!-- 提示信息和创建新会话按钮区域 -->
+      <div class="bg-sky-50 border border-sky-200 rounded-lg p-4">
+        <p class="text-sm text-slate-700 mb-3">选择现有会话或创建新会话</p>
+        <!-- 创建新会话按钮 - 主按钮样式 -->
+        <button class="mobile-primary-btn w-full" onclick="createNewSessionFromMobilePicker()">
+          <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+          创建新会话
+        </button>
+      </div>
+
+      <!-- 现有会话列表区域 -->
+      <div class="space-y-3">
+        <div class="flex justify-between items-center">
+          <h4 class="font-semibold text-slate-700">现有会话</h4>
+          <!-- 刷新按钮 - 重新加载会话列表 -->
+          <button class="p-2 hover:bg-slate-100 rounded-lg transition-colors" onclick="refreshMobileSessionPicker()">
+            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+              </path>
+            </svg>
+          </button>
+        </div>
+        
+        <!-- 会话列表容器 - 动态填充会话卡片 -->
+        <div id="mobile-session-picker-list" class="space-y-2">
+          <!-- 加载中占位符 - 首次加载时显示 -->
+          <p class="text-slate-400 text-center py-10">加载中...</p>
+        </div>
+      </div>
+
+      <!-- 底部提示信息 - 解释会话的概念 -->
+      <div class="border-t pt-4 text-xs text-slate-500">
+        <p>💡 提示：每个会话都是独立的学校账号登录状态。您可以创建多个会话来管理不同的账号。</p>
+      </div>
+    </div>
+  </div>
 
   <div id="account-params-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="
