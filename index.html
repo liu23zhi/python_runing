@@ -3048,6 +3048,371 @@
 
       </div>
 
+      <!-- ========================================
+           【容器3】移动端主应用界面（单账号模式）
+           - 对应PC端的 main-app
+           - 包含任务列表、地图、控制面板
+           - 登录成功后显示
+           ======================================== -->
+      <div id="mobile-main-app" class="space-y-4 hidden">
+        
+        <!-- ========================================
+             【通知面板】- 显示系统通知和签到任务
+             ======================================== -->
+        <div class="mobile-card" id="mobile-notification-panel">
+          <!-- 面板头部：标题和未读角标 -->
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-sky-100">
+            <div class="flex items-center gap-2">
+              <!-- 铃铛图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <h3 class="text-xl font-bold text-sky-700">通知中心</h3>
+            </div>
+            
+            <!-- 未读角标 - 显示未读通知数量 -->
+            <div class="relative">
+              <span id="mobile-notification-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                <!-- 未读数量将由JavaScript动态填充 -->
+              </span>
+              <!-- 刷新按钮 -->
+              <button id="mobile-refresh-notifications-btn" class="p-2 hover:bg-sky-50 rounded-lg transition-colors" onclick="mobileRefreshNotifications()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- 通知标签切换 - 全部/签到 -->
+          <div class="flex border-b border-slate-200 mb-4">
+            <button id="mobile-notif-tab-all" class="flex-1 py-2 text-sm font-semibold text-sky-600 border-b-2 border-sky-600 transition" onclick="switchMobileNotifTab('all')">
+              全部通知
+            </button>
+            <button id="mobile-notif-tab-attendance" class="flex-1 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent transition" onclick="switchMobileNotifTab('attendance')">
+              签到任务
+            </button>
+          </div>
+
+          <!-- 全部通知列表 -->
+          <div id="mobile-all-notifications-list" class="space-y-2 max-h-[40vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-8 text-sm">暂无通知</p>
+          </div>
+
+          <!-- 签到任务列表 - 默认隐藏 -->
+          <div id="mobile-attendance-notifications-list" class="space-y-2 max-h-[40vh] overflow-y-auto hidden">
+            <p class="text-slate-400 text-center py-8 text-sm">暂无签到任务</p>
+          </div>
+
+          <!-- 底部操作按钮 -->
+          <div class="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+            <button class="flex-1 py-2 px-4 bg-sky-50 text-sky-600 rounded-lg text-sm font-medium hover:bg-sky-100 transition" onclick="mobileMarkAllAsRead()">
+              全部已读
+            </button>
+            <button class="flex-1 py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition" onclick="expandMobileNotifications()">
+              查看更多
+            </button>
+          </div>
+        </div>
+
+        <!-- ========================================
+             【任务列表面板】- 显示跑步任务
+             ======================================== -->
+        <div class="mobile-card" id="mobile-task-panel">
+          <!-- 面板头部 -->
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-green-100">
+            <div class="flex items-center gap-2">
+              <!-- 任务图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              <h3 class="text-xl font-bold text-green-700">任务列表</h3>
+            </div>
+            <!-- 任务统计 -->
+            <div class="text-sm text-slate-600 bg-green-50 px-3 py-1 rounded-full" id="mobile-task-count">
+              0 个任务
+            </div>
+          </div>
+
+          <!-- 任务列表 -->
+          <div id="mobile-task-list" class="space-y-2 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-8 text-sm">暂无任务</p>
+          </div>
+
+          <!-- 快速操作按钮 -->
+          <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
+            <button class="py-2 px-4 bg-green-50 text-green-600 rounded-lg text-sm font-medium hover:bg-green-100 transition flex items-center justify-center gap-1" onclick="mobileRefreshTasks()">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              刷新
+            </button>
+            <button class="py-2 px-4 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition flex items-center justify-center gap-1" onclick="mobileAddTask()">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              新增
+            </button>
+          </div>
+        </div>
+
+        <!-- ========================================
+             【地图显示面板】- 显示任务路径
+             ======================================== -->
+        <div class="mobile-card p-0 overflow-hidden" id="mobile-map-panel">
+          <!-- 地图容器 -->
+          <div id="mobile-map-container" class="w-full h-[300px] relative bg-slate-100">
+            <div class="absolute inset-0 flex items-center justify-center text-slate-400">
+              <div class="text-center">
+                <svg class="w-12 h-12 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+                <p class="text-sm">地图加载中...</p>
+              </div>
+            </div>
+          </div>
+          <!-- 地图控制按钮 -->
+          <div class="flex gap-2 p-3 bg-slate-50">
+            <button class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition" onclick="mobileZoomIn()">
+              放大 +
+            </button>
+            <button class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition" onclick="mobileZoomOut()">
+              缩小 -
+            </button>
+            <button class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition" onclick="mobileFitView()">
+              适应 ⊡
+            </button>
+          </div>
+        </div>
+
+        <!-- ========================================
+             【控制面板】- 任务执行控制
+             ======================================== -->
+        <div class="mobile-card" id="mobile-control-panel">
+          <!-- 面板头部 -->
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-orange-100">
+            <!-- 控制图标 -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            <h3 class="text-xl font-bold text-orange-700">控制面板</h3>
+          </div>
+
+          <!-- 当前状态显示 -->
+          <div class="mb-4 p-3 bg-slate-50 rounded-lg">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm font-medium text-slate-600">当前状态</span>
+              <span id="mobile-status-indicator" class="text-xs font-semibold px-2 py-1 rounded-full bg-slate-200 text-slate-600">
+                未启动
+              </span>
+            </div>
+            <div class="text-xs text-slate-500" id="mobile-status-detail">
+              等待执行任务
+            </div>
+          </div>
+
+          <!-- 主要控制按钮 -->
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <!-- 开始按钮 -->
+            <button id="mobile-start-btn" class="py-3 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2" onclick="mobileStartTask()">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+              </svg>
+              开始
+            </button>
+            
+            <!-- 停止按钮 -->
+            <button id="mobile-stop-btn" class="py-3 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2" onclick="mobileStopTask()" disabled>
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd" />
+              </svg>
+              停止
+            </button>
+          </div>
+
+          <!-- 次要控制按钮 -->
+          <div class="grid grid-cols-3 gap-2">
+            <button class="py-2 px-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition flex flex-col items-center justify-center gap-1" onclick="mobilePauseTask()">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+              </svg>
+              暂停
+            </button>
+            <button class="py-2 px-2 bg-purple-50 text-purple-600 rounded-lg text-xs font-medium hover:bg-purple-100 transition flex flex-col items-center justify-center gap-1" onclick="mobileResumeTask()">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+              </svg>
+              继续
+            </button>
+            <button class="py-2 px-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 transition flex flex-col items-center justify-center gap-1" onclick="mobileResetTask()">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              重置
+            </button>
+          </div>
+
+          <!-- 进度显示 -->
+          <div class="mt-4 pt-3 border-t border-slate-100">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs text-slate-600">任务进度</span>
+              <span id="mobile-progress-text" class="text-xs font-semibold text-sky-600">0%</span>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+              <div id="mobile-progress-bar" class="bg-gradient-to-r from-sky-500 to-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ========================================
+           【容器4】移动端多账号模式界面
+           - 对应PC端的 multi-account-app
+           - 包含账号列表和批量控制功能
+           ======================================== -->
+      <div id="mobile-multi-account-app" class="space-y-4 hidden">
+        
+        <!-- 返回按钮 -->
+        <div class="mobile-card py-3">
+          <button class="flex items-center gap-2 text-sky-600 font-medium" onclick="exitMobileMultiAccount()">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            返回首页
+          </button>
+        </div>
+
+        <!-- 账号管理面板 -->
+        <div class="mobile-card" id="mobile-multi-account-panel">
+          <!-- 面板头部 -->
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-purple-100">
+            <div class="flex items-center gap-2">
+              <!-- 多账号图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-purple-600" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+              </svg>
+              <h3 class="text-xl font-bold text-purple-700">账号管理</h3>
+            </div>
+            <!-- 账号数量统计 -->
+            <div class="text-sm text-slate-600 bg-purple-50 px-3 py-1 rounded-full" id="mobile-multi-account-count">
+              0 个账号
+            </div>
+          </div>
+
+          <!-- 全选和批量操作 -->
+          <div class="flex items-center justify-between mb-4 p-3 bg-purple-50 rounded-lg">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" id="mobile-select-all-accounts" class="w-5 h-5 text-purple-600 rounded" onchange="mobileToggleSelectAllAccounts()">
+              <span class="text-sm font-medium text-slate-700">全选</span>
+            </label>
+            <div class="flex gap-2">
+              <button class="py-1 px-3 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 transition" onclick="mobileStartSelectedAccounts()">
+                启动选中
+              </button>
+              <button class="py-1 px-3 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition" onclick="mobileStopSelectedAccounts()">
+                停止选中
+              </button>
+            </div>
+          </div>
+
+          <!-- 账号列表 -->
+          <div id="mobile-multi-account-list" class="space-y-2 max-h-[55vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-8 text-sm">暂无账号，请先添加</p>
+          </div>
+
+          <!-- 底部操作按钮 -->
+          <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
+            <button class="py-2 px-4 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium hover:bg-purple-100 transition flex items-center justify-center gap-1" onclick="mobileAddMultiAccount()">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+              </svg>
+              添加账号
+            </button>
+            <button class="py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition flex items-center justify-center gap-1" onclick="mobileRefreshMultiAccounts()">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              刷新列表
+            </button>
+          </div>
+        </div>
+
+        <!-- 批量控制面板 -->
+        <div class="mobile-card" id="mobile-multi-control-panel">
+          <!-- 面板头部 -->
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-orange-100">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <h3 class="text-xl font-bold text-orange-700">批量控制</h3>
+          </div>
+
+          <!-- 全局状态 -->
+          <div class="mb-4 p-3 bg-slate-50 rounded-lg">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-slate-600">全局状态</span>
+              <span id="mobile-multi-global-status" class="text-xs font-semibold px-2 py-1 rounded-full bg-slate-200 text-slate-600">
+                就绪
+              </span>
+            </div>
+          </div>
+
+          <!-- 批量操作按钮 -->
+          <div class="grid grid-cols-2 gap-3">
+            <button class="py-3 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2" onclick="mobileStartAllAccounts()">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+              </svg>
+              全部启动
+            </button>
+            
+            <button class="py-3 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2" onclick="mobileStopAllAccounts()">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd" />
+              </svg>
+              全部停止
+            </button>
+            
+            <button class="py-3 px-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2" onclick="mobileRefreshAllAccounts()">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              全部刷新
+            </button>
+            
+            <button class="py-3 px-4 bg-gradient-to-r from-slate-400 to-slate-500 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2" onclick="mobileRemoveSelectedAccounts()">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              删除选中
+            </button>
+          </div>
+
+          <!-- 统计信息 -->
+          <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2">
+            <div class="text-center p-2 bg-green-50 rounded-lg">
+              <div id="mobile-multi-running-count" class="text-lg font-bold text-green-600">0</div>
+              <div class="text-xs text-slate-600">运行中</div>
+            </div>
+            <div class="text-center p-2 bg-yellow-50 rounded-lg">
+              <div id="mobile-multi-paused-count" class="text-lg font-bold text-yellow-600">0</div>
+              <div class="text-xs text-slate-600">已暂停</div>
+            </div>
+            <div class="text-center p-2 bg-slate-100 rounded-lg">
+              <div id="mobile-multi-stopped-count" class="text-lg font-bold text-slate-600">0</div>
+              <div class="text-xs text-slate-600">已停止</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
     </main>
 
     <!-- 移动端底部导航栏 -->
@@ -18233,6 +18598,455 @@
 
 
   <script>
+    // ==================== 移动端UI交互函数 ====================
+    // 本节包含所有移动端专用UI组件的JavaScript交互逻辑
+    // 包括：通知面板、任务面板、地图面板、控制面板、多账号管理等
+
+    /**
+     * 切换移动端通知标签页（全部/签到）
+     * @param {string} tabName - 标签名称：'all'（全部通知）或'attendance'（签到任务）
+     */
+    function switchMobileNotifTab(tabName) {
+      // 获取两个标签按钮元素
+      const allTab = document.getElementById('mobile-notif-tab-all');
+      const attTab = document.getElementById('mobile-notif-tab-attendance');
+      // 获取两个内容列表元素
+      const allList = document.getElementById('mobile-all-notifications-list');
+      const attList = document.getElementById('mobile-attendance-notifications-list');
+
+      // 根据选择的标签，切换激活状态和内容显示
+      if (tabName === 'all') {
+        // 激活"全部通知"标签
+        allTab.className = 'flex-1 py-2 text-sm font-semibold text-sky-600 border-b-2 border-sky-600 transition';
+        attTab.className = 'flex-1 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent transition';
+        // 显示全部通知列表，隐藏签到列表
+        allList.classList.remove('hidden');
+        attList.classList.add('hidden');
+      } else {
+        // 激活"签到任务"标签
+        attTab.className = 'flex-1 py-2 text-sm font-semibold text-sky-600 border-b-2 border-sky-600 transition';
+        allTab.className = 'flex-1 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent transition';
+        // 显示签到列表，隐藏全部通知
+        attList.classList.remove('hidden');
+        allList.classList.add('hidden');
+      }
+    }
+
+    /**
+     * 刷新移动端通知列表
+     * 从服务器获取最新的通知数据并更新UI
+     */
+    async function mobileRefreshNotifications() {
+      // 显示加载状态
+      const btn = document.getElementById('mobile-refresh-notifications-btn');
+      if (btn) {
+        // 禁用按钮，防止重复点击
+        btn.disabled = true;
+        // 保存原始按钮内容
+        const originalHTML = btn.innerHTML;
+        // 显示加载动画（旋转的刷新图标）
+        btn.innerHTML = '<svg class="w-5 h-5 text-sky-600 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+      }
+
+      try {
+        // 调用fetchNotifications获取最新通知数据
+        // 注意：fetchNotifications是已存在的全局函数，在主代码中定义
+        await fetchNotifications();
+        // 刷新成功后，更新移动端UI显示
+        updateMobileNotificationUI();
+      } catch (error) {
+        // 错误处理：显示错误提示
+        console.error('刷新通知失败:', error);
+        showTempMessage('刷新通知失败，请稍后重试', 'error');
+      } finally {
+        // 恢复按钮状态（无论成功或失败）
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalHTML;
+        }
+      }
+    }
+
+    /**
+     * 更新移动端通知UI显示
+     * 根据window.currentNotifications中的数据渲染通知列表
+     */
+    function updateMobileNotificationUI() {
+      // 获取当前通知数据（由fetchNotifications填充的全局变量）
+      const notifications = window.currentNotifications || [];
+      
+      // 更新未读角标
+      const badge = document.getElementById('mobile-notification-badge');
+      const unreadCount = notifications.filter(n => !n.isRead).length;
+      if (badge) {
+        if (unreadCount > 0) {
+          // 显示角标，显示未读数量（最多显示9+）
+          badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+          badge.classList.remove('hidden');
+        } else {
+          // 没有未读消息时隐藏角标
+          badge.classList.add('hidden');
+        }
+      }
+
+      // 分离签到通知和普通通知
+      const attendanceNotices = notifications.filter(n => 
+        n.image === 'attendance' || (n.title && n.title.includes('签到'))
+      );
+      const regularNotices = notifications;
+
+      // 渲染全部通知列表
+      const allList = document.getElementById('mobile-all-notifications-list');
+      if (allList) {
+        if (regularNotices.length === 0) {
+          // 没有通知时显示空状态
+          allList.innerHTML = '<p class="text-slate-400 text-center py-8 text-sm">暂无通知</p>';
+        } else {
+          // 清空现有内容
+          allList.innerHTML = '';
+          // 遍历通知数据，生成通知项
+          regularNotices.forEach(notice => {
+            const item = document.createElement('div');
+            // 根据是否已读设置不同的样式
+            item.className = 'mobile-list-item ' + (notice.isRead ? 'opacity-60' : '');
+            item.innerHTML = `
+              <div class="flex-1">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm font-semibold text-slate-800">${escapeHtml(notice.title)}</span>
+                  <span class="text-xs text-slate-400">${escapeHtml(notice.createtime)}</span>
+                </div>
+                <p class="text-xs text-slate-600">${escapeHtml(notice.content)}</p>
+              </div>
+              ${!notice.isRead ? '<span class="ml-2 w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></span>' : ''}
+            `;
+            // 点击通知项标记为已读
+            item.addEventListener('click', () => markMobileNotificationRead(notice.id));
+            allList.appendChild(item);
+          });
+        }
+      }
+
+      // 渲染签到任务列表
+      const attList = document.getElementById('mobile-attendance-notifications-list');
+      if (attList) {
+        if (attendanceNotices.length === 0) {
+          attList.innerHTML = '<p class="text-slate-400 text-center py-8 text-sm">暂无签到任务</p>';
+        } else {
+          attList.innerHTML = '';
+          attendanceNotices.forEach(notice => {
+            const item = document.createElement('div');
+            item.className = 'mobile-list-item';
+            
+            // 根据attendance_code确定签到状态
+            let statusBadge = '';
+            let actionButtons = '';
+            
+            if (notice.attendance_code === -1) {
+              // 已过期
+              statusBadge = '<span class="text-xs font-semibold px-2 py-1 rounded-full bg-red-100 text-red-600">已过期</span>';
+            } else if (notice.attendance_code === 1) {
+              // 已签到
+              statusBadge = '<span class="text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-600">已签到</span>';
+            } else if (notice.attendance_code === 0) {
+              // 待签到
+              statusBadge = '<span class="text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-600">待签到</span>';
+              // 添加签到按钮
+              actionButtons = `
+                <button class="py-1 px-3 bg-sky-500 text-white rounded-lg text-xs font-medium hover:bg-sky-600 transition" onclick="event.stopPropagation(); mobileHandleAttendance('${notice.id}')">
+                  签到
+                </button>
+              `;
+            }
+
+            item.innerHTML = `
+              <div class="flex-1">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm font-semibold text-slate-800">${escapeHtml(notice.title)}</span>
+                  ${statusBadge}
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs text-slate-600">${escapeHtml(notice.content)}</span>
+                  <span class="text-xs text-slate-400 ml-2">${escapeHtml(notice.createtime)}</span>
+                </div>
+              </div>
+              ${actionButtons}
+            `;
+            attList.appendChild(item);
+          });
+        }
+      }
+    }
+
+    /**
+     * 标记移动端通知为已读
+     * @param {string} noticeId - 通知ID
+     */
+    async function markMobileNotificationRead(noticeId) {
+      try {
+        // 调用后端API标记已读
+        const result = await callPythonAPI('mark_notification_read', noticeId);
+        if (result.success) {
+          // 成功后重新刷新列表
+          await mobileRefreshNotifications();
+        }
+      } catch (error) {
+        console.error('标记已读失败:', error);
+      }
+    }
+
+    /**
+     * 移动端一键已读所有通知
+     */
+    async function mobileMarkAllAsRead() {
+      const notifications = window.currentNotifications || [];
+      const unreadNotices = notifications.filter(n => !n.isRead);
+      
+      if (unreadNotices.length === 0) {
+        showTempMessage('没有未读通知', 'info');
+        return;
+      }
+
+      try {
+        // 并行标记所有未读通知为已读
+        const promises = unreadNotices.map(n => 
+          callPythonAPI('mark_notification_read', n.id)
+        );
+        await Promise.all(promises);
+        
+        // 刷新UI
+        await mobileRefreshNotifications();
+        showTempMessage('已全部标记为已读', 'success');
+      } catch (error) {
+        console.error('一键已读失败:', error);
+        showTempMessage('操作失败，请稍后重试', 'error');
+      }
+    }
+
+    /**
+     * 展开移动端通知模态框（查看更多）
+     */
+    function expandMobileNotifications() {
+      // 复用桌面端的通知模态框功能
+      showNotifications();
+    }
+
+    /**
+     * 移动端处理签到
+     * @param {string} rollCallId - 签到活动ID
+     */
+    async function mobileHandleAttendance(rollCallId) {
+      // 获取当前通知数据，找到对应的签到活动
+      const notifications = window.currentNotifications || [];
+      const notice = notifications.find(n => n.id === rollCallId);
+      
+      if (!notice) {
+        showTempMessage('未找到签到活动信息', 'error');
+        return;
+      }
+
+      // 解析坐标
+      try {
+        const coordsStr = (notice.updateBy || "").trim();
+        const [lat, lon] = coordsStr.split(',').map(Number);
+        
+        if (isNaN(lon) || isNaN(lat)) {
+          showTempMessage('签到坐标无效', 'error');
+          return;
+        }
+
+        const targetCoords = [lon, lat];
+        
+        // 调用后端随机签到API
+        const result = await callPythonAPI('trigger_attendance', rollCallId, targetCoords, 'random', null, false);
+        
+        if (result.success) {
+          showTempMessage('签到成功！', 'success');
+          // 刷新通知列表
+          await mobileRefreshNotifications();
+        } else {
+          showTempMessage('签到失败: ' + result.message, 'error');
+        }
+      } catch (error) {
+        console.error('签到失败:', error);
+        showTempMessage('签到失败，请稍后重试', 'error');
+      }
+    }
+
+    /**
+     * 刷新移动端任务列表
+     */
+    async function mobileRefreshTasks() {
+      // TODO: 实现任务刷新逻辑
+      // 调用现有的refreshTasks函数并更新移动端UI
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端添加新任务
+     */
+    function mobileAddTask() {
+      // TODO: 打开添加任务对话框
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端地图放大
+     */
+    function mobileZoomIn() {
+      // TODO: 调用地图API放大
+      if (window.map) {
+        window.map.zoomIn();
+      }
+    }
+
+    /**
+     * 移动端地图缩小
+     */
+    function mobileZoomOut() {
+      // TODO: 调用地图API缩小
+      if (window.map) {
+        window.map.zoomOut();
+      }
+    }
+
+    /**
+     * 移动端地图适应视图
+     */
+    function mobileFitView() {
+      // TODO: 调用地图API适应所有覆盖物
+      if (window.map && window.map.setFitView) {
+        window.map.setFitView();
+      }
+    }
+
+    /**
+     * 移动端启动任务
+     */
+    async function mobileStartTask() {
+      // TODO: 调用现有的startTask函数
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端停止任务
+     */
+    async function mobileStopTask() {
+      // TODO: 调用现有的stopTask函数
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端暂停任务
+     */
+    async function mobilePauseTask() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端继续任务
+     */
+    async function mobileResumeTask() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端重置任务
+     */
+    async function mobileResetTask() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 退出移动端多账号模式，返回首页
+     */
+    function exitMobileMultiAccount() {
+      // 隐藏多账号界面
+      document.getElementById('mobile-multi-account-app').classList.add('hidden');
+      // 显示登录容器
+      document.getElementById('mobile-login-container').classList.remove('hidden');
+    }
+
+    /**
+     * 移动端全选/取消全选账号
+     */
+    function mobileToggleSelectAllAccounts() {
+      const checkbox = document.getElementById('mobile-select-all-accounts');
+      const accountCheckboxes = document.querySelectorAll('#mobile-multi-account-list input[type="checkbox"]');
+      
+      // 根据全选框状态，批量设置账号复选框
+      accountCheckboxes.forEach(cb => {
+        cb.checked = checkbox.checked;
+      });
+    }
+
+    /**
+     * 移动端启动选中的账号
+     */
+    async function mobileStartSelectedAccounts() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端停止选中的账号
+     */
+    async function mobileStopSelectedAccounts() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端添加多账号
+     */
+    function mobileAddMultiAccount() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端刷新多账号列表
+     */
+    async function mobileRefreshMultiAccounts() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端全部启动（多账号）
+     */
+    async function mobileStartAllAccounts() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端全部停止（多账号）
+     */
+    async function mobileStopAllAccounts() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端全部刷新（多账号）
+     */
+    async function mobileRefreshAllAccounts() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * 移动端删除选中的账号
+     */
+    async function mobileRemoveSelectedAccounts() {
+      showTempMessage('功能开发中...', 'info');
+    }
+
+    /**
+     * HTML转义函数，防止XSS攻击
+     * @param {string} text - 需要转义的文本
+     * @returns {string} 转义后的安全文本
+     */
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
     // ==================== 任务8-10: 注册登录和个人资料功能 ====================
 
     // 任务9: 手机号/用户名登录切换
