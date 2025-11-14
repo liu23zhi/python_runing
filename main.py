@@ -15639,10 +15639,8 @@ def start_web_server(args_param):
                             else:
                                 username = phone  # 使用手机号作为标识
                         
-                        # 构建历史记录
+                               # 构建历史记录
                         history_entry = {
-                            if session_id != None and session_id != '' and session_id != 'null':
-                                'session_id': session_id,
                             'username': username,
                             'phone': phone,
                             'scene': scene,
@@ -15651,7 +15649,10 @@ def start_web_server(args_param):
                             'content': content,
                             'ip': client_ip
                         }
-                        
+                        # 有条件地添加 session_id（仅当存在且非空时）
+                        if session_id is not None and session_id != '' and session_id != 'null':
+                            history_entry['session_id'] = session_id
+                 
                         # 追加到JSON文件（每行一个JSON对象）
                         history_file = os.path.join(log_dir, 'sms_history.jsonl')
                         with open(history_file, 'a', encoding='utf-8') as f:
