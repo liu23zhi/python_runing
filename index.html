@@ -712,6 +712,430 @@
         /* 按钮占满宽度 */
       }
     }
+
+    /* ============================================================ */
+    /* 移动端专用UI容器样式 */
+    /* 为智能手机移动终端设计的独立UI容器，实现触屏优化 */
+    /* ============================================================ */
+
+    /* 移动端容器基础样式 - 默认隐藏，通过JavaScript控制显示 */
+    #mobile-container {
+      display: none; /* 默认隐藏移动端容器 */
+      width: 100%; /* 占据全屏宽度 */
+      height: 100vh; /* 占据100%视口高度 */
+      overflow-y: auto; /* 允许垂直滚动 */
+      overflow-x: hidden; /* 隐藏横向滚动条 */
+      background: linear-gradient(180deg, rgba(245, 250, 255, 1) 0%, rgba(235, 245, 255, 1) 40%, rgba(250, 240, 255, 1) 100%); /* 保持与主题一致的渐变背景 */
+      background-attachment: fixed; /* 背景固定，滚动时不移动 */
+      padding: 0; /* 移除默认内边距 */
+      margin: 0; /* 移除默认外边距 */
+    }
+
+    /* 桌面端容器基础样式 - 默认显示 */
+    #desktop-container {
+      display: block; /* 默认显示桌面端容器 */
+      width: 100%; /* 占据全宽 */
+      height: 100%; /* 占据全高 */
+    }
+
+    /* 移动端模式下的body样式 - 当检测到移动设备时应用 */
+    body.mobile-mode {
+      font-size: 16px; /* 设置最小字体为16px，防止iOS Safari自动缩放页面 */
+      -webkit-text-size-adjust: 100%; /* 防止iOS横屏时文字自动缩放 */
+      -moz-text-size-adjust: 100%; /* 防止Firefox移动版文字自动缩放 */
+      -ms-text-size-adjust: 100%; /* 防止IE移动版文字自动缩放 */
+      text-size-adjust: 100%; /* 标准属性：防止文字自动缩放 */
+      overflow-x: hidden; /* 隐藏横向溢出，避免左右滑动 */
+      user-select: none; /* 禁止文本选择，更接近原生App体验 */
+      -webkit-user-select: none; /* Safari/Chrome禁止文本选择 */
+      -webkit-tap-highlight-color: transparent; /* 移除移动端点击高亮效果 */
+      touch-action: pan-y; /* 只允许垂直滚动手势 */
+    }
+
+    /* 移动端模式下的按钮优化 - 更大的触摸目标 */
+    .mobile-mode .btn,
+    .mobile-mode button {
+      min-height: 44px; /* iOS人机界面指南推荐的最小触摸目标高度 */
+      min-width: 44px; /* 最小宽度也设为44px，确保正方形按钮可点击 */
+      font-size: 16px; /* 增大字体，提高可读性 */
+      padding: 12px 20px; /* 增大内边距，扩大点击区域 */
+      border-radius: 12px; /* 增大圆角，更符合移动端UI风格 */
+      font-weight: 600; /* 加粗字体，更易识别 */
+      letter-spacing: 0.5px; /* 增加字间距，提高可读性 */
+      transition: all 0.2s ease; /* 添加过渡动画，提升交互体验 */
+      touch-action: manipulation; /* 优化触摸响应，移除双击缩放延迟 */
+      cursor: pointer; /* 显示手型光标（桌面调试时有用） */
+    }
+
+    /* 移动端按钮按下效果 - 提供触觉反馈 */
+    .mobile-mode .btn:active,
+    .mobile-mode button:active {
+      transform: scale(0.95); /* 按下时轻微缩小，模拟物理按键反馈 */
+      opacity: 0.8; /* 降低不透明度，增强视觉反馈 */
+    }
+
+    /* 移动端模式下的输入框优化 */
+    .mobile-mode input,
+    .mobile-mode select,
+    .mobile-mode textarea {
+      min-height: 44px; /* 确保输入框足够高，便于触摸 */
+      font-size: 16px; /* 防止iOS自动缩放（字体小于16px时会缩放） */
+      padding: 12px 16px; /* 增大内边距，提升输入体验 */
+      border-radius: 10px; /* 圆角设计，符合现代移动UI */
+      border: 2px solid rgba(148, 163, 184, 0.3); /* 增粗边框，更易识别 */
+      background-color: rgba(255, 255, 255, 0.9); /* 半透明白色背景 */
+      transition: all 0.2s ease; /* 添加过渡动画 */
+      touch-action: manipulation; /* 优化触摸响应 */
+    }
+
+    /* 输入框获得焦点时的样式 */
+    .mobile-mode input:focus,
+    .mobile-mode select:focus,
+    .mobile-mode textarea:focus {
+      border-color: #3b82f6; /* 聚焦时显示蓝色边框 */
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); /* 添加外发光效果 */
+      outline: none; /* 移除默认的焦点轮廓 */
+      transform: scale(1.02); /* 轻微放大，增强视觉反馈 */
+    }
+
+    /* 移动端顶部导航栏样式 */
+    .mobile-mode .mobile-header {
+      position: fixed; /* 固定在顶部 */
+      top: 0; /* 距离顶部0 */
+      left: 0; /* 距离左侧0 */
+      right: 0; /* 距离右侧0 */
+      z-index: 1000; /* 高层级，确保在其他内容之上 */
+      height: 56px; /* 标准移动端导航栏高度 */
+      background: rgba(255, 255, 255, 0.95); /* 半透明白色背景 */
+      backdrop-filter: blur(10px); /* 毛玻璃效果 */
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); /* 底部阴影，增加层次感 */
+      display: flex; /* 使用Flexbox布局 */
+      align-items: center; /* 垂直居中对齐 */
+      justify-content: space-between; /* 两端对齐 */
+      padding: 0 16px; /* 左右内边距 */
+    }
+
+    /* 移动端内容区域 - 为顶部导航栏留出空间 */
+    .mobile-mode .mobile-content {
+      padding-top: 56px; /* 顶部内边距，避免被固定导航栏遮挡 */
+      padding-bottom: 80px; /* 底部内边距，为底部导航栏留空间 */
+      min-height: 100vh; /* 最小高度为100%视口高度 */
+    }
+
+    /* 移动端底部导航栏样式 */
+    .mobile-mode .mobile-bottom-nav {
+      position: fixed; /* 固定在底部 */
+      bottom: 0; /* 距离底部0 */
+      left: 0; /* 距离左侧0 */
+      right: 0; /* 距离右侧0 */
+      z-index: 1000; /* 高层级 */
+      height: 64px; /* 底部导航栏高度 */
+      background: rgba(255, 255, 255, 0.95); /* 半透明白色背景 */
+      backdrop-filter: blur(10px); /* 毛玻璃效果 */
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1); /* 顶部阴影 */
+      display: flex; /* Flexbox布局 */
+      align-items: center; /* 垂直居中 */
+      justify-content: space-around; /* 均匀分布 */
+      padding: 0 8px; /* 左右内边距 */
+      padding-bottom: env(safe-area-inset-bottom, 0); /* 适配iPhone X等有安全区域的设备 */
+    }
+
+    /* 移动端底部导航按钮 */
+    .mobile-mode .mobile-nav-btn {
+      flex: 1; /* 均分空间 */
+      display: flex; /* Flexbox布局 */
+      flex-direction: column; /* 垂直排列（图标在上，文字在下） */
+      align-items: center; /* 水平居中 */
+      justify-content: center; /* 垂直居中 */
+      padding: 8px; /* 内边距 */
+      min-height: 44px; /* 最小触摸目标高度 */
+      color: #64748b; /* 默认灰色 */
+      text-decoration: none; /* 移除下划线 */
+      font-size: 12px; /* 小字体 */
+      font-weight: 500; /* 中等字重 */
+      transition: all 0.2s ease; /* 过渡动画 */
+      cursor: pointer; /* 手型光标 */
+      touch-action: manipulation; /* 优化触摸 */
+    }
+
+    /* 底部导航按钮激活状态 */
+    .mobile-mode .mobile-nav-btn.active {
+      color: #3b82f6; /* 激活时显示蓝色 */
+      font-weight: 600; /* 加粗 */
+    }
+
+    /* 底部导航按钮图标 */
+    .mobile-mode .mobile-nav-btn svg {
+      width: 24px; /* 图标宽度 */
+      height: 24px; /* 图标高度 */
+      margin-bottom: 4px; /* 图标与文字间距 */
+    }
+
+    /* 移动端卡片样式优化 */
+    .mobile-mode .mobile-card {
+      background: rgba(255, 255, 255, 0.85); /* 半透明白色背景 */
+      backdrop-filter: blur(10px); /* 毛玻璃效果 */
+      border-radius: 16px; /* 大圆角 */
+      padding: 20px; /* 内边距 */
+      margin: 16px; /* 外边距 */
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* 阴影效果 */
+      border: 1px solid rgba(255, 255, 255, 0.5); /* 边框 */
+    }
+
+    /* 移动端表单组样式 */
+    .mobile-mode .mobile-form-group {
+      margin-bottom: 20px; /* 表单项之间的间距 */
+    }
+
+    /* 移动端表单标签 */
+    .mobile-mode .mobile-form-label {
+      display: block; /* 块级元素，独占一行 */
+      font-size: 14px; /* 字体大小 */
+      font-weight: 600; /* 加粗 */
+      color: #334155; /* 深灰色 */
+      margin-bottom: 8px; /* 标签与输入框间距 */
+    }
+
+    /* 移动端大按钮样式（主要操作按钮） */
+    .mobile-mode .mobile-primary-btn {
+      width: 100%; /* 占满宽度 */
+      height: 50px; /* 较大的高度 */
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); /* 渐变蓝色背景 */
+      color: white; /* 白色文字 */
+      border: none; /* 无边框 */
+      border-radius: 12px; /* 圆角 */
+      font-size: 17px; /* 较大字体 */
+      font-weight: 700; /* 粗体 */
+      text-align: center; /* 文字居中 */
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); /* 蓝色阴影 */
+      transition: all 0.2s ease; /* 过渡动画 */
+      touch-action: manipulation; /* 优化触摸 */
+      cursor: pointer; /* 手型光标 */
+    }
+
+    /* 主要按钮按下效果 */
+    .mobile-mode .mobile-primary-btn:active {
+      transform: scale(0.97); /* 按下时缩小 */
+      box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3); /* 减弱阴影 */
+    }
+
+    /* 移动端次要按钮样式（次要操作按钮） */
+    .mobile-mode .mobile-secondary-btn {
+      width: 100%; /* 占满宽度 */
+      height: 50px; /* 高度 */
+      background: white; /* 白色背景 */
+      color: #3b82f6; /* 蓝色文字 */
+      border: 2px solid #3b82f6; /* 蓝色边框 */
+      border-radius: 12px; /* 圆角 */
+      font-size: 17px; /* 字体大小 */
+      font-weight: 600; /* 字重 */
+      text-align: center; /* 居中 */
+      transition: all 0.2s ease; /* 过渡 */
+      touch-action: manipulation; /* 触摸优化 */
+      cursor: pointer; /* 光标 */
+    }
+
+    /* 次要按钮按下效果 */
+    .mobile-mode .mobile-secondary-btn:active {
+      transform: scale(0.97); /* 缩小 */
+      background: rgba(59, 130, 246, 0.1); /* 浅蓝背景 */
+    }
+
+    /* 移动端列表项样式 */
+    .mobile-mode .mobile-list-item {
+      display: flex; /* Flexbox布局 */
+      align-items: center; /* 垂直居中 */
+      padding: 16px; /* 内边距 */
+      background: white; /* 白色背景 */
+      border-radius: 12px; /* 圆角 */
+      margin-bottom: 12px; /* 项之间的间距 */
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); /* 轻微阴影 */
+      min-height: 60px; /* 最小高度，确保可点击 */
+      transition: all 0.2s ease; /* 过渡动画 */
+      cursor: pointer; /* 手型光标 */
+      touch-action: manipulation; /* 触摸优化 */
+    }
+
+    /* 列表项按下效果 */
+    .mobile-mode .mobile-list-item:active {
+      transform: scale(0.98); /* 轻微缩小 */
+      background: rgba(59, 130, 246, 0.05); /* 浅蓝背景 */
+    }
+
+    /* 移动端分隔线 */
+    .mobile-mode .mobile-divider {
+      height: 1px; /* 高度1像素 */
+      background: rgba(148, 163, 184, 0.2); /* 半透明灰色 */
+      margin: 20px 0; /* 上下外边距 */
+    }
+
+    /* 移动端标题样式 */
+    .mobile-mode .mobile-title {
+      font-size: 24px; /* 大字体 */
+      font-weight: 700; /* 粗体 */
+      color: #0f172a; /* 深色 */
+      margin-bottom: 8px; /* 底部间距 */
+    }
+
+    /* 移动端副标题样式 */
+    .mobile-mode .mobile-subtitle {
+      font-size: 16px; /* 中等字体 */
+      font-weight: 400; /* 正常字重 */
+      color: #64748b; /* 灰色 */
+      margin-bottom: 24px; /* 底部间距 */
+    }
+
+    /* 移动端空状态提示 */
+    .mobile-mode .mobile-empty-state {
+      text-align: center; /* 居中 */
+      padding: 40px 20px; /* 内边距 */
+      color: #94a3b8; /* 浅灰色 */
+      font-size: 15px; /* 字体大小 */
+    }
+
+    /* 移动端加载动画容器 */
+    .mobile-mode .mobile-loading {
+      display: flex; /* Flexbox */
+      flex-direction: column; /* 垂直排列 */
+      align-items: center; /* 水平居中 */
+      justify-content: center; /* 垂直居中 */
+      padding: 40px; /* 内边距 */
+      color: #64748b; /* 灰色 */
+    }
+
+    /* 移动端切换开关样式 */
+    .mobile-mode .mobile-switch {
+      position: relative; /* 相对定位 */
+      width: 50px; /* 宽度 */
+      height: 28px; /* 高度 */
+      background: #e2e8f0; /* 灰色背景 */
+      border-radius: 14px; /* 圆角（高度的一半） */
+      transition: all 0.3s ease; /* 过渡动画 */
+      cursor: pointer; /* 手型光标 */
+      touch-action: manipulation; /* 触摸优化 */
+    }
+
+    /* 开关激活状态 */
+    .mobile-mode .mobile-switch.active {
+      background: #3b82f6; /* 蓝色背景 */
+    }
+
+    /* 开关滑块 */
+    .mobile-mode .mobile-switch::after {
+      content: ''; /* 伪元素内容为空 */
+      position: absolute; /* 绝对定位 */
+      top: 2px; /* 距离顶部2px */
+      left: 2px; /* 初始位置在左侧 */
+      width: 24px; /* 滑块宽度 */
+      height: 24px; /* 滑块高度 */
+      background: white; /* 白色滑块 */
+      border-radius: 12px; /* 圆形滑块 */
+      transition: all 0.3s ease; /* 过渡动画 */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* 阴影效果 */
+    }
+
+    /* 激活状态下的滑块位置 */
+    .mobile-mode .mobile-switch.active::after {
+      left: 24px; /* 滑块移动到右侧 */
+    }
+
+    /* 移动端模态框样式优化 */
+    .mobile-mode .mobile-modal {
+      position: fixed; /* 固定定位 */
+      top: 0; /* 顶部 */
+      left: 0; /* 左侧 */
+      right: 0; /* 右侧 */
+      bottom: 0; /* 底部 */
+      z-index: 2000; /* 超高层级，确保在所有内容之上 */
+      background: rgba(0, 0, 0, 0.5); /* 半透明黑色遮罩 */
+      display: flex; /* Flexbox布局 */
+      align-items: flex-end; /* 底部对齐（从底部弹出） */
+      justify-content: center; /* 水平居中 */
+      opacity: 0; /* 初始透明 */
+      visibility: hidden; /* 初始隐藏 */
+      transition: all 0.3s ease; /* 过渡动画 */
+    }
+
+    /* 模态框显示状态 */
+    .mobile-mode .mobile-modal.show {
+      opacity: 1; /* 完全不透明 */
+      visibility: visible; /* 可见 */
+    }
+
+    /* 移动端模态框内容容器 */
+    .mobile-mode .mobile-modal-content {
+      background: white; /* 白色背景 */
+      border-radius: 20px 20px 0 0; /* 顶部圆角 */
+      width: 100%; /* 占满宽度 */
+      max-height: 85vh; /* 最大高度为视口的85% */
+      overflow-y: auto; /* 允许垂直滚动 */
+      padding: 24px; /* 内边距 */
+      padding-bottom: calc(24px + env(safe-area-inset-bottom, 0)); /* 底部内边距，适配安全区域 */
+      transform: translateY(100%); /* 初始位置在屏幕下方 */
+      transition: transform 0.3s ease; /* 过渡动画 */
+    }
+
+    /* 模态框内容显示状态 */
+    .mobile-mode .mobile-modal.show .mobile-modal-content {
+      transform: translateY(0); /* 滑入到正常位置 */
+    }
+
+    /* 移动端横屏适配 */
+    @media (orientation: landscape) and (max-height: 500px) {
+      /* 横屏且高度较小时（手机横屏） */
+      .mobile-mode .mobile-header {
+        height: 48px; /* 减小导航栏高度 */
+      }
+
+      .mobile-mode .mobile-content {
+        padding-top: 48px; /* 相应减小顶部内边距 */
+        padding-bottom: 60px; /* 减小底部内边距 */
+      }
+
+      .mobile-mode .mobile-bottom-nav {
+        height: 56px; /* 减小底部导航栏高度 */
+      }
+
+      .mobile-mode .mobile-card {
+        padding: 16px; /* 减小卡片内边距 */
+        margin: 12px; /* 减小卡片外边距 */
+      }
+    }
+
+    /* 移动端深色模式适配（如果系统启用深色模式） */
+    @media (prefers-color-scheme: dark) {
+      .mobile-mode #mobile-container {
+        background: linear-gradient(180deg, #0f172a 0%, #1e293b 50%, #334155 100%); /* 深色渐变背景 */
+      }
+
+      .mobile-mode .mobile-card {
+        background: rgba(30, 41, 59, 0.85); /* 深色半透明背景 */
+        border: 1px solid rgba(255, 255, 255, 0.1); /* 浅色边框 */
+        color: #e2e8f0; /* 浅色文字 */
+      }
+
+      .mobile-mode .mobile-header,
+      .mobile-mode .mobile-bottom-nav {
+        background: rgba(15, 23, 42, 0.95); /* 深色背景 */
+        border-color: rgba(255, 255, 255, 0.1); /* 浅色边框 */
+      }
+
+      .mobile-mode .mobile-title {
+        color: #f1f5f9; /* 浅色标题 */
+      }
+
+      .mobile-mode .mobile-subtitle {
+        color: #94a3b8; /* 中灰色副标题 */
+      }
+
+      .mobile-mode input,
+      .mobile-mode select,
+      .mobile-mode textarea {
+        background: rgba(30, 41, 59, 0.8); /* 深色输入框背景 */
+        color: #e2e8f0; /* 浅色文字 */
+        border-color: rgba(148, 163, 184, 0.3); /* 边框颜色 */
+      }
+    }
   </style>
 
 </head>
@@ -1072,15 +1496,22 @@
     </div>
   </div>
 
-  <!-- 登录界面 -->
   <!-- ========================================
-       登录容器主体 - 三列响应式布局
-       - 左侧：多账号模式入口（紫色主题）
-       - 中间：会话管理面板（管理员功能）
-       - 右侧：单账号登录表单（天蓝色主题）
-       - 响应式：移动端垂直堆叠，桌面端三列并排
+       【桌面端容器】Desktop Container
+       - 包裹所有桌面端UI元素
+       - 默认显示，当检测到移动设备时自动隐藏
+       - 保留原有的所有功能和布局
        ======================================== -->
-  <div id="login-container" class="w-full h-full grid grid-cols-1 lg:grid-cols-3">
+  <div id="desktop-container">
+    <!-- 登录界面 -->
+    <!-- ========================================
+         登录容器主体 - 三列响应式布局
+         - 左侧：多账号模式入口（紫色主题）
+         - 中间：会话管理面板（管理员功能）
+         - 右侧：单账号登录表单（天蓝色主题）
+         - 响应式：移动端垂直堆叠，桌面端三列并排
+         ======================================== -->
+    <div id="login-container" class="w-full h-full grid grid-cols-1 lg:grid-cols-3">
 
     <!-- ========================================
          【左侧区域】多账号模式入口
@@ -1751,6 +2182,253 @@
           onclick="toggleTaskDetails(false)">关闭</button></div>
     </div>
   </div>
+  <!-- 结束：桌面端容器 -->
+  </div>
+
+  <!-- ========================================
+       【移动端容器】Mobile Container
+       - 专为智能手机移动终端设计的UI容器
+       - 默认隐藏，当检测到移动设备时自动显示
+       - 触屏优化的单列布局，更大的按钮和输入框
+       ======================================== -->
+  <div id="mobile-container">
+    <!-- 移动端顶部导航栏 -->
+    <header class="mobile-header">
+      <!-- 左侧：Logo或返回按钮 -->
+      <div class="flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" viewBox="0 0 24 24" fill="currentColor">
+          <!-- 跑步图标 -->
+          <path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/>
+        </svg>
+        <span class="ml-2 text-lg font-bold text-slate-800">跑步助手</span>
+      </div>
+      
+      <!-- 右侧：菜单按钮 -->
+      <button id="mobile-menu-btn" class="p-2" aria-label="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </header>
+
+    <!-- 移动端内容区域 -->
+    <main class="mobile-content">
+      
+      <!-- 登录/注册卡片 -->
+      <div class="mobile-card" id="mobile-auth-card">
+        <!-- 欢迎标题 -->
+        <div class="text-center mb-6">
+          <h1 class="mobile-title">欢迎使用</h1>
+          <p class="mobile-subtitle">请登录您的账号开始使用</p>
+        </div>
+
+        <!-- 登录表单 -->
+        <div id="mobile-login-form" class="space-y-4">
+          <!-- 用户名输入 -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">用户名</label>
+            <input type="text" id="mobile-login-username" class="w-full" placeholder="请输入用户名" autocomplete="username">
+          </div>
+
+          <!-- 密码输入 -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">密码</label>
+            <input type="password" id="mobile-login-password" class="w-full" placeholder="请输入密码" autocomplete="current-password">
+          </div>
+
+          <!-- 登录按钮 -->
+          <button id="mobile-login-btn" class="mobile-primary-btn">
+            登录
+          </button>
+
+          <!-- 切换到注册 -->
+          <div class="text-center">
+            <button id="mobile-switch-to-register" class="text-sky-600 text-sm font-medium">
+              还没有账号？点击注册
+            </button>
+          </div>
+        </div>
+
+        <!-- 注册表单（默认隐藏） -->
+        <div id="mobile-register-form" class="space-y-4 hidden">
+          <!-- 用户名输入 -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">用户名</label>
+            <input type="text" id="mobile-reg-username" class="w-full" placeholder="请输入用户名" autocomplete="username">
+          </div>
+
+          <!-- 密码输入 -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">密码</label>
+            <input type="password" id="mobile-reg-password" class="w-full" placeholder="请输入密码" autocomplete="new-password">
+          </div>
+
+          <!-- 确认密码 -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">确认密码</label>
+            <input type="password" id="mobile-reg-password-confirm" class="w-full" placeholder="请再次输入密码" autocomplete="new-password">
+          </div>
+
+          <!-- 手机号输入（可选） -->
+          <div class="mobile-form-group" id="mobile-reg-phone-wrapper">
+            <label class="mobile-form-label">手机号（可选）</label>
+            <input type="tel" id="mobile-reg-phone" class="w-full" placeholder="请输入手机号" autocomplete="tel">
+          </div>
+
+          <!-- 注册按钮 -->
+          <button id="mobile-register-btn" class="mobile-primary-btn">
+            注册
+          </button>
+
+          <!-- 切换到登录 -->
+          <div class="text-center">
+            <button id="mobile-switch-to-login" class="text-sky-600 text-sm font-medium">
+              已有账号？点击登录
+            </button>
+          </div>
+        </div>
+
+        <!-- 错误/成功提示 -->
+        <div id="mobile-auth-error" class="hidden mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm text-center"></div>
+        <div id="mobile-auth-success" class="hidden mt-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-600 text-sm text-center"></div>
+      </div>
+
+      <!-- 多账号模式入口卡片 -->
+      <div class="mobile-card" id="mobile-multi-account-card">
+        <!-- 图标 -->
+        <div class="text-center mb-4">
+          <div class="inline-block p-4 bg-violet-100 rounded-full">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-violet-600" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- 标题和描述 -->
+        <h2 class="mobile-title text-center">多账号模式</h2>
+        <p class="mobile-subtitle text-center">批量管理多个账号，一键执行任务</p>
+
+        <!-- 功能列表 -->
+        <div class="space-y-3 mb-6">
+          <div class="flex items-center">
+            <span class="text-2xl mr-3">✨</span>
+            <span class="text-slate-700">支持批量导入账号</span>
+          </div>
+          <div class="flex items-center">
+            <span class="text-2xl mr-3">🎯</span>
+            <span class="text-slate-700">统一管理所有任务</span>
+          </div>
+          <div class="flex items-center">
+            <span class="text-2xl mr-3">⚡</span>
+            <span class="text-slate-700">一键执行全部流程</span>
+          </div>
+        </div>
+
+        <!-- 进入按钮 -->
+        <button id="mobile-multi-account-btn" class="mobile-primary-btn" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);">
+          进入多账号控制台
+        </button>
+      </div>
+
+      <!-- 快速操作卡片（登录后显示） -->
+      <div class="mobile-card hidden" id="mobile-quick-actions">
+        <h2 class="mobile-title">快速操作</h2>
+        
+        <!-- 操作按钮列表 -->
+        <div class="space-y-3">
+          <button class="mobile-list-item justify-between">
+            <div class="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="font-medium">开始跑步</span>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+            </svg>
+          </button>
+
+          <button class="mobile-list-item justify-between">
+            <div class="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-green-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="font-medium">查看任务</span>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+            </svg>
+          </button>
+
+          <button class="mobile-list-item justify-between">
+            <div class="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-purple-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="font-medium">历史记录</span>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+            </svg>
+          </button>
+
+          <button class="mobile-list-item justify-between">
+            <div class="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-orange-600 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span class="font-medium">设置</span>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- 移动端底部导航栏 -->
+    <nav class="mobile-bottom-nav">
+      <!-- 首页按钮 -->
+      <a href="#" class="mobile-nav-btn active" data-nav="home">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" />
+          <path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.43z" />
+        </svg>
+        <span>首页</span>
+      </a>
+
+      <!-- 任务按钮 -->
+      <a href="#" class="mobile-nav-btn" data-nav="tasks">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+        </svg>
+        <span>任务</span>
+      </a>
+
+      <!-- 历史按钮 -->
+      <a href="#" class="mobile-nav-btn" data-nav="history">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>历史</span>
+      </a>
+
+      <!-- 我的按钮 -->
+      <a href="#" class="mobile-nav-btn" data-nav="profile">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+        </svg>
+        <span>我的</span>
+      </a>
+    </nav>
+
+  </div>
+  <!-- 结束：移动端容器 -->
+
   <div id="account-params-modal" class="fixed inset-0 hidden items-center justify-center z-50">
     <div class="absolute inset-0 bg-black/40" onclick="
     const modalElem = this.parentElement;
@@ -3081,6 +3759,367 @@
       maxSessions: 1,
       currentCount: 0
     };
+
+    // ============================================================
+    // 移动端设备检测与UI容器切换功能
+    // 实现智能检测设备类型，自动切换移动端/桌面端UI
+    // ============================================================
+
+    // 全局变量：标记当前是否为移动端模式
+    let isMobileMode = false;
+
+    /**
+     * 检测当前设备是否为移动设备（智能手机）
+     * 
+     * 检测逻辑：
+     * 1. 通过User-Agent检测常见移动设备标识
+     * 2. 检测屏幕宽度是否小于等于768px
+     * 3. 检测是否支持触摸事件
+     * 
+     * 返回值：
+     * @returns {boolean} true表示移动设备，false表示桌面设备
+     */
+    function detectMobileDevice() {
+      // 方法1：通过User-Agent字符串检测
+      // 检测常见的移动设备User-Agent标识
+      const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+      const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i;
+      const isMobileUA = mobileRegex.test(userAgent);
+
+      // 方法2：检测屏幕宽度
+      // 屏幕宽度小于等于768px认为是移动设备（标准移动端断点）
+      const isSmallScreen = window.innerWidth <= 768;
+
+      // 方法3：检测触摸支持
+      // 检测设备是否支持触摸事件（触摸屏设备）
+      const hasTouch = ('ontouchstart' in window) || 
+                       (navigator.maxTouchPoints > 0) || 
+                       (navigator.msMaxTouchPoints > 0);
+
+      // 综合判断：满足User-Agent是移动设备，或者（小屏幕且支持触摸）
+      // 这种组合可以更准确地识别真正的移动设备
+      const isMobile = isMobileUA || (isSmallScreen && hasTouch);
+
+      // 打印检测结果到控制台，便于调试
+      console.log('[移动端检测] User-Agent检测:', isMobileUA);
+      console.log('[移动端检测] 屏幕宽度:', window.innerWidth, 'px, 是否小屏:', isSmallScreen);
+      console.log('[移动端检测] 触摸支持:', hasTouch);
+      console.log('[移动端检测] 最终判定:', isMobile ? '移动设备' : '桌面设备');
+
+      return isMobile;
+    }
+
+    /**
+     * 切换UI容器显示（移动端/桌面端）
+     * 
+     * 功能说明：
+     * 根据设备类型，显示对应的UI容器，隐藏另一个
+     * 同时切换body的mobile-mode类，应用移动端专用样式
+     */
+    function switchUIContainer() {
+      // 获取移动端容器DOM元素
+      const mobileContainer = document.getElementById('mobile-container');
+      // 获取桌面端容器DOM元素
+      const desktopContainer = document.getElementById('desktop-container');
+
+      // 检查容器是否存在，如果不存在则提前返回
+      if (!mobileContainer || !desktopContainer) {
+        console.warn('[UI切换] 警告：移动端或桌面端容器未找到');
+        return;
+      }
+
+      // 调用设备检测函数，判断当前是否为移动设备
+      const isMobile = detectMobileDevice();
+      // 更新全局变量
+      isMobileMode = isMobile;
+
+      if (isMobile) {
+        // === 移动端模式 ===
+        console.log('[UI切换] 切换到移动端模式');
+
+        // 显示移动端容器
+        mobileContainer.style.display = 'block';
+        // 隐藏桌面端容器
+        desktopContainer.style.display = 'none';
+
+        // 为body添加mobile-mode类，应用移动端专用CSS样式
+        document.body.classList.add('mobile-mode');
+
+        // 初始化移动端特定功能
+        initializeMobileUI();
+      } else {
+        // === 桌面端模式 ===
+        console.log('[UI切换] 切换到桌面端模式');
+
+        // 隐藏移动端容器
+        mobileContainer.style.display = 'none';
+        // 显示桌面端容器
+        desktopContainer.style.display = 'block';
+
+        // 移除mobile-mode类，恢复桌面端样式
+        document.body.classList.remove('mobile-mode');
+      }
+    }
+
+    /**
+     * 初始化移动端UI功能
+     * 
+     * 为移动端UI元素绑定事件处理器和交互逻辑
+     */
+    function initializeMobileUI() {
+      console.log('[移动端UI] 初始化移动端UI功能');
+
+      // === 登录/注册表单切换功能 ===
+
+      // 获取"切换到注册"按钮
+      const switchToRegisterBtn = document.getElementById('mobile-switch-to-register');
+      // 获取"切换到登录"按钮
+      const switchToLoginBtn = document.getElementById('mobile-switch-to-login');
+      // 获取登录表单容器
+      const loginForm = document.getElementById('mobile-login-form');
+      // 获取注册表单容器
+      const registerForm = document.getElementById('mobile-register-form');
+
+      // 为"切换到注册"按钮绑定点击事件
+      if (switchToRegisterBtn) {
+        switchToRegisterBtn.addEventListener('click', function() {
+          // 隐藏登录表单
+          loginForm.classList.add('hidden');
+          // 显示注册表单
+          registerForm.classList.remove('hidden');
+          console.log('[移动端UI] 切换到注册表单');
+        });
+      }
+
+      // 为"切换到登录"按钮绑定点击事件
+      if (switchToLoginBtn) {
+        switchToLoginBtn.addEventListener('click', function() {
+          // 隐藏注册表单
+          registerForm.classList.add('hidden');
+          // 显示登录表单
+          loginForm.classList.remove('hidden');
+          console.log('[移动端UI] 切换到登录表单');
+        });
+      }
+
+      // === 移动端登录功能 ===
+
+      // 获取移动端登录按钮
+      const mobileLoginBtn = document.getElementById('mobile-login-btn');
+      if (mobileLoginBtn) {
+        // 绑定登录按钮点击事件
+        mobileLoginBtn.addEventListener('click', function() {
+          // 获取用户输入的用户名
+          const username = document.getElementById('mobile-login-username').value.trim();
+          // 获取用户输入的密码
+          const password = document.getElementById('mobile-login-password').value.trim();
+
+          // 输入验证：检查用户名和密码是否为空
+          if (!username || !password) {
+            showMobileMessage('请输入用户名和密码', 'error');
+            return;
+          }
+
+          // 调用桌面端的登录函数（复用现有登录逻辑）
+          // 注意：这里假设桌面端已有登录函数，需要确保该函数可被调用
+          console.log('[移动端UI] 尝试登录:', username);
+          // TODO: 调用实际的登录API函数
+          // 例如：performLogin(username, password);
+          showMobileMessage('登录功能正在开发中...', 'info');
+        });
+      }
+
+      // === 移动端注册功能 ===
+
+      // 获取移动端注册按钮
+      const mobileRegisterBtn = document.getElementById('mobile-register-btn');
+      if (mobileRegisterBtn) {
+        // 绑定注册按钮点击事件
+        mobileRegisterBtn.addEventListener('click', function() {
+          // 获取用户输入的用户名
+          const username = document.getElementById('mobile-reg-username').value.trim();
+          // 获取用户输入的密码
+          const password = document.getElementById('mobile-reg-password').value.trim();
+          // 获取用户输入的确认密码
+          const passwordConfirm = document.getElementById('mobile-reg-password-confirm').value.trim();
+
+          // 输入验证：检查必填字段
+          if (!username || !password || !passwordConfirm) {
+            showMobileMessage('请填写所有必填字段', 'error');
+            return;
+          }
+
+          // 密码一致性验证
+          if (password !== passwordConfirm) {
+            showMobileMessage('两次输入的密码不一致', 'error');
+            return;
+          }
+
+          // 调用桌面端的注册函数（复用现有注册逻辑）
+          console.log('[移动端UI] 尝试注册:', username);
+          // TODO: 调用实际的注册API函数
+          // 例如：performRegister(username, password);
+          showMobileMessage('注册功能正在开发中...', 'info');
+        });
+      }
+
+      // === 多账号模式按钮 ===
+
+      // 获取移动端多账号模式按钮
+      const mobileMultiAccountBtn = document.getElementById('mobile-multi-account-btn');
+      if (mobileMultiAccountBtn) {
+        // 绑定按钮点击事件
+        mobileMultiAccountBtn.addEventListener('click', function() {
+          console.log('[移动端UI] 进入多账号模式');
+          // 调用桌面端的多账号模式函数（复用现有逻辑）
+          // TODO: 调用实际的多账号模式函数
+          // 例如：showMultiAccountPanel();
+          showMobileMessage('多账号模式功能正在开发中...', 'info');
+        });
+      }
+
+      // === 底部导航栏切换功能 ===
+
+      // 获取所有底部导航按钮
+      const navButtons = document.querySelectorAll('.mobile-nav-btn');
+      // 为每个导航按钮绑定点击事件
+      navButtons.forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault(); // 阻止默认的链接跳转行为
+
+          // 移除所有按钮的active类（取消激活状态）
+          navButtons.forEach(function(b) {
+            b.classList.remove('active');
+          });
+
+          // 为当前点击的按钮添加active类（激活状态）
+          this.classList.add('active');
+
+          // 获取导航目标（data-nav属性值）
+          const navTarget = this.getAttribute('data-nav');
+          console.log('[移动端UI] 切换导航到:', navTarget);
+
+          // TODO: 根据navTarget切换显示不同的内容页面
+          // 例如：
+          // if (navTarget === 'home') { showHomePage(); }
+          // else if (navTarget === 'tasks') { showTasksPage(); }
+          // else if (navTarget === 'history') { showHistoryPage(); }
+          // else if (navTarget === 'profile') { showProfilePage(); }
+        });
+      });
+
+      // === 移动端菜单按钮 ===
+
+      // 获取移动端菜单按钮
+      const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+      if (mobileMenuBtn) {
+        // 绑定菜单按钮点击事件
+        mobileMenuBtn.addEventListener('click', function() {
+          console.log('[移动端UI] 打开菜单');
+          // TODO: 实现侧边栏菜单或弹出菜单
+          showMobileMessage('菜单功能正在开发中...', 'info');
+        });
+      }
+
+      console.log('[移动端UI] 移动端UI初始化完成');
+    }
+
+    /**
+     * 显示移动端消息提示
+     * 
+     * @param {string} message - 要显示的消息内容
+     * @param {string} type - 消息类型：'error'错误, 'success'成功, 'info'信息
+     */
+    function showMobileMessage(message, type = 'info') {
+      // 获取错误消息容器
+      const errorDiv = document.getElementById('mobile-auth-error');
+      // 获取成功消息容器
+      const successDiv = document.getElementById('mobile-auth-success');
+
+      // 先隐藏所有消息容器
+      if (errorDiv) errorDiv.classList.add('hidden');
+      if (successDiv) successDiv.classList.add('hidden');
+
+      // 根据消息类型显示对应的容器
+      if (type === 'error') {
+        if (errorDiv) {
+          errorDiv.textContent = message; // 设置消息文本
+          errorDiv.classList.remove('hidden'); // 显示错误容器
+        }
+      } else if (type === 'success') {
+        if (successDiv) {
+          successDiv.textContent = message; // 设置消息文本
+          successDiv.classList.remove('hidden'); // 显示成功容器
+        }
+      } else {
+        // 'info'类型：使用浏览器原生alert（可后续改为自定义Toast）
+        alert(message);
+      }
+
+      // 自动隐藏消息：3秒后自动隐藏消息提示
+      setTimeout(function() {
+        if (errorDiv) errorDiv.classList.add('hidden');
+        if (successDiv) successDiv.classList.add('hidden');
+      }, 3000);
+    }
+
+    /**
+     * 处理窗口大小变化事件
+     * 
+     * 当用户调整浏览器窗口大小或旋转手机屏幕时，重新检测设备类型
+     * 使用防抖技术，避免频繁触发切换
+     */
+    let resizeTimer = null; // 防抖定时器
+    function handleResize() {
+      // 清除之前的定时器
+      if (resizeTimer) {
+        clearTimeout(resizeTimer);
+      }
+
+      // 设置新的定时器：300毫秒后执行切换
+      // 这样可以避免在调整窗口大小过程中频繁切换UI
+      resizeTimer = setTimeout(function() {
+        console.log('[窗口调整] 检测到窗口大小变化，重新检测设备类型');
+        // 重新执行UI容器切换
+        switchUIContainer();
+      }, 300); // 防抖延迟：300毫秒
+    }
+
+    // ============================================================
+    // 页面加载时自动执行
+    // ============================================================
+
+    /**
+     * 在DOM内容加载完成后立即执行
+     * 这是整个移动端UI切换功能的入口点
+     */
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('[页面加载] DOM内容已加载，开始执行设备检测和UI切换');
+
+      // 执行首次UI容器切换
+      switchUIContainer();
+
+      // 监听窗口大小变化事件
+      // 当用户调整窗口或旋转屏幕时，自动重新检测和切换
+      window.addEventListener('resize', handleResize);
+
+      // 监听屏幕方向变化事件（主要针对移动设备）
+      // 当手机从竖屏切换到横屏（或反之）时触发
+      window.addEventListener('orientationchange', function() {
+        console.log('[屏幕方向] 检测到屏幕方向变化');
+        // 延迟100毫秒后重新检测（等待方向变化完成）
+        setTimeout(function() {
+          switchUIContainer();
+        }, 100);
+      });
+
+      console.log('[页面加载] 移动端检测和切换功能已启动');
+    });
+
+    // ============================================================
+    // 结束：移动端设备检测与UI容器切换功能
+    // ============================================================
+
 
     function handleCdnError() {
       cdnErrorCount++;
