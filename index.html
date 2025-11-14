@@ -5410,28 +5410,30 @@
           isModalSwap = true;
         }
                 if (isModalSwap) {
+          // 修复Issue: 当会话选择器模态框处于打开状态并进行桌面/移动端切换时
+          // 应该保持登录界面隐藏，因为用户正在使用会话选择器，不是登录界面
           if (isMobileMode) {
-            // 修复：确保移动端的 login-container 可见 (并隐藏 auth-container)
+            // 场景：从桌面session-picker切换到移动端mobile-session-picker
+            // 应该隐藏移动端的登录相关容器，保持会话选择器可见
             const mobileLogin = $('mobile-login-container');
             const mobileAuth = $('mobile-auth-login-container');
             
-            // 强制使用内联样式
-            if (mobileLogin) mobileLogin.style.display = 'block'; // <-- 修复：显示三卡片布局
-            // mobile-auth-login-container 默认是 block/flex (space-y-4)
-            if (mobileAuth) mobileAuth.style.display = 'none';  // <-- 修复：隐藏登录表单
+            // 强制隐藏登录相关容器（用户正在会话选择器中）
+            if (mobileLogin) mobileLogin.style.display = 'none'; // <-- 修复：隐藏三卡片布局
+            if (mobileAuth) mobileAuth.style.display = 'none';  // <-- 保持：隐藏登录表单
 
-            console.log('[窗口调整-FIX] 确保移动端 login-container 可见');
+            console.log('[窗口调整-FIX] 从桌面切换到移动端：隐藏移动端登录界面，保持会话选择器可见');
           } else {
-            // 修复：确保桌面端的 login-container 可见 (并隐藏 auth-container)
+            // 场景：从移动端mobile-session-picker切换到桌面session-picker
+            // 应该隐藏桌面端的登录相关容器，保持会话选择器可见
             const desktopLogin = $('login-container');
             const desktopAuth = $('auth-login-container');
 
-            // 强制使用内联样式
-            if (desktopLogin) desktopLogin.style.display = 'grid'; // <-- 修复：显示三栏布局 (grid)
-            // auth-login-container 使用 flex 布局
-            if (desktopAuth) desktopAuth.style.display = 'none'; // <-- 修复：隐藏登录表单
+            // 强制隐藏登录相关容器（用户正在会话选择器中）
+            if (desktopLogin) desktopLogin.style.display = 'none'; // <-- 修复：隐藏三栏布局
+            if (desktopAuth) desktopAuth.style.display = 'none'; // <-- 保持：隐藏登录表单
             
-            console.log('[窗口调整-FIX] 确保桌面端 login-container 可见');
+            console.log('[窗口调整-FIX] 从移动端切换到桌面：隐藏桌面登录界面，保持会话选择器可见');
           }
         }
       }, 300); // 防抖延迟：300毫秒
