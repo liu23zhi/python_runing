@@ -1400,88 +1400,261 @@
   </div>
 
   <!-- 登录界面 -->
+  <!-- ========================================
+       登录容器主体 - 三列响应式布局
+       - 左侧：多账号模式入口（紫色主题）
+       - 中间：会话管理面板（管理员功能）
+       - 右侧：单账号登录表单（天蓝色主题）
+       - 响应式：移动端垂直堆叠，桌面端三列并排
+       ======================================== -->
   <div id="login-container" class="w-full h-full grid grid-cols-1 lg:grid-cols-3">
 
-    <div class="flex flex-col items-center justify-center p-12 bg-gradient-to-br from-slate-50 to-gray-100">
-      <div class="text-center w-full max-w-sm space-y-6">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto text-violet-500" viewBox="0 0 24 24"
-          fill="currentColor">
-          <path
-            d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-        </svg>
+    <!-- ========================================
+         【左侧区域】多账号模式入口
+         - 紫色渐变背景与图标呼应
+         - 毛玻璃卡片效果增强视觉层次
+         - 悬停动画提升交互体验
+         ======================================== -->
+    <div class="flex flex-col items-center justify-center p-8 lg:p-12 bg-gradient-to-br from-purple-50 via-violet-50 to-purple-100 relative overflow-hidden">
+      <!-- 背景装饰圆形 - 增加视觉深度 -->
+      <div class="absolute top-0 right-0 w-64 h-64 bg-violet-200 rounded-full opacity-20 blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+      <div class="absolute bottom-0 left-0 w-48 h-48 bg-purple-300 rounded-full opacity-20 blur-2xl translate-y-1/2 -translate-x-1/2"></div>
+      
+      <!-- 内容卡片 - 相对定位确保在装饰层之上 -->
+      <div class="relative text-center w-full max-w-sm space-y-7 panel rounded-3xl p-10 bg-white/60 backdrop-blur-xl shadow-2xl border border-white/50 hover:shadow-violet-200/50 transition-all duration-500 hover:scale-[1.02]">
+        
+        <!-- 图标容器 - 添加发光效果 -->
+        <div class="relative inline-block">
+          <!-- 图标背景光晕 -->
+          <div class="absolute inset-0 bg-violet-400 rounded-full blur-2xl opacity-30 animate-pulse"></div>
+          
+          <!-- 双人图标 - 象征多账号功能 -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="relative w-20 h-20 mx-auto text-violet-600 drop-shadow-lg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+          </svg>
+        </div>
 
-        <h2 class="text-3xl font-bold text-slate-800 card-title">掌上莲峰多账号模式</h2>
-        <p class="text-slate-500">
-          支持批量导入、统一管理和一键执行所有任务。
-        </p>
+        <!-- 标题 - 渐变文字效果 -->
+        <h2 class="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent card-title leading-tight">
+          掌上莲峰<br>多账号模式
+        </h2>
+        
+        <!-- 描述文字 - 增加图标点缀 -->
+        <div class="space-y-3">
+          <p class="text-slate-600 text-base leading-relaxed">
+            ✨ 支持批量导入账号<br>
+            🎯 统一管理所有任务<br>
+            ⚡ 一键执行全部流程
+          </p>
+        </div>
 
-        <button id="multi-account-btn" class="btn btn-secondary w-full py-3">进入多账号控制台</button>
+        <!-- 进入按钮 - 紫色渐变主题，增加悬停动效 -->
+        <button id="multi-account-btn" class="btn btn-secondary w-full py-3.5 text-lg font-bold shadow-xl shadow-violet-300/40 hover:shadow-2xl hover:shadow-violet-400/50 transition-all duration-300">
+          <span>进入多账号控制台</span>
+          <!-- 右箭头图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+        </button>
       </div>
     </div>
 
-    <div
-      class="flex flex-col items-center justify-center p-6 md:p-12 bg-gradient-to-r from-slate-50 via-white to-slate-50"
-      id="admin-panel-modal-Inline">
-      <div class="panel rounded-2xl w-full max-w-2xl p-6 space-y-4 bg-white/90 flex flex-col overflow-x-hidden"
-        style="max-height: calc(100vh - 12rem);">
-        <h3 class="text-xl font-bold text-sky-600 text-center mb-4">会话管理</h3>
+    <!-- ========================================
+         【中间区域】会话管理面板（管理员专用）
+         - 渐变背景营造层次感
+         - 面板内嵌滚动容器支持大量会话
+         - 上帝模式切换（高权限功能）
+         ======================================== -->
+    <div class="flex flex-col items-center justify-center p-6 md:p-10 lg:p-12 bg-gradient-to-br from-sky-50 via-white to-cyan-50 relative overflow-hidden" id="admin-panel-modal-Inline">
+      
+      <!-- 背景装饰波纹 - 增加视觉趣味性 -->
+      <div class="absolute top-0 left-0 w-72 h-72 bg-sky-200 rounded-full opacity-10 blur-3xl -translate-y-1/3 -translate-x-1/3"></div>
+      <div class="absolute bottom-0 right-0 w-56 h-56 bg-cyan-300 rounded-full opacity-10 blur-2xl translate-y-1/3 translate-x-1/3"></div>
+      
+      <!-- 会话管理主面板 - 毛玻璃卡片，支持垂直滚动 -->
+      <div class="relative panel rounded-3xl w-full max-w-2xl p-8 space-y-5 bg-white/80 backdrop-blur-xl flex flex-col overflow-x-hidden shadow-2xl border border-white/60 hover:shadow-sky-200/50 transition-shadow duration-300" style="max-height: calc(100vh - 12rem);">
+        
+        <!-- 面板标题 - 天蓝色主题与系统统一 -->
+        <div class="flex items-center justify-center gap-2 pb-2 border-b border-sky-100">
+          <!-- 管理图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <h3 class="text-2xl font-bold text-sky-700 text-center">会话管理</h3>
+        </div>
 
-        <!-- Session management panel for inline (login page) -->
-        <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0">
-          <div class="flex justify-between items-center">
-            <h4 class="font-semibold">会话列表</h4>
-            <div class="flex items-center gap-3">
-              <label id="god-mode-toggle" class="flex items-center gap-2 cursor-pointer" style="display:none;">
+        <!-- 会话管理核心区域 - 可滚动容器 -->
+        <div id="admin-sessions-panel" class="space-y-4 overflow-y-auto overflow-x-hidden flex-grow min-h-0 pr-2">
+          
+          <!-- 工具栏：标题、上帝模式开关、计数、刷新按钮 -->
+          <div class="flex justify-between items-center bg-gradient-to-r from-sky-50 to-transparent p-4 rounded-xl">
+            <h4 class="font-bold text-slate-700 text-lg">会话列表</h4>
+            
+            <!-- 右侧工具组 -->
+            <div class="flex items-center gap-4">
+              
+              <!-- 上帝模式切换 - 默认隐藏，管理员可见 -->
+              <label id="god-mode-toggle" class="flex items-center gap-2 cursor-pointer bg-red-50 px-3 py-1.5 rounded-full hover:bg-red-100 transition-colors" style="display:none;">
                 <input type="checkbox" id="god-mode-checkbox" class="w-4 h-4 accent-red-600 rounded cursor-pointer">
-                <span class="text-sm font-semibold text-red-600">上帝模式</span>
+                <span class="text-sm font-bold text-red-600">⚠️ 上帝模式</span>
               </label>
-              <div id="admin-session-count-display-inline" class="text-sm text-slate-600">
-                <!-- 会话计数将由JS动态填充 -->
+              
+              <!-- 会话计数显示 - 动态更新 -->
+              <div id="admin-session-count-display-inline" class="text-sm font-medium text-slate-600 bg-white/70 px-3 py-1.5 rounded-full border border-slate-200">
+                <!-- 会话计数将由JavaScript动态填充 -->
               </div>
-              <button id="admin-refresh-sessions-inline" class="btn btn-ghost !py-1 !px-2">刷新</button>
+              
+              <!-- 刷新按钮 - 手动重新加载会话列表 -->
+              <button id="admin-refresh-sessions-inline" class="btn btn-ghost !py-1.5 !px-3 hover:bg-sky-100 transition-colors">
+                <!-- 刷新图标 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>刷新</span>
+              </button>
             </div>
           </div>
-          <div id="admin-sessions-list-inline" class="space-y-2 max-h-[50vh] overflow-y-auto">
-            <p class="text-slate-400 text-center py-10">加载中...</p>
+          
+          <!-- 会话列表容器 - 动态内容由JavaScript填充 -->
+          <div id="admin-sessions-list-inline" class="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+            <!-- 加载中占位符 - 首次加载时显示 -->
+            <p class="text-slate-400 text-center py-12 text-base">
+              <!-- 加载动画图标 -->
+              <svg class="animate-spin h-8 w-8 mx-auto mb-3 text-sky-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              正在加载会话数据...
+            </p>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="flex items-center justify-center p-8 bg-white">
-      <div class="panel rounded-2xl w-full max-w-md p-8 space-y-6">
-        <div class="flex items-center gap-3">
-          <h2 class="text-3xl font-bold text-sky-700 card-title">掌上莲峰单账号登录</h2>
+    <!-- ========================================
+         【右侧区域】单账号登录表单
+         - 天蓝色主题与系统主色调一致
+         - 优化的表单输入体验
+         - 清晰的视觉层次和间距
+         ======================================== -->
+    <div class="flex items-center justify-center p-6 lg:p-8 bg-gradient-to-br from-white via-sky-50/30 to-cyan-50/40 relative overflow-hidden">
+      
+      <!-- 背景装饰元素 - 柔和的几何图形 -->
+      <div class="absolute top-0 right-0 w-64 h-64 bg-sky-300 rounded-full opacity-10 blur-3xl translate-x-1/3 -translate-y-1/3"></div>
+      <div class="absolute bottom-0 left-0 w-48 h-48 bg-cyan-200 rounded-full opacity-15 blur-2xl -translate-x-1/4 translate-y-1/4"></div>
+      
+      <!-- 登录表单主卡片 -->
+      <div class="relative panel rounded-3xl w-full max-w-md p-10 space-y-7 shadow-2xl border border-white/60 hover:shadow-sky-200/40 transition-all duration-300">
+        
+        <!-- 表单标题区域 - 添加图标装饰 -->
+        <div class="flex items-center justify-center gap-3 pb-2">
+          <!-- 登录图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          <h2 class="text-3xl lg:text-4xl font-bold text-sky-700 card-title">单账号登录</h2>
         </div>
-        <div class="space-y-4 w-full">
-          <div>
-            <label class="block text-sm font-semibold leading-6 text-slate-700">选择账号</label>
-            <select id="user-combo" class="select-field mt-1" title="选择已保存的账号或创建新账号" aria-label="选择账号"></select>
+        
+        <!-- 副标题 - 产品名称 -->
+        <div class="text-center">
+          <p class="text-slate-500 text-sm">掌上莲峰跑步助手</p>
+        </div>
+        
+        <!-- 表单输入区域 - 统一的间距和样式 -->
+        <div class="space-y-5 w-full">
+          
+          <!-- 账号选择下拉框 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-bold leading-6 text-slate-700 flex items-center gap-2">
+              <!-- 账号图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              选择账号
+            </label>
+            <!-- 下拉选择框 - 支持快速切换已保存的账号 -->
+            <select id="user-combo" class="select-field hover:border-sky-400 focus:border-sky-600 cursor-pointer transition-all duration-200" title="选择已保存的账号或创建新账号" aria-label="选择账号"></select>
           </div>
-          <div>
-            <label class="block text-sm font-semibold leading-6 text-slate-700">用户名</label>
-            <input type="text" id="username-entry" class="input-field mt-1" placeholder="你的学号或工号">
+          
+          <!-- 用户名输入框 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-bold leading-6 text-slate-700 flex items-center gap-2">
+              <!-- 用户图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              用户名
+            </label>
+            <!-- 文本输入框 - 输入学号或工号 -->
+            <input type="text" id="username-entry" class="input-field hover:border-sky-400 focus:border-sky-600 transition-all duration-200" placeholder="请输入学号或工号" autocomplete="username">
           </div>
-          <div>
-            <label class="block text-sm font-semibold leading-6 text-slate-700">密码</label>
-            <input type="password" id="password-entry" class="input-field mt-1" placeholder="你的密码">
+          
+          <!-- 密码输入框 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-bold leading-6 text-slate-700 flex items-center gap-2">
+              <!-- 锁图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              密码
+            </label>
+            <!-- 密码输入框 - 隐藏字符显示 -->
+            <input type="password" id="password-entry" class="input-field hover:border-sky-400 focus:border-sky-600 transition-all duration-200" placeholder="请输入密码" autocomplete="current-password">
           </div>
         </div>
-        <button id="login-button" class="btn btn-primary w-full py-3">登录</button>
-        <div class="relative flex py-2 items-center">
-          <div class="flex-grow border-t border-slate-200"></div>
-          <span class="flex-shrink mx-4 text-slate-400 text-xs">或</span>
-          <div class="flex-grow border-t border-slate-200"></div>
+        
+        <!-- 主登录按钮 - 天蓝色渐变，突出主要操作 -->
+        <button id="login-button" class="btn btn-primary w-full py-3.5 text-lg font-bold shadow-xl shadow-sky-300/40 hover:shadow-2xl hover:shadow-sky-400/50 transition-all duration-300">
+          <span>立即登录</span>
+          <!-- 右箭头图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+          </svg>
+        </button>
+        
+        <!-- 分隔线 - "或"文字居中 -->
+        <div class="relative flex py-3 items-center">
+          <div class="flex-grow border-t border-slate-300"></div>
+          <span class="flex-shrink mx-5 text-slate-400 text-sm font-medium">或者</span>
+          <div class="flex-grow border-t border-slate-300"></div>
         </div>
-        <button id="import-button" class="btn btn-success w-full">导入离线文件</button>
+        
+        <!-- 次要操作按钮 - 导入离线文件 -->
+        <button id="import-button" class="btn btn-success w-full py-3 font-bold shadow-lg shadow-green-300/30 hover:shadow-xl hover:shadow-green-400/40 transition-all duration-300">
+          <!-- 上传图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          <span>导入离线文件</span>
+        </button>
 
-        <div class="pt-2">
-          <div class="flex justify-between items-center text-xs text-slate-500 mb-1">
-            <span>User-Agent</span>
-            <button id="random-ua-btn" title="随机生成新的UA" class="btn btn-ghost !py-1 !px-2">随机</button>
+        <!-- User-Agent 显示区域 - 高级设置 -->
+        <div class="pt-4 space-y-3 border-t border-slate-200">
+          
+          <!-- 标题栏：UA标签 + 随机按钮 -->
+          <div class="flex justify-between items-center">
+            <span class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+              <!-- 信息图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              User-Agent 标识
+            </span>
+            
+            <!-- 随机生成UA按钮 - 用于模拟不同浏览器 -->
+            <button id="random-ua-btn" title="随机生成新的User-Agent，用于模拟不同设备和浏览器" class="btn btn-ghost !py-1.5 !px-3 text-xs hover:bg-sky-100 transition-colors">
+              <!-- 刷新图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>随机</span>
+            </button>
           </div>
-          <p id="ua-label" class="text-xs text-slate-600 break-all bg-white/70 border border-slate-200 p-2 rounded-md">
-            (未加载) </p>
+          
+          <!-- UA显示框 - 显示当前使用的浏览器标识字符串 -->
+          <p id="ua-label" class="text-xs text-slate-600 break-all bg-gradient-to-br from-white to-slate-50 border border-slate-300 p-3 rounded-xl leading-relaxed shadow-inner">
+            (未加载)
+          </p>
         </div>
       </div>
     </div>
