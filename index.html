@@ -11969,7 +11969,7 @@
         if (adminBtn) adminBtn.classList.remove('hidden');
         const adminBtnLogin = $('show-admin-panel-login');
         if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
-        $('loading-overlay').classList.remove('hidden');
+        $('loading-overlay').classList.add('hidden');
         logMessage_Info('[前端-登录] ✓ 登录流程完成！');
       } else {
         logMessage_Info(`[前端-登录] ✗ 登录失败: ${result.message}`);
