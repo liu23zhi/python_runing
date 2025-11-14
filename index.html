@@ -10057,7 +10057,7 @@
                   <span class="text-xs text-slate-500">💬 短信内容</span>
                   <p class="text-sm text-slate-600 bg-slate-50 p-2 rounded mt-1">${escapeHtml(record.content || '')}</p>
                 </div>
-                ${record.session_id ? `
+                ${record.session_id && record.session_id !== '' && record.session_id !== 'null' ? `
                 <div class="md:col-span-2">
                   <span class="text-xs text-slate-500">🔐 会话ID</span>
                   <p class="text-xs text-slate-400 font-mono">${record.session_id}</p>

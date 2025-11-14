@@ -15641,7 +15641,8 @@ def start_web_server(args_param):
                         
                         # 构建历史记录
                         history_entry = {
-                            'session_id': session_id,
+                            if session_id != None and session_id != '' and session_id != 'null':
+                                'session_id': session_id,
                             'username': username,
                             'phone': phone,
                             'scene': scene,
