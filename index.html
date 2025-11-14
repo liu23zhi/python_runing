@@ -5399,42 +5399,43 @@
         if (isMobileMode && wasDesktopModalOpen) {
           // 场景：从桌面切换到移动端，且桌面模态框是打开的
           console.log('[窗口调整] 正在从桌面会话选择器切换到移动版...');
+          
+          // 关键修复：在显示移动端会话选择器之前，先隐藏登录界面容器
+          // 这样可以防止登录界面在会话选择器显示之前或同时显示，导致UI闪烁或显示错误
+          const mobileLogin = $('mobile-login-container');
+          const mobileAuth = $('mobile-auth-login-container');
+          
+          // 强制隐藏移动端登录相关容器（用户正在会话选择器中）
+          if (mobileLogin) mobileLogin.style.display = 'none'; // 隐藏三卡片布局
+          if (mobileAuth) mobileAuth.style.display = 'none';  // 隐藏登录表单
+          console.log('[窗口调整-FIX] 步骤1：先隐藏移动端登录界面');
+          
+          // 然后关闭桌面版并打开移动版会话选择器
           closeSessionPicker(); // 关闭桌面版
           showMobileSessionPicker(); // 打开移动版
+          console.log('[窗口调整-FIX] 步骤2：显示移动端会话选择器');
+          
           isModalSwap = true;
         } else if (!isMobileMode && wasMobileModalOpen) {
           // 场景：从移动端切换到桌面，且移动模态框是打开的
           console.log('[窗口调整] 正在从移动会话选择器切换到桌面版...');
+          
+          // 关键修复：在显示桌面会话选择器之前，先隐藏登录界面容器
+          // 这样可以防止登录界面在会话选择器显示之前或同时显示，导致UI闪烁或显示错误
+          const desktopLogin = $('login-container');
+          const desktopAuth = $('auth-login-container');
+
+          // 强制隐藏桌面端登录相关容器（用户正在会话选择器中）
+          if (desktopLogin) desktopLogin.style.display = 'none'; // 隐藏三栏布局
+          if (desktopAuth) desktopAuth.style.display = 'none'; // 隐藏登录表单
+          console.log('[窗口调整-FIX] 步骤1：先隐藏桌面登录界面');
+          
+          // 然后关闭移动版并打开桌面版会话选择器
           closeMobileSessionPicker(); // 关闭移动版
           showSessionPicker(); // 打开桌面版
+          console.log('[窗口调整-FIX] 步骤2：显示桌面会话选择器');
+          
           isModalSwap = true;
-        }
-                if (isModalSwap) {
-          // 修复Issue: 当会话选择器模态框处于打开状态并进行桌面/移动端切换时
-          // 应该保持登录界面隐藏，因为用户正在使用会话选择器，不是登录界面
-          if (isMobileMode) {
-            // 场景：从桌面session-picker切换到移动端mobile-session-picker
-            // 应该隐藏移动端的登录相关容器，保持会话选择器可见
-            const mobileLogin = $('mobile-login-container');
-            const mobileAuth = $('mobile-auth-login-container');
-            
-            // 强制隐藏登录相关容器（用户正在会话选择器中）
-            if (mobileLogin) mobileLogin.style.display = 'none'; // <-- 修复：隐藏三卡片布局
-            if (mobileAuth) mobileAuth.style.display = 'none';  // <-- 保持：隐藏登录表单
-
-            console.log('[窗口调整-FIX] 从桌面切换到移动端：隐藏移动端登录界面，保持会话选择器可见');
-          } else {
-            // 场景：从移动端mobile-session-picker切换到桌面session-picker
-            // 应该隐藏桌面端的登录相关容器，保持会话选择器可见
-            const desktopLogin = $('login-container');
-            const desktopAuth = $('auth-login-container');
-
-            // 强制隐藏登录相关容器（用户正在会话选择器中）
-            if (desktopLogin) desktopLogin.style.display = 'none'; // <-- 修复：隐藏三栏布局
-            if (desktopAuth) desktopAuth.style.display = 'none'; // <-- 保持：隐藏登录表单
-            
-            console.log('[窗口调整-FIX] 从移动端切换到桌面：隐藏桌面登录界面，保持会话选择器可见');
-          }
         }
       }, 300); // 防抖延迟：300毫秒
     }
