@@ -5402,12 +5402,19 @@
           
           // 步骤1：在UI容器切换之前，先隐藏移动端登录界面容器
           // 这是关键修复：必须在 switchUIContainer() 之前执行
+          // 使用 classList.add('hidden') 而不是 style.display，因为 Tailwind 的 hidden 类更可靠
           const mobileLogin = $('mobile-login-container');
           const mobileAuth = $('mobile-auth-login-container');
           
-          if (mobileLogin) mobileLogin.style.display = 'none'; // 隐藏三卡片布局
-          if (mobileAuth) mobileAuth.style.display = 'none';  // 隐藏登录表单
-          console.log('[窗口调整-FIX] 步骤1：在UI切换前先隐藏移动端登录界面');
+          if (mobileLogin) {
+            mobileLogin.classList.add('hidden'); // 隐藏三卡片布局（使用 Tailwind hidden 类）
+            mobileLogin.style.display = 'none';   // 同时设置内联样式作为双重保险
+          }
+          if (mobileAuth) {
+            mobileAuth.classList.add('hidden'); // 隐藏登录表单（使用 Tailwind hidden 类）
+            mobileAuth.style.display = 'none';   // 同时设置内联样式作为双重保险
+          }
+          console.log('[窗口调整-FIX] 步骤1：在UI切换前先隐藏移动端登录界面（使用hidden类）');
           
           isModalSwap = true;
         } else if (!willBeMobileMode && wasMobileModalOpen) {
@@ -5415,12 +5422,19 @@
           console.log('[窗口调整] 正在从移动会话选择器切换到桌面版...');
           
           // 步骤1：在UI容器切换之前，先隐藏桌面登录界面容器
+          // 使用 classList.add('hidden') 而不是 style.display，因为 Tailwind 的 hidden 类更可靠
           const desktopLogin = $('login-container');
           const desktopAuth = $('auth-login-container');
 
-          if (desktopLogin) desktopLogin.style.display = 'none'; // 隐藏三栏布局
-          if (desktopAuth) desktopAuth.style.display = 'none'; // 隐藏登录表单
-          console.log('[窗口调整-FIX] 步骤1：在UI切换前先隐藏桌面登录界面');
+          if (desktopLogin) {
+            desktopLogin.classList.add('hidden'); // 隐藏三栏布局（使用 Tailwind hidden 类）
+            desktopLogin.style.display = 'none';   // 同时设置内联样式作为双重保险
+          }
+          if (desktopAuth) {
+            desktopAuth.classList.add('hidden'); // 隐藏登录表单（使用 Tailwind hidden 类）
+            desktopAuth.style.display = 'none';   // 同时设置内联样式作为双重保险
+          }
+          console.log('[窗口调整-FIX] 步骤1：在UI切换前先隐藏桌面登录界面（使用hidden类）');
           
           isModalSwap = true;
         }
