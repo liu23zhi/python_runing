@@ -782,6 +782,75 @@
       /* 只允许垂直滚动手势 */
     }
 
+
+
+    /* 移动端 +86 前缀 */
+    .mobile-mode .phone-input-wrapper {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      border-radius: 10px;
+      /* 匹配 .mobile-mode input 样式 */
+      border: 2px solid rgba(148, 163, 184, 0.3);
+      background-color: rgba(255, 255, 255, 0.9);
+      overflow: hidden;
+      min-height: 44px;
+      transition: all 0.2s ease;
+    }
+
+    /* 获得焦点时的样式 */
+    .mobile-mode .phone-input-wrapper:focus-within {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      transform: scale(1.02);
+    }
+
+    /* +86 前缀标签 */
+    .mobile-mode .phone-prefix {
+      /* 匹配 .mobile-mode input 内边距 */
+      padding: 12px 0 12px 16px;
+      font-size: 16px;
+      color: #64748b;
+      font-weight: 500;
+      user-select: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* 内部输入框：移除自身样式 */
+    .mobile-mode .phone-input-wrapper .input-field {
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      padding-left: 0;
+      padding-right: 16px;
+      /* 匹配 .mobile-mode input */
+      font-size: 16px;
+      /* 匹配 .mobile-mode input */
+      flex: 1;
+      min-width: 0;
+      /* 确保高度足够 */
+      min-height: 44px;
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+
+    /* 移除内部输入框的焦点，因为容器已有 */
+    .mobile-mode .phone-input-wrapper .input-field:focus {
+      outline: none;
+      border: none;
+      box-shadow: none;
+      transform: none;
+      /* 移除 .mobile-mode input:focus 的放大 */
+    }
+
+    /* 当 wrapper 标记为 prefix-hidden 时 (即+86被隐藏)，
+       恢复输入框的左侧内边距，使其与常规输入框对齐 */
+    .mobile-mode .phone-input-wrapper.prefix-hidden .input-field {
+      padding-left: 16px;
+    }
+
+
     /* 移动端模式下，强制隐藏所有桌面端容器和元素 */
     body.mobile-mode #desktop-container,
     body.mobile-mode #auth-login-container,
@@ -1270,7 +1339,7 @@
       /* 右侧 */
       bottom: 0;
       /* 底部 */
-      z-index: 2000;
+      z-index: 20000;
       /* 超高层级，确保在所有内容之上 */
       background: rgba(0, 0, 0, 0.5);
       /* 半透明黑色遮罩 */
@@ -2524,7 +2593,7 @@
        ======================================== -->
   <div id="mobile-container">
     <!-- 移动端顶部导航栏 -->
-    <header class="mobile-header">
+    <header class="mobile-header hidden" id="mobile-header" style="display:none;">
       <!-- 左侧：Logo或返回按钮 -->
       <div class="flex items-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" viewBox="0 0 24 24" fill="currentColor">
@@ -2560,132 +2629,173 @@
            ======================================== -->
       <div id="mobile-auth-login-container" class="space-y-4">
 
-        <!-- 认证卡片 - 白色背景，圆角阴影 -->
         <div class="mobile-card">
 
-          <!-- 欢迎标题区域 - 提供友好的问候信息 -->
           <div class="text-center mb-6">
             <h1 class="mobile-title">欢迎使用跑步助手</h1>
             <p class="mobile-subtitle">请登录或注册以继续使用</p>
           </div>
 
-          <!-- 登录/注册标签切换 - 模仿PC端的标签设计 -->
           <div class="flex border-b border-slate-200 mb-4">
-            <!-- 登录标签按钮 - 默认激活状态（蓝色边框） -->
             <button id="mobile-auth-tab-login"
               class="flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition">
               登录
             </button>
-            <!-- 注册标签按钮 - 默认非激活状态（灰色） -->
             <button id="mobile-auth-tab-register"
               class="flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition">
               注册
             </button>
           </div>
 
-          <!-- ========================================
-               【登录表单】- 默认显示
-               - id保持为 mobile-login-form 便于JavaScript操作
-               ======================================== -->
           <div id="mobile-login-form" class="space-y-4">
 
-            <!-- 用户名输入框 -->
-            <div class="mobile-form-group">
-              <label class="mobile-form-label">用户名</label>
-              <!-- autocomplete属性帮助浏览器自动填充 -->
-              <input type="text" id="mobile-login-username" class="w-full" placeholder="请输入用户名" autocomplete="username">
+            <div class="flex justify-center gap-2 pb-2">
+              <button id="mobile-login-username-btn"
+                class="px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm">
+                用户名登录
+              </button>
+              <button id="mobile-login-phone-btn" class="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm">
+                手机号登录
+              </button>
             </div>
 
-            <!-- 密码输入框 -->
             <div class="mobile-form-group">
-              <label class="mobile-form-label">密码</label>
-              <!-- type="password" 确保输入内容被隐藏 -->
-              <input type="password" id="mobile-login-password" class="w-full" placeholder="请输入密码"
+              <label class="mobile-form-label" id="mobile-login-label">用户名</label>
+              <div id="mobile-username-container" class="mt-1">
+                <input type="text" id="mobile-auth-username" class="w-full" placeholder="请输入用户名"
+                  autocomplete="username">
+              </div>
+            </div>
+
+            <div id="mobile-password-section" class="mobile-form-group">
+              <div class="flex justify-between items-center mb-2">
+                <label class="mobile-form-label !mb-0">密码</label>
+                <button type="button" id="mobile-switch-to-sms" class="text-sm text-sky-600 hover:text-sky-700 hidden">
+                  使用验证码
+                </button>
+              </div>
+              <input type="password" id="mobile-auth-password" class="w-full" placeholder="请输入密码"
                 autocomplete="current-password">
             </div>
 
-            <!-- 登录按钮 - 使用移动端主按钮样式 -->
+            <div id="mobile-sms-section" class="mobile-form-group hidden">
+              <div class="flex justify-between items-center mb-2">
+                <label class="mobile-form-label !mb-0">验证码</label>
+                <button type="button" id="mobile-switch-to-password" class="text-sm text-sky-600 hover:text-sky-700">
+                  使用密码
+                </button>
+              </div>
+              <div class="flex gap-2">
+                <input type="text" id="mobile-auth-sms-code" class="w-full flex-1" placeholder="6位验证码" maxlength="6"
+                  inputmode="numeric">
+                <button type="button" id="mobile-auth-send-login-code"
+                  class="btn btn-primary whitespace-nowrap !py-0 !px-4 !text-base">
+                  发送
+                </button>
+              </div>
+            </div>
+
             <button id="mobile-login-btn" class="mobile-primary-btn">
               登录
             </button>
 
-            <!-- 切换到注册的提示链接 - 蓝色文字按钮 -->
-            <div class="text-center">
-              <button id="mobile-switch-to-register" class="text-sky-600 text-sm font-medium">
-                还没有账号？点击注册
+            <div id="mobile-guest-login-section" class="text-center hidden">
+              <div class="relative flex py-2 items-center">
+                <div class="flex-grow border-t border-slate-200"></div>
+                <span class="flex-shrink mx-4 text-slate-400 text-xs">或</span>
+                <div class="flex-grow border-t border-slate-200"></div>
+              </div>
+              <button id="mobile-guest-btn" class="mobile-secondary-btn">
+                以游客身份继续
               </button>
             </div>
           </div>
 
-          <!-- ========================================
-               【注册表单】- 默认隐藏
-               - id保持为 mobile-register-form
-               - 包含用户名、密码、确认密码、手机号字段
-               ======================================== -->
           <div id="mobile-register-form" class="space-y-4 hidden">
 
-            <!-- 用户名输入框 -->
             <div class="mobile-form-group">
               <label class="mobile-form-label">用户名</label>
-              <input type="text" id="mobile-reg-username" class="w-full" placeholder="请输入用户名" autocomplete="username">
+              <input type="text" id="mobile-reg-username" class="w-full" placeholder="3-20字符，不含中文"
+                autocomplete="username">
             </div>
 
-            <!-- 密码输入框 -->
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">手机号</label>
+              <div class="phone-input-wrapper mt-1">
+                <span class="phone-prefix">+86 </span>
+                <input type="tel" id="mobile-reg-phone" class="input-field" placeholder="请输入手机号" autocomplete="tel"
+                  inputmode="numeric" maxlength="11">
+              </div>
+            </div>
+
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">验证码</label>
+              <div class="flex gap-2">
+                <input type="text" id="mobile-reg-sms-code" class="w-full flex-1" placeholder="6位验证码" maxlength="6"
+                  inputmode="numeric">
+                <button id="mobile-reg-send-code-btn" class="btn btn-primary whitespace-nowrap !py-0 !px-4 !text-base">
+                  发送
+                </button>
+              </div>
+            </div>
+
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">昵称</label>
+              <input type="text" id="mobile-reg-nickname" class="w-full" placeholder="请输入昵称（可含中文）">
+            </div>
+
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">头像</label>
+              <div class="flex items-center gap-3 mt-1">
+                <img id="mobile-reg-avatar-preview" src="/static/default_avatar.png"
+                  class="w-16 h-16 rounded-full object-cover border-2 border-slate-200">
+                <input type="file" id="mobile-reg-avatar" accept="image/*" class="hidden">
+                <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm"
+                  onclick="document.getElementById('mobile-reg-avatar').click(); return false;">
+                  <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                  </svg>
+                  上传头像
+                </button>
+              </div>
+            </div>
+
             <div class="mobile-form-group">
               <label class="mobile-form-label">密码</label>
-              <!-- autocomplete="new-password" 提示这是新密码 -->
-              <input type="password" id="mobile-reg-password" class="w-full" placeholder="请输入密码"
+              <input type="password" id="mobile-reg-password" class="w-full" placeholder="请输入密码（至少6字符）"
                 autocomplete="new-password">
             </div>
 
-            <!-- 确认密码输入框 - 用于验证用户输入一致性 -->
             <div class="mobile-form-group">
               <label class="mobile-form-label">确认密码</label>
               <input type="password" id="mobile-reg-password-confirm" class="w-full" placeholder="请再次输入密码"
                 autocomplete="new-password">
             </div>
 
-            <!-- 手机号输入框（可选） - 用于找回密码或接收验证码 -->
-            <div class="mobile-form-group" id="mobile-reg-phone-wrapper">
-              <label class="mobile-form-label">手机号（可选）</label>
-              <!-- type="tel" 在移动设备上会弹出数字键盘 -->
-              <input type="tel" id="mobile-reg-phone" class="w-full" placeholder="请输入手机号" autocomplete="tel">
-            </div>
-
-            <!-- 注册按钮 -->
-            <button id="mobile-register-btn" class="mobile-primary-btn">
+            <button id="mobile-register-btn" class="mobile-primary-btn"
+              style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);">
               注册
             </button>
-
-            <!-- 切换到登录的提示链接 -->
-            <div class="text-center">
-              <button id="mobile-switch-to-login" class="text-sky-600 text-sm font-medium">
-                已有账号？点击登录
-              </button>
-            </div>
           </div>
 
-          <!-- 2FA验证表单 - 两步验证（默认隐藏） -->
           <div id="mobile-auth-2fa-form" class="space-y-4 hidden">
             <div class="text-center mb-4">
               <h3 class="font-bold text-lg text-slate-800">两步验证</h3>
               <p class="text-sm text-slate-600 mt-2">请输入您的验证码</p>
             </div>
 
-            <!-- 2FA验证码输入框 -->
             <div class="mobile-form-group">
               <label class="mobile-form-label">验证码</label>
-              <!-- maxlength限制输入长度，inputmode优化移动端键盘 -->
               <input type="text" id="mobile-2fa-code" class="w-full" placeholder="请输入6位验证码" maxlength="6"
-                inputmode="numeric">
+                inputmode="numeric" autocomplete="one-time-code">
             </div>
 
-            <!-- 提交2FA验证按钮 -->
             <button id="mobile-2fa-submit-btn" class="mobile-primary-btn">
               验证
             </button>
 
-            <!-- 返回登录按钮 -->
             <div class="text-center">
               <button id="mobile-2fa-back-btn" class="text-sky-600 text-sm font-medium">
                 返回登录
@@ -2693,11 +2803,9 @@
             </div>
           </div>
 
-          <!-- 错误提示框 - 显示认证失败信息（默认隐藏） -->
           <div id="mobile-auth-error"
             class="hidden mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm text-center"></div>
 
-          <!-- 成功提示框 - 显示认证成功信息（默认隐藏） -->
           <div id="mobile-auth-success"
             class="hidden mt-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-600 text-sm text-center">
           </div>
@@ -2943,7 +3051,7 @@
     </main>
 
     <!-- 移动端底部导航栏 -->
-    <nav class="mobile-bottom-nav">
+    <nav class="mobile-bottom-nav hidden" id="mobile-bottom-nav" style="display:none;">
       <!-- 首页按钮 -->
       <a href="#" class="mobile-nav-btn active" data-nav="home">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
@@ -2988,19 +3096,12 @@
   </div>
   <!-- 结束：移动端容器 -->
 
-  <!-- ========================================
-       【容器3】移动端会话选择模态框
-       - 对应PC端的 session-picker-modal
-       - 从底部向上弹出的移动端样式
-       - 显示可用会话列表，支持创建新会话
-       ======================================== -->
-  <div id="mobile-session-picker-modal" class="fixed inset-0 hidden z-[1052]">
 
-    <!-- 半透明黑色背景遮罩 - 点击关闭模态框 -->
-    <div class="absolute inset-0 bg-black/60" onclick="closeMobileSessionPicker()"></div>
+  <div id="mobile-session-picker-modal" class="fixed inset-0 hidden mobile-modal" onclick="closeMobileSessionPicker()">
 
-    <!-- 模态框主体 - 从底部弹出，圆角顶部 -->
-    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+    <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto"
+      onclick="event.stopPropagation()">
+
 
       <!-- 顶部拖动指示器 - 视觉提示可以向下滑动关闭 -->
       <div class="flex justify-center mb-2">
@@ -3020,7 +3121,7 @@
       <div class="bg-sky-50 border border-sky-200 rounded-lg p-4">
         <p class="text-sm text-slate-700 mb-3">选择现有会话或创建新会话</p>
         <!-- 创建新会话按钮 - 主按钮样式 -->
-        <button class="mobile-primary-btn w-full" onclick="createNewSessionFromMobilePicker()">
+        <button class="mobile-primary-btn w-full" onclick="createNewSessionFromPicker()" id="mobile-create-session-btn">
           <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
@@ -3097,9 +3198,9 @@
   </div>
 
 
-  <div id="alert-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
+<div id="alert-modal" class="fixed inset-0 flex items-center justify-center hidden z-[50000]">
     <div class="absolute inset-0 bg-black/60" onclick="closeModalAlert()"></div>
-    <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
+    <div class="panel rounded-2xl p-6 w-11/12 md:w-96 space-y-6 relative">
       <h3 id="alert-modal-title" class="text-xl font-bold text-red-600 text-center">操作失败</h3>
       <p id="alert-modal-message" class="text-sm text-slate-600 text-center py-4">
         这是一个错误提示。
@@ -4184,9 +4285,9 @@
     </div>
   </div>
 
-  <div id="confirm-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1053]">
+ <div id="confirm-modal" class="fixed inset-0 flex items-center justify-center hidden z-[50000]">
     <div class="absolute inset-0 bg-black/60"></div>
-    <div class="panel rounded-2xl p-6 w-96 space-y-6 relative">
+    <div class="panel rounded-2xl p-6 w-11/12 md:w-96 space-y-6 relative">
       <h3 id="confirm-modal-title" class="text-xl font-bold text-amber-600 text-center">请确认</h3>
       <p id="confirm-modal-message" class="text-sm text-slate-600 text-center py-4">
         你确定要执行此操作吗？
@@ -4197,6 +4298,177 @@
       </div>
     </div>
   </div>
+
+
+
+  <script>
+    // (确保这些函数在全局作用域，以便 handleAuthLogin 可以调用)
+
+    /**
+     * 加载移动端会话选择器列表
+     */
+    async function loadMobileSessionPickerList() {
+      const listEl = $('mobile-session-picker-list'); // 目标是移动端列表
+      if (!listEl) {
+        logMessage_Error("loadMobileSessionPickerList: 无法找到 'mobile-session-picker-list' 容器。");
+        return;
+      }
+
+      listEl.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+      try {
+        const headers = { 'X-Session-ID': sessionUUID || null };
+        const response = await fetch('/auth/user/sessions', { headers: headers });
+        const result = await response.json();
+
+        if (!result.success) {
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          // 停止加载，不显示计数或列表
+          return;
+        }
+
+        const sessions = result.sessions || [];
+
+        // 更新全局会话信息 (与桌面版共享)
+        currentSessionInfo.maxSessions = result.max_sessions || 1;
+        const validSessions = sessions.filter(session => session.session_id && session.session_id !== 'null' && session.session_id.trim() !== '');
+        currentSessionInfo.currentCount = validSessions.length;
+
+        // 更新移动端计数器
+        const countEl = $('mobile-session-picker-count-display'); // 目标是移动端计数器
+        if (countEl) {
+          const { currentCount, maxSessions } = currentSessionInfo;
+          if (maxSessions === -1) {
+            countEl.innerHTML = `<span class="text-green-600">会话数: ${currentCount} / 无限制</span>`;
+          } else {
+            const colorClass = currentCount >= maxSessions ? 'text-red-600' : 'text-slate-600';
+            countEl.innerHTML = `<span class="${colorClass}">会话数: ${currentCount} / ${maxSessions}</span>`;
+          }
+        }
+
+        if (validSessions.length === 0) {
+          listEl.innerHTML = '<p class="text-slate-400 text-center py-10">暂无会话，请创建新会话</p>';
+          return;
+        }
+
+        // 渲染列表 (使用 .mobile-list-item 优化移动端触控)
+        listEl.innerHTML = validSessions.map(session => {
+          const createdDate = session.created_at ? new Date(session.created_at * 1000).toLocaleString() : '未知';
+          const isCurrent = session.is_current || session.session_id === sessionUUID;
+          const sessionHash = session.session_hash || session.session_id.substring(0, 16);
+
+          // (此处的 statusStyles 和 statusText 逻辑是正确的，予以保留)
+          const is_multi_mode = session.is_multi_account_mode;
+          const session_login_success = session.login_success;
+          
+          let statusStyles = '';
+          let statusText = '';
+          
+          if (is_multi_mode) {
+            statusStyles = session_login_success ? 'bg-purple-100 text-purple-700' : 'bg-purple-50 text-purple-400';
+            statusText = session_login_success ? '❖ 多账号 (已登录)' : '❖ 多账号 (未登录)';
+          } else {
+            statusStyles = session_login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700';
+            statusText = session_login_success ? '✓ 已登录' : '○ 未登录';
+          }
+
+          // [优化] 整个列表项作为主要点击目标，删除按钮作为次要目标
+          return `
+            <div class="mobile-list-item justify-between ${isCurrent ? 'border-2 border-sky-500 bg-sky-50' : 'bg-white'}" 
+                 ${!isCurrent ? `onclick="selectSessionFromPicker('${session.session_id}')" style="cursor: pointer;"` : 'style="cursor: default;"'}
+                 title="${!isCurrent ? '点击进入此会话' : '这是当前会话'}">
+              
+              <div class="flex-1 min-w-0 pr-3">
+                <div class="flex items-center">
+                  <p class="font-semibold text-slate-800 truncate" title="${session.session_id}">会话 ${sessionHash}...</p>
+                  ${isCurrent ? '<span class="text-xs text-sky-600 ml-2 px-2 py-0.5 bg-sky-100 rounded-full flex-shrink-0">(当前)</span>' : ''}
+                </div>
+                <p class="text-xs text-slate-500 mt-1">${createdDate}</p>
+                <p class="text-xs mt-2">
+                  <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${statusStyles}">
+                    ${statusText}
+                  </span>
+                </p>
+              </div>
+              
+              <div class="flex-shrink-0 flex items-center justify-center pl-2">
+                ${!isCurrent ? `
+                  <button class="btn btn-ghost !text-red-500 !py-3 !px-4 !rounded-lg" 
+                          onclick="event.stopPropagation(); deleteSessionFromPicker('${session.session_id}');"
+                          title="删除此会话">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                      <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                    </svg>
+                  </button>
+                ` : `
+                  <div class="px-4" title="这是当前会话">
+                    <svg class="w-6 h-6 text-sky-500" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                  </div>
+                `}
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        logMessage_Error("加载会话列表失败:", e);
+        listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
+    }
+
+    /**
+     * 显示移动端会话选择器
+     */
+    function showMobileSessionPicker() {
+      const modal = $('mobile-session-picker-modal');
+      if (!modal) {
+        console.error("Mobile session picker modal DOM not found!");
+        return;
+      }
+
+      // 移动端模态框使用 'flex' 来启用 'align-items: flex-end' (底部弹出)
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      // 修复：添加 .show 类以触发现代移动端模态框的 'opacity: 1' 和 'transform: translateY(0)'
+      // (CSS中 .mobile-modal.show .mobile-modal-content 定义了滑入动画)
+      modal.classList.add('show');
+      document.body.classList.add('modal-visible');
+
+      // 自动加载会话列表 (使用新创建的移动端加载器)
+      loadMobileSessionPickerList();
+    }
+
+    /**
+     * 关闭移动端会话选择器
+     */
+    function closeMobileSessionPicker() {
+      const modal = $('mobile-session-picker-modal');
+      if (!modal) return;
+
+      // 修复：移除 .show 类以触发关闭动画 (opacity: 0, transform: translateY(100%))
+      // 动画在 .mobile-modal-content 上定义，时长 0.3s
+      modal.classList.remove('show');
+
+      // 修复：添加一个短暂的延迟，等待动画结束后再添加 'hidden' (display: none)
+      // 否则 'hidden' 会立即生效，导致关闭动画失效
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }, 300); // 300ms 必须匹配 CSS transition duration
+
+      document.body.classList.remove('modal-visible');
+    }
+
+    /**
+     * 刷新移动端会话选择器列表
+     * (HTML中的 onclick="refreshMobileSessionPicker()" 需要此函数)
+     */
+    function refreshMobileSessionPicker() {
+      loadMobileSessionPickerList();
+    }
+  </script>
+
+
+
 
   <!-- 会话选择模态框 -->
   <div id="session-picker-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1052]">
@@ -4591,373 +4863,483 @@
     }
 
     /**
-     * 初始化移动端UI功能
-     * 
-     * 为移动端UI元素绑定事件处理器和交互逻辑
+     * 初始化移动端UI功能 (已重构)
+     * * 为移动端UI元素绑定事件处理器和交互逻辑
+     * 通过“代理模式”复用桌面端的 `handleAuthLogin` 等核心函数
      */
     function initializeMobileUI() {
-      console.log('[移动端UI] 初始化移动端UI功能');
+      console.log('[移动端UI] 初始化移动端UI功能 (重构版)');
 
-      // === 登录/注册表单切换功能 ===
-
-      // 获取Tab按钮
-      const loginTabBtn = document.getElementById('mobile-auth-tab-login');
-      const registerTabBtn = document.getElementById('mobile-auth-tab-register');
-
-      // 获取"切换到注册"按钮 (表单底部的文字链接)
-      const switchToRegisterBtn = document.getElementById('mobile-switch-to-register');
-      // 获取"切换到登录"按钮 (表单底部的文字链接)
-      const switchToLoginBtn = document.getElementById('mobile-switch-to-login');
-
-      // 获取登录表单容器
-      const loginForm = document.getElementById('mobile-login-form');
-      // 获取注册表单容器
-      const registerForm = document.getElementById('mobile-register-form');
-
+      // === 1. Helper function for tab switching ===
       function showMobileAuthForm(formToShow) {
+        // Get all elements
         const loginTab = document.getElementById('mobile-auth-tab-login');
         const registerTab = document.getElementById('mobile-auth-tab-register');
-        const loginF = document.getElementById('mobile-login-form');
-        const registerF = document.getElementById('mobile-register-form');
-        // (也隐藏2FA表单，以防万一)
+        const loginForm = document.getElementById('mobile-login-form');
+        const registerForm = document.getElementById('mobile-register-form');
         const tfaForm = document.getElementById('mobile-auth-2fa-form');
+
+        // Hide all forms
+        if (loginForm) loginForm.classList.add('hidden');
+        if (registerForm) registerForm.classList.add('hidden');
         if (tfaForm) tfaForm.classList.add('hidden');
 
         if (formToShow === 'register') {
-          if (loginF) loginF.classList.add('hidden');
-          if (registerF) registerF.classList.remove('hidden');
-          // 更新Tab样式
+          if (registerForm) registerForm.classList.remove('hidden');
+          // Update Tab styles
           if (loginTab) loginTab.className = 'flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition';
           if (registerTab) registerTab.className = 'flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition';
-          console.log('[移动端UI] 切换到注册表单');
-        } else { // 默认切换到登录
-          if (loginF) loginF.classList.remove('hidden');
-          if (registerF) registerF.classList.add('hidden');
-          // 更新Tab样式
+        } else { // Default to login
+          if (loginForm) loginForm.classList.remove('hidden');
+          // Update Tab styles
           if (loginTab) loginTab.className = 'flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition';
           if (registerTab) registerTab.className = 'flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition';
-          console.log('[移动端UI] 切换到登录表单');
+        }
+
+        // Clear messages
+        showMobileMessage('', 'clear');
+      }
+
+      // === 2. Bind Tab buttons ===
+      const loginTabBtn = document.getElementById('mobile-auth-tab-login');
+      const registerTabBtn = document.getElementById('mobile-auth-tab-register');
+      if (loginTabBtn) loginTabBtn.addEventListener('click', () => showMobileAuthForm('login'));
+      if (registerTabBtn) registerTabBtn.addEventListener('click', () => showMobileAuthForm('register'));
+
+      // === 3. Bind Login Type (User/Phone) toggle ===
+      const mobileUsernameBtn = document.getElementById('mobile-login-username-btn');
+      const mobilePhoneBtn = document.getElementById('mobile-login-phone-btn');
+      const mobileAuthInputContainer = document.getElementById('mobile-username-container');
+      const mobileAuthLabel = document.getElementById('mobile-login-label');
+      const mobileSwitchToSms = document.getElementById('mobile-switch-to-sms');
+
+      if (mobileUsernameBtn && mobilePhoneBtn && mobileAuthInputContainer && mobileAuthLabel && mobileSwitchToSms) {
+        mobileUsernameBtn.addEventListener('click', function () {
+          mobileUsernameBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
+          mobilePhoneBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
+
+          const currentValue = mobileAuthInputContainer.querySelector('input').value;
+          mobileAuthLabel.textContent = '用户名';
+          // 移除 +86 容器
+          mobileAuthInputContainer.innerHTML = `
+            <input type="text" id="mobile-auth-username" class="w-full" placeholder="请输入用户名" autocomplete="username" value="${currentValue || ''}">
+          `;
+          mobileSwitchToSms.classList.add('hidden');
+          // 确保密码区显示，短信区隐藏
+          document.getElementById('mobile-password-section').classList.remove('hidden');
+          document.getElementById('mobile-sms-section').classList.add('hidden');
+        });
+
+        mobilePhoneBtn.addEventListener('click', function () {
+          mobilePhoneBtn.className = 'px-4 py-2 rounded-lg bg-sky-100 text-sky-700 font-semibold text-sm';
+          mobileUsernameBtn.className = 'px-4 py-2 rounded-lg bg-slate-100 text-slate-600 text-sm';
+
+          const currentValue = mobileAuthInputContainer.querySelector('input').value;
+          mobileAuthLabel.textContent = '手机号';
+          // 添加 +86 容器
+          mobileAuthInputContainer.innerHTML = `
+            <div class="phone-input-wrapper">
+              <span class="phone-prefix">+86 </span>
+              <input type="tel" id="mobile-auth-username" class="input-field" placeholder="请输入手机号" autocomplete="tel" inputmode="numeric" maxlength="11" value="${currentValue || ''}">
+            </div>
+          `;
+          mobileSwitchToSms.classList.remove('hidden');
+        });
+      }
+
+      // === 4. Bind Password/SMS toggle ===
+      const mobileSwitchToSmsBtn = document.getElementById('mobile-switch-to-sms');
+      const mobileSwitchToPassBtn = document.getElementById('mobile-switch-to-password');
+      const mobilePassSection = document.getElementById('mobile-password-section');
+      const mobileSmsSection = document.getElementById('mobile-sms-section');
+
+      if (mobileSwitchToSmsBtn) mobileSwitchToSmsBtn.addEventListener('click', () => {
+        if (mobilePassSection) mobilePassSection.classList.add('hidden');
+        if (mobileSmsSection) mobileSmsSection.classList.remove('hidden');
+      });
+      if (mobileSwitchToPassBtn) mobileSwitchToPassBtn.addEventListener('click', () => {
+        if (mobileSmsSection) mobileSmsSection.classList.add('hidden');
+        if (mobilePassSection) mobilePassSection.classList.remove('hidden');
+      });
+
+      // === 5. Bind "Send Code" buttons (Proxy to desktop logic) ===
+      // 代理模式：将值复制到隐藏的桌面输入框，然后触发桌面按钮的点击事件
+
+      const mobileSendLoginCodeBtn = document.getElementById('mobile-auth-send-login-code');
+      if (mobileSendLoginCodeBtn) {
+        // 修复：不再使用 .click() 代理，而是复制桌面按钮的完整逻辑
+        mobileSendLoginCodeBtn.addEventListener('click', async function () {
+          // 1. 使用移动端ID获取手机号
+          const phone = document.getElementById('mobile-auth-username').value;
+          if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+            showMobileMessage('请输入正确的手机号', 'error');
+            return;
+          }
+
+          // 2. 复制桌面按钮的加载和倒计时逻辑 (使用移动端按钮ID)
+          mobileSendLoginCodeBtn.disabled = true;
+          const originalText = mobileSendLoginCodeBtn.textContent;
+
+          try {
+            // 3. 直接调用API (同桌面按钮逻辑)
+            const response = await fetch('/api/sms/send_code', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionUUID
+              },
+              body: JSON.stringify({
+                phone: phone,
+                scene: 'login' // 场景：登录
+              })
+            });
+            const result = await response.json();
+
+            if (result && result.success) {
+              const expireMin = result.expire_minutes || 5;
+              const retryAfter = result.retry_after || 180;
+              // 修复：使用 showMobileMessage 或 showTempMessage
+              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
+
+              // 4. 倒计时 (使用移动端按钮ID)
+              let countdown = retryAfter;
+              const timer = setInterval(() => {
+                countdown--;
+                mobileSendLoginCodeBtn.textContent = countdown + '秒';
+                if (countdown <= 0) {
+                  clearInterval(timer);
+                  mobileSendLoginCodeBtn.disabled = false;
+                  mobileSendLoginCodeBtn.textContent = originalText;
+                }
+              }, 1000);
+            } else {
+              // 5. 处理失败和重试 (使用移动端按钮ID)
+              if (result?.retry_after) {
+                const retrySeconds = result.retry_after;
+                let countdown = retrySeconds;
+                mobileSendLoginCodeBtn.textContent = countdown + '秒';
+                const timer = setInterval(() => {
+                  countdown--;
+                  mobileSendLoginCodeBtn.textContent = countdown + '秒';
+                  if (countdown <= 0) {
+                    clearInterval(timer);
+                    mobileSendLoginCodeBtn.disabled = false;
+                    mobileSendLoginCodeBtn.textContent = originalText;
+                  }
+                }, 1000);
+              } else {
+                mobileSendLoginCodeBtn.disabled = false;
+              }
+              showMobileMessage(result?.message || '发送失败', 'error');
+            }
+          } catch (error) {
+            mobileSendLoginCodeBtn.disabled = false;
+            showMobileMessage('发送失败: ' + error.message, 'error');
+          }
+        });
+      }
+
+      const mobileSendRegCodeBtn = document.getElementById('mobile-reg-send-code-btn');
+      if (mobileSendRegCodeBtn) {
+        // 修复：不再使用 .click() 代理，而是复制桌面按钮的完整逻辑
+        mobileSendRegCodeBtn.addEventListener('click', async function () {
+          // 1. 使用移动端ID获取手机号
+          const phone = document.getElementById('mobile-reg-phone').value;
+          if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+            showMobileMessage('请输入正确的手机号', 'error');
+            return;
+          }
+
+          // 2. 复制桌面按钮的加载和倒计时逻辑 (使用移动端按钮ID)
+          mobileSendRegCodeBtn.disabled = true;
+          const originalText = mobileSendRegCodeBtn.textContent;
+
+          try {
+            // 3. 直接调用API (同桌面按钮逻辑)
+            const response = await fetch('/api/sms/send_code', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionUUID
+              },
+              body: JSON.stringify({
+                phone: phone,
+                scene: 'register' // 场景：注册
+              })
+            });
+            const result = await response.json();
+
+            if (result && result.success) {
+              const expireMin = result.expire_minutes || 5;
+              const retryAfter = result.retry_after || 180;
+              // 修复：使用 showMobileMessage 或 showTempMessage
+              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
+
+              // 4. 倒计时 (使用移动端按钮ID)
+              let countdown = retryAfter;
+              const timer = setInterval(() => {
+                countdown--;
+                mobileSendRegCodeBtn.textContent = `${countdown}秒`;
+                if (countdown <= 0) {
+                  clearInterval(timer);
+                  mobileSendRegCodeBtn.disabled = false;
+                  mobileSendRegCodeBtn.textContent = originalText;
+                }
+              }, 1000);
+            } else {
+              // 5. 处理失败和重试 (使用移动端按钮ID)
+              if (result?.retry_after) {
+                const retrySeconds = result.retry_after;
+                let countdown = retrySeconds;
+                mobileSendRegCodeBtn.textContent = `${countdown}秒`;
+                const timer = setInterval(() => {
+                  countdown--;
+                  mobileSendRegCodeBtn.textContent = `${countdown}秒`;
+                  if (countdown <= 0) {
+                    clearInterval(timer);
+                    mobileSendRegCodeBtn.disabled = false;
+                    mobileSendRegCodeBtn.textContent = originalText;
+                  }
+                }, 1000);
+              } else {
+                mobileSendRegCodeBtn.disabled = false;
+              }
+              showMobileMessage(result?.message || '发送失败', 'error');
+            }
+          } catch (error) {
+            mobileSendRegCodeBtn.disabled = false;
+            showMobileMessage('发送失败: ' + error.message, 'error');
+          }
+        });
+      }
+
+      // === 6. Bind Main Action Buttons (Login, Register, Guest, 2FA) ===
+      // 代理模式：复制所有值，然后调用桌面端的
+
+      // --- Mobile Login ---
+      const mobileLoginBtn = document.getElementById('mobile-login-btn');
+      if (mobileLoginBtn) mobileLoginBtn.addEventListener('click', async () => {
+        // 修复2：为移动端按钮添加加载状态
+        setButtonLoading('mobile-login-btn', true, '登录中...');
+              
+        try {
+          // 1. 复制所有相关值到隐藏的桌面字段
+          document.getElementById('auth-username').value = document.getElementById('mobile-auth-username').value;
+          document.getElementById('auth-password').value = document.getElementById('mobile-auth-password').value;
+          document.getElementById('auth-sms-code').value = document.getElementById('mobile-auth-sms-code').value;
+
+          // 2. 同步桌面UI的 *状态* (这对 handleAuthLogin 的内部逻辑至关重要)
+          if (!document.getElementById('mobile-password-section').classList.contains('hidden')) {
+            // 移动端处于密码模式 -> 同步桌面
+            document.getElementById('auth-password-section').classList.remove('hidden');
+            document.getElementById('auth-sms-section').classList.add('hidden');
+          } else {
+            // 移动端处于短信模式 -> 同步桌面
+            document.getElementById('auth-password-section').classList.add('hidden');
+            document.getElementById('auth-sms-section').classList.remove('hidden');
+          }
+
+          if (!document.getElementById('mobile-login-phone-btn').classList.contains('text-slate-600')) {
+            // 移动端处于手机模式 -> 同步桌面
+            // (我们不需要真的点击按钮，只需要模拟状态)
+            document.getElementById('auth-login-phone-btn').classList.add('font-semibold');
+          } else {
+            // 移动端处于用户模式 -> 同步桌面
+            document.getElementById('auth-login-phone-btn').classList.remove('font-semibold');
+          }
+
+          // 3. 调用原始的桌面处理函数
+          await handleAuthLogin(); 
+
+          // 4. 如果 handleAuthLogin 成功 (没有抛出错误)
+          // 检查 2FA 状态是否被激活
+          const tfaForm = document.getElementById('auth-2fa-form');
+          if (tfaForm && !tfaForm.classList.contains('hidden')) {
+            // 2FA 流程已启动
+            // 修复：确保移动端 2FA 表单也显示
+            document.getElementById('mobile-login-form').classList.add('hidden');
+            document.getElementById('mobile-auth-2fa-form').classList.remove('hidden');
+            document.getElementById('mobile-2fa-code').value = '';
+            document.getElementById('mobile-2fa-code').focus();
+            showMobileMessage('密码验证成功，请输入验证码', 'success');
+            
+            // 修复2：清除移动按钮的加载状态
+            setButtonLoading('mobile-login-btn', false);
+            
+          } else {
+            // 真正的登录成功（非 2FA）
+            // 桌面端的 showButtonSuccess 已经被调用了，我们也调用移动端的
+            showButtonSuccess('mobile-login-btn', '登录成功', 800);
+            // (后续的跳转逻辑在 handleAuthLogin 内部)
+          }
+
+        } catch (e) {
+          // 5. 捕获 handleAuthLogin 抛出的错误
+          console.error("代理[登录]失败:", e);
+          // 修复2：使用 e.message 显示后端返回的错误
+          showMobileMessage(e.message || '登录时发生内部错误', 'error');
+          // 修复2：在移动端按钮上显示错误状态
+          showButtonError('mobile-login-btn', '登录失败');
+          
+        } finally {
+          // 6. 无论如何，最后都要清除加载状态 (如果2FA或成功，它们内部已处理；这里是针对错误的兜底)
+          // 检查 2FA 状态，如果不是 2FA 流程，则清除加载
+          const tfaForm = document.getElementById('auth-2fa-form');
+          if (!tfaForm || tfaForm.classList.contains('hidden')) {
+            // (确保在 finally 块中也清除桌面按钮的状态，以防 handleAuthLogin 异常退出)
+            setButtonLoading('auth-login-btn', false);
+            setButtonLoading('mobile-login-btn', false);
+          }
+        }
+      });
+
+      // --- Mobile Register ---
+      const mobileRegisterBtn = document.getElementById('mobile-register-btn');
+      if (mobileRegisterBtn) mobileRegisterBtn.addEventListener('click', async () => {
+        try {
+          // 1. 复制所有值
+          document.getElementById('auth-reg-username').value = document.getElementById('mobile-reg-username').value;
+          document.getElementById('auth-reg-phone').value = document.getElementById('mobile-reg-phone').value;
+          document.getElementById('auth-reg-sms-code').value = document.getElementById('mobile-reg-sms-code').value;
+          document.getElementById('auth-reg-nickname').value = document.getElementById('mobile-reg-nickname').value;
+          document.getElementById('auth-reg-password').value = document.getElementById('mobile-reg-password').value;
+          document.getElementById('auth-reg-password-confirm').value = document.getElementById('mobile-reg-password-confirm').value;
+
+          // 2. 头像 Blob (registrationCroppedAvatarBlob) 是全局变量，无需复制
+
+          // 3. 调用原始函数
+          await handleAuthRegister();
+        } catch (e) {
+          console.error("代理[注册]失败:", e);
+          showMobileMessage('注册时发生内部错误', 'error');
+        }
+      });
+
+      // --- Mobile Guest ---
+      const mobileGuestBtn = document.getElementById('mobile-guest-btn');
+      if (mobileGuestBtn) mobileGuestBtn.addEventListener('click', async () => {
+        try {
+          await handleGuestLogin();
+        } catch (e) {
+          console.error("代理[游客登录]失败:", e);
+          showMobileMessage('游客登录时发生内部错误', 'error');
+        }
+      });
+
+      // --- Mobile 2FA Verify ---
+      const mobile2faBtn = document.getElementById('mobile-2fa-submit-btn');
+      if (mobile2faBtn) mobile2faBtn.addEventListener('click', async () => {
+        try {
+          document.getElementById('auth-2fa-code').value = document.getElementById('mobile-2fa-code').value;
+          await handle2FAVerify();
+        } catch (e) {
+          console.error("代理[2FA验证]失败:", e);
+          showMobileMessage('2FA验证时发生内部错误', 'error');
+        }
+      });
+
+      // --- Mobile 2FA Back Button ---
+      const mobile2faBackBtn = document.getElementById('mobile-2fa-back-btn');
+      if (mobile2faBackBtn) mobile2faBackBtn.addEventListener('click', () => {
+        showMobileAuthForm('login');
+        // 同时触发桌面端的返回，以重置其内部状态
+        try {
+          document.getElementById('auth-2fa-back-btn').click();
+        } catch (e) { }
+      });
+
+      // === 7. Bind Avatar Upload ===
+      const mobileAvatarInput = document.getElementById('mobile-reg-avatar');
+      if (mobileAvatarInput) {
+        // 原始函数 `previewAvatarForRegistration` 仅依赖 event，
+        // 并且会正确设置全局 `registrationCroppedAvatarBlob` 变量，
+        // `handleAuthRegister` (在步骤6中)会读取该变量。
+        // 因此，我们可以安全地重用它。
+        mobileAvatarInput.addEventListener('change', previewAvatarForRegistration);
+      }
+
+      // === 8. Check for Guest Login availability ===
+      // (此功能依赖于桌面端的 checkGuestLoginEnabled() )
+      const mobileGuestSection = document.getElementById('mobile-guest-login-section');
+      if (mobileGuestSection) {
+        // 我们假设桌面端的 checkGuestLoginEnabled() 已经运行
+        // 并且已经正确设置了桌面端 #guest-login-section 的可见性
+        const desktopGuestSection = document.getElementById('guest-login-section');
+        if (desktopGuestSection && !desktopGuestSection.classList.contains('hidden')) {
+          mobileGuestSection.classList.remove('hidden');
+          console.log('[移动端UI] 游客登录已启用');
+        } else {
+          mobileGuestSection.classList.add('hidden');
+          console.log('[移动端UI] 游客登录已禁用');
         }
       }
 
-      // 为Tab按钮绑定点击事件
-      if (registerTabBtn) {
-        registerTabBtn.addEventListener('click', function () {
-          showMobileAuthForm('register');
-        });
-      }
-
-      if (loginTabBtn) {
-        loginTabBtn.addEventListener('click', function () {
-          showMobileAuthForm('login');
-        });
-      }
-
-      // 为文字链接按钮绑定点击事件 (与Tab功能相同)
-      if (switchToRegisterBtn) {
-        switchToRegisterBtn.addEventListener('click', function () {
-          showMobileAuthForm('register');
-        });
-      }
-
-      // 为文字链接按钮绑定点击事件 (与Tab功能相同)
-      if (switchToLoginBtn) {
-        switchToLoginBtn.addEventListener('click', function () {
-          showMobileAuthForm('login');
-        });
-      }
-
-      // === 移动端登录功能 ===
-
-      // 获取移动端登录按钮
-      const mobileLoginBtn = document.getElementById('mobile-login-btn');
-      if (mobileLoginBtn) {
-        // 绑定登录按钮点击事件
-        mobileLoginBtn.addEventListener('click', async function () {
-          // 获取用户输入的用户名
-          const username = document.getElementById('mobile-login-username').value.trim();
-          // 获取用户输入的密码
-          const password = document.getElementById('mobile-login-password').value.trim();
-
-          // 输入验证：检查用户名和密码是否为空
-          if (!username || !password) {
-            showMobileMessage('请输入用户名和密码', 'error');
-            return;
-          }
-
-          // 密码长度验证（与桌面端保持一致）
-          if (password.length < 6 && username !== 'admin') {
-            showMobileMessage('密码长度至少6个字符', 'error');
-            return;
-          }
-
-          // 密码长度验证（与桌面端保持一致）
-          if (password.length < 6 && username !== 'admin') {
-            showMobileMessage('密码长度至少6个字符', 'error');
-            return;
-          }
-
-
-
-
-          const newUUID = generateUUID(); // (generateUUID 函数已在 index.html 中定义)
-          sessionUUID = newUUID;
-
-
-          console.log('[移动端UI] 尝试登录:', username);
-
-          // 禁用登录按钮，防止重复点击
-          mobileLoginBtn.disabled = true;
-          mobileLoginBtn.textContent = '登录中...';
-
-          try {
-            // 调用正确的 /auth/login 路径，并使用正确的 payload 键名
-            const result = await callPythonAPI_raw('/auth/login', 'POST', {
-              auth_username: username,
-              auth_password: password
-              // (后端 auth_login 会自动处理 2FA 流程)
-            });
-
-            if (result && result.success) {
-
-              // 设置全局 sessionUUID (在API调用前已设置，此处是双重确认)
-              sessionUUID = result.session_id || sessionUUID; // 优先使用后端返回的
-              showMobileMessage('登录成功！正在跳转...', 'success');
-              // 保存当前用户信息
-              currentAuthUsername = username;
-
-              console.log('[移动端UI] 登录成功，用户:', username, '正在跳转到 /uuid=', sessionUUID);
-
-              // 登录成功后，必须跳转到会话页面
-              setTimeout(() => {
-                window.location.href = `/uuid=${sessionUUID}`;
-              }, 1000); // 延迟1秒跳转，让用户看到成功提示
-
-            } else {
-              // 登录失败（例如密码错误或后端返回 success: false）
-              // 清除刚才为尝试登录而生成的 sessionUUID，因为它未被后端认证
-              sessionUUID = null;
-              showMobileMessage(result?.message || '登录失败', 'error');
-            }
-          } catch (error) {
-            console.error('[移动端UI] 登录错误:', error);
-            showMobileMessage('登录失败: ' + error.message, 'error');
-          } finally {
-            // 恢复登录按钮状态
-            mobileLoginBtn.disabled = false;
-            mobileLoginBtn.textContent = '登录';
-          }
-        });
-      }
-
-      // === 移动端注册功能 ===
-
-      // 获取移动端注册按钮
-      const mobileRegisterBtn = document.getElementById('mobile-register-btn');
-      if (mobileRegisterBtn) {
-        // 绑定注册按钮点击事件
-        mobileRegisterBtn.addEventListener('click', async function () {
-          // 获取用户输入的用户名
-          const username = document.getElementById('mobile-reg-username').value.trim();
-          // 获取用户输入的密码
-          const password = document.getElementById('mobile-reg-password').value.trim();
-          // 获取用户输入的确认密码
-          const passwordConfirm = document.getElementById('mobile-reg-password-confirm').value.trim();
-          // 获取手机号（可选）
-          const phone = document.getElementById('mobile-reg-phone')?.value.trim() || '';
-
-          // 输入验证：检查必填字段
-          if (!username || !password || !passwordConfirm) {
-            showMobileMessage('请填写所有必填字段', 'error');
-            return;
-          }
-
-          // 验证用户名格式（3-20字符，不含中文）
-          if (username.length < 3 || username.length > 20) {
-            showMobileMessage('用户名长度应为3-20个字符', 'error');
-            return;
-          }
-
-          if (/[一-龥]/.test(username)) {
-            showMobileMessage('用户名不能包含中文字符', 'error');
-            return;
-          }
-
-          // 密码长度验证
-          if (password.length < 6) {
-            showMobileMessage('密码长度至少6个字符', 'error');
-            return;
-          }
-
-          // 密码一致性验证
-          if (password !== passwordConfirm) {
-            showMobileMessage('两次输入的密码不一致', 'error');
-            return;
-          }
-
-          // 验证手机号格式（如果填写了）
-          if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
-            showMobileMessage('手机号格式不正确', 'error');
-            return;
-          }
-
-          console.log('[移动端UI] 尝试注册:', username);
-
-          // 禁用注册按钮，防止重复点击
-          mobileRegisterBtn.disabled = true;
-          mobileRegisterBtn.textContent = '注册中...';
-
-          try {
-            // 调用后端注册API
-            const result = await callPythonAPI_raw('/api/auth/register', 'POST', {
-              username: username,
-              password: password,
-              phone: phone || null,
-              nickname: username, // 默认使用用户名作为昵称
-              sms_code: null // 移动端简化版不需要验证码
-            });
-
-            if (result && result.success) {
-              showMobileMessage('注册成功！请登录', 'success');
-
-              // 切换回登录表单
-              setTimeout(() => {
-                registerForm.classList.add('hidden');
-                loginForm.classList.remove('hidden');
-                // 清空注册表单
-                document.getElementById('mobile-reg-username').value = '';
-                document.getElementById('mobile-reg-password').value = '';
-                document.getElementById('mobile-reg-password-confirm').value = '';
-                if (document.getElementById('mobile-reg-phone')) {
-                  document.getElementById('mobile-reg-phone').value = '';
-                }
-              }, 1500);
-
-            } else {
-              showMobileMessage(result?.message || '注册失败', 'error');
-            }
-          } catch (error) {
-            console.error('[移动端UI] 注册错误:', error);
-            showMobileMessage('注册失败: ' + error.message, 'error');
-          } finally {
-            // 恢复注册按钮状态
-            mobileRegisterBtn.disabled = false;
-            mobileRegisterBtn.textContent = '注册';
-          }
-        });
-      }
-
-      // === 多账号模式按钮 ===
-
-      // 获取移动端多账号模式按钮
-      const mobileMultiAccountBtn = document.getElementById('mobile-multi-account-btn');
-      if (mobileMultiAccountBtn) {
-        // 绑定按钮点击事件
-        mobileMultiAccountBtn.addEventListener('click', function () {
-          console.log('[移动端UI] 进入多账号模式');
-          // 调用桌面端的多账号模式函数（复用现有逻辑）
-          // TODO: 调用实际的多账号模式函数
-          // 例如：showMultiAccountPanel();
-          showMobileMessage('多账号模式功能正在开发中...', 'info');
-        });
-      }
-
-      // === 底部导航栏切换功能 ===
-
-      // 获取所有底部导航按钮
-      const navButtons = document.querySelectorAll('.mobile-nav-btn');
-      // 为每个导航按钮绑定点击事件
-      navButtons.forEach(function (btn) {
-        btn.addEventListener('click', function (e) {
-          e.preventDefault(); // 阻止默认的链接跳转行为
-
-          // 移除所有按钮的active类（取消激活状态）
-          navButtons.forEach(function (b) {
-            b.classList.remove('active');
-          });
-
-          // 为当前点击的按钮添加active类（激活状态）
-          this.classList.add('active');
-
-          // 获取导航目标（data-nav属性值）
-          const navTarget = this.getAttribute('data-nav');
-          console.log('[移动端UI] 切换导航到:', navTarget);
-
-          // TODO: 根据navTarget切换显示不同的内容页面
-          // 例如：
-          // if (navTarget === 'home') { showHomePage(); }
-          // else if (navTarget === 'tasks') { showTasksPage(); }
-          // else if (navTarget === 'history') { showHistoryPage(); }
-          // else if (navTarget === 'profile') { showProfilePage(); }
-        });
-      });
-
-      // === 移动端菜单按钮 ===
-
-      // 获取移动端菜单按钮
-      const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-      if (mobileMenuBtn) {
-        // 绑定菜单按钮点击事件
-        mobileMenuBtn.addEventListener('click', function () {
-          console.log('[移动端UI] 打开菜单');
-          // TODO: 实现侧边栏菜单或弹出菜单
-          showMobileMessage('菜单功能正在开发中...', 'info');
-        });
-      }
-
-      // === 为移动端单账号（学校）登录按钮添加事件 ===
+      // === 9. 绑定移动端单账号（学校）登录按钮 ===
       const mobileSingleLoginBtn = document.getElementById('mobile-single-login-btn');
       if (mobileSingleLoginBtn) {
         mobileSingleLoginBtn.addEventListener('click', async function () {
-          // 复用桌面端的 onLogin 函数
-          // 1. 从移动端输入框获取值
-          const username = document.getElementById('mobile-username-entry').value.trim();
-          const password = document.getElementById('mobile-password-entry').value;
+          // 代理模式：复制值到桌面端输入框
+          try {
+            const username = document.getElementById('mobile-username-entry').value.trim();
+            const password = document.getElementById('mobile-password-entry').value;
 
-          // 2. 将值设置到桌面端的输入框（onLogin 会从那里读取）
-          // 这是最简单的复用方式，避免重写 onLogin
-          document.getElementById('username-entry').value = username;
-          document.getElementById('password-entry').value = password;
+            document.getElementById('username-entry').value = username;
+            document.getElementById('password-entry').value = password;
 
-          console.log('[移动端UI] 触发单账号（学校）登录...');
+            console.log('[移动端UI] 触发单账号（学校）登录...');
 
-          // 3. 调用桌面端的 onLogin 函数
-          // onLogin (line 4287) 会调用 callPythonAPI('login', ...)
-          // callPythonAPI (line 3191) 会正确使用 /api/login 路径和 sessionUUID
-          await onLogin();
+            // 调用桌面端的 onLogin 函数
+            await onLogin();
 
-          // 4. onLogin 成功后会调用 showMainApp()
-          // showMainApp (line 4242) 会显示桌面版 #main-app
-          // 我们必须在这里再次检查 isMobileMode，并显示错误，因为移动端主界面未实现
-
-          if (isMobileMode && !document.getElementById('main-app').classList.contains('hidden')) {
-            console.error("[Mobile Init] 单账号主应用在移动端UI上不受支持。");
-            // 隐藏桌面主应用
-            document.getElementById('main-app').classList.add('hidden');
-            document.getElementById('main-app').classList.remove('grid');
-            // 重新显示移动端登录选择器
-            document.getElementById('mobile-login-container').classList.remove('hidden');
-
-
-            showModalAlert("移动端尚不支持主应用界面。请使用桌面浏览器访问。", "功能限制");
+            // onLogin 成功后会显示 #main-app，我们必须再次检查并隐藏它
+            if (isMobileMode && !document.getElementById('main-app').classList.contains('hidden')) {
+              console.error("[Mobile Init] 单账号主应用在移动端UI上不受支持。");
+              document.getElementById('main-app').classList.add('hidden');
+              document.getElementById('main-app').classList.remove('grid');
+              // 重新显示移动端登录选择器
+              document.getElementById('mobile-login-container').classList.remove('hidden');
+              showModalAlert("移动端尚不支持主应用界面。请使用桌面浏览器访问。", "功能限制");
+            }
+          } catch (e) {
+            console.error("代理[学校登录]失败:", e);
+            showMobileMessage('学校登录时发生内部错误', 'error');
           }
         });
       }
+
+      // === 10. 绑定移动端底部导航栏 ===
+      const navButtons = document.querySelectorAll('.mobile-nav-btn');
+      navButtons.forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          navButtons.forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          const navTarget = this.getAttribute('data-nav');
+          console.log('[移动端UI] 切换导航到:', navTarget);
+          // (此处添加页面切换逻辑...)
+        });
+      });
 
       console.log('[移动端UI] 移动端UI初始化完成');
     }
 
     /**
-     * 显示移动端消息提示
-     * 
-     * @param {string} message - 要显示的消息内容
-     * @param {string} type - 消息类型：'error'错误, 'success'成功, 'info'信息
+     * 显示移动端消息提示 (已修改)
+     * * @param {string} message - 要显示的消息内容
+     * @param {string} type - 消息类型：'error', 'success', 'info', 'clear'
      */
     function showMobileMessage(message, type = 'info') {
       // 获取错误消息容器
       const errorDiv = document.getElementById('mobile-auth-error');
       // 获取成功消息容器
       const successDiv = document.getElementById('mobile-auth-success');
+
+      // (新) 添加 'clear' 类型用于隐藏所有消息
+      if (type === 'clear') {
+        if (errorDiv) errorDiv.classList.add('hidden');
+        if (successDiv) successDiv.classList.add('hidden');
+        return;
+      }
 
       // 先隐藏所有消息容器
       if (errorDiv) errorDiv.classList.add('hidden');
@@ -4976,16 +5358,12 @@
         }
       } else {
         // 'info'类型：使用浏览器原生alert（可后续改为自定义Toast）
-        alert(message);
+        // (在认证流程中，我们最好使用 showModalAlert)
+        showModalAlert(message, '提示');
       }
 
-      // 自动隐藏消息：3秒后自动隐藏消息提示
-      setTimeout(function () {
-        if (errorDiv) errorDiv.classList.add('hidden');
-        if (successDiv) successDiv.classList.add('hidden');
-      }, 3000);
+      // (移除自动隐藏，因为 showModalAlert 会接管)
     }
-
     /**
      * 处理窗口大小变化事件
      * 
@@ -5003,10 +5381,63 @@
       // 这样可以避免在调整窗口大小过程中频繁切换UI
       resizeTimer = setTimeout(function () {
         console.log('[窗口调整] 检测到窗口大小变化，重新检测设备类型');
-        // 重新执行UI容器切换
+        // 修复：在切换前，检查当前是否有会话模态框处于打开状态
+        const desktopModal = $('session-picker-modal');
+        const mobileModal = $('mobile-session-picker-modal');
+
+        const wasDesktopModalOpen = desktopModal && !desktopModal.classList.contains('hidden');
+        const wasMobileModalOpen = mobileModal && !mobileModal.classList.contains('hidden');
+
+        // 声明 isModalSwap 变量 ---
+        let isModalSwap = false;
+
+        // 重新执行UI容器切换 (这会更新全局变量 isMobileMode)
         switchUIContainer();
+
+        // 修复：在切换后，根据新的 isMobileMode 状态，
+        // 自动关闭旧的模态框并打开新的模态框，保持状态同步。
+        if (isMobileMode && wasDesktopModalOpen) {
+          // 场景：从桌面切换到移动端，且桌面模态框是打开的
+          console.log('[窗口调整] 正在从桌面会话选择器切换到移动版...');
+          closeSessionPicker(); // 关闭桌面版
+          showMobileSessionPicker(); // 打开移动版
+          isModalSwap = true;
+        } else if (!isMobileMode && wasMobileModalOpen) {
+          // 场景：从移动端切换到桌面，且移动模态框是打开的
+          console.log('[窗口调整] 正在从移动会话选择器切换到桌面版...');
+          closeMobileSessionPicker(); // 关闭移动版
+          showSessionPicker(); // 打开桌面版
+          isModalSwap = true;
+        }
+                if (isModalSwap) {
+          if (isMobileMode) {
+            // 修复：确保移动端的 login-container 可见 (并隐藏 auth-container)
+            const mobileLogin = $('mobile-login-container');
+            const mobileAuth = $('mobile-auth-login-container');
+            
+            // 强制使用内联样式
+            if (mobileLogin) mobileLogin.style.display = 'block'; // <-- 修复：显示三卡片布局
+            // mobile-auth-login-container 默认是 block/flex (space-y-4)
+            if (mobileAuth) mobileAuth.style.display = 'none';  // <-- 修复：隐藏登录表单
+
+            console.log('[窗口调整-FIX] 确保移动端 login-container 可见');
+          } else {
+            // 修复：确保桌面端的 login-container 可见 (并隐藏 auth-container)
+            const desktopLogin = $('login-container');
+            const desktopAuth = $('auth-login-container');
+
+            // 强制使用内联样式
+            if (desktopLogin) desktopLogin.style.display = 'grid'; // <-- 修复：显示三栏布局 (grid)
+            // auth-login-container 使用 flex 布局
+            if (desktopAuth) desktopAuth.style.display = 'none'; // <-- 修复：隐藏登录表单
+            
+            console.log('[窗口调整-FIX] 确保桌面端 login-container 可见');
+          }
+        }
       }, 300); // 防抖延迟：300毫秒
     }
+
+
 
     // ============================================================
     // 页面加载时自动执行
@@ -6276,7 +6707,17 @@
 
               // 隐藏登录界面，显示会话选择器模态框
               $('auth-login-container').classList.add('hidden');
-              showSessionPicker();
+              // 根据 isMobileMode 决定显示哪个会话选择器
+              if (isMobileMode) {
+                // 隐藏移动端认证表单
+                $('mobile-auth-login-container').classList.add('hidden');
+                // 显示移动端会话选择器 (底部弹窗)
+                showMobileSessionPicker();
+                
+              } else {
+                // 显示桌面端会话选择器 (居中模态框)
+                showSessionPicker();
+              }
 
               // 显示提示信息
               logMessage_Info('[会话选择] 请选择要进入的会话，或创建新会话');
@@ -11747,24 +12188,38 @@
       }
 
       const newUUID = generateUUID();
-      logMessage_Info(`正在创建新会话 ${newUUID.substring(0, 16)}...`);
+      logMessage_Info(`正在创建新会话 ${newUUID}`);
+              const confirmed = await jsShowConfirm(
+          '确认操作',
+          '您确定要创建一个新的会话吗？'
+        );
 
-      const confirmed = await jsShowConfirm('确认操作', '您确定要创建一个新的会话吗？');
-
-      if (!confirmed) {
-        logMessage_Info("[会话创建] 用户取消操作。");
-        return; // 用户取消，则不执行任何操作
-      }
-
-      // 2. 显示加载提示 (使用 SweetAlert2)
-      Swal.fire({
-        title: '正在创建新会话...',
-        text: '请稍候',
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
+        if (!confirmed) {
+          logMessage_Info("[会话创建] 用户取消操作。");
+          return; // 用户取消，则不执行任何操作
         }
-      });
+
+
+      // 2. 显示加载提示 (修复：移动端使用按钮加载状态，桌面端使用SweetAlert)
+      let mobileButton = null;
+      if (isMobileMode) {
+        mobileButton = $('mobile-create-session-btn');
+        if (mobileButton) {
+          mobileButton.disabled = true;
+          // 修复：使用更简洁的加载文本
+          mobileButton.innerHTML = '正在创建...';
+        }
+      } else {
+        // 2. 显示加载提示 (使用 SweetAlert2)
+        Swal.fire({
+          title: '正在创建新会话...',
+          text: '请稍候',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+      }
 
 
       logMessage_Info(`[会话创建] 准备创建新会话...`);
@@ -11790,28 +12245,84 @@
           if (result.cleanup_message) {
             logMessage_Info(`提示: ${result.cleanup_message}`);
           }
-          closeSessionPicker();
+          if (isMobileMode) {
+            closeMobileSessionPicker(); // 调用移动端关闭函数
+          } else {
+            closeSessionPicker(); // 调用桌面端关闭函数
+          }
           window.location.href = `/uuid=${newUUID}`;
         } else {
           logMessage_Info(`创建会话失败: ${result.message}`);
-          Swal.fire({
-            icon: 'error',
-            title: '创建失败',
-            text: result.message
-          });
+
+          // 修复：移动端使用 showModalAlert 替换 Swal.fire
+          if (isMobileMode) {
+            showModalAlert(result.message, '创建失败');
+            // 恢复按钮状态
+            if (mobileButton) {
+              mobileButton.disabled = false;
+              // 修复：恢复按钮的完整HTML内容
+              mobileButton.innerHTML = `
+              <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+              </svg>
+              创建新会话
+            `;
+            }
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: '创建失败',
+              text: result.message
+            });
+          }
         }
       } catch (e) {
         logMessage_Info(`创建会话时发生错误: ${e.message}`);
-        // 如果API调用失败，仍然允许创建会话（向后兼容）
-        closeSessionPicker();
-        window.location.href = `/uuid=${newUUID}`;
+
+
+
+        // 确保关闭“正在创建...”的加载提示
+        if (isMobileMode) {
+          // 恢复移动端按钮
+          if (mobileButton) {
+            mobileButton.disabled = false;
+            // 修复：恢复按钮的完整HTML内容
+            mobileButton.innerHTML = `
+              <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+              </svg>
+              创建新会话
+            `;
+          }
+        } else {
+          Swal.close();
+        }
+
+        // 向用户显示错误
+        showModalAlert(`创建会话失败: ${e.message}`, '创建失败');
+
       }
     }
 
     async function deleteSessionFromPicker(sessionId) {
-      if (!confirm('确定要删除此会话吗？此操作不可恢复。')) return;
+      const confirmed = await jsShowConfirm(
+        '确认删除',
+        '确定要删除此会话吗？<br>此操作不可恢复！'
+      );
+      if (!confirmed) return;
 
-      const listEl = $('session-picker-list');
+      // [修正] 移除对桌面端 listEl 的无效引用
+      // const listEl = $('session-picker-list');
+
+      // [优化] 添加加载提示
+      Swal.fire({
+        title: '正在删除会话...',
+        text: '请稍候',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
       try {
         const response = await fetch('/auth/user/delete_session', {
           method: 'POST',
@@ -11825,15 +12336,44 @@
         });
 
         const result = await response.json();
+
+        // [优化] 无论成功失败，先关闭加载提示
+        Swal.close();
+
+
         if (result.success) {
-          logMessage_Info('会话已删除');
-          // 重新加载会话列表
-          loadSessionPickerList();
+          // [优化] 使用拟态窗提示
+          showModalAlert('会话已删除', '成功');
+          // [核心修正] 智能判断当前是哪个模态框打开，并刷新对应的列表
+          const mobilePicker = $('mobile-session-picker-modal');
+          const desktopPicker = $('session-picker-modal');
+
+          if (mobilePicker && !mobilePicker.classList.contains('hidden')) {
+            // 如果是移动端选择器可见，刷新移动端列表
+            logMessage_Info("[会话删除] 正在刷新移动端会话列表...");
+            loadMobileSessionPickerList();
+          } else if (desktopPicker && !desktopPicker.classList.contains('hidden')) {
+            // 如果是桌面端选择器可见，刷新桌面端列表
+            logMessage_Info("[会话删除] 正在刷新桌面端会话列表...");
+            loadSessionPickerList();
+          } else {
+            // 兜底方案：两个都刷新（或根据 isMobileMode 刷新）
+            logMessage_Info("[会话删除] 正在刷新（兜底）...");
+            if (isMobileMode) {
+              loadMobileSessionPickerList();
+            } else {
+              loadSessionPickerList();
+            }
+          }
         } else {
-          alert('删除失败: ' + result.message);
+          // [优化] 使用拟态窗提示
+          showModalAlert('删除失败: ' + result.message, '错误');
         }
       } catch (e) {
-        alert('删除失败: ' + e.message);
+        // [优化] 确保加载提示被关闭
+        Swal.close();
+        // [优化] 使用拟态窗提示
+        showModalAlert('删除失败: ' + e.message, '错误');
       }
     }
 
@@ -11984,12 +12524,38 @@
               // 游客UUID - 直接恢复会话
               logMessage_Info('检测到游客UUID，直接恢复会话');
               hideLoadingOverlays(); // 确保隐藏加载遮挡
+              // UUID存在，显示移动端导航
+              if (isMobileMode) {
+                const mobileHeader = document.getElementById('mobile-header');
+                const mobileBottomNav = document.getElementById('mobile-bottom-nav');
+                if (mobileHeader) {
+                  mobileHeader.classList.remove('hidden');
+                  mobileHeader.style.display = ''; // 移除内联样式
+                }
+                if (mobileBottomNav) {
+                  mobileBottomNav.classList.remove('hidden');
+                  mobileBottomNav.style.display = ''; // 移除内联样式
+                }
+              }
               // 继续正常初始化流程
             } else if (result.uuid_type === 'system_account') {
               // 系统账号UUID - 允许访问，后端会在API调用时验证token
               // 注意：auth_token是httponly cookie，JavaScript无法访问，所以前端不做检查
               logMessage_Info('检测到系统账号UUID，允许访问（后端将验证token）');
               hideLoadingOverlays(); // 确保隐藏加载遮挡
+              // UUID存在，显示移动端导航
+              if (isMobileMode) {
+                const mobileHeader = document.getElementById('mobile-header');
+                const mobileBottomNav = document.getElementById('mobile-bottom-nav');
+                if (mobileHeader) {
+                  mobileHeader.classList.remove('hidden');
+                  mobileHeader.style.display = ''; // 移除内联样式
+                }
+                if (mobileBottomNav) {
+                  mobileBottomNav.classList.remove('hidden');
+                  mobileBottomNav.style.display = ''; // 移除内联样式
+                }
+              }
               // 继续正常初始化流程
               // 如果token无效或过期，后端API调用会返回401错误，前端会处理并重定向到登录
             } else {
@@ -12095,7 +12661,7 @@
           if (isMobileMode) {
             // 移动端：显示移动端认证页，并隐藏导航栏
             console.log("[Mobile Init] 未认证，显示移动端认证页面");
-            document.body.classList.add('mobile-mode-auth'); // 隐藏 header/footer
+            // 导航栏已通过UUID判断控制，无需在此处理
             $('mobile-auth-login-container').classList.remove('hidden');
             $('mobile-login-container').classList.add('hidden');
             // 确保桌面端隐藏
@@ -12474,7 +13040,7 @@
           if (isMobileMode) {
             // 移动端：显示移动端学校登录选择器，并显示导航栏
             console.log("[Mobile Init] 已认证，显示移动端学校账号登录/会话管理");
-            document.body.classList.add('mobile-mode-auth');
+            // 导航栏已通过UUID判断控制，无需在此处理
             $('mobile-auth-login-container').classList.add('hidden');
             $('mobile-login-container').classList.remove('hidden');
             // 确保桌面端隐藏

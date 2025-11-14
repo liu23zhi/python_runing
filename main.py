@@ -9515,77 +9515,78 @@ def monitor_session_inactivity():
             inactive_sessions_to_cleanup = []
             active_sessions_to_update = []
 
-            # 1. 锁定 web_sessions 以安全迭代
-            with web_sessions_lock:
-                logging.debug(f"[会话监控] 开始检查 {len(web_sessions)} 个内存会话...")
-                
-                # 遍历所有在内存中的会话
-                for session_id, api_instance in list(web_sessions.items()):
+            if len(web_sessions) > 0:
+                # 1. 锁定 web_sessions 以安全迭代
+                with web_sessions_lock:
+                    logging.debug(f"[会话监控] 开始检查 {len(web_sessions)} 个内存会话...")
                     
-                    if not api_instance:
-                        inactive_sessions_to_cleanup.append(session_id)
-                        continue
-
-                    # --- 核心逻辑：检查该会话是否有活跃任务 ---
-                    has_active_task = False
-                    
-                    try:
-                        # 1. 检查单账号模式：跑步任务是否正在执行
-                        if hasattr(api_instance, 'stop_run_flag') and not api_instance.stop_run_flag.is_set():
-                            has_active_task = True
-                            logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有单账号跑步任务正在执行")
+                    # 遍历所有在内存中的会话
+                    for session_id, api_instance in list(web_sessions.items()):
                         
-                        # 2. 检查多账号模式：跑步任务是否正在执行
-                        if not has_active_task and hasattr(api_instance, 'multi_run_stop_flag') and not api_instance.multi_run_stop_flag.is_set():
-                            has_active_task = True
-                            logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有多账号跑步任务正在执行")
-
-                        # 3. 检查单账号模式：自动签到线程是否正在运行
-                        if not has_active_task and hasattr(api_instance, 'auto_refresh_thread'):
-                            thread = api_instance.auto_refresh_thread
-                            if thread is not None and thread.is_alive():
-                                has_active_task = True
-                                logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有单账号自动签到任务正在执行")
-
-                        # 4. 检查多账号模式：自动签到线程是否正在运行
-                        if not has_active_task and hasattr(api_instance, 'multi_auto_refresh_thread'):
-                            thread = api_instance.multi_auto_refresh_thread
-                            if thread is not None and thread.is_alive():
-                                has_active_task = True
-                                logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有多账号自动签到任务正在执行")
-
-                        # 5. 检查多账号模式：各个子账号的任务线程是否正在运行
-                        if not has_active_task and getattr(api_instance, 'is_multi_account_mode', False) and hasattr(api_instance, 'accounts'):
-                            for acc in api_instance.accounts.values():
-                                if hasattr(acc, 'worker_thread') and acc.worker_thread and acc.worker_thread.is_alive():
-                                    has_active_task = True
-                                    logging.debug(f"[会话监控] 会话 {session_id[:8]}... 的多账号子账号有任务正在执行")
-                                    break  # 找到一个即可
-                    
-                    except Exception as e:
-                        logging.error(f"[会话监控] 检查会话 {session_id[:8]}... 活跃状态时出错: {e}")
-                        # 出现异常时，保守起见，视为活跃
-                        has_active_task = True
-
-                    # --- 根据活跃状态决定操作 ---
-                    if has_active_task:
-                        # 如果有活跃任务，则将其加入“更新活跃时间”列表
-                        active_sessions_to_update.append(session_id)
-                    else:
-                        # 如果没有活跃任务，检查是否超时
-                        last_activity = 0
-                        # 嵌套锁定 session_activity_lock 来读取时间
-                        with session_activity_lock:
-                            # 满足用户要求：尝试读取，如果未定义，默认为0 (即“空”)
-                            last_activity = session_activity.get(session_id, 0)
-                        
-                        # 只有在 last_activity > 0 (即至少活跃过一次) 且超时的情况下才清理
-                        if last_activity > 0 and (current_time - last_activity > inactivity_timeout):
+                        if not api_instance:
                             inactive_sessions_to_cleanup.append(session_id)
-                            time_since_activity = current_time - last_activity
-                            logging.debug(
-                                f"[会话监控] 会话 {session_id[:8]}... 标记为不活跃（超时{int(time_since_activity)}秒，无任务执行）")
-            
+                            continue
+
+                        # --- 核心逻辑：检查该会话是否有活跃任务 ---
+                        has_active_task = False
+                        
+                        try:
+                            # 1. 检查单账号模式：跑步任务是否正在执行
+                            if hasattr(api_instance, 'stop_run_flag') and not api_instance.stop_run_flag.is_set():
+                                has_active_task = True
+                                logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有单账号跑步任务正在执行")
+                            
+                            # 2. 检查多账号模式：跑步任务是否正在执行
+                            if not has_active_task and hasattr(api_instance, 'multi_run_stop_flag') and not api_instance.multi_run_stop_flag.is_set():
+                                has_active_task = True
+                                logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有多账号跑步任务正在执行")
+
+                            # 3. 检查单账号模式：自动签到线程是否正在运行
+                            if not has_active_task and hasattr(api_instance, 'auto_refresh_thread'):
+                                thread = api_instance.auto_refresh_thread
+                                if thread is not None and thread.is_alive():
+                                    has_active_task = True
+                                    logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有单账号自动签到任务正在执行")
+
+                            # 4. 检查多账号模式：自动签到线程是否正在运行
+                            if not has_active_task and hasattr(api_instance, 'multi_auto_refresh_thread'):
+                                thread = api_instance.multi_auto_refresh_thread
+                                if thread is not None and thread.is_alive():
+                                    has_active_task = True
+                                    logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有多账号自动签到任务正在执行")
+
+                            # 5. 检查多账号模式：各个子账号的任务线程是否正在运行
+                            if not has_active_task and getattr(api_instance, 'is_multi_account_mode', False) and hasattr(api_instance, 'accounts'):
+                                for acc in api_instance.accounts.values():
+                                    if hasattr(acc, 'worker_thread') and acc.worker_thread and acc.worker_thread.is_alive():
+                                        has_active_task = True
+                                        logging.debug(f"[会话监控] 会话 {session_id[:8]}... 的多账号子账号有任务正在执行")
+                                        break  # 找到一个即可
+                        
+                        except Exception as e:
+                            logging.error(f"[会话监控] 检查会话 {session_id[:8]}... 活跃状态时出错: {e}")
+                            # 出现异常时，保守起见，视为活跃
+                            has_active_task = True
+
+                        # --- 根据活跃状态决定操作 ---
+                        if has_active_task:
+                            # 如果有活跃任务，则将其加入“更新活跃时间”列表
+                            active_sessions_to_update.append(session_id)
+                        else:
+                            # 如果没有活跃任务，检查是否超时
+                            last_activity = 0
+                            # 嵌套锁定 session_activity_lock 来读取时间
+                            with session_activity_lock:
+                                # 满足用户要求：尝试读取，如果未定义，默认为0 (即“空”)
+                                last_activity = session_activity.get(session_id, 0)
+                            
+                            # 只有在 last_activity > 0 (即至少活跃过一次) 且超时的情况下才清理
+                            if last_activity > 0 and (current_time - last_activity > inactivity_timeout):
+                                inactive_sessions_to_cleanup.append(session_id)
+                                time_since_activity = current_time - last_activity
+                                logging.debug(
+                                    f"[会话监控] 会话 {session_id[:8]}... 标记为不活跃（超时{int(time_since_activity)}秒，无任务执行）")
+                
             # --- 2. 释放 web_sessions_lock ---
 
             # 3. 批量更新活跃会话的时间（在主循环外）
@@ -11807,6 +11808,8 @@ def start_web_server(args_param):
         ip_address = request.headers.get('X-Forwarded-For', request.remote_addr) or ''
         user_agent = request.headers.get('User-Agent', '')
 
+        # 此处不能分配新 session_id，登录时必须使用客户端提供的 ID
+        
         auth_result = None
         target_username = None # 用于2FA和日志记录
         
