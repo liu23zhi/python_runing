@@ -3819,9 +3819,11 @@
                        (navigator.maxTouchPoints > 0) || 
                        (navigator.msMaxTouchPoints > 0);
 
-      // 综合判断：满足User-Agent是移动设备，或者（小屏幕且支持触摸）
-      // 这种组合可以更准确地识别真正的移动设备
-      const isMobile = isMobileUA || (isSmallScreen && hasTouch);
+      // 综合判断：满足以下任一条件即视为移动设备
+      // 1. User-Agent明确显示为移动设备
+      // 2. 小屏幕且支持触摸（真实移动设备）
+      // 3. 仅小屏幕也视为移动设备（兼容模拟器和测试环境）
+      const isMobile = isMobileUA || (isSmallScreen && hasTouch) || isSmallScreen;
 
       // 打印检测结果到控制台，便于调试
       console.log('[移动端检测] User-Agent检测:', isMobileUA);
