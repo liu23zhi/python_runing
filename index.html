@@ -5489,6 +5489,27 @@
         }, 100);
       });
 
+      // 监听媒体查询变化（用于浏览器设备仿真）
+      // 当浏览器的设备仿真切换时，matchMedia 可以检测到视口变化
+      // 这比 resize 事件更可靠，因为设备仿真不总是触发 resize
+      const mobileMediaQuery = window.matchMedia('(max-width: 768px)');
+      
+      // 定义媒体查询变化处理函数
+      function handleMediaQueryChange(e) {
+        console.log('[媒体查询] 检测到视口宽度变化，当前是否为移动端:', e.matches);
+        // 调用 handleResize 来处理模态框切换
+        handleResize();
+      }
+      
+      // 添加监听器 - 兼容新旧API
+      if (mobileMediaQuery.addEventListener) {
+        // 现代浏览器使用 addEventListener
+        mobileMediaQuery.addEventListener('change', handleMediaQueryChange);
+      } else {
+        // 旧版浏览器使用 addListener
+        mobileMediaQuery.addListener(handleMediaQueryChange);
+      }
+
       console.log('[页面加载] 移动端检测和切换功能已启动');
     });
 
