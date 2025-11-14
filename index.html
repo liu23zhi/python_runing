@@ -6,8 +6,83 @@
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js" onerror="handleCdnError('Socket.IO')"></script>
   <meta charset="UTF-8">
   <title>跑步助手</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- 移动端适配：禁止用户缩放，设置初始缩放比例为1.0，最大缩放比例为1.0 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <script src="https://cdn.tailwindcss.com" onerror="handleCdnError()"></script>
+  <!-- =============================================
+       移动端设备检测与UI自动切换脚本
+       功能：检测设备类型（手机/平板/PC），自动应用对应的UI布局
+       检测标准：屏幕宽度 < 768px 视为移动设备
+       ============================================= -->
+  <script>
+    // 设备检测函数：判断当前设备是否为移动设备（手机/小平板）
+    // 返回值：true表示移动设备，false表示PC/大屏设备
+    function isMobileDevice() {
+      // 方法1：通过User-Agent字符串检测移动设备标识
+      // 检测常见的移动设备关键词（Android、iPhone、iPad、Mobile等）
+      const userAgent = navigator.userAgent.toLowerCase();
+      const mobileKeywords = ['android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone', 'mobile'];
+      const hasMobileUA = mobileKeywords.some(keyword => userAgent.includes(keyword));
+      
+      // 方法2：通过屏幕宽度检测（最可靠的方法）
+      // 768px是常用的移动/平板断点，小于此值视为移动设备
+      const hasNarrowScreen = window.innerWidth < 768;
+      
+      // 方法3：检测触摸屏支持（辅助判断）
+      // 大部分移动设备支持触摸，但有些PC也支持触摸屏
+      const hasTouchScreen = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      
+      // 综合判断：屏幕窄 + (User-Agent匹配 或 支持触摸)
+      // 这样可以排除触摸屏PC，同时兼容各种移动设备
+      return hasNarrowScreen && (hasMobileUA || hasTouchScreen);
+    }
+    
+    // 页面加载完成后立即执行设备检测和UI适配
+    // 使用DOMContentLoaded事件确保在DOM构建完成后执行
+    document.addEventListener('DOMContentLoaded', function() {
+      const body = document.body;
+      
+      // 执行设备检测
+      if (isMobileDevice()) {
+        // 检测到移动设备：添加'mobile-ui'类名到body元素
+        // CSS将根据此类名应用移动端专用样式
+        body.classList.add('mobile-ui');
+        console.log('[UI适配] 检测到移动设备，已启用移动端UI');
+      } else {
+        // 检测到PC设备：添加'desktop-ui'类名到body元素
+        // CSS将根据此类名应用桌面端样式（或保持默认样式）
+        body.classList.add('desktop-ui');
+        console.log('[UI适配] 检测到桌面设备，已启用桌面端UI');
+      }
+      
+      // 监听窗口大小变化事件（用户旋转屏幕或调整浏览器窗口）
+      // 实现动态响应式切换（debounce防抖优化，避免频繁触发）
+      let resizeTimer;
+      window.addEventListener('resize', function() {
+        // 清除之前的定时器（防抖）
+        clearTimeout(resizeTimer);
+        // 300ms后执行设备类型重新检测
+        resizeTimer = setTimeout(function() {
+          const nowMobile = isMobileDevice();
+          const wasMobile = body.classList.contains('mobile-ui');
+          
+          // 如果设备类型发生变化（例如从竖屏转为横屏，或调整窗口大小）
+          if (nowMobile !== wasMobile) {
+            // 切换类名
+            if (nowMobile) {
+              body.classList.remove('desktop-ui');
+              body.classList.add('mobile-ui');
+              console.log('[UI适配] 切换到移动端UI');
+            } else {
+              body.classList.remove('mobile-ui');
+              body.classList.add('desktop-ui');
+              console.log('[UI适配] 切换到桌面端UI');
+            }
+          }
+        }, 300);
+      });
+    });
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -711,6 +786,219 @@
         width: 100%;
         /* 按钮占满宽度 */
       }
+    }
+
+    /* ============================================================ */
+    /* 移动端专用UI样式（通过body.mobile-ui类名触发）
+    /* 这些样式只在JavaScript检测到移动设备时生效
+    /* 设计目标：单列布局、大按钮、简化导航、优化触摸体验
+    /* ============================================================ */
+    
+    /* 移动端：登录页面优化 */
+    body.mobile-ui #login-container {
+      /* 移动端登录页面改为单列垂直布局 */
+      display: flex !important;
+      flex-direction: column !important;
+      padding: 16px !important;
+    }
+    
+    body.mobile-ui #login-container > div {
+      /* 登录页面的每个section占据全宽 */
+      width: 100% !important;
+      max-width: 100% !important;
+      padding: 16px !important;
+      margin-bottom: 16px !important;
+    }
+    
+    /* 移动端：主应用界面优化（重新布局） */
+    body.mobile-ui #main-app {
+      /* 改为单列垂直布局，取消网格 */
+      display: flex !important;
+      flex-direction: column !important;
+      padding: 8px !important;
+      gap: 12px !important;
+      /* 移除原有的grid布局类 */
+      grid-template-columns: 1fr !important;
+    }
+    
+    /* 移动端：左侧面板（用户信息、任务列表、控制面板） */
+    body.mobile-ui #main-app > div:first-child {
+      /* 左侧面板在移动端占据全宽 */
+      width: 100% !important;
+      /* 移除固定高度限制，允许内容自然流动 */
+      height: auto !important;
+      min-height: auto !important;
+    }
+    
+    /* 移动端：地图容器（右侧面板） */
+    body.mobile-ui #map-container {
+      /* 地图在移动端也占据全宽，但设置合理的高度 */
+      width: 100% !important;
+      height: 400px !important; /* 固定高度，避免地图过大 */
+      min-height: 300px !important;
+    }
+    
+    /* 移动端：用户信息卡片优化 */
+    body.mobile-ui .panel.rounded-xl {
+      /* 减小圆角和内边距，节省空间 */
+      border-radius: 8px !important;
+      padding: 12px !important;
+    }
+    
+    /* 移动端：任务列表优化 */
+    body.mobile-ui #task-list {
+      /* 任务列表设置最大高度，避免过长 */
+      max-height: 300px !important;
+      overflow-y: auto !important;
+    }
+    
+    /* 移动端：按钮优化（所有按钮） */
+    body.mobile-ui .btn,
+    body.mobile-ui button,
+    body.mobile-ui input[type="button"],
+    body.mobile-ui input[type="submit"] {
+      /* 增大按钮最小高度，方便手指点击（iOS人机界面指南推荐44px） */
+      min-height: 44px !important;
+      /* 增大内边距，扩大点击区域 */
+      padding: 12px 16px !important;
+      /* 增大字体，提高可读性 */
+      font-size: 16px !important;
+      /* 按钮文字不换行 */
+      white-space: nowrap !important;
+    }
+    
+    /* 移动端：输入框优化 */
+    body.mobile-ui .input-field,
+    body.mobile-ui .select-field,
+    body.mobile-ui input[type="text"],
+    body.mobile-ui input[type="email"],
+    body.mobile-ui input[type="password"],
+    body.mobile-ui input[type="tel"],
+    body.mobile-ui input[type="number"],
+    body.mobile-ui textarea,
+    body.mobile-ui select {
+      /* 确保输入框足够高，方便点击 */
+      min-height: 44px !important;
+      /* 字体大小至少16px，防止iOS Safari自动缩放页面 */
+      font-size: 16px !important;
+      /* 舒适的内边距 */
+      padding: 10px 12px !important;
+    }
+    
+    /* 移动端：Tab导航优化 */
+    body.mobile-ui .tab-button {
+      /* Tab按钮增大点击区域 */
+      padding: 12px 16px !important;
+      font-size: 14px !important;
+    }
+    
+    /* 移动端：隐藏部分非关键元素，简化界面 */
+    body.mobile-ui .hidden-mobile {
+      /* 通过添加hidden-mobile类名，可以在移动端隐藏特定元素 */
+      display: none !important;
+    }
+    
+    /* 移动端：模态框优化 */
+    body.mobile-ui .modal-content {
+      /* 模态框在移动端接近全屏 */
+      width: 95vw !important;
+      max-width: 95vw !important;
+      max-height: 90vh !important;
+      overflow-y: auto !important;
+    }
+    
+    /* 移动端：表单容器优化（堆叠显示） */
+    body.mobile-ui .flex.gap-3,
+    body.mobile-ui .flex.gap-4 {
+      /* 表单元素纵向排列 */
+      flex-direction: column !important;
+      gap: 12px !important;
+    }
+    
+    /* 移动端：网格布局改为单列 */
+    body.mobile-ui .grid {
+      /* 所有网格布局在移动端改为单列 */
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
+    }
+    
+    /* 移动端：文字大小调整（整体缩小） */
+    body.mobile-ui h1 {
+      font-size: 24px !important;
+    }
+    
+    body.mobile-ui h2 {
+      font-size: 20px !important;
+    }
+    
+    body.mobile-ui h3 {
+      font-size: 18px !important;
+    }
+    
+    body.mobile-ui p,
+    body.mobile-ui span,
+    body.mobile-ui div {
+      font-size: 14px !important;
+    }
+    
+    /* 移动端：导航栏/头部优化（如果有） */
+    body.mobile-ui nav,
+    body.mobile-ui header {
+      /* 减小高度和内边距 */
+      padding: 8px 12px !important;
+    }
+    
+    /* 移动端：卡片/面板间距优化 */
+    body.mobile-ui .panel + .panel {
+      /* 面板之间的间距 */
+      margin-top: 12px !important;
+    }
+    
+    /* 移动端：滚动条优化（WebKit浏览器） */
+    body.mobile-ui ::-webkit-scrollbar {
+      /* 缩小滚动条宽度 */
+      width: 6px !important;
+      height: 6px !important;
+    }
+    
+    body.mobile-ui ::-webkit-scrollbar-thumb {
+      /* 滚动条滑块样式 */
+      background-color: rgba(148, 163, 184, 0.6) !important;
+      border-radius: 3px !important;
+    }
+    
+    /* 移动端：禁用某些hover效果（触摸屏不需要） */
+    body.mobile-ui *:hover {
+      /* 移动端禁用transform变换（减少意外触发） */
+      transform: none !important;
+    }
+    
+    /* 移动端：通知badge优化 */
+    body.mobile-ui #notification-badge {
+      /* 通知角标稍微放大，更容易看到 */
+      width: 20px !important;
+      height: 20px !important;
+      font-size: 12px !important;
+    }
+    
+    /* 移动端：地图控件优化（如果有自定义地图控件） */
+    body.mobile-ui .amap-toolbar,
+    body.mobile-ui .amap-controlbar {
+      /* 地图控件位置调整，避免被遮挡 */
+      bottom: 80px !important;
+    }
+    
+    /* 桌面端专用样式（确保PC端保持原有布局） */
+    body.desktop-ui #main-app {
+      /* 桌面端保持原有的grid布局 */
+      display: grid !important;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+    }
+    
+    /* 桌面端：保持原有的响应式布局 */
+    body.desktop-ui #login-container {
+      display: grid !important;
+      grid-template-columns: repeat(3, 1fr) !important;
     }
   </style>
 
