@@ -5391,51 +5391,57 @@
         // 声明 isModalSwap 变量 ---
         let isModalSwap = false;
 
-        // 重新执行UI容器切换 (这会更新全局变量 isMobileMode)
-        switchUIContainer();
+        // 关键修复：检测新的设备模式（在调用 switchUIContainer 之前）
+        const willBeMobileMode = detectMobileDevice();
 
-        // 修复：在切换后，根据新的 isMobileMode 状态，
-        // 自动关闭旧的模态框并打开新的模态框，保持状态同步。
-        if (isMobileMode && wasDesktopModalOpen) {
+        // 关键修复：在 switchUIContainer() 之前，根据模态框状态先隐藏登录界面
+        // 这样可以防止 switchUIContainer() 显示移动端容器时，登录界面短暂可见
+        if (willBeMobileMode && wasDesktopModalOpen) {
           // 场景：从桌面切换到移动端，且桌面模态框是打开的
           console.log('[窗口调整] 正在从桌面会话选择器切换到移动版...');
           
-          // 关键修复：在显示移动端会话选择器之前，先隐藏登录界面容器
-          // 这样可以防止登录界面在会话选择器显示之前或同时显示，导致UI闪烁或显示错误
+          // 步骤1：在UI容器切换之前，先隐藏移动端登录界面容器
+          // 这是关键修复：必须在 switchUIContainer() 之前执行
           const mobileLogin = $('mobile-login-container');
           const mobileAuth = $('mobile-auth-login-container');
           
-          // 强制隐藏移动端登录相关容器（用户正在会话选择器中）
           if (mobileLogin) mobileLogin.style.display = 'none'; // 隐藏三卡片布局
           if (mobileAuth) mobileAuth.style.display = 'none';  // 隐藏登录表单
-          console.log('[窗口调整-FIX] 步骤1：先隐藏移动端登录界面');
-          
-          // 然后关闭桌面版并打开移动版会话选择器
-          closeSessionPicker(); // 关闭桌面版
-          showMobileSessionPicker(); // 打开移动版
-          console.log('[窗口调整-FIX] 步骤2：显示移动端会话选择器');
+          console.log('[窗口调整-FIX] 步骤1：在UI切换前先隐藏移动端登录界面');
           
           isModalSwap = true;
-        } else if (!isMobileMode && wasMobileModalOpen) {
+        } else if (!willBeMobileMode && wasMobileModalOpen) {
           // 场景：从移动端切换到桌面，且移动模态框是打开的
           console.log('[窗口调整] 正在从移动会话选择器切换到桌面版...');
           
-          // 关键修复：在显示桌面会话选择器之前，先隐藏登录界面容器
-          // 这样可以防止登录界面在会话选择器显示之前或同时显示，导致UI闪烁或显示错误
+          // 步骤1：在UI容器切换之前，先隐藏桌面登录界面容器
           const desktopLogin = $('login-container');
           const desktopAuth = $('auth-login-container');
 
-          // 强制隐藏桌面端登录相关容器（用户正在会话选择器中）
           if (desktopLogin) desktopLogin.style.display = 'none'; // 隐藏三栏布局
           if (desktopAuth) desktopAuth.style.display = 'none'; // 隐藏登录表单
-          console.log('[窗口调整-FIX] 步骤1：先隐藏桌面登录界面');
-          
-          // 然后关闭移动版并打开桌面版会话选择器
-          closeMobileSessionPicker(); // 关闭移动版
-          showSessionPicker(); // 打开桌面版
-          console.log('[窗口调整-FIX] 步骤2：显示桌面会话选择器');
+          console.log('[窗口调整-FIX] 步骤1：在UI切换前先隐藏桌面登录界面');
           
           isModalSwap = true;
+        }
+
+        // 步骤2：重新执行UI容器切换 (这会更新全局变量 isMobileMode)
+        // 注意：此时登录界面已经被隐藏（如果需要的话）
+        switchUIContainer();
+
+        // 步骤3：根据新的 isMobileMode 状态，关闭旧的模态框并打开新的模态框
+        if (isModalSwap) {
+          if (isMobileMode) {
+            // 关闭桌面版并打开移动版会话选择器
+            closeSessionPicker(); // 关闭桌面版
+            showMobileSessionPicker(); // 打开移动版
+            console.log('[窗口调整-FIX] 步骤2-3：切换UI容器并显示移动端会话选择器');
+          } else {
+            // 关闭移动版并打开桌面版会话选择器
+            closeMobileSessionPicker(); // 关闭移动版
+            showSessionPicker(); // 打开桌面版
+            console.log('[窗口调整-FIX] 步骤2-3：切换UI容器并显示桌面会话选择器');
+          }
         }
       }, 300); // 防抖延迟：300毫秒
     }
