@@ -2996,7 +2996,47 @@
       <div id="mobile-login-container" class="space-y-4 hidden">
 
         <!-- ========================================
-             【区域1】多账号模式入口卡片
+             【区域1】单账号登录面板卡片（已调整顺序，原为区域3）
+             - 对应PC端右栏的单账号登录
+             - 提供用户下拉选择和密码输入
+             - 为了优化用户体验，将最常用的单账号登录放在首位
+             ======================================== -->
+        <div class="mobile-card" id="mobile-single-login-card">
+
+          <!-- 标题 -->
+          <h3 class="text-lg font-bold text-slate-800 mb-4">单账号登录</h3>
+
+          <!-- 用户选择下拉框 - 对应PC端的user-combo -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">选择用户</label>
+            <!-- select下拉菜单，用于选择已保存的用户 -->
+            <select id="mobile-user-combo" class="w-full">
+              <option value="">请选择用户</option>
+              <!-- 用户列表将由JavaScript动态填充 -->
+            </select>
+          </div>
+
+          <!-- 用户名输入框 - 对应PC端的username-entry -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">用户名</label>
+            <input type="text" id="mobile-username-entry" class="w-full" placeholder="或直接输入用户名" autocomplete="username">
+          </div>
+
+          <!-- 密码输入框 - 对应PC端的password-entry -->
+          <div class="mobile-form-group">
+            <label class="mobile-form-label">密码</label>
+            <input type="password" id="mobile-password-entry" class="w-full" placeholder="请输入密码"
+              autocomplete="current-password">
+          </div>
+
+          <!-- 登录按钮 -->
+          <button id="mobile-single-login-btn" class="mobile-primary-btn">
+            登录
+          </button>
+        </div>
+
+        <!-- ========================================
+             【区域2】多账号模式入口卡片（已调整顺序，原为区域1）
              - 对应PC端左栏的多账号模式
              - 紫色渐变主题凸显高级功能
              ======================================== -->
@@ -3042,7 +3082,7 @@
         </div>
 
         <!-- ========================================
-             【区域2】会话管理面板卡片
+             【区域3】会话管理面板卡片（已调整顺序，原为区域2）
              - 对应PC端中栏的会话管理
              - 显示活跃会话列表和管理功能
              ======================================== -->
@@ -3070,6 +3110,20 @@
             </button>
           </div>
 
+          <!-- 提示信息和创建新会话按钮区域 - 参考PC端session-panel-card -->
+          <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 mb-4">
+            <!-- 提示文字 - 告知用户可以选择现有会话或创建新会话 -->
+            <p class="text-sm text-slate-700 mb-3">选择现有会话或创建新会话</p>
+            <!-- 创建新会话按钮 - 调用createNewSessionFromPicker()函数 -->
+            <button class="mobile-primary-btn w-full" onclick="createNewSessionFromPicker()" id="mobile-create-session-btn">
+              <!-- 加号图标 - 表示创建新项目的操作 -->
+              <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+              </svg>
+              创建新会话
+            </button>
+          </div>
+
           <!-- 会话计数显示 - 动态显示当前会话数量 -->
           <div id="mobile-session-count-display"
             class="text-sm text-slate-600 bg-sky-50 px-3 py-2 rounded-lg mb-4 text-center">
@@ -3083,45 +3137,6 @@
               加载会话列表中...
             </p>
           </div>
-        </div>
-
-        <!-- ========================================
-             【区域3】单账号登录面板卡片
-             - 对应PC端右栏的单账号登录
-             - 提供用户下拉选择和密码输入
-             ======================================== -->
-        <div class="mobile-card" id="mobile-single-login-card">
-
-          <!-- 标题 -->
-          <h3 class="text-lg font-bold text-slate-800 mb-4">单账号登录</h3>
-
-          <!-- 用户选择下拉框 - 对应PC端的user-combo -->
-          <div class="mobile-form-group">
-            <label class="mobile-form-label">选择用户</label>
-            <!-- select下拉菜单，用于选择已保存的用户 -->
-            <select id="mobile-user-combo" class="w-full">
-              <option value="">请选择用户</option>
-              <!-- 用户列表将由JavaScript动态填充 -->
-            </select>
-          </div>
-
-          <!-- 用户名输入框 - 对应PC端的username-entry -->
-          <div class="mobile-form-group">
-            <label class="mobile-form-label">用户名</label>
-            <input type="text" id="mobile-username-entry" class="w-full" placeholder="或直接输入用户名" autocomplete="username">
-          </div>
-
-          <!-- 密码输入框 - 对应PC端的password-entry -->
-          <div class="mobile-form-group">
-            <label class="mobile-form-label">密码</label>
-            <input type="password" id="mobile-password-entry" class="w-full" placeholder="请输入密码"
-              autocomplete="current-password">
-          </div>
-
-          <!-- 登录按钮 -->
-          <button id="mobile-single-login-btn" class="mobile-primary-btn">
-            登录
-          </button>
         </div>
 
         <!-- ========================================
@@ -3587,7 +3602,150 @@
 
     </main>
 
-    <!-- 移动端底部导航栏 -->
+    <!-- ========================================
+         【移动端模态框区域】
+         包含所有移动端专用的模态框
+         ======================================== -->
+    
+    <!-- 移动端用户详情模态框 - 用于mobile-main-app -->
+    <div id="mobile-user-details-modal" class="fixed inset-0 hidden mobile-modal z-50" onclick="toggleMobileUserDetails(false)">
+      <!-- 半透明遮罩层 - 点击关闭模态框 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 - 从底部弹出，采用圆角设计 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 - 视觉提示可向下滑动关闭 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+          <h3 class="text-xl font-bold text-sky-600 text-center">用户详情</h3>
+        </div>
+        <!-- 用户详情内容区域 - 由JavaScript动态填充 -->
+        <div id="mobile-user-details-content" class="text-sm space-y-1 max-h-[60vh] overflow-y-auto"></div>
+        <!-- 底部关闭按钮 -->
+        <div class="flex justify-end pt-2">
+          <button class="mobile-primary-btn" onclick="toggleMobileUserDetails(false)">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 移动端任务详情模态框 - 用于mobile-main-app -->
+    <div id="mobile-task-details-modal" class="fixed inset-0 hidden mobile-modal z-50" onclick="toggleMobileTaskDetails(false)">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+          <h3 class="text-xl font-bold text-sky-600 text-center">任务详情</h3>
+        </div>
+        <!-- 任务详情内容区域 - 由JavaScript动态填充 -->
+        <div id="mobile-task-details-content" class="text-sm space-y-1 max-h-[60vh] overflow-y-auto"></div>
+        <!-- 底部关闭按钮 -->
+        <div class="flex justify-end pt-2">
+          <button class="mobile-primary-btn" onclick="toggleMobileTaskDetails(false)">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 移动端通知中心模态框 - 用于mobile-main-app -->
+    <div id="mobile-notifications-modal" class="fixed inset-0 hidden mobile-modal z-50" onclick="toggleMobileNotifications(false)">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+          <h3 class="text-xl font-bold text-sky-600 text-center">通知中心</h3>
+        </div>
+        <!-- 通知内容区域 - 由JavaScript动态填充 -->
+        <div id="mobile-notifications-content" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+          <p class="text-slate-400 text-center py-10">正在加载...</p>
+        </div>
+        <!-- 底部操作按钮 -->
+        <div class="flex justify-between items-center pt-2">
+          <div class="flex gap-2">
+            <button id="mobile-refresh-notifications-modal-btn" class="py-2 px-4 bg-sky-50 text-sky-600 rounded-lg text-sm font-medium hover:bg-sky-100 transition">刷新</button>
+            <button id="mobile-mark-all-read-modal-btn" class="py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition">一键已读</button>
+          </div>
+          <button class="mobile-primary-btn" onclick="toggleMobileNotifications(false)">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 移动端管理面板模态框 - 用于mobile-main-app和mobile-multi-account-app -->
+    <div id="mobile-admin-panel-modal" class="fixed inset-0 hidden mobile-modal z-50" onclick="toggleMobileAdminPanel(false)">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+          <!-- 管理图标 -->
+          <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+          <h3 class="text-xl font-bold text-sky-600 text-center">管理面板</h3>
+        </div>
+        <!-- 管理面板标签页导航 - 横向滚动支持 -->
+        <div class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 -mx-2 px-2" style="scrollbar-width: none;">
+          <!-- 标签页按钮将由JavaScript动态创建和管理 -->
+        </div>
+        <!-- 管理面板内容区域 - 由JavaScript动态填充 -->
+        <div id="mobile-admin-panel-content" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto">
+          <p class="text-slate-400 text-center py-10">加载中...</p>
+        </div>
+        <!-- 底部关闭按钮 -->
+        <div class="flex justify-end pt-2">
+          <button class="mobile-primary-btn" onclick="toggleMobileAdminPanel(false)">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 移动端账号参数设置模态框 - 用于mobile-multi-account-app -->
+    <div id="mobile-account-params-modal" class="fixed inset-0 hidden mobile-modal z-50" onclick="closeMobileAccountParams()">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+          <h3 id="mobile-account-params-title" class="text-xl font-bold text-sky-600 text-center">账号参数设置</h3>
+        </div>
+        <!-- 账号参数设置内容区域 - 由JavaScript动态填充 -->
+        <div id="mobile-account-params-container" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto pr-2"></div>
+        <!-- 底部操作按钮 -->
+        <div class="flex justify-end gap-3 pt-2">
+          <button class="py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition" onclick="closeMobileAccountParams()">取消</button>
+          <button id="mobile-save-account-params-btn" class="mobile-primary-btn">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================
+         【移动端底部导航栏区域】
+         根据当前应用模式显示不同的导航栏
+         ======================================== -->
+    
+    <!-- 通用底部导航栏 - 已废弃，保留以兼容旧代码 -->
     <nav class="mobile-bottom-nav hidden" id="mobile-bottom-nav" style="display:none;">
       <!-- 首页按钮 -->
       <a href="#" class="mobile-nav-btn active" data-nav="home">
@@ -3630,6 +3788,77 @@
       </a>
     </nav>
 
+    <!-- 单账号模式底部导航栏 - 用于mobile-main-app -->
+    <nav class="mobile-bottom-nav hidden" id="mobile-bottom-nav-single-account" style="display:none;">
+      <!-- 首页/任务按钮 -->
+      <a href="#" class="mobile-nav-btn active" data-nav="home" onclick="scrollToMobileSection('mobile-task-panel')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+        </svg>
+        <span>任务</span>
+      </a>
+
+      <!-- 地图按钮 -->
+      <a href="#" class="mobile-nav-btn" data-nav="map" onclick="scrollToMobileSection('mobile-map-panel')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        </svg>
+        <span>地图</span>
+      </a>
+
+      <!-- 通知按钮 -->
+      <a href="#" class="mobile-nav-btn" data-nav="notifications" onclick="toggleMobileNotifications(true)">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        </svg>
+        <span>通知</span>
+      </a>
+
+      <!-- 退出登录按钮 -->
+      <a href="#" class="mobile-nav-btn" data-nav="logout" onclick="mobileLogout()">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+        </svg>
+        <span>退出</span>
+      </a>
+    </nav>
+
+    <!-- 多账号模式底部导航栏 - 用于mobile-multi-account-app -->
+    <nav class="mobile-bottom-nav hidden" id="mobile-bottom-nav-multi-account" style="display:none;">
+      <!-- 账号列表按钮 -->
+      <a href="#" class="mobile-nav-btn active" data-nav="accounts" onclick="scrollToMobileSection('mobile-multi-account-panel')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+        </svg>
+        <span>账号</span>
+      </a>
+
+      <!-- 批量控制按钮 -->
+      <a href="#" class="mobile-nav-btn" data-nav="control" onclick="scrollToMobileSection('mobile-multi-control-panel')">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        <span>控制</span>
+      </a>
+
+      <!-- 参数设置按钮 -->
+      <a href="#" class="mobile-nav-btn" data-nav="params" onclick="openMobileAccountParams()">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span>参数</span>
+      </a>
+
+      <!-- 返回登录按钮 -->
+      <a href="#" class="mobile-nav-btn" data-nav="back" onclick="exitMobileMultiAccount()">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        <span>返回</span>
+      </a>
+    </nav>
+
   </div>
   <!-- 结束：移动端容器 -->
 
@@ -3658,7 +3887,7 @@
       <div class="bg-sky-50 border border-sky-200 rounded-lg p-4">
         <p class="text-sm text-slate-700 mb-3">选择现有会话或创建新会话</p>
         <!-- 创建新会话按钮 - 主按钮样式 -->
-        <button class="mobile-primary-btn w-full" onclick="createNewSessionFromPicker()" id="mobile-create-session-btn">
+        <button class="mobile-primary-btn w-full" onclick="createNewSessionFromPicker()" id="mobile-create-session-picker-btn">
           <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
@@ -5328,6 +5557,11 @@
         // === 移动端模式 ===
         console.log('[UI切换] 切换到移动端模式');
 
+        // 【需求2修复】在隐藏桌面端之前，先检查哪个登录容器当前可见
+        // 这样可以在切换到移动端时显示对应的移动端登录容器
+        const desktopLoginVisible = !$('login-container').classList.contains('hidden');
+        const desktopAuthVisible = !$('auth-login-container').classList.contains('hidden');
+
         // 显示移动端容器
         mobileContainer.style.display = 'block';
         // 隐藏桌面端容器 - 使用!important确保完全隐藏
@@ -5349,6 +5583,19 @@
           }
         });
 
+        // 【需求2修复】根据PC端当前显示的登录容器，显示对应的移动端登录容器
+        if (desktopLoginVisible) {
+          // PC端显示login-container，则移动端显示mobile-login-container
+          $('mobile-login-container').classList.remove('hidden');
+          $('mobile-auth-login-container').classList.add('hidden');
+          console.log('[UI切换] PC端login-container可见，显示移动端mobile-login-container');
+        } else if (desktopAuthVisible) {
+          // PC端显示auth-login-container，则移动端显示mobile-auth-login-container
+          $('mobile-auth-login-container').classList.remove('hidden');
+          $('mobile-login-container').classList.add('hidden');
+          console.log('[UI切换] PC端auth-login-container可见，显示移动端mobile-auth-login-container');
+        }
+
         // 隐藏所有可能干扰的模态框
         const modalElements = [
           'admin-panel-modal',
@@ -5369,6 +5616,11 @@
       } else {
         // === 桌面端模式 ===
         console.log('[UI切换] 切换到桌面端模式');
+
+        // 【需求2修复】在隐藏移动端之前，先检查哪个登录容器当前可见
+        // 这样可以在切换到PC端时显示对应的PC端登录容器
+        const mobileLoginVisible = !$('mobile-login-container').classList.contains('hidden');
+        const mobileAuthVisible = !$('mobile-auth-login-container').classList.contains('hidden');
 
         // 隐藏移动端容器
         mobileContainer.style.display = 'none';
@@ -5394,6 +5646,19 @@
             el.style.removeProperty('pointer-events');
           }
         });
+
+        // 【需求2修复】根据移动端当前显示的登录容器，显示对应的PC端登录容器
+        if (mobileLoginVisible) {
+          // 移动端显示mobile-login-container，则PC端显示login-container
+          $('login-container').classList.remove('hidden');
+          $('auth-login-container').classList.add('hidden');
+          console.log('[UI切换] 移动端mobile-login-container可见，显示PC端login-container');
+        } else if (mobileAuthVisible) {
+          // 移动端显示mobile-auth-login-container，则PC端显示auth-login-container
+          $('auth-login-container').classList.remove('hidden');
+          $('login-container').classList.add('hidden');
+          console.log('[UI切换] 移动端mobile-auth-login-container可见，显示PC端auth-login-container');
+        }
 
 
       }
