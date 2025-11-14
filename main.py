@@ -16354,9 +16354,7 @@ def start_web_server(args_param):
             app.logger.error(f"[验证码管理] 添加验证码失败：{str(e)}")
             return jsonify({"success": False, "message": "添加失败"}), 500
 
-    # ====================
     # 应用主路由
-    # ====================
 
     def get_frontend_config():
         """辅助函数：读取前端需要的功能开关配置"""
@@ -16454,113 +16452,6 @@ def start_web_server(args_param):
 
         # 返回HTML内容
         return render_template_string(modified_html)
-
-    # @app.route('/JavaScript.js', methods=['GET'])
-    # def serve_full_javascript():
-    #     """
-    #     返回完整的 JavaScript.js 文件（支持自动压缩）
-        
-    #     功能说明：
-    #         返回整个 JavaScript.js 文件内容，供浏览器加载和执行。
-    #         默认会自动压缩代码以减小文件大小，提升加载速度。
-        
-    #     查询参数：
-    #         - minify: 是否压缩代码（默认 true）
-    #           * true/1/yes: 压缩代码（移除注释和空白）
-    #           * false/0/no: 返回原始代码（保留注释）
-        
-    #     返回：
-    #         - 200: 成功返回 JavaScript 代码
-    #         - 304: 使用缓存版本（内容未修改）
-    #         - 404: 文件未找到
-    #         - 500: 服务器内部错误
-        
-    #     缓存策略：
-    #         - 设置 Cache-Control 头，允许浏览器缓存 1 小时
-    #         - 使用 Last-Modified 和 ETag 支持条件请求
-    #         - 压缩版和非压缩版使用不同的 ETag
-        
-    #     压缩效果：
-    #         - 通常可减小 30-50% 的文件大小
-    #         - 首次加载后浏览器会缓存压缩版本
-        
-    #     使用示例：
-    #         - /JavaScript.js             --> 返回压缩版本（推荐）
-    #         - /JavaScript.js?minify=true --> 返回压缩版本
-    #         - /JavaScript.js?minify=false--> 返回原始版本（用于调试）
-    #     """
-    #     try:
-    #         js_file_path = os.path.join(os.path.dirname(__file__), 'JavaScript.js')
-            
-    #         if not os.path.exists(js_file_path):
-    #             logging.error(f"JavaScript.js 文件不存在: {js_file_path}")
-    #             return jsonify({"error": "JavaScript file not found"}), 404
-            
-    #         # 读取文件内容
-    #         with open(js_file_path, 'r', encoding='utf-8') as f:
-    #             original_content = f.read()
-            
-    #         # 检查是否需要压缩（默认为 true）
-    #         minify_param = request.args.get('minify', 'true').lower()
-    #         should_minify = minify_param in ['true', '1', 'yes', '']
-            
-    #         # # 根据参数决定是否压缩
-    #         # if should_minify:
-    #         #     # 压缩代码
-    #         #     content = minify_javascript(original_content)
-    #         #     content_type_suffix = ' (minified)'
-    #         #     logging.info(f"JavaScript.js 压缩：{len(original_content)} 字节 -> {len(content)} 字节 ({(1-len(content)/len(original_content))*100:.1f}% 压缩率)")
-    #         # else:
-    #         #     # 返回原始代码
-    #         #     content = original_content
-    #         #     content_type_suffix = ' (original)'
-    #         #     logging.info(f"JavaScript.js 返回原始版本：{len(content)} 字节")
-    #         # 根据参数决定是否压缩
-    #         if should_minify:
-    #             # 压缩功能已禁用（原始压缩器有Bug），始终返回原始代码
-    #             content = original_content
-    #             content_type_suffix = ' (original, compression disabled)'
-    #             logging.info(f"JavaScript.js 压缩功能已禁用，返回原始大小: {len(original_content)} 字节")
-    #         else:
-    #             # 返回原始代码
-    #             content = original_content
-    #             content_type_suffix = ' (original)'
-
-
-    #         # 设置 Last-Modified（基于文件修改时间）
-    #         file_mtime = os.path.getmtime(js_file_path)
-    #         from datetime import datetime
-    #         last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
-            
-    #         # 设置 ETag（基于内容哈希 + 压缩标志）
-    #         import hashlib
-    #         etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
-    #         etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
-            
-    #         # 检查条件请求
-    #         if_modified_since = request.headers.get('If-Modified-Since')
-    #         if_none_match = request.headers.get('If-None-Match')
-            
-    #         if (if_modified_since == last_modified) or (if_none_match == etag):
-    #             logging.debug(f"JavaScript.js 使用缓存版本 (304){content_type_suffix}")
-    #             return '', 304
-            
-    #         # 创建响应
-    #         response = make_response(content)
-    #         response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
-    #         response.headers['Cache-Control'] = 'public, max-age=3600'
-    #         response.headers['Last-Modified'] = last_modified
-    #         response.headers['ETag'] = etag
-            
-    #         # 添加自定义头，标识是否已压缩
-    #         response.headers['X-Minified'] = 'true' if should_minify else 'false'
-            
-    #         logging.info(f"成功返回 JavaScript.js{content_type_suffix} ({len(content)} 字符)")
-    #         return response
-            
-    #     except Exception as e:
-    #         logging.error(f"加载 JavaScript.js 时发生错误: {e}", exc_info=True)
-    #         return jsonify({"error": "Internal server error"}), 500
 
     @app.route('/JavaScript/<path:function_path>.js', methods=['GET'])
     def serve_javascript(function_path):
