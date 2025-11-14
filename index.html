@@ -721,6 +721,9 @@
     /* 移动端容器基础样式 - 默认隐藏，通过JavaScript控制显示 */
     #mobile-container {
       display: none; /* 默认隐藏移动端容器 */
+      position: fixed; /* 固定定位，确保覆盖所有桌面元素 */
+      top: 0; /* 从顶部开始 */
+      left: 0; /* 从左侧开始 */
       width: 100%; /* 占据全屏宽度 */
       height: 100vh; /* 占据100%视口高度 */
       overflow-y: auto; /* 允许垂直滚动 */
@@ -729,6 +732,7 @@
       background-attachment: fixed; /* 背景固定，滚动时不移动 */
       padding: 0; /* 移除默认内边距 */
       margin: 0; /* 移除默认外边距 */
+      z-index: 10000; /* 超高层级，确保覆盖所有桌面容器和模态框 */
     }
 
     /* 桌面端容器基础样式 - 默认显示 */
@@ -750,6 +754,25 @@
       -webkit-user-select: none; /* Safari/Chrome禁止文本选择 */
       -webkit-tap-highlight-color: transparent; /* 移除移动端点击高亮效果 */
       touch-action: pan-y; /* 只允许垂直滚动手势 */
+    }
+
+    /* 移动端模式下，强制隐藏所有桌面端容器和元素 */
+    body.mobile-mode #desktop-container,
+    body.mobile-mode #auth-login-container,
+    body.mobile-mode #login-container,
+    body.mobile-mode #main-app,
+    body.mobile-mode #multi-account-app {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+      z-index: -1 !important;
+    }
+
+    /* 移动端模式下，确保模态框不会遮挡移动端UI */
+    body.mobile-mode .modal,
+    body.mobile-mode #admin-panel-modal,
+    body.mobile-mode #session-picker-modal {
+      z-index: 9999 !important; /* 低于mobile-container的10000 */
     }
 
     /* 移动端模式下的按钮优化 - 更大的触摸目标 */
@@ -3839,8 +3862,36 @@
 
         // 显示移动端容器
         mobileContainer.style.display = 'block';
-        // 隐藏桌面端容器
-        desktopContainer.style.display = 'none';
+        // 隐藏桌面端容器 - 使用!important确保完全隐藏
+        desktopContainer.style.setProperty('display', 'none', 'important');
+        
+        // 额外确保所有桌面端主容器都被隐藏
+        const desktopElements = [
+          'auth-login-container',
+          'login-container', 
+          'main-app',
+          'multi-account-app'
+        ];
+        desktopElements.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.style.setProperty('display', 'none', 'important');
+            el.style.setProperty('visibility', 'hidden', 'important');
+            el.style.setProperty('pointer-events', 'none', 'important');
+          }
+        });
+        
+        // 隐藏所有可能干扰的模态框
+        const modalElements = [
+          'admin-panel-modal',
+          'session-picker-modal'
+        ];
+        modalElements.forEach(id => {
+          const el = document.getElementById(id);
+          if (el && !el.classList.contains('hidden')) {
+            el.classList.add('hidden');
+          }
+        });
 
         // 为body添加mobile-mode类，应用移动端专用CSS样式
         document.body.classList.add('mobile-mode');
@@ -3908,7 +3959,7 @@
       const mobileLoginBtn = document.getElementById('mobile-login-btn');
       if (mobileLoginBtn) {
         // 绑定登录按钮点击事件
-        mobileLoginBtn.addEventListener('click', function() {
+        mobileLoginBtn.addEventListener('click', async function() {
           // 获取用户输入的用户名
           const username = document.getElementById('mobile-login-username').value.trim();
           // 获取用户输入的密码
@@ -3920,12 +3971,52 @@
             return;
           }
 
-          // 调用桌面端的登录函数（复用现有登录逻辑）
-          // 注意：这里假设桌面端已有登录函数，需要确保该函数可被调用
+          // 密码长度验证（与桌面端保持一致）
+          if (password.length < 6 && username !== 'admin') {
+            showMobileMessage('密码长度至少6个字符', 'error');
+            return;
+          }
+
           console.log('[移动端UI] 尝试登录:', username);
-          // TODO: 调用实际的登录API函数
-          // 例如：performLogin(username, password);
-          showMobileMessage('登录功能正在开发中...', 'info');
+          
+          // 禁用登录按钮，防止重复点击
+          mobileLoginBtn.disabled = true;
+          mobileLoginBtn.textContent = '登录中...';
+
+          try {
+            // 调用后端登录API
+            const result = await callPythonAPI_raw('/api/auth/login', 'POST', {
+              login_id: username,
+              password: password,
+              login_mode: 'username',
+              verification_method: 'password'
+            });
+
+            if (result && result.success) {
+              showMobileMessage('登录成功！', 'success');
+              // 保存当前用户信息
+              currentAuthUsername = username;
+              
+              // TODO: 移动端登录成功后的UI切换
+              // 这里需要显示移动端的主界面
+              console.log('[移动端UI] 登录成功，用户:', username);
+              
+              // 暂时显示提示
+              setTimeout(() => {
+                showMobileMessage('移动端主界面功能开发中，请使用桌面版', 'info');
+              }, 1500);
+              
+            } else {
+              showMobileMessage(result?.message || '登录失败', 'error');
+            }
+          } catch (error) {
+            console.error('[移动端UI] 登录错误:', error);
+            showMobileMessage('登录失败: ' + error.message, 'error');
+          } finally {
+            // 恢复登录按钮状态
+            mobileLoginBtn.disabled = false;
+            mobileLoginBtn.textContent = '登录';
+          }
         });
       }
 
@@ -3935,17 +4026,36 @@
       const mobileRegisterBtn = document.getElementById('mobile-register-btn');
       if (mobileRegisterBtn) {
         // 绑定注册按钮点击事件
-        mobileRegisterBtn.addEventListener('click', function() {
+        mobileRegisterBtn.addEventListener('click', async function() {
           // 获取用户输入的用户名
           const username = document.getElementById('mobile-reg-username').value.trim();
           // 获取用户输入的密码
           const password = document.getElementById('mobile-reg-password').value.trim();
           // 获取用户输入的确认密码
           const passwordConfirm = document.getElementById('mobile-reg-password-confirm').value.trim();
+          // 获取手机号（可选）
+          const phone = document.getElementById('mobile-reg-phone')?.value.trim() || '';
 
           // 输入验证：检查必填字段
           if (!username || !password || !passwordConfirm) {
             showMobileMessage('请填写所有必填字段', 'error');
+            return;
+          }
+
+          // 验证用户名格式（3-20字符，不含中文）
+          if (username.length < 3 || username.length > 20) {
+            showMobileMessage('用户名长度应为3-20个字符', 'error');
+            return;
+          }
+          
+          if (/[一-龥]/.test(username)) {
+            showMobileMessage('用户名不能包含中文字符', 'error');
+            return;
+          }
+
+          // 密码长度验证
+          if (password.length < 6) {
+            showMobileMessage('密码长度至少6个字符', 'error');
             return;
           }
 
@@ -3955,11 +4065,55 @@
             return;
           }
 
-          // 调用桌面端的注册函数（复用现有注册逻辑）
+          // 验证手机号格式（如果填写了）
+          if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+            showMobileMessage('手机号格式不正确', 'error');
+            return;
+          }
+
           console.log('[移动端UI] 尝试注册:', username);
-          // TODO: 调用实际的注册API函数
-          // 例如：performRegister(username, password);
-          showMobileMessage('注册功能正在开发中...', 'info');
+
+          // 禁用注册按钮，防止重复点击
+          mobileRegisterBtn.disabled = true;
+          mobileRegisterBtn.textContent = '注册中...';
+
+          try {
+            // 调用后端注册API
+            const result = await callPythonAPI_raw('/api/auth/register', 'POST', {
+              username: username,
+              password: password,
+              phone: phone || null,
+              nickname: username, // 默认使用用户名作为昵称
+              sms_code: null // 移动端简化版不需要验证码
+            });
+
+            if (result && result.success) {
+              showMobileMessage('注册成功！请登录', 'success');
+              
+              // 切换回登录表单
+              setTimeout(() => {
+                registerForm.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+                // 清空注册表单
+                document.getElementById('mobile-reg-username').value = '';
+                document.getElementById('mobile-reg-password').value = '';
+                document.getElementById('mobile-reg-password-confirm').value = '';
+                if (document.getElementById('mobile-reg-phone')) {
+                  document.getElementById('mobile-reg-phone').value = '';
+                }
+              }, 1500);
+              
+            } else {
+              showMobileMessage(result?.message || '注册失败', 'error');
+            }
+          } catch (error) {
+            console.error('[移动端UI] 注册错误:', error);
+            showMobileMessage('注册失败: ' + error.message, 'error');
+          } finally {
+            // 恢复注册按钮状态
+            mobileRegisterBtn.disabled = false;
+            mobileRegisterBtn.textContent = '注册';
+          }
         });
       }
 
