@@ -13966,7 +13966,18 @@
           hideLoadingOverlays();
 
           // 显示认证登录界面，等待用户登录/游客模式
-          showAuthLogin();
+          if (isMobileMode) {
+            // 移动端：显示移动端认证页，并隐藏学校登录页
+            console.log("[Mobile Init] 无UUID，显示移动端认证页面");
+            $('mobile-auth-login-container').classList.remove('hidden');
+            $('mobile-login-container').classList.add('hidden');
+            // 确保桌面端隐藏
+            $('auth-login-container').classList.add('hidden');
+            $('login-container').classList.add('hidden');
+          } else {
+            // 桌面端：显示桌面端认证页
+            showAuthLogin();
+          }
           return; // 停止初始化，等待认证完成后重新初始化
         }
 
