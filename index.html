@@ -6474,8 +6474,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
       if (mobileMenuBtn) {
         mobileMenuBtn.addEventListener('click', function () {
           console.log('[移动端UI] 菜单按钮点击');
-          // TODO: 显示移动端菜单（个人资料、设置等）
-          showModalAlert('菜单功能开发中...', '提示');
+          // 显示移动端管理面板模态框
+          toggleMobileAdminPanel(true);
         });
       }
 
@@ -20130,8 +20130,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 移动端添加新任务
      */
     function mobileAddTask() {
-      // TODO: 打开添加任务对话框
-      showTempMessage('功能开发中...', 'info');
+      // 调用PC端的addTask函数
+      addTask();
     }
 
 
@@ -20140,37 +20140,62 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 移动端启动任务
      */
     async function mobileStartTask() {
-      // TODO: 调用现有的startTask函数
-      showTempMessage('功能开发中...', 'info');
+      // 调用PC端的toggleRun函数来启动任务
+      const btn = $('start-run-button');
+      if (btn && btn.textContent === '开始执行') {
+        await toggleRun();
+      }
     }
 
     /**
      * 移动端停止任务
      */
     async function mobileStopTask() {
-      // TODO: 调用现有的stopTask函数
-      showTempMessage('功能开发中...', 'info');
+      // 调用PC端的toggleRun函数来停止任务
+      const btn = $('start-run-button');
+      if (btn && btn.textContent === '停止') {
+        await toggleRun();
+      }
     }
 
     /**
      * 移动端暂停任务
      */
     async function mobilePauseTask() {
-      showTempMessage('功能开发中...', 'info');
+      // 调用API暂停任务
+      const result = await callPythonAPI('pause_run');
+      if (result && result.success) {
+        showTempMessage('任务已暂停', 'success');
+      } else {
+        showTempMessage(result?.message || '暂停失败', 'error');
+      }
     }
 
     /**
      * 移动端继续任务
      */
     async function mobileResumeTask() {
-      showTempMessage('功能开发中...', 'info');
+      // 调用API继续任务
+      const result = await callPythonAPI('resume_run');
+      if (result && result.success) {
+        showTempMessage('任务已继续', 'success');
+      } else {
+        showTempMessage(result?.message || '继续失败', 'error');
+      }
     }
 
     /**
      * 移动端重置任务
      */
     async function mobileResetTask() {
-      showTempMessage('功能开发中...', 'info');
+      if (confirm('确定要重置任务吗？这将清除当前进度。')) {
+        const result = await callPythonAPI('reset_run');
+        if (result && result.success) {
+          showTempMessage('任务已重置', 'success');
+        } else {
+          showTempMessage(result?.message || '重置失败', 'error');
+        }
+      }
     }
 
     /**
@@ -20205,56 +20230,57 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 移动端启动选中的账号
      */
     async function mobileStartSelectedAccounts() {
-      showTempMessage('功能开发中...', 'info');
+      await multi_startSelected();
     }
 
     /**
      * 移动端停止选中的账号
      */
     async function mobileStopSelectedAccounts() {
-      showTempMessage('功能开发中...', 'info');
+      await multi_stopSelected();
     }
 
     /**
      * 移动端添加多账号
      */
     function mobileAddMultiAccount() {
-      showTempMessage('功能开发中...', 'info');
+      // 调用PC端的添加账号函数
+      multi_addFromConfig();
     }
 
     /**
      * 移动端刷新多账号列表
      */
     async function mobileRefreshMultiAccounts() {
-      showTempMessage('功能开发中...', 'info');
+      await multi_refreshAll();
     }
 
     /**
      * 移动端全部启动（多账号）
      */
     async function mobileStartAllAccounts() {
-      showTempMessage('功能开发中...', 'info');
+      await multi_startAll();
     }
 
     /**
      * 移动端全部停止（多账号）
      */
     async function mobileStopAllAccounts() {
-      showTempMessage('功能开发中...', 'info');
+      await multi_stopAll();
     }
 
     /**
      * 移动端全部刷新（多账号）
      */
     async function mobileRefreshAllAccounts() {
-      showTempMessage('功能开发中...', 'info');
+      await multi_refreshAll();
     }
 
     /**
      * 移动端删除选中的账号
      */
     async function mobileRemoveSelectedAccounts() {
-      showTempMessage('功能开发中...', 'info');
+      await multi_removeSelected();
     }
 
     // ==================== 移动端UI控制函数 ====================
