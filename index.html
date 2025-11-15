@@ -1654,6 +1654,197 @@
         /* 边框颜色 */
       }
     }
+
+    /* ============================================================ */
+    /* 移动端侧边栏导航样式 */
+    /* 用于替代底部导航栏的侧边栏菜单系统 */
+    /* ============================================================ */
+
+    /* 侧边栏遮罩层 - 点击关闭侧边栏 */
+    .mobile-sidebar-backdrop {
+      position: fixed; /* 固定定位，覆盖整个屏幕 */
+      top: 0; /* 从顶部开始 */
+      left: 0; /* 从左侧开始 */
+      right: 0; /* 延伸到右侧 */
+      bottom: 0; /* 延伸到底部 */
+      background: rgba(0, 0, 0, 0.5); /* 半透明黑色背景，营造模态效果 */
+      z-index: 9998; /* 层级：高于内容，低于侧边栏 */
+      opacity: 0; /* 初始状态完全透明 */
+      visibility: hidden; /* 初始状态不可见 */
+      transition: opacity 0.3s ease, visibility 0.3s ease; /* 平滑的淡入淡出动画 */
+    }
+
+    /* 遮罩层显示状态 */
+    .mobile-sidebar-backdrop.show {
+      opacity: 1; /* 完全不透明 */
+      visibility: visible; /* 可见 */
+    }
+
+    /* 侧边栏容器基础样式 */
+    .mobile-sidebar {
+      position: fixed; /* 固定定位，始终在视口的左侧 */
+      top: 0; /* 从顶部开始 */
+      left: 0; /* 从左侧开始 */
+      bottom: 0; /* 延伸到底部 */
+      width: 280px; /* 侧边栏宽度 */
+      background: rgba(255, 255, 255, 0.98); /* 半透明白色背景，带轻微毛玻璃效果 */
+      backdrop-filter: blur(10px); /* 毛玻璃效果，背后内容模糊 */
+      box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15); /* 右侧阴影，增加层次感 */
+      z-index: 9999; /* 超高层级，确保在遮罩层之上 */
+      transform: translateX(-100%); /* 初始状态：向左平移100%宽度（隐藏在屏幕外） */
+      transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1); /* 平滑的滑动动画，使用缓动函数 */
+      overflow-y: auto; /* 允许垂直滚动，如果菜单项过多 */
+      overflow-x: hidden; /* 隐藏横向溢出 */
+      display: flex; /* 使用Flexbox布局 */
+      flex-direction: column; /* 垂直排列内部元素 */
+      padding-bottom: env(safe-area-inset-bottom, 0); /* 适配iPhone X等有安全区域的设备 */
+    }
+
+    /* 侧边栏显示状态 */
+    .mobile-sidebar.show {
+      transform: translateX(0); /* 滑入：恢复到正常位置（显示在屏幕内） */
+    }
+
+    /* 侧边栏头部区域 - 包含Logo和标题 */
+    .mobile-sidebar-header {
+      padding: 24px 20px; /* 内边距：上下24px，左右20px */
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2); /* 底部分隔线 */
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); /* 渐变蓝色背景 */
+      color: white; /* 白色文字 */
+      display: flex; /* Flexbox布局 */
+      align-items: center; /* 垂直居中对齐 */
+      gap: 12px; /* 元素之间的间距 */
+    }
+
+    /* 侧边栏Logo图标样式 */
+    .mobile-sidebar-header svg {
+      width: 32px; /* 图标宽度 */
+      height: 32px; /* 图标高度 */
+      flex-shrink: 0; /* 不允许缩小 */
+    }
+
+    /* 侧边栏标题文字样式 */
+    .mobile-sidebar-header .sidebar-title {
+      font-size: 20px; /* 字体大小 */
+      font-weight: 700; /* 粗体 */
+      letter-spacing: 0.5px; /* 字间距 */
+    }
+
+    /* 侧边栏菜单列表容器 */
+    .mobile-sidebar-menu {
+      flex: 1; /* 占据剩余空间 */
+      padding: 8px 0; /* 上下内边距 */
+      overflow-y: auto; /* 允许滚动 */
+    }
+
+    /* 侧边栏菜单项样式 */
+    .mobile-sidebar-item {
+      display: flex; /* Flexbox布局 */
+      align-items: center; /* 垂直居中 */
+      padding: 16px 20px; /* 内边距：上下16px，左右20px */
+      color: #334155; /* 深灰色文字 */
+      text-decoration: none; /* 移除下划线 */
+      font-size: 16px; /* 字体大小 */
+      font-weight: 500; /* 中等字重 */
+      transition: all 0.2s ease; /* 平滑过渡动画 */
+      cursor: pointer; /* 手型光标 */
+      touch-action: manipulation; /* 优化触摸响应 */
+      border-left: 3px solid transparent; /* 左侧边框预留空间，用于激活状态指示 */
+      gap: 12px; /* 图标与文字间距 */
+    }
+
+    /* 菜单项悬停效果（桌面调试时有用） */
+    .mobile-sidebar-item:hover {
+      background: rgba(59, 130, 246, 0.08); /* 浅蓝背景 */
+      border-left-color: #3b82f6; /* 左侧蓝色边框 */
+    }
+
+    /* 菜单项按下效果（触摸反馈） */
+    .mobile-sidebar-item:active {
+      background: rgba(59, 130, 246, 0.15); /* 更深的蓝色背景 */
+      transform: scale(0.98); /* 轻微缩小，模拟按下效果 */
+    }
+
+    /* 菜单项图标样式 */
+    .mobile-sidebar-item svg {
+      width: 24px; /* 图标宽度 */
+      height: 24px; /* 图标高度 */
+      flex-shrink: 0; /* 不允许缩小 */
+      stroke-width: 2; /* 图标线条宽度 */
+    }
+
+    /* 菜单项文字样式 */
+    .mobile-sidebar-item span {
+      flex: 1; /* 占据剩余空间 */
+    }
+
+    /* 危险操作菜单项（退出登录）- 红色主题 */
+    .mobile-sidebar-item.danger {
+      color: #dc2626; /* 红色文字 */
+    }
+
+    /* 危险操作菜单项悬停效果 */
+    .mobile-sidebar-item.danger:hover {
+      background: rgba(220, 38, 38, 0.08); /* 浅红背景 */
+      border-left-color: #dc2626; /* 左侧红色边框 */
+    }
+
+    /* 危险操作菜单项按下效果 */
+    .mobile-sidebar-item.danger:active {
+      background: rgba(220, 38, 38, 0.15); /* 更深的红色背景 */
+    }
+
+    /* 隐藏底部导航栏 - 使用侧边栏后不再需要底部导航 */
+    .mobile-bottom-nav {
+      display: none !important; /* 强制隐藏底部导航栏 */
+    }
+
+    /* 更新移动端内容区域的底部内边距 - 由于移除了底部导航栏 */
+    .mobile-mode .mobile-content {
+      padding-bottom: 20px !important; /* 减小底部内边距，原来是80px为底部导航栏留空间 */
+    }
+
+    /* 深色模式下的侧边栏样式适配 */
+    @media (prefers-color-scheme: dark) {
+      /* 深色模式下的侧边栏背景 */
+      .mobile-sidebar {
+        background: rgba(15, 23, 42, 0.98); /* 深色半透明背景 */
+        box-shadow: 2px 0 12px rgba(0, 0, 0, 0.5); /* 更深的阴影 */
+      }
+
+      /* 深色模式下的菜单项文字颜色 */
+      .mobile-sidebar-item {
+        color: #e2e8f0; /* 浅色文字 */
+      }
+
+      /* 深色模式下的菜单项悬停效果 */
+      .mobile-sidebar-item:hover {
+        background: rgba(59, 130, 246, 0.15); /* 深色背景下的浅蓝高亮 */
+      }
+
+      /* 深色模式下的菜单项按下效果 */
+      .mobile-sidebar-item:active {
+        background: rgba(59, 130, 246, 0.25); /* 更深的蓝色背景 */
+      }
+
+      /* 深色模式下的遮罩层 */
+      .mobile-sidebar-backdrop.show {
+        background: rgba(0, 0, 0, 0.7); /* 更深的遮罩背景 */
+      }
+    }
+
+    /* 横屏适配 - 侧边栏在横屏时的优化 */
+    @media (orientation: landscape) and (max-height: 500px) {
+      /* 横屏且高度较小时，减小侧边栏头部的内边距 */
+      .mobile-sidebar-header {
+        padding: 16px 20px; /* 减小上下内边距 */
+      }
+
+      /* 横屏时减小菜单项的内边距 */
+      .mobile-sidebar-item {
+        padding: 12px 20px; /* 减小上下内边距 */
+      }
+    }
   </style>
 
 </head>
@@ -2777,7 +2968,7 @@
       </div>
 
       <!-- 右侧：菜单按钮 -->
-      <button id="mobile-menu-btn" class="p-2" aria-label="菜单" style="display:none;">
+      <button id="mobile-menu-btn" class="p-2" aria-label="菜单" style="display:none;" onclick="toggleMobileSidebar()">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-700" fill="none" viewBox="0 0 24 24"
           stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -4162,6 +4353,202 @@
         <span>返回</span>
       </a>
 
+    </nav>
+
+    <!-- ========================================
+         【移动端侧边栏导航区域】
+         替代底部导航栏的侧边栏菜单系统
+         ======================================== -->
+
+    <!-- 侧边栏遮罩层 - 点击关闭侧边栏 -->
+    <div class="mobile-sidebar-backdrop" id="mobile-sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
+    <!-- 单账号模式侧边栏 - 用于mobile-main-app -->
+    <nav class="mobile-sidebar hidden" id="mobile-sidebar-single-account">
+      
+      <!-- 侧边栏头部 - Logo和标题 -->
+      <div class="mobile-sidebar-header">
+        <!-- 跑步图标 -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z" />
+        </svg>
+        <div class="sidebar-title">跑步助手</div>
+      </div>
+
+      <!-- 侧边栏菜单列表 -->
+      <div class="mobile-sidebar-menu">
+        
+        <!-- 1. 控制菜单项 - 切换到控制面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-control-panel', 'single'); closeMobileSidebar(); return false;">
+          <!-- 控制图标：滑动条/调节器图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+          <span>控制</span>
+        </a>
+
+        <!-- 2. 地图菜单项 - 切换到地图面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-map-panel', 'single'); closeMobileSidebar(); return false;">
+          <!-- 地图图标：折叠地图图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+          </svg>
+          <span>地图</span>
+        </a>
+
+        <!-- 3. 任务菜单项 - 切换到任务面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-task-panel', 'single'); closeMobileSidebar(); return false;">
+          <!-- 任务图标：剪贴板/任务列表图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+          </svg>
+          <span>任务</span>
+        </a>
+
+        <!-- 4. 通知菜单项 - 切换到通知面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-notification-panel', 'single'); closeMobileSidebar(); return false;">
+          <!-- 通知图标：铃铛图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+          </svg>
+          <span>通知</span>
+        </a>
+
+        <!-- 5. 签到菜单项 - 切换到签到面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-attendance-panel', 'single'); closeMobileSidebar(); return false;">
+          <!-- 签到图标：日历带勾选标记 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
+          </svg>
+          <span>签到</span>
+        </a>
+
+        <!-- 6. 管理菜单项 - 打开管理面板模态框 -->
+        <a href="#" class="mobile-sidebar-item" onclick="toggleMobileAdminPanel(true); closeMobileSidebar(); return false;">
+          <!-- 管理图标：齿轮/设置图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>管理</span>
+        </a>
+
+        <!-- 7. 设置菜单项 - 切换到设置面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-settings-panel', 'single'); closeMobileSidebar(); return false;">
+          <!-- 设置图标：调节滑块图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+          </svg>
+          <span>设置</span>
+        </a>
+
+        <!-- 8. 我的菜单项 - 打开用户详情模态框 -->
+        <a href="#" class="mobile-sidebar-item" onclick="toggleMobileUserDetails(true); closeMobileSidebar(); return false;">
+          <!-- 用户图标：用户头像图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+          </svg>
+          <span>我的</span>
+        </a>
+
+        <!-- 9. 返回菜单项（危险操作）- 返回登录页 -->
+        <a href="#" class="mobile-sidebar-item danger" onclick="if(confirm('确定要退出登录吗？')) { mobileLogout(); closeMobileSidebar(); } return false;">
+          <!-- 返回图标：左箭头 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          <span>返回</span>
+        </a>
+
+      </div>
+    </nav>
+
+    <!-- 多账号模式侧边栏 - 用于mobile-multi-account-app -->
+    <nav class="mobile-sidebar hidden" id="mobile-sidebar-multi-account">
+      
+      <!-- 侧边栏头部 - Logo和标题 -->
+      <div class="mobile-sidebar-header">
+        <!-- 跑步图标 -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z" />
+        </svg>
+        <div class="sidebar-title">跑步助手</div>
+      </div>
+
+      <!-- 侧边栏菜单列表 -->
+      <div class="mobile-sidebar-menu">
+        
+        <!-- 1. 控制菜单项 - 切换到批量控制面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-control-panel', 'multi'); closeMobileSidebar(); return false;">
+          <!-- 闪电图标：代表控制和操作 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>控制</span>
+        </a>
+
+        <!-- 2. 地图菜单项 - 切换到地图面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-map-panel', 'multi'); closeMobileSidebar(); return false;">
+          <!-- 地图图标：折叠地图图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+          </svg>
+          <span>地图</span>
+        </a>
+
+        <!-- 3. 账号菜单项 - 切换到账号列表面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-account-panel', 'multi'); closeMobileSidebar(); return false;">
+          <!-- 多账号图标：多个用户头像 -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+          </svg>
+          <span>账号</span>
+        </a>
+
+        <!-- 4. 管理菜单项 - 打开管理面板模态框 -->
+        <a href="#" class="mobile-sidebar-item" onclick="toggleMobileAdminPanel(true); closeMobileSidebar(); return false;">
+          <!-- 管理图标：齿轮/设置图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span>管理</span>
+        </a>
+
+        <!-- 5. 设置菜单项 - 切换到设置面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-settings-panel', 'multi'); closeMobileSidebar(); return false;">
+          <!-- 设置图标：调节滑块图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+          </svg>
+          <span>设置</span>
+        </a>
+
+        <!-- 6. 返回菜单项（危险操作）- 返回登录页 -->
+        <a href="#" class="mobile-sidebar-item danger" onclick="if(confirm('确定要退出多账号模式吗？')) { exitMobileMultiAccount(); closeMobileSidebar(); } return false;">
+          <!-- 返回图标：左箭头 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>返回</span>
+        </a>
+
+      </div>
     </nav>
 
   </div>
@@ -6828,19 +7215,177 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
     }
 
+    // ==================== 移动端侧边栏导航控制函数 ====================
+
+    /**
+     * 切换移动端侧边栏的显示/隐藏状态
+     * 
+     * 功能说明：
+     * - 根据当前应用模式（单账号/多账号）显示对应的侧边栏
+     * - 如果侧边栏已显示，则关闭侧边栏
+     * - 如果侧边栏未显示，则打开侧边栏
+     * - 同时控制遮罩层的显示/隐藏
+     */
+    function toggleMobileSidebar() {
+      // 获取遮罩层元素，用于点击关闭侧边栏和视觉效果
+      const backdrop = document.getElementById('mobile-sidebar-backdrop');
+      // 获取单账号模式侧边栏元素
+      const sidebarSingle = document.getElementById('mobile-sidebar-single-account');
+      // 获取多账号模式侧边栏元素
+      const sidebarMulti = document.getElementById('mobile-sidebar-multi-account');
+
+      // 检查当前使用哪个侧边栏
+      // 判断逻辑：检查mobile-multi-account-app是否可见，以确定当前是否在多账号模式
+      const multiAccountApp = document.getElementById('mobile-multi-account-app');
+      const isMultiMode = multiAccountApp && !multiAccountApp.classList.contains('hidden');
+      
+      // 根据模式选择要操作的侧边栏
+      const activeSidebar = isMultiMode ? sidebarMulti : sidebarSingle;
+
+      // 检查侧边栏是否已经显示（通过检查是否有'show'类）
+      if (activeSidebar && activeSidebar.classList.contains('show')) {
+        // 侧边栏已显示，执行关闭操作
+        closeMobileSidebar();
+      } else {
+        // 侧边栏未显示，执行打开操作
+        // 先隐藏所有侧边栏（确保只有一个侧边栏显示）
+        if (sidebarSingle) {
+          sidebarSingle.classList.remove('show');
+          sidebarSingle.classList.add('hidden');
+        }
+        if (sidebarMulti) {
+          sidebarMulti.classList.remove('show');
+          sidebarMulti.classList.add('hidden');
+        }
+
+        // 显示遮罩层
+        if (backdrop) {
+          backdrop.classList.add('show');
+        }
+
+        // 显示对应的侧边栏
+        if (activeSidebar) {
+          activeSidebar.classList.remove('hidden'); // 移除hidden类，使侧边栏可见
+          // 使用setTimeout确保CSS过渡动画能够触发
+          // 这是因为需要浏览器先渲染hidden的移除，然后再添加show类触发动画
+          setTimeout(() => {
+            activeSidebar.classList.add('show'); // 添加show类，触发滑入动画
+          }, 10); // 10毫秒的延迟足以让浏览器重新计算样式
+        }
+      }
+    }
+
+    /**
+     * 关闭移动端侧边栏
+     * 
+     * 功能说明：
+     * - 隐藏所有侧边栏（单账号和多账号）
+     * - 隐藏遮罩层
+     * - 使用CSS过渡动画实现平滑的滑出效果
+     */
+    function closeMobileSidebar() {
+      // 获取遮罩层元素
+      const backdrop = document.getElementById('mobile-sidebar-backdrop');
+      // 获取单账号模式侧边栏元素
+      const sidebarSingle = document.getElementById('mobile-sidebar-single-account');
+      // 获取多账号模式侧边栏元素
+      const sidebarMulti = document.getElementById('mobile-sidebar-multi-account');
+
+      // 隐藏遮罩层
+      if (backdrop) {
+        backdrop.classList.remove('show'); // 移除show类，触发淡出动画
+      }
+
+      // 隐藏单账号模式侧边栏
+      if (sidebarSingle) {
+        sidebarSingle.classList.remove('show'); // 移除show类，触发滑出动画
+        // 等待动画完成后再添加hidden类（300ms是CSS过渡时间）
+        setTimeout(() => {
+          sidebarSingle.classList.add('hidden'); // 完全隐藏元素，释放资源
+        }, 300); // 300毫秒对应CSS中的transition: 0.3s
+      }
+
+      // 隐藏多账号模式侧边栏
+      if (sidebarMulti) {
+        sidebarMulti.classList.remove('show'); // 移除show类，触发滑出动画
+        // 等待动画完成后再添加hidden类
+        setTimeout(() => {
+          sidebarMulti.classList.add('hidden'); // 完全隐藏元素，释放资源
+        }, 300); // 300毫秒对应CSS中的transition: 0.3s
+      }
+    }
+
     /**
      * 更新移动端导航栏和菜单按钮的显示/隐藏状态
      * @param {boolean} show - true显示，false隐藏
      * @param {string} mode - 'single' 或 'multi'，指定显示哪个导航栏
      */
     function updateMobileNavVisibility(show, mode = 'single') {
-      const mobileBottomNavSingle = document.getElementById('mobile-bottom-nav-single-account');
-      const mobileBottomNavMulti = document.getElementById('mobile-bottom-nav-multi-account');
+      // 注意：底部导航栏已被侧边栏替代，这里主要控制菜单按钮和侧边栏的可见性
+      
+      // 获取移动端菜单按钮（汉堡菜单图标）
       const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+      // 获取移动端头部导航栏
       const mobileHeader = document.getElementById('mobile-header');
+      // 获取单账号模式侧边栏
+      const sidebarSingle = document.getElementById('mobile-sidebar-single-account');
+      // 获取多账号模式侧边栏
+      const sidebarMulti = document.getElementById('mobile-sidebar-multi-account');
 
       if (show) {
-        // 根据模式显示对应的导航栏
+        // 显示导航UI（用户已登录）
+        
+        // 显示菜单按钮，用户可以点击打开侧边栏
+        if (mobileMenuBtn) {
+          mobileMenuBtn.style.display = ''; // 清除display属性，恢复默认显示
+        }
+        
+        // 确保头部导航栏可见
+        if (mobileHeader) {
+          mobileHeader.classList.remove('hidden');
+          mobileHeader.style.display = '';
+        }
+
+        // 根据模式准备对应的侧边栏（移除hidden类，但不立即显示）
+        // 侧边栏将在用户点击菜单按钮时通过toggleMobileSidebar()显示
+        if (mode === 'single' && sidebarSingle) {
+          sidebarSingle.classList.remove('hidden'); // 移除hidden类，使侧边栏可以被显示
+          // 注意：不添加show类，侧边栏仍然隐藏在屏幕外
+        }
+        if (mode === 'multi' && sidebarMulti) {
+          sidebarMulti.classList.remove('hidden'); // 移除hidden类，使侧边栏可以被显示
+          // 注意：不添加show类，侧边栏仍然隐藏在屏幕外
+        }
+
+      } else {
+        // 隐藏导航UI（用户未登录或在登录页面）
+        
+        // 隐藏菜单按钮
+        if (mobileMenuBtn) {
+          mobileMenuBtn.style.display = 'none'; // 完全隐藏菜单按钮
+        }
+
+        // 确保所有侧边栏都被隐藏
+        if (sidebarSingle) {
+          sidebarSingle.classList.add('hidden'); // 添加hidden类，完全隐藏
+          sidebarSingle.classList.remove('show'); // 移除show类，确保不显示
+        }
+        if (sidebarMulti) {
+          sidebarMulti.classList.add('hidden'); // 添加hidden类，完全隐藏
+          sidebarMulti.classList.remove('show'); // 移除show类，确保不显示
+        }
+
+        // 注意：头部导航栏（header）仍然显示，只是隐藏了菜单按钮
+        // 这样用户仍然可以看到应用的Logo和标题
+      }
+
+      // 旧代码保留（用于兼容性，但底部导航栏已通过CSS隐藏）
+      // 底部导航栏的相关代码保持不变，虽然它们已通过CSS被隐藏
+      const mobileBottomNavSingle = document.getElementById('mobile-bottom-nav-single-account');
+      const mobileBottomNavMulti = document.getElementById('mobile-bottom-nav-multi-account');
+      
+      if (show) {
+        // 根据模式显示对应的底部导航栏（虽然CSS已隐藏它们）
         if (mode === 'single' && mobileBottomNavSingle) {
           mobileBottomNavSingle.classList.remove('hidden');
           mobileBottomNavSingle.style.display = '';
@@ -6849,15 +7394,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
           mobileBottomNavMulti.classList.remove('hidden');
           mobileBottomNavMulti.style.display = '';
         }
-        if (mobileMenuBtn) {
-          mobileMenuBtn.style.display = '';
-        }
-        if (mobileHeader) {
-          mobileHeader.classList.remove('hidden');
-          mobileHeader.style.display = '';
-        }
       } else {
-        // 隐藏所有导航栏
+        // 隐藏所有底部导航栏
         if (mobileBottomNavSingle) {
           mobileBottomNavSingle.classList.add('hidden');
           mobileBottomNavSingle.style.display = 'none';
@@ -6866,10 +7404,6 @@ function run_code_not_need_sessionuuid(codeToRun) {
           mobileBottomNavMulti.classList.add('hidden');
           mobileBottomNavMulti.style.display = 'none';
         }
-        if (mobileMenuBtn) {
-          mobileMenuBtn.style.display = 'none';
-        }
-        // 注意：header仍然显示，只隐藏菜单按钮
       }
     }
 
