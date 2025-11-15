@@ -3438,7 +3438,7 @@
         <!-- ========================================
              【通知面板】- 显示系统通知和签到任务
              ======================================== -->
-        <div class="mobile-card" id="mobile-notification-panel">
+        <div class="mobile-card hidden" id="mobile-notification-panel">
           <!-- 面板头部：标题和未读角标 -->
           <div class="flex items-center justify-between mb-4 pb-3 border-b border-sky-100">
             <div class="flex items-center gap-2">
@@ -3511,7 +3511,7 @@
         <!-- ========================================
              【任务列表面板】- 显示跑步任务
              ======================================== -->
-        <div class="mobile-card" id="mobile-task-panel">
+        <div class="mobile-card hidden" id="mobile-task-panel">
           <!-- 面板头部 -->
           <div class="flex items-center justify-between mb-4 pb-3 border-b border-green-100">
             <div class="flex items-center gap-2">
@@ -3559,7 +3559,7 @@
         <!-- ========================================
              【地图显示面板】- 显示任务路径
              ======================================== -->
-        <div class="mobile-card p-0 overflow-hidden" id="mobile-map-panel">
+        <div class="mobile-card p-0 overflow-hidden hidden" id="mobile-map-panel">
           <!-- 地图容器 -->
           <div id="mobile-map-container" class="w-full h-[300px] relative bg-slate-100">
             <div class="absolute inset-0 flex items-center justify-center text-slate-400">
@@ -3596,7 +3596,7 @@
         <!-- ========================================
              【控制面板】- 任务执行控制
              ======================================== -->
-        <div class="mobile-card" id="mobile-control-panel">
+        <div class="mobile-card hidden" id="mobile-control-panel">
           <!-- 面板头部 -->
           <div class="flex items-center gap-2 mb-4 pb-3 border-b border-orange-100">
             <!-- 控制图标 -->
@@ -3693,6 +3693,98 @@
                 class="bg-gradient-to-r from-sky-500 to-blue-600 h-2 rounded-full transition-all duration-300"
                 style="width: 0%"></div>
             </div>
+          </div>
+        </div>
+
+        <!-- ========================================
+             【签到面板】- 单账号签到功能
+             ======================================== -->
+        <div class="mobile-card hidden" id="mobile-attendance-panel">
+          <!-- 面板头部 - 标题和图标 -->
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-blue-100">
+            <!-- 签到图标 -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="text-xl font-bold text-blue-700">自动签到</h3>
+          </div>
+
+          <!-- 签到参数设置区域 - 包含开关、刷新间隔、随机半径 -->
+          <div class="space-y-3 mb-4 pb-4 border-b border-slate-100">
+            <!-- 开启自动签到开关 - 控制是否启用自动签到功能 -->
+            <label class="flex items-center gap-3 cursor-pointer p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
+              <input type="checkbox" id="mobile-param-auto_attendance_enabled" data-key="auto_attendance_enabled"
+                class="w-5 h-5 accent-blue-600 rounded cursor-pointer flex-shrink-0">
+              <div class="flex-1">
+                <span class="text-slate-700 font-semibold block">开启自动签到</span>
+                <span class="text-xs text-slate-500">后台自动刷新通知并尝试签到</span>
+              </div>
+            </label>
+
+            <!-- 刷新间隔设置 - 控制自动刷新通知的时间间隔 -->
+            <div class="flex items-center gap-3">
+              <label class="text-sm text-slate-700 font-semibold flex-shrink-0 w-24">刷新间隔</label>
+              <input type="number" step="30" id="mobile-param-auto_attendance_refresh_s"
+                data-key="auto_attendance_refresh_s"
+                class="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="秒" title="自动刷新通知的间隔时间（秒），建议不低于60">
+              <span class="text-xs text-slate-500 flex-shrink-0">秒</span>
+            </div>
+
+            <!-- 随机半径设置 - 控制签到时的位置随机偏移范围 -->
+            <div class="flex items-center gap-3">
+              <label class="text-sm text-slate-700 font-semibold flex-shrink-0 w-24">随机半径</label>
+              <input type="number" step="1" id="mobile-param-attendance_user_radius_m"
+                data-key="attendance_user_radius_m"
+                class="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="米" title="自动签到时，在服务器允许范围内的最大随机偏移半径。设为0为精确签到。">
+              <span class="text-xs text-slate-500 flex-shrink-0">米</span>
+            </div>
+          </div>
+
+          <!-- 签到任务列表区域 - 显示所有需要签到的任务 -->
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-sm font-semibold text-slate-700">签到任务列表</h4>
+            <!-- 刷新按钮 - 点击后重新获取签到任务 -->
+            <button id="mobile-refresh-attendance-list-btn"
+              class="py-1 px-3 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition flex items-center gap-1"
+              onclick="refreshNotificationsUI(true, true)">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              刷新
+            </button>
+          </div>
+
+          <!-- 签到列表容器 - 动态显示签到任务，初始显示提示信息 -->
+          <div id="mobile-attendance-list" class="max-h-[35vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-8 text-sm">点击"刷新"按钮查看签到任务</p>
+          </div>
+        </div>
+
+        <!-- ========================================
+             【参数设置面板】- 单账号参数配置
+             ======================================== -->
+        <div class="mobile-card hidden" id="mobile-settings-panel">
+          <!-- 面板头部 - 标题和图标 -->
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-indigo-100">
+            <!-- 设置图标 -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <h3 class="text-xl font-bold text-indigo-700">参数设置</h3>
+          </div>
+
+          <!-- 参数容器 - 动态加载和显示所有可配置参数 -->
+          <!-- 此容器将由JavaScript代码填充具体的参数表单项 -->
+          <div id="mobile-params-container" class="space-y-3 max-h-[60vh] overflow-y-auto">
+            <!-- 参数将在此处动态加载 -->
           </div>
         </div>
 
@@ -3905,6 +3997,29 @@
               onclick="mobileMultiFitView()">
               适应 ⊡
             </button>
+          </div>
+        </div>
+
+        <!-- ========================================
+             【全局参数面板】- 多账号全局参数配置
+             ======================================== -->
+        <div class="mobile-card hidden" id="mobile-multi-settings-panel">
+          <!-- 面板头部 - 标题和图标 -->
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-teal-100">
+            <!-- 全局设置图标 -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-teal-600" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            <h3 class="text-xl font-bold text-teal-700">全局参数</h3>
+          </div>
+
+          <!-- 全局参数容器 - 动态加载和显示所有全局可配置参数 -->
+          <!-- 此容器将由JavaScript代码填充多账号模式下的全局参数表单项 -->
+          <!-- 这些参数会应用于所有账号 -->
+          <div id="mobile-multi-global-params-container" class="space-y-3 max-h-[60vh] overflow-y-auto">
+            <!-- 全局参数将在此处动态加载 -->
           </div>
         </div>
 
@@ -4165,6 +4280,62 @@
         <div class="flex justify-center pt-2">
           <button class="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-medium hover:bg-slate-200 transition"
             onclick="toggleMobileMoreMenu(false)">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================
+         【移动端自定义确认对话框】
+         用于替代浏览器原生的confirm()对话框
+         采用拟态风格（Neumorphic Design）
+         ======================================== -->
+    <div id="mobile-confirm-modal" class="fixed inset-0 hidden z-[60] flex items-center justify-center p-4"
+      style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);">
+      <!-- 对话框主体容器 - 拟态风格卡片 -->
+      <div
+        class="bg-gradient-to-br from-slate-50 to-white rounded-3xl shadow-2xl max-w-sm w-full transform transition-all"
+        style="box-shadow: 12px 12px 24px rgba(0, 0, 0, 0.1), -12px -12px 24px rgba(255, 255, 255, 0.9);"
+        onclick="event.stopPropagation()">
+
+        <!-- 对话框头部 - 显示标题和图标 -->
+        <div class="p-6 pb-4 border-b border-slate-200">
+          <div class="flex items-center gap-3">
+            <!-- 警告图标 - 使用渐变色增强视觉效果 -->
+            <div
+              class="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center flex-shrink-0"
+              style="box-shadow: 4px 4px 8px rgba(251, 146, 60, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.8);">
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <!-- 对话框标题 - 动态设置 -->
+            <h3 id="mobile-confirm-title" class="text-xl font-bold text-slate-800">确认操作</h3>
+          </div>
+        </div>
+
+        <!-- 对话框内容区域 - 显示消息文本 -->
+        <div class="p-6 py-8">
+          <p id="mobile-confirm-message" class="text-slate-600 text-base leading-relaxed">
+            <!-- 消息内容将由JavaScript动态设置 -->
+            确定要执行此操作吗？
+          </p>
+        </div>
+
+        <!-- 对话框底部按钮区域 - 取消和确认按钮 -->
+        <div class="p-6 pt-0 flex gap-3">
+          <!-- 取消按钮 - 拟态风格，灰色主题 -->
+          <button id="mobile-confirm-cancel-btn"
+            class="flex-1 py-3 px-4 rounded-xl font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+            style="box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.08), -2px -2px 8px rgba(255, 255, 255, 0.9);">
+            取消
+          </button>
+          <!-- 确认按钮 - 拟态风格，红色主题（危险操作） -->
+          <button id="mobile-confirm-ok-btn"
+            class="flex-1 py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 transition-all"
+            style="box-shadow: 4px 4px 12px rgba(239, 68, 68, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.1);">
+            确认
+          </button>
         </div>
       </div>
     </div>
@@ -4461,7 +4632,7 @@
         </a>
 
         <!-- 9. 返回菜单项（危险操作）- 返回登录页 -->
-        <a href="#" class="mobile-sidebar-item danger" onclick="if(confirm('确定要退出登录吗？')) { mobileLogout(); closeMobileSidebar(); } return false;">
+        <a href="#" class="mobile-sidebar-item danger" onclick="showMobileConfirm('退出登录', '确定要退出登录吗？', () => { mobileLogout(); closeMobileSidebar(); }); return false;">
           <!-- 返回图标：左箭头 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -4540,7 +4711,7 @@
         </a>
 
         <!-- 6. 返回菜单项（危险操作）- 返回登录页 -->
-        <a href="#" class="mobile-sidebar-item danger" onclick="if(confirm('确定要退出多账号模式吗？')) { exitMobileMultiAccount(); closeMobileSidebar(); } return false;">
+        <a href="#" class="mobile-sidebar-item danger" onclick="showMobileConfirm('退出多账号模式', '确定要退出多账号模式吗？', () => { exitMobileMultiAccount(); closeMobileSidebar(); }); return false;">
           <!-- 返回图标：左箭头 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -21013,20 +21184,24 @@ function run_code_not_need_sessionuuid(codeToRun) {
      */
     async function mobileResetTask() {
       try {
-        if (!confirm('确定要重置任务吗？这将清除当前进度。')) {
-          return;
-        }
-
-        const result = await callPythonAPI('reset_run');
-        if (result && result.success) {
-          mobileTaskRunning = false;
-          mobileTaskPaused = false;
-          updateMobileTaskUI('未启动', '任务已重置');
-          updateMobileProgress(0, '0%');
-          showTempMessage('任务已重置', 'success');
-        } else {
-          showTempMessage(result?.message || '重置失败', 'error');
-        }
+        // 使用自定义确认对话框替代原生confirm()
+        showMobileConfirm(
+          '重置任务', // 对话框标题
+          '确定要重置任务吗？这将清除当前进度。', // 对话框消息
+          async () => {
+            // 用户确认后执行重置操作
+            const result = await callPythonAPI('reset_run');
+            if (result && result.success) {
+              mobileTaskRunning = false;
+              mobileTaskPaused = false;
+              updateMobileTaskUI('未启动', '任务已重置');
+              updateMobileProgress(0, '0%');
+              showTempMessage('任务已重置', 'success');
+            } else {
+              showTempMessage(result?.message || '重置失败', 'error');
+            }
+          }
+        );
       } catch (error) {
         console.error('[移动端] 重置任务失败:', error);
         showTempMessage('重置任务时发生错误', 'error');
@@ -21179,18 +21354,23 @@ function run_code_not_need_sessionuuid(codeToRun) {
      */
     async function mobileRemoveSelectedAccounts() {
       try {
+        // 获取选中的账号复选框
         const selected = document.querySelectorAll('#mobile-multi-account-list input[type="checkbox"]:checked');
         if (selected.length === 0) {
           showTempMessage('请先选择要删除的账号', 'error');
           return;
         }
         
-        if (!confirm(`确定要删除选中的 ${selected.length} 个账号吗？`)) {
-          return;
-        }
-        
-        await multi_removeSelected();
-        showTempMessage(`已删除 ${selected.length} 个账号`, 'success');
+        // 使用自定义确认对话框替代原生confirm()
+        showMobileConfirm(
+          '删除账号', // 对话框标题
+          `确定要删除选中的 ${selected.length} 个账号吗？`, // 对话框消息
+          async () => {
+            // 用户确认后执行删除操作
+            await multi_removeSelected();
+            showTempMessage(`已删除 ${selected.length} 个账号`, 'success');
+          }
+        );
       } catch (error) {
         console.error('[移动端] 删除选中账号失败:', error);
         showTempMessage('删除选中账号失败', 'error');
@@ -21346,6 +21526,95 @@ function run_code_not_need_sessionuuid(codeToRun) {
     }
 
     /**
+     * 显示移动端自定义确认对话框
+     * 替代浏览器原生的confirm()函数，提供更好的用户体验和自定义样式
+     * 
+     * @param {string} title - 对话框标题，例如："确认操作"
+     * @param {string} message - 对话框消息内容，例如："确定要退出登录吗？"
+     * @param {Function} onConfirm - 点击确认按钮时执行的回调函数
+     * @param {Function} onCancel - (可选) 点击取消按钮时执行的回调函数
+     * 
+     * 功能说明：
+     * - 使用自定义模态框替代原生confirm()对话框
+     * - 采用拟态风格（Neumorphic）设计，视觉效果更佳
+     * - 支持异步操作，不会阻塞页面渲染
+     * - 提供回调函数支持，更灵活的交互控制
+     * 
+     * 使用示例：
+     * showMobileConfirm(
+     *   '退出登录',
+     *   '确定要退出登录吗？',
+     *   () => { console.log('用户确认'); },
+     *   () => { console.log('用户取消'); }
+     * );
+     */
+    function showMobileConfirm(title, message, onConfirm, onCancel) {
+      // 获取对话框模态框容器元素
+      const modal = document.getElementById('mobile-confirm-modal');
+      if (!modal) {
+        console.error('找不到移动端确认对话框元素');
+        return;
+      }
+
+      // 设置对话框标题文本
+      const titleElement = document.getElementById('mobile-confirm-title');
+      if (titleElement) {
+        titleElement.textContent = title;
+      }
+
+      // 设置对话框消息内容文本
+      const messageElement = document.getElementById('mobile-confirm-message');
+      if (messageElement) {
+        messageElement.textContent = message;
+      }
+
+      // 获取取消和确认按钮元素
+      const cancelBtn = document.getElementById('mobile-confirm-cancel-btn');
+      const okBtn = document.getElementById('mobile-confirm-ok-btn');
+
+      // 定义关闭对话框的函数 - 隐藏模态框
+      const closeModal = () => {
+        modal.classList.add('hidden');
+      };
+
+      // 移除之前绑定的事件监听器（防止重复绑定）
+      // 克隆按钮节点并替换，这是移除所有事件监听器的简便方法
+      const newCancelBtn = cancelBtn.cloneNode(true);
+      const newOkBtn = okBtn.cloneNode(true);
+      cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+      okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+
+      // 为新的取消按钮绑定点击事件
+      newCancelBtn.addEventListener('click', () => {
+        closeModal(); // 关闭对话框
+        if (onCancel && typeof onCancel === 'function') {
+          onCancel(); // 执行取消回调函数（如果提供）
+        }
+      });
+
+      // 为新的确认按钮绑定点击事件
+      newOkBtn.addEventListener('click', () => {
+        closeModal(); // 关闭对话框
+        if (onConfirm && typeof onConfirm === 'function') {
+          onConfirm(); // 执行确认回调函数
+        }
+      });
+
+      // 点击模态框背景（遮罩层）时关闭对话框
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          closeModal();
+          if (onCancel && typeof onCancel === 'function') {
+            onCancel(); // 点击背景视为取消操作
+          }
+        }
+      };
+
+      // 显示对话框 - 移除hidden类
+      modal.classList.remove('hidden');
+    }
+
+    /**
      * 移动端退出登录函数
      * 
      * 功能说明：
@@ -21356,30 +21625,36 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 清除用户会话数据
      */
     function mobileLogout() {
-      // 显示确认对话框，防止误操作
-      if (confirm('确定要退出登录吗？')) {
-        // 隐藏移动端主应用界面
-        const mobileMainApp = document.getElementById('mobile-main-app');
-        if (mobileMainApp) {
-          mobileMainApp.classList.add('hidden');
+      // 显示自定义确认对话框，防止误操作
+      // 使用自定义确认对话框替代原生confirm()
+      showMobileConfirm(
+        '退出登录', // 对话框标题
+        '确定要退出登录吗？', // 对话框消息
+        () => {
+          // 用户点击确认后执行以下操作
+          // 隐藏移动端主应用界面
+          const mobileMainApp = document.getElementById('mobile-main-app');
+          if (mobileMainApp) {
+            mobileMainApp.classList.add('hidden');
+          }
+
+          // 显示登录容器
+          const loginContainer = document.getElementById('mobile-login-container');
+          if (loginContainer) {
+            loginContainer.classList.remove('hidden');
+          }
+
+          // 隐藏底部导航栏和菜单按钮
+          updateMobileNavVisibility(false);
+
+          // 可选：清除本地存储的用户数据
+          // localStorage.removeItem('userToken');
+          // sessionStorage.clear();
+
+          // 显示退出成功提示
+          showTempMessage('已退出登录', 'success');
         }
-
-        // 显示登录容器
-        const loginContainer = document.getElementById('mobile-login-container');
-        if (loginContainer) {
-          loginContainer.classList.remove('hidden');
-        }
-
-        // 隐藏底部导航栏和菜单按钮
-        updateMobileNavVisibility(false);
-
-        // 可选：清除本地存储的用户数据
-        // localStorage.removeItem('userToken');
-        // sessionStorage.clear();
-
-        // 显示退出成功提示
-        showTempMessage('已退出登录', 'success');
-      }
+      );
     }
 
     /**
