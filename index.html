@@ -20121,28 +20121,152 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 刷新移动端任务列表
      */
     async function mobileRefreshTasks() {
-      // 调用PC端的refreshTasks函数
-      await refreshTasks();
+      try {
+        showTempMessage('正在刷新任务列表...', 'info');
+        await refreshTasks();
+        showTempMessage('任务列表已刷新', 'success');
+      } catch (error) {
+        console.error('[移动端] 刷新任务列表失败:', error);
+        showTempMessage('刷新任务列表失败', 'error');
+      }
+    }
+
+    // ==================== 移动端任务管理 ====================
+    
+    // 移动端任务状态跟踪
+    let mobileTaskRunning = false;
+    let mobileTaskPaused = false;
+
+    /**
+     * 更新移动端UI状态
+     */
+    function updateMobileTaskUI(status, detail = '') {
+      const statusIndicator = $('mobile-status-indicator');
+      const statusDetail = $('mobile-status-detail');
+      const startBtn = $('mobile-start-btn');
+      const stopBtn = $('mobile-stop-btn');
+      
+      if (statusIndicator) {
+        statusIndicator.textContent = status;
+        // 根据状态设置样式
+        statusIndicator.className = 'text-xs font-semibold px-2 py-1 rounded-full';
+        if (status === '运行中') {
+          statusIndicator.className += ' bg-green-200 text-green-600';
+        } else if (status === '已暂停') {
+          statusIndicator.className += ' bg-yellow-200 text-yellow-600';
+        } else if (status === '已停止') {
+          statusIndicator.className += ' bg-red-200 text-red-600';
+        } else {
+          statusIndicator.className += ' bg-slate-200 text-slate-600';
+        }
+      }
+      
+      if (statusDetail) {
+        statusDetail.textContent = detail || '等待执行任务';
+      }
+      
+      // 更新按钮状态
+      if (startBtn && stopBtn) {
+        if (status === '运行中') {
+          startBtn.disabled = true;
+          stopBtn.disabled = false;
+        } else if (status === '已暂停') {
+          startBtn.disabled = false;
+          stopBtn.disabled = false;
+        } else {
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+        }
+      }
+    }
+
+    /**
+     * 更新移动端进度
+     */
+    function updateMobileProgress(percent, text) {
+      const progressBar = $('mobile-progress-bar');
+      const progressText = $('mobile-progress-text');
+      
+      if (progressBar) {
+        progressBar.style.width = percent + '%';
+      }
+      if (progressText) {
+        progressText.textContent = text || (percent + '%');
+      }
     }
 
     /**
      * 移动端添加新任务
      */
     function mobileAddTask() {
-      // 调用PC端的addTask函数
+      // 打开PC端的添加任务对话框（共享相同的任务管理）
       addTask();
     }
-
-
 
     /**
      * 移动端启动任务
      */
     async function mobileStartTask() {
-      // 调用PC端的toggleRun函数来启动任务
-      const btn = $('start-run-button');
-      if (btn && btn.textContent === '开始执行') {
-        await toggleRun();
+      try {
+        // 检查是否有选中的任务
+        if (selectedTaskIndex < 0) {
+          showTempMessage('请先选择任务', 'error');
+          return;
+        }
+
+        // 检查是否已在运行
+        if (mobileTaskRunning && !mobileTaskPaused) {
+          showTempMessage('任务正在运行中', 'info');
+          return;
+        }
+
+        // 如果是从暂停恢复
+        if (mobileTaskPaused) {
+          const result = await callPythonAPI('resume_run');
+          if (result && result.success) {
+            mobileTaskPaused = false;
+            updateMobileTaskUI('运行中', '任务继续执行');
+            showTempMessage('任务已继续', 'success');
+          } else {
+            showTempMessage(result?.message || '继续失败', 'error');
+          }
+          return;
+        }
+
+        // 开始新任务
+        updateMobileTaskUI('准备中', '正在启动任务...');
+        
+        // 重置目标序列
+        if (currentRunData) {
+          currentRunData.target_sequence = 1;
+          currentRunData.isInTargetZone = false;
+        }
+
+        // 调用后台任务API
+        const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
+          task_indices: [selectedTaskIndex],
+          auto_generate: false
+        });
+
+        if (result && result.success) {
+          mobileTaskRunning = true;
+          mobileTaskPaused = false;
+          updateMobileTaskUI('运行中', '任务执行中');
+          updateMobileProgress(0, '0%');
+          showTempMessage('任务已启动', 'success');
+          
+          // 开始轮询任务状态
+          setTimeout(() => startBackgroundTaskPolling(), 500);
+        } else {
+          mobileTaskRunning = false;
+          updateMobileTaskUI('未启动', result?.message || '启动失败');
+          showTempMessage(result?.message || '启动失败', 'error');
+        }
+      } catch (error) {
+        console.error('[移动端] 启动任务失败:', error);
+        mobileTaskRunning = false;
+        updateMobileTaskUI('错误', '启动失败');
+        showTempMessage('启动任务时发生错误', 'error');
       }
     }
 
@@ -20150,10 +20274,29 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 移动端停止任务
      */
     async function mobileStopTask() {
-      // 调用PC端的toggleRun函数来停止任务
-      const btn = $('start-run-button');
-      if (btn && btn.textContent === '停止') {
-        await toggleRun();
+      try {
+        if (!mobileTaskRunning) {
+          showTempMessage('没有正在运行的任务', 'info');
+          return;
+        }
+
+        updateMobileTaskUI('停止中', '正在停止任务...');
+        
+        const result = await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+        
+        if (result && result.success) {
+          mobileTaskRunning = false;
+          mobileTaskPaused = false;
+          updateMobileTaskUI('已停止', '任务已停止');
+          showTempMessage('任务已停止', 'success');
+          stopBackgroundTaskPolling();
+        } else {
+          updateMobileTaskUI('运行中', result?.message || '停止失败');
+          showTempMessage(result?.message || '停止失败', 'error');
+        }
+      } catch (error) {
+        console.error('[移动端] 停止任务失败:', error);
+        showTempMessage('停止任务时发生错误', 'error');
       }
     }
 
@@ -20161,12 +20304,28 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 移动端暂停任务
      */
     async function mobilePauseTask() {
-      // 调用API暂停任务
-      const result = await callPythonAPI('pause_run');
-      if (result && result.success) {
-        showTempMessage('任务已暂停', 'success');
-      } else {
-        showTempMessage(result?.message || '暂停失败', 'error');
+      try {
+        if (!mobileTaskRunning) {
+          showTempMessage('没有正在运行的任务', 'info');
+          return;
+        }
+        
+        if (mobileTaskPaused) {
+          showTempMessage('任务已暂停', 'info');
+          return;
+        }
+
+        const result = await callPythonAPI('pause_run');
+        if (result && result.success) {
+          mobileTaskPaused = true;
+          updateMobileTaskUI('已暂停', '任务已暂停');
+          showTempMessage('任务已暂停', 'success');
+        } else {
+          showTempMessage(result?.message || '暂停失败', 'error');
+        }
+      } catch (error) {
+        console.error('[移动端] 暂停任务失败:', error);
+        showTempMessage('暂停任务时发生错误', 'error');
       }
     }
 
@@ -20174,12 +20333,23 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 移动端继续任务
      */
     async function mobileResumeTask() {
-      // 调用API继续任务
-      const result = await callPythonAPI('resume_run');
-      if (result && result.success) {
-        showTempMessage('任务已继续', 'success');
-      } else {
-        showTempMessage(result?.message || '继续失败', 'error');
+      try {
+        if (!mobileTaskPaused) {
+          showTempMessage('任务未暂停', 'info');
+          return;
+        }
+
+        const result = await callPythonAPI('resume_run');
+        if (result && result.success) {
+          mobileTaskPaused = false;
+          updateMobileTaskUI('运行中', '任务继续执行');
+          showTempMessage('任务已继续', 'success');
+        } else {
+          showTempMessage(result?.message || '继续失败', 'error');
+        }
+      } catch (error) {
+        console.error('[移动端] 继续任务失败:', error);
+        showTempMessage('继续任务时发生错误', 'error');
       }
     }
 
@@ -20187,13 +20357,24 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 移动端重置任务
      */
     async function mobileResetTask() {
-      if (confirm('确定要重置任务吗？这将清除当前进度。')) {
+      try {
+        if (!confirm('确定要重置任务吗？这将清除当前进度。')) {
+          return;
+        }
+
         const result = await callPythonAPI('reset_run');
         if (result && result.success) {
+          mobileTaskRunning = false;
+          mobileTaskPaused = false;
+          updateMobileTaskUI('未启动', '任务已重置');
+          updateMobileProgress(0, '0%');
           showTempMessage('任务已重置', 'success');
         } else {
           showTempMessage(result?.message || '重置失败', 'error');
         }
+      } catch (error) {
+        console.error('[移动端] 重置任务失败:', error);
+        showTempMessage('重置任务时发生错误', 'error');
       }
     }
 
@@ -20229,57 +20410,136 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 移动端启动选中的账号
      */
     async function mobileStartSelectedAccounts() {
-      await multi_startSelected();
+      try {
+        // 检查是否有选中的账号
+        const selected = document.querySelectorAll('#mobile-multi-account-list input[type="checkbox"]:checked');
+        if (selected.length === 0) {
+          showTempMessage('请先选择要启动的账号', 'error');
+          return;
+        }
+        
+        await multi_startSelected();
+        showTempMessage(`正在启动 ${selected.length} 个账号`, 'success');
+      } catch (error) {
+        console.error('[移动端] 启动选中账号失败:', error);
+        showTempMessage('启动选中账号失败', 'error');
+      }
     }
 
     /**
      * 移动端停止选中的账号
      */
     async function mobileStopSelectedAccounts() {
-      await multi_stopSelected();
+      try {
+        const selected = document.querySelectorAll('#mobile-multi-account-list input[type="checkbox"]:checked');
+        if (selected.length === 0) {
+          showTempMessage('请先选择要停止的账号', 'error');
+          return;
+        }
+        
+        await multi_stopSelected();
+        showTempMessage(`正在停止 ${selected.length} 个账号`, 'success');
+      } catch (error) {
+        console.error('[移动端] 停止选中账号失败:', error);
+        showTempMessage('停止选中账号失败', 'error');
+      }
     }
 
     /**
      * 移动端添加多账号
      */
     function mobileAddMultiAccount() {
-      // 调用PC端的添加账号函数
-      multi_addFromConfig();
+      try {
+        // 调用PC端的添加账号函数
+        multi_addFromConfig();
+      } catch (error) {
+        console.error('[移动端] 添加账号失败:', error);
+        showTempMessage('添加账号失败', 'error');
+      }
     }
 
     /**
      * 移动端刷新多账号列表
      */
     async function mobileRefreshMultiAccounts() {
-      await multi_refreshAll();
+      try {
+        showTempMessage('正在刷新账号列表...', 'info');
+        await multi_refreshAll();
+        showTempMessage('账号列表已刷新', 'success');
+      } catch (error) {
+        console.error('[移动端] 刷新账号列表失败:', error);
+        showTempMessage('刷新账号列表失败', 'error');
+      }
     }
 
     /**
      * 移动端全部启动（多账号）
      */
     async function mobileStartAllAccounts() {
-      await multi_startAll();
+      try {
+        const count = parseInt($('multi-account-count')?.textContent || '0', 10);
+        if (!count || count <= 0) {
+          showTempMessage('账号列表为空，无法启动', 'error');
+          return;
+        }
+        
+        showTempMessage(`正在启动全部 ${count} 个账号...`, 'info');
+        await multi_startAll();
+        showTempMessage('已发送全部启动指令', 'success');
+      } catch (error) {
+        console.error('[移动端] 启动全部账号失败:', error);
+        showTempMessage('启动全部账号失败', 'error');
+      }
     }
 
     /**
      * 移动端全部停止（多账号）
      */
     async function mobileStopAllAccounts() {
-      await multi_stopAll();
+      try {
+        await multi_stopAll();
+        showTempMessage('已发送全部停止指令', 'success');
+      } catch (error) {
+        console.error('[移动端] 停止全部账号失败:', error);
+        showTempMessage('停止全部账号失败', 'error');
+      }
     }
 
     /**
      * 移动端全部刷新（多账号）
      */
     async function mobileRefreshAllAccounts() {
-      await multi_refreshAll();
+      try {
+        showTempMessage('正在刷新所有账号...', 'info');
+        await multi_refreshAll();
+        showTempMessage('所有账号已刷新', 'success');
+      } catch (error) {
+        console.error('[移动端] 刷新所有账号失败:', error);
+        showTempMessage('刷新所有账号失败', 'error');
+      }
     }
 
     /**
      * 移动端删除选中的账号
      */
     async function mobileRemoveSelectedAccounts() {
-      await multi_removeSelected();
+      try {
+        const selected = document.querySelectorAll('#mobile-multi-account-list input[type="checkbox"]:checked');
+        if (selected.length === 0) {
+          showTempMessage('请先选择要删除的账号', 'error');
+          return;
+        }
+        
+        if (!confirm(`确定要删除选中的 ${selected.length} 个账号吗？`)) {
+          return;
+        }
+        
+        await multi_removeSelected();
+        showTempMessage(`已删除 ${selected.length} 个账号`, 'success');
+      } catch (error) {
+        console.error('[移动端] 删除选中账号失败:', error);
+        showTempMessage('删除选中账号失败', 'error');
+      }
     }
 
     // ==================== 移动端UI控制函数 ====================
