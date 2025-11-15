@@ -20121,9 +20121,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 刷新移动端任务列表
      */
     async function mobileRefreshTasks() {
-      // TODO: 实现任务刷新逻辑
-      // 调用现有的refreshTasks函数并更新移动端UI
-      showTempMessage('功能开发中...', 'info');
+      // 调用PC端的refreshTasks函数
+      await refreshTasks();
     }
 
     /**
@@ -20600,9 +20599,9 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 此函数为占位函数，实际功能需要集成地图库（如高德地图、百度地图等）
      */
     function mobileZoomIn() {
-      // TODO: 实现地图放大功能
-      // 示例：map.zoomIn();
-      showTempMessage('地图放大功能开发中...', 'info');
+      if (map) {
+        map.zoomIn();
+      }
     }
 
     /**
@@ -20613,9 +20612,9 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 调用地图API的缩小方法
      */
     function mobileZoomOut() {
-      // TODO: 实现地图缩小功能
-      // 示例：map.zoomOut();
-      showTempMessage('地图缩小功能开发中...', 'info');
+      if (map) {
+        map.zoomOut();
+      }
     }
 
     /**
@@ -20626,9 +20625,9 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 自动计算最佳缩放级别和中心点
      */
     function mobileFitView() {
-      // TODO: 实现地图自适应视图功能
-      // 示例：map.setFitView();
-      showTempMessage('地图自适应功能开发中...', 'info');
+      if (map && markers && markers.length > 0) {
+        map.setFitView(markers, false, [50, 50, 50, 50]);
+      }
     }
 
     /**
@@ -20639,9 +20638,9 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 用于显示多个账号的跑步路线
      */
     function mobileMultiZoomIn() {
-      // TODO: 实现多账号地图放大功能
-      // 示例：multiAccountMap.zoomIn();
-      showTempMessage('多账号地图放大功能开发中...', 'info');
+      if (multiAccountMap) {
+        multiAccountMap.zoomIn();
+      }
     }
 
     /**
@@ -20652,9 +20651,9 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 用于显示多个账号的跑步路线
      */
     function mobileMultiZoomOut() {
-      // TODO: 实现多账号地图缩小功能
-      // 示例：multiAccountMap.zoomOut();
-      showTempMessage('多账号地图缩小功能开发中...', 'info');
+      if (multiAccountMap) {
+        multiAccountMap.zoomOut();
+      }
     }
 
     /**
@@ -20665,9 +20664,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 自动适应所有账号的路线标记点
      */
     function mobileMultiFitView() {
-      // TODO: 实现多账号地图自适应视图功能
-      // 示例：multiAccountMap.setFitView();
-      showTempMessage('多账号地图自适应功能开发中...', 'info');
+      if (multiAccountMap) {
+        const allOverlays = multiAccountMap.getAllOverlays();
+        if (allOverlays && allOverlays.length > 0) {
+          multiAccountMap.setFitView(allOverlays, false, [50, 50, 50, 50]);
+        }
+      }
     }
 
     /**
