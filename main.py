@@ -4397,7 +4397,9 @@ class Api:
                 "is_authenticated": is_authenticated,
                 "auth_username": auth_username,
                 "auth_group": auth_group,
-                "is_guest": is_guest
+                "is_guest": is_guest,
+                # [修复] 添加多账号模式状态，用于会话恢复和PC/移动端切换
+                "is_multi_account_mode": getattr(self, 'is_multi_account_mode', False)
             }
 
             # [BUG 2 修复] 如果是已登录状态（会话恢复），则从实例中提取 device_ua
