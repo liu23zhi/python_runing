@@ -3516,7 +3516,7 @@
 
         <!-- 返回按钮 -->
         <div class="mobile-card py-3">
-          <button class="flex items-center gap-2 text-sky-600 font-medium" onclick="exitMobileMultiAccount()">
+          <button class="flex items-center gap-2 text-sky-600 font-medium" onclick="exitMobileMultiAccount()" id="multi_exit_account">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
@@ -14288,10 +14288,32 @@ function run_code_not_need_sessionuuid(codeToRun) {
           $('auth-login-container').classList.add('hidden');
           $('login-container').classList.add('hidden');
 
-          // 显示多账号界面
-          $('multi-account-app').classList.remove('hidden');
-          $('multi-account-app').classList.add('grid');
-          $('main-app').classList.add('hidden');
+          // [修复] 根据设备类型显示对应的多账号界面
+          if (isMobileMode) {
+            // 移动端：显示mobile-multi-account-app，隐藏mobile-login-container和mobile-auth-login-container
+            const mobileMultiApp = document.getElementById('mobile-multi-account-app');
+            const mobileLoginContainer = document.getElementById('mobile-login-container');
+            const mobileAuthContainer = document.getElementById('mobile-auth-login-container');
+            if (mobileMultiApp) {
+              mobileMultiApp.classList.remove('hidden');
+              console.log('[会话恢复] 移动端：显示 mobile-multi-account-app');
+            }
+            if (mobileLoginContainer) mobileLoginContainer.classList.add('hidden');
+            if (mobileAuthContainer) mobileAuthContainer.classList.add('hidden');
+            
+            // 显示移动端多账号模式导航栏
+            updateMobileNavVisibility(true, 'multi');
+            
+            // 确保桌面端应用隐藏
+            $('multi-account-app').classList.add('hidden');
+            $('main-app').classList.add('hidden');
+          } else {
+            // 桌面端：显示multi-account-app
+            $('multi-account-app').classList.remove('hidden');
+            $('multi-account-app').classList.add('grid');
+            $('main-app').classList.add('hidden');
+            console.log('[会话恢复] 桌面端：显示 multi-account-app');
+          }
           // hideLoadingOverlays();
 
           // 创建多账号地图（如果还没有创建）
@@ -15188,10 +15210,39 @@ function run_code_not_need_sessionuuid(codeToRun) {
       mapReadyPromise = new Promise(resolve => {
         resolveMapReady = resolve;
       });
-      $('auth-login-container').classList.add('hidden'); // <-- 修正：确保认证登录界面也被隐藏
-      $('login-container').classList.add('hidden');
-      $('main-app').classList.remove('hidden');
-      $('main-app').classList.add('grid');
+      
+      // [修复] 根据设备类型显示对应的单账号界面
+      if (isMobileMode) {
+        // 移动端：显示mobile-main-app，隐藏登录容器
+        const mobileMainApp = document.getElementById('mobile-main-app');
+        const mobileLoginContainer = document.getElementById('mobile-login-container');
+        const mobileAuthContainer = document.getElementById('mobile-auth-login-container');
+        const mobileMultiApp = document.getElementById('mobile-multi-account-app');
+        
+        if (mobileMainApp) {
+          mobileMainApp.classList.remove('hidden');
+          console.log('[单账号模式] 移动端：显示 mobile-main-app');
+        }
+        if (mobileLoginContainer) mobileLoginContainer.classList.add('hidden');
+        if (mobileAuthContainer) mobileAuthContainer.classList.add('hidden');
+        if (mobileMultiApp) mobileMultiApp.classList.add('hidden');
+        
+        // 显示移动端单账号模式导航栏
+        updateMobileNavVisibility(true, 'single');
+        
+        // 确保桌面端应用隐藏
+        $('main-app').classList.add('hidden');
+        $('multi-account-app').classList.add('hidden');
+        $('login-container').classList.add('hidden');
+        $('auth-login-container').classList.add('hidden');
+      } else {
+        // 桌面端：显示main-app
+        $('auth-login-container').classList.add('hidden');
+        $('login-container').classList.add('hidden');
+        $('main-app').classList.remove('hidden');
+        $('main-app').classList.add('grid');
+        console.log('[单账号模式] 桌面端：显示 main-app');
+      }
 
       logMessage_Info("已进入单账号模式。");
 
@@ -16064,10 +16115,38 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       const result = await callPythonAPI('enter_multi_account_mode');
       if (!result.success) return;
-      $('login-container').classList.add('hidden');
-      $('main-app').classList.add('hidden');
-      $('multi-account-app').classList.remove('hidden');
-      $('multi-account-app').classList.add('grid');
+      
+      // [修复] 根据设备类型显示对应的多账号界面
+      if (isMobileMode) {
+        // 移动端：隐藏登录容器，显示mobile-multi-account-app
+        const mobileLoginContainer = document.getElementById('mobile-login-container');
+        const mobileMultiApp = document.getElementById('mobile-multi-account-app');
+        const mobileMainApp = document.getElementById('mobile-main-app');
+        
+        if (mobileLoginContainer) mobileLoginContainer.classList.add('hidden');
+        if (mobileMainApp) mobileMainApp.classList.add('hidden');
+        if (mobileMultiApp) {
+          mobileMultiApp.classList.remove('hidden');
+          switchMobilePanel('mobile-multi-account-panel', 'multi');
+          console.log('[切换模式] 移动端：显示 mobile-multi-account-app');
+        }
+        
+        // 显示移动端多账号模式导航栏
+        updateMobileNavVisibility(true, 'multi');
+        
+        // 确保桌面端应用隐藏
+        $('login-container').classList.add('hidden');
+        $('main-app').classList.add('hidden');
+        $('multi-account-app').classList.add('hidden');
+      } else {
+        // 桌面端：显示multi-account-app
+        $('login-container').classList.add('hidden');
+        $('main-app').classList.add('hidden');
+        $('multi-account-app').classList.remove('hidden');
+        $('multi-account-app').classList.add('grid');
+        console.log('[切换模式] 桌面端：显示 multi-account-app');
+      }
+      
       document.body.classList.remove('modal-visible');
 
 
@@ -16175,9 +16254,28 @@ function run_code_not_need_sessionuuid(codeToRun) {
       path_planning_queue = [];
       is_planning_path = false;
       await callPythonAPI('exit_multi_account_mode');
-      $('multi-account-app').classList.add('hidden');
-      $('multi-account-app').classList.remove('grid');
-      $('login-container').classList.remove('hidden');
+      
+      // [修复] 根据设备类型隐藏对应的多账号界面，显示登录容器
+      if (isMobileMode) {
+        // 移动端：隐藏mobile-multi-account-app，显示mobile-login-container
+        const mobileMultiApp = document.getElementById('mobile-multi-account-app');
+        const mobileLoginContainer = document.getElementById('mobile-login-container');
+        
+        if (mobileMultiApp) mobileMultiApp.classList.add('hidden');
+        if (mobileLoginContainer) mobileLoginContainer.classList.remove('hidden');
+        
+        // 隐藏导航栏
+        updateMobileNavVisibility(false);
+        
+        console.log('[退出多账号] 移动端：隐藏 mobile-multi-account-app，显示 mobile-login-container');
+      } else {
+        // 桌面端：隐藏multi-account-app，显示login-container
+        $('multi-account-app').classList.add('hidden');
+        $('multi-account-app').classList.remove('grid');
+        $('login-container').classList.remove('hidden');
+        console.log('[退出多账号] 桌面端：隐藏 multi-account-app，显示 login-container');
+      }
+      
       document.body.classList.remove('modal-visible');
 
       $('multi-account-list').innerHTML = '<p class="text-slate-400 text-center py-10">请先添加或导入账号</p>';
