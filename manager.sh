@@ -6,7 +6,6 @@
 SESSION_NAME="zis_runner_helper"
 
 # 2. 临时的 screen 配置文件路径 (用于添加顶部提示栏)
-#    我们将其放在 /tmp 目录中，并使用会话名确保唯一性
 SCREEN_RC_FILE="./${SESSION_NAME}.screenrc"
 
 # 3. 你想在后台运行的实际命令 
@@ -63,9 +62,11 @@ start_session() {
         # --- 配置文件创建完毕 ---
 
         # 使用 -c 加载我们的自定义配置文件来启动 screen
-        screen -c "$SCREEN_RC_FILE" -dmS "$SESSION_NAME" bash -c "$COMMAND_TO_RUN"
+        # 防止会话立即消失，以便用户能连接进去看到底发生了什么。
+        screen -c "$SCREEN_RC_FILE" -dmS "$SESSION_NAME" bash -c "$COMMAND_TO_RUN; exec bash"
         
         # 检查是否启动成功
+        sleep 0.5
         if screen -ls | grep -q "\.$SESSION_NAME\s"; then
             echo "会话已在后台启动。现在连接..."
             sleep 1
