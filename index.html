@@ -3891,6 +3891,93 @@
       </div>
     </div>
 
+    <!-- 移动端更多菜单模态框 - 用于单账号和多账号模式 -->
+    <div id="mobile-more-menu-modal" class="fixed inset-0 hidden mobile-modal z-50"
+      onclick="toggleMobileMoreMenu(false)">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4"
+        onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+          <h3 class="text-xl font-bold text-slate-700">更多功能</h3>
+        </div>
+        <!-- 菜单项列表 -->
+        <div class="space-y-2">
+          <!-- 签到按钮 -->
+          <button
+            class="w-full flex items-center gap-3 p-4 bg-slate-50 hover:bg-slate-100 rounded-xl transition"
+            onclick="toggleMobileMoreMenu(false); switchMobilePanel('mobile-notification-panel', 'single'); setTimeout(() => switchMobileNotifTab('attendance'), 100);">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <div class="flex-1 text-left">
+              <div class="font-semibold text-slate-700">签到管理</div>
+              <div class="text-xs text-slate-500">查看签到任务</div>
+            </div>
+          </button>
+
+          <!-- 管理按钮 -->
+          <button
+            class="w-full flex items-center gap-3 p-4 bg-slate-50 hover:bg-slate-100 rounded-xl transition"
+            onclick="toggleMobileMoreMenu(false); toggleMobileAdminPanel(true);">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <div class="flex-1 text-left">
+              <div class="font-semibold text-slate-700">管理面板</div>
+              <div class="text-xs text-slate-500">系统管理设置</div>
+            </div>
+          </button>
+
+          <!-- 我的资料按钮 -->
+          <button
+            class="w-full flex items-center gap-3 p-4 bg-slate-50 hover:bg-slate-100 rounded-xl transition"
+            onclick="toggleMobileMoreMenu(false); toggleMobileUserDetails(true);">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <div class="flex-1 text-left">
+              <div class="font-semibold text-slate-700">我的资料</div>
+              <div class="text-xs text-slate-500">查看个人信息</div>
+            </div>
+          </button>
+
+          <!-- 退出登录按钮 -->
+          <button
+            class="w-full flex items-center gap-3 p-4 bg-red-50 hover:bg-red-100 rounded-xl transition"
+            onclick="toggleMobileMoreMenu(false); mobileLogout();">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <div class="flex-1 text-left">
+              <div class="font-semibold text-red-700">退出登录</div>
+              <div class="text-xs text-red-500">安全退出系统</div>
+            </div>
+          </button>
+        </div>
+        <!-- 底部关闭按钮 -->
+        <div class="flex justify-center pt-2">
+          <button class="w-full py-3 bg-slate-100 text-slate-600 rounded-xl font-medium hover:bg-slate-200 transition"
+            onclick="toggleMobileMoreMenu(false)">关闭</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ========================================
          【移动端底部导航栏区域】
          根据当前应用模式显示不同的导航栏
@@ -3899,8 +3986,8 @@
     <!-- 单账号模式底部导航栏 - 用于mobile-main-app -->
     <nav class="mobile-bottom-nav hidden" id="mobile-bottom-nav-single-account" style="display:none;">
 
-      <!-- 1. 控制按钮 - 切换到控制面板 -->
-      <a href="#" class="mobile-nav-btn" data-nav="control"
+      <!-- 1. 控制按钮 - 切换到控制面板 (默认激活) -->
+      <a href="#" class="mobile-nav-btn active" data-nav="control"
         onclick="switchMobilePanel('mobile-control-panel', 'single')">
         <!-- 控制图标：滑动条/调节器图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
@@ -3923,7 +4010,7 @@
       </a>
 
       <!-- 3. 任务按钮 - 切换到任务面板 -->
-      <a href="#" class="mobile-nav-btn active" data-nav="home"
+      <a href="#" class="mobile-nav-btn" data-nav="task"
         onclick="switchMobilePanel('mobile-task-panel', 'single')">
         <!-- 任务图标：剪贴板/任务列表图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
@@ -3946,39 +4033,15 @@
         <span>通知</span>
       </a>
 
-      <!-- 5. 签到按钮 - 切换到通知面板的签到标签 -->
-      <a href="#" class="mobile-nav-btn" data-nav="attendance"
-        onclick="switchMobilePanel('mobile-notification-panel', 'single'); setTimeout(() => switchMobileNotifTab('attendance'), 100);">
-        <!-- 签到图标：日历带勾选标记 -->
+      <!-- 5. 更多按钮 - 打开更多菜单 -->
+      <a href="#" class="mobile-nav-btn" data-nav="more" onclick="toggleMobileMoreMenu(true)">
+        <!-- 更多图标：三个点 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round"
-            d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" />
+            d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
         </svg>
-        <span>签到</span>
-      </a>
-
-      <!-- 6. 管理按钮 - 打开管理面板模态框 -->
-      <a href="#" class="mobile-nav-btn" data-nav="admin" onclick="toggleMobileAdminPanel(true)">
-        <!-- 管理图标：齿轮/设置图标 -->
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-          stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        <span>管理</span>
-      </a>
-
-      <!-- 7. 我的按钮 - 打开用户详情模态框 -->
-      <a href="#" class="mobile-nav-btn" data-nav="profile" onclick="toggleMobileUserDetails(true)">
-        <!-- 用户图标：用户头像图标 -->
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-          stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-        </svg>
-        <span>我的</span>
+        <span>更多</span>
       </a>
 
     </nav>
@@ -3986,15 +4049,15 @@
     <!-- 多账号模式底部导航栏 - 用于mobile-multi-account-app -->
     <nav class="mobile-bottom-nav hidden" id="mobile-bottom-nav-multi-account" style="display:none;">
 
-      <!-- 1. 账号按钮 - 切换到账号列表面板 -->
-      <a href="#" class="mobile-nav-btn active" data-nav="accounts"
-        onclick="switchMobilePanel('mobile-multi-account-panel', 'multi')">
-        <!-- 多账号图标：多个用户头像 -->
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-          <path
-            d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+      <!-- 1. 控制按钮 - 切换到批量控制面板 (默认激活) -->
+      <a href="#" class="mobile-nav-btn active" data-nav="control"
+        onclick="switchMobilePanel('mobile-multi-control-panel', 'multi')">
+        <!-- 闪电图标：代表控制和操作 -->
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+          stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        <span>账号</span>
+        <span>控制</span>
       </a>
 
       <!-- 2. 地图按钮 - 切换到地图面板 -->
@@ -4008,37 +4071,26 @@
         <span>地图</span>
       </a>
 
-      <!-- 3. 控制按钮 - 切换到批量控制面板 -->
-      <a href="#" class="mobile-nav-btn" data-nav="control"
-        onclick="switchMobilePanel('mobile-multi-control-panel', 'multi')">
-        <!-- 闪电图标：代表控制和操作 -->
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-          stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      <!-- 3. 账号按钮 - 切换到账号列表面板 -->
+      <a href="#" class="mobile-nav-btn" data-nav="accounts"
+        onclick="switchMobilePanel('mobile-multi-account-panel', 'multi')">
+        <!-- 多账号图标：多个用户头像 -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
         </svg>
-        <span>控制</span>
+        <span>账号</span>
       </a>
 
-      <!-- 4. 管理按钮 - 打开管理面板模态框 -->
-      <a href="#" class="mobile-nav-btn" data-nav="admin" onclick="toggleMobileAdminPanel(true)">
-        <!-- 管理图标：齿轮/设置图标 -->
+      <!-- 4. 更多按钮 - 打开更多菜单 -->
+      <a href="#" class="mobile-nav-btn" data-nav="more" onclick="toggleMobileMoreMenu(true)">
+        <!-- 更多图标：三个点 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round"
-            d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            d="M12 6.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 12.75a.75.75 0 110-1.5.75.75 0 010 1.5zM12 18.75a.75.75 0 110-1.5.75.75 0 010 1.5z" />
         </svg>
-        <span>管理</span>
-      </a>
-
-      <!-- 5. 返回按钮 - 返回登录页 -->
-      <a href="#" class="mobile-nav-btn" data-nav="back" onclick="exitMobileMultiAccount()">
-        <!-- 返回图标：左箭头 -->
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-          stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        <span>返回</span>
+        <span>更多</span>
       </a>
 
     </nav>
@@ -6404,8 +6456,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
               if (mobileMainApp) {
                 mobileMainApp.classList.remove('hidden');
                 console.log('[移动端UI] 已显示 mobile-main-app');
-                // 初始化面板显示：默认显示任务面板
-                switchMobilePanel('mobile-task-panel', 'single');
+                // 初始化面板显示：默认显示控制面板
+                switchMobilePanel('mobile-control-panel', 'single');
               }
 
               // 显示底部导航和菜单按钮 - 单账号模式
@@ -6498,8 +6550,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
           if (mobileLoginContainer) mobileLoginContainer.classList.add('hidden');
           if (mobileMultiApp) {
             mobileMultiApp.classList.remove('hidden');
-            // 初始化面板显示：默认显示账号列表面板
-            switchMobilePanel('mobile-multi-account-panel', 'multi');
+            // 初始化面板显示：默认显示控制面板
+            switchMobilePanel('mobile-multi-control-panel', 'multi');
           }
           // 显示底部导航和菜单按钮 - 多账号模式
           updateMobileNavVisibility(true, 'multi');
@@ -16169,7 +16221,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (mobileMainApp) mobileMainApp.classList.add('hidden');
         if (mobileMultiApp) {
           mobileMultiApp.classList.remove('hidden');
-          switchMobilePanel('mobile-multi-account-panel', 'multi');
+          switchMobilePanel('mobile-multi-control-panel', 'multi');
           console.log('[切换模式] 移动端：显示 mobile-multi-account-app');
         }
         
@@ -20545,6 +20597,32 @@ function run_code_not_need_sessionuuid(codeToRun) {
     // ==================== 移动端UI控制函数 ====================
 
     /**
+     * 显示或隐藏移动端更多菜单模态框
+     * @param {boolean} show - true表示显示，false表示隐藏
+     * 
+     * 功能说明：
+     * - 显示包含签到、管理、退出等功能的更多菜单
+     * - 当show为true时，显示模态框
+     * - 当show为false时，隐藏模态框
+     */
+    function toggleMobileMoreMenu(show) {
+      // 获取移动端更多菜单模态框元素
+      const modal = document.getElementById('mobile-more-menu-modal');
+
+      // 检查元素是否存在，防止空指针错误
+      if (modal) {
+        // 根据show参数决定显示或隐藏
+        if (show) {
+          // 移除hidden类，显示模态框
+          modal.classList.remove('hidden');
+        } else {
+          // 添加hidden类，隐藏模态框
+          modal.classList.add('hidden');
+        }
+      }
+    }
+
+    /**
      * 显示或隐藏移动端管理面板模态框
      * @param {boolean} show - true表示显示，false表示隐藏
      * 
@@ -20802,11 +20880,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const sectionNavMap = {
         'mobile-control-panel': 'control',
         'mobile-map-panel': 'map',
-        'mobile-task-panel': 'home',
+        'mobile-task-panel': 'task',
         'mobile-notification-panel': 'notifications',
         'mobile-multi-account-panel': 'accounts',
         'mobile-multi-control-panel': 'control',
-        'mobile-multi-map-panel': 'map'  // 添加多账号地图面板映射
+        'mobile-multi-map-panel': 'map'
       };
 
       // 获取对应的导航按钮标识
