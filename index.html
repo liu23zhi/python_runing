@@ -4033,9 +4033,9 @@
         <span>通知</span>
       </a>
 
-      <!-- 5. 签到按钮 - 切换到通知面板的签到标签 -->
+      <!-- 5. 签到按钮 - 切换到签到面板 -->
       <a href="#" class="mobile-nav-btn" data-nav="attendance"
-        onclick="switchMobilePanel('mobile-notification-panel', 'single'); setTimeout(() => switchMobileNotifTab('attendance'), 100);">
+        onclick="switchMobilePanel('mobile-attendance-panel', 'single')">
         <!-- 签到图标：日历带勾选标记 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor">
@@ -4057,7 +4057,19 @@
         <span>管理</span>
       </a>
 
-      <!-- 7. 我的按钮 - 打开用户详情模态框 -->
+      <!-- 7. 设置按钮 - 切换到参数面板 -->
+      <a href="#" class="mobile-nav-btn" data-nav="settings"
+        onclick="switchMobilePanel('mobile-settings-panel', 'single')">
+        <!-- 设置图标：调节滑块图标 -->
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+          stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+        </svg>
+        <span>设置</span>
+      </a>
+
+      <!-- 8. 我的按钮 - 打开用户详情模态框 -->
       <a href="#" class="mobile-nav-btn" data-nav="profile" onclick="toggleMobileUserDetails(true)">
         <!-- 用户图标：用户头像图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
@@ -4066,6 +4078,16 @@
             d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
         </svg>
         <span>我的</span>
+      </a>
+
+      <!-- 9. 返回按钮 - 返回登录页 -->
+      <a href="#" class="mobile-nav-btn" data-nav="back" onclick="mobileLogout()">
+        <!-- 返回图标：左箭头 -->
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+          stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        <span>返回</span>
       </a>
 
     </nav>
@@ -4118,7 +4140,19 @@
         <span>管理</span>
       </a>
 
-      <!-- 5. 返回按钮 - 返回登录页 -->
+      <!-- 5. 设置按钮 - 切换到参数面板 -->
+      <a href="#" class="mobile-nav-btn" data-nav="settings"
+        onclick="switchMobilePanel('mobile-multi-settings-panel', 'multi')">
+        <!-- 设置图标：调节滑块图标 -->
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+          stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+        </svg>
+        <span>设置</span>
+      </a>
+
+      <!-- 6. 返回按钮 - 返回登录页 -->
       <a href="#" class="mobile-nav-btn" data-nav="back" onclick="exitMobileMultiAccount()">
         <!-- 返回图标：左箭头 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
@@ -20830,13 +20864,16 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-control-panel',
         'mobile-map-panel',
         'mobile-task-panel',
-        'mobile-notification-panel'
+        'mobile-notification-panel',
+        'mobile-attendance-panel',
+        'mobile-settings-panel'
       ];
 
       const multiModePanels = [
         'mobile-multi-account-panel',
         'mobile-multi-map-panel',
-        'mobile-multi-control-panel'
+        'mobile-multi-control-panel',
+        'mobile-multi-settings-panel'
       ];
 
       // 选择要操作的面板列表
@@ -20917,9 +20954,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-map-panel': 'map',
         'mobile-task-panel': 'task',
         'mobile-notification-panel': 'notifications',
+        'mobile-attendance-panel': 'attendance',
+        'mobile-settings-panel': 'settings',
         'mobile-multi-account-panel': 'accounts',
         'mobile-multi-control-panel': 'control',
-        'mobile-multi-map-panel': 'map'
+        'mobile-multi-map-panel': 'map',
+        'mobile-multi-settings-panel': 'settings'
       };
 
       // 获取对应的导航按钮标识
