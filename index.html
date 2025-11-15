@@ -2079,6 +2079,26 @@
           </div>
         </div>
 
+        <!-- 验证码区域 -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+          <div class="flex gap-2 mt-1 items-center">
+            <!-- 验证码显示区域 -->
+            <div id="auth-login-captcha-display" class="flex-shrink-0 w-24 h-10 flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+              title="点击刷新验证码" style="min-height: 40px;">
+              <span class="text-slate-400 text-xs">加载中...</span>
+            </div>
+            <!-- 验证码输入框 -->
+            <input type="text" id="auth-login-captcha" class="input-field flex-1" placeholder="请输入验证码" maxlength="6" autocomplete="off">
+            <!-- 刷新按钮 -->
+            <button type="button" id="auth-login-captcha-refresh" class="btn btn-ghost !p-2" title="刷新验证码">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <button id="auth-login-btn" class="btn btn-primary w-full py-3" style="min-height: 44px;">登录</button>
         <div id="guest-login-section" class="text-center hidden">
           <div class="relative flex py-2 items-center">
@@ -2179,6 +2199,27 @@
           <input type="password" id="auth-reg-password-confirm" class="input-field mt-1" placeholder="请再次输入密码"
             autocomplete="new-password">
         </div>
+
+        <!-- 验证码区域 -->
+        <div>
+          <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+          <div class="flex gap-2 mt-1 items-center">
+            <!-- 验证码显示区域 -->
+            <div id="auth-register-captcha-display" class="flex-shrink-0 w-24 h-10 flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+              title="点击刷新验证码" style="min-height: 40px;">
+              <span class="text-slate-400 text-xs">加载中...</span>
+            </div>
+            <!-- 验证码输入框 -->
+            <input type="text" id="auth-register-captcha" class="input-field flex-1" placeholder="请输入验证码" maxlength="6" autocomplete="off">
+            <!-- 刷新按钮 -->
+            <button type="button" id="auth-register-captcha-refresh" class="btn btn-ghost !p-2" title="刷新验证码">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <button id="auth-register-btn" class="btn btn-success w-full py-3" style="min-height: 44px;">注册</button>
       </div>
 
@@ -8858,6 +8899,75 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }, duration);
     }
 
+    // ============================================================
+    // 验证码功能相关函数
+    // ============================================================
+    
+    /**
+     * 加载验证码图片
+     * @param {string} formType - 表单类型 ('login' 或 'register')
+     * @description 从后端API获取验证码HTML并显示在指定的容器中
+     */
+    async function loadCaptcha(formType) {
+      // 根据表单类型确定验证码显示区域的ID
+      const displayId = formType === 'login' ? 'auth-login-captcha-display' : 'auth-register-captcha-display';
+      const displayElement = document.getElementById(displayId);
+      
+      if (!displayElement) {
+        console.error(`[验证码] 未找到验证码显示元素: ${displayId}`);
+        return;
+      }
+      
+      // 显示加载状态
+      displayElement.innerHTML = '<span class="text-slate-400 text-xs">加载中...</span>';
+      
+      try {
+        // 调用后端API获取验证码
+        const response = await fetch('/api/captcha/get', {
+          method: 'GET',
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.html) {
+          // 将验证码HTML插入到显示区域
+          // 使用innerHTML直接插入HTML（包含img标签）
+          displayElement.innerHTML = result.html;
+          
+          // 为验证码图片添加样式，确保完整显示
+          const imgElement = displayElement.querySelector('img');
+          if (imgElement) {
+            imgElement.style.width = '100%';
+            imgElement.style.height = '100%';
+            imgElement.style.objectFit = 'contain';  // 保持比例，完整显示
+          }
+          
+          console.log(`[验证码] ${formType}表单验证码加载成功`);
+        } else {
+          // 加载失败，显示错误提示
+          displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
+          console.error(`[验证码] 加载失败: ${result.message || '未知错误'}`);
+        }
+      } catch (error) {
+        // 网络错误或其他异常
+        displayElement.innerHTML = '<span class="text-red-500 text-xs">网络错误</span>';
+        console.error(`[验证码] 加载异常:`, error);
+      }
+    }
+    
+    /**
+     * 刷新验证码（重新加载）
+     * @param {string} formType - 表单类型 ('login' 或 'register')
+     * @description 点击刷新按钮或验证码区域时调用
+     */
+    function refreshCaptcha(formType) {
+      console.log(`[验证码] 刷新${formType}表单验证码`);
+      loadCaptcha(formType);
+    }
+
     // 用户登录
     async function handleAuthLogin() {
       const loginBtn = $('auth-login-btn');
@@ -8865,6 +8975,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const login_id = $('auth-username').value.trim();
       const password = $('auth-password').value.trim();
       const sms_code = $('auth-sms-code').value.trim();
+      const captcha = $('auth-login-captcha').value.trim();  // 获取验证码输入
 
       let login_mode = 'username'; // Default to username
       let login_verification_method = 'password'; // Default to password
@@ -8880,7 +8991,13 @@ function run_code_not_need_sessionuuid(codeToRun) {
         login_verification_method = 'sms';
       }
 
-      // 3. 执行验证
+      // 3. 验证图形验证码（首先验证，增强安全性）
+      if (!captcha) {
+        showModalAlert('请输入图形验证码', '登录失败');
+        return;
+      }
+
+      // 4. 执行其他验证
       if (!login_id) {
         showModalAlert('请输入用户名或手机号', '登录失败');
         return;
@@ -8943,6 +9060,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
       } else if (login_verification_method === 'sms') {
         request_body.auth_sms_code = sms_code;
       }
+      
+      // 添加图形验证码到请求体
+      request_body.captcha = captcha;
+      
       // (2FA code is handled by handle2FAVerify, not here)
 
       // 显示加载状态
@@ -9095,12 +9216,21 @@ function run_code_not_need_sessionuuid(codeToRun) {
           setButtonLoading('auth-login-btn', false);
           showButtonError('auth-login-btn', '登录失败');
           showModalAlert(result.message || '登录失败', '登录失败');
+          
+          // 登录失败后自动刷新验证码（无论什么原因失败都刷新，增强安全性）
+          refreshCaptcha('login');
+          // 清空验证码输入框
+          $('auth-login-captcha').value = '';
         }
       } catch (e) {
         logMessage_Error('登录请求失败:', e);
         setButtonLoading('auth-login-btn', false);
         showButtonError('auth-login-btn', '网络错误');
         showModalAlert('网络错误，请检查连接后重试', '登录失败');
+        
+        // 网络错误后也刷新验证码
+        refreshCaptcha('login');
+        $('auth-login-captcha').value = '';
       }
     }
 
@@ -9205,6 +9335,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const phone = $('auth-reg-phone').value.trim();
       const smsCode = $('auth-reg-sms-code').value.trim();
       const nickname_Raw = $('auth-reg-nickname').value.trim();
+      const captcha = $('auth-register-captcha').value.trim();  // 获取验证码输入
 
 
       let nickname;
@@ -9221,6 +9352,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const passwordConfirm = $('auth-reg-password-confirm').value.trim();
 
       // 2. 验证输入
+      // 首先验证图形验证码（必须首先验证，增强安全性）
+      if (!captcha) {
+        showModalAlert('请输入图形验证码', '注册失败');
+        return;
+      }
+      
       // 验证必填字段（昵称可选）
       if (!username || !password || !passwordConfirm) {
         // showAuthError('请填写所有必填字段（用户名、密码）');
@@ -9302,6 +9439,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       formData.append('phone', phone);
       formData.append('nickname', nickname);
       formData.append('sms_code', smsCode);
+      formData.append('captcha', captcha);  // 添加图形验证码到表单数据
 
       // 4. 添加头像文件（如果存在）
       if (avatarFile) {
@@ -9339,6 +9477,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
           showButtonError('auth-register-btn', '注册失败');
           // showAuthError(result.message || '注册失败');
           showModalAlert(result.message || '注册失败', '注册失败');
+          
+          // 注册失败后自动刷新验证码
+          refreshCaptcha('register');
+          // 清空验证码输入框
+          $('auth-register-captcha').value = '';
         }
       } catch (e) {
         logMessage_Error('注册请求失败:', e);
@@ -9346,6 +9489,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
         showButtonError('auth-register-btn', '网络错误');
         // showAuthError('网络错误，请检查连接后重试');
         showModalAlert('网络错误，请检查连接后重试', '注册失败');
+        
+        // 网络错误后也刷新验证码
+        refreshCaptcha('register');
+        $('auth-register-captcha').value = '';
       } finally {
         // 无论成功失败，都清空暂存的 Blob
         registrationCroppedAvatarBlob = null;
@@ -22121,8 +22268,18 @@ function run_code_not_need_sessionuuid(codeToRun) {
       if (sendCodeBtn) {
         sendCodeBtn.addEventListener('click', async function () {
           const phone = document.getElementById('auth-reg-phone').value;
+          const captcha = document.getElementById('auth-register-captcha').value.trim();  // 获取图形验证码
+          
+          // 验证手机号
           if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
             showModalAlert('请输入正确的手机号');
+            return;
+          }
+          
+          // 验证图形验证码
+          if (!captcha) {
+            showModalAlert('请先输入图形验证码');
+            document.getElementById('auth-register-captcha').focus();  // 聚焦到验证码输入框
             return;
           }
 
@@ -22130,7 +22287,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
           const originalText = sendCodeBtn.textContent;
 
           try {
-            // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口
+            // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口，并携带图形验证码
             const response = await fetch('/api/sms/send_code', {
               method: 'POST',
               headers: {
@@ -22139,7 +22296,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
               },
               body: JSON.stringify({
                 phone: phone,
-                scene: 'register' // 场景：注册
+                scene: 'register', // 场景：注册
+                captcha: captcha  // 添加图形验证码
               })
             });
             const result = await response.json();
@@ -22161,6 +22319,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
                 }
               }, 1000);
             } else {
+              // 如果图形验证码错误，自动刷新验证码
+              if (result?.message && result.message.includes('验证码')) {
+                loadCaptcha('register');  // 刷新验证码
+              }
+              
               // 处理频繁发送错误，显示剩余等待时间
               if (result?.retry_after) {
                 const retrySeconds = result.retry_after;
@@ -22185,6 +22348,55 @@ function run_code_not_need_sessionuuid(codeToRun) {
             showModalAlert('发送失败: ' + error.message);
           }
         });
+      }
+      
+      // ============================================================
+      // 验证码相关事件监听器
+      // ============================================================
+      
+      // 登录表单验证码刷新按钮
+      const loginCaptchaRefreshBtn = document.getElementById('auth-login-captcha-refresh');
+      if (loginCaptchaRefreshBtn) {
+        loginCaptchaRefreshBtn.addEventListener('click', function(e) {
+          e.preventDefault();  // 阻止默认行为
+          refreshCaptcha('login');
+        });
+      }
+      
+      // 登录表单验证码显示区域点击刷新
+      const loginCaptchaDisplay = document.getElementById('auth-login-captcha-display');
+      if (loginCaptchaDisplay) {
+        loginCaptchaDisplay.addEventListener('click', function() {
+          refreshCaptcha('login');
+        });
+      }
+      
+      // 注册表单验证码刷新按钮
+      const registerCaptchaRefreshBtn = document.getElementById('auth-register-captcha-refresh');
+      if (registerCaptchaRefreshBtn) {
+        registerCaptchaRefreshBtn.addEventListener('click', function(e) {
+          e.preventDefault();  // 阻止默认行为
+          refreshCaptcha('register');
+        });
+      }
+      
+      // 注册表单验证码显示区域点击刷新
+      const registerCaptchaDisplay = document.getElementById('auth-register-captcha-display');
+      if (registerCaptchaDisplay) {
+        registerCaptchaDisplay.addEventListener('click', function() {
+          refreshCaptcha('register');
+        });
+      }
+      
+      // 页面加载时自动加载验证码
+      // 注意：只在认证容器可见时加载（避免不必要的API调用）
+      const authLoginContainer = document.getElementById('auth-login-container');
+      if (authLoginContainer && !authLoginContainer.classList.contains('hidden')) {
+        // 延迟100ms加载，确保DOM完全渲染
+        setTimeout(() => {
+          loadCaptcha('login');
+          loadCaptcha('register');
+        }, 100);
       }
     });
 

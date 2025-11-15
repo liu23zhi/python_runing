@@ -11615,20 +11615,26 @@ def start_web_server(args_param):
             phone = data.get('phone', '').strip()
             nickname = data.get('nickname', '').strip()
             sms_code = data.get('sms_code', '').strip()
+            captcha_input = data.get('captcha', '').strip()  # 获取用户输入的验证码
             
-            # 3. 验证必填字段
+            # 3. 验证图形验证码（必须首先验证，防止恶意注册）
+            is_captcha_valid, captcha_error_msg = verify_captcha(captcha_input)
+            if not is_captcha_valid:
+                return jsonify({"success": False, "message": captcha_error_msg})
+            
+            # 4. 验证必填字段
             if not auth_username or not auth_password:
                 return jsonify({"success": False, "message": "用户名和密码不能为空"})
             
-            # 4. 验证用户名不包含中文字符（防止显示和排序问题）
+            # 5. 验证用户名不包含中文字符（防止显示和排序问题）
             if re.search(r'[\u4e00-\u9fff]', auth_username):
                 return jsonify({"success": False, "message": "用户名不能包含中文字符"})
             
-            # 5. 验证手机号格式（如果提供）
+            # 6. 验证手机号格式（如果提供）
             if phone and not re.match(r'^1[3-9]\d{9}$', phone):
                 return jsonify({"success": False, "message": "手机号格式不正确"})
             
-            # 6. 校验短信验证码（如果启用了注册验证功能）
+            # 7. 校验短信验证码（如果启用了注册验证功能）
             if config.get('Features', 'enable_phone_registration_verify', fallback='false').lower() == 'true':
                 if not phone:
                     return jsonify({"success": False, "message": "注册需要填写手机号"})
@@ -11653,7 +11659,7 @@ def start_web_server(args_param):
                 if not code_verified:
                     return jsonify({"success": False, "message": "验证码错误或已过期"})
             
-            # 7. 处理头像上传（如果提供）
+            # 8. 处理头像上传（如果提供）
             avatar_url = "default_avatar.png"  # 默认头像
             avatar_file = request.files.get('avatar')
             avatar_sha256_hash = None # 用于注册后更新索引
@@ -11805,6 +11811,12 @@ def start_web_server(args_param):
         auth_password = data.get('auth_password', '').strip()
         sms_code = data.get('auth_sms_code', '').strip()
         two_fa_code = data.get('two_fa_code', '').strip()
+        captcha_input = data.get('captcha', '').strip()  # 获取用户输入的验证码
+        
+        # 验证图形验证码（在所有登录尝试前进行验证，增强安全性）
+        is_captcha_valid, captcha_error_msg = verify_captcha(captcha_input)
+        if not is_captcha_valid:
+            return jsonify({"success": False, "message": captcha_error_msg})
         
         session_id = request.headers.get('X-Session-ID', '')
         ip_address = request.headers.get('X-Forwarded-For', request.remote_addr) or ''
@@ -14902,16 +14914,18 @@ def start_web_server(args_param):
             data = request.get_json() or {}
             phone = data.get('phone', '').strip()
             scene = data.get('scene', 'register').strip()  # 使用场景
+            captcha_input = data.get('captcha', '').strip()  # 获取用户输入的验证码
             
-            # 验证手机号格式（11位数字，1开头）
+            # 2. 验证图形验证码（必须首先验证，防止恶意短信攻击）
+            is_captcha_valid, captcha_error_msg = verify_captcha(captcha_input)
+            if not is_captcha_valid:
+                return jsonify({"success": False, "message": captcha_error_msg})
+            
+            # 3. 验证手机号格式（11位数字，1开头）
             if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
                 return jsonify({"success": False, "message": "手机号格式不正确"})
             
-            # 2. 检查短信服务总开关
-            if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
-                return jsonify({"success": False, "message": "短信服务未启用"})
-            
-            # 3. 检查发送间隔限制（安全增强）
+            # 4. 检查发送间隔限制（安全增强）
             sms_interval_seconds = int(config.get('SMS_Service_SMSBao', 'send_interval_seconds', fallback='180'))
             last_send_key = f"sms_last_send_{phone}"
             last_send_time = cache.get(last_send_key, 0)
@@ -14925,7 +14939,7 @@ def start_web_server(args_param):
                     "retry_after": remaining_seconds
                 })
             
-            # 4. 执行速率限制检查（防止滥用和攻击）
+            # 5. 执行速率限制检查（防止滥用和攻击）
             client_ip = request.remote_addr
             current_date = time.strftime('%Y-%m-%d')
             
@@ -14943,11 +14957,11 @@ def start_web_server(args_param):
             if phone_count >= phone_limit:
                 return jsonify({"success": False, "message": f"该手机号每日发送次数已达上限({phone_limit}次)"})
             
-            # 5. 生成6位数字验证码（安全：仅后端存储，不返回前端）
+            # 6. 生成6位数字验证码（安全：仅后端存储，不返回前端）
             import random
             code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
             
-            # 6. 调用短信宝API发送短信
+            # 7. 调用短信宝API发送短信
             username = config.get('SMS_Service_SMSBao', 'username', fallback='')
             api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
             signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【电科大跑步助手】')
@@ -17938,6 +17952,174 @@ def start_web_server(args_param):
                 "success": False,
                 "message": f"验证失败: {str(e)}"
             })
+
+    # ============================================================
+    # 验证码功能API
+    # 用于获取和验证图形验证码，增强系统安全性
+    # ============================================================
+    
+    @app.route('/api/captcha/get', methods=['GET'])
+    def get_captcha():
+        """
+        获取验证码接口
+        
+        功能说明:
+            - 从第三方API (https://api.vore.top/api/VerifyCode) 获取验证码图片HTML和答案
+            - 将验证码答案存储在session中，用于后续验证
+            - 返回验证码的HTML内容给前端显示
+        
+        返回格式:
+            {
+                "success": True/False,
+                "html": "验证码HTML内容（用于在前端显示图片）",
+                "message": "错误消息（仅失败时返回）"
+            }
+        
+        安全说明:
+            - 验证码答案仅存储在服务器端session中，不会返回给前端
+            - 验证码有效期与session绑定，session过期验证码也失效
+            - 每次调用都会生成新的验证码，覆盖旧的验证码
+        """
+        # 从请求头获取session_id（Flask session）
+        # 注意：这里使用Flask的session机制，不是web_sessions
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 验证session_id是否存在
+        if not session_id:
+            return jsonify({
+                "success": False,
+                "message": "缺少会话ID"
+            }), 401
+        
+        try:
+            # 调用第三方验证码API
+            # length=4 表示生成4位验证码（可根据需求调整为6或8）
+            captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
+            
+            # 发送GET请求获取验证码，设置5秒超时
+            response = requests.get(captcha_api_url, timeout=5)
+            
+            # 解析返回的JSON数据
+            result = response.json()
+            
+            # 检查API返回状态码
+            # code=200 表示成功
+            if result.get('code') != 200:
+                logging.error(f"[验证码API] 获取失败: {result.get('msg', '未知错误')}")
+                return jsonify({
+                    "success": False,
+                    "message": "验证码服务暂时不可用，请稍后重试"
+                }), 500
+            
+            # 提取验证码数据
+            data = result.get('data', {})
+            captcha_html = data.get('html', '')  # 验证码图片的HTML内容
+            captcha_code = data.get('code', '')  # 验证码答案（例如："01QTF6"）
+            
+            # 验证数据完整性
+            if not captcha_html or not captcha_code:
+                logging.error(f"[验证码API] 返回数据不完整: html={bool(captcha_html)}, code={bool(captcha_code)}")
+                return jsonify({
+                    "success": False,
+                    "message": "验证码数据获取失败"
+                }), 500
+            
+            # 将验证码答案存储在Flask session中
+            # 使用大写形式存储，验证时统一转换为大写进行比较（不区分大小写）
+            session['captcha_code'] = captcha_code.upper()
+            session['captcha_timestamp'] = time.time()  # 记录生成时间，可用于实现验证码过期机制
+            
+            # 记录日志（不记录验证码答案，避免泄露）
+            logging.info(f"[验证码] 已为会话 {session_id[:8]}... 生成新的验证码")
+            
+            # 返回验证码HTML给前端
+            return jsonify({
+                "success": True,
+                "html": captcha_html
+            })
+            
+        except requests.exceptions.Timeout:
+            # 请求超时
+            logging.warning(f"[验证码API] 请求超时")
+            return jsonify({
+                "success": False,
+                "message": "验证码服务响应超时，请重试"
+            }), 500
+            
+        except requests.exceptions.RequestException as e:
+            # 网络请求失败
+            logging.error(f"[验证码API] 网络请求失败: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": "网络错误，无法获取验证码"
+            }), 500
+            
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
+            # 数据解析错误
+            logging.error(f"[验证码API] 数据解析失败: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": "验证码数据解析错误"
+            }), 500
+            
+        except Exception as e:
+            # 其他未预期的错误
+            logging.error(f"[验证码API] 未知错误: {str(e)}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": "获取验证码时发生错误"
+            }), 500
+    
+    def verify_captcha(user_input):
+        """
+        验证验证码辅助函数
+        
+        参数:
+            user_input (str): 用户输入的验证码
+        
+        返回:
+            tuple: (是否验证成功: bool, 错误消息: str)
+                   成功返回 (True, "")
+                   失败返回 (False, "具体错误原因")
+        
+        验证逻辑:
+            1. 检查session中是否存在验证码（是否已调用get_captcha）
+            2. 检查用户输入是否为空
+            3. 不区分大小写比对用户输入与存储的验证码答案
+            4. 验证后立即清除session中的验证码（一次性使用）
+        
+        安全特性:
+            - 验证码使用后立即失效（防止重放攻击）
+            - 不区分大小写，提升用户体验
+            - 验证失败也会清除验证码，需要重新获取
+        """
+        # 从session中获取存储的验证码答案
+        stored_code = session.get('captcha_code', '')
+        
+        # 检查是否存在验证码
+        if not stored_code:
+            return False, "请先获取验证码"
+        
+        # 检查用户输入是否为空
+        if not user_input or not user_input.strip():
+            return False, "验证码不能为空"
+        
+        # 不区分大小写比对（统一转换为大写）
+        user_input_upper = user_input.strip().upper()
+        
+        # 比对验证码
+        is_correct = (user_input_upper == stored_code)
+        
+        # 清除session中的验证码（无论验证成功或失败，都清除）
+        # 这确保验证码只能使用一次
+        session.pop('captcha_code', None)
+        session.pop('captcha_timestamp', None)
+        
+        # 返回验证结果
+        if is_correct:
+            return True, ""
+        else:
+            return False, "验证码错误"
 
     @app.route('/health')
     def health():
