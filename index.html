@@ -5849,6 +5849,76 @@
       }
     }
 
+/**
+ * 检查 Session UUID 是否无效
+ * @param {string | null | undefined} uuid
+ * @returns {boolean} true 表示无效, false 表示有效
+ */
+function isSessionUUIDInvalid(uuid) {
+    // 将 !uuid 放在最前面，防止 null.trim() 错误
+    return !uuid || uuid.trim() === '' || uuid === 'null';
+}
+
+/**
+ * 检查 sessionUUID，如果有效（或能从URL成功获取），则执行指定的回调函数
+ * @param {Function} codeToRun - 在 sessionUUID 验证通过后要执行的回调函数
+ */
+function run_code_need_sessionuuid(codeToRun) {
+    
+    // 1. 检查当前的 sessionUUID
+    let isInvalid = isSessionUUIDInvalid(sessionUUID);
+
+    if (isInvalid) {
+        // 2. 如果无效，尝试从 URL 获取
+        logMessage_Warning('sessionUUID 为空，尝试从 URL 中提取');
+        sessionUUID = getUUIDFromURL(); // 假设这会修改外部的 sessionUUID 变量
+
+        // 3. 再次检查从 URL 获取的值
+        isInvalid = isSessionUUIDInvalid(sessionUUID);
+
+        if (!isInvalid) {
+            logMessage_Info('成功从 URL 中提取 sessionUUID: ' + sessionUUID);
+        }
+    }
+
+    // 4. 最终裁决
+    if (isInvalid) {
+        // 无论是初始值还是 URL 的值都无效
+        logMessage_Error('未找到有效的 sessionUUID，所需操作无法执行');
+    } else {
+        // 有效，执行传入的回调函数
+        codeToRun();
+    }
+}
+
+function run_code_not_need_sessionuuid(codeToRun) {
+     
+    // 1. 检查当前的 sessionUUID
+    let isInvalid = isSessionUUIDInvalid(sessionUUID);
+
+    if (isInvalid) {
+        // 2. 如果无效，尝试从 URL 获取
+        logMessage_Warning('sessionUUID 为空，尝试从 URL 中提取');
+        sessionUUID = getUUIDFromURL(); // 假设这会修改外部的 sessionUUID 变量
+
+        // 3. 再次检查从 URL 获取的值
+        isInvalid = isSessionUUIDInvalid(sessionUUID);
+
+        if (!isInvalid) {
+            logMessage_Success('成功从 URL 中提取 sessionUUID: ' + sessionUUID);
+        }
+    }
+
+    // 4. 最终裁决
+    if (isInvalid) {
+        // 无论是初始值还是 URL 的值都无效
+        logMessage_Error('未找到有效的 sessionUUID，所需操作无法执行');
+        codeToRun();
+    }
+        
+}
+
+
     /**
      * 初始化移动端UI功能 (已重构)
      * * 为移动端UI元素绑定事件处理器和交互逻辑
@@ -6397,18 +6467,19 @@
       // === 绑定移动端会话刷新按钮 ===
       const mobileRefreshSessionsBtn = document.getElementById('mobile-refresh-sessions-btn');
       if (mobileRefreshSessionsBtn) {
-        mobileRefreshSessionsBtn.addEventListener('click', async function() {
+        mobileRefreshSessionsBtn.addEventListener('click', async function () {
           console.log('[移动端UI] 刷新会话列表');
           await loadMobileSessionsList();
         });
       }
 
-      // (新) 修复：在移动UI初始化时立即加载用户下拉列表
-      // 这样即使用户未认证，登录页面上的下拉框也能显示
-      // (不使用 await，让其在后台加载)
-      loadMobileUserCombo().catch(e => {
-        console.error('[Mobile UI] 移动端用户下拉框后台加载失败:', e);
+      run_code_need_sessionuuid( () => {
+          // 这里的代码只会在 sessionUUID 有效时才执行
+          loadMobileUserCombo().catch(e => {
+              console.error('[Mobile UI] 移动端用户下拉框后台加载失败:', e);
+          });
       });
+
 
       console.log('[移动端UI] 移动端UI初始化完成');
     }
@@ -6485,15 +6556,50 @@
         listEl.innerHTML = '<p class="text-red-500 text-center py-8">加载失败，请重试</p>';
       }
     }
+    /**
+     * 从当前浏览器网址 (window.location.pathname) 中提取 UUID v4。
+     * * @returns {string | null} 提取到的 UUID 字符串，如果未找到或格式不正确则返回 null。
+     */
+    function getUUIDFromURL() {
+      const urlPath = window.location.pathname;
+
+      // 这个正则表达式基于您 index.html (约 11117 行) 中的实现
+      // 它专门查找 "/uuid=" 后面跟着的一个标准 UUID v4
+      // 1. [a-f0-9]{8}-[a-f0-9]{4} - 匹配前两组
+      // 2. -4[a-f0-9]{3}            - 匹配第三组，确保它以 '4' 开头 (UUID v4)
+      // 3. -[89ab][a-f0-9]{3}       - 匹配第四组，确保它以 8, 9, a, 或 b 开头 (UUID v4 变体)
+      // 4. -[a-f0-9]{12}           - 匹配最后一组
+      // ( ... ) 是一个捕获组，用于提取 UUID 本身
+      // i 使其不区分大小写
+      const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
+
+      if (match && match[1]) {
+        // match[0] 是完整匹配 (例如: "/uuid=780de...")
+        // match[1] 是我们捕获的 UUID (例如: "780de...")
+        return match[1];
+      } else {
+        // 未在路径中找到 "/uuid=" 或 UUID 格式不正确
+        return null;
+      }
+    }
 
     /**
      * 加载移动端用户下拉框（mobile-user-combo）
      * 从后端获取所有用户并填充到下拉框
      */
     async function loadMobileUserCombo() {
+      if(
+      run_code_not_need_sessionuuid( () => {
+        //如果没有 sessionUUID，则直接返回，不执行loadMobileUserCombo
+        console.warn('[Mobile UI] sessionUUID 无效，跳过加载用户下拉框');
+        return false
+      }) === false){
+        return;
+      }
       const mobileUserCombo = document.getElementById('mobile-user-combo');
       if (!mobileUserCombo) {
-        console.error('[Mobile] 找不到 mobile-user-combo 元素');
+        // console.error('[Mobile] 找不到 mobile-user-combo 元素');
+        logMessage_Error('[Mobile] 找不到 mobile-user-combo 元素');
         return;
       }
 
@@ -6522,6 +6628,7 @@
       } catch (error) {
         console.error('[Mobile] 加载用户列表失败:', error);
       }
+
     }
 
     /**
@@ -6992,6 +7099,29 @@
     let IS_OFFLINE = false;
     let sessionUUID = null;  // 当前会话UUID
 
+    function getUUIDFromURL() {
+      const urlPath = window.location.pathname;
+
+      // 这个正则表达式基于您 index.html (约 11117 行) 中的实现
+      // 它专门查找 "/uuid=" 后面跟着的一个标准 UUID v4
+      // 1. [a-f0-9]{8}-[a-f0-9]{4} - 匹配前两组
+      // 2. -4[a-f0-9]{3}            - 匹配第三组，确保它以 '4' 开头 (UUID v4)
+      // 3. -[89ab][a-f0-9]{3}       - 匹配第四组，确保它以 8, 9, a, 或 b 开头 (UUID v4 变体)
+      // 4. -[a-f0-9]{12}           - 匹配最后一组
+      // ( ... ) 是一个捕获组，用于提取 UUID 本身
+      // i 使其不区分大小写
+      const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
+
+      if (match && match[1]) {
+        // match[0] 是完整匹配 (例如: "/uuid=780de...")
+        // match[1] 是我们捕获的 UUID (例如: "780de...")
+        return match[1];
+      } else {
+        // 未在路径中找到 "/uuid=" 或 UUID 格式不正确
+        return null;
+      }
+    }
+
     // 统一的API调用函数
     async function callPythonAPI(method, ...args) {
       logMessage_Info(`[API调用] 方法: ${method}, 参数数量: ${args.length}`);
@@ -7003,10 +7133,17 @@
       // 添加会话UUID到请求头
       if (sessionUUID) {
         headers['X-Session-ID'] = sessionUUID;
-        logMessage_Info(`[API调用] 会话ID: ${sessionUUID.substring(0, 16)}...`);
+        logMessage_Info(`[API调用] 会话ID: ${sessionUUID}`);
       } else {
         // 如果连 sessionUUID 都没有（理论上不应在已加载页面后发生），也可能意味着会话问题
-        logMessage_Warning(`[API调用] 警告: sessionUUID为空，可能导致会话无效错误`);
+        logMessage_Warning(`[API调用] 警告: sessionUUID为空，可能导致会话无效错误，尝试从URL提取...`);
+        sessionUUID = getUUIDFromURL();
+        if (sessionUUID || sessionUUID !== null || sessionUUID !== undefined || sessionUUID !== 'null') {
+          logMessage_Info(`[API调用] 从URL提取到会话ID: ${sessionUUID}`);
+          headers['X-Session-ID'] = sessionUUID;
+        } else {
+          logMessage_Warning(`[API调用] 无法从URL提取会话ID`);
+        }
       }
 
       logMessage_Info(`[API调用] 发送请求到 /api/${method}`);
@@ -13800,144 +13937,168 @@
           }
           $('loading-overlay').classList.remove('hidden');
           logMessage_Info('Web模式: 检测到有效UUID =', sessionUUID);
-
+          let result = null;
           // 检查UUID类型
           try {
-            const response = await fetch('/auth/check_uuid_type', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ uuid: sessionUUID })
-            });
-
-            const result = await response.json();
-
-            if (!result.success) {
-              logMessage_Error('检查UUID失败:', result.message);
-              hideLoadingOverlays();
-
-              // showUserFriendlyError('会话验证失败', result.message, true);
-              // // 跳转到无UUID网址
-              // setTimeout(() => {
-              //   window.location.href = '/';
-              // }, 2000);
-
-              let message = "无法通过UUID判断会话列席\n将跳转到登录页面"
-              if (result.message !== '') {
-                message = "无法通过UUID判断会话列席\n" + result.message + "\n将跳转到登录页面"
-              }
-
-              Swal.fire({
-                title: '无效的会话类型', // 弹窗标题
-                text: message, // 弹窗消息
-                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-                confirmButtonText: '确定' // 按钮文字
-              }).then(() => {
-                // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-                logMessage_Info('用户确认检查UUID失败弹窗，正在跳转到登录页面...');
-                window.location.href = '/'; // 执行跳转
+            try {
+              const response = await fetch('/auth/check_uuid_type', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ uuid: sessionUUID })
               });
 
-              return;
+              result = await response.json();
+
+              if (!result.success) {
+                logMessage_Error('检查UUID失败:', result.message);
+                hideLoadingOverlays();
+
+                // showUserFriendlyError('会话验证失败', result.message, true);
+                // // 跳转到无UUID网址
+                // setTimeout(() => {
+                //   window.location.href = '/';
+                // }, 2000);
+
+                let message = "无法通过UUID判断会话列席\n将跳转到登录页面"
+                if (result.message !== '') {
+                  message = "无法通过UUID判断会话列席\n" + result.message + "\n将跳转到登录页面"
+                }
+
+                Swal.fire({
+                  title: '无效的会话类型', // 弹窗标题
+                  text: message, // 弹窗消息
+                  icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+                  confirmButtonText: '确定' // 按钮文字
+                }).then(() => {
+                  // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+                  logMessage_Info('用户确认检查UUID失败弹窗，正在跳转到登录页面...');
+                  window.location.href = '/'; // 执行跳转
+                });
+
+                return;
+              }
+            } catch (e) {
+              logMessage_Error('检查UUID请求失败:', e);
+              throw e;
             }
             $('loading-overlay').classList.remove('hidden');
-
-            if (result.uuid_type === 'guest') {
-              // 游客UUID - 直接恢复会话
-              logMessage_Info('检测到游客UUID，直接恢复会话');
-              hideLoadingOverlays(); // 确保隐藏加载遮挡
-              // UUID存在，显示移动端导航
-              if (isMobileMode) {
-                const mobileHeader = document.getElementById('mobile-header');
-                const mobileBottomNavSingle = document.getElementById('mobile-bottom-nav-single-account');
-                if (mobileHeader) {
-                  mobileHeader.classList.remove('hidden');
-                  mobileHeader.style.display = ''; // 移除内联样式
+            try {
+              if (result.uuid_type === 'guest') {
+                try {
+                  // 游客UUID - 直接恢复会话
+                  logMessage_Info('检测到游客UUID，直接恢复会话');
+                  hideLoadingOverlays(); // 确保隐藏加载遮挡
+                  // UUID存在，显示移动端导航
+                  if (isMobileMode) {
+                    const mobileHeader = document.getElementById('mobile-header');
+                    const mobileBottomNavSingle = document.getElementById('mobile-bottom-nav-single-account');
+                    if (mobileHeader) {
+                      mobileHeader.classList.remove('hidden');
+                      mobileHeader.style.display = ''; // 移除内联样式
+                    }
+                    if (mobileBottomNavSingle) {
+                      mobileBottomNavSingle.classList.remove('hidden');
+                      mobileBottomNavSingle.style.display = ''; // 移除内联样式
+                    }
+                  }
+                } catch (e) {
+                  logMessage_Error('处理游客UUID失败:', e);
+                  throw e;
                 }
-                if (mobileBottomNavSingle) {
-                  mobileBottomNavSingle.classList.remove('hidden');
-                  mobileBottomNavSingle.style.display = ''; // 移除内联样式
+                // 继续正常初始化流程
+              } else if (result.uuid_type === 'system_account') {
+                try {
+                  // 系统账号UUID - 允许访问，后端会在API调用时验证token
+                  // 注意：auth_token是httponly cookie，JavaScript无法访问，所以前端不做检查
+                  logMessage_Info('检测到系统账号UUID，允许访问（后端将验证token）');
+                  hideLoadingOverlays(); // 确保隐藏加载遮挡
+                  // UUID存在，显示移动端导航
+                  if (isMobileMode) {
+                    const mobileHeader = document.getElementById('mobile-header');
+                    const mobileBottomNavSingle = document.getElementById('mobile-bottom-nav-single-account');
+                    if (mobileHeader) {
+                      mobileHeader.classList.remove('hidden');
+                      mobileHeader.style.display = ''; // 移除内联样式
+                    }
+                    if (mobileBottomNavSingle) {
+                      mobileBottomNavSingle.classList.remove('hidden');
+                      mobileBottomNavSingle.style.display = ''; // 移除内联样式
+                    }
+                  }
+                  // 继续正常初始化流程
+                } catch (e) {
+                  logMessage_Error('处理系统账号UUID失败:', e);
+                  throw e;
+                }
+                // 如果token无效或过期，后端API调用会返回401错误，前端会处理并重定向到登录
+              } else {
+                // 未知UUID - 弹窗提示后跳转到无UUID网址
+                try {
+                  logMessage_Info('检测到未知UUID，准备弹窗提示后跳转到登录页面');
+
+                  // 强制设置背景、居中并禁用输入框
+                  const loginContainer = document.getElementById('login-container');
+                  const mainApp = document.getElementById('main-app');
+                  const multiApp = document.getElementById('multi-account-app');
+                  const authContainer = document.getElementById('auth-login-container');
+
+                  // 1. 强制隐藏其他容器
+                  if (loginContainer) loginContainer.classList.add('hidden');
+                  if (mainApp) mainApp.classList.add('hidden');
+                  if (multiApp) multiApp.classList.add('hidden');
+
+                  // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
+                  if (authContainer) {
+                    authContainer.classList.remove('hidden');
+                    // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
+                    authContainer.classList.remove('h-full', 'w-full');
+                    // 添加 fixed 定位覆盖全屏和 flex 居中
+                    authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
+                    // 确保背景可见（有时需要 z-index，但通常不需要）
+                    // authContainer.style.zIndex = '10'; // 一般不需要
+                  }
+
+                  // 3. 禁用 auth-login-container 内的输入框
+                  const inputsToDisable = [
+                    'auth-username',
+                    'auth-password',
+                    'auth-reg-username',
+                    'auth-reg-password',
+                    'auth-reg-password-confirm'
+                  ];
+                  inputsToDisable.forEach(inputId => {
+                    const inputElement = document.getElementById(inputId);
+                    if (inputElement) {
+                      inputElement.disabled = true;
+                      // 可选：添加视觉提示，例如降低透明度
+                      // inputElement.style.opacity = '0.7';
+                      // inputElement.style.cursor = 'not-allowed';
+                    }
+                  });
+
+                  if (authContainer) authContainer.classList.remove('hidden');
+                  // Swal.fire会返回一个Promise对象，在用户关闭提示弹窗后该Promise会被解析
+                  Swal.fire({
+                    title: '会话不存在', // 弹窗标题
+                    text: '该会话已过期或不存在，请重新登录', // 弹窗消息
+                    icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
+                    confirmButtonText: '确定' // 按钮文字
+                  }).then(() => {
+                    // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
+                    logMessage_Info('用户确认弹窗，正在跳转到登录页面...');
+                    window.location.href = '/';
+                  });
+                  return;
+                } catch (e) {
+                  logMessage_Error('处理未知UUID失败:', e);
+                  throw e;
                 }
               }
-              // 继续正常初始化流程
-            } else if (result.uuid_type === 'system_account') {
-              // 系统账号UUID - 允许访问，后端会在API调用时验证token
-              // 注意：auth_token是httponly cookie，JavaScript无法访问，所以前端不做检查
-              logMessage_Info('检测到系统账号UUID，允许访问（后端将验证token）');
-              hideLoadingOverlays(); // 确保隐藏加载遮挡
-              // UUID存在，显示移动端导航
-              if (isMobileMode) {
-                const mobileHeader = document.getElementById('mobile-header');
-                const mobileBottomNavSingle = document.getElementById('mobile-bottom-nav-single-account');
-                if (mobileHeader) {
-                  mobileHeader.classList.remove('hidden');
-                  mobileHeader.style.display = ''; // 移除内联样式
-                }
-                if (mobileBottomNavSingle) {
-                  mobileBottomNavSingle.classList.remove('hidden');
-                  mobileBottomNav.style.display = ''; // 移除内联样式
-                }
-              }
-              // 继续正常初始化流程
-              // 如果token无效或过期，后端API调用会返回401错误，前端会处理并重定向到登录
-            } else {
-              // 未知UUID - 弹窗提示后跳转到无UUID网址
-              logMessage_Info('检测到未知UUID，准备弹窗提示后跳转到登录页面');
-
-              // 强制设置背景、居中并禁用输入框
-              const loginContainer = document.getElementById('login-container');
-              const mainApp = document.getElementById('main-app');
-              const multiApp = document.getElementById('multi-account-app');
-              const authContainer = document.getElementById('auth-login-container');
-
-              // 1. 强制隐藏其他容器
-              if (loginContainer) loginContainer.classList.add('hidden');
-              if (mainApp) mainApp.classList.add('hidden');
-              if (multiApp) multiApp.classList.add('hidden');
-
-              // 2. 强制显示并使用 fixed 定位和 flex 居中 auth-login-container
-              if (authContainer) {
-                authContainer.classList.remove('hidden');
-                // 移除可能冲突的 h-full, w-full (如果HTML结构中有的话)
-                authContainer.classList.remove('h-full', 'w-full');
-                // 添加 fixed 定位覆盖全屏和 flex 居中
-                authContainer.classList.add('fixed', 'inset-0', 'flex', 'items-center', 'justify-center');
-                // 确保背景可见（有时需要 z-index，但通常不需要）
-                // authContainer.style.zIndex = '10'; // 一般不需要
-              }
-
-              // 3. 禁用 auth-login-container 内的输入框
-              const inputsToDisable = [
-                'auth-username',
-                'auth-password',
-                'auth-reg-username',
-                'auth-reg-password',
-                'auth-reg-password-confirm'
-              ];
-              inputsToDisable.forEach(inputId => {
-                const inputElement = document.getElementById(inputId);
-                if (inputElement) {
-                  inputElement.disabled = true;
-                  // 可选：添加视觉提示，例如降低透明度
-                  // inputElement.style.opacity = '0.7';
-                  // inputElement.style.cursor = 'not-allowed';
-                }
-              });
-
-              if (authContainer) authContainer.classList.remove('hidden');
-              // Swal.fire会返回一个Promise对象，在用户关闭提示弹窗后该Promise会被解析
-              Swal.fire({
-                title: '会话不存在', // 弹窗标题
-                text: '该会话已过期或不存在，请重新登录', // 弹窗消息
-                icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-                confirmButtonText: '确定' // 按钮文字
-              }).then(() => {
-                // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
-                logMessage_Info('用户确认弹窗，正在跳转到登录页面...');
-                window.location.href = '/';
-              });
-              return;
+            } catch (e) {
+              logMessage_Error('处理UUID类型失败:', e);
+              throw e;
             }
           } catch (e) {
             logMessage_Error('检查UUID类型失败:', e);
@@ -18176,23 +18337,28 @@
       }
     }
 
-    function logMessage_Debug(msg) {
+    function logMessage_Debug(...args) {
+      const msg = args.join(' ');
       logMessage(msg, 'DEBUG');
     }
 
-    function logMessage_Info(msg) {
+    function logMessage_Info(...args) {
+      const msg = args.join(' ');
       logMessage(msg, 'INFO');
     }
 
-    function logMessage_Warning(msg) {
+    function logMessage_Warning(...args) {
+      const msg = args.join(' ');
       logMessage(msg, 'WARNING');
     }
 
-    function logMessage_Error(msg) {
+    function logMessage_Error(...args) {
+      const msg = args.join(' ');
       logMessage(msg, 'ERROR');
     }
 
-    function logMessage_Critical(msg) {
+    function logMessage_Critical(...args) {
+      const msg = args.join(' ');
       logMessage(msg, 'CRITICAL');
     }
 
