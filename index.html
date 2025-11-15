@@ -8941,12 +8941,16 @@ function run_code_not_need_sessionuuid(codeToRun) {
           // 使用innerHTML直接插入HTML（包含img标签）
           displayElement.innerHTML = result.html;
           
-          // 为验证码图片添加样式，确保完整显示
+          // 为验证码图片添加样式，等比例缩放
           const imgElement = displayElement.querySelector('img');
           if (imgElement) {
-            imgElement.style.width = '100%';
-            imgElement.style.height = '100%';
+            // 使用max-width和max-height来限制图片大小，同时保持原始宽高比
+            imgElement.style.maxWidth = '100%';
+            imgElement.style.maxHeight = '100%';
+            imgElement.style.width = 'auto';
+            imgElement.style.height = 'auto';
             imgElement.style.objectFit = 'contain';  // 保持比例，完整显示
+            imgElement.style.imageRendering = 'crisp-edges';  // 优化图片渲染，避免模糊
           }
           
           console.log(`[验证码] ${formType}表单验证码加载成功`);
