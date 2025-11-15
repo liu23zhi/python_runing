@@ -5742,10 +5742,12 @@
         // === 移动端模式 ===
         console.log('[UI切换] 切换到移动端模式');
 
-        // 【需求2修复】在隐藏桌面端之前，先检查哪个登录容器当前可见
-        // 这样可以在切换到移动端时显示对应的移动端登录容器
+        // 【需求2修复】在隐藏桌面端之前，先检查哪个容器当前可见
+        // 这样可以在切换到移动端时显示对应的移动端容器
         const desktopLoginVisible = !$('login-container').classList.contains('hidden');
         const desktopAuthVisible = !$('auth-login-container').classList.contains('hidden');
+        const desktopMainAppVisible = !$('main-app').classList.contains('hidden');
+        const desktopMultiAccountVisible = !$('multi-account-app').classList.contains('hidden');
 
         // 显示移动端容器
         mobileContainer.style.display = 'block';
@@ -5768,16 +5770,32 @@
           }
         });
 
-        // 【需求2修复】根据PC端当前显示的登录容器，显示对应的移动端登录容器
-        if (desktopLoginVisible) {
+        // 【修复】先隐藏所有移动端容器
+        $('mobile-login-container').classList.add('hidden');
+        $('mobile-auth-login-container').classList.add('hidden');
+        $('mobile-main-app').classList.add('hidden');
+        $('mobile-multi-account-app').classList.add('hidden');
+
+        // 【需求2修复】根据PC端当前显示的容器，显示对应的移动端容器
+        if (desktopMainAppVisible) {
+          // PC端显示main-app，则移动端显示mobile-main-app
+          $('mobile-main-app').classList.remove('hidden');
+          updateMobileNavVisibility(true, 'single');
+          console.log('[UI切换] PC端main-app可见，显示移动端mobile-main-app');
+        } else if (desktopMultiAccountVisible) {
+          // PC端显示multi-account-app，则移动端显示mobile-multi-account-app
+          $('mobile-multi-account-app').classList.remove('hidden');
+          updateMobileNavVisibility(true, 'multi');
+          console.log('[UI切换] PC端multi-account-app可见，显示移动端mobile-multi-account-app');
+        } else if (desktopLoginVisible) {
           // PC端显示login-container，则移动端显示mobile-login-container
           $('mobile-login-container').classList.remove('hidden');
-          $('mobile-auth-login-container').classList.add('hidden');
+          updateMobileNavVisibility(false);
           console.log('[UI切换] PC端login-container可见，显示移动端mobile-login-container');
         } else if (desktopAuthVisible) {
           // PC端显示auth-login-container，则移动端显示mobile-auth-login-container
           $('mobile-auth-login-container').classList.remove('hidden');
-          $('mobile-login-container').classList.add('hidden');
+          updateMobileNavVisibility(false);
           console.log('[UI切换] PC端auth-login-container可见，显示移动端mobile-auth-login-container');
         }
 
@@ -5802,10 +5820,12 @@
         // === 桌面端模式 ===
         console.log('[UI切换] 切换到桌面端模式');
 
-        // 【需求2修复】在隐藏移动端之前，先检查哪个登录容器当前可见
-        // 这样可以在切换到PC端时显示对应的PC端登录容器
+        // 【需求2修复】在隐藏移动端之前，先检查哪个容器当前可见
+        // 这样可以在切换到PC端时显示对应的PC端容器
         const mobileLoginVisible = !$('mobile-login-container').classList.contains('hidden');
         const mobileAuthVisible = !$('mobile-auth-login-container').classList.contains('hidden');
+        const mobileMainAppVisible = !$('mobile-main-app').classList.contains('hidden');
+        const mobileMultiAccountVisible = !$('mobile-multi-account-app').classList.contains('hidden');
 
         // 隐藏移动端容器
         mobileContainer.style.display = 'none';
@@ -5832,16 +5852,30 @@
           }
         });
 
-        // 【需求2修复】根据移动端当前显示的登录容器，显示对应的PC端登录容器
-        if (mobileLoginVisible) {
+        // 【修复】先隐藏所有桌面端容器
+        $('login-container').classList.add('hidden');
+        $('auth-login-container').classList.add('hidden');
+        $('main-app').classList.add('hidden');
+        $('multi-account-app').classList.add('hidden');
+
+        // 【需求2修复】根据移动端当前显示的容器，显示对应的PC端容器
+        if (mobileMainAppVisible) {
+          // 移动端显示mobile-main-app，则PC端显示main-app
+          $('main-app').classList.remove('hidden');
+          $('main-app').classList.add('grid');
+          console.log('[UI切换] 移动端mobile-main-app可见，显示PC端main-app');
+        } else if (mobileMultiAccountVisible) {
+          // 移动端显示mobile-multi-account-app，则PC端显示multi-account-app
+          $('multi-account-app').classList.remove('hidden');
+          $('multi-account-app').classList.add('grid');
+          console.log('[UI切换] 移动端mobile-multi-account-app可见，显示PC端multi-account-app');
+        } else if (mobileLoginVisible) {
           // 移动端显示mobile-login-container，则PC端显示login-container
           $('login-container').classList.remove('hidden');
-          $('auth-login-container').classList.add('hidden');
           console.log('[UI切换] 移动端mobile-login-container可见，显示PC端login-container');
         } else if (mobileAuthVisible) {
           // 移动端显示mobile-auth-login-container，则PC端显示auth-login-container
           $('auth-login-container').classList.remove('hidden');
-          $('login-container').classList.add('hidden');
           console.log('[UI切换] 移动端mobile-auth-login-container可见，显示PC端auth-login-container');
         }
 
@@ -6448,8 +6482,16 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // === 12. 绑定移动端多账号模式按钮 ===
       const mobileMultiAccountBtn = document.getElementById('mobile-multi-account-btn');
       if (mobileMultiAccountBtn) {
-        mobileMultiAccountBtn.addEventListener('click', function () {
+        mobileMultiAccountBtn.addEventListener('click', async function () {
           console.log('[移动端UI] 多账号模式按钮点击');
+          
+          // 调用API进入多账号模式
+          const result = await callPythonAPI('enter_multi_account_mode');
+          if (!result.success) {
+            showModalAlert('进入多账号模式失败', '错误');
+            return;
+          }
+          
           // 隐藏登录容器，显示多账号应用
           const mobileLoginContainer = document.getElementById('mobile-login-container');
           const mobileMultiApp = document.getElementById('mobile-multi-account-app');
@@ -20134,7 +20176,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
     /**
      * 退出移动端多账号模式，返回首页
      */
-    function exitMobileMultiAccount() {
+    async function exitMobileMultiAccount() {
+      // 调用API退出多账号模式
+      await callPythonAPI('exit_multi_account_mode');
+      
       // 隐藏多账号界面
       document.getElementById('mobile-multi-account-app').classList.add('hidden');
       // 显示登录容器
@@ -20252,6 +20297,14 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 该模态框用于显示当前登录用户的详细信息
      */
     function toggleMobileUserDetails(show) {
+      // 检查当前是否为移动端模式
+      // 如果是桌面端模式，则显示桌面端的user-details-modal
+      if (!isMobileMode) {
+        // 在桌面端模式下，使用PC版本的toggleUserDetails函数
+        toggleUserDetails(show);
+        return;
+      }
+      
       // 获取移动端用户详情模态框元素
       const modal = document.getElementById('mobile-user-details-modal');
 
