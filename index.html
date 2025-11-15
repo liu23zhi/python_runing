@@ -2082,20 +2082,22 @@
         <!-- 验证码区域 -->
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+          <!-- 验证码显示区域（独立一行） -->
           <div class="flex gap-2 mt-1 items-center">
-            <!-- 验证码显示区域 -->
-            <div id="auth-login-captcha-display" class="flex-shrink-0 w-40 h-14 flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
-              title="点击刷新验证码" style="min-height: 56px;">
+            <div id="auth-login-captcha-display" class="flex-shrink-0 w-full h-16 flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+              title="点击刷新验证码" style="min-height: 64px;">
               <span class="text-slate-400 text-xs">加载中...</span>
             </div>
-            <!-- 验证码输入框 -->
-            <input type="text" id="auth-login-captcha" class="input-field flex-1" placeholder="请输入验证码" maxlength="6" autocomplete="off">
             <!-- 刷新按钮 -->
             <button type="button" id="auth-login-captcha-refresh" class="btn btn-ghost !p-2" title="刷新验证码">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
+          </div>
+          <!-- 验证码输入框（单独一行） -->
+          <div class="mt-2">
+            <input type="text" id="auth-login-captcha" class="input-field w-full" placeholder="请输入验证码" maxlength="6" autocomplete="off">
           </div>
         </div>
 
@@ -2203,20 +2205,22 @@
         <!-- 验证码区域 -->
         <div>
           <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
+          <!-- 验证码显示区域（独立一行） -->
           <div class="flex gap-2 mt-1 items-center">
-            <!-- 验证码显示区域 -->
-            <div id="auth-register-captcha-display" class="flex-shrink-0 w-40 h-14 flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
-              title="点击刷新验证码" style="min-height: 56px;">
+            <div id="auth-register-captcha-display" class="flex-shrink-0 w-full h-16 flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+              title="点击刷新验证码" style="min-height: 64px;">
               <span class="text-slate-400 text-xs">加载中...</span>
             </div>
-            <!-- 验证码输入框 -->
-            <input type="text" id="auth-register-captcha" class="input-field flex-1" placeholder="请输入验证码" maxlength="6" autocomplete="off">
             <!-- 刷新按钮 -->
             <button type="button" id="auth-register-captcha-refresh" class="btn btn-ghost !p-2" title="刷新验证码">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>
+          </div>
+          <!-- 验证码输入框（单独一行） -->
+          <div class="mt-2">
+            <input type="text" id="auth-register-captcha" class="input-field w-full" placeholder="请输入验证码" maxlength="6" autocomplete="off">
           </div>
         </div>
 
