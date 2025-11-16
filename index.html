@@ -19953,11 +19953,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
         // 3. isInTargetZone === true: 当前位置确实在目标区域内
         const inLastZone = totalTargets > 0 && currentRunData.target_sequence >= totalTargets && currentRunData.isInTargetZone === true;
         if (inLastZone) { 
-          // 【修复问题1】：移除重复的set_draft_path调用
-          // 原代码：callPythonAPI('set_draft_path', draftPath).then(() => processCurrentPath())
-          // 问题原因：processCurrentPath()内部已经会调用set_draft_path，这里重复调用可能导致异步竞争
-          // 修复方案：直接调用processCurrentPath()，它会在内部先设置草稿路径，再处理路径
-          if (draftPath.length > 0) processCurrentPath(); 
+          // 【修复问题1】：录制完成后立即调用set_draft_path，然后处理路径
+          // 修复方案：先调用set_draft_path保存草稿路径，等待完成后再调用processCurrentPath处理路径
+          // 注意：使用await确保set_draft_path完成后再调用processCurrentPath()
+          if (draftPath.length > 0) {
+            callPythonAPI('set_draft_path', draftPath).then(() => processCurrentPath());
+          }
         }
         else { 
           // 如果未达到最后打卡点就结束录制，则舍弃这次录制的路径
@@ -19999,17 +20000,13 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 【关键函数】此函数负责将用户手动录制的路径点转换为模拟的运动轨迹
      * 
      * 执行流程：
-     * 1. 首先将draftPath（前端草稿路径）发送到后端保存
-     * 2. 调用后端的process_path API进行路径处理（添加时间戳、随机偏移等）
-     * 3. 将处理后的路径更新到当前任务数据中
-     * 4. 更新地图显示和UI界面
+     * 1. 调用后端的process_path API进行路径处理（添加时间戳、随机偏移等）
+     *    注意：草稿路径应该在调用此函数之前已经通过set_draft_path保存到后端
+     * 2. 将处理后的路径更新到当前任务数据中
+     * 3. 更新地图显示和UI界面
      */
     async function processCurrentPath() {
-      // 步骤1：如果存在草稿路径，先将其发送到后端保存
-      // 这里使用await确保set_draft_path完成后再继续执行，避免process_path时草稿路径还未设置
-      if (draftPath.length > 0) await callPythonAPI('set_draft_path', draftPath);
-      
-      // 步骤2：调用后端API处理路径
+      // 步骤1：调用后端API处理路径
       // 后端会检查draft_coords是否有效（至少2个点），并进行以下处理：
       // - 在路径点之间插值生成更多中间点
       // - 为每个点添加时间戳
@@ -20017,18 +20014,18 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const result = await callPythonAPI('process_path');
       
       if (result.success) {
-        // 步骤3：更新当前任务的运动路径数据
+        // 步骤2：更新当前任务的运动路径数据
         currentRunData.run_coords = result.run_coords;  // 处理后的GPS坐标序列
         currentRunData.total_run_distance_m = result.total_dist;  // 总距离（米）
         currentRunData.total_run_time_s = result.total_time;  // 总时长（秒）
         
-        // 步骤4：更新UI显示
+        // 步骤3：更新UI显示
         drawOnMap();  // 重新绘制地图上的路径和标记
         updateDashboard();  // 更新仪表盘信息
         renderTaskList();  // 更新任务列表
         discardBlackDraftPolyline();  // 清除草稿路径的临时显示
         
-        // 步骤5：重置单任务进度追踪
+        // 步骤4：重置单任务进度追踪
         // 处理路径后同步总点数并复位进度，为后续执行做准备
         singleProcessedPoints = 0;  // 已处理的点数归零
         singleTotalPoints = (currentRunData.run_coords?.length || 0);  // 记录总点数
