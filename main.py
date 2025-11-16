@@ -1434,6 +1434,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
+                    "view_captcha_history": True
                 }
             },
             "super_admin": {
@@ -1487,6 +1488,7 @@ def _create_permissions_json():
                     "modify_params": True,
                     "manage_own_sessions": True,
                     "manage_user_sessions": True,
+                    "view_captcha_history": True,
                     "view_session_details": True,
                     "god_mode": True,  # 上帝模式：可以查看和销毁所有会话
 
@@ -15176,6 +15178,146 @@ def start_web_server(args_param):
             app.logger.error(f"[短信回复] 处理异常：{str(e)}")
             return "0"  # 即使出错也返回0，避免短信宝重复推送
 
+    @app.route('/api/sms/test_send', methods=['POST'])
+    @login_required
+    def sms_test_send():
+        """
+        短信测试发送API（管理员专用）
+        功能：向指定手机号发送验证码（可指定或随机），用于测试短信配置是否正确
+        
+        权限要求：仅管理员可调用
+        
+        请求参数：
+        - phone: 手机号（必填）
+        - code: 验证码（可选，不填则自动生成随机验证码）
+        
+        返回：
+        - success: 是否成功
+        - message: 提示信息
+        - code: 发送的验证码（仅测试模式下返回，便于管理员验证）
+        """
+        try:
+            # 1. 验证管理员权限
+            current_user = g.user
+            if not auth_system.is_super_admin(current_user) and not auth_system.is_admin(current_user):
+                return jsonify({"success": False, "message": "权限不足，仅管理员可使用测试功能"}), 403
+            
+            # 2. 检查短信服务总开关
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "短信服务未启用，请先在配置中启用"})
+            
+            # 3. 获取并验证手机号
+            data = request.get_json() or {}
+            phone = data.get('phone', '').strip()
+            custom_code = data.get('code', '').strip()  # 获取自定义验证码（可选）
+            
+            # 验证手机号格式（11位数字，1开头）
+            if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+            # 4. 生成或使用自定义验证码
+            if custom_code:
+                # 使用管理员指定的验证码
+                # 验证码格式检查：只允许数字，长度4-8位
+                if not re.match(r'^\d{4,8}$', custom_code):
+                    return jsonify({"success": False, "message": "自定义验证码格式不正确，仅支持4-8位数字"})
+                code = custom_code
+            else:
+                # 生成6位随机验证码
+                import random
+                code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            
+            # 5. 读取短信宝配置
+            username = config.get('SMS_Service_SMSBao', 'username', fallback='')
+            api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
+            signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【电科大跑步助手】')
+            code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+            
+            if not username or not api_key:
+                return jsonify({"success": False, "message": "短信服务配置不完整，请先完善短信宝用户名和API Key"})
+            
+            # 6. 构造测试短信内容
+            content = signature + f'【测试短信】您的验证码是：{code}，{code_expire_minutes}分钟内有效。这是一条测试短信。'
+            
+            # 7. 调用短信宝API发送短信
+            import urllib.parse
+            import urllib.request
+            url = f"http://api.smsbao.com/sms?u={username}&p={api_key}&m={phone}&c={urllib.parse.quote(content)}"
+            
+            logging.info(f"[短信测试] 管理员 {current_user} 发送测试短信到 {phone}")
+            
+            try:
+                response = urllib.request.urlopen(url, timeout=10)
+                result = response.read().decode('utf-8').strip()
+                
+                # 短信宝返回码：0=成功，其他为错误码
+                if result == '0':
+                    # 记录到短信发送历史
+                    try:
+                        log_dir = LOGIN_LOGS_DIR
+                        os.makedirs(log_dir, exist_ok=True)
+                        
+                        client_ip = request.remote_addr
+                        history_entry = {
+                            'username': f"{current_user}(测试)",
+                            'phone': phone,
+                            'scene': 'admin_test',
+                            'timestamp': time.time(),
+                            'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+                            'content': content,
+                            'ip': client_ip,
+                            'test_code': code  # 测试模式下记录验证码
+                        }
+                        
+                        history_file = os.path.join(log_dir, 'sms_history.jsonl')
+                        with open(history_file, 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
+                        
+                        logging.info(f"[短信测试] 已记录测试短信历史: {phone} -> 验证码: {code}")
+                    except Exception as e:
+                        logging.error(f"[短信测试] 记录历史失败: {str(e)}")
+                    
+                    # 测试模式下返回验证码，便于管理员验证
+                    return jsonify({
+                        "success": True,
+                        "message": f"测试短信发送成功！验证码：{code}",
+                        "code": code,  # 仅测试模式下返回
+                        "phone": phone
+                    })
+                else:
+                    # 短信宝错误码映射
+                    error_map = {
+                        '30': '密码错误',
+                        '40': '账号不存在',
+                        '41': '余额不足',
+                        '42': '账户已过期',
+                        '43': 'IP地址限制',
+                        '50': '内容含有敏感词'
+                    }
+                    error_msg = error_map.get(result, f'未知错误(错误码:{result})')
+                    logging.error(f"[短信测试] 短信宝API返回错误: {result} - {error_msg}")
+                    return jsonify({
+                        "success": False,
+                        "message": f"发送失败：{error_msg}",
+                        "error_code": result
+                    })
+                    
+            except Exception as e:
+                logging.error(f"[短信测试] API调用异常: {str(e)}", exc_info=True)
+                return jsonify({
+                    "success": False,
+                    "message": f"网络错误：{str(e)}"
+                })
+                
+        except Exception as e:
+            logging.error(f"[短信测试] 处理请求异常: {str(e)}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"处理失败：{str(e)}"
+            })
+
     # ====================
     # 管理员日志查看API
     # ====================
@@ -17965,6 +18107,568 @@ def start_web_server(args_param):
             })
 
     # ============================================================
+    # 定时提醒功能API
+    # 用于管理定时提醒，在特定时间段弹出提示
+    # ============================================================
+    
+    @app.route('/api/reminders/list', methods=['GET'])
+    def get_reminders_list():
+        """
+        获取所有提醒列表
+        
+        功能说明:
+            - 读取reminders.json文件中的所有提醒数据
+            - 返回提醒列表供前端显示
+            - 仅管理员有权查看和管理提醒
+        
+        返回格式:
+            {
+                "success": True/False,
+                "reminders": [提醒对象列表],
+                "message": "错误消息（仅失败时）"
+            }
+        
+        提醒对象格式:
+            {
+                "id": "唯一标识符",
+                "title": "提醒标题",
+                "message": "提醒内容",
+                "start_time": "开始时间 HH:MM",
+                "end_time": "结束时间 HH:MM",
+                "enabled": true/false,
+                "created_at": 创建时间戳,
+                "updated_at": 更新时间戳
+            }
+        """
+        # 从请求头获取session_id，进行权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 验证session_id是否存在且有效
+        if not session_id or session_id not in web_sessions:
+            return jsonify({
+                "success": False,
+                "message": "未授权访问，请先登录"
+            }), 401
+        
+        # 获取当前用户的认证信息
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查用户权限：只有管理员可以管理提醒
+        # 使用auth_system检查用户是否有管理员权限
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            # 这里使用view_logs权限作为管理员判断依据
+            # 您也可以添加专门的'manage_reminders'权限
+            return jsonify({
+                "success": False,
+                "message": "权限不足，仅管理员可以管理提醒"
+            }), 403
+        
+        try:
+            # 定义提醒数据文件路径
+            reminders_file = 'reminders.json'
+            
+            # 初始化提醒列表
+            reminders = []
+            
+            # 检查文件是否存在
+            if os.path.exists(reminders_file):
+                # 读取JSON文件
+                with open(reminders_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # 从JSON中提取reminders数组
+                    reminders = data.get('reminders', [])
+            
+            # 按创建时间倒序排序（最新的在前）
+            reminders.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+            
+            # 记录日志
+            logging.info(f"[定时提醒] 用户 {auth_username} 获取提醒列表，共 {len(reminders)} 条")
+            
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "reminders": reminders
+            })
+            
+        except json.JSONDecodeError as e:
+            # JSON解析错误
+            logging.error(f"[定时提醒] JSON解析失败: {e}")
+            return jsonify({
+                "success": False,
+                "message": "提醒数据文件格式错误"
+            }), 500
+            
+        except Exception as e:
+            # 其他异常
+            logging.error(f"[定时提醒] 获取提醒列表失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"获取提醒列表失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/add', methods=['POST'])
+    def add_reminder():
+        """
+        添加新提醒
+        
+        请求体:
+            {
+                "title": "提醒标题",
+                "message": "提醒内容",
+                "start_time": "19:00",
+                "end_time": "20:00",
+                "enabled": true
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "操作结果消息",
+                "reminder_id": "新创建的提醒ID（成功时）"
+            }
+        
+        验证规则:
+            - 标题和内容不能为空
+            - 时间格式必须为 HH:MM（24小时制）
+            - 标题长度不超过50字符
+            - 内容长度不超过500字符
+        """
+        # 权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查管理员权限
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        try:
+            # 获取请求数据
+            data = request.get_json() or {}
+            title = data.get('title', '').strip()
+            message = data.get('message', '').strip()
+            start_time = data.get('start_time', '').strip()
+            end_time = data.get('end_time', '').strip()
+            enabled = data.get('enabled', True)
+            
+            # ===== 数据验证 =====
+            
+            # 验证标题
+            if not title:
+                return jsonify({"success": False, "message": "提醒标题不能为空"})
+            if len(title) > 50:
+                return jsonify({"success": False, "message": "提醒标题不能超过50个字符"})
+            
+            # 验证内容
+            if not message:
+                return jsonify({"success": False, "message": "提醒内容不能为空"})
+            if len(message) > 500:
+                return jsonify({"success": False, "message": "提醒内容不能超过500个字符"})
+            
+            # 验证时间格式（HH:MM）
+            time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+            if not time_pattern.match(start_time):
+                return jsonify({"success": False, "message": "开始时间格式错误，应为 HH:MM（如 19:00）"})
+            if not time_pattern.match(end_time):
+                return jsonify({"success": False, "message": "结束时间格式错误，应为 HH:MM（如 20:00）"})
+            
+            # 验证enabled字段类型
+            if not isinstance(enabled, bool):
+                enabled = bool(enabled)
+            
+            # ===== 创建提醒对象 =====
+            
+            # 生成唯一ID
+            reminder_id = str(uuid.uuid4())
+            current_timestamp = time.time()
+            
+            # 构建提醒对象
+            new_reminder = {
+                "id": reminder_id,
+                "title": title,
+                "message": message,
+                "start_time": start_time,
+                "end_time": end_time,
+                "enabled": enabled,
+                "created_at": current_timestamp,
+                "updated_at": current_timestamp
+            }
+            
+            # ===== 保存到文件 =====
+            
+            reminders_file = 'reminders.json'
+            reminders = []
+            
+            # 读取现有提醒
+            if os.path.exists(reminders_file):
+                try:
+                    with open(reminders_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        reminders = data.get('reminders', [])
+                except (json.JSONDecodeError, OSError):
+                    # 文件损坏，使用空列表
+                    reminders = []
+            
+            # 添加新提醒到列表
+            reminders.append(new_reminder)
+            
+            # 写入文件
+            with open(reminders_file, 'w', encoding='utf-8') as f:
+                json.dump({"reminders": reminders}, f, indent=2, ensure_ascii=False)
+            
+            # 记录日志
+            logging.info(f"[定时提醒] 用户 {auth_username} 添加提醒: {title} ({start_time}-{end_time})")
+            
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "提醒添加成功",
+                "reminder_id": reminder_id
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 添加提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"添加提醒失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/update', methods=['POST'])
+    def update_reminder():
+        """
+        更新现有提醒
+        
+        请求体:
+            {
+                "id": "提醒ID",
+                "title": "新标题",
+                "message": "新内容",
+                "start_time": "19:00",
+                "end_time": "20:00",
+                "enabled": true
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "操作结果消息"
+            }
+        
+        说明:
+            - 必须提供提醒ID
+            - 其他字段可选，未提供的字段保持原值
+            - 更新updated_at时间戳
+        """
+        # 权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        try:
+            # 获取请求数据
+            data = request.get_json() or {}
+            reminder_id = data.get('id', '').strip()
+            
+            # 验证ID
+            if not reminder_id:
+                return jsonify({"success": False, "message": "提醒ID不能为空"})
+            
+            # 读取现有提醒
+            reminders_file = 'reminders.json'
+            if not os.path.exists(reminders_file):
+                return jsonify({"success": False, "message": "提醒文件不存在"}), 404
+            
+            with open(reminders_file, 'r', encoding='utf-8') as f:
+                reminders_data = json.load(f)
+                reminders = reminders_data.get('reminders', [])
+            
+            # 查找要更新的提醒
+            reminder_found = False
+            for reminder in reminders:
+                if reminder.get('id') == reminder_id:
+                    reminder_found = True
+                    
+                    # 更新字段（如果提供了新值）
+                    if 'title' in data:
+                        title = data['title'].strip()
+                        if not title:
+                            return jsonify({"success": False, "message": "标题不能为空"})
+                        if len(title) > 50:
+                            return jsonify({"success": False, "message": "标题不能超过50个字符"})
+                        reminder['title'] = title
+                    
+                    if 'message' in data:
+                        message = data['message'].strip()
+                        if not message:
+                            return jsonify({"success": False, "message": "内容不能为空"})
+                        if len(message) > 500:
+                            return jsonify({"success": False, "message": "内容不能超过500个字符"})
+                        reminder['message'] = message
+                    
+                    if 'start_time' in data:
+                        start_time = data['start_time'].strip()
+                        time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+                        if not time_pattern.match(start_time):
+                            return jsonify({"success": False, "message": "开始时间格式错误"})
+                        reminder['start_time'] = start_time
+                    
+                    if 'end_time' in data:
+                        end_time = data['end_time'].strip()
+                        time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+                        if not time_pattern.match(end_time):
+                            return jsonify({"success": False, "message": "结束时间格式错误"})
+                        reminder['end_time'] = end_time
+                    
+                    if 'enabled' in data:
+                        reminder['enabled'] = bool(data['enabled'])
+                    
+                    # 更新时间戳
+                    reminder['updated_at'] = time.time()
+                    
+                    break
+            
+            if not reminder_found:
+                return jsonify({"success": False, "message": "提醒不存在"}), 404
+            
+            # 保存更新后的数据
+            with open(reminders_file, 'w', encoding='utf-8') as f:
+                json.dump({"reminders": reminders}, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"[定时提醒] 用户 {auth_username} 更新提醒: {reminder_id}")
+            
+            return jsonify({
+                "success": True,
+                "message": "提醒更新成功"
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 更新提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"更新提醒失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/delete', methods=['POST'])
+    def delete_reminder():
+        """
+        删除提醒
+        
+        请求体:
+            {
+                "id": "提醒ID"
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "操作结果消息"
+            }
+        """
+        # 权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        try:
+            # 获取请求数据
+            data = request.get_json() or {}
+            reminder_id = data.get('id', '').strip()
+            
+            # 验证ID
+            if not reminder_id:
+                return jsonify({"success": False, "message": "提醒ID不能为空"})
+            
+            # 读取现有提醒
+            reminders_file = 'reminders.json'
+            if not os.path.exists(reminders_file):
+                return jsonify({"success": False, "message": "提醒文件不存在"}), 404
+            
+            with open(reminders_file, 'r', encoding='utf-8') as f:
+                reminders_data = json.load(f)
+                reminders = reminders_data.get('reminders', [])
+            
+            # 查找并删除提醒
+            original_count = len(reminders)
+            reminders = [r for r in reminders if r.get('id') != reminder_id]
+            
+            if len(reminders) == original_count:
+                # 没有删除任何提醒，说明ID不存在
+                return jsonify({"success": False, "message": "提醒不存在"}), 404
+            
+            # 保存更新后的数据
+            with open(reminders_file, 'w', encoding='utf-8') as f:
+                json.dump({"reminders": reminders}, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"[定时提醒] 用户 {auth_username} 删除提醒: {reminder_id}")
+            
+            return jsonify({
+                "success": True,
+                "message": "提醒删除成功"
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 删除提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"删除提醒失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/check', methods=['GET'])
+    def check_reminders():
+        """
+        检查当前时间是否有需要显示的提醒
+        
+        功能说明:
+            - 获取当前时间（HH:MM格式）
+            - 遍历所有启用的提醒
+            - 判断当前时间是否在提醒的时间范围内
+            - 支持跨天时间段判断（如 20:00 到次日 08:00）
+        
+        返回:
+            {
+                "success": True,
+                "reminders": [当前需要显示的提醒列表]
+            }
+        
+        时间判断逻辑:
+            - 正常时间段（start_time < end_time）：
+              当前时间 >= start_time 且 当前时间 < end_time
+            - 跨天时间段（start_time > end_time）：
+              当前时间 >= start_time 或 当前时间 < end_time
+        """
+        try:
+            # 获取当前时间（HH:MM格式）
+            from datetime import datetime
+            current_time_str = datetime.now().strftime('%H:%M')
+            
+            # 读取所有提醒
+            reminders_file = 'reminders.json'
+            if not os.path.exists(reminders_file):
+                # 文件不存在，返回空列表
+                return jsonify({
+                    "success": True,
+                    "reminders": []
+                })
+            
+            with open(reminders_file, 'r', encoding='utf-8') as f:
+                reminders_data = json.load(f)
+                all_reminders = reminders_data.get('reminders', [])
+            
+            # 筛选需要显示的提醒
+            active_reminders = []
+            
+            for reminder in all_reminders:
+                # 只处理启用的提醒
+                if not reminder.get('enabled', False):
+                    continue
+                
+                start_time = reminder.get('start_time', '')
+                end_time = reminder.get('end_time', '')
+                
+                # 验证时间格式
+                if not start_time or not end_time:
+                    continue
+                
+                # 判断当前时间是否在提醒时间范围内
+                if _is_time_in_range(current_time_str, start_time, end_time):
+                    # 添加到活动提醒列表
+                    active_reminders.append({
+                        "id": reminder.get('id'),
+                        "title": reminder.get('title'),
+                        "message": reminder.get('message')
+                    })
+            
+            # 返回结果
+            return jsonify({
+                "success": True,
+                "reminders": active_reminders
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 检查提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"检查提醒失败: {str(e)}"
+            }), 500
+    
+    def _is_time_in_range(current_time, start_time, end_time):
+        """
+        辅助函数：判断当前时间是否在指定的时间范围内
+        
+        参数:
+            current_time (str): 当前时间，格式为 HH:MM
+            start_time (str): 开始时间，格式为 HH:MM
+            end_time (str): 结束时间，格式为 HH:MM
+        
+        返回:
+            bool: True表示在范围内，False表示不在范围内
+        
+        逻辑说明:
+            - 情况1：正常时间段（start_time < end_time）
+              例如：09:00 到 17:00
+              判断：current_time >= start_time 且 current_time < end_time
+            
+            - 情况2：跨天时间段（start_time > end_time）
+              例如：20:00 到次日 08:00
+              判断：current_time >= start_time 或 current_time < end_time
+        
+        示例:
+            - _is_time_in_range("19:30", "19:00", "20:00") -> True
+            - _is_time_in_range("20:30", "20:00", "08:00") -> True （跨天）
+            - _is_time_in_range("07:30", "20:00", "08:00") -> True （跨天）
+            - _is_time_in_range("09:00", "20:00", "08:00") -> False
+        """
+        try:
+            # 将时间字符串转换为分钟数（从00:00开始计算）
+            # 例如："19:30" -> 19 * 60 + 30 = 1170分钟
+            def time_to_minutes(time_str):
+                """将HH:MM格式的时间转换为从00:00开始的分钟数"""
+                hours, minutes = map(int, time_str.split(':'))
+                return hours * 60 + minutes
+            
+            # 转换所有时间为分钟数
+            current_minutes = time_to_minutes(current_time)
+            start_minutes = time_to_minutes(start_time)
+            end_minutes = time_to_minutes(end_time)
+            
+            # 情况1：正常时间段（不跨天）
+            if start_minutes < end_minutes:
+                # 例如：09:00 到 17:00
+                # 判断当前时间是否在 [start, end) 区间内
+                return start_minutes <= current_minutes < end_minutes
+            
+            # 情况2：跨天时间段
+            elif start_minutes > end_minutes:
+                # 例如：20:00 到次日 08:00
+                # 判断当前时间是否 >= 20:00 或者 < 08:00
+                return current_minutes >= start_minutes or current_minutes < end_minutes
+            
+            # 情况3：start_time == end_time（边界情况，视为无效）
+            else:
+                return False
+                
+        except Exception as e:
+            # 时间解析失败，记录错误并返回False
+            logging.warning(f"[定时提醒] 时间范围判断失败: {e}")
+            return False
+
+    # ============================================================
     # 验证码功能API
     # 用于获取和验证图形验证码，增强系统安全性
     # ============================================================
@@ -18057,27 +18761,26 @@ def start_web_server(args_param):
             with open(captcha_file, 'w', encoding='utf-8') as f:
                 json.dump(captcha_data, f, indent=2, ensure_ascii=False)
             
-            # 记录验证码请求历史（用于排查错误）
-            def log_captcha_history():
+                        # 记录验证码请求历史（用于排查错误）
+            # 修正：函数定义接收参数，以避免在线程中访问 request 上下文
+            def log_captcha_history(p_captcha_id, p_code, p_html, p_session_id, p_client_ip, p_user_agent):
                 try:
                     history_dir = os.path.join('logs', 'captcha_history')
                     os.makedirs(history_dir, exist_ok=True)
                     
-                    # 获取客户端IP和User-Agent
-                    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
-                    user_agent = request.headers.get('User-Agent', 'unknown')
+                    # 获取客户端IP和User-Agent (已通过参数传入)
                     
                     # 准备历史记录数据
                     history_data = {
-                        'captcha_id': captcha_id,
-                        'code': captcha_code.upper(),
-                        'html': captcha_html,  # 保存HTML以便查看验证码图片
-                        'session_id': session_id,
-                        'client_ip': client_ip,
-                        'user_agent': user_agent,
+                        'captcha_id': p_captcha_id, # 修正：使用参数
+                        'code': p_code.upper(),  # 修正：使用参数
+                        'html': p_html,  # 保存HTML以便查看验证码图片 # 修正：使用参数
+                        'session_id': p_session_id, # 修正：使用参数
+                        'client_ip': p_client_ip, # 修正：使用参数
+                        'user_agent': p_user_agent, # 修正：使用参数
                         'timestamp': time.time(),
                         'timestamp_readable': datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S'),
-                        'expires_at': time.time() + 600,
+                        'expires_at': time.time() + 600,  # 10分钟后过期
                         'status': 'created',  # created, verified_success, verified_failed, expired
                         'verified_at': None,
                         'verified_input': None
@@ -18091,13 +18794,29 @@ def start_web_server(args_param):
                     with open(history_file, 'a', encoding='utf-8') as f:
                         f.write(json.dumps(history_data, ensure_ascii=False) + '\n')
                     
-                    logging.debug(f"[验证码历史] 已记录验证码请求: ID={captcha_id[:8]}...")
+                    logging.debug(f"[验证码历史] 已记录验证码请求: ID={p_captcha_id[:8]}...")
                 except Exception as e:
                     logging.error(f"[验证码历史] 记录历史失败: {e}", exc_info=True)
             
             # 在后台线程中记录历史
             import threading
-            threading.Thread(target=log_captcha_history, daemon=True).start()
+            # 修正：在启动线程前，从 request 上下文中提取所需数据
+            client_ip_data = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+            user_agent_data = request.headers.get('User-Agent', 'unknown')
+
+            # 修正：将提取的数据作为 args 传递给线程
+            threading.Thread(
+                target=log_captcha_history, 
+                args=(
+                    captcha_id, 
+                    captcha_code, 
+                    captcha_html, 
+                    session_id, 
+                    client_ip_data, 
+                    user_agent_data
+                ),
+                daemon=True
+            ).start()
             
             # 清理过期的验证码文件（后台任务）
             def cleanup_expired_captchas():
@@ -18300,12 +19019,13 @@ def start_web_server(args_param):
         """
         获取验证码请求历史记录（管理员功能）
         
-        查询参数:
-            date: 日期（格式：YYYYMMDD），默认为今天
-            limit: 返回记录数量限制，默认100
-            status: 状态过滤（created, verified_success, verified_failed, expired）
+        权限要求：管理员
+        查询参数：
+        - date: 日期（格式：YYYYMMDD），默认为今天
+        - limit: 返回记录数量限制，默认100
+        - status: 状态过滤（created, verified_success, verified_failed, expired）
         
-        返回格式:
+        返回格式：
             {
                 "success": True/False,
                 "data": [验证码历史记录列表],
@@ -18321,8 +19041,12 @@ def start_web_server(args_param):
                 "message": "未授权访问"
             }), 401
         
-        session_data = web_sessions.get(session_id, {})
-        username = session_data.get('username')
+        # 修正：web_sessions 存储的是 Api 实例，不是字典
+        api_instance = web_sessions.get(session_id)
+        if not api_instance:
+            return jsonify({"success": False, "message": "会话无效"}), 401
+        
+        username = getattr(api_instance, 'auth_username', None)
         
         if not username:
             return jsonify({
@@ -18331,12 +19055,13 @@ def start_web_server(args_param):
             }), 401
         
         # 检查是否为管理员
-        if not auth_system.has_permission(username, 'view_captcha_history'):
+        # 修正：AuthSystem 的方法是 check_permission
+        if not auth_system.check_permission(username, 'view_captcha_history'):
             return jsonify({
                 "success": False,
                 "message": "没有权限查看验证码历史"
             }), 403
-        
+
         try:
             # 获取查询参数
             date_str = request.args.get('date', datetime.datetime.now().strftime('%Y%m%d'))
@@ -18357,10 +19082,25 @@ def start_web_server(args_param):
             
             # 读取并解析历史记录
             records = []
+            current_time = time.time()
+            expiry_threshold = 30 * 60  # 30分钟（1800秒）
+            
             with open(history_file, 'r', encoding='utf-8') as f:
                 for line in f:
                     try:
                         record = json.loads(line.strip())
+                        
+                        # 自动标记过期的验证码
+                        # 如果状态是 'created' 且已经超过30分钟，自动标记为 'expired'
+                        if record.get('status') == 'created':
+                            timestamp = record.get('timestamp', 0)
+                            if current_time - timestamp > expiry_threshold:
+                                record['status'] = 'expired'
+                                record['expired_at'] = timestamp + expiry_threshold
+                                record['expired_at_readable'] = datetime.datetime.fromtimestamp(
+                                    timestamp + expiry_threshold
+                                ).strftime('%Y-%m-%d %H:%M:%S')
+                        
                         # 状态过滤
                         if status_filter and record.get('status') != status_filter:
                             continue
@@ -18374,16 +19114,60 @@ def start_web_server(args_param):
             # 按时间戳倒序排列（最新的在前）
             records.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
             
-            # 限制返回数量
+            # 修正：在限制（slicing）之前获取总数
             total = len(records)
+            
+            # 限制返回数量（最多100条）
             records = records[:limit]
             
-            logging.info(f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条")
+            logging.info(f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条 (总计={total}条)")
+            
+            # 后台任务：永久标记过期的验证码（异步更新历史文件）
+            def update_expired_captchas_in_history():
+                try:
+                    if not os.path.exists(history_file):
+                        return
+                    
+                    # 读取所有记录
+                    lines = []
+                    updated_count = 0
+                    current_time = time.time()
+                    expiry_threshold = 30 * 60  # 30分钟
+                    
+                    with open(history_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            try:
+                                record = json.loads(line.strip())
+                                # 如果状态是 'created' 且已经超过30分钟，永久标记为 'expired'
+                                if record.get('status') == 'created':
+                                    timestamp = record.get('timestamp', 0)
+                                    if current_time - timestamp > expiry_threshold:
+                                        record['status'] = 'expired'
+                                        record['expired_at'] = timestamp + expiry_threshold
+                                        record['expired_at_readable'] = datetime.datetime.fromtimestamp(
+                                            timestamp + expiry_threshold
+                                        ).strftime('%Y-%m-%d %H:%M:%S')
+                                        updated_count += 1
+                                lines.append(json.dumps(record, ensure_ascii=False) + '\n')
+                            except:
+                                lines.append(line)  # 保留原始行
+                    
+                    # 如果有更新，写回文件
+                    if updated_count > 0:
+                        with open(history_file, 'w', encoding='utf-8') as f:
+                            f.writelines(lines)
+                        logging.info(f"[验证码历史] 已永久标记 {updated_count} 个过期验证码: {date_str}")
+                except Exception as e:
+                    logging.error(f"[验证码历史] 更新过期验证码状态失败: {e}")
+            
+            # 在后台线程中更新历史文件
+            import threading
+            threading.Thread(target=update_expired_captchas_in_history, daemon=True).start()
             
             return jsonify({
                 "success": True,
                 "data": records,
-                "total": total,
+                "total": total, # 此时 'total' 变量已定义
                 "date": date_str
             })
             
@@ -18393,6 +19177,82 @@ def start_web_server(args_param):
                 "success": False,
                 "message": "获取验证码历史失败"
             }), 500
+
+    # ============================================================
+    # 修正：验证码详情API
+    # 用于根据ID获取单个验证码的详细信息
+    # ============================================================
+    @app.route('/api/captcha/detail/<captcha_id>', methods=['GET'])
+    @login_required
+    def get_captcha_detail(captcha_id):
+        """
+        获取单个验证码的详细信息
+        
+        权限要求：管理员 (view_captcha_history)
+        """
+        try:
+            # 1. 权限检查
+            if not auth_system.check_permission(g.user, 'view_captcha_history'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 2. 验证 captcha_id (防止路径遍历)
+            if not captcha_id or '..' in captcha_id or '/' in captcha_id:
+                return jsonify({"success": False, "message": "无效的验证码ID"}), 400
+
+            # 3. 遍历所有历史文件查找该ID
+            history_dir = os.path.join('logs', 'captcha_history')
+            if not os.path.exists(history_dir):
+                return jsonify({"success": False, "message": "验证码历史目录不存在"}), 404
+
+            found_record = None
+            current_time = time.time()
+            expiry_threshold = 30 * 60  # 30分钟
+
+            # 遍历目录中的所有 .jsonl 文件
+            for filename in os.listdir(history_dir):
+                if filename.endswith('.jsonl'):
+                    history_file = os.path.join(history_dir, filename)
+                    try:
+                        with open(history_file, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                try:
+                                    record = json.loads(line.strip())
+                                    if record.get('captcha_id') == captcha_id:
+                                        # 找到了！
+                                        found_record = record
+                                        
+                                        # 自动标记过期的验证码
+                                        if record.get('status') == 'created':
+                                            timestamp = record.get('timestamp', 0)
+                                            if current_time - timestamp > expiry_threshold:
+                                                found_record['status'] = 'expired'
+                                                found_record['expired_at'] = timestamp + expiry_threshold
+                                                found_record['expired_at_readable'] = datetime.datetime.fromtimestamp(
+                                                    timestamp + expiry_threshold
+                                                ).strftime('%Y-%m-%d %H:%M:%S')
+                                        
+                                        # 移除敏感信息 (如果需要)
+                                        found_record.pop('session_id', None)
+                                        
+                                        # 返回成功响应
+                                        return jsonify({
+                                            "success": True,
+                                            "data": found_record
+                                        })
+                                except json.JSONDecodeError:
+                                    continue # 跳过损坏的行
+                    except (IOError, OSError) as e:
+                        logging.warning(f"[验证码详情] 读取历史文件 {filename} 失败: {e}")
+                        continue # 继续查找下一个文件
+
+            # 4. 如果遍历完所有文件都未找到
+            if not found_record:
+                return jsonify({"success": False, "message": "未找到该验证码的详细信息"}), 404
+
+        except Exception as e:
+            logging.error(f"[验证码详情] 获取详情失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "获取验证码详情时发生错误"}), 500
+
 
     @app.route('/health')
     def health():
