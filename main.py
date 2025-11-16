@@ -19082,10 +19082,25 @@ def start_web_server(args_param):
             
             # 读取并解析历史记录
             records = []
+            current_time = time.time()
+            expiry_threshold = 30 * 60  # 30分钟（1800秒）
+            
             with open(history_file, 'r', encoding='utf-8') as f:
                 for line in f:
                     try:
                         record = json.loads(line.strip())
+                        
+                        # 自动标记过期的验证码
+                        # 如果状态是 'created' 且已经超过30分钟，自动标记为 'expired'
+                        if record.get('status') == 'created':
+                            timestamp = record.get('timestamp', 0)
+                            if current_time - timestamp > expiry_threshold:
+                                record['status'] = 'expired'
+                                record['expired_at'] = timestamp + expiry_threshold
+                                record['expired_at_readable'] = datetime.datetime.fromtimestamp(
+                                    timestamp + expiry_threshold
+                                ).strftime('%Y-%m-%d %H:%M:%S')
+                        
                         # 状态过滤
                         if status_filter and record.get('status') != status_filter:
                             continue
@@ -19104,6 +19119,48 @@ def start_web_server(args_param):
             records = records[:limit]
             
             logging.info(f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条")
+            
+            # 后台任务：永久标记过期的验证码（异步更新历史文件）
+            def update_expired_captchas_in_history():
+                try:
+                    if not os.path.exists(history_file):
+                        return
+                    
+                    # 读取所有记录
+                    lines = []
+                    updated_count = 0
+                    current_time = time.time()
+                    expiry_threshold = 30 * 60  # 30分钟
+                    
+                    with open(history_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            try:
+                                record = json.loads(line.strip())
+                                # 如果状态是 'created' 且已经超过30分钟，永久标记为 'expired'
+                                if record.get('status') == 'created':
+                                    timestamp = record.get('timestamp', 0)
+                                    if current_time - timestamp > expiry_threshold:
+                                        record['status'] = 'expired'
+                                        record['expired_at'] = timestamp + expiry_threshold
+                                        record['expired_at_readable'] = datetime.datetime.fromtimestamp(
+                                            timestamp + expiry_threshold
+                                        ).strftime('%Y-%m-%d %H:%M:%S')
+                                        updated_count += 1
+                                lines.append(json.dumps(record, ensure_ascii=False) + '\n')
+                            except:
+                                lines.append(line)  # 保留原始行
+                    
+                    # 如果有更新，写回文件
+                    if updated_count > 0:
+                        with open(history_file, 'w', encoding='utf-8') as f:
+                            f.writelines(lines)
+                        logging.info(f"[验证码历史] 已永久标记 {updated_count} 个过期验证码: {date_str}")
+                except Exception as e:
+                    logging.error(f"[验证码历史] 更新过期验证码状态失败: {e}")
+            
+            # 在后台线程中更新历史文件
+            import threading
+            threading.Thread(target=update_expired_captchas_in_history, daemon=True).start()
             
             return jsonify({
                 "success": True,
