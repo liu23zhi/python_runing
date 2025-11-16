@@ -2010,9 +2010,89 @@
     <p class="text-base font-bold text-sky-600">正在加载资源中...</p>
   </div>
 
+    <!-- ========== 验证码验证模态窗（用于SMS发送前验证） ========== -->
+    <div id="captcha-verification-modal" class="fixed inset-0 hidden z-[70] flex items-center justify-center p-4"
+      style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);">
+      <!-- 对话框主体容器 - 拟态风格卡片 -->
+      <div
+        class="bg-gradient-to-br from-slate-50 to-white rounded-3xl shadow-2xl max-w-md w-full transform transition-all"
+        style="box-shadow: 12px 12px 24px rgba(0, 0, 0, 0.1), -12px -12px 24px rgba(255, 255, 255, 0.9);"
+        onclick="event.stopPropagation()">
+
+        <!-- 对话框头部 -->
+        <div class="p-6 pb-4 border-b border-slate-200">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <!-- 验证图标 -->
+              <div
+                class="w-12 h-12 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center flex-shrink-0"
+                style="box-shadow: 4px 4px 8px rgba(56, 189, 248, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.8);">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <h3 class="text-xl font-bold text-slate-800">安全验证</h3>
+            </div>
+            <!-- 关闭按钮 -->
+            <button onclick="closeCaptchaModal()" class="text-slate-400 hover:text-slate-600 transition">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 对话框内容区域 -->
+        <div class="p-6 space-y-4">
+          <p class="text-slate-600 text-sm">
+            为保护您的账号安全，请完成以下验证
+          </p>
+
+          <!-- 验证码显示区域 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-700">图形验证码</label>
+            <div class="relative w-full">
+              <div id="captcha-modal-display" class="w-auto h-auto flex items-center justify-center border-2 border-slate-300 rounded-lg bg-white cursor-pointer hover:border-sky-400 transition-colors"
+                onclick="refreshCaptchaModal()" title="点击刷新验证码" style="min-height: 64px;">
+                <span class="text-slate-400 text-xs">加载中...</span>
+              </div>
+              <button onclick="refreshCaptchaModal()" class="absolute top-2 right-2 btn btn-ghost !p-2 text-slate-500 hover:text-sky-600 transition-colors" title="刷新验证码">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- 验证码输入框 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-700">请输入验证码</label>
+            <input type="text" id="captcha-modal-input" class="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-sky-400 focus:outline-none transition-colors" 
+              placeholder="请输入图形验证码" maxlength="6" autocomplete="off">
+          </div>
+        </div>
+
+        <!-- 对话框底部按钮区域 -->
+        <div class="p-6 pt-0 flex gap-3">
+          <button onclick="closeCaptchaModal()"
+            class="flex-1 py-3 px-4 rounded-xl font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+            style="box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.08), -2px -2px 8px rgba(255, 255, 255, 0.9);">
+            取消
+          </button>
+          <button id="captcha-modal-confirm-btn" onclick="confirmCaptchaAndSendSMS()"
+            class="flex-1 py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-br from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 transition-all"
+            style="box-shadow: 4px 4px 12px rgba(56, 189, 248, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.1);">
+            确认发送
+          </button>
+        </div>
+      </div>
+    </div>
+
+
   <!-- 用户认证登录界面 -->
   <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
-    <div class="panel rounded-2xl w-full max-w-[525px] p-6 space-y-6"> <div class="text-center">
+    <div class="panel rounded-2xl w-full max-w-[550px] p-6 space-y-6"> <div class="text-center">
         <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
         <p class="text-sm text-slate-500">请登录或注册以继续使用</p>
       </div>
@@ -4384,84 +4464,7 @@
       </div>
     </div>
 
-    <!-- ========== 验证码验证模态窗（用于SMS发送前验证） ========== -->
-    <div id="captcha-verification-modal" class="fixed inset-0 hidden z-[70] flex items-center justify-center p-4"
-      style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);">
-      <!-- 对话框主体容器 - 拟态风格卡片 -->
-      <div
-        class="bg-gradient-to-br from-slate-50 to-white rounded-3xl shadow-2xl max-w-md w-full transform transition-all"
-        style="box-shadow: 12px 12px 24px rgba(0, 0, 0, 0.1), -12px -12px 24px rgba(255, 255, 255, 0.9);"
-        onclick="event.stopPropagation()">
 
-        <!-- 对话框头部 -->
-        <div class="p-6 pb-4 border-b border-slate-200">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <!-- 验证图标 -->
-              <div
-                class="w-12 h-12 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center flex-shrink-0"
-                style="box-shadow: 4px 4px 8px rgba(56, 189, 248, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.8);">
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <h3 class="text-xl font-bold text-slate-800">安全验证</h3>
-            </div>
-            <!-- 关闭按钮 -->
-            <button onclick="closeCaptchaModal()" class="text-slate-400 hover:text-slate-600 transition">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- 对话框内容区域 -->
-        <div class="p-6 space-y-4">
-          <p class="text-slate-600 text-sm">
-            为保护您的账号安全，请完成以下验证
-          </p>
-
-          <!-- 验证码显示区域 -->
-          <div class="space-y-2">
-            <label class="block text-sm font-semibold text-slate-700">图形验证码</label>
-            <div class="flex gap-2 items-center">
-              <div id="captcha-modal-display" class="flex-shrink-0 w-full h-16 flex items-center justify-center border-2 border-slate-300 rounded-lg bg-white cursor-pointer hover:border-sky-400 transition-colors"
-                onclick="refreshCaptchaModal()" title="点击刷新验证码" style="min-height: 64px;">
-                <span class="text-slate-400 text-xs">加载中...</span>
-              </div>
-              <button onclick="refreshCaptchaModal()" class="btn btn-ghost !p-2" title="刷新验证码">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- 验证码输入框 -->
-          <div class="space-y-2">
-            <label class="block text-sm font-semibold text-slate-700">请输入验证码</label>
-            <input type="text" id="captcha-modal-input" class="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-sky-400 focus:outline-none transition-colors" 
-              placeholder="请输入图形验证码" maxlength="6" autocomplete="off">
-          </div>
-        </div>
-
-        <!-- 对话框底部按钮区域 -->
-        <div class="p-6 pt-0 flex gap-3">
-          <button onclick="closeCaptchaModal()"
-            class="flex-1 py-3 px-4 rounded-xl font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
-            style="box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.08), -2px -2px 8px rgba(255, 255, 255, 0.9);">
-            取消
-          </button>
-          <button id="captcha-modal-confirm-btn" onclick="confirmCaptchaAndSendSMS()"
-            class="flex-1 py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-br from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 transition-all"
-            style="box-shadow: 4px 4px 12px rgba(56, 189, 248, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.1);">
-            确认发送
-          </button>
-        </div>
-      </div>
-    </div>
 
     <!-- ========================================
          【移动端底部导航栏区域】
