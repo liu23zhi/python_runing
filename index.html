@@ -5133,8 +5133,7 @@
 
         <!-- 验证码历史标签 -->
         <button id="admin-tab-captcha_modal"
-          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
-          style="display:none;">
+          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap">
           <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
@@ -10407,6 +10406,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       'manage_own_sessions': '管理自己的会话',
       'manage_user_sessions': '管理用户会话',
       'view_session_details': '查看会话详情',
+      'view_captcha_history': '查看验证码历史',
       'god_mode': '上帝模式',
 
       // UI按钮权限（细粒度控制）
@@ -10616,6 +10616,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const smsTab = $('admin-tab-sms_modal'); // 问题2修复：短信配置标签
       const configTab = $('admin-tab-config_modal'); // 新增：系统配置标签
       const godModeToggle = $('god-mode-toggle_modal');
+      const modalCaptchaTab = $('admin-tab-captcha_modal');
 
       if (show) {
         // ===================================================================
@@ -10629,6 +10630,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         let isAuthenticated = skipAuthCheck;
         let canManageUsers = false; // <-- 修正 #1.1: 声明 canManageUsers
         let canViewLogs = false; // ★★★ 修复：将canViewLogs声明提升到外层作用域 ★★★
+        let canViewCaptchaHistory = false; // <--- 【在此处添加声明】
 
         if (!skipAuthCheck) {
           // --- 性能优化：并行检查所有权限 ---
@@ -10639,7 +10641,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
               checkAdminPermission('manage_system'),
               checkAdminPermission('god_mode'), // <-- 修正 #2: 添加 'god_mode' 权限检查
               checkAuthStatus(),
-              checkAdminPermission('view_logs')
+              checkAdminPermission('view_logs'),
+              checkAdminPermission('view_captcha_history') 
             ]);
 
             canManageUsers = permissionChecks[0];
@@ -10647,7 +10650,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
             canManageSystem = permissionChecks[2];
             hasGodMode = permissionChecks[3]; // <-- 修正 #3: 为 hasGodMode 赋值
             isAuthenticated = permissionChecks[4];
-            canViewLogs = permissionChecks[5]; // ★★★ 修复：移除let关键字，使用外层变量 ★★★
+            canViewLogs = permissionChecks[5];
+            canViewCaptchaHistory = permissionChecks[6];
 
           } catch (e) {
             logMessage_Error('并行检查权限时出错:', e);
@@ -10657,7 +10661,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
             canManageSystem = false;
             hasGodMode = false;
             isAuthenticated = false; // 视为未认证
-            canViewLogs = false; // ★★★ 修复：确保异常情况下canViewLogs也有默认值 ★★★
+            canViewLogs = false;
+            canViewCaptchaHistory = false;
           }
         }
 
@@ -10678,18 +10683,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
         // 问题2修复：IP封禁和短信配置标签只对管理员显示
         if (ipbanTab) ipbanTab.style.display = canManageUsers ? 'block' : 'none';
         if (smsTab) smsTab.style.display = canManageUsers ? 'block' : 'none';
-        // ===================================================================
-        // 【修复3】系统配置标签显示逻辑
-        // 功能说明：根据canManageSystem权限控制系统配置标签的显示
-        // 权限要求：需要'manage_system'权限（仅管理员拥有）
-        // ===================================================================
+
+
         if (configTab) configTab.style.display = canManageSystem ? 'block' : 'none';
+
+        if (modalCaptchaTab) modalCaptchaTab.style.display = canViewCaptchaHistory ? 'block' : 'none';
         
-        // ===================================================================
-        // 【新增】定时提醒管理标签显示逻辑
-        // 功能说明：根据canViewLogs权限控制定时提醒标签的显示
-        // 权限要求：需要'view_logs'权限（管理员组默认拥有此权限）
-        // ===================================================================
         const remindersTab = $('admin-tab-reminders_modal');
         if (remindersTab) remindersTab.style.display = canViewLogs ? 'block' : 'none';
 
@@ -14537,7 +14536,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       if (modal) {
         modal.classList.add('hidden');
         // 移除 modal-visible 类，恢复地图版权信息
-        document.body.classList.remove('modal-visible');
+        // document.body.classList.remove('modal-visible');
       }
     }
 

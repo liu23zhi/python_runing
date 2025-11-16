@@ -1434,6 +1434,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
+                    "view_captcha_history": True
                 }
             },
             "super_admin": {
@@ -1487,6 +1488,7 @@ def _create_permissions_json():
                     "modify_params": True,
                     "manage_own_sessions": True,
                     "manage_user_sessions": True,
+                    "view_captcha_history": True,
                     "view_session_details": True,
                     "god_mode": True,  # 上帝模式：可以查看和销毁所有会话
 
@@ -18759,27 +18761,26 @@ def start_web_server(args_param):
             with open(captcha_file, 'w', encoding='utf-8') as f:
                 json.dump(captcha_data, f, indent=2, ensure_ascii=False)
             
-            # 记录验证码请求历史（用于排查错误）
-            def log_captcha_history():
+                        # 记录验证码请求历史（用于排查错误）
+            # 修正：函数定义接收参数，以避免在线程中访问 request 上下文
+            def log_captcha_history(p_captcha_id, p_code, p_html, p_session_id, p_client_ip, p_user_agent):
                 try:
                     history_dir = os.path.join('logs', 'captcha_history')
                     os.makedirs(history_dir, exist_ok=True)
                     
-                    # 获取客户端IP和User-Agent
-                    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
-                    user_agent = request.headers.get('User-Agent', 'unknown')
+                    # 获取客户端IP和User-Agent (已通过参数传入)
                     
                     # 准备历史记录数据
                     history_data = {
-                        'captcha_id': captcha_id,
-                        'code': captcha_code.upper(),
-                        'html': captcha_html,  # 保存HTML以便查看验证码图片
-                        'session_id': session_id,
-                        'client_ip': client_ip,
-                        'user_agent': user_agent,
+                        'captcha_id': p_captcha_id, # 修正：使用参数
+                        'code': p_code.upper(),  # 修正：使用参数
+                        'html': p_html,  # 保存HTML以便查看验证码图片 # 修正：使用参数
+                        'session_id': p_session_id, # 修正：使用参数
+                        'client_ip': p_client_ip, # 修正：使用参数
+                        'user_agent': p_user_agent, # 修正：使用参数
                         'timestamp': time.time(),
                         'timestamp_readable': datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S'),
-                        'expires_at': time.time() + 600,
+                        'expires_at': time.time() + 600,  # 10分钟后过期
                         'status': 'created',  # created, verified_success, verified_failed, expired
                         'verified_at': None,
                         'verified_input': None
@@ -18793,13 +18794,29 @@ def start_web_server(args_param):
                     with open(history_file, 'a', encoding='utf-8') as f:
                         f.write(json.dumps(history_data, ensure_ascii=False) + '\n')
                     
-                    logging.debug(f"[验证码历史] 已记录验证码请求: ID={captcha_id[:8]}...")
+                    logging.debug(f"[验证码历史] 已记录验证码请求: ID={p_captcha_id[:8]}...")
                 except Exception as e:
                     logging.error(f"[验证码历史] 记录历史失败: {e}", exc_info=True)
             
             # 在后台线程中记录历史
             import threading
-            threading.Thread(target=log_captcha_history, daemon=True).start()
+            # 修正：在启动线程前，从 request 上下文中提取所需数据
+            client_ip_data = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+            user_agent_data = request.headers.get('User-Agent', 'unknown')
+
+            # 修正：将提取的数据作为 args 传递给线程
+            threading.Thread(
+                target=log_captcha_history, 
+                args=(
+                    captcha_id, 
+                    captcha_code, 
+                    captcha_html, 
+                    session_id, 
+                    client_ip_data, 
+                    user_agent_data
+                ),
+                daemon=True
+            ).start()
             
             # 清理过期的验证码文件（后台任务）
             def cleanup_expired_captchas():
@@ -19002,12 +19019,13 @@ def start_web_server(args_param):
         """
         获取验证码请求历史记录（管理员功能）
         
-        查询参数:
-            date: 日期（格式：YYYYMMDD），默认为今天
-            limit: 返回记录数量限制，默认100
-            status: 状态过滤（created, verified_success, verified_failed, expired）
+        权限要求：管理员
+        查询参数：
+        - date: 日期（格式：YYYYMMDD），默认为今天
+        - limit: 返回记录数量限制，默认100
+        - status: 状态过滤（created, verified_success, verified_failed, expired）
         
-        返回格式:
+        返回格式：
             {
                 "success": True/False,
                 "data": [验证码历史记录列表],
@@ -19023,8 +19041,12 @@ def start_web_server(args_param):
                 "message": "未授权访问"
             }), 401
         
-        session_data = web_sessions.get(session_id, {})
-        username = session_data.get('username')
+        # 修正：web_sessions 存储的是 Api 实例，不是字典
+        api_instance = web_sessions.get(session_id)
+        if not api_instance:
+            return jsonify({"success": False, "message": "会话无效"}), 401
+        
+        username = getattr(api_instance, 'auth_username', None)
         
         if not username:
             return jsonify({
@@ -19033,12 +19055,13 @@ def start_web_server(args_param):
             }), 401
         
         # 检查是否为管理员
-        if not auth_system.has_permission(username, 'view_captcha_history'):
+        # 修正：AuthSystem 的方法是 check_permission
+        if not auth_system.check_permission(username, 'view_captcha_history'):
             return jsonify({
                 "success": False,
                 "message": "没有权限查看验证码历史"
             }), 403
-        
+
         try:
             # 获取查询参数
             date_str = request.args.get('date', datetime.datetime.now().strftime('%Y%m%d'))
