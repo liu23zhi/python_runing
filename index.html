@@ -5776,7 +5776,7 @@
                 </button>
               </div>
 
-              <!-- 管理功能按钮组：短信历史和验证码管理 -->
+              <!-- 管理功能按钮组：短信历史、验证码管理和测试发送 -->
               <div class="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t-2 border-slate-200">
                 <!-- 短信发送历史按钮 -->
                 <button onclick="openSMSHistoryModal()"
@@ -5787,6 +5787,11 @@
                 <button onclick="openVerificationCodesModal()"
                   class="flex-1 btn btn-ghost min-h-[44px] border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 transition-all">
                   🔑 验证码管理
+                </button>
+                <!-- 测试发送按钮 -->
+                <button onclick="openSMSTestModal()"
+                  class="flex-1 btn btn-ghost min-h-[44px] border-2 border-green-300 hover:border-green-400 hover:bg-green-50 transition-all">
+                  🧪 测试发送
                 </button>
               </div>
 
@@ -6483,6 +6488,95 @@
 
       <div class="border-t pt-3 text-xs text-slate-500 relative">
         <p>💡 提示：每个会话都是独立的学校账号登录状态。您可以创建多个会话来管理不同的账号。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 短信测试发送模态框 -->
+  <div id="sms-test-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <div class="absolute inset-0 bg-black/60" onclick="closeSMSTestModal()"></div>
+    <div class="panel rounded-2xl p-6 w-[35rem] space-y-4 relative">
+      <!-- 标题栏 -->
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-green-600">🧪 短信测试发送</h3>
+        <button onclick="closeSMSTestModal()"
+          class="text-slate-400 hover:text-slate-600 transition-colors">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 说明文字 -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <p class="text-sm text-blue-800">
+          <strong>💡 功能说明：</strong><br>
+          • 此功能用于测试短信配置是否正确<br>
+          • 系统将向指定手机号发送随机验证码<br>
+          • 验证码将同时显示在界面上，便于您验证短信是否收到<br>
+          • 测试记录会保存在短信发送历史中
+        </p>
+      </div>
+
+      <!-- 手机号输入 -->
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold text-slate-700">
+          <span class="inline-flex items-center gap-1">
+            📱 目标手机号
+          </span>
+        </label>
+        <input type="tel" id="sms-test-phone"
+          class="w-full border-2 border-green-200 rounded-lg px-4 py-3 focus:border-green-400 focus:ring-2 focus:ring-green-200 transition-all text-lg"
+          placeholder="请输入要测试的手机号（11位）"
+          maxlength="11"
+          inputmode="numeric">
+        <p class="text-xs text-slate-500">⚠️ 请输入真实有效的手机号，确保能收到短信</p>
+      </div>
+
+      <!-- 测试结果显示区域（初始隐藏） -->
+      <div id="sms-test-result" class="hidden">
+        <div class="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-4">
+          <div class="flex items-start gap-3">
+            <div class="text-3xl">✅</div>
+            <div class="flex-1">
+              <div class="font-semibold text-green-800 mb-2">测试短信发送成功！</div>
+              <div class="space-y-1 text-sm text-slate-700">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">验证码：</span>
+                  <span id="sms-test-code" class="font-mono text-2xl font-bold text-green-600">------</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">手机号：</span>
+                  <span id="sms-test-phone-display" class="font-mono">-----------</span>
+                </div>
+              </div>
+              <div class="mt-3 text-xs text-slate-600 bg-white/50 p-2 rounded">
+                💡 请检查手机是否收到包含上述验证码的短信。如果收到，说明短信配置正确。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="flex gap-3 pt-3 border-t">
+        <button onclick="closeSMSTestModal()"
+          class="flex-1 btn btn-ghost min-h-[44px]">
+          取消
+        </button>
+        <button id="btn-send-test-sms" onclick="sendTestSMS()"
+          class="flex-1 btn btn-success min-h-[44px]">
+          <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+          </svg>
+          发送测试短信
+        </button>
+      </div>
+
+      <!-- 测试历史提示 -->
+      <div class="text-xs text-slate-500 text-center pt-2 border-t">
+        测试记录会自动保存到"短信发送历史"中，场景标记为"admin_test"
       </div>
     </div>
   </div>
@@ -14369,6 +14463,195 @@ function run_code_not_need_sessionuuid(codeToRun) {
         }
       } catch (e) {
         showModalAlert('加载历史记录失败: ' + e.message);
+      }
+    }
+
+    // ==================== 短信测试发送功能 ====================
+
+    /**
+     * 打开短信测试模态窗
+     * 功能：显示测试短信发送对话框，重置输入和结果显示
+     */
+    function openSMSTestModal() {
+      const modal = $('sms-test-modal');
+      if (modal) {
+        // 显示模态框
+        modal.classList.remove('hidden');
+        // 添加 modal-visible 类，隐藏地图版权信息
+        document.body.classList.add('modal-visible');
+        
+        // 清空输入框
+        const phoneInput = $('sms-test-phone');
+        if (phoneInput) {
+          phoneInput.value = '';
+        }
+        
+        // 隐藏测试结果显示区域
+        const resultDiv = $('sms-test-result');
+        if (resultDiv) {
+          resultDiv.classList.add('hidden');
+        }
+        
+        // 启用发送按钮
+        const sendBtn = $('btn-send-test-sms');
+        if (sendBtn) {
+          sendBtn.disabled = false;
+          sendBtn.innerHTML = `
+            <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+            </svg>
+            发送测试短信
+          `;
+        }
+      }
+    }
+
+    /**
+     * 关闭短信测试模态窗
+     * 功能：隐藏测试短信发送对话框
+     */
+    function closeSMSTestModal() {
+      const modal = $('sms-test-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+        // 移除 modal-visible 类，恢复地图版权信息
+        document.body.classList.remove('modal-visible');
+      }
+    }
+
+    /**
+     * 发送测试短信
+     * 功能：向指定手机号发送包含随机验证码的测试短信
+     * 流程：
+     * 1. 验证手机号格式
+     * 2. 调用后端API发送短信
+     * 3. 显示发送结果和验证码
+     */
+    async function sendTestSMS() {
+      // 获取DOM元素
+      const phoneInput = $('sms-test-phone');
+      const sendBtn = $('btn-send-test-sms');
+      const resultDiv = $('sms-test-result');
+      const codeDisplay = $('sms-test-code');
+      const phoneDisplay = $('sms-test-phone-display');
+      
+      if (!phoneInput || !sendBtn) {
+        showModalAlert('界面元素未找到，请刷新页面重试');
+        return;
+      }
+      
+      // 获取手机号并去除空格
+      const phone = phoneInput.value.trim();
+      
+      // 验证手机号格式（11位数字，1开头）
+      if (!phone) {
+        showModalAlert('请输入手机号');
+        phoneInput.focus();
+        return;
+      }
+      
+      if (!/^1[3-9]\d{9}$/.test(phone)) {
+        showModalAlert('手机号格式不正确，请输入11位有效手机号');
+        phoneInput.focus();
+        return;
+      }
+      
+      // 设置按钮为加载状态
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = `
+        <svg class="w-5 h-5 inline mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        发送中...
+      `;
+      
+      // 隐藏之前的结果显示
+      if (resultDiv) {
+        resultDiv.classList.add('hidden');
+      }
+      
+      try {
+        // 调用后端API发送测试短信
+        const response = await fetch('/api/sms/test_send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ phone })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // 发送成功，显示验证码和手机号
+          if (codeDisplay) {
+            codeDisplay.textContent = result.code || '------';
+          }
+          if (phoneDisplay) {
+            phoneDisplay.textContent = result.phone || phone;
+          }
+          if (resultDiv) {
+            resultDiv.classList.remove('hidden');
+          }
+          
+          // 显示成功提示
+          showTempMessage('测试短信发送成功！请检查手机是否收到', 'success');
+          
+          // 按钮显示为"已发送"
+          sendBtn.innerHTML = `
+            <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M5 13l4 4L19 7"></path>
+            </svg>
+            已发送
+          `;
+          
+          // 5秒后恢复按钮状态
+          setTimeout(() => {
+            if (sendBtn) {
+              sendBtn.disabled = false;
+              sendBtn.innerHTML = `
+                <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
+                再次发送
+              `;
+            }
+          }, 5000);
+          
+        } else {
+          // 发送失败，显示错误信息
+          showModalAlert(result.message || '发送失败，请检查配置和余额');
+          
+          // 恢复按钮状态
+          sendBtn.disabled = false;
+          sendBtn.innerHTML = `
+            <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+            </svg>
+            发送测试短信
+          `;
+        }
+        
+      } catch (error) {
+        // 网络错误或其他异常
+        console.error('[短信测试] 发送失败:', error);
+        showModalAlert('网络错误：' + error.message);
+        
+        // 恢复按钮状态
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = `
+          <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+          </svg>
+          发送测试短信
+        `;
       }
     }
 

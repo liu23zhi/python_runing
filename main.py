@@ -15176,6 +15176,136 @@ def start_web_server(args_param):
             app.logger.error(f"[短信回复] 处理异常：{str(e)}")
             return "0"  # 即使出错也返回0，避免短信宝重复推送
 
+    @app.route('/api/sms/test_send', methods=['POST'])
+    @login_required
+    def sms_test_send():
+        """
+        短信测试发送API（管理员专用）
+        功能：向指定手机号发送随机验证码，用于测试短信配置是否正确
+        
+        权限要求：仅管理员可调用
+        
+        请求参数：
+        - phone: 手机号（必填）
+        
+        返回：
+        - success: 是否成功
+        - message: 提示信息
+        - code: 发送的验证码（仅测试模式下返回，便于管理员验证）
+        """
+        try:
+            # 1. 验证管理员权限
+            current_user = g.user
+            if not auth_system.is_super_admin(current_user) and not auth_system.is_admin(current_user):
+                return jsonify({"success": False, "message": "权限不足，仅管理员可使用测试功能"}), 403
+            
+            # 2. 检查短信服务总开关
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "短信服务未启用，请先在配置中启用"})
+            
+            # 3. 获取并验证手机号
+            data = request.get_json() or {}
+            phone = data.get('phone', '').strip()
+            
+            # 验证手机号格式（11位数字，1开头）
+            if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+            # 4. 生成6位随机验证码
+            import random
+            code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            
+            # 5. 读取短信宝配置
+            username = config.get('SMS_Service_SMSBao', 'username', fallback='')
+            api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
+            signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【电科大跑步助手】')
+            code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+            
+            if not username or not api_key:
+                return jsonify({"success": False, "message": "短信服务配置不完整，请先完善短信宝用户名和API Key"})
+            
+            # 6. 构造测试短信内容
+            content = signature + f'【测试短信】您的验证码是：{code}，{code_expire_minutes}分钟内有效。这是一条测试短信。'
+            
+            # 7. 调用短信宝API发送短信
+            import urllib.parse
+            import urllib.request
+            url = f"http://api.smsbao.com/sms?u={username}&p={api_key}&m={phone}&c={urllib.parse.quote(content)}"
+            
+            logging.info(f"[短信测试] 管理员 {current_user} 发送测试短信到 {phone}")
+            
+            try:
+                response = urllib.request.urlopen(url, timeout=10)
+                result = response.read().decode('utf-8').strip()
+                
+                # 短信宝返回码：0=成功，其他为错误码
+                if result == '0':
+                    # 记录到短信发送历史
+                    try:
+                        log_dir = LOGIN_LOGS_DIR
+                        os.makedirs(log_dir, exist_ok=True)
+                        
+                        client_ip = request.remote_addr
+                        history_entry = {
+                            'username': f"{current_user}(测试)",
+                            'phone': phone,
+                            'scene': 'admin_test',
+                            'timestamp': time.time(),
+                            'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+                            'content': content,
+                            'ip': client_ip,
+                            'test_code': code  # 测试模式下记录验证码
+                        }
+                        
+                        history_file = os.path.join(log_dir, 'sms_history.jsonl')
+                        with open(history_file, 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
+                        
+                        logging.info(f"[短信测试] 已记录测试短信历史: {phone} -> 验证码: {code}")
+                    except Exception as e:
+                        logging.error(f"[短信测试] 记录历史失败: {str(e)}")
+                    
+                    # 测试模式下返回验证码，便于管理员验证
+                    return jsonify({
+                        "success": True,
+                        "message": f"测试短信发送成功！验证码：{code}",
+                        "code": code,  # 仅测试模式下返回
+                        "phone": phone
+                    })
+                else:
+                    # 短信宝错误码映射
+                    error_map = {
+                        '30': '密码错误',
+                        '40': '账号不存在',
+                        '41': '余额不足',
+                        '42': '账户已过期',
+                        '43': 'IP地址限制',
+                        '50': '内容含有敏感词'
+                    }
+                    error_msg = error_map.get(result, f'未知错误(错误码:{result})')
+                    logging.error(f"[短信测试] 短信宝API返回错误: {result} - {error_msg}")
+                    return jsonify({
+                        "success": False,
+                        "message": f"发送失败：{error_msg}",
+                        "error_code": result
+                    })
+                    
+            except Exception as e:
+                logging.error(f"[短信测试] API调用异常: {str(e)}", exc_info=True)
+                return jsonify({
+                    "success": False,
+                    "message": f"网络错误：{str(e)}"
+                })
+                
+        except Exception as e:
+            logging.error(f"[短信测试] 处理请求异常: {str(e)}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"处理失败：{str(e)}"
+            })
+
     # ====================
     # 管理员日志查看API
     # ====================
