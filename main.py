@@ -11624,9 +11624,10 @@ def start_web_server(args_param):
             nickname = data.get('nickname', '').strip()
             sms_code = data.get('sms_code', '').strip()
             captcha_input = data.get('captcha', '').strip()  # 获取用户输入的验证码
+            captcha_id = data.get('captcha_id', '').strip()  # 获取验证码ID
             
             # 3. 验证图形验证码（必须首先验证，防止恶意注册）
-            is_captcha_valid, captcha_error_msg = verify_captcha(captcha_input)
+            is_captcha_valid, captcha_error_msg = verify_captcha(captcha_id, captcha_input)
             if not is_captcha_valid:
                 return jsonify({"success": False, "message": captcha_error_msg})
             
@@ -11820,9 +11821,10 @@ def start_web_server(args_param):
         sms_code = data.get('auth_sms_code', '').strip()
         two_fa_code = data.get('two_fa_code', '').strip()
         captcha_input = data.get('captcha', '').strip()  # 获取用户输入的验证码
+        captcha_id = data.get('captcha_id', '').strip()  # 获取验证码ID
         
         # 验证图形验证码（在所有登录尝试前进行验证，增强安全性）
-        is_captcha_valid, captcha_error_msg = verify_captcha(captcha_input)
+        is_captcha_valid, captcha_error_msg = verify_captcha(captcha_id, captcha_input)
         if not is_captcha_valid:
             return jsonify({"success": False, "message": captcha_error_msg})
         
@@ -14923,9 +14925,10 @@ def start_web_server(args_param):
             phone = data.get('phone', '').strip()
             scene = data.get('scene', 'register').strip()  # 使用场景
             captcha_input = data.get('captcha', '').strip()  # 获取用户输入的验证码
+            captcha_id = data.get('captcha_id', '').strip()  # 获取验证码ID
             
             # 2. 验证图形验证码（必须首先验证，防止恶意短信攻击）
-            is_captcha_valid, captcha_error_msg = verify_captcha(captcha_input)
+            is_captcha_valid, captcha_error_msg = verify_captcha(captcha_id, captcha_input)
             if not is_captcha_valid:
                 return jsonify({"success": False, "message": captcha_error_msg})
             
@@ -17973,23 +17976,24 @@ def start_web_server(args_param):
         
         功能说明:
             - 从第三方API (https://api.vore.top/api/VerifyCode) 获取验证码图片HTML和答案
-            - 将验证码答案存储在session中，用于后续验证
-            - 返回验证码的HTML内容给前端显示
+            - 生成唯一的验证码ID，将ID和答案存储在JSON文件中
+            - 返回验证码的HTML内容和验证码ID给前端显示
         
         返回格式:
             {
                 "success": True/False,
                 "html": "验证码HTML内容（用于在前端显示图片）",
+                "captcha_id": "唯一的验证码ID",
                 "message": "错误消息（仅失败时返回）"
             }
         
         安全说明:
-            - 验证码答案仅存储在服务器端session中，不会返回给前端
-            - 验证码有效期与session绑定，session过期验证码也失效
-            - 每次调用都会生成新的验证码，覆盖旧的验证码
+            - 验证码答案存储在服务器端JSON文件中，不会返回给前端
+            - 使用UUID生成唯一的验证码ID，防止冲突
+            - 验证码文件存储在logs/captchas目录下
+            - 验证码有效期10分钟，过期自动清理
         """
-        # 从请求头获取session_id（Flask session）
-        # 注意：这里使用Flask的session机制，不是web_sessions
+        # 从请求头获取session_id
         session_id = request.headers.get('X-Session-ID', '')
         
         # 验证session_id是否存在
@@ -18001,7 +18005,7 @@ def start_web_server(args_param):
         
         try:
             # 调用第三方验证码API
-            # length=4 表示生成4位验证码（可根据需求调整为6或8）
+            # length=4 表示生成4位验证码
             captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
             
             # 发送GET请求获取验证码，设置5秒超时
@@ -18011,7 +18015,6 @@ def start_web_server(args_param):
             result = response.json()
             
             # 检查API返回状态码
-            # code=200 表示成功
             if result.get('code') != 200:
                 logging.error(f"[验证码API] 获取失败: {result.get('msg', '未知错误')}")
                 return jsonify({
@@ -18022,7 +18025,7 @@ def start_web_server(args_param):
             # 提取验证码数据
             data = result.get('data', {})
             captcha_html = data.get('html', '')  # 验证码图片的HTML内容
-            captcha_code = data.get('code', '')  # 验证码答案（例如："01QTF6"）
+            captcha_code = data.get('code', '')  # 验证码答案
             
             # 验证数据完整性
             if not captcha_html or not captcha_code:
@@ -18032,22 +18035,61 @@ def start_web_server(args_param):
                     "message": "验证码数据获取失败"
                 }), 500
             
-            # 将验证码答案存储在Flask session中
-            # 使用大写形式存储，验证时统一转换为大写进行比较（不区分大小写）
-            session['captcha_code'] = captcha_code.upper()
-            session['captcha_timestamp'] = time.time()  # 记录生成时间，可用于实现验证码过期机制
+            # 生成唯一的验证码ID
+            import uuid
+            captcha_id = str(uuid.uuid4())
             
-            # 记录日志（不记录验证码答案，避免泄露）
-            logging.info(f"[验证码] 已为会话 {session_id[:8]}... 生成新的验证码")
+            # 确保captchas目录存在
+            captchas_dir = os.path.join('logs', 'captchas')
+            os.makedirs(captchas_dir, exist_ok=True)
             
-            # 返回验证码HTML给前端
+            # 准备验证码数据
+            captcha_data = {
+                'id': captcha_id,
+                'code': captcha_code.upper(),  # 统一转换为大写
+                'session_id': session_id,
+                'timestamp': time.time(),
+                'expires_at': time.time() + 600  # 10分钟后过期
+            }
+            
+            # 将验证码数据存储到JSON文件
+            captcha_file = os.path.join(captchas_dir, f'{captcha_id}.json')
+            with open(captcha_file, 'w', encoding='utf-8') as f:
+                json.dump(captcha_data, f, indent=2, ensure_ascii=False)
+            
+            # 清理过期的验证码文件（后台任务）
+            def cleanup_expired_captchas():
+                try:
+                    current_time = time.time()
+                    for filename in os.listdir(captchas_dir):
+                        if filename.endswith('.json'):
+                            file_path = os.path.join(captchas_dir, filename)
+                            try:
+                                with open(file_path, 'r', encoding='utf-8') as f:
+                                    data = json.load(f)
+                                if data.get('expires_at', 0) < current_time:
+                                    os.remove(file_path)
+                                    logging.debug(f"[验证码清理] 删除过期验证码: {filename}")
+                            except Exception as e:
+                                logging.warning(f"[验证码清理] 处理文件 {filename} 时出错: {e}")
+                except Exception as e:
+                    logging.error(f"[验证码清理] 清理过期验证码失败: {e}")
+            
+            # 在后台线程中清理过期验证码
+            import threading
+            threading.Thread(target=cleanup_expired_captchas, daemon=True).start()
+            
+            # 记录日志（不记录验证码答案）
+            logging.info(f"[验证码] 已生成验证码 ID: {captcha_id[:8]}... 会话: {session_id[:8]}...")
+            
+            # 返回验证码HTML和ID给前端
             return jsonify({
                 "success": True,
-                "html": captcha_html
+                "html": captcha_html,
+                "captcha_id": captcha_id
             })
             
         except requests.exceptions.Timeout:
-            # 请求超时
             logging.warning(f"[验证码API] 请求超时")
             return jsonify({
                 "success": False,
@@ -18055,7 +18097,6 @@ def start_web_server(args_param):
             }), 500
             
         except requests.exceptions.RequestException as e:
-            # 网络请求失败
             logging.error(f"[验证码API] 网络请求失败: {str(e)}")
             return jsonify({
                 "success": False,
@@ -18063,7 +18104,6 @@ def start_web_server(args_param):
             }), 500
             
         except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
-            # 数据解析错误
             logging.error(f"[验证码API] 数据解析失败: {str(e)}")
             return jsonify({
                 "success": False,
@@ -18071,18 +18111,18 @@ def start_web_server(args_param):
             }), 500
             
         except Exception as e:
-            # 其他未预期的错误
             logging.error(f"[验证码API] 未知错误: {str(e)}", exc_info=True)
             return jsonify({
                 "success": False,
                 "message": "获取验证码时发生错误"
             }), 500
     
-    def verify_captcha(user_input):
+    def verify_captcha(captcha_id, user_input):
         """
         验证验证码辅助函数
         
         参数:
+            captcha_id (str): 验证码ID
             user_input (str): 用户输入的验证码
         
         返回:
@@ -18091,43 +18131,85 @@ def start_web_server(args_param):
                    失败返回 (False, "具体错误原因")
         
         验证逻辑:
-            1. 检查session中是否存在验证码（是否已调用get_captcha）
-            2. 检查用户输入是否为空
+            1. 根据验证码ID从JSON文件中读取验证码数据
+            2. 检查验证码是否过期
             3. 不区分大小写比对用户输入与存储的验证码答案
-            4. 验证后立即清除session中的验证码（一次性使用）
+            4. 验证后立即删除验证码文件（一次性使用）
         
         安全特性:
             - 验证码使用后立即失效（防止重放攻击）
             - 不区分大小写，提升用户体验
-            - 验证失败也会清除验证码，需要重新获取
+            - 验证失败也会删除验证码，需要重新获取
+            - 支持验证码过期机制
         """
-        # 从session中获取存储的验证码答案
-        stored_code = session.get('captcha_code', '')
-        
-        # 检查是否存在验证码
-        if not stored_code:
-            return False, "请先获取验证码"
+        # 检查验证码ID是否为空
+        if not captcha_id or not captcha_id.strip():
+            return False, "验证码ID不能为空"
         
         # 检查用户输入是否为空
         if not user_input or not user_input.strip():
             return False, "验证码不能为空"
         
-        # 不区分大小写比对（统一转换为大写）
-        user_input_upper = user_input.strip().upper()
+        # 构建验证码文件路径
+        captchas_dir = os.path.join('logs', 'captchas')
+        captcha_file = os.path.join(captchas_dir, f'{captcha_id}.json')
         
-        # 比对验证码
-        is_correct = (user_input_upper == stored_code)
+        # 检查验证码文件是否存在
+        if not os.path.exists(captcha_file):
+            return False, "验证码不存在或已失效"
         
-        # 清除session中的验证码（无论验证成功或失败，都清除）
-        # 这确保验证码只能使用一次
-        session.pop('captcha_code', None)
-        session.pop('captcha_timestamp', None)
-        
-        # 返回验证结果
-        if is_correct:
-            return True, ""
-        else:
-            return False, "验证码错误"
+        try:
+            # 读取验证码数据
+            with open(captcha_file, 'r', encoding='utf-8') as f:
+                captcha_data = json.load(f)
+            
+            # 检查验证码是否过期
+            current_time = time.time()
+            if captcha_data.get('expires_at', 0) < current_time:
+                # 删除过期的验证码文件
+                try:
+                    os.remove(captcha_file)
+                except Exception as e:
+                    logging.warning(f"[验证码] 删除过期验证码文件失败: {e}")
+                return False, "验证码已过期"
+            
+            # 获取存储的验证码答案
+            stored_code = captcha_data.get('code', '')
+            
+            # 不区分大小写比对（统一转换为大写）
+            user_input_upper = user_input.strip().upper()
+            
+            # 比对验证码
+            is_correct = (user_input_upper == stored_code)
+            
+            # 删除验证码文件（无论验证成功或失败，都删除）
+            # 这确保验证码只能使用一次
+            try:
+                os.remove(captcha_file)
+                logging.debug(f"[验证码] 已删除验证码文件: {captcha_id}")
+            except Exception as e:
+                logging.warning(f"[验证码] 删除验证码文件失败: {e}")
+            
+            # 返回验证结果
+            if is_correct:
+                logging.info(f"[验证码] 验证成功: ID={captcha_id[:8]}...")
+                return True, ""
+            else:
+                logging.warning(f"[验证码] 验证失败: ID={captcha_id[:8]}...")
+                return False, "验证码错误"
+                
+        except json.JSONDecodeError as e:
+            logging.error(f"[验证码] JSON解析失败: {e}")
+            # 删除损坏的验证码文件
+            try:
+                os.remove(captcha_file)
+            except:
+                pass
+            return False, "验证码数据损坏"
+            
+        except Exception as e:
+            logging.error(f"[验证码] 验证过程出错: {e}", exc_info=True)
+            return False, "验证码验证失败"
 
     @app.route('/health')
     def health():

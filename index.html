@@ -8892,6 +8892,15 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * @param {string} formType - 表单类型 ('login' 或 'register')
      * @description 从后端API获取验证码HTML并显示在指定的容器中
      */
+    // ==================== 验证码相关函数 ====================
+    
+    // 全局变量：存储各个表单的验证码ID
+    const captchaIds = {
+      login: null,
+      register: null,
+      modal: null
+    };
+    
     async function loadCaptcha(formType) {
       // 根据表单类型确定验证码显示区域的ID
       const displayId = formType === 'login' ? 'auth-login-captcha-display' : 'auth-register-captcha-display';
@@ -8916,7 +8925,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
         
         const result = await response.json();
         
-        if (result.success && result.html) {
+        if (result.success && result.html && result.captcha_id) {
+          // 存储验证码ID
+          captchaIds[formType] = result.captcha_id;
+          
           // 将验证码HTML插入到显示区域
           // 使用innerHTML直接插入HTML（包含img标签）
           displayElement.innerHTML = result.html;
@@ -8933,7 +8945,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
             imgElement.style.imageRendering = 'crisp-edges';  // 优化图片渲染，避免模糊
           }
           
-          console.log(`[验证码] ${formType}表单验证码加载成功`);
+          console.log(`[验证码] ${formType}表单验证码加载成功，ID: ${result.captcha_id.substring(0, 8)}...`);
         } else {
           // 加载失败，显示错误提示
           displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
@@ -8986,7 +8998,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
         
         const result = await response.json();
         
-        if (result.success && result.html) {
+        if (result.success && result.html && result.captcha_id) {
+          // 存储模态窗验证码ID
+          captchaIds.modal = result.captcha_id;
+          
           // 将验证码HTML插入到显示区域
           displayElement.innerHTML = result.html;
           
@@ -9001,7 +9016,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
             imgElement.style.imageRendering = 'crisp-edges';
           }
           
-          console.log('[验证码模态窗] 验证码加载成功');
+          console.log('[验证码模态窗] 验证码加载成功，ID:', result.captcha_id.substring(0, 8) + '...');
         } else {
           displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
           console.error('[验证码模态窗] 加载失败:', result.message || '未知错误');
@@ -9114,7 +9129,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
           },
           body: JSON.stringify({
             phone: phone,
-            captcha: captcha
+            captcha: captcha,
+            captcha_id: captchaIds.modal  // 使用模态窗的验证码ID
           })
         });
 
@@ -9241,8 +9257,9 @@ function run_code_not_need_sessionuuid(codeToRun) {
         request_body.auth_sms_code = sms_code;
       }
       
-      // 添加图形验证码到请求体
+      // 添加图形验证码和验证码ID到请求体
       request_body.captcha = captcha;
+      request_body.captcha_id = captchaIds.login;  // 添加验证码ID
       
       // (2FA code is handled by handle2FAVerify, not here)
 
@@ -9620,6 +9637,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       formData.append('nickname', nickname);
       formData.append('sms_code', smsCode);
       formData.append('captcha', captcha);  // 添加图形验证码到表单数据
+      formData.append('captcha_id', captchaIds.register);  // 添加验证码ID
 
       // 4. 添加头像文件（如果存在）
       if (avatarFile) {
