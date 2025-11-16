@@ -2382,6 +2382,134 @@
     </div>
   </div>
 
+  <!-- ========== School Account 编辑模态框 ========== -->
+  <!-- 用于添加或编辑学校账户信息的弹窗 -->
+  <div id="edit-school-account-modal" class="fixed inset-0 hidden z-[70] flex items-center justify-center p-4"
+    style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);">
+    <!-- 对话框主体容器 - 拟态风格卡片 -->
+    <div
+      class="bg-gradient-to-br from-slate-50 to-white rounded-3xl shadow-2xl max-w-[560px] w-full transform transition-all"
+      style="box-shadow: 12px 12px 24px rgba(0, 0, 0, 0.1), -12px -12px 24px rgba(255, 255, 255, 0.9);"
+      onclick="event.stopPropagation()">
+
+      <!-- 对话框头部 -->
+      <div class="p-6 pb-4 border-b border-slate-200">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <!-- 编辑图标 -->
+            <div
+              class="w-12 h-12 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center flex-shrink-0"
+              style="box-shadow: 4px 4px 8px rgba(56, 189, 248, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.8);">
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800" id="edit-school-account-modal-title">编辑 School Account</h3>
+          </div>
+          <!-- 关闭按钮 -->
+          <button onclick="closeEditSchoolAccountModal()" class="text-slate-400 hover:text-slate-600 transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- 对话框内容 -->
+      <div class="p-6 space-y-4">
+        <!-- 表单区域 -->
+        <form id="edit-school-account-form" class="space-y-4">
+          
+          <!-- 认证用户名字段（只读，显示所属用户） -->
+          <div class="space-y-2">
+            <label for="edit-school-account-auth-username" class="block text-sm font-medium text-slate-700">
+              认证用户 (Auth Username)
+            </label>
+            <input 
+              type="text" 
+              id="edit-school-account-auth-username" 
+              name="auth_username"
+              class="w-full px-4 py-2.5 text-slate-700 bg-slate-100 border border-slate-300 rounded-lg cursor-not-allowed"
+              readonly
+              placeholder="认证用户名"
+              style="box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.1);">
+          </div>
+
+          <!-- 学校账号用户名字段（可编辑） -->
+          <div class="space-y-2">
+            <label for="edit-school-account-school-username" class="block text-sm font-medium text-slate-700">
+              学校账号用户名 (School Username) <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="edit-school-account-school-username" 
+              name="school_username"
+              class="w-full px-4 py-2.5 text-slate-700 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent transition"
+              placeholder="请输入学校账号用户名"
+              required
+              style="box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.05);">
+          </div>
+
+          <!-- 密码字段（可编辑） -->
+          <div class="space-y-2">
+            <label for="edit-school-account-password" class="block text-sm font-medium text-slate-700">
+              密码 (Password) <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="edit-school-account-password" 
+              name="password"
+              class="w-full px-4 py-2.5 text-slate-700 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent transition font-mono"
+              placeholder="请输入密码"
+              required
+              style="box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.05);">
+          </div>
+
+          <!-- User Agent 字段（可编辑） -->
+          <div class="space-y-2">
+            <label for="edit-school-account-ua" class="block text-sm font-medium text-slate-700">
+              User Agent (UA)
+            </label>
+            <textarea 
+              id="edit-school-account-ua" 
+              name="ua"
+              rows="3"
+              class="w-full px-4 py-2.5 text-slate-700 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent transition font-mono text-sm resize-none"
+              placeholder="（可选）请输入 User Agent"
+              style="box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.05);"></textarea>
+            <p class="text-xs text-slate-500">如果不填写，将使用系统默认 User Agent</p>
+          </div>
+
+          <!-- 隐藏字段：存储原始的 school_username（用于编辑模式） -->
+          <input type="hidden" id="edit-school-account-original-username" name="original_username">
+
+        </form>
+      </div>
+
+      <!-- 对话框底部按钮 -->
+      <div class="px-6 pb-6 flex gap-3 justify-end">
+        <!-- 取消按钮 -->
+        <button 
+          type="button" 
+          onclick="closeEditSchoolAccountModal()" 
+          class="px-6 py-2.5 rounded-lg font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-all"
+          style="box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1), -1px -1px 2px rgba(255, 255, 255, 0.8);">
+          取消
+        </button>
+        <!-- 保存按钮 -->
+        <button 
+          type="button" 
+          onclick="submitSchoolAccount()" 
+          class="px-6 py-2.5 rounded-lg font-medium text-white bg-gradient-to-br from-sky-400 to-blue-500 hover:from-sky-500 hover:to-blue-600 transition-all"
+          style="box-shadow: 2px 2px 4px rgba(56, 189, 248, 0.4), -1px -1px 2px rgba(255, 255, 255, 0.6);">
+          保存
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- 加载遮罩层 -->
   <div id="loading-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/80">
     <div class="loader"></div>
@@ -13052,68 +13180,142 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
     }
 
+    /**
+     * 加载并显示所有认证用户的学校账户
+     * 功能：从后端获取数据，渲染带有"添加"、"编辑"、"删除"按钮的账户列表
+     */
     async function loadSchoolAccounts() {
+      // 获取内容容器元素
       const content = $('school-accounts-content');
-      if (!content) return;
+      if (!content) return; // 如果容器不存在，直接返回
 
+      // 显示加载中提示
       content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
 
       try {
+        // 向后端发送请求，获取所有用户的学校账户数据
         const response = await fetch('/auth/admin/get_all_users_school_accounts', {
           headers: {
-            'X-Session-ID': sessionUUID
+            'X-Session-ID': sessionUUID // 携带会话ID进行身份验证
           }
         });
 
+        // 解析 JSON 响应数据
         const data = await response.json();
 
+        // 检查请求是否成功
         if (!data.success) {
+          // 如果失败，显示错误消息
           content.innerHTML = `<p class="text-red-500 text-center py-10">${data.message || '加载失败'}</p>`;
           return;
         }
 
+        // 获取所有账户数据（格式：{ authUsername: { schoolUsername: accountData } }）
         const allAccounts = data.all_accounts;
         
+        // 检查是否有数据
         if (Object.keys(allAccounts).length === 0) {
           content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无数据</p>';
           return;
         }
 
+        // 开始构建 HTML 内容
         let html = '';
+        
+        // 遍历每个认证用户（authUsername）及其学校账户
         for (const [authUsername, accounts] of Object.entries(allAccounts)) {
+          // 计算该认证用户拥有的学校账户数量
           const accountCount = Object.keys(accounts).length;
+          
+          // 开始构建该认证用户的卡片容器
           html += `
             <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
-              <h4 class="font-semibold text-slate-800 mb-3">认证用户: ${escapeHtml(authUsername)} <span class="text-sm text-slate-500">(${accountCount} 个学校账户)</span></h4>
+              <!-- 标题行：显示认证用户名和账户数量，以及"添加 School Account"按钮 -->
+              <div class="flex justify-between items-center mb-3">
+                <h4 class="font-semibold text-slate-800">
+                  认证用户: ${escapeHtml(authUsername)} 
+                  <span class="text-sm text-slate-500">(${accountCount} 个学校账户)</span>
+                </h4>
+                <!-- "添加 School Account" 按钮 - 使用拟态风格 -->
+                <button 
+                  onclick="openSchoolAccountModal('${escapeHtml(authUsername)}')"
+                  class="px-4 py-2 rounded-lg text-sm font-medium text-sky-600 bg-white border border-sky-300 hover:bg-sky-50 hover:border-sky-400 transition-all flex items-center gap-2"
+                  style="box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1), -1px -1px 2px rgba(255, 255, 255, 0.8);"
+                  title="为此用户添加新的学校账号">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                  添加账户
+                </button>
+              </div>
+              
+              <!-- 学校账户列表容器 -->
               <div class="space-y-2">
           `;
           
+          // 检查该认证用户是否有学校账户
           if (accountCount === 0) {
-            html += '<p class="text-slate-400 text-sm">暂无学校账户</p>';
+            // 如果没有账户，显示提示信息
+            html += '<p class="text-slate-400 text-sm">暂无学校账户，点击上方"添加账户"按钮开始添加</p>';
           } else {
+            // 遍历该认证用户的每个学校账户
             for (const [schoolUsername, accountData] of Object.entries(accounts)) {
-              // 处理旧格式（字符串）和新格式（对象）
+              // 初始化密码和 UA 变量
               let password = '';
               let ua = '';
               
+              // 处理数据格式兼容性（旧格式是字符串，新格式是对象）
               if (typeof accountData === 'string') {
-                // 旧格式：直接是密码字符串
+                // 旧格式：accountData 直接是密码字符串
                 password = accountData;
               } else if (typeof accountData === 'object' && accountData !== null) {
-                // 新格式：包含 password 和 ua
+                // 新格式：accountData 是包含 password 和 ua 的对象
                 password = accountData.password || '';
                 ua = accountData.ua || '';
               }
               
+              // 构建单个学校账户的卡片
               html += `
-                <div class="bg-white p-3 rounded border border-slate-200 space-y-1">
+                <div class="bg-white p-3 rounded border border-slate-200 space-y-2">
+                  <!-- 顶部行：学校用户名 + 编辑和删除按钮 -->
                   <div class="flex justify-between items-center">
                     <span class="font-medium text-slate-700">${escapeHtml(schoolUsername)}</span>
+                    
+                    <!-- 操作按钮组 -->
+                    <div class="flex gap-2">
+                      <!-- 编辑按钮 - 拟态风格 -->
+                      <button 
+                        onclick="openSchoolAccountModal('${escapeHtml(authUsername)}', '${escapeHtml(schoolUsername)}', '${escapeHtml(password)}', '${escapeHtml(ua)}')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 bg-white border border-blue-300 hover:bg-blue-50 hover:border-blue-400 transition-all flex items-center gap-1"
+                        style="box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.08), -0.5px -0.5px 1px rgba(255, 255, 255, 0.8);"
+                        title="编辑此学校账号">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        编辑
+                      </button>
+                      
+                      <!-- 删除按钮 - 拟态风格 -->
+                      <button 
+                        onclick="deleteSchoolAccount('${escapeHtml(authUsername)}', '${escapeHtml(schoolUsername)}')"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-white border border-red-300 hover:bg-red-50 hover:border-red-400 transition-all flex items-center gap-1"
+                        style="box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.08), -0.5px -0.5px 1px rgba(255, 255, 255, 0.8);"
+                        title="删除此学校账号">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        删除
+                      </button>
+                    </div>
                   </div>
+                  
+                  <!-- 密码显示行 -->
                   <div class="text-sm">
                     <span class="text-slate-500">密码:</span>
                     <span class="font-mono text-slate-600 ml-2">${escapeHtml(password)}</span>
                   </div>
+                  
+                  <!-- UA 显示行（仅当 UA 存在时显示） -->
                   ${ua ? `
                   <div class="text-sm">
                     <span class="text-slate-500">UA:</span>
@@ -13125,17 +13327,248 @@ function run_code_not_need_sessionuuid(codeToRun) {
             }
           }
           
+          // 关闭学校账户列表容器和认证用户卡片
           html += `
               </div>
             </div>
           `;
         }
 
+        // 将构建好的 HTML 设置到内容容器中
         content.innerHTML = html;
 
       } catch (error) {
+        // 捕获并处理任何错误
         console.error('加载 school accounts 失败:', error);
         content.innerHTML = '<p class="text-red-500 text-center py-10">加载失败，请检查网络连接</p>';
+      }
+    }
+
+    /**
+     * 打开 School Account 编辑模态框
+     * @param {string} authUsername - 认证用户名（必填，用于关联学校账号）
+     * @param {string} schoolUsername - 学校账号用户名（可选，编辑时传入）
+     * @param {string} password - 密码（可选，编辑时传入）
+     * @param {string} ua - User Agent（可选，编辑时传入）
+     * 
+     * 功能说明：
+     * - 如果 schoolUsername 为空，表示"添加模式"（创建新的学校账号）
+     * - 如果 schoolUsername 有值，表示"编辑模式"（修改现有学校账号）
+     */
+    function openSchoolAccountModal(authUsername, schoolUsername = '', password = '', ua = '') {
+      // 获取模态框元素
+      const modal = $('edit-school-account-modal');
+      if (!modal) {
+        logMessage_Error('School Account 编辑模态框不存在');
+        return;
+      }
+
+      // 获取表单中的所有输入元素
+      const authUsernameInput = $('edit-school-account-auth-username');
+      const schoolUsernameInput = $('edit-school-account-school-username');
+      const passwordInput = $('edit-school-account-password');
+      const uaInput = $('edit-school-account-ua');
+      const originalUsernameInput = $('edit-school-account-original-username');
+      const modalTitle = $('edit-school-account-modal-title');
+
+      // 检查所有必需的输入元素是否存在
+      if (!authUsernameInput || !schoolUsernameInput || !passwordInput || !uaInput || !originalUsernameInput) {
+        logMessage_Error('School Account 编辑表单元素不完整');
+        return;
+      }
+
+      // 填充表单数据
+      authUsernameInput.value = authUsername; // 设置认证用户名（只读）
+      schoolUsernameInput.value = schoolUsername; // 设置学校账号用户名
+      passwordInput.value = password; // 设置密码
+      uaInput.value = ua; // 设置 User Agent
+      originalUsernameInput.value = schoolUsername; // 保存原始的学校账号用户名（用于编辑时识别）
+
+      // 根据是否为编辑模式，更新模态框标题和输入框状态
+      if (schoolUsername) {
+        // 编辑模式：标题显示"编辑"，学校用户名输入框设置为只读
+        if (modalTitle) modalTitle.textContent = '编辑 School Account';
+        schoolUsernameInput.readOnly = true; // 编辑时不允许修改用户名
+        schoolUsernameInput.classList.add('bg-slate-100', 'cursor-not-allowed'); // 添加只读样式
+      } else {
+        // 添加模式：标题显示"添加"，学校用户名输入框可编辑
+        if (modalTitle) modalTitle.textContent = '添加 School Account';
+        schoolUsernameInput.readOnly = false; // 添加时允许输入用户名
+        schoolUsernameInput.classList.remove('bg-slate-100', 'cursor-not-allowed'); // 移除只读样式
+      }
+
+      // 显示模态框（移除 hidden 类，添加 flex 类以显示）
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      // 自动聚焦到第一个可编辑的输入框
+      // 如果是添加模式，聚焦到学校用户名输入框；如果是编辑模式，聚焦到密码输入框
+      setTimeout(() => {
+        if (schoolUsername) {
+          passwordInput.focus(); // 编辑模式：聚焦到密码框
+        } else {
+          schoolUsernameInput.focus(); // 添加模式：聚焦到用户名框
+        }
+      }, 300); // 延迟300ms以确保模态框已完全显示
+    }
+
+    /**
+     * 关闭 School Account 编辑模态框
+     * 功能：隐藏模态框并清空表单数据
+     */
+    function closeEditSchoolAccountModal() {
+      // 获取模态框元素
+      const modal = $('edit-school-account-modal');
+      if (!modal) return; // 如果模态框不存在，直接返回
+
+      // 隐藏模态框（添加 hidden 类，移除 flex 类）
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+
+      // 清空表单数据（可选，但建议清空以避免下次打开时显示旧数据）
+      const authUsernameInput = $('edit-school-account-auth-username');
+      const schoolUsernameInput = $('edit-school-account-school-username');
+      const passwordInput = $('edit-school-account-password');
+      const uaInput = $('edit-school-account-ua');
+      const originalUsernameInput = $('edit-school-account-original-username');
+
+      if (authUsernameInput) authUsernameInput.value = '';
+      if (schoolUsernameInput) {
+        schoolUsernameInput.value = '';
+        schoolUsernameInput.readOnly = false; // 重置为可编辑状态
+        schoolUsernameInput.classList.remove('bg-slate-100', 'cursor-not-allowed'); // 移除只读样式
+      }
+      if (passwordInput) passwordInput.value = '';
+      if (uaInput) uaInput.value = '';
+      if (originalUsernameInput) originalUsernameInput.value = '';
+    }
+
+    /**
+     * 提交 School Account 保存操作（添加或编辑）
+     * 功能：收集表单数据，调用后端 API 保存学校账号
+     */
+    async function submitSchoolAccount() {
+      // 获取表单中的所有输入元素
+      const authUsernameInput = $('edit-school-account-auth-username');
+      const schoolUsernameInput = $('edit-school-account-school-username');
+      const passwordInput = $('edit-school-account-password');
+      const uaInput = $('edit-school-account-ua');
+      const originalUsernameInput = $('edit-school-account-original-username');
+
+      // 检查所有必需的输入元素是否存在
+      if (!authUsernameInput || !schoolUsernameInput || !passwordInput || !uaInput || !originalUsernameInput) {
+        showModalAlert('表单元素不完整，无法提交', '错误');
+        return;
+      }
+
+      // 获取并清理用户输入的数据
+      const authUsername = authUsernameInput.value.trim(); // 认证用户名
+      const schoolUsername = schoolUsernameInput.value.trim(); // 学校账号用户名
+      const password = passwordInput.value.trim(); // 密码
+      const ua = uaInput.value.trim(); // User Agent（可选）
+      const originalUsername = originalUsernameInput.value.trim(); // 原始用户名（用于编辑模式）
+
+      // 验证必填字段
+      if (!authUsername) {
+        showModalAlert('认证用户名不能为空', '验证失败');
+        return;
+      }
+
+      if (!schoolUsername) {
+        showModalAlert('学校账号用户名不能为空', '验证失败');
+        schoolUsernameInput.focus(); // 聚焦到用户名输入框
+        return;
+      }
+
+      if (!password) {
+        showModalAlert('密码不能为空', '验证失败');
+        passwordInput.focus(); // 聚焦到密码输入框
+        return;
+      }
+
+      // 准备要发送到后端的数据
+      const data = {
+        auth_username: authUsername, // 认证用户名
+        school_username: schoolUsername, // 学校账号用户名
+        password: password, // 密码
+        ua: ua || null // User Agent（如果为空，传 null）
+      };
+
+      // 如果是编辑模式（originalUsername 不为空），添加原始用户名字段
+      if (originalUsername) {
+        data.original_username = originalUsername;
+      }
+
+      try {
+        // 调用后端 API 保存学校账号
+        // 使用 callPythonAPI_raw 函数发送 POST 请求
+        const result = await callPythonAPI_raw('/api/admin/school_account/save', 'POST', data);
+
+        // 检查 API 返回结果
+        if (result.success) {
+          // 保存成功
+          showModalAlert(
+            originalUsername ? '学校账号更新成功' : '学校账号添加成功', 
+            '成功'
+          );
+          
+          // 关闭编辑模态框
+          closeEditSchoolAccountModal();
+          
+          // 刷新学校账号列表，显示最新数据
+          loadSchoolAccounts();
+        } else {
+          // 保存失败，显示错误消息
+          showModalAlert(result.message || '保存失败', '错误');
+        }
+      } catch (error) {
+        // 捕获网络错误或其他异常
+        logMessage_Error('保存 School Account 失败:', error);
+        showModalAlert('保存失败，请检查网络连接: ' + error.message, '错误');
+      }
+    }
+
+    /**
+     * 删除 School Account
+     * @param {string} authUsername - 认证用户名
+     * @param {string} schoolUsername - 要删除的学校账号用户名
+     * 
+     * 功能：先弹出确认对话框，用户确认后调用后端 API 删除学校账号
+     */
+    async function deleteSchoolAccount(authUsername, schoolUsername) {
+      // 先使用确认对话框询问用户是否确定要删除
+      const confirmed = await jsShowConfirm(
+        '确认删除', 
+        `您确定要删除学校账号 "${schoolUsername}" 吗？\n此操作不可恢复。`
+      );
+
+      // 如果用户取消了删除操作，直接返回
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        // 调用后端 API 删除学校账号
+        const result = await callPythonAPI_raw('/api/admin/school_account/delete', 'POST', {
+          auth_username: authUsername, // 认证用户名
+          school_username: schoolUsername // 要删除的学校账号用户名
+        });
+
+        // 检查 API 返回结果
+        if (result.success) {
+          // 删除成功
+          showModalAlert('学校账号删除成功', '成功');
+          
+          // 刷新学校账号列表，显示最新数据
+          loadSchoolAccounts();
+        } else {
+          // 删除失败，显示错误消息
+          showModalAlert(result.message || '删除失败', '错误');
+        }
+      } catch (error) {
+        // 捕获网络错误或其他异常
+        logMessage_Error('删除 School Account 失败:', error);
+        showModalAlert('删除失败，请检查网络连接: ' + error.message, '错误');
       }
     }
 
