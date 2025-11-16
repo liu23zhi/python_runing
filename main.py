@@ -20494,6 +20494,8 @@ def start_web_server(args_param):
     # 定义SSL上下文变量，用于存储SSL配置
     # 如果不启用SSL，此值为None
     ssl_context = None
+    cert_path = None
+    key_path = None
     
     # 如果启用了SSL，进行证书验证和SSL上下文创建
     if ssl_config['ssl_enabled']:
@@ -20701,8 +20703,8 @@ def start_web_server(args_param):
 
     try:
         # 修正：HTTPS/SSL 启动方式
-        # 当 async_mode='eventlet' 时，socketio.run() 会自动处理 ssl_context。
-        # 无需手动创建 socket 或 wrap_ssl。
+        # 当 async_mode='eventlet' 时，Flask-SocketIO 不支持 ssl_context 参数
+        # 需要使用 certfile 和 keyfile 参数代替
         
         if ssl_context:
             # HTTPS 模式
@@ -20710,24 +20712,22 @@ def start_web_server(args_param):
                 f"正在启动带有 WebSocket 和 SSL(HTTPS) 支持的 Web 服务器于 {server_url}")
             
             try:
-                # 1. (已移除) 手动创建 eventlet.listen(...)
+                logging.info(f"Eventlet 将使用证书文件启动 SSL 服务器...")
+                logging.info(f"  证书文件: {cert_path}")
+                logging.info(f"  密钥文件: {key_path}")
                 
-                # 2. (已移除) 手动包装 eventlet.wrap_ssl(...)
-                
-                logging.info(f"Eventlet 将使用 SSL context 启动服务器...")
-                
-                # 3. 运行 socketio.run()，让它自己处理 host, port, 和 ssl_context
-                #    (因为 async_mode='eventlet'，它会正确使用 eventlet 服务器)
+                # Flask-SocketIO 的 eventlet 后端需要使用 certfile 和 keyfile 参数
+                # 而不是 ssl_context
                 socketio.run(
                     app, 
                     host=args.host, 
                     port=args.port, 
                     debug=False,
-                    ssl_context=ssl_context # <--- 直接传递 ssl_context
+                    certfile=cert_path,  # 传递证书文件路径
+                    keyfile=key_path     # 传递密钥文件路径
                 )
             except ImportError:
                 logging.error("Eventlet 模块未找到，无法启动HTTPS服务器。请运行 'pip install eventlet'")
-
                 raise
             except Exception as ssl_e:
                 logging.error(f"使用 Eventlet 启动 SSL 服务器失败: {ssl_e}", exc_info=True)
@@ -20744,8 +20744,7 @@ def start_web_server(args_param):
                 app, 
                 host=args.host, 
                 port=args.port, 
-                debug=False,
-                ssl_context=None # 明确传递 None
+                debug=False
             )
     except OSError as e:
         if "WinError 10013" in str(e) or "permission" in str(e).lower() or "访问权限" in str(e):
