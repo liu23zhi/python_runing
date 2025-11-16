@@ -4981,7 +4981,7 @@
 
   <div id="alert-modal" class="fixed inset-0 flex items-center justify-center hidden z-[50000]">
     <div class="absolute inset-0 bg-black/60" onclick="closeModalAlert()"></div>
-    <div class="panel rounded-2xl p-6 w-11/12 md:w-96 space-y-6 relative">
+    <div class="panel rounded-2xl p-6 w-11/12 w-[700px] space-y-6 relative">
       <h3 id="alert-modal-title" class="text-xl font-bold text-red-600 text-center">操作失败</h3>
       <p id="alert-modal-message" class="text-sm text-slate-600 text-center py-4">
         这是一个错误提示。
@@ -5184,7 +5184,7 @@
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">用户列表</h4>
             <div class="flex gap-2">
-              <button id="admin-view-school-accounts_modal" class="btn btn-secondary !py-1 !px-2">查看 School Accounts</button>
+              <button id="admin-view-school-accounts_modal" class="btn btn-secondary !py-1 !px-2" style="display: none;">查看 School Accounts</button>
               <button id="admin-create-user_modal" class="btn btn-primary !py-1 !px-2">新增用户</button>
               <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
