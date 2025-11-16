@@ -2012,8 +2012,7 @@
 
   <!-- 用户认证登录界面 -->
   <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
-    <div class="panel rounded-2xl w-full max-w-md p-6 space-y-6">
-      <div class="text-center">
+    <div class="panel rounded-2xl w-full max-w-[525px] p-6 space-y-6"> <div class="text-center">
         <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
         <p class="text-sm text-slate-500">请登录或注册以继续使用</p>
       </div>
@@ -2027,7 +2026,7 @@
       </div>
 
       <!-- 登录表单 -->
-      <div id="auth-login-form" class="space-y-4">
+      <div id="auth-login-form" class="space-y-4 overflow-y-auto max-h-[60vh] p-1">
         <!-- 任务9: 手机号/用户名登录切换 -->
         <div id="auth-login-type-toggle" class="flex justify-center gap-2 pb-2">
           <button id="auth-login-username-btn"
@@ -2084,7 +2083,7 @@
           <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
           <!-- 验证码显示区域（独立一行） -->
           <div class="flex gap-2 mt-1 items-center">
-            <div id="auth-login-captcha-display" class="flex-shrink-0 w-full h-16 flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+            <div id="auth-login-captcha-display" class="flex-shrink-0 w-auto h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
               title="点击刷新验证码" style="min-height: 64px;">
               <span class="text-slate-400 text-xs">加载中...</span>
             </div>
@@ -2207,7 +2206,7 @@
           <label class="block text-sm font-semibold leading-6 text-slate-700">验证码</label>
           <!-- 验证码显示区域（独立一行） -->
           <div class="flex gap-2 mt-1 items-center">
-            <div id="auth-register-captcha-display" class="flex-shrink-0 w-full h-16 flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+            <div id="auth-register-captcha-display" class="flex-shrink-0 w-auto h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
               title="点击刷新验证码" style="min-height: 64px;">
               <span class="text-slate-400 text-xs">加载中...</span>
             </div>
@@ -8037,6 +8036,13 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
     // 统一的API调用函数
     async function callPythonAPI(method, ...args) {
+      // 如果已处于网络错误状态，则立即拒绝，避免连续的API调用失败
+      if (isInNetworkErrorState) {
+        logMessage_Warning(`[API调用] ✗ 已跳过 (${method}): 网络错误状态已激活`);
+        // 抛出一个错误，以便调用者（例如 onLogin）可以捕获它并停止加载
+        throw new Error('网络连接已断开。');
+      }
+
       logMessage_Info(`[API调用] 方法: ${method}, 参数数量: ${args.length}`);
       // Web模式：通过HTTP协议调用后端API接口，请求头中携带会话UUID标识
       const headers = {

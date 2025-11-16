@@ -1087,6 +1087,14 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 权限配置文件路径\n")
         f.write(
             f"permissions_file = {config_obj.get('System', 'permissions_file', fallback='permissions.json')}\n")
+        
+        f.write("# 会话持久化数据存储目录\n")
+        f.write(
+            f"sessions_dir = {config_obj.get('System', 'sessions_dir', fallback='sessions')}\n")
+        f.write("# API令牌数据存储目录\n")
+        f.write(
+            f"tokens_dir = {config_obj.get('System', 'tokens_dir', fallback='tokens')}\n")
+
         f.write("# 会话监控检查间隔时间（秒）\n")
         f.write("# 系统每隔此时间检查一次会话活跃状态，默认60秒\n")
         f.write(
@@ -2583,7 +2591,7 @@ class AuthSystem:
                     })
                 except Exception as e:
                     logging.error(
-                        f"[用户管理] 读取用户文件失败 --> 文件名: {filename}, 文件路径: {filepath}, 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 文件损坏、JSON格式错误或权限不足", exc_info=True)
+                        f"[用户管理] 读取用户文件失败 --> 文件名: {filename}, 文件路径: {user_file}, 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 文件损坏、JSON格式错误或权限不足", exc_info=True)
         return users
 
     def get_all_groups(self):
