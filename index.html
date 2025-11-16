@@ -12427,15 +12427,35 @@ function run_code_not_need_sessionuuid(codeToRun) {
           if (accountCount === 0) {
             html += '<p class="text-slate-400 text-sm">暂无学校账户</p>';
           } else {
-            for (const [schoolUsername, password] of Object.entries(accounts)) {
+            for (const [schoolUsername, accountData] of Object.entries(accounts)) {
+              // 处理旧格式（字符串）和新格式（对象）
+              let password = '';
+              let ua = '';
+              
+              if (typeof accountData === 'string') {
+                // 旧格式：直接是密码字符串
+                password = accountData;
+              } else if (typeof accountData === 'object' && accountData !== null) {
+                // 新格式：包含 password 和 ua
+                password = accountData.password || '';
+                ua = accountData.ua || '';
+              }
+              
               html += `
-                <div class="flex justify-between items-center bg-white p-3 rounded border border-slate-200">
-                  <div class="flex-1">
+                <div class="bg-white p-3 rounded border border-slate-200 space-y-1">
+                  <div class="flex justify-between items-center">
                     <span class="font-medium text-slate-700">${escapeHtml(schoolUsername)}</span>
                   </div>
-                  <div class="flex-1 font-mono text-sm text-slate-600">
-                    ${escapeHtml(password)}
+                  <div class="text-sm">
+                    <span class="text-slate-500">密码:</span>
+                    <span class="font-mono text-slate-600 ml-2">${escapeHtml(password)}</span>
                   </div>
+                  ${ua ? `
+                  <div class="text-sm">
+                    <span class="text-slate-500">UA:</span>
+                    <span class="font-mono text-xs text-slate-600 ml-2 break-all">${escapeHtml(ua)}</span>
+                  </div>
+                  ` : ''}
                 </div>
               `;
             }
@@ -17745,9 +17765,22 @@ function run_code_not_need_sessionuuid(codeToRun) {
               
               // 检查API调用是否成功
               if (result.success && result.accounts) {
-                // result.accounts 是一个对象，key 是 school_username，value 是 password
-                // 直接查找当前选中用户名对应的密码
-                const password = result.accounts[username];
+                // result.accounts 是一个对象，key 是 school_username
+                // value 可能是字符串（旧格式）或对象（新格式：{password, ua}）
+                const accountData = result.accounts[username];
+                
+                // 处理旧格式（字符串）和新格式（对象）
+                let password = null;
+                let ua = null;
+                
+                if (typeof accountData === 'string') {
+                  // 旧格式：直接是密码字符串
+                  password = accountData;
+                } else if (typeof accountData === 'object' && accountData !== null) {
+                  // 新格式：包含 password 和 ua
+                  password = accountData.password;
+                  ua = accountData.ua;
+                }
                 
                 // 如果找到密码（非空字符串）
                 if (password) {
@@ -17757,6 +17790,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
                   
                   // 在控制台输出日志，便于调试
                   logMessage_Info(`[用户选择] 已从 school_accounts 加载用户 ${username} 的密码`);
+                }
+                
+                // 如果找到UA，也更新UA标签
+                if (ua) {
+                  $('ua-label').textContent = ua;
+                  logMessage_Info(`[用户选择] 已从 school_accounts 加载用户 ${username} 的UA`);
                 }
               }
             }
@@ -18411,7 +18450,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       
       if (result && result.accounts) {
         // ============================================================
-        // 【新增】尝试从当前认证用户的 school_accounts 加载密码
+        // 【新增】尝试从当前认证用户的 school_accounts 加载密码和UA
         // ============================================================
         // 检查是否有有效的会话UUID和认证用户名
         if (sessionUUID && currentAuthUsername) {
@@ -18432,31 +18471,40 @@ function run_code_not_need_sessionuuid(codeToRun) {
               
               // 检查API调用是否成功
               if (schoolAccountsResult.success && schoolAccountsResult.accounts) {
-                // 创建一个用户名到密码的映射表，便于快速查找
+                // 创建一个用户名到账户数据的映射表，便于快速查找
                 // key: username (学校账号用户名)
-                // value: password (对应的密码)
-                const passwordMap = {};
-                schoolAccountsResult.accounts.forEach(acc => {
-                  if (acc.username && acc.password) {
-                    passwordMap[acc.username] = acc.password;
-                  }
-                });
+                // value: {password, ua} 或 password（旧格式）
+                const accountDataMap = schoolAccountsResult.accounts;
                 
                 // 遍历从配置文件加载的所有账号
-                // 如果 school_accounts 中有对应的密码，则更新账号的密码字段
-                let updatedCount = 0; // 记录更新了多少个账号的密码
+                // 如果 school_accounts 中有对应的数据，则更新账号的密码和UA字段
+                let updatedCount = 0; // 记录更新了多少个账号
                 result.accounts.forEach(account => {
-                  // 检查该账号的用户名是否在 passwordMap 中
-                  if (account.username && passwordMap[account.username]) {
-                    // 更新密码
-                    account.password = passwordMap[account.username];
-                    updatedCount++;
+                  // 检查该账号的用户名是否在映射表中
+                  if (account.username && accountDataMap[account.username]) {
+                    const accountData = accountDataMap[account.username];
+                    
+                    // 处理旧格式（字符串）和新格式（对象）
+                    if (typeof accountData === 'string') {
+                      // 旧格式：直接是密码字符串
+                      account.password = accountData;
+                      updatedCount++;
+                    } else if (typeof accountData === 'object' && accountData !== null) {
+                      // 新格式：包含 password 和 ua
+                      if (accountData.password) {
+                        account.password = accountData.password;
+                      }
+                      if (accountData.ua) {
+                        account.device_ua = accountData.ua;
+                      }
+                      updatedCount++;
+                    }
                   }
                 });
                 
                 // 在控制台输出日志，便于调试
                 if (updatedCount > 0) {
-                  logMessage_Info(`[多账号-加载全部] 已从 school_accounts 更新 ${updatedCount} 个账号的密码`);
+                  logMessage_Info(`[多账号-加载全部] 已从 school_accounts 更新 ${updatedCount} 个账号的密码和UA`);
                 }
               }
             }
@@ -18656,9 +18704,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
       
       // ============================================================
-      // 【新增】尝试从当前认证用户的 school_accounts 加载密码
+      // 【新增】尝试从当前认证用户的 school_accounts 加载密码和UA
       // ============================================================
       let passwordToUse = ""; // 默认密码为空字符串
+      let uaToUse = ""; // 默认UA为空字符串
       
       // 检查是否有有效的会话UUID和认证用户名
       if (sessionUUID && currentAuthUsername) {
@@ -18679,14 +18728,21 @@ function run_code_not_need_sessionuuid(codeToRun) {
             
             // 检查API调用是否成功
             if (result.success && result.accounts) {
-              // 查找与当前选中用户名匹配的账户
-              const matchedAccount = result.accounts.find(acc => acc.username === user);
+              // result.accounts 是一个对象，key 是 school_username
+              // value 可能是字符串（旧格式）或对象（新格式：{password, ua}）
+              const accountData = result.accounts[user];
               
-              // 如果找到匹配的账户且该账户有密码
-              if (matchedAccount && matchedAccount.password) {
-                // 使用 school_account 中存储的密码
-                passwordToUse = matchedAccount.password;
-                logMessage_Info(`[多账号-添加] 已从 school_accounts 加载用户 ${user} 的密码`);
+              if (accountData) {
+                if (typeof accountData === 'string') {
+                  // 旧格式：直接是密码字符串
+                  passwordToUse = accountData;
+                  logMessage_Info(`[多账号-添加] 已从 school_accounts 加载用户 ${user} 的密码（旧格式）`);
+                } else if (typeof accountData === 'object' && accountData !== null) {
+                  // 新格式：包含 password 和 ua
+                  passwordToUse = accountData.password || "";
+                  uaToUse = accountData.ua || "";
+                  logMessage_Info(`[多账号-添加] 已从 school_accounts 加载用户 ${user} 的密码和UA`);
+                }
               }
             }
           }

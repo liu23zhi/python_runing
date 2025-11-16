@@ -4094,13 +4094,14 @@ class Api:
     
     def _load_user_school_accounts(self, auth_username):
         """
-        加载指定认证用户的所有 school_account 账户密码。
+        加载指定认证用户的所有 school_account 账户密码和UA。
         
         参数:
             auth_username: 认证用户名
         
         返回:
-            字典，格式为 {school_username: password, ...}
+            字典，格式为 {school_username: {"password": "xxx", "ua": "xxx"}, ...}
+            或旧格式 {school_username: password, ...}（向后兼容）
         """
         if not auth_username or auth_username == 'guest':
             # 游客没有 school_accounts
@@ -4121,11 +4122,11 @@ class Api:
     
     def _save_user_school_accounts(self, auth_username, accounts_dict):
         """
-        保存指定认证用户的所有 school_account 账户密码。
+        保存指定认证用户的所有 school_account 账户密码和UA。
         
         参数:
             auth_username: 认证用户名
-            accounts_dict: 字典，格式为 {school_username: password, ...}
+            accounts_dict: 字典，格式为 {school_username: {"password": "xxx", "ua": "xxx"}, ...}
         """
         if not auth_username or auth_username == 'guest':
             # 游客不保存 school_accounts
@@ -4141,14 +4142,15 @@ class Api:
         except Exception as e:
             logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
     
-    def _update_school_account_password(self, auth_username, school_username, password, login_verified=False):
+    def _update_school_account_password(self, auth_username, school_username, password, ua=None, login_verified=False):
         """
-        更新指定认证用户的某个 school_account 的密码。
+        更新指定认证用户的某个 school_account 的密码和UA。
         
         参数:
             auth_username: 认证用户名
             school_username: 学校账户用户名
             password: 密码
+            ua: User-Agent（可选）
             login_verified: 是否已验证登录成功（True 时才会覆盖现有密码）
         """
         if not auth_username or auth_username == 'guest':
@@ -4156,15 +4158,26 @@ class Api:
         
         accounts = self._load_user_school_accounts(auth_username)
         
-        # 如果存在冲突，只在登录验证成功后才覆盖
-        if school_username in accounts and not login_verified:
-            logging.debug(f"school_account {school_username} 已存在，且未验证登录成功，跳过更新")
-            return
+        # 处理旧格式（字符串）和新格式（字典）
+        existing_data = accounts.get(school_username)
+        if existing_data:
+            # 检查是否是旧格式（字符串）
+            if isinstance(existing_data, str):
+                # 旧格式，转换为新格式
+                existing_data = {"password": existing_data, "ua": ""}
+            
+            # 如果存在冲突，只在登录验证成功后才覆盖
+            if not login_verified:
+                logging.debug(f"school_account {school_username} 已存在，且未验证登录成功，跳过更新")
+                return
         
-        # 更新或添加密码
-        accounts[school_username] = password
+        # 更新或添加账户信息
+        accounts[school_username] = {
+            "password": password,
+            "ua": ua if ua else ""
+        }
         self._save_user_school_accounts(auth_username, accounts)
-        logging.info(f"已更新用户 {auth_username} 的 school_account {school_username} 的密码")
+        logging.info(f"已更新用户 {auth_username} 的 school_account {school_username} 的密码和UA")
     
     def _get_school_account_password(self, auth_username, school_username):
         """
@@ -4181,7 +4194,36 @@ class Api:
             return None
         
         accounts = self._load_user_school_accounts(auth_username)
-        return accounts.get(school_username)
+        account_data = accounts.get(school_username)
+        
+        # 处理旧格式（字符串）和新格式（字典）
+        if isinstance(account_data, str):
+            return account_data
+        elif isinstance(account_data, dict):
+            return account_data.get('password')
+        return None
+    
+    def _get_school_account_ua(self, auth_username, school_username):
+        """
+        获取指定认证用户的某个 school_account 的UA。
+        
+        参数:
+            auth_username: 认证用户名
+            school_username: 学校账户用户名
+        
+        返回:
+            UA字符串，如果不存在则返回 None
+        """
+        if not auth_username or auth_username == 'guest':
+            return None
+        
+        accounts = self._load_user_school_accounts(auth_username)
+        account_data = accounts.get(school_username)
+        
+        # 只有新格式（字典）才有UA
+        if isinstance(account_data, dict):
+            return account_data.get('ua', '')
+        return None
 
     def _save_config(self, username, password=None, ua=None):
         """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码；当 ua 为 None 时保留现有 UA。同时更新主 config.ini 的 LastUser 和 amap_js_key。"""
@@ -4287,7 +4329,7 @@ class Api:
         # 如果有密码且当前有认证用户，保存到 user_accounts/<auth_username>.json
         if password is not None and hasattr(self, 'auth_username') and self.auth_username:
             self._update_school_account_password(
-                self.auth_username, username, password, login_verified=False
+                self.auth_username, username, password, ua, login_verified=False
             )
 
         # --- 2. 处理主 config.ini 文件 ---
@@ -4385,19 +4427,24 @@ class Api:
             except Exception:
                 pass
         
-        # 尝试从 auth_username 的 school_accounts 加载密码（优先级更高）
+        # 尝试从 auth_username 的 school_accounts 加载密码和UA（优先级更高）
         if hasattr(self, 'auth_username') and self.auth_username:
             school_password = self._get_school_account_password(self.auth_username, username)
+            school_ua = self._get_school_account_ua(self.auth_username, username)
             if school_password:
                 password = school_password
                 logging.debug(f"从用户 {self.auth_username} 的 school_accounts 加载了 {username} 的密码")
+            if school_ua:
+                ua = school_ua
+                logging.debug(f"从用户 {self.auth_username} 的 school_accounts 加载了 {username} 的UA")
 
         # 加载的配置应该应用到正确的对象上
         target_params = self.params
         if self.is_multi_account_mode and username in self.accounts:
             target_params = self.accounts[username].params
 
-        ua = cfg.get('System', 'UA', fallback="")
+        if not ua:
+            ua = cfg.get('System', 'UA', fallback="")
         if self.is_multi_account_mode and username in self.accounts:
             self.accounts[username].device_ua = ua
         else:
@@ -4476,8 +4523,44 @@ class Api:
             logging.info("API调用: get_initial_data - 获取应用初始数据（用户列表和最后登录用户）")
 
             # 获取当前已有的用户配置文件列表
-            users = sorted([os.path.splitext(f)[0]
+            all_users = sorted([os.path.splitext(f)[0]
                             for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+
+            # 检查认证状态
+            is_authenticated = hasattr(
+                self, 'is_authenticated') and self.is_authenticated
+            auth_username = getattr(self, 'auth_username', None)
+            auth_group = getattr(self, 'auth_group', 'guest')
+            is_guest = getattr(self, 'is_guest', False)
+
+            # 根据权限过滤用户列表
+            if is_guest:
+                # 游客不返回任何用户列表
+                users = []
+            elif auth_username and not is_guest:
+                # 检查是否有 auto_fill_password 权限（查看全部 school_account）
+                has_view_all_permission = False
+                if auth_group in ['admin', 'super_admin']:
+                    has_view_all_permission = True
+                elif hasattr(self, 'auth_system'):
+                    # 使用 auth_system 检查权限（如果可用）
+                    try:
+                        has_view_all_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
+                    except:
+                        pass
+                
+                if has_view_all_permission:
+                    # 有权限的用户可以查看所有账户
+                    users = all_users
+                else:
+                    # 普通用户只能看到自己的账户（从 school_accounts 加载）
+                    users = []
+                    school_accounts = self._load_user_school_accounts(auth_username)
+                    if school_accounts:
+                        users = list(school_accounts.keys())
+            else:
+                # 未认证用户返回所有用户列表（向后兼容）
+                users = all_users
 
             # 读取全局配置
             cfg = configparser.RawConfigParser()
@@ -4491,7 +4574,7 @@ class Api:
             last_user = cfg.get('Config', 'LastUser', fallback="").strip()
 
             # 如果 last_user 不为空但对应的 .ini 不存在，则清空并写回
-            if last_user and last_user not in users:
+            if last_user and last_user not in all_users:
                 logging.warning(f"LastUser '{last_user}' 不存在对应的 .ini，自动清空。")
                 cfg.set('Config', 'LastUser', '')
                 try:
@@ -4513,13 +4596,6 @@ class Api:
 
             logging.debug(
                 f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
-
-            # 检查认证状态
-            is_authenticated = hasattr(
-                self, 'is_authenticated') and self.is_authenticated
-            auth_username = getattr(self, 'auth_username', None)
-            auth_group = getattr(self, 'auth_group', 'guest')
-            is_guest = getattr(self, 'is_guest', False)
 
             # [代码片段 2.1：替换掉旧的 return 语句]
             # 构造返回字典
@@ -4779,12 +4855,12 @@ class Api:
         # 现在再保存配置（文件名与 LastUser 都用 ud.username）
         self._save_config(ud.username, password, self.device_ua)
         
-        # 登录成功后，更新 school_account 密码（使用 login_verified=True）
+        # 登录成功后，更新 school_account 密码和UA（使用 login_verified=True）
         if hasattr(self, 'auth_username') and self.auth_username:
             self._update_school_account_password(
-                self.auth_username, ud.username, password, login_verified=True
+                self.auth_username, ud.username, password, self.device_ua, login_verified=True
             )
-            logging.info(f"已更新认证用户 {self.auth_username} 的 school_account {ud.username} 密码（登录验证成功）")
+            logging.info(f"已更新认证用户 {self.auth_username} 的 school_account {ud.username} 密码和UA（登录验证成功）")
 
         # --- 登录成功后，立即获取并缓存签到半径 ---
         try:
