@@ -5850,15 +5850,15 @@
                 onclick="loadCaptchaHistory()">刷新</button>
             </div>
           </div>
-          <p class="text-xs text-blue-700 bg-blue-50 p-2 rounded-md">💡
+          <p class="text-xs text-blue-700 bg-blue-50 p-2 rounded-md" style="display: none;">💡
             提示：此面板显示验证码的请求和验证历史，用于排查验证码相关问题。历史记录按日期存储在 logs/captcha_history/ 目录。</p>
 
-          <div id="admin-captcha-list_modal" class="space-y-2 max-h-[55vh] overflow-y-auto pr-2">
+          <div id="admin-captcha-list_modal" class="space-y-2 max-h-[47vh] overflow-y-auto pr-2">
             <p class="text-slate-400 text-center py-10">请选择日期并点击刷新按钮查看验证码历史</p>
           </div>
 
           <!-- 统计信息 -->
-          <div id="captcha-stats" class="grid grid-cols-4 gap-2 text-center text-sm">
+          <div id="captcha-stats" class="grid grid-cols-5 gap-2 text-center text-sm">
             <div class="p-2 bg-slate-100 rounded">
               <div class="text-slate-600">总计</div>
               <div id="captcha-stat-total" class="text-lg font-semibold">0</div>
@@ -5875,6 +5875,10 @@
               <div class="text-yellow-700">待验证</div>
               <div id="captcha-stat-pending" class="text-lg font-semibold text-yellow-700">0</div>
             </div>
+            <div class="p-2 bg-gray-100 rounded">
+                <div class="text-gray-700">已过期</div>
+                <div id="captcha-stat-expired" class="text-lg font-semibold text-gray-700">0</div>
+              </div>
           </div>
         </div>
 
@@ -11163,7 +11167,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
                              ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                             <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                             <p class="text-xs text-slate-500">状态: ${session.is_multi_account_mode
-                ? (session.login_success ? '<span class="font-semibold text-purple-600">多账号模式 (已登录)</span>' : '<span class="font-semibold text-purple-400">多账号模式 (未登录)</span>')
+                ? (session.login_success ? '<span class="font-semibold text-green-600">已登录</span>' : '<span class="font-semibold ">未登录</span>')
                 : (session.login_success ? '<span class="font-semibold text-green-600">已登录</span>' : '未登录')
               }</p>
                             ${ownerInfo}
@@ -13490,7 +13494,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
                 ${isCurrent ? '<p class="text-right"><span class="text-xs text-sky-600 ml-2">(当前会话)</span></p>' : ''}
                 <p class="text-xs text-slate-500">创建时间: ${createdDate}</p>
                 <p class="text-xs text-slate-500">状态: ${session.is_multi_account_mode
-                ? (session.login_success ? '<span class="font-semibold text-purple-600">多账号模式 (已登录)</span>' : '<span class="font-semibold text-purple-400">多账号模式 (未登录)</span>')
+                ? (session.login_success ? '<span class="font-semibold text-green-600">已登录</span>' : '<span class="font-semibold ">未登录</span>')
                 : (session.login_success ? '<span class="font-semibold text-green-600">已登录</span>' : '未登录')
               }</p>
                 ${ownerInfo}
@@ -23529,12 +23533,18 @@ function run_code_not_need_sessionuuid(codeToRun) {
         const total = records.length;
         const success = records.filter(r => r.status === 'verified_success').length;
         const failed = records.filter(r => r.status === 'verified_failed').length;
+        // 修正： 'created' 状态在JS中可能会被动态转换为 'expired' (取决于后端逻辑，但为保险起见，分开计算)
         const pending = records.filter(r => r.status === 'created').length;
+        // 新增：计算 'expired' 状态
+        const expired = records.filter(r => r.status === 'expired').length;
         
         $('captcha-stat-total').textContent = total;
         $('captcha-stat-success').textContent = success;
         $('captcha-stat-failed').textContent = failed;
         $('captcha-stat-pending').textContent = pending;
+        // 新增：更新 'expired' 统计
+        const expiredEl = $('captcha-stat-expired');
+        if (expiredEl) expiredEl.textContent = expired;
 
         if (records.length === 0) {
           listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">该日期没有验证码记录</p>';
@@ -23599,36 +23609,33 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
     }
 
-    /**
+/**
      * 显示验证码详细信息
      * 功能：在模态框中展示验证码的完整信息
      * 参数：
-     *   captchaId: 验证码ID
+     * captchaId: 验证码ID
      * 说明：
-     *   - 从当前加载的验证码历史记录中查找对应的验证码数据
-     *   - 在模态框中展示所有可用信息（基本信息、时间、验证结果、客户端信息、图片等）
-     *   - 根据验证码状态动态显示/隐藏相关信息卡片
+     * - 修正：调用专用的详情API，而不是重新获取列表
+     * - 在模态框中展示所有可用信息（基本信息、时间、验证结果、客户端信息、图片等）
+     * - 根据验证码状态动态显示/隐藏相关信息卡片
      */
     function showCaptchaDetail(captchaId) {
       console.log('显示验证码详情:', captchaId);
       
-      // 从最近加载的验证码历史中查找该验证码的完整数据
-      // 由于验证码历史已经加载在页面上，我们需要重新从API获取完整数据
-      // 或者我们可以在加载时将数据缓存到全局变量
+      // 修正：不再请求整个列表，而是请求一个专用的详情API
+      // （日期过滤器不再需要，因为ID是唯一的）
       
-      // 为了获取完整数据，我们重新请求API
-      const dateFilter = $('captcha-history-date').value || new Date().toISOString().split('T')[0].replace(/-/g, '');
-      
-      fetch(`/api/captcha/history?date=${dateFilter}`, {
+      fetch(`/api/captcha/detail/${captchaId}`, { // <-- 1. 使用新的API路由
         headers: {
           'X-Session-ID': sessionUUID
         }
       })
       .then(response => response.json())
       .then(result => {
+        // 2. 检查新的API响应
         if (result.success && result.data) {
           // 查找指定ID的验证码
-          const captcha = result.data.find(item => item.captcha_id === captchaId);
+          const captcha = result.data; // <-- 3. 直接使用返回的数据
           
           if (captcha) {
             // 填充模态框数据
@@ -23640,6 +23647,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
               document.body.classList.add('modal-visible');
             }
           } else {
+            // (理论上如果 success=true, captcha 应该存在, 但保留此检查)
             showModalAlert('未找到该验证码的详细信息');
           }
         } else {
@@ -23651,7 +23659,6 @@ function run_code_not_need_sessionuuid(codeToRun) {
         showModalAlert('获取验证码详情时发生错误：' + error.message);
       });
     }
-
     /**
      * 填充验证码详情模态框
      * 功能：将验证码数据填充到模态框的各个字段中
@@ -23743,7 +23750,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const modal = $('captcha-detail-modal');
       if (modal) {
         modal.classList.add('hidden');
-        document.body.classList.remove('modal-visible');
+        // document.body.classList.remove('modal-visible');
       }
     }
 

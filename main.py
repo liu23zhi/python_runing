@@ -19114,11 +19114,13 @@ def start_web_server(args_param):
             # 按时间戳倒序排列（最新的在前）
             records.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
             
-            # 限制返回数量
+            # 修正：在限制（slicing）之前获取总数
             total = len(records)
+            
+            # 限制返回数量（最多100条）
             records = records[:limit]
             
-            logging.info(f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条")
+            logging.info(f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条 (总计={total}条)")
             
             # 后台任务：永久标记过期的验证码（异步更新历史文件）
             def update_expired_captchas_in_history():
@@ -19165,7 +19167,7 @@ def start_web_server(args_param):
             return jsonify({
                 "success": True,
                 "data": records,
-                "total": total,
+                "total": total, # 此时 'total' 变量已定义
                 "date": date_str
             })
             
@@ -19175,6 +19177,82 @@ def start_web_server(args_param):
                 "success": False,
                 "message": "获取验证码历史失败"
             }), 500
+
+    # ============================================================
+    # 修正：验证码详情API
+    # 用于根据ID获取单个验证码的详细信息
+    # ============================================================
+    @app.route('/api/captcha/detail/<captcha_id>', methods=['GET'])
+    @login_required
+    def get_captcha_detail(captcha_id):
+        """
+        获取单个验证码的详细信息
+        
+        权限要求：管理员 (view_captcha_history)
+        """
+        try:
+            # 1. 权限检查
+            if not auth_system.check_permission(g.user, 'view_captcha_history'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 2. 验证 captcha_id (防止路径遍历)
+            if not captcha_id or '..' in captcha_id or '/' in captcha_id:
+                return jsonify({"success": False, "message": "无效的验证码ID"}), 400
+
+            # 3. 遍历所有历史文件查找该ID
+            history_dir = os.path.join('logs', 'captcha_history')
+            if not os.path.exists(history_dir):
+                return jsonify({"success": False, "message": "验证码历史目录不存在"}), 404
+
+            found_record = None
+            current_time = time.time()
+            expiry_threshold = 30 * 60  # 30分钟
+
+            # 遍历目录中的所有 .jsonl 文件
+            for filename in os.listdir(history_dir):
+                if filename.endswith('.jsonl'):
+                    history_file = os.path.join(history_dir, filename)
+                    try:
+                        with open(history_file, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                try:
+                                    record = json.loads(line.strip())
+                                    if record.get('captcha_id') == captcha_id:
+                                        # 找到了！
+                                        found_record = record
+                                        
+                                        # 自动标记过期的验证码
+                                        if record.get('status') == 'created':
+                                            timestamp = record.get('timestamp', 0)
+                                            if current_time - timestamp > expiry_threshold:
+                                                found_record['status'] = 'expired'
+                                                found_record['expired_at'] = timestamp + expiry_threshold
+                                                found_record['expired_at_readable'] = datetime.datetime.fromtimestamp(
+                                                    timestamp + expiry_threshold
+                                                ).strftime('%Y-%m-%d %H:%M:%S')
+                                        
+                                        # 移除敏感信息 (如果需要)
+                                        found_record.pop('session_id', None)
+                                        
+                                        # 返回成功响应
+                                        return jsonify({
+                                            "success": True,
+                                            "data": found_record
+                                        })
+                                except json.JSONDecodeError:
+                                    continue # 跳过损坏的行
+                    except (IOError, OSError) as e:
+                        logging.warning(f"[验证码详情] 读取历史文件 {filename} 失败: {e}")
+                        continue # 继续查找下一个文件
+
+            # 4. 如果遍历完所有文件都未找到
+            if not found_record:
+                return jsonify({"success": False, "message": "未找到该验证码的详细信息"}), 404
+
+        except Exception as e:
+            logging.error(f"[验证码详情] 获取详情失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "获取验证码详情时发生错误"}), 500
+
 
     @app.route('/health')
     def health():
