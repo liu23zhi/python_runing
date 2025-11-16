@@ -4384,6 +4384,85 @@
       </div>
     </div>
 
+    <!-- ========== 验证码验证模态窗（用于SMS发送前验证） ========== -->
+    <div id="captcha-verification-modal" class="fixed inset-0 hidden z-[70] flex items-center justify-center p-4"
+      style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);">
+      <!-- 对话框主体容器 - 拟态风格卡片 -->
+      <div
+        class="bg-gradient-to-br from-slate-50 to-white rounded-3xl shadow-2xl max-w-md w-full transform transition-all"
+        style="box-shadow: 12px 12px 24px rgba(0, 0, 0, 0.1), -12px -12px 24px rgba(255, 255, 255, 0.9);"
+        onclick="event.stopPropagation()">
+
+        <!-- 对话框头部 -->
+        <div class="p-6 pb-4 border-b border-slate-200">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <!-- 验证图标 -->
+              <div
+                class="w-12 h-12 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center flex-shrink-0"
+                style="box-shadow: 4px 4px 8px rgba(56, 189, 248, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.8);">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <h3 class="text-xl font-bold text-slate-800">安全验证</h3>
+            </div>
+            <!-- 关闭按钮 -->
+            <button onclick="closeCaptchaModal()" class="text-slate-400 hover:text-slate-600 transition">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 对话框内容区域 -->
+        <div class="p-6 space-y-4">
+          <p class="text-slate-600 text-sm">
+            为保护您的账号安全，请完成以下验证
+          </p>
+
+          <!-- 验证码显示区域 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-700">图形验证码</label>
+            <div class="flex gap-2 items-center">
+              <div id="captcha-modal-display" class="flex-shrink-0 w-full h-16 flex items-center justify-center border-2 border-slate-300 rounded-lg bg-white cursor-pointer hover:border-sky-400 transition-colors"
+                onclick="refreshCaptchaModal()" title="点击刷新验证码" style="min-height: 64px;">
+                <span class="text-slate-400 text-xs">加载中...</span>
+              </div>
+              <button onclick="refreshCaptchaModal()" class="btn btn-ghost !p-2" title="刷新验证码">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- 验证码输入框 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-slate-700">请输入验证码</label>
+            <input type="text" id="captcha-modal-input" class="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:border-sky-400 focus:outline-none transition-colors" 
+              placeholder="请输入图形验证码" maxlength="6" autocomplete="off">
+          </div>
+        </div>
+
+        <!-- 对话框底部按钮区域 -->
+        <div class="p-6 pt-0 flex gap-3">
+          <button onclick="closeCaptchaModal()"
+            class="flex-1 py-3 px-4 rounded-xl font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+            style="box-shadow: 4px 4px 8px rgba(0, 0, 0, 0.08), -2px -2px 8px rgba(255, 255, 255, 0.9);">
+            取消
+          </button>
+          <button id="captcha-modal-confirm-btn" onclick="confirmCaptchaAndSendSMS()"
+            class="flex-1 py-3 px-4 rounded-xl font-semibold text-white bg-gradient-to-br from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 transition-all"
+            style="box-shadow: 4px 4px 12px rgba(56, 189, 248, 0.3), -2px -2px 8px rgba(255, 255, 255, 0.1);">
+            确认发送
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ========================================
          【移动端底部导航栏区域】
          根据当前应用模式显示不同的导航栏
@@ -6781,7 +6860,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       const mobileSendLoginCodeBtn = document.getElementById('mobile-auth-send-login-code');
       if (mobileSendLoginCodeBtn) {
-        // 修复：不再使用 .click() 代理，而是复制桌面按钮的完整逻辑
+        // 使用验证码模态窗进行验证
         mobileSendLoginCodeBtn.addEventListener('click', async function () {
           // 1. 使用移动端ID获取手机号
           const phone = document.getElementById('mobile-auth-username').value;
@@ -6790,72 +6869,18 @@ function run_code_not_need_sessionuuid(codeToRun) {
             return;
           }
 
-          // 2. 复制桌面按钮的加载和倒计时逻辑 (使用移动端按钮ID)
-          mobileSendLoginCodeBtn.disabled = true;
-          const originalText = mobileSendLoginCodeBtn.textContent;
-
-          try {
-            // 3. 直接调用API (同桌面按钮逻辑)
-            const response = await fetch('/api/sms/send_code', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Session-ID': sessionUUID
-              },
-              body: JSON.stringify({
-                phone: phone,
-                scene: 'login' // 场景：登录
-              })
-            });
-            const result = await response.json();
-
-            if (result && result.success) {
-              const expireMin = result.expire_minutes || 5;
-              const retryAfter = result.retry_after || 180;
-              // 修复：使用 showMobileMessage 或 showTempMessage
-              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
-
-              // 4. 倒计时 (使用移动端按钮ID)
-              let countdown = retryAfter;
-              const timer = setInterval(() => {
-                countdown--;
-                mobileSendLoginCodeBtn.textContent = countdown + '秒';
-                if (countdown <= 0) {
-                  clearInterval(timer);
-                  mobileSendLoginCodeBtn.disabled = false;
-                  mobileSendLoginCodeBtn.textContent = originalText;
-                }
-              }, 1000);
-            } else {
-              // 5. 处理失败和重试 (使用移动端按钮ID)
-              if (result?.retry_after) {
-                const retrySeconds = result.retry_after;
-                let countdown = retrySeconds;
-                mobileSendLoginCodeBtn.textContent = countdown + '秒';
-                const timer = setInterval(() => {
-                  countdown--;
-                  mobileSendLoginCodeBtn.textContent = countdown + '秒';
-                  if (countdown <= 0) {
-                    clearInterval(timer);
-                    mobileSendLoginCodeBtn.disabled = false;
-                    mobileSendLoginCodeBtn.textContent = originalText;
-                  }
-                }, 1000);
-              } else {
-                mobileSendLoginCodeBtn.disabled = false;
-              }
-              showMobileMessage(result?.message || '发送失败', 'error');
-            }
-          } catch (error) {
-            mobileSendLoginCodeBtn.disabled = false;
-            showMobileMessage('发送失败: ' + error.message, 'error');
-          }
+          // 打开验证码验证模态窗
+          openCaptchaModal({
+            phone: phone,
+            button: mobileSendLoginCodeBtn,
+            originalText: mobileSendLoginCodeBtn.textContent
+          });
         });
       }
 
       const mobileSendRegCodeBtn = document.getElementById('mobile-reg-send-code-btn');
       if (mobileSendRegCodeBtn) {
-        // 修复：不再使用 .click() 代理，而是复制桌面按钮的完整逻辑
+        // 使用验证码模态窗进行验证
         mobileSendRegCodeBtn.addEventListener('click', async function () {
           // 1. 使用移动端ID获取手机号
           const phone = document.getElementById('mobile-reg-phone').value;
@@ -6864,66 +6889,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
             return;
           }
 
-          // 2. 复制桌面按钮的加载和倒计时逻辑 (使用移动端按钮ID)
-          mobileSendRegCodeBtn.disabled = true;
-          const originalText = mobileSendRegCodeBtn.textContent;
-
-          try {
-            // 3. 直接调用API (同桌面按钮逻辑)
-            const response = await fetch('/api/sms/send_code', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Session-ID': sessionUUID
-              },
-              body: JSON.stringify({
-                phone: phone,
-                scene: 'register' // 场景：注册
-              })
-            });
-            const result = await response.json();
-
-            if (result && result.success) {
-              const expireMin = result.expire_minutes || 5;
-              const retryAfter = result.retry_after || 180;
-              // 修复：使用 showMobileMessage 或 showTempMessage
-              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
-
-              // 4. 倒计时 (使用移动端按钮ID)
-              let countdown = retryAfter;
-              const timer = setInterval(() => {
-                countdown--;
-                mobileSendRegCodeBtn.textContent = `${countdown}秒`;
-                if (countdown <= 0) {
-                  clearInterval(timer);
-                  mobileSendRegCodeBtn.disabled = false;
-                  mobileSendRegCodeBtn.textContent = originalText;
-                }
-              }, 1000);
-            } else {
-              // 5. 处理失败和重试 (使用移动端按钮ID)
-              if (result?.retry_after) {
-                const retrySeconds = result.retry_after;
-                let countdown = retrySeconds;
-                mobileSendRegCodeBtn.textContent = `${countdown}秒`;
-                const timer = setInterval(() => {
-                  countdown--;
-                  mobileSendRegCodeBtn.textContent = `${countdown}秒`;
-                  if (countdown <= 0) {
-                    clearInterval(timer);
-                    mobileSendRegCodeBtn.disabled = false;
-                    mobileSendRegCodeBtn.textContent = originalText;
-                  }
-                }, 1000);
-              } else {
-                mobileSendRegCodeBtn.disabled = false;
-              }
-              showMobileMessage(result?.message || '发送失败', 'error');
-            }
-          } catch (error) {
-            mobileSendRegCodeBtn.disabled = false;
-            showMobileMessage('发送失败: ' + error.message, 'error');
-          }
+          // 打开验证码验证模态窗
+          openCaptchaModal({
+            phone: phone,
+            button: mobileSendRegCodeBtn,
+            originalText: mobileSendRegCodeBtn.textContent
+          });
         });
       }
 
@@ -8980,6 +8951,198 @@ function run_code_not_need_sessionuuid(codeToRun) {
     function refreshCaptcha(formType) {
       console.log(`[验证码] 刷新${formType}表单验证码`);
       loadCaptcha(formType);
+    }
+
+    // ==================== 验证码模态窗相关函数 ====================
+    
+    // 全局变量：保存待发送SMS的上下文信息
+    let pendingSMSContext = null;
+
+    /**
+     * 加载模态窗中的验证码
+     */
+    async function loadCaptchaModal() {
+      const displayElement = document.getElementById('captcha-modal-display');
+      
+      if (!displayElement) {
+        console.error('[验证码模态窗] 未找到验证码显示元素');
+        return;
+      }
+      
+      // 显示加载状态
+      displayElement.innerHTML = '<span class="text-slate-400 text-xs">加载中...</span>';
+      
+      try {
+        // 调用后端API获取验证码
+        const response = await fetch('/api/captcha/get', {
+          method: 'GET',
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.html) {
+          // 将验证码HTML插入到显示区域
+          displayElement.innerHTML = result.html;
+          
+          // 为验证码图片添加样式，等比例缩放
+          const imgElement = displayElement.querySelector('img');
+          if (imgElement) {
+            imgElement.style.maxWidth = '100%';
+            imgElement.style.maxHeight = '100%';
+            imgElement.style.width = 'auto';
+            imgElement.style.height = 'auto';
+            imgElement.style.objectFit = 'contain';
+            imgElement.style.imageRendering = 'crisp-edges';
+          }
+          
+          console.log('[验证码模态窗] 验证码加载成功');
+        } else {
+          displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
+          console.error('[验证码模态窗] 加载失败:', result.message || '未知错误');
+        }
+      } catch (error) {
+        displayElement.innerHTML = '<span class="text-red-500 text-xs">网络错误</span>';
+        console.error('[验证码模态窗] 加载异常:', error);
+      }
+    }
+
+    /**
+     * 刷新模态窗中的验证码
+     */
+    function refreshCaptchaModal() {
+      console.log('[验证码模态窗] 刷新验证码');
+      loadCaptchaModal();
+    }
+
+    /**
+     * 打开验证码验证模态窗
+     * @param {Object} context - SMS发送上下文信息（包含手机号、发送按钮等）
+     */
+    function openCaptchaModal(context) {
+      pendingSMSContext = context;
+      const modal = document.getElementById('captcha-verification-modal');
+      const input = document.getElementById('captcha-modal-input');
+      
+      if (modal) {
+        modal.classList.remove('hidden');
+        input.value = '';  // 清空输入框
+        loadCaptchaModal();  // 加载验证码
+        
+        // 自动聚焦到输入框
+        setTimeout(() => {
+          input.focus();
+        }, 300);
+      }
+    }
+
+    /**
+     * 关闭验证码验证模态窗
+     */
+    function closeCaptchaModal() {
+      const modal = document.getElementById('captcha-verification-modal');
+      const input = document.getElementById('captcha-modal-input');
+      
+      if (modal) {
+        modal.classList.add('hidden');
+        input.value = '';  // 清空输入框
+        pendingSMSContext = null;  // 清除上下文
+      }
+    }
+
+    /**
+     * 确认验证码并发送SMS
+     */
+    async function confirmCaptchaAndSendSMS() {
+      const captchaInput = document.getElementById('captcha-modal-input');
+      const captcha = captchaInput.value.trim();
+      
+      if (!captcha) {
+        showModalAlert('请输入验证码');
+        return;
+      }
+      
+      if (!pendingSMSContext) {
+        console.error('[验证码模态窗] 没有待发送的SMS上下文');
+        closeCaptchaModal();
+        return;
+      }
+      
+      // 禁用确认按钮，防止重复点击
+      const confirmBtn = document.getElementById('captcha-modal-confirm-btn');
+      confirmBtn.disabled = true;
+      const originalText = confirmBtn.textContent;
+      confirmBtn.textContent = '发送中...';
+      
+      try {
+        // 调用实际的SMS发送函数
+        await sendSMSWithCaptcha(pendingSMSContext.phone, captcha, pendingSMSContext.button, pendingSMSContext.originalText);
+        
+        // 成功后关闭模态窗
+        closeCaptchaModal();
+      } catch (error) {
+        console.error('[验证码模态窗] 发送SMS失败:', error);
+        // 刷新验证码
+        refreshCaptchaModal();
+      } finally {
+        // 恢复按钮状态
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = originalText;
+      }
+    }
+
+    /**
+     * 实际发送SMS验证码的函数
+     * @param {string} phone - 手机号
+     * @param {string} captcha - 图形验证码
+     * @param {HTMLElement} button - 发送按钮元素
+     * @param {string} originalText - 按钮原始文本
+     */
+    async function sendSMSWithCaptcha(phone, captcha, button, originalText) {
+      try {
+        // 调用后端API发送短信验证码
+        const response = await fetch('/api/sms/send_code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            phone: phone,
+            captcha: captcha
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showModalAlert('验证码已发送，请查收短信');
+
+          // 开始倒计时
+          let countdown = 60;
+          button.disabled = true;
+          
+          const timer = setInterval(() => {
+            if (countdown > 0) {
+              button.textContent = `${countdown}秒后重试`;
+              countdown--;
+            } else {
+              clearInterval(timer);
+              button.disabled = false;
+              button.textContent = originalText;
+            }
+          }, 1000);
+        } else {
+          showModalAlert(result.message || '发送失败，请重试');
+          throw new Error(result.message || '发送失败');
+        }
+      } catch (error) {
+        console.error('[SMS] 发送异常:', error);
+        showModalAlert('发送失败，请重试');
+        throw error;
+      }
     }
 
     // 用户登录
@@ -22277,90 +22440,24 @@ function run_code_not_need_sessionuuid(codeToRun) {
         avatarInput.addEventListener('change', previewAvatarForRegistration);
       }
 
-      // 发送注册验证码
+      // 发送注册验证码 - 使用验证码模态窗
       const sendCodeBtn = document.getElementById('auth-reg-send-code-btn');
       if (sendCodeBtn) {
         sendCodeBtn.addEventListener('click', async function () {
           const phone = document.getElementById('auth-reg-phone').value;
-          const captcha = document.getElementById('auth-register-captcha').value.trim();  // 获取图形验证码
           
           // 验证手机号
           if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
             showModalAlert('请输入正确的手机号');
             return;
           }
-          
-          // 验证图形验证码
-          if (!captcha) {
-            showModalAlert('请先输入图形验证码');
-            document.getElementById('auth-register-captcha').focus();  // 聚焦到验证码输入框
-            return;
-          }
 
-          sendCodeBtn.disabled = true;
-          const originalText = sendCodeBtn.textContent;
-
-          try {
-            // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口，并携带图形验证码
-            const response = await fetch('/api/sms/send_code', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Session-ID': sessionUUID
-              },
-              body: JSON.stringify({
-                phone: phone,
-                scene: 'register', // 场景：注册
-                captcha: captcha  // 添加图形验证码
-              })
-            });
-            const result = await response.json();
-
-            if (result && result.success) {
-              const expireMin = result.expire_minutes || 5;
-              const retryAfter = result.retry_after || 180;  // 获取发送间隔
-              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
-
-              // 使用服务器返回的间隔时间进行倒计时
-              let countdown = retryAfter;
-              const timer = setInterval(() => {
-                countdown--;
-                sendCodeBtn.textContent = `${countdown}秒后重试`;
-                if (countdown <= 0) {
-                  clearInterval(timer);
-                  sendCodeBtn.disabled = false;
-                  sendCodeBtn.textContent = originalText;
-                }
-              }, 1000);
-            } else {
-              // 如果图形验证码错误，自动刷新验证码
-              if (result?.message && result.message.includes('验证码')) {
-                loadCaptcha('register');  // 刷新验证码
-              }
-              
-              // 处理频繁发送错误，显示剩余等待时间
-              if (result?.retry_after) {
-                const retrySeconds = result.retry_after;
-                let countdown = retrySeconds;
-                sendCodeBtn.textContent = `${countdown}秒后重试`;
-                const timer = setInterval(() => {
-                  countdown--;
-                  sendCodeBtn.textContent = `${countdown}秒后重试`;
-                  if (countdown <= 0) {
-                    clearInterval(timer);
-                    sendCodeBtn.disabled = false;
-                    sendCodeBtn.textContent = originalText;
-                  }
-                }, 1000);
-              } else {
-                sendCodeBtn.disabled = false;
-              }
-              showModalAlert(result?.message || '发送失败');
-            }
-          } catch (error) {
-            sendCodeBtn.disabled = false;
-            showModalAlert('发送失败: ' + error.message);
-          }
+          // 打开验证码验证模态窗
+          openCaptchaModal({
+            phone: phone,
+            button: sendCodeBtn,
+            originalText: sendCodeBtn.textContent
+          });
         });
       }
       
