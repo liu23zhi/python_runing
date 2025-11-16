@@ -12,3 +12,4 @@ cssutils
 Pillow
 bcrypt
 Flask-SocketIO
+cryptography

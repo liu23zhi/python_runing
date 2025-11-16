@@ -2117,7 +2117,7 @@
 
   <!-- 用户认证登录界面 -->
   <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
-    <div class="panel rounded-2xl w-full max-w-[560px] p-6 space-y-6"> <div class="text-center">
+    <div class="panel rounded-2xl w-full max-w-[580px] p-6 space-y-6"> <div class="text-center">
         <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
         <p class="text-sm text-slate-500">请登录或注册以继续使用</p>
       </div>
@@ -4981,7 +4981,7 @@
 
   <div id="alert-modal" class="fixed inset-0 flex items-center justify-center hidden z-[50000]">
     <div class="absolute inset-0 bg-black/60" onclick="closeModalAlert()"></div>
-    <div class="panel rounded-2xl p-6 w-11/12 w-[700px] space-y-6 relative">
+    <div class="panel rounded-2xl p-6 w-11/12 md:w-96 space-y-6 relative">
       <h3 id="alert-modal-title" class="text-xl font-bold text-red-600 text-center">操作失败</h3>
       <p id="alert-modal-message" class="text-sm text-slate-600 text-center py-4">
         这是一个错误提示。
@@ -5879,7 +5879,7 @@
                 value="">
               <select id="captcha-history-status" class="px-3 py-1 border border-slate-300 rounded-md text-sm">
                 <option value="">全部状态</option>
-                <option value="created">已创建</option>
+                <option value="created">待验证</option>
                 <option value="verified_success">验证成功</option>
                 <option value="verified_failed">验证失败</option>
                 <option value="expired">已过期</option>
@@ -5925,6 +5925,8 @@
           <!-- 标题和操作按钮 -->
           <div class="flex justify-between items-center">
             <h4 class="font-semibold text-lg">⏰ 定时提醒管理</h4>
+                        <div class="flex gap-2">
+              <button id="admin-refresh-reminders_modal" class="btn btn-ghost !py-1 !px-2" onclick="loadReminders()">刷新</button>
             <button id="admin-add-reminder_modal" class="btn btn-primary !py-2 !px-4"
               onclick="openReminderEditModal()">
               <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5933,6 +5935,7 @@
               </svg>
               添加提醒
             </button>
+                        </div>
           </div>
 
           <!-- 说明文字 -->
@@ -5971,10 +5974,13 @@
           <!-- 标题和状态指示器 -->
           <div class="flex justify-between items-center">
             <h4 class="font-semibold text-lg">🔒 HTTPS/SSL 设置</h4>
+            <div class="flex items-center gap-2"></div>
             <div id="ssl-status-badge" class="px-3 py-1 rounded-full text-sm font-semibold">
+              </div>
+              <button id="ssl-refresh-btn" class="btn btn-ghost !py-1 !px-2" onclick="loadSSLInfo()">刷新</button>
               <!-- 状态徽章将通过JS动态更新 -->
             </div>
-          </div>
+          
 
           <!-- 功能说明 -->
           <div class="text-xs text-blue-700 bg-blue-50 p-3 rounded-md">
@@ -6077,13 +6083,7 @@
                 </svg>
                 保存配置
               </button>
-              <button id="ssl-refresh-btn" class="btn btn-ghost !py-2 !px-4" onclick="loadSSLInfo()">
-                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-                  </path>
-                </svg>
-              </button>
+              
             </div>
 
             <!-- 重启提示 -->
@@ -6511,8 +6511,8 @@
           let statusText = '';
 
           if (is_multi_mode) {
-            statusStyles = session_login_success ? 'bg-purple-100 text-purple-700' : 'bg-purple-50 text-purple-400';
-            statusText = session_login_success ? '❖ 多账号 (已登录)' : '❖ 多账号 (未登录)';
+            statusStyles = session_login_success ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700';
+            statusText = session_login_success ? '✓ 已登录' : '○ 未登录';
           } else {
             statusStyles = session_login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700';
             statusText = session_login_success ? '✓ 已登录' : '○ 未登录';
@@ -12432,7 +12432,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       try {
         const response = await fetch('/auth/admin/get_all_users_school_accounts', {
           headers: {
-            'X-Session-ID': sessionId
+            'X-Session-ID': sessionUUID
           }
         });
 
@@ -15601,11 +15601,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
                   <p class="text-xs text-slate-500 mt-1">创建时间: ${createdDate}</p>
                   <p class="text-xs mt-1">
                     <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${session.is_multi_account_mode
-              ? (session.login_success ? 'bg-purple-100 text-purple-700' : 'bg-purple-50 text-purple-400') // 多账号 (已登录/未登录)
+              ? (session.login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700') // 多账号 (已登录/未登录)
               : (session.login_success ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700') // 单账号
             }">
                       ${session.is_multi_account_mode
-              ? (session.login_success ? '❖ 多账号 (已登录)' : '❖ 多账号 (未登录)') // 多账号
+              ? (session.login_success ? '✓ 已登录' : '○ 未登录') // 多账号
               : (session.login_success ? '✓ 已登录' : '○ 未登录') // 单账号
             }
                     </span>
@@ -24869,7 +24869,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         const response = await fetch('/api/admin/ssl/info', {
           method: 'GET',
           headers: {
-            'X-Session-ID': sessionId,
+            'X-Session-ID': sessionUUID,
             'Content-Type': 'application/json'
           }
         });
@@ -24894,17 +24894,24 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
           // 更新证书信息显示
           const certInfoContent = $('ssl-cert-info-content');
+          
           if (certInfoContent) {
-            if (data.cert_info && Object.keys(data.cert_info).length > 0) {
-              // 如果有证书信息，显示详细内容
+            // 修正：无论SSL是否启用，都优先尝试显示证书信息
+            // 1. 检查 cert_info 是否存在、非空，并且不包含错误
+            if (data.cert_info && Object.keys(data.cert_info).length > 0 && !data.cert_info.error) {
+              
               let html = '<div class="space-y-2">';
               
-              // 检查是否有错误信息
+              // (原代码中显示证书详情的逻辑是正确的，直接复制过来)
+              // 检查是否有错误信息 (例如 cryptography 未安装)
               if (data.cert_info.error) {
                 html += `<div class="text-red-600">⚠️ ${data.cert_info.error}</div>`;
                 if (data.cert_info.install_hint) {
                   html += `<div class="text-sm text-slate-500">${data.cert_info.install_hint}</div>`;
                 }
+              } else if (!data.cert_info.subject) { 
+                  // 证书信息为空对象，但又不是错误（理论上不应发生，但作为兜底）
+                  html += '<p class="text-amber-600 text-center py-4">无法解析证书，请检查路径是否正确。</p>';
               } else {
                 // 显示正常的证书信息
                 if (data.cert_info.subject) {
@@ -24954,18 +24961,31 @@ function run_code_not_need_sessionuuid(codeToRun) {
               
               html += '</div>';
               certInfoContent.innerHTML = html;
-            } else {
-              certInfoContent.innerHTML = '<p class="text-slate-400 text-center py-4">暂无证书信息</p>';
+
+            } 
+            // 2. 如果没有有效的证书信息，则根据 SSL 状态显示提示
+            else {
+              if (data.config.ssl_enabled) {
+                // SSL已启用，但证书信息无效或为空（说明路径错误或文件损坏）
+                let errorMsg = "SSL已启用，但证书路径为空或证书无效。";
+                if (data.cert_info && data.cert_info.error) {
+                  errorMsg = `SSL已启用，但证书加载失败: ${data.cert_info.error}`;
+                }
+                certInfoContent.innerHTML = `<p class="text-amber-600 text-center py-4">${escapeHtml(errorMsg)}</p>`;
+              } else {
+                // SSL未启用
+                certInfoContent.innerHTML = '<p class="text-slate-400 text-center py-4">HTTPS/SSL 未启用</p>';
+              }
             }
           }
 
           console.log('[SSL管理] SSL信息加载成功');
         } else {
-          showToast(data.message || 'SSL信息加载失败', 'error');
+          showTempMessage(data.message || 'SSL信息加载失败', 'error');
         }
       } catch (error) {
         console.error('[SSL管理] 加载SSL信息失败:', error);
-        showToast('加载SSL信息失败', 'error');
+        showTempMessage('加载SSL信息失败', 'error');
       }
     }
 
@@ -24998,12 +25018,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       // 验证是否选择了文件
       if (!certFileInput.files || certFileInput.files.length === 0) {
-        showToast('请选择证书文件', 'error');
+        showTempMessage('请选择证书文件', 'error');
         return;
       }
-
       if (!keyFileInput.files || keyFileInput.files.length === 0) {
-        showToast('请选择私钥文件', 'error');
+        showTempMessage('请选择密钥文件', 'error');
         return;
       }
 
@@ -25020,7 +25039,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         const response = await fetch('/api/admin/ssl/upload', {
           method: 'POST',
           headers: {
-            'X-Session-ID': sessionId
+            'X-Session-ID': sessionUUID
           },
           body: formData
         });
@@ -25028,18 +25047,18 @@ function run_code_not_need_sessionuuid(codeToRun) {
         const data = await response.json();
 
         if (data.success) {
-          showToast('证书上传成功', 'success');
+          showTempMessage('证书上传成功', 'success');
           // 清空文件选择
           certFileInput.value = '';
           keyFileInput.value = '';
           // 重新加载SSL信息
           await loadSSLInfo();
         } else {
-          showToast(data.message || '证书上传失败', 'error');
+          showTempMessage(data.message || '证书上传失败', 'error');
         }
       } catch (error) {
         console.error('[SSL管理] 上传证书失败:', error);
-        showToast('上传失败: ' + error.message, 'error');
+        showTempMessage('上传失败: ' + error.message, 'error');
       } finally {
         setButtonLoading(uploadBtn, false, '上传证书');
       }
@@ -25068,7 +25087,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         const response = await fetch('/api/admin/ssl/config', {
           method: 'POST',
           headers: {
-            'X-Session-ID': sessionId,
+            'X-Session-ID': sessionUUID,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(configData)
@@ -25077,15 +25096,18 @@ function run_code_not_need_sessionuuid(codeToRun) {
         const data = await response.json();
 
         if (data.success) {
-          showToast('配置已保存，需要重启服务器才能生效', 'success');
+          // 修正：使用 showModalAlert 拟态弹窗
+          showModalAlert('配置已保存，需要重启服务器才能生效', '保存成功');
           // 更新状态徽章
           updateSSLStatusBadge(configData.ssl_enabled);
         } else {
-          showToast(data.message || '保存配置失败', 'error');
+          // 修正：使用 showModalAlert 拟态弹窗
+          showModalAlert(data.message || '保存配置失败', '保存失败');
         }
       } catch (error) {
         console.error('[SSL管理] 保存配置失败:', error);
-        showToast('保存失败: ' + error.message, 'error');
+        // 修正：使用 showModalAlert 拟态弹窗
+        showModalAlert('保存失败: ' + error.message, '网络错误');
       } finally {
         setButtonLoading(saveBtn, false, '保存配置');
       }

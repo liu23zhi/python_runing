@@ -126,6 +126,7 @@ def import_standard_libraries():
 
     # (模块名, 导入命令)
     std_libs = [
+        ('ssl', 'import ssl'), # <-- 修正：添加 SSL 模块导入
         ('argparse', 'import argparse'),
         ('base64', 'import base64'),
         ('bisect', 'import bisect'),
@@ -194,6 +195,22 @@ def import_standard_libraries():
         logging.warning("  -> fcntl 模块在 Windows 平台不可用，已跳过。")
         print("[依赖检查]   -> fcntl (Windows平台跳过)")
     
+    if 'eventlet' in globals():
+        try:
+            logging.info("  -> 正在应用 eventlet.monkey_patch()...")
+            print("[依赖检查]   -> eventlet.monkey_patch()...", end=" ")
+            eventlet.monkey_patch()
+            logging.info("  ✓ eventlet.monkey_patch() 应用成功")
+            print("✓")
+        except Exception as e:
+            logging.error(f"  ✗ eventlet.monkey_patch() 应用失败: {e}")
+            print(f"✗ ({e})")
+            failed_imports.append({
+                'name': 'eventlet.monkey_patch()',
+                'pip_name': 'eventlet',
+                'error': str(e)
+            })
+
     # 如果有导入失败，统一报告
     if failed_imports:
         logging.critical(f"标准库导入失败，共 {len(failed_imports)} 个模块")
@@ -226,7 +243,8 @@ def import_core_third_party():
     core_libs = [
         ('PIL (Pillow)', 'from PIL import Image', 'Pillow'),
         ('bcrypt', 'import bcrypt', 'bcrypt'),
-        ('Flask-SocketIO', 'from flask_socketio import SocketIO, emit, join_room, leave_room', 'Flask-SocketIO')
+        ('Flask-SocketIO', 'from flask_socketio import SocketIO, emit, join_room, leave_room', 'Flask-SocketIO'),
+            ('eventlet', 'import eventlet', 'eventlet') # <-- 修正：添加 eventlet 导入
     ]
 
     failed_imports = []
@@ -285,10 +303,14 @@ def check_and_import_dependencies():
     global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
     global cssutils, playwright_available
 
+    global cryptography
+
     # 将所有变量预设为 None，以防导入成功但未完全解包
     Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g = (None,) * 9
     CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np, cssutils = (None,) * 10
     playwright_available = False
+
+    cryptography = None
 
     # (显示名称, 导入代码, pip包名)
     dependencies = [
@@ -324,7 +346,10 @@ def check_and_import_dependencies():
          'numpy'),
         ('cssutils (CSS解析)',
          'import cssutils',
-         'cssutils')
+         'cssutils'),
+         ('cryptography (SSL/加密)',
+         'import cryptography',
+         'cryptography')
     ]
     
     failed_imports = []
@@ -11992,7 +12017,7 @@ def start_web_server(args_param):
     # 声明 socketio 为全局变量
     global socketio
     # 初始化 SocketIO
-    socketio = SocketIO(app, async_mode='threading')
+    socketio = SocketIO(app, async_mode='eventlet')
 
     # 会话配置
     app.config['SESSION_TYPE'] = 'filesystem'
@@ -17215,14 +17240,23 @@ def start_web_server(args_param):
                 'key_path': current_ssl_config.get('ssl_key_path', '')
             }
             
-            # 如果SSL已启用，尝试获取证书详细信息
+            # 尝试获取证书详细信息（无论SSL是否启用）
             cert_info = {}
-            if current_ssl_config.get('ssl_enabled', False):
-                cert_path = current_ssl_config.get('ssl_cert_path', '')
-                if cert_path:
-                    # 获取证书详细信息
-                    cert_info = get_ssl_certificate_info(cert_path)
             
+            # 1. 从配置中获取证书路径
+            cert_path = current_ssl_config.get('ssl_cert_path', '')
+            
+            # 2. 检查路径是否已配置
+            if cert_path:
+                logging.info(f"检测到证书路径配置: {cert_path}，正在尝试读取证书信息...")
+                # 3. 获取证书详细信息
+                # get_ssl_certificate_info 会处理文件不存在或解析失败的情况
+                cert_info = get_ssl_certificate_info(cert_path)
+            else:
+                logging.info("证书路径未配置，跳过证书信息读取。")
+                # 如果路径为空，也明确返回一个错误信息，便于前端判断
+                cert_info = {"error": "证书路径未在 config.ini 中配置"}
+
             logging.info(f"[SSL管理] {g.user} 查询SSL配置和证书信息")
             
             return jsonify({
@@ -18467,28 +18501,19 @@ def start_web_server(args_param):
             if hasattr(api_instance, method):
                 func = getattr(api_instance, method)
 
+                
                 # 调试：记录params类型和内容
                 # logging.debug(f"API call: method={method}, params type={type(params)}, params={str(params)[:200]}")
                 logging.debug(f"API调用: 方法={method}, 参数类型={type(params)}, 参数内容={str(params)[:200]}")
 
-                if method == 'set_draft_path':
-                    # set_draft_path 函数 (def set_draft_path(self, coords)) 总是需要一个 coords 参数。
-
-                    if isinstance(params, list):
-                        # 正常情况：前端发送了 [...] (坐标列表) 或 [] (清空)
-                        result = func(params)
-                    else:
-                        # 异常情况：前端发送了 {} (如日志所示) 或 null/空body (导致 params 变为 {})
-                        # 此时，我们强制将其视为空列表 [] 来调用，以满足函数签名要求。
-                        # logging.warning(f"API call to set_draft_path received non-list params (type: {type(params)}). Coercing to empty list [].")
-                        logging.warning(
-                            f"调用 set_draft_path 时收到非列表参数 (类型: {type(params)})。强制转换为空列表 []。")
-                        result = func([])  # 传递一个空列表
-
-                elif params:
+                if params:
                     # 保持原有逻辑不变，用于处理其他所有API调用
                     # (例如 login(user, pass) 会收到 params=[user, pass]，
                     #  执行 func(*params) 变为 login(self, user, pass)，这是正确的)
+                    
+                    # （新）set_draft_path 将落入此分支：
+                    # params = [[{...}, ...]]
+                    # func(*params) -> set_draft_path(self, [{...}, ...])
                     result = func(**params) if isinstance(params,dict) else func(*params)
                 else:
                     result = func()
@@ -20675,23 +20700,53 @@ def start_web_server(args_param):
     print(f"{'='*60}\n")
 
     try:
-        # 根据是否启用SSL，使用不同的日志消息
+        # 修正：HTTPS/SSL 启动方式
+        # 当 async_mode='eventlet' 时，socketio.run() 会自动处理 ssl_context。
+        # 无需手动创建 socket 或 wrap_ssl。
+        
         if ssl_context:
+            # HTTPS 模式
             logging.info(
-                f"正在启动带有 WebSocket 和 SSL 支持的 Web 服务器于 {server_url}")
+                f"正在启动带有 WebSocket 和 SSL(HTTPS) 支持的 Web 服务器于 {server_url}")
+            
+            try:
+                # 1. (已移除) 手动创建 eventlet.listen(...)
+                
+                # 2. (已移除) 手动包装 eventlet.wrap_ssl(...)
+                
+                logging.info(f"Eventlet 将使用 SSL context 启动服务器...")
+                
+                # 3. 运行 socketio.run()，让它自己处理 host, port, 和 ssl_context
+                #    (因为 async_mode='eventlet'，它会正确使用 eventlet 服务器)
+                socketio.run(
+                    app, 
+                    host=args.host, 
+                    port=args.port, 
+                    debug=False,
+                    ssl_context=ssl_context # <--- 直接传递 ssl_context
+                )
+            except ImportError:
+                logging.error("Eventlet 模块未找到，无法启动HTTPS服务器。请运行 'pip install eventlet'")
+
+                raise
+            except Exception as ssl_e:
+                logging.error(f"使用 Eventlet 启动 SSL 服务器失败: {ssl_e}", exc_info=True)
+                print(f"\n[错误] 无法使用 eventlet 启动 HTTPS 服务器: {ssl_e}")
+                print("请检查证书文件路径和权限是否正确。")
+                raise
+                
         else:
+            # HTTP 模式 (保持不变)
             logging.info(
                 f"正在启动带有 WebSocket 支持的 Web 服务器于 {server_url}")
-        
-        # 启动SocketIO服务器
-        # 如果ssl_context不为None，则启用HTTPS；否则使用HTTP
-        socketio.run(
-            app, 
-            host=args.host, 
-            port=args.port, 
-            debug=False,
-            ssl_context=ssl_context  # 传入SSL上下文（None表示HTTP模式）
-        )
+            
+            socketio.run(
+                app, 
+                host=args.host, 
+                port=args.port, 
+                debug=False,
+                ssl_context=None # 明确传递 None
+            )
     except OSError as e:
         if "WinError 10013" in str(e) or "permission" in str(e).lower() or "访问权限" in str(e):
             print(f"\n{'='*60}")
