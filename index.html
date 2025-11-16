@@ -23907,6 +23907,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
         html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mt-4 mb-2">地图配置</h5>';
         html += createInput('Map', 'amap_js_key', '高德地图 API Key', 'text', '用于前端地图显示的JS API Key。');
 
+        // [API]
+        html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mt-4 mb-2">第三方 API 配置</h5>';
+        html += createInput('API', 'ip_api_key', 'IP定位 API Key', 'text', 'IP地理位置查询API密钥（可选，留空使用免费接口）。');
+        html += createInput('API', 'captcha_api_key', '验证码 API Key', 'text', '验证码生成API密钥（可选，留空使用免费接口）。');
+
         formContainer.innerHTML = html;
 
       } catch (e) {

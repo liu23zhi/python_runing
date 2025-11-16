@@ -15848,6 +15848,16 @@ def start_web_server(args_param):
                         config, 'Map', 'amap_js_key', 
                         fallback=default_config.get('Map', 'amap_js_key', fallback='')
                     )
+                },
+                'API': {
+                    'ip_api_key': _get_config_value(
+                        config, 'API', 'ip_api_key', 
+                        fallback=default_config.get('API', 'ip_api_key', fallback='')
+                    ),
+                    'captcha_api_key': _get_config_value(
+                        config, 'API', 'captcha_api_key', 
+                        fallback=default_config.get('API', 'captcha_api_key', fallback='')
+                    )
                 }
             }
             
@@ -15927,6 +15937,15 @@ def start_web_server(args_param):
             if 'Map' in data and 'amap_js_key' in data['Map']:
                 ensure_section(config, 'Map')
                 config.set('Map', 'amap_js_key', data['Map']['amap_js_key'])
+            
+            # [API]
+            if 'API' in data:
+                ensure_section(config, 'API')
+                api_data = data['API']
+                if 'ip_api_key' in api_data:
+                    config.set('API', 'ip_api_key', api_data['ip_api_key'])
+                if 'captcha_api_key' in api_data:
+                    config.set('API', 'captcha_api_key', api_data['captcha_api_key'])
 
             # 4. 使用 _write_config_with_comments 保存以保留注释
             _write_config_with_comments(config, CONFIG_FILE)
