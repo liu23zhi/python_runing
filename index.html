@@ -8321,7 +8321,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
         // 模态框DOM不存在，回退到原生 alert
         logMessage_Warning('Alert modal DOM not found, falling back to native alert.');
         alert(`${title}:\n${message}`);
-        if (onCloseCallback) onCloseCallback();
+        // 安全检查：确保 onCloseCallback 是一个函数后再调用
+        if (onCloseCallback && typeof onCloseCallback === 'function') onCloseCallback();
         return;
       }
 
@@ -8340,7 +8341,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       closeBtn.onclick = () => {
         closeModalAlert();
-        if (onCloseCallback) onCloseCallback();
+        // 安全检查：确保 onCloseCallback 是一个函数后再调用
+        if (onCloseCallback && typeof onCloseCallback === 'function') onCloseCallback();
       };
 
       modal.classList.remove('hidden');

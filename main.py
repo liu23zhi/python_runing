@@ -554,44 +554,64 @@ class CustomLogHandler(logging.FileHandler):
 
     def do_rollover(self):
         """
-        执行日志轮转。
+        执行标准的日志轮转。
+        实现逻辑：
+        1. 检查 zx-slm-tool-09.log 是否存在，如果存在则删除
+        2. 将 zx-slm-tool-08.log 重命名为 zx-slm-tool-09.log
+        3. 将 zx-slm-tool-07.log 重命名为 zx-slm-tool-08.log
+        4. ...
+        5. 将 zx-slm-tool-01.log 重命名为 zx-slm-tool-02.log
+        6. 最后将 zx-slm-tool.log 重命名为 zx-slm-tool-01.log
+        7. 创建一个新的 zx-slm-tool.log 文件用于后续写入
         """
+        # 关闭当前文件流
         if self.stream:
             self.stream.close()
             self.stream = None
 
+        # 获取日志目录和基础文件名
         log_dir = os.path.dirname(self.baseFilename)
         base_name = 'zx-slm-tool'
+        
+        # 定义最大轮转文件数量（保留10个历史文件：zx-slm-tool-01.log 到 zx-slm-tool-10.log）
+        max_backup_count = 10
 
-        # 查找已存在的编号文件
-        existing_numbers = []
-        for filename in os.listdir(log_dir):
-            if filename.startswith(f'{base_name}-') and filename.endswith('.log'):
-                try:
-                    # 提取编号
-                    num_str = filename[len(base_name)+1:-4]  # 去掉前缀和.log
-                    num = int(num_str)
-                    existing_numbers.append(num)
-                except ValueError:
-                    pass
+        # 从最大编号开始，依次向后移动文件
+        # 如果 zx-slm-tool-10.log 存在，则删除它（最旧的文件）
+        for i in range(max_backup_count, 0, -1):
+            old_log = os.path.join(log_dir, f'{base_name}-{i:02d}.log')
+            
+            if i == max_backup_count:
+                # 删除最旧的文件（编号为 max_backup_count）
+                if os.path.exists(old_log):
+                    try:
+                        os.remove(old_log)
+                        print(f"[日志轮转] 已删除最旧的日志文件: {os.path.basename(old_log)}")
+                    except Exception as e:
+                        print(f"[日志轮转] 删除 {os.path.basename(old_log)} 失败: {e}")
+            else:
+                # 将 zx-slm-tool-0X.log 重命名为 zx-slm-tool-0(X+1).log
+                if os.path.exists(old_log):
+                    new_log = os.path.join(log_dir, f'{base_name}-{i+1:02d}.log')
+                    try:
+                        os.rename(old_log, new_log)
+                        print(f"[日志轮转] {os.path.basename(old_log)} -> {os.path.basename(new_log)}")
+                    except Exception as e:
+                        print(f"[日志轮转] 重命名 {os.path.basename(old_log)} 失败: {e}")
 
-        # 确定新的编号
-        if existing_numbers:
-            next_num = max(existing_numbers) + 1
-        else:
-            next_num = 1
-
-        # 重命名当前文件
-        new_name = os.path.join(log_dir, f'{base_name}-{next_num:02d}.log')
-
+        # 最后，将当前的 zx-slm-tool.log 重命名为 zx-slm-tool-01.log
+        first_backup = os.path.join(log_dir, f'{base_name}-01.log')
         try:
-            os.rename(self.baseFilename, new_name)
-            print(
-                f"[日志轮转] 已轮转: {os.path.basename(self.baseFilename)} -> {os.path.basename(new_name)}")
+            # 如果 zx-slm-tool-01.log 已经存在（不应该发生，但作为安全检查）
+            if os.path.exists(first_backup):
+                os.remove(first_backup)
+            
+            os.rename(self.baseFilename, first_backup)
+            print(f"[日志轮转] {os.path.basename(self.baseFilename)} -> {os.path.basename(first_backup)}")
         except Exception as e:
-            print(f"[日志轮转] 轮转失败: {e}")
+            print(f"[日志轮转] 轮转主日志文件失败: {e}")
 
-        # 重新打开文件
+        # 重新打开一个新的 zx-slm-tool.log 文件用于后续写入
         self.stream = self._open()
 
 
@@ -1250,6 +1270,28 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 单个手机号每天最多发送次数（防止骚扰）\n")
         f.write(
             f"rate_limit_per_phone_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback='5')}\n\n")
+
+        # [SSL] 配置 - 新增SSL配置节的写入逻辑
+        f.write("[SSL]\n")
+        f.write("# SSL/HTTPS 配置\n")
+        f.write("# 是否启用SSL（true/false）\n")
+        f.write("# true：启用HTTPS协议访问\n")
+        f.write("# false：使用HTTP协议访问\n")
+        f.write(
+            f"ssl_enabled = {config_obj.get('SSL', 'ssl_enabled', fallback='false')}\n")
+        f.write("# SSL证书文件路径\n")
+        f.write("# 用于HTTPS服务的证书文件（PEM格式）\n")
+        f.write(
+            f"ssl_cert_path = {config_obj.get('SSL', 'ssl_cert_path', fallback='ssl/fullchain.pem')}\n")
+        f.write("# SSL私钥文件路径\n")
+        f.write("# 用于HTTPS服务的私钥文件（KEY格式）\n")
+        f.write(
+            f"ssl_key_path = {config_obj.get('SSL', 'ssl_key_path', fallback='ssl/privkey.key')}\n")
+        f.write("# 是否仅允许HTTPS访问（true/false）\n")
+        f.write("# true：禁止HTTP访问，所有HTTP请求将被重定向到HTTPS\n")
+        f.write("# false：同时允许HTTP和HTTPS访问\n")
+        f.write(
+            f"https_only = {config_obj.get('SSL', 'https_only', fallback='false')}\n\n")
 
 
 def _create_config_ini():
@@ -11723,10 +11765,14 @@ def save_ssl_config(ssl_config):
     config = configparser.ConfigParser()
     
     try:
-        # 如果配置文件已存在，先读取现有内容
-        # 这样可以保留其他节的配置不被覆盖
+        # 读取完整的 config.ini 文件到 ConfigParser 对象
+        # 这样可以保留所有现有的节和配置项，而不仅仅是 [SSL] 节
         if os.path.exists(config_file):
             config.read(config_file, encoding='utf-8')
+        else:
+            # 如果配置文件不存在，使用默认配置初始化
+            logging.warning("config.ini 文件不存在，将创建新的配置文件")
+            config = _get_default_config()
         
         # 确保[SSL]节存在，如果不存在则创建
         if not config.has_section('SSL'):
@@ -11739,10 +11785,9 @@ def save_ssl_config(ssl_config):
         config.set('SSL', 'ssl_key_path', ssl_config.get('ssl_key_path', 'ssl/privkey.key'))
         config.set('SSL', 'https_only', str(ssl_config.get('https_only', False)).lower())
         
-        # 写入配置文件
-        # 使用'w'模式会覆盖现有文件，但由于我们之前已读取，所以不会丢失数据
-        with open(config_file, 'w', encoding='utf-8') as f:
-            config.write(f)
+        # 使用 _write_config_with_comments 函数写入配置文件
+        # 这个函数会保留所有注释和配置项，不会造成数据丢失
+        _write_config_with_comments(config, config_file)
         
         logging.info("SSL配置已成功保存到配置文件")
         return True
@@ -13505,11 +13550,34 @@ def start_web_server(args_param):
 
     @app.route('/auth/get_config', methods=['GET'])
     def auth_get_config():
-        """获取认证配置（用于前端显示）"""
+        """
+        获取认证配置（用于前端显示）
+        使用 _get_config_value 辅助函数安全地读取配置，避免 ValueError 崩溃
+        """
+        # 安全地读取 allow_guest_login 配置，使用 _get_config_value 辅助函数
+        # type_func 参数设置为 lambda 函数，用于处理布尔值转换
+        # 支持 'true', 'yes', '1', 'on' 等多种格式
+        allow_guest_login = _get_config_value(
+            auth_system.config, 
+            'Guest', 
+            'allow_guest_login', 
+            type_func=lambda x: str(x).lower() in ('true', 'yes', '1', 'on'),  # 布尔值转换逻辑
+            fallback=True  # 默认值为 True
+        )
+        
+        # 安全地读取 amap_js_key 配置
+        amap_js_key = _get_config_value(
+            auth_system.config, 
+            'Map', 
+            'amap_js_key', 
+            type_func=str,  # 字符串类型
+            fallback=''  # 默认值为空字符串
+        )
+        
         return jsonify({
             "success": True,
-            "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True),
-            "amap_js_key": auth_system.config.get('Map', 'amap_js_key', fallback='')
+            "allow_guest_login": allow_guest_login,
+            "amap_js_key": amap_js_key
         })
 
     @app.route('/auth/check_uuid_type', methods=['POST'])
