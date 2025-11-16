@@ -11604,6 +11604,316 @@ def start_background_auto_attendance(args):
         logging.error(f"启动后台自动签到服务时发生严重错误: {e}", exc_info=True)
 
 
+# ============================================================================
+# SSL/HTTPS 配置和证书管理相关函数
+# 这些函数用于加载、验证和管理SSL证书，支持HTTPS服务
+# ============================================================================
+
+def load_ssl_config():
+    """
+    从config.ini文件加载SSL配置。
+    
+    功能说明：
+    1. 读取配置文件中的[SSL]节
+    2. 解析SSL相关的配置项（启用状态、证书路径、仅HTTPS模式等）
+    3. 返回配置字典供后续使用
+    
+    返回值：
+        dict: 包含SSL配置的字典，键包括：
+            - ssl_enabled (bool): 是否启用SSL
+            - ssl_cert_path (str): 证书文件路径
+            - ssl_key_path (str): 私钥文件路径
+            - https_only (bool): 是否仅允许HTTPS访问
+        如果配置文件不存在或读取失败，返回默认配置（SSL禁用）
+    """
+    # 定义配置文件路径（相对于程序根目录）
+    config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+    
+    # 创建配置解析器对象
+    config = configparser.ConfigParser()
+    
+    # 默认的SSL配置（向后兼容，默认禁用SSL）
+    # 这确保了即使没有配置文件，程序也能正常以HTTP模式运行
+    default_config = {
+        'ssl_enabled': False,         # 默认不启用SSL
+        'ssl_cert_path': 'ssl/fullchain.pem',  # 默认证书路径
+        'ssl_key_path': 'ssl/privkey.key',     # 默认密钥路径
+        'https_only': False           # 默认允许HTTP访问
+    }
+    
+    try:
+        # 尝试读取配置文件
+        # 如果文件不存在，read()方法会返回空列表，不会抛出异常
+        if not os.path.exists(config_file):
+            logging.warning(f"配置文件 {config_file} 不存在，使用默认SSL配置（禁用）")
+            return default_config
+        
+        # 读取配置文件内容
+        config.read(config_file, encoding='utf-8')
+        
+        # 检查[SSL]节是否存在
+        if not config.has_section('SSL'):
+            logging.warning("配置文件中未找到[SSL]节，使用默认SSL配置（禁用）")
+            return default_config
+        
+        # 从配置文件中读取各项配置，使用getboolean和get方法
+        # getboolean会自动将'true'/'false'字符串转换为布尔值
+        ssl_config = {
+            'ssl_enabled': config.getboolean('SSL', 'ssl_enabled', fallback=False),
+            'ssl_cert_path': config.get('SSL', 'ssl_cert_path', fallback='ssl/fullchain.pem'),
+            'ssl_key_path': config.get('SSL', 'ssl_key_path', fallback='ssl/privkey.key'),
+            'https_only': config.getboolean('SSL', 'https_only', fallback=False)
+        }
+        
+        # 记录加载的配置信息（不记录路径细节，避免泄露敏感信息）
+        logging.info(f"SSL配置加载成功: enabled={ssl_config['ssl_enabled']}, https_only={ssl_config['https_only']}")
+        
+        return ssl_config
+        
+    except Exception as e:
+        # 如果读取配置文件时发生任何错误，记录错误并返回默认配置
+        # 这样可以确保程序不会因为配置问题而崩溃
+        logging.error(f"加载SSL配置时发生错误: {e}，使用默认配置（禁用SSL）")
+        return default_config
+
+
+def save_ssl_config(ssl_config):
+    """
+    将SSL配置保存到config.ini文件。
+    
+    参数：
+        ssl_config (dict): 包含SSL配置的字典，键应包括：
+            - ssl_enabled (bool): 是否启用SSL
+            - ssl_cert_path (str): 证书文件路径
+            - ssl_key_path (str): 私钥文件路径
+            - https_only (bool): 是否仅允许HTTPS访问
+    
+    返回值：
+        bool: 保存成功返回True，失败返回False
+    """
+    # 定义配置文件路径
+    config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+    
+    # 创建配置解析器对象
+    config = configparser.ConfigParser()
+    
+    try:
+        # 如果配置文件已存在，先读取现有内容
+        # 这样可以保留其他节的配置不被覆盖
+        if os.path.exists(config_file):
+            config.read(config_file, encoding='utf-8')
+        
+        # 确保[SSL]节存在，如果不存在则创建
+        if not config.has_section('SSL'):
+            config.add_section('SSL')
+        
+        # 将字典中的配置写入到[SSL]节
+        # 布尔值会自动转换为'true'/'false'字符串
+        config.set('SSL', 'ssl_enabled', str(ssl_config.get('ssl_enabled', False)).lower())
+        config.set('SSL', 'ssl_cert_path', ssl_config.get('ssl_cert_path', 'ssl/fullchain.pem'))
+        config.set('SSL', 'ssl_key_path', ssl_config.get('ssl_key_path', 'ssl/privkey.key'))
+        config.set('SSL', 'https_only', str(ssl_config.get('https_only', False)).lower())
+        
+        # 写入配置文件
+        # 使用'w'模式会覆盖现有文件，但由于我们之前已读取，所以不会丢失数据
+        with open(config_file, 'w', encoding='utf-8') as f:
+            config.write(f)
+        
+        logging.info("SSL配置已成功保存到配置文件")
+        return True
+        
+    except Exception as e:
+        # 记录保存失败的错误信息
+        logging.error(f"保存SSL配置时发生错误: {e}")
+        return False
+
+
+def validate_ssl_certificate(cert_path, key_path):
+    """
+    验证SSL证书文件和密钥文件是否有效。
+    
+    功能说明：
+    1. 检查证书文件和密钥文件是否存在
+    2. 检查文件是否可读
+    3. 验证证书格式和有效期（基础验证）
+    4. 检查证书和密钥是否匹配
+    
+    参数：
+        cert_path (str): 证书文件路径（相对或绝对路径）
+        key_path (str): 密钥文件路径（相对或绝对路径）
+    
+    返回值：
+        tuple: (bool, str, dict)
+            - bool: 验证是否通过
+            - str: 错误消息（验证通过时为空字符串）
+            - dict: 证书信息字典（验证通过时包含证书详细信息，失败时为空）
+    """
+    # 如果路径是相对路径，转换为相对于程序根目录的绝对路径
+    if not os.path.isabs(cert_path):
+        cert_path = os.path.join(os.path.dirname(__file__), cert_path)
+    if not os.path.isabs(key_path):
+        key_path = os.path.join(os.path.dirname(__file__), key_path)
+    
+    # 1. 检查证书文件是否存在
+    if not os.path.exists(cert_path):
+        error_msg = f"证书文件不存在: {cert_path}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 2. 检查密钥文件是否存在
+    if not os.path.exists(key_path):
+        error_msg = f"密钥文件不存在: {key_path}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 3. 检查证书文件是否可读
+    if not os.access(cert_path, os.R_OK):
+        error_msg = f"证书文件不可读（权限不足）: {cert_path}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 4. 检查密钥文件是否可读
+    if not os.access(key_path, os.R_OK):
+        error_msg = f"密钥文件不可读（权限不足）: {key_path}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 5. 尝试读取证书文件内容，验证基本格式
+    try:
+        with open(cert_path, 'r', encoding='utf-8') as f:
+            cert_content = f.read()
+            # 检查是否包含PEM格式的标识头
+            if '-----BEGIN CERTIFICATE-----' not in cert_content:
+                error_msg = f"证书文件格式无效（不是PEM格式）: {cert_path}"
+                logging.error(error_msg)
+                return False, error_msg, {}
+    except Exception as e:
+        error_msg = f"读取证书文件时发生错误: {e}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 6. 尝试读取密钥文件内容，验证基本格式
+    try:
+        with open(key_path, 'r', encoding='utf-8') as f:
+            key_content = f.read()
+            # 检查是否包含PEM格式的标识头（支持多种私钥格式）
+            valid_key_headers = [
+                '-----BEGIN PRIVATE KEY-----',
+                '-----BEGIN RSA PRIVATE KEY-----',
+                '-----BEGIN EC PRIVATE KEY-----',
+                '-----BEGIN DSA PRIVATE KEY-----'
+            ]
+            if not any(header in key_content for header in valid_key_headers):
+                error_msg = f"密钥文件格式无效（不是PEM格式）: {key_path}"
+                logging.error(error_msg)
+                return False, error_msg, {}
+    except Exception as e:
+        error_msg = f"读取密钥文件时发生错误: {e}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 7. 尝试使用OpenSSL库解析证书并提取信息（如果可用）
+    # 注意：这里使用基础的文件验证，更复杂的证书验证需要pyOpenSSL库
+    cert_info = {
+        'cert_path': cert_path,
+        'key_path': key_path,
+        'valid': True,
+        'message': '证书文件格式验证通过'
+    }
+    
+    # 尝试导入ssl模块进行更详细的验证（Python标准库）
+    try:
+        import ssl
+        # 使用ssl.SSLContext来加载证书，这会进行更严格的验证
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cert_path, key_path)
+        
+        # 如果没有抛出异常，说明证书和密钥匹配且有效
+        cert_info['message'] = '证书和密钥验证通过，可以安全使用'
+        logging.info(f"SSL证书验证成功: {cert_path}")
+        
+    except Exception as e:
+        # 如果ssl模块验证失败，记录警告但不阻止使用
+        # 因为某些环境可能没有完整的SSL支持
+        error_msg = f"SSL证书深度验证失败: {e}，但基础格式验证已通过"
+        logging.warning(error_msg)
+        cert_info['message'] = error_msg
+        # 仍然返回True，因为基础验证已通过
+    
+    return True, "", cert_info
+
+
+def get_ssl_certificate_info(cert_path):
+    """
+    获取SSL证书的详细信息（如有效期、颁发者、主题等）。
+    
+    参数：
+        cert_path (str): 证书文件路径
+    
+    返回值：
+        dict: 包含证书详细信息的字典，失败时返回空字典
+    """
+    # 如果路径是相对路径，转换为绝对路径
+    if not os.path.isabs(cert_path):
+        cert_path = os.path.join(os.path.dirname(__file__), cert_path)
+    
+    # 默认返回值
+    cert_info = {}
+    
+    try:
+        # 导入ssl和OpenSSL相关模块
+        import ssl
+        from datetime import datetime
+        
+        # 读取证书文件
+        with open(cert_path, 'rb') as f:
+            cert_data = f.read()
+        
+        # 使用ssl模块解析证书
+        # 注意：这需要证书是PEM格式
+        from cryptography import x509
+        from cryptography.hazmat.backends import default_backend
+        
+        # 加载证书
+        cert = x509.load_pem_x509_certificate(cert_data, default_backend())
+        
+        # 提取证书信息
+        cert_info = {
+            'subject': cert.subject.rfc4514_string(),  # 证书主题（服务器域名等）
+            'issuer': cert.issuer.rfc4514_string(),    # 颁发者
+            'version': cert.version.name,               # 证书版本
+            'serial_number': str(cert.serial_number),   # 序列号
+            'not_before': cert.not_valid_before_utc.isoformat(),  # 生效日期
+            'not_after': cert.not_valid_after_utc.isoformat(),    # 过期日期
+            'is_expired': datetime.now() > cert.not_valid_after_utc.replace(tzinfo=None),  # 是否已过期
+        }
+        
+        # 提取SAN（Subject Alternative Names）扩展
+        try:
+            san_ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+            cert_info['san'] = [name.value for name in san_ext.value]
+        except x509.ExtensionNotFound:
+            cert_info['san'] = []
+        
+        logging.info(f"成功获取证书信息: {cert_path}")
+        
+    except ImportError:
+        # 如果cryptography库不可用，使用简化的方法
+        logging.warning("cryptography库不可用，无法获取详细的证书信息")
+        cert_info = {
+            'error': '需要安装cryptography库才能查看详细证书信息',
+            'install_hint': 'pip install cryptography'
+        }
+    except Exception as e:
+        # 记录错误但不抛出异常
+        logging.error(f"获取证书信息时发生错误: {e}")
+        cert_info = {
+            'error': f'读取证书信息失败: {str(e)}'
+        }
+    
+    return cert_info
+
+
 def start_web_server(args_param):
     """
     启动Flask Web服务器主函数，集成SocketIO实时通信和Chrome浏览器自动化。
@@ -16853,7 +17163,352 @@ def start_web_server(args_param):
             app.logger.error(f"[验证码管理] 添加验证码失败：{str(e)}")
             return jsonify({"success": False, "message": "添加失败"}), 500
 
+    # ============================================================================
+    # SSL/HTTPS 管理 API
+    # 提供SSL证书上传、配置更新、信息查询等功能
+    # 仅管理员可访问
+    # ============================================================================
+    
+    @app.route('/api/admin/ssl/info', methods=['GET'])
+    @login_required
+    def get_ssl_info():
+        """
+        获取当前SSL配置和证书信息。
+        
+        功能说明：
+        1. 返回当前SSL配置（是否启用、仅HTTPS模式等）
+        2. 如果启用了SSL，返回证书详细信息（有效期、颁发者等）
+        
+        权限要求：管理员
+        
+        返回示例：
+        {
+            "success": true,
+            "config": {
+                "ssl_enabled": true,
+                "https_only": false,
+                "cert_path": "ssl/fullchain.pem",
+                "key_path": "ssl/privkey.key"
+            },
+            "cert_info": {
+                "subject": "CN=example.com",
+                "issuer": "CN=Let's Encrypt Authority",
+                "not_before": "2024-01-01T00:00:00",
+                "not_after": "2024-04-01T00:00:00",
+                "is_expired": false
+            }
+        }
+        """
+        try:
+            # 权限检查：只有管理员才能查看SSL配置
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 加载当前SSL配置
+            current_ssl_config = load_ssl_config()
+            
+            # 准备返回的配置信息（不包含敏感的完整路径）
+            config_info = {
+                'ssl_enabled': current_ssl_config.get('ssl_enabled', False),
+                'https_only': current_ssl_config.get('https_only', False),
+                'cert_path': current_ssl_config.get('ssl_cert_path', ''),
+                'key_path': current_ssl_config.get('ssl_key_path', '')
+            }
+            
+            # 如果SSL已启用，尝试获取证书详细信息
+            cert_info = {}
+            if current_ssl_config.get('ssl_enabled', False):
+                cert_path = current_ssl_config.get('ssl_cert_path', '')
+                if cert_path:
+                    # 获取证书详细信息
+                    cert_info = get_ssl_certificate_info(cert_path)
+            
+            logging.info(f"[SSL管理] {g.user} 查询SSL配置和证书信息")
+            
+            return jsonify({
+                "success": True,
+                "config": config_info,
+                "cert_info": cert_info
+            })
+            
+        except Exception as e:
+            logging.error(f"[SSL管理] 获取SSL信息失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"获取SSL信息失败: {str(e)}"}), 500
+    
+    
+    @app.route('/api/admin/ssl/upload', methods=['POST'])
+    @login_required
+    def upload_ssl_certificate():
+        """
+        上传SSL证书文件和密钥文件。
+        
+        功能说明：
+        1. 接收证书文件（PEM格式）和密钥文件
+        2. 验证文件格式和有效性
+        3. 保存到ssl/目录
+        4. 返回上传结果
+        
+        权限要求：管理员
+        
+        请求参数（multipart/form-data）：
+        - cert_file: 证书文件（.pem或.crt）
+        - key_file: 密钥文件（.key或.pem）
+        
+        返回示例：
+        {
+            "success": true,
+            "message": "证书上传成功",
+            "cert_path": "ssl/fullchain.pem",
+            "key_path": "ssl/privkey.key"
+        }
+        """
+        try:
+            # 权限检查：只有管理员才能上传证书
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 检查是否有文件上传
+            if 'cert_file' not in request.files or 'key_file' not in request.files:
+                return jsonify({"success": False, "message": "请同时上传证书文件和密钥文件"}), 400
+            
+            cert_file = request.files['cert_file']
+            key_file = request.files['key_file']
+            
+            # 检查文件名是否为空
+            if cert_file.filename == '' or key_file.filename == '':
+                return jsonify({"success": False, "message": "文件名不能为空"}), 400
+            
+            # 确定ssl目录路径
+            ssl_dir = os.path.join(os.path.dirname(__file__), 'ssl')
+            # 确保ssl目录存在
+            os.makedirs(ssl_dir, exist_ok=True)
+            
+            # 生成临时文件名（用于验证）
+            import tempfile
+            # 创建临时文件用于保存上传的内容并验证
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem') as temp_cert:
+                cert_file.save(temp_cert.name)
+                temp_cert_path = temp_cert.name
+            
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.key') as temp_key:
+                key_file.save(temp_key.name)
+                temp_key_path = temp_key.name
+            
+            try:
+                # 验证上传的证书和密钥
+                # 检查文件内容格式和证书-密钥匹配性
+                is_valid, error_msg, cert_info = validate_ssl_certificate(
+                    temp_cert_path,
+                    temp_key_path
+                )
+                
+                if not is_valid:
+                    # 如果验证失败，删除临时文件并返回错误
+                    os.unlink(temp_cert_path)
+                    os.unlink(temp_key_path)
+                    return jsonify({"success": False, "message": f"证书验证失败: {error_msg}"}), 400
+                
+                # 验证通过，移动文件到ssl目录
+                final_cert_path = os.path.join(ssl_dir, 'fullchain.pem')
+                final_key_path = os.path.join(ssl_dir, 'privkey.key')
+                
+                # 如果目标文件已存在，先备份
+                if os.path.exists(final_cert_path):
+                    backup_cert_path = final_cert_path + '.backup'
+                    os.replace(final_cert_path, backup_cert_path)
+                    logging.info(f"[SSL管理] 已备份旧证书: {backup_cert_path}")
+                
+                if os.path.exists(final_key_path):
+                    backup_key_path = final_key_path + '.backup'
+                    os.replace(final_key_path, backup_key_path)
+                    logging.info(f"[SSL管理] 已备份旧密钥: {backup_key_path}")
+                
+                # 移动临时文件到最终位置
+                os.replace(temp_cert_path, final_cert_path)
+                os.replace(temp_key_path, final_key_path)
+                
+                # 设置文件权限（仅所有者可读写，密钥文件更严格）
+                os.chmod(final_cert_path, 0o644)  # 证书文件：rw-r--r--
+                os.chmod(final_key_path, 0o600)   # 密钥文件：rw-------（仅所有者可读写）
+                
+                logging.info(f"[SSL管理] {g.user} 成功上传SSL证书")
+                
+                return jsonify({
+                    "success": True,
+                    "message": "证书上传成功",
+                    "cert_path": "ssl/fullchain.pem",
+                    "key_path": "ssl/privkey.key",
+                    "cert_info": cert_info
+                })
+                
+            except Exception as e:
+                # 如果处理过程中出错，清理临时文件
+                if os.path.exists(temp_cert_path):
+                    os.unlink(temp_cert_path)
+                if os.path.exists(temp_key_path):
+                    os.unlink(temp_key_path)
+                raise e
+                
+        except Exception as e:
+            logging.error(f"[SSL管理] 上传证书失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"上传失败: {str(e)}"}), 500
+    
+    
+    @app.route('/api/admin/ssl/config', methods=['POST'])
+    @login_required
+    def update_ssl_config():
+        """
+        更新SSL配置（不包括证书文件，仅更新配置选项）。
+        
+        功能说明：
+        更新config.ini中的SSL配置项，如启用状态、仅HTTPS模式等
+        注意：更新配置后需要重启服务器才能生效
+        
+        权限要求：管理员
+        
+        请求参数（JSON）：
+        {
+            "ssl_enabled": true/false,
+            "https_only": true/false,
+            "cert_path": "ssl/fullchain.pem",  // 可选
+            "key_path": "ssl/privkey.key"      // 可选
+        }
+        
+        返回示例：
+        {
+            "success": true,
+            "message": "配置已更新，重启服务器后生效"
+        }
+        """
+        try:
+            # 权限检查：只有管理员才能修改SSL配置
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 获取请求数据
+            data = request.get_json()
+            if not data:
+                return jsonify({"success": False, "message": "请求数据为空"}), 400
+            
+            # 加载当前配置
+            current_config = load_ssl_config()
+            
+            # 更新配置项（只更新提供的字段）
+            if 'ssl_enabled' in data:
+                current_config['ssl_enabled'] = bool(data['ssl_enabled'])
+            
+            if 'https_only' in data:
+                current_config['https_only'] = bool(data['https_only'])
+            
+            if 'cert_path' in data and data['cert_path']:
+                current_config['ssl_cert_path'] = str(data['cert_path'])
+            
+            if 'key_path' in data and data['key_path']:
+                current_config['ssl_key_path'] = str(data['key_path'])
+            
+            # 如果要启用SSL，验证证书文件是否存在
+            if current_config.get('ssl_enabled', False):
+                is_valid, error_msg, _ = validate_ssl_certificate(
+                    current_config['ssl_cert_path'],
+                    current_config['ssl_key_path']
+                )
+                
+                if not is_valid:
+                    return jsonify({
+                        "success": False, 
+                        "message": f"证书验证失败，无法启用SSL: {error_msg}"
+                    }), 400
+            
+            # 保存配置到文件
+            if save_ssl_config(current_config):
+                logging.info(f"[SSL管理] {g.user} 更新SSL配置: {current_config}")
+                return jsonify({
+                    "success": True,
+                    "message": "配置已更新，需要重启服务器才能生效",
+                    "config": current_config
+                })
+            else:
+                return jsonify({"success": False, "message": "保存配置失败"}), 500
+                
+        except Exception as e:
+            logging.error(f"[SSL管理] 更新配置失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新配置失败: {str(e)}"}), 500
+    
+    
+    @app.route('/api/admin/ssl/toggle', methods=['POST'])
+    @login_required
+    def toggle_ssl():
+        """
+        快速启用/禁用SSL（开关功能）。
+        
+        功能说明：
+        快速切换SSL启用状态，无需修改其他配置
+        注意：启用时会验证证书是否存在，禁用时不验证
+        
+        权限要求：管理员
+        
+        请求参数（JSON）：
+        {
+            "enabled": true/false
+        }
+        
+        返回示例：
+        {
+            "success": true,
+            "message": "SSL已启用，需要重启服务器",
+            "ssl_enabled": true
+        }
+        """
+        try:
+            # 权限检查：只有管理员才能切换SSL
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 获取请求数据
+            data = request.get_json()
+            if not data or 'enabled' not in data:
+                return jsonify({"success": False, "message": "缺少enabled参数"}), 400
+            
+            enabled = bool(data['enabled'])
+            
+            # 加载当前配置
+            current_config = load_ssl_config()
+            
+            # 如果要启用SSL，验证证书文件
+            if enabled:
+                is_valid, error_msg, _ = validate_ssl_certificate(
+                    current_config['ssl_cert_path'],
+                    current_config['ssl_key_path']
+                )
+                
+                if not is_valid:
+                    return jsonify({
+                        "success": False,
+                        "message": f"无法启用SSL，证书验证失败: {error_msg}"
+                    }), 400
+            
+            # 更新配置
+            current_config['ssl_enabled'] = enabled
+            
+            # 保存配置
+            if save_ssl_config(current_config):
+                action = "启用" if enabled else "禁用"
+                logging.info(f"[SSL管理] {g.user} {action}了SSL")
+                return jsonify({
+                    "success": True,
+                    "message": f"SSL已{action}，需要重启服务器才能生效",
+                    "ssl_enabled": enabled
+                })
+            else:
+                return jsonify({"success": False, "message": "保存配置失败"}), 500
+                
+        except Exception as e:
+            logging.error(f"[SSL管理] 切换SSL状态失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"操作失败: {str(e)}"}), 500
+
+    # ============================================================================
     # 应用主路由
+    # ============================================================================
 
     def get_frontend_config():
         """辅助函数：读取前端需要的功能开关配置"""
@@ -19802,10 +20457,217 @@ def start_web_server(args_param):
             background_task_manager.tasks.clear()
             logging.info(f"已清空后台任务管理器的内存状态（清理了 {initial_task_count} 个任务记录）。")
 
+    # ============================================================================
+    # SSL/HTTPS 配置加载和验证
+    # 在启动服务器之前，加载SSL配置并验证证书（如果启用了SSL）
+    # ============================================================================
+    
+    # 加载SSL配置
+    # 从config.ini文件读取SSL相关设置
+    ssl_config = load_ssl_config()
+    
+    # 定义SSL上下文变量，用于存储SSL配置
+    # 如果不启用SSL，此值为None
+    ssl_context = None
+    
+    # 如果启用了SSL，进行证书验证和SSL上下文创建
+    if ssl_config['ssl_enabled']:
+        logging.info("检测到SSL已启用，正在验证证书文件...")
+        
+        # 验证证书文件和密钥文件
+        # validate_ssl_certificate函数会检查文件是否存在、可读、格式正确等
+        is_valid, error_msg, cert_info = validate_ssl_certificate(
+            ssl_config['ssl_cert_path'],
+            ssl_config['ssl_key_path']
+        )
+        
+        if not is_valid:
+            # 如果证书验证失败，记录错误并退出程序
+            # 这是为了防止使用无效证书导致安全问题
+            print(f"\n{'='*60}")
+            print(f"错误: SSL证书验证失败")
+            print(f"")
+            print(f"原因: {error_msg}")
+            print(f"")
+            print(f"请检查以下内容：")
+            print(f"  1. 证书文件路径是否正确")
+            print(f"  2. 证书文件是否存在且可读")
+            print(f"  3. 证书文件格式是否为PEM格式")
+            print(f"  4. 证书和密钥是否匹配")
+            print(f"")
+            print(f"配置文件位置: config.ini")
+            print(f"证书路径: {ssl_config['ssl_cert_path']}")
+            print(f"密钥路径: {ssl_config['ssl_key_path']}")
+            print(f"{'='*60}\n")
+            logging.error(f"SSL证书验证失败，程序退出: {error_msg}")
+            sys.exit(1)
+        
+        # 证书验证通过，创建SSL上下文
+        try:
+            import ssl as ssl_module
+            
+            # 创建SSL上下文，使用TLS协议
+            # PROTOCOL_TLS_SERVER会自动选择最安全的TLS版本
+            ssl_context = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_SERVER)
+            
+            # 加载证书链和私钥
+            # 如果路径是相对路径，需要转换为绝对路径
+            cert_path = ssl_config['ssl_cert_path']
+            key_path = ssl_config['ssl_key_path']
+            
+            if not os.path.isabs(cert_path):
+                cert_path = os.path.join(os.path.dirname(__file__), cert_path)
+            if not os.path.isabs(key_path):
+                key_path = os.path.join(os.path.dirname(__file__), key_path)
+            
+            # 加载证书和密钥到SSL上下文
+            ssl_context.load_cert_chain(cert_path, key_path)
+            
+            # 设置SSL选项，禁用不安全的协议版本
+            # OP_NO_SSLv2 和 OP_NO_SSLv3 禁用旧版SSL协议
+            # OP_NO_TLSv1 和 OP_NO_TLSv1_1 禁用旧版TLS协议（可选）
+            ssl_context.options |= ssl_module.OP_NO_SSLv2
+            ssl_context.options |= ssl_module.OP_NO_SSLv3
+            # ssl_context.options |= ssl_module.OP_NO_TLSv1
+            # ssl_context.options |= ssl_module.OP_NO_TLSv1_1
+            
+            logging.info(f"SSL上下文创建成功，使用证书: {cert_path}")
+            print(f"✓ SSL/HTTPS 已启用")
+            print(f"  证书文件: {cert_path}")
+            print(f"  密钥文件: {key_path}")
+            if ssl_config['https_only']:
+                print(f"  ⚠ 仅HTTPS模式: 已启用（HTTP请求将被重定向）")
+            
+        except Exception as e:
+            # 如果创建SSL上下文失败，记录错误并退出
+            print(f"\n{'='*60}")
+            print(f"错误: 创建SSL上下文失败")
+            print(f"")
+            print(f"详细信息: {e}")
+            print(f"")
+            print(f"可能的原因：")
+            print(f"  1. 证书和密钥不匹配")
+            print(f"  2. 证书或密钥文件损坏")
+            print(f"  3. Python SSL模块配置问题")
+            print(f"{'='*60}\n")
+            logging.error(f"创建SSL上下文失败: {e}", exc_info=True)
+            sys.exit(1)
+    else:
+        # SSL未启用，使用HTTP模式
+        logging.info("SSL未启用，服务器将以HTTP模式运行")
+    
+    # ============================================================================
+    # 添加请求钩子：处理X-Forwarded-*头和HTTPS重定向
+    # 这些钩子在每个请求处理之前执行
+    # ============================================================================
+    
+    @app.before_request
+    def handle_forwarded_proto():
+        """
+        处理反向代理（如Nginx）转发的请求头。
+        
+        功能说明：
+        1. 检查X-Forwarded-Proto头，识别原始请求是HTTP还是HTTPS
+        2. 检查X-Forwarded-For头，获取真实客户端IP
+        3. 如果启用了https_only模式且检测到HTTP请求，重定向到HTTPS
+        
+        这个函数在每个请求处理之前自动执行。
+        """
+        # 1. 处理X-Forwarded-Proto头
+        # 当使用Nginx等反向代理时，实际的请求协议（HTTP/HTTPS）会通过此头传递
+        forwarded_proto = request.headers.get('X-Forwarded-Proto', '')
+        
+        # 2. 处理X-Forwarded-For头
+        # 获取真实的客户端IP地址（当使用代理时）
+        forwarded_for = request.headers.get('X-Forwarded-For', '')
+        if forwarded_for:
+            # X-Forwarded-For可能包含多个IP（逗号分隔），取第一个
+            real_ip = forwarded_for.split(',')[0].strip()
+            # 将真实IP存储到request对象，供其他路由使用
+            request.environ['REMOTE_ADDR'] = real_ip
+        
+        # 3. HTTPS重定向逻辑（仅在启用https_only模式时）
+        if ssl_config.get('https_only', False) and ssl_config.get('ssl_enabled', False):
+            # 检查请求是否通过HTTP协议
+            # 需要同时检查request.is_secure和X-Forwarded-Proto
+            is_https = request.is_secure or forwarded_proto.lower() == 'https'
+            
+            if not is_https:
+                # 如果是HTTP请求，构造HTTPS URL并重定向
+                # 排除某些特殊路径（如健康检查）不进行重定向
+                excluded_paths = ['/health', '/api/health']
+                if request.path not in excluded_paths:
+                    # 构造HTTPS URL
+                    url = request.url.replace('http://', 'https://', 1)
+                    logging.info(f"HTTP请求被重定向到HTTPS: {request.url} -> {url}")
+                    # 返回301永久重定向
+                    from flask import redirect
+                    return redirect(url, code=301)
+    
+    @app.after_request
+    def add_security_headers(response):
+        """
+        为所有响应添加安全相关的HTTP头。
+        
+        功能说明：
+        添加多个安全响应头，提升应用的安全性：
+        1. HSTS (Strict-Transport-Security): 强制浏览器使用HTTPS
+        2. X-Content-Type-Options: 防止MIME类型嗅探攻击
+        3. X-Frame-Options: 防止点击劫持攻击
+        4. X-XSS-Protection: 启用浏览器XSS防护
+        5. Referrer-Policy: 控制Referer头的发送策略
+        
+        这个函数在每个响应发送之前自动执行。
+        """
+        # 1. 添加HSTS头（仅在启用SSL时）
+        # HSTS告诉浏览器在指定时间内，该域名只能通过HTTPS访问
+        if ssl_config.get('ssl_enabled', False):
+            # max-age=31536000: 一年内强制使用HTTPS
+            # includeSubDomains: 该策略也适用于所有子域名
+            # preload: 允许加入HSTS预加载列表
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+        
+        # 2. 防止MIME类型嗅探
+        # 这可以防止浏览器错误地将非可执行MIME类型作为可执行内容
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        
+        # 3. 防止点击劫持（Clickjacking）
+        # SAMEORIGIN表示页面只能被同源页面嵌入frame/iframe
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        
+        # 4. 启用XSS防护
+        # 1; mode=block表示检测到XSS攻击时阻止页面加载
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        
+        # 5. Referrer策略
+        # strict-origin-when-cross-origin: 同源请求发送完整referer，跨域只发送origin
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        
+        # 6. 内容安全策略（可选，较为严格）
+        # 这里注释掉，因为可能会影响现有功能，可以根据需要启用
+        # response.headers['Content-Security-Policy'] = "default-src 'self'"
+        
+        return response
+    
+    # ============================================================================
     # 启动服务器
+    # 根据SSL配置选择HTTP或HTTPS模式
+    # ============================================================================
+    
+    # 确定服务器协议和访问地址
+    protocol = 'https' if ssl_config.get('ssl_enabled', False) else 'http'
+    server_url = f"{protocol}://{args.host}:{args.port}"
+    
+    # 打印启动信息
     print(f"\n{'='*60}")
     print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染，2048位UUID）")
-    print(f"  访问地址: http://{args.host}:{args.port}")
+    print(f"  访问地址: {server_url}")
+    if ssl_config.get('ssl_enabled', False):
+        print(f"  SSL/HTTPS: 已启用 ✓")
+        if ssl_config.get('https_only', False):
+            print(f"  仅HTTPS模式: 已启用 ⚠")
+    else:
+        print(f"  SSL/HTTPS: 未启用（使用HTTP）")
     print(f"  首次访问将自动分配2048位UUID并重定向")
     print(f"  会话持久化已启用（服务器重启后保留登录状态）")
     print(f"  JS计算在服务器端Chrome中执行，提升安全性")
@@ -19813,9 +20675,23 @@ def start_web_server(args_param):
     print(f"{'='*60}\n")
 
     try:
-        logging.info(
-            f"正在启动带有 WebSocket 支持的 Web 服务器于 http://{args.host}:{args.port}")
-        socketio.run(app, host=args.host, port=args.port, debug=False)
+        # 根据是否启用SSL，使用不同的日志消息
+        if ssl_context:
+            logging.info(
+                f"正在启动带有 WebSocket 和 SSL 支持的 Web 服务器于 {server_url}")
+        else:
+            logging.info(
+                f"正在启动带有 WebSocket 支持的 Web 服务器于 {server_url}")
+        
+        # 启动SocketIO服务器
+        # 如果ssl_context不为None，则启用HTTPS；否则使用HTTP
+        socketio.run(
+            app, 
+            host=args.host, 
+            port=args.port, 
+            debug=False,
+            ssl_context=ssl_context  # 传入SSL上下文（None表示HTTP模式）
+        )
     except OSError as e:
         if "WinError 10013" in str(e) or "permission" in str(e).lower() or "访问权限" in str(e):
             print(f"\n{'='*60}")

@@ -5177,6 +5177,18 @@
           </svg>
           定时提醒
         </button>
+
+        <!-- HTTPS/SSL设置标签 -->
+        <button id="admin-tab-ssl_modal"
+          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
+            </path>
+          </svg>
+          HTTPS设置
+        </button>
       </div>
 
       <div class="overflow-x-hidden flex-grow min-h-0">
@@ -5950,6 +5962,133 @@
             <div class="p-2 bg-slate-100 rounded">
               <div class="text-slate-600">禁用</div>
               <div id="reminder-stat-disabled" class="text-lg font-semibold text-slate-600">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- HTTPS/SSL设置管理面板 -->
+        <div id="admin-ssl-panel_modal" class="hidden space-y-4">
+          <!-- 标题和状态指示器 -->
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold text-lg">🔒 HTTPS/SSL 设置</h4>
+            <div id="ssl-status-badge" class="px-3 py-1 rounded-full text-sm font-semibold">
+              <!-- 状态徽章将通过JS动态更新 -->
+            </div>
+          </div>
+
+          <!-- 功能说明 -->
+          <div class="text-xs text-blue-700 bg-blue-50 p-3 rounded-md">
+            💡 <strong>功能说明：</strong><br>
+            • 启用HTTPS可以加密客户端与服务器之间的通信，提高安全性<br>
+            • 需要上传有效的SSL证书（.pem格式）和私钥文件（.key格式）<br>
+            • 修改配置后需要重启服务器才能生效<br>
+            • "仅HTTPS"模式会自动将HTTP请求重定向到HTTPS
+          </div>
+
+          <!-- SSL配置区域 -->
+          <div class="space-y-4">
+            <!-- 启用/禁用SSL开关 -->
+            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div>
+                <div class="font-semibold text-slate-700">启用 HTTPS</div>
+                <div class="text-xs text-slate-500">使用SSL/TLS加密连接</div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="ssl-enabled-toggle" class="sr-only peer">
+                <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
+              </label>
+            </div>
+
+            <!-- 仅HTTPS模式开关 -->
+            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+              <div>
+                <div class="font-semibold text-slate-700">仅 HTTPS 模式</div>
+                <div class="text-xs text-slate-500">自动重定向HTTP请求到HTTPS</div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="https-only-toggle" class="sr-only peer">
+                <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
+              </label>
+            </div>
+
+            <!-- 证书信息显示区 -->
+            <div id="ssl-cert-info-container" class="p-4 bg-white border border-slate-200 rounded-lg">
+              <h5 class="font-semibold text-slate-700 mb-3">📄 证书信息</h5>
+              <div id="ssl-cert-info-content" class="space-y-2 text-sm">
+                <!-- 证书信息将通过JS动态加载 -->
+                <p class="text-slate-400 text-center py-4">暂无证书信息</p>
+              </div>
+            </div>
+
+            <!-- 证书上传区域 -->
+            <div class="p-4 bg-white border border-slate-200 rounded-lg">
+              <h5 class="font-semibold text-slate-700 mb-3">📤 上传SSL证书</h5>
+              
+              <!-- 证书文件上传 -->
+              <div class="mb-3">
+                <label class="block text-sm font-medium text-slate-700 mb-2">
+                  证书文件 (.pem, .crt)
+                </label>
+                <input type="file" id="ssl-cert-file-input" 
+                  accept=".pem,.crt"
+                  class="block w-full text-sm text-slate-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-md file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-sky-50 file:text-sky-700
+                    hover:file:bg-sky-100
+                    cursor-pointer">
+              </div>
+
+              <!-- 密钥文件上传 -->
+              <div class="mb-3">
+                <label class="block text-sm font-medium text-slate-700 mb-2">
+                  私钥文件 (.key, .pem)
+                </label>
+                <input type="file" id="ssl-key-file-input" 
+                  accept=".key,.pem"
+                  class="block w-full text-sm text-slate-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-md file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-sky-50 file:text-sky-700
+                    hover:file:bg-sky-100
+                    cursor-pointer">
+              </div>
+
+              <!-- 上传按钮 -->
+              <button id="ssl-upload-btn" class="btn btn-primary w-full !py-2" onclick="uploadSSLCertificate()">
+                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                  </path>
+                </svg>
+                上传证书
+              </button>
+            </div>
+
+            <!-- 保存配置按钮 -->
+            <div class="flex gap-2">
+              <button id="ssl-save-config-btn" class="btn btn-primary flex-1 !py-2" onclick="saveSSLConfig()">
+                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                  </path>
+                </svg>
+                保存配置
+              </button>
+              <button id="ssl-refresh-btn" class="btn btn-ghost !py-2 !px-4" onclick="loadSSLInfo()">
+                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                  </path>
+                </svg>
+              </button>
+            </div>
+
+            <!-- 重启提示 -->
+            <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+              ⚠️ <strong>重要提示：</strong>修改SSL配置后需要重启服务器才能生效。
             </div>
           </div>
         </div>
@@ -10321,6 +10460,9 @@ function run_code_not_need_sessionuuid(codeToRun) {
           if (modalConfigTab) modalConfigTab.addEventListener('click', () => switchAdminTab('config'));
           if (modalCaptchaTab) modalCaptchaTab.addEventListener('click', () => switchAdminTab('captcha'));
           if (modalRemindersTab) modalRemindersTab.addEventListener('click', () => switchAdminTab('reminders'));
+          // SSL管理标签
+          const modalSslTab = $('admin-tab-ssl_modal');
+          if (modalSslTab) modalSslTab.addEventListener('click', () => switchAdminTab('ssl'));
 
           logMessage_Info("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
         } else {
@@ -10852,6 +10994,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
         
         const remindersTab = $('admin-tab-reminders_modal');
         if (remindersTab) remindersTab.style.display = canViewLogs ? 'block' : 'none';
+        
+        // SSL/HTTPS设置标签：只对管理员显示
+        const sslTab = $('admin-tab-ssl_modal');
+        if (sslTab) sslTab.style.display = canManageUsers ? 'block' : 'none';
 
         // 游客模式：只显示会话管理和留言板，隐藏个人信息
         if (isGuest) {
@@ -10922,6 +11068,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const configTab = $('admin-tab-config_modal');
       const captchaTab = $('admin-tab-captcha_modal');
       const remindersTab = $('admin-tab-reminders_modal');
+      const sslTab = $('admin-tab-ssl_modal'); // SSL管理标签
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
       const logsPanel = $('admin-logs-panel_modal');
@@ -10934,6 +11081,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const configPanel = $('admin-config-panel_modal');
       const captchaPanel = $('admin-captcha-panel_modal');
       const remindersPanel = $('admin-reminders-panel_modal');
+      const sslPanel = $('admin-ssl-panel_modal'); // SSL管理面板
 
       // 根据用户组进行权限隔离
       // 如果是普通用户（'user'），只显示健康状态和留言板，隐藏用户组管理
@@ -10946,13 +11094,13 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
 
       // 重置所有标签按钮的样式
-      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab, configTab, captchaTab, remindersTab].filter(t => t).forEach(t => {
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab, configTab, captchaTab, remindersTab, sslTab].filter(t => t).forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
       // 隐藏所有内容面板
-      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel, configPanel, captchaPanel, remindersPanel].filter(p => p).forEach(p => {
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel, configPanel, captchaPanel, remindersPanel, sslPanel].filter(p => p).forEach(p => {
         p.classList.add('hidden');
       });
 
@@ -11080,6 +11228,19 @@ function run_code_not_need_sessionuuid(codeToRun) {
           remindersPanel.classList.remove('hidden');
           // 加载提醒列表
           loadReminders();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
+      } else if (tab === 'ssl') {
+        // SSL/HTTPS设置管理标签
+        const sslTab = $('admin-tab-ssl_modal');
+        const sslPanel = $('admin-ssl-panel_modal');
+        if (sslTab && sslPanel) {
+          sslTab.classList.add('text-sky-600', 'border-sky-600');
+          sslTab.classList.remove('text-slate-400', 'border-transparent');
+          sslPanel.classList.remove('hidden');
+          // 加载SSL配置和证书信息
+          loadSSLInfo();
           // 停止健康状态自动刷新
           stopHealthAutoRefresh();
         }
@@ -24704,6 +24865,276 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 启动定时提醒检查
      * 在页面加载完成后立即检查一次，然后每分钟检查一次
      */
+    // ============================================================================
+    // SSL/HTTPS 管理相关函数
+    // 用于加载、上传和配置SSL证书
+    // ============================================================================
+
+    /**
+     * 加载SSL配置和证书信息
+     * 从服务器获取当前的SSL配置状态和证书详细信息
+     */
+    async function loadSSLInfo() {
+      try {
+        // 调用API获取SSL信息
+        const response = await fetch('/api/admin/ssl/info', {
+          method: 'GET',
+          headers: {
+            'X-Session-ID': sessionId,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // 更新SSL配置开关状态
+          const sslEnabledToggle = $('ssl-enabled-toggle');
+          const httpsOnlyToggle = $('https-only-toggle');
+          
+          if (sslEnabledToggle) {
+            sslEnabledToggle.checked = data.config.ssl_enabled || false;
+          }
+          
+          if (httpsOnlyToggle) {
+            httpsOnlyToggle.checked = data.config.https_only || false;
+          }
+
+          // 更新状态徽章
+          updateSSLStatusBadge(data.config.ssl_enabled);
+
+          // 更新证书信息显示
+          const certInfoContent = $('ssl-cert-info-content');
+          if (certInfoContent) {
+            if (data.cert_info && Object.keys(data.cert_info).length > 0) {
+              // 如果有证书信息，显示详细内容
+              let html = '<div class="space-y-2">';
+              
+              // 检查是否有错误信息
+              if (data.cert_info.error) {
+                html += `<div class="text-red-600">⚠️ ${data.cert_info.error}</div>`;
+                if (data.cert_info.install_hint) {
+                  html += `<div class="text-sm text-slate-500">${data.cert_info.install_hint}</div>`;
+                }
+              } else {
+                // 显示正常的证书信息
+                if (data.cert_info.subject) {
+                  html += `<div class="flex justify-between">
+                    <span class="text-slate-600">主题 (Subject):</span>
+                    <span class="font-mono text-sm">${escapeHtml(data.cert_info.subject)}</span>
+                  </div>`;
+                }
+                
+                if (data.cert_info.issuer) {
+                  html += `<div class="flex justify-between">
+                    <span class="text-slate-600">颁发者 (Issuer):</span>
+                    <span class="font-mono text-sm">${escapeHtml(data.cert_info.issuer)}</span>
+                  </div>`;
+                }
+                
+                if (data.cert_info.not_before) {
+                  html += `<div class="flex justify-between">
+                    <span class="text-slate-600">生效日期:</span>
+                    <span class="text-sm">${formatDate(data.cert_info.not_before)}</span>
+                  </div>`;
+                }
+                
+                if (data.cert_info.not_after) {
+                  const isExpired = data.cert_info.is_expired || false;
+                  const expiryClass = isExpired ? 'text-red-600' : 'text-green-600';
+                  html += `<div class="flex justify-between">
+                    <span class="text-slate-600">过期日期:</span>
+                    <span class="text-sm ${expiryClass}">${formatDate(data.cert_info.not_after)}</span>
+                  </div>`;
+                  
+                  if (isExpired) {
+                    html += `<div class="text-red-600 text-sm mt-2">⚠️ 证书已过期</div>`;
+                  }
+                }
+                
+                if (data.cert_info.san && data.cert_info.san.length > 0) {
+                  html += `<div class="mt-2">
+                    <span class="text-slate-600">域名 (SAN):</span>
+                    <div class="mt-1 flex flex-wrap gap-1">`;
+                  data.cert_info.san.forEach(domain => {
+                    html += `<span class="px-2 py-1 bg-slate-100 rounded text-xs">${escapeHtml(domain)}</span>`;
+                  });
+                  html += `</div></div>`;
+                }
+              }
+              
+              html += '</div>';
+              certInfoContent.innerHTML = html;
+            } else {
+              certInfoContent.innerHTML = '<p class="text-slate-400 text-center py-4">暂无证书信息</p>';
+            }
+          }
+
+          console.log('[SSL管理] SSL信息加载成功');
+        } else {
+          showToast(data.message || 'SSL信息加载失败', 'error');
+        }
+      } catch (error) {
+        console.error('[SSL管理] 加载SSL信息失败:', error);
+        showToast('加载SSL信息失败', 'error');
+      }
+    }
+
+    /**
+     * 更新SSL状态徽章
+     * 根据SSL启用状态更新徽章的样式和文本
+     */
+    function updateSSLStatusBadge(sslEnabled) {
+      const badge = $('ssl-status-badge');
+      if (!badge) return;
+
+      if (sslEnabled) {
+        badge.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-700';
+        badge.textContent = '✓ HTTPS 已启用';
+      } else {
+        badge.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-slate-100 text-slate-600';
+        badge.textContent = 'HTTP 模式';
+      }
+    }
+
+    /**
+     * 上传SSL证书文件
+     * 将用户选择的证书文件和密钥文件上传到服务器
+     */
+    async function uploadSSLCertificate() {
+      // 获取文件输入元素
+      const certFileInput = $('ssl-cert-file-input');
+      const keyFileInput = $('ssl-key-file-input');
+      const uploadBtn = $('ssl-upload-btn');
+
+      // 验证是否选择了文件
+      if (!certFileInput.files || certFileInput.files.length === 0) {
+        showToast('请选择证书文件', 'error');
+        return;
+      }
+
+      if (!keyFileInput.files || keyFileInput.files.length === 0) {
+        showToast('请选择私钥文件', 'error');
+        return;
+      }
+
+      // 设置按钮为加载状态
+      setButtonLoading(uploadBtn, true, '上传中...');
+
+      try {
+        // 创建FormData对象用于上传文件
+        const formData = new FormData();
+        formData.append('cert_file', certFileInput.files[0]);
+        formData.append('key_file', keyFileInput.files[0]);
+
+        // 发送上传请求
+        const response = await fetch('/api/admin/ssl/upload', {
+          method: 'POST',
+          headers: {
+            'X-Session-ID': sessionId
+          },
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showToast('证书上传成功', 'success');
+          // 清空文件选择
+          certFileInput.value = '';
+          keyFileInput.value = '';
+          // 重新加载SSL信息
+          await loadSSLInfo();
+        } else {
+          showToast(data.message || '证书上传失败', 'error');
+        }
+      } catch (error) {
+        console.error('[SSL管理] 上传证书失败:', error);
+        showToast('上传失败: ' + error.message, 'error');
+      } finally {
+        setButtonLoading(uploadBtn, false, '上传证书');
+      }
+    }
+
+    /**
+     * 保存SSL配置
+     * 将当前的SSL配置（启用状态、仅HTTPS模式等）保存到服务器
+     */
+    async function saveSSLConfig() {
+      const saveBtn = $('ssl-save-config-btn');
+      const sslEnabledToggle = $('ssl-enabled-toggle');
+      const httpsOnlyToggle = $('https-only-toggle');
+
+      // 设置按钮为加载状态
+      setButtonLoading(saveBtn, true, '保存中...');
+
+      try {
+        // 构造配置数据
+        const configData = {
+          ssl_enabled: sslEnabledToggle.checked,
+          https_only: httpsOnlyToggle.checked
+        };
+
+        // 发送保存请求
+        const response = await fetch('/api/admin/ssl/config', {
+          method: 'POST',
+          headers: {
+            'X-Session-ID': sessionId,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(configData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showToast('配置已保存，需要重启服务器才能生效', 'success');
+          // 更新状态徽章
+          updateSSLStatusBadge(configData.ssl_enabled);
+        } else {
+          showToast(data.message || '保存配置失败', 'error');
+        }
+      } catch (error) {
+        console.error('[SSL管理] 保存配置失败:', error);
+        showToast('保存失败: ' + error.message, 'error');
+      } finally {
+        setButtonLoading(saveBtn, false, '保存配置');
+      }
+    }
+
+    /**
+     * 格式化日期时间
+     * 将ISO格式的日期字符串转换为人类可读的格式
+     */
+    function formatDate(isoString) {
+      try {
+        const date = new Date(isoString);
+        return date.toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (e) {
+        return isoString;
+      }
+    }
+
+    /**
+     * HTML转义函数
+     * 防止XSS攻击，将特殊字符转换为HTML实体
+     */
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ============================================================================
+    // 定时提醒检查器
+    // ============================================================================
+
     function startReminderChecker() {
       // 立即执行一次检查
       checkAndShowReminders();
