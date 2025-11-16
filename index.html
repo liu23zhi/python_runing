@@ -12600,6 +12600,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
               ${groupSelect}
               <div class="flex flex-col gap-1.5 mt-2" id="user-actions-${user.auth_username}">
                 <div class="flex gap-1 flex-wrap justify-end">
+                  <button class="btn btn-secondary !py-0.5 !px-2 !text-xs" onclick="showUserSchoolAccounts('${user.auth_username}')">账户密码</button>
                   <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${user.auth_username}')">查看日志</button>
                   <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                   <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
@@ -12930,6 +12931,75 @@ function run_code_not_need_sessionuuid(codeToRun) {
         }
       } catch (e) {
         showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function showUserSchoolAccounts(username) {
+      // 创建一个模态窗口显示指定用户的 school_accounts
+      try {
+        const response = await fetch(`/auth/admin/get_user_school_accounts?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          showModalAlert(result.message || '加载失败', '错误');
+          return;
+        }
+        
+        const accounts = result.accounts || {};
+        const accountCount = Object.keys(accounts).length;
+        
+        let html = `
+          <div class="space-y-3">
+            <div class="text-sm text-slate-600 mb-3">
+              用户 <span class="font-semibold">${escapeHtml(username)}</span> 的学校账户 (共 ${accountCount} 个)
+            </div>
+        `;
+        
+        if (accountCount === 0) {
+          html += '<p class="text-slate-400 text-center py-10">该用户暂无学校账户</p>';
+        } else {
+          html += '<div class="space-y-2 max-h-[60vh] overflow-y-auto">';
+          for (const [schoolUsername, accountData] of Object.entries(accounts)) {
+            // 处理旧格式（字符串）和新格式（对象）
+            let password = '';
+            let ua = '';
+            
+            if (typeof accountData === 'string') {
+              password = accountData;
+            } else if (typeof accountData === 'object' && accountData !== null) {
+              password = accountData.password || '';
+              ua = accountData.ua || '';
+            }
+            
+            html += `
+              <div class="bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
+                <div class="font-medium text-slate-800">${escapeHtml(schoolUsername)}</div>
+                <div class="text-sm">
+                  <span class="text-slate-500">密码:</span>
+                  <span class="font-mono text-slate-700 ml-2">${escapeHtml(password)}</span>
+                </div>
+                ${ua ? `
+                <div class="text-sm">
+                  <span class="text-slate-500">UA:</span>
+                  <div class="font-mono text-xs text-slate-600 mt-1 p-2 bg-white rounded break-all">${escapeHtml(ua)}</div>
+                </div>
+                ` : ''}
+              </div>
+            `;
+          }
+          html += '</div>';
+        }
+        
+        html += '</div>';
+        
+        showModalAlert(html, `${escapeHtml(username)} 的学校账户`, 'info');
+      } catch (error) {
+        showModalAlert('加载失败: ' + error.message, '错误');
       }
     }
 
