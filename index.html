@@ -17689,11 +17689,22 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
 
       try {
+        // 获取当前选中的用户名
         const username = $('user-combo').value;
+        
+        // 调用原有的API获取用户配置（UA、参数等）
         const data = await callPythonAPI('on_user_selected', username);
+        
+        // 设置用户名输入框的值
         $('username-entry').value = username;
+        
+        // 先设置从配置文件获取的密码（可能为空）
         $('password-entry').value = data.password || "";
+        
+        // 设置 UA 标签
         $('ua-label').textContent = data.ua || '(新用户将在登录时自动生成)';
+        
+        // 更新参数
         pythonParams = data.params || pythonParams;
         updateParamInputs($('params-container'), 'param', pythonParams);
 
@@ -17704,6 +17715,56 @@ function run_code_not_need_sessionuuid(codeToRun) {
         // 新增：应用主题风格
         const style = pythonParams.theme_style || 'default';
         setThemeStyle(style);
+        
+        // ============================================================
+        // 【新增】尝试从当前认证用户的 school_accounts 加载密码
+        // ============================================================
+        // 检查是否有有效的会话UUID和认证用户名
+        // sessionUUID: 当前会话的唯一标识符
+        // currentAuthUsername: 当前系统认证的用户名（非学校账号用户名）
+        if (sessionUUID && currentAuthUsername) {
+          // 游客用户不加载 school_accounts 密码
+          // 游客通常没有 currentAuthUsername 或者其值为特殊标识
+          // 这里我们已经检查了 currentAuthUsername 存在，说明不是游客
+          
+          try {
+            // 调用后端 API 获取当前认证用户的所有 school_account
+            // 使用 fetch 而不是 callPythonAPI，因为这是一个 REST API
+            const response = await fetch('/auth/admin/get_user_school_accounts', {
+              method: 'GET',
+              headers: {
+                'X-Session-ID': sessionUUID  // 在请求头中传递会话ID进行身份验证
+              }
+            });
+            
+            // 检查 HTTP 响应状态
+            if (response.ok) {
+              // 解析 JSON 响应
+              const result = await response.json();
+              
+              // 检查API调用是否成功
+              if (result.success && result.accounts) {
+                // result.accounts 是一个数组，每个元素包含 username 和 password
+                // 遍历所有账户，查找与当前选中用户名匹配的账户
+                const matchedAccount = result.accounts.find(acc => acc.username === username);
+                
+                // 如果找到匹配的账户且该账户有密码
+                if (matchedAccount && matchedAccount.password) {
+                  // 使用 school_account 中存储的密码覆盖密码输入框
+                  // 这个密码优先级高于配置文件中的密码
+                  $('password-entry').value = matchedAccount.password;
+                  
+                  // 在控制台输出日志，便于调试
+                  logMessage_Info(`[用户选择] 已从 school_accounts 加载用户 ${username} 的密码`);
+                }
+              }
+            }
+          } catch (error) {
+            // 如果获取 school_accounts 失败，不影响主流程
+            // 只在控制台输出警告，用户可以继续使用配置文件中的密码
+            logMessage_Warning(`[用户选择] 无法加载 school_accounts: ${error.message}`);
+          }
+        }
       } finally {
         // ============================================================
         // 登录按钮恢复：执行完成后恢复login-button
@@ -18344,8 +18405,68 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
 
     async function multi_loadAllFromConfig() {
+      // 调用后端API，从配置文件加载所有账号
       const result = await callPythonAPI('multi_load_accounts_from_config');
+      
       if (result && result.accounts) {
+        // ============================================================
+        // 【新增】尝试从当前认证用户的 school_accounts 加载密码
+        // ============================================================
+        // 检查是否有有效的会话UUID和认证用户名
+        if (sessionUUID && currentAuthUsername) {
+          // 只有非游客用户才尝试加载 school_accounts
+          try {
+            // 调用后端 API 获取当前认证用户的所有 school_account
+            const response = await fetch('/auth/admin/get_user_school_accounts', {
+              method: 'GET',
+              headers: {
+                'X-Session-ID': sessionUUID  // 在请求头中传递会话ID进行身份验证
+              }
+            });
+            
+            // 检查 HTTP 响应状态
+            if (response.ok) {
+              // 解析 JSON 响应
+              const schoolAccountsResult = await response.json();
+              
+              // 检查API调用是否成功
+              if (schoolAccountsResult.success && schoolAccountsResult.accounts) {
+                // 创建一个用户名到密码的映射表，便于快速查找
+                // key: username (学校账号用户名)
+                // value: password (对应的密码)
+                const passwordMap = {};
+                schoolAccountsResult.accounts.forEach(acc => {
+                  if (acc.username && acc.password) {
+                    passwordMap[acc.username] = acc.password;
+                  }
+                });
+                
+                // 遍历从配置文件加载的所有账号
+                // 如果 school_accounts 中有对应的密码，则更新账号的密码字段
+                let updatedCount = 0; // 记录更新了多少个账号的密码
+                result.accounts.forEach(account => {
+                  // 检查该账号的用户名是否在 passwordMap 中
+                  if (account.username && passwordMap[account.username]) {
+                    // 更新密码
+                    account.password = passwordMap[account.username];
+                    updatedCount++;
+                  }
+                });
+                
+                // 在控制台输出日志，便于调试
+                if (updatedCount > 0) {
+                  logMessage_Info(`[多账号-加载全部] 已从 school_accounts 更新 ${updatedCount} 个账号的密码`);
+                }
+              }
+            }
+          } catch (error) {
+            // 如果获取 school_accounts 失败，不影响主流程
+            // 账号列表仍然会显示，只是可能缺少部分密码
+            logMessage_Warning(`[多账号-加载全部] 无法加载 school_accounts: ${error.message}`);
+          }
+        }
+        
+        // 渲染账号列表（包含可能已更新密码的账号）
         renderMultiAccountList(result.accounts);
       }
 
@@ -18522,22 +18643,71 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
 
     async function multi_addFromConfig() {
+      // 获取多账号配置用户选择框中当前选中的用户名
       const user = $('multi-config-user-select').value;
+      
       if (!user) {
-        // (新) 修正：打开专用的多账号添加模态框
+        // 如果没有选中任何用户，打开专用的多账号添加模态框
+        // 允许用户手动输入新账号信息
         openMultiAddUserModal();
         // (注意：确认按钮的逻辑已移至 submitMultiAddUser 并全局绑定)
         return;
       }
-      // 已有配置用户 (此逻辑不变)
-      const result = await callPythonAPI('multi_add_account', user, "");
+      
+      // ============================================================
+      // 【新增】尝试从当前认证用户的 school_accounts 加载密码
+      // ============================================================
+      let passwordToUse = ""; // 默认密码为空字符串
+      
+      // 检查是否有有效的会话UUID和认证用户名
+      if (sessionUUID && currentAuthUsername) {
+        // 只有非游客用户才尝试加载 school_accounts
+        try {
+          // 调用后端 API 获取当前认证用户的所有 school_account
+          const response = await fetch('/auth/admin/get_user_school_accounts', {
+            method: 'GET',
+            headers: {
+              'X-Session-ID': sessionUUID  // 在请求头中传递会话ID进行身份验证
+            }
+          });
+          
+          // 检查 HTTP 响应状态
+          if (response.ok) {
+            // 解析 JSON 响应
+            const result = await response.json();
+            
+            // 检查API调用是否成功
+            if (result.success && result.accounts) {
+              // 查找与当前选中用户名匹配的账户
+              const matchedAccount = result.accounts.find(acc => acc.username === user);
+              
+              // 如果找到匹配的账户且该账户有密码
+              if (matchedAccount && matchedAccount.password) {
+                // 使用 school_account 中存储的密码
+                passwordToUse = matchedAccount.password;
+                logMessage_Info(`[多账号-添加] 已从 school_accounts 加载用户 ${user} 的密码`);
+              }
+            }
+          }
+        } catch (error) {
+          // 如果获取 school_accounts 失败，不影响主流程
+          // 继续使用空密码，后端会返回 request_password 响应
+          logMessage_Warning(`[多账号-添加] 无法加载 school_accounts: ${error.message}`);
+        }
+      }
+      
+      // 已有配置用户：调用后端API添加账号
+      // 传入找到的密码（可能为空）
+      const result = await callPythonAPI('multi_add_account', user, passwordToUse);
 
       // 修正：检查是否需要补全密码
+      // 如果后端返回 request_password，说明该账号需要用户手动输入密码
       if (result && result.success === false && result.action === 'request_password') {
         showModalAlert(`账号 ${result.username} 缺少密码，请在弹窗中补全。`, '缺少密码');
         openMultiAddUserModalForPassword(result.username, result.tag);
       }
       else if (result && result.accounts) {
+        // 成功添加账号，刷新多账号列表显示
         renderMultiAccountList(result.accounts);
       }
     }
