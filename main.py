@@ -1025,6 +1025,12 @@ def _get_default_config():
     config['Map'] = {
         'amap_js_key': '',  # 高德地图JS API密钥
     }
+    
+    # [API] 第三方API配置
+    config['API'] = {
+        'ip_api_key': '',  # IP地理位置查询API密钥（可选，留空则使用免费接口）
+        'captcha_api_key': '',  # 验证码API密钥（可选，留空则使用免费接口）
+    }
 
     # [Features] 功能开关配置
     # 控制系统各项功能的启用/禁用状态，便于灵活管理
@@ -1154,6 +1160,19 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 申请类型：Web端(JS API)，服务平台：Web端\n")
         f.write(
             f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
+        
+        # [API] 第三方API配置
+        f.write("[API]\n")
+        f.write("# IP地理位置查询API密钥（可选）\n")
+        f.write("# 用于获取用户登录IP的地理位置信息\n")
+        f.write("# 留空则使用免费接口（有频率限制）\n")
+        f.write(
+            f"ip_api_key = {config_obj.get('API', 'ip_api_key', fallback='')}\n")
+        f.write("# 验证码生成API密钥（可选）\n")
+        f.write("# 用于生成图形验证码\n")
+        f.write("# 留空则使用免费接口（有频率限制）\n")
+        f.write(
+            f"captcha_api_key = {config_obj.get('API', 'captcha_api_key', fallback='')}\n\n")
 
         # [Features] 功能开关配置
         f.write("[Features]\n")
@@ -18059,7 +18078,17 @@ def start_web_server(args_param):
 
         # 2. 缓存未命中或已过期，调用API
         try:
-            api_key = config.get('ip_api_key', '')  # 如果有API密钥，可以在这里设置
+            # 从 config.ini 读取 API 密钥
+            config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+            api_key = ''
+            if os.path.exists(config_file):
+                try:
+                    cfg = configparser.ConfigParser()
+                    cfg.read(config_file, encoding='utf-8')
+                    api_key = cfg.get('API', 'ip_api_key', fallback='')
+                except Exception as e:
+                    logging.debug(f"[IP定位] 读取配置文件失败: {e}")
+            
             if api_key and api_key != 'your_api_key_here' and api_key.strip() != '':
                 api_url = f'https://api.vore.top/api/IPdata?key={api_key}&ip={ip_address}'
             else:
@@ -19003,7 +19032,17 @@ def start_web_server(args_param):
         try:
             # 调用第三方验证码API
             # length=4 表示生成4位验证码
-            api_key = config.get('captcha_api_key', '').strip()
+            # 从 config.ini 读取 API 密钥
+            config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+            api_key = ''
+            if os.path.exists(config_file):
+                try:
+                    cfg = configparser.ConfigParser()
+                    cfg.read(config_file, encoding='utf-8')
+                    api_key = cfg.get('API', 'captcha_api_key', fallback='')
+                except Exception as e:
+                    logging.debug(f"[验证码] 读取配置文件失败: {e}")
+            
             if api_key and api_key != '' and api_key != 'your_api_key_here':
                 captcha_api_url = f'https://api.vore.top/api/VerifyCode?key={api_key}&length=4'
             else:
