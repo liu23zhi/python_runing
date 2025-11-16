@@ -948,6 +948,15 @@ def _create_directories():
         else:
             print(f"[目录创建] 目录已存在: {name} -> {directory}")
     
+    # 创建 user_accounts 子目录用于存储按用户分类的 school_account 密码
+    user_accounts_dir = os.path.join(SCHOOL_ACCOUNTS_DIR, 'user_accounts')
+    if not os.path.exists(user_accounts_dir):
+        os.makedirs(user_accounts_dir, exist_ok=True)
+        print(f"[目录创建] 创建目录: user_accounts -> {user_accounts_dir}")
+        logging.info(f"[系统初始化] 创建目录: user_accounts -> {user_accounts_dir}")
+    else:
+        print(f"[目录创建] 目录已存在: user_accounts -> {user_accounts_dir}")
+    
     # 初始化依赖于目录路径的全局变量
     SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
     LOGIN_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'login_history.jsonl')
@@ -1015,6 +1024,12 @@ def _get_default_config():
     # [Map] 地图配置
     config['Map'] = {
         'amap_js_key': '',  # 高德地图JS API密钥
+    }
+    
+    # [API] 第三方API配置
+    config['API'] = {
+        'ip_api_key': '',  # IP地理位置查询API密钥（可选，留空则使用免费接口）
+        'captcha_api_key': '',  # 验证码API密钥（可选，留空则使用免费接口）
     }
 
     # [Features] 功能开关配置
@@ -1145,6 +1160,19 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 申请类型：Web端(JS API)，服务平台：Web端\n")
         f.write(
             f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
+        
+        # [API] 第三方API配置
+        f.write("[API]\n")
+        f.write("# IP地理位置查询API密钥（可选）\n")
+        f.write("# 用于获取用户登录IP的地理位置信息\n")
+        f.write("# 留空则使用免费接口（有频率限制）\n")
+        f.write(
+            f"ip_api_key = {config_obj.get('API', 'ip_api_key', fallback='')}\n")
+        f.write("# 验证码生成API密钥（可选）\n")
+        f.write("# 用于生成图形验证码\n")
+        f.write("# 留空则使用免费接口（有频率限制）\n")
+        f.write(
+            f"captcha_api_key = {config_obj.get('API', 'captcha_api_key', fallback='')}\n\n")
 
         # [Features] 功能开关配置
         f.write("[Features]\n")
@@ -1306,7 +1334,7 @@ def _create_permissions_json():
                     "clear_logs": False,
 
                     # 新增细分权限
-                    "auto_fill_password": False,  # 自动填充密码
+                    "auto_fill_password": False,  # 查看全部 school_account
                     "import_offline": True,
                     "export_data": True,
                     "modify_params": True,
@@ -1357,7 +1385,7 @@ def _create_permissions_json():
                     "clear_logs": False,
 
                     # 新增细分权限
-                    "auto_fill_password": False,  # 自动填充密码（普通用户默认无此权限）
+                    "auto_fill_password": False,  # 查看全部 school_account（普通用户默认无此权限）
                     "import_offline": True,
                     "export_data": True,
                     "modify_params": True,
@@ -4070,6 +4098,152 @@ class Api:
         with open(path, "w", encoding="utf-8") as f:
             cfg_en.write(f)
 
+    def _get_user_accounts_file(self, auth_username):
+        """
+        获取指定认证用户的 school_accounts 存储文件路径。
+        
+        参数:
+            auth_username: 认证用户名（system_accounts中的用户名）
+        
+        返回:
+            文件路径字符串
+        """
+        user_accounts_dir = os.path.join(SCHOOL_ACCOUNTS_DIR, 'user_accounts')
+        return os.path.join(user_accounts_dir, f"{auth_username}.json")
+    
+    def _load_user_school_accounts(self, auth_username):
+        """
+        加载指定认证用户的所有 school_account 账户密码和UA。
+        
+        参数:
+            auth_username: 认证用户名
+        
+        返回:
+            字典，格式为 {school_username: {"password": "xxx", "ua": "xxx"}, ...}
+            或旧格式 {school_username: password, ...}（向后兼容）
+        """
+        if not auth_username or auth_username == 'guest':
+            # 游客没有 school_accounts
+            return {}
+        
+        file_path = self._get_user_accounts_file(auth_username)
+        if not os.path.exists(file_path):
+            return {}
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            logging.debug(f"成功加载用户 {auth_username} 的 school_accounts，共 {len(data)} 个账户")
+            return data
+        except Exception as e:
+            logging.error(f"加载用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return {}
+    
+    def _save_user_school_accounts(self, auth_username, accounts_dict):
+        """
+        保存指定认证用户的所有 school_account 账户密码和UA。
+        
+        参数:
+            auth_username: 认证用户名
+            accounts_dict: 字典，格式为 {school_username: {"password": "xxx", "ua": "xxx"}, ...}
+        """
+        if not auth_username or auth_username == 'guest':
+            # 游客不保存 school_accounts
+            logging.debug("游客用户不保存 school_accounts")
+            return
+        
+        file_path = self._get_user_accounts_file(auth_username)
+        
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(accounts_dict, f, ensure_ascii=False, indent=2)
+            logging.debug(f"成功保存用户 {auth_username} 的 school_accounts，共 {len(accounts_dict)} 个账户")
+        except Exception as e:
+            logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+    
+    def _update_school_account_password(self, auth_username, school_username, password, ua=None, login_verified=False):
+        """
+        更新指定认证用户的某个 school_account 的密码和UA。
+        
+        参数:
+            auth_username: 认证用户名
+            school_username: 学校账户用户名
+            password: 密码
+            ua: User-Agent（可选）
+            login_verified: 是否已验证登录成功（True 时才会覆盖现有密码）
+        """
+        if not auth_username or auth_username == 'guest':
+            return
+        
+        accounts = self._load_user_school_accounts(auth_username)
+        
+        # 处理旧格式（字符串）和新格式（字典）
+        existing_data = accounts.get(school_username)
+        if existing_data:
+            # 检查是否是旧格式（字符串）
+            if isinstance(existing_data, str):
+                # 旧格式，转换为新格式
+                existing_data = {"password": existing_data, "ua": ""}
+            
+            # 如果存在冲突，只在登录验证成功后才覆盖
+            if not login_verified:
+                logging.debug(f"school_account {school_username} 已存在，且未验证登录成功，跳过更新")
+                return
+        
+        # 更新或添加账户信息
+        accounts[school_username] = {
+            "password": password,
+            "ua": ua if ua else ""
+        }
+        self._save_user_school_accounts(auth_username, accounts)
+        logging.info(f"已更新用户 {auth_username} 的 school_account {school_username} 的密码和UA")
+    
+    def _get_school_account_password(self, auth_username, school_username):
+        """
+        获取指定认证用户的某个 school_account 的密码。
+        
+        参数:
+            auth_username: 认证用户名
+            school_username: 学校账户用户名
+        
+        返回:
+            密码字符串，如果不存在则返回 None
+        """
+        if not auth_username or auth_username == 'guest':
+            return None
+        
+        accounts = self._load_user_school_accounts(auth_username)
+        account_data = accounts.get(school_username)
+        
+        # 处理旧格式（字符串）和新格式（字典）
+        if isinstance(account_data, str):
+            return account_data
+        elif isinstance(account_data, dict):
+            return account_data.get('password')
+        return None
+    
+    def _get_school_account_ua(self, auth_username, school_username):
+        """
+        获取指定认证用户的某个 school_account 的UA。
+        
+        参数:
+            auth_username: 认证用户名
+            school_username: 学校账户用户名
+        
+        返回:
+            UA字符串，如果不存在则返回 None
+        """
+        if not auth_username or auth_username == 'guest':
+            return None
+        
+        accounts = self._load_user_school_accounts(auth_username)
+        account_data = accounts.get(school_username)
+        
+        # 只有新格式（字典）才有UA
+        if isinstance(account_data, dict):
+            return account_data.get('ua', '')
+        return None
+
     def _save_config(self, username, password=None, ua=None):
         """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码；当 ua 为 None 时保留现有 UA。同时更新主 config.ini 的 LastUser 和 amap_js_key。"""
         logging.debug(
@@ -4169,6 +4343,13 @@ class Api:
         except Exception as e:
             logging.error(f"写入用户配置文件 {user_ini_path} 失败: {e}", exc_info=True)
             # 可以选择在这里向上抛出异常或返回错误状态
+        
+        # --- 7.5. 保存到 auth_username 的 school_accounts 文件 ---
+        # 如果有密码且当前有认证用户，保存到 user_accounts/<auth_username>.json
+        if password is not None and hasattr(self, 'auth_username') and self.auth_username:
+            self._update_school_account_password(
+                self.auth_username, username, password, ua, login_verified=False
+            )
 
         # --- 2. 处理主 config.ini 文件 ---
         main_cfg = configparser.RawConfigParser()
@@ -4264,13 +4445,25 @@ class Api:
                                     break
             except Exception:
                 pass
+        
+        # 尝试从 auth_username 的 school_accounts 加载密码和UA（优先级更高）
+        if hasattr(self, 'auth_username') and self.auth_username:
+            school_password = self._get_school_account_password(self.auth_username, username)
+            school_ua = self._get_school_account_ua(self.auth_username, username)
+            if school_password:
+                password = school_password
+                logging.debug(f"从用户 {self.auth_username} 的 school_accounts 加载了 {username} 的密码")
+            if school_ua:
+                ua = school_ua
+                logging.debug(f"从用户 {self.auth_username} 的 school_accounts 加载了 {username} 的UA")
 
         # 加载的配置应该应用到正确的对象上
         target_params = self.params
         if self.is_multi_account_mode and username in self.accounts:
             target_params = self.accounts[username].params
 
-        ua = cfg.get('System', 'UA', fallback="")
+        if not ua:
+            ua = cfg.get('System', 'UA', fallback="")
         if self.is_multi_account_mode and username in self.accounts:
             self.accounts[username].device_ua = ua
         else:
@@ -4349,8 +4542,44 @@ class Api:
             logging.info("API调用: get_initial_data - 获取应用初始数据（用户列表和最后登录用户）")
 
             # 获取当前已有的用户配置文件列表
-            users = sorted([os.path.splitext(f)[0]
+            all_users = sorted([os.path.splitext(f)[0]
                             for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+
+            # 检查认证状态
+            is_authenticated = hasattr(
+                self, 'is_authenticated') and self.is_authenticated
+            auth_username = getattr(self, 'auth_username', None)
+            auth_group = getattr(self, 'auth_group', 'guest')
+            is_guest = getattr(self, 'is_guest', False)
+
+            # 根据权限过滤用户列表
+            if is_guest:
+                # 游客不返回任何用户列表
+                users = []
+            elif auth_username and not is_guest:
+                # 检查是否有 auto_fill_password 权限（查看全部 school_account）
+                has_view_all_permission = False
+                if auth_group in ['admin', 'super_admin']:
+                    has_view_all_permission = True
+                elif hasattr(self, 'auth_system'):
+                    # 使用 auth_system 检查权限（如果可用）
+                    try:
+                        has_view_all_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
+                    except:
+                        pass
+                
+                if has_view_all_permission:
+                    # 有权限的用户可以查看所有账户
+                    users = all_users
+                else:
+                    # 普通用户只能看到自己的账户（从 school_accounts 加载）
+                    users = []
+                    school_accounts = self._load_user_school_accounts(auth_username)
+                    if school_accounts:
+                        users = list(school_accounts.keys())
+            else:
+                # 未认证用户返回所有用户列表（向后兼容）
+                users = all_users
 
             # 读取全局配置
             cfg = configparser.RawConfigParser()
@@ -4364,7 +4593,7 @@ class Api:
             last_user = cfg.get('Config', 'LastUser', fallback="").strip()
 
             # 如果 last_user 不为空但对应的 .ini 不存在，则清空并写回
-            if last_user and last_user not in users:
+            if last_user and last_user not in all_users:
                 logging.warning(f"LastUser '{last_user}' 不存在对应的 .ini，自动清空。")
                 cfg.set('Config', 'LastUser', '')
                 try:
@@ -4386,13 +4615,6 @@ class Api:
 
             logging.debug(
                 f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
-
-            # 检查认证状态
-            is_authenticated = hasattr(
-                self, 'is_authenticated') and self.is_authenticated
-            auth_username = getattr(self, 'auth_username', None)
-            auth_group = getattr(self, 'auth_group', 'guest')
-            is_guest = getattr(self, 'is_guest', False)
 
             # [代码片段 2.1：替换掉旧的 return 语句]
             # 构造返回字典
@@ -4651,6 +4873,13 @@ class Api:
         # 至此，ud.username 已经是“用于保存配置的主键”（学号优先）
         # 现在再保存配置（文件名与 LastUser 都用 ud.username）
         self._save_config(ud.username, password, self.device_ua)
+        
+        # 登录成功后，更新 school_account 密码和UA（使用 login_verified=True）
+        if hasattr(self, 'auth_username') and self.auth_username:
+            self._update_school_account_password(
+                self.auth_username, ud.username, password, self.device_ua, login_verified=True
+            )
+            logging.info(f"已更新认证用户 {self.auth_username} 的 school_account {ud.username} 密码和UA（登录验证成功）")
 
         # --- 登录成功后，立即获取并缓存签到半径 ---
         try:
@@ -13717,6 +13946,85 @@ def start_web_server(args_param):
             "success": True,
             "logs": logs
         })
+    
+    @app.route('/auth/admin/get_user_school_accounts', methods=['GET'])
+    def auth_admin_get_user_school_accounts():
+        """获取指定认证用户的所有 school_account（管理员或有 auto_fill_password 权限）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        api_instance = web_sessions[session_id]
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        auth_username = getattr(api_instance, 'auth_username', None)
+        
+        # 检查权限：管理员或有 auto_fill_password 权限
+        has_permission = False
+        if auth_group in ['admin', 'super_admin']:
+            has_permission = True
+        elif auth_username:
+            has_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
+        
+        if not has_permission:
+            return jsonify({"success": False, "message": "权限不足"}), 403
+
+        # 获取参数：要查询的用户名（如果不提供，则查询当前用户自己的）
+        target_username = request.args.get('username', auth_username)
+        
+        # 如果是普通用户（非管理员），只能查询自己的
+        if auth_group not in ['admin', 'super_admin'] and target_username != auth_username:
+            return jsonify({"success": False, "message": "只能查询自己的账户"}), 403
+        
+        # 加载 school_accounts
+        accounts = api_instance._load_user_school_accounts(target_username)
+        
+        return jsonify({
+            "success": True,
+            "username": target_username,
+            "accounts": accounts
+        })
+    
+    @app.route('/auth/admin/get_all_users_school_accounts', methods=['GET'])
+    def auth_admin_get_all_users_school_accounts():
+        """获取所有认证用户的 school_account 列表（管理员或有 auto_fill_password 权限）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        api_instance = web_sessions[session_id]
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        auth_username = getattr(api_instance, 'auth_username', None)
+        
+        # 检查权限：管理员或有 auto_fill_password 权限
+        has_permission = False
+        if auth_group in ['admin', 'super_admin']:
+            has_permission = True
+        elif auth_username:
+            has_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
+        
+        if not has_permission:
+            return jsonify({"success": False, "message": "权限不足"}), 403
+
+        # 扫描 user_accounts 目录，获取所有用户的 school_accounts
+        user_accounts_dir = os.path.join(SCHOOL_ACCOUNTS_DIR, 'user_accounts')
+        all_users_accounts = {}
+        
+        if os.path.exists(user_accounts_dir):
+            for filename in os.listdir(user_accounts_dir):
+                if filename.endswith('.json'):
+                    username = filename[:-5]  # 去掉 .json 后缀
+                    try:
+                        file_path = os.path.join(user_accounts_dir, filename)
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            accounts = json.load(f)
+                        all_users_accounts[username] = accounts
+                    except Exception as e:
+                        logging.error(f"读取用户 {username} 的 school_accounts 失败: {e}")
+        
+        return jsonify({
+            "success": True,
+            "all_accounts": all_users_accounts
+        })
 
     @app.route('/logs/view', methods=['GET'])
     def view_logs():
@@ -15540,6 +15848,16 @@ def start_web_server(args_param):
                         config, 'Map', 'amap_js_key', 
                         fallback=default_config.get('Map', 'amap_js_key', fallback='')
                     )
+                },
+                'API': {
+                    'ip_api_key': _get_config_value(
+                        config, 'API', 'ip_api_key', 
+                        fallback=default_config.get('API', 'ip_api_key', fallback='')
+                    ),
+                    'captcha_api_key': _get_config_value(
+                        config, 'API', 'captcha_api_key', 
+                        fallback=default_config.get('API', 'captcha_api_key', fallback='')
+                    )
                 }
             }
             
@@ -15619,6 +15937,15 @@ def start_web_server(args_param):
             if 'Map' in data and 'amap_js_key' in data['Map']:
                 ensure_section(config, 'Map')
                 config.set('Map', 'amap_js_key', data['Map']['amap_js_key'])
+            
+            # [API]
+            if 'API' in data:
+                ensure_section(config, 'API')
+                api_data = data['API']
+                if 'ip_api_key' in api_data:
+                    config.set('API', 'ip_api_key', api_data['ip_api_key'])
+                if 'captcha_api_key' in api_data:
+                    config.set('API', 'captcha_api_key', api_data['captcha_api_key'])
 
             # 4. 使用 _write_config_with_comments 保存以保留注释
             _write_config_with_comments(config, CONFIG_FILE)
@@ -17770,7 +18097,21 @@ def start_web_server(args_param):
 
         # 2. 缓存未命中或已过期，调用API
         try:
-            api_url = f'https://api.vore.top/api/IPdata?ip={ip_address}'
+            # 从 config.ini 读取 API 密钥
+            config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+            api_key = ''
+            if os.path.exists(config_file):
+                try:
+                    cfg = configparser.ConfigParser()
+                    cfg.read(config_file, encoding='utf-8')
+                    api_key = cfg.get('API', 'ip_api_key', fallback='')
+                except Exception as e:
+                    logging.debug(f"[IP定位] 读取配置文件失败: {e}")
+            
+            if api_key and api_key != 'your_api_key_here' and api_key.strip() != '':
+                api_url = f'https://api.vore.top/api/IPdata?key={api_key}&ip={ip_address}'
+            else:
+                api_url = f'https://api.vore.top/api/IPdata?ip={ip_address}'
             
             # 发送GET请求，设置5秒超时
             response = requests.get(api_url, timeout=5)
@@ -18710,7 +19051,21 @@ def start_web_server(args_param):
         try:
             # 调用第三方验证码API
             # length=4 表示生成4位验证码
-            captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
+            # 从 config.ini 读取 API 密钥
+            config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+            api_key = ''
+            if os.path.exists(config_file):
+                try:
+                    cfg = configparser.ConfigParser()
+                    cfg.read(config_file, encoding='utf-8')
+                    api_key = cfg.get('API', 'captcha_api_key', fallback='')
+                except Exception as e:
+                    logging.debug(f"[验证码] 读取配置文件失败: {e}")
+            
+            if api_key and api_key != '' and api_key != 'your_api_key_here':
+                captcha_api_url = f'https://api.vore.top/api/VerifyCode?key={api_key}&length=4'
+            else:
+                captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
             
             # 发送GET请求获取验证码，设置5秒超时
             response = requests.get(captcha_api_url, timeout=5)

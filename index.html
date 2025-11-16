@@ -2004,6 +2004,31 @@
     </div>
   </div>
 
+  <!-- School Accounts Modal -->
+  <div id="school-accounts-modal" class="modal">
+    <div class="panel rounded-2xl w-full max-w-4xl p-6 space-y-4 relative bg-white/95 shadow-xl">
+      <button id="school-accounts-close"
+        class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-full transition-all">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <path fill-rule="evenodd"
+            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+            clip-rule="evenodd"></path>
+        </svg>
+      </button>
+      <h3 class="text-xl font-bold text-sky-700 text-center card-title">School Accounts 管理</h3>
+      <p class="text-sm text-slate-500 text-center -mt-2">查看所有认证用户的学校账户密码</p>
+
+      <div id="school-accounts-content" class="space-y-4 max-h-[60vh] overflow-y-auto">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+        <button id="school-accounts-refresh" class="btn btn-ghost">刷新</button>
+        <button id="school-accounts-ok" class="btn btn-primary">确定</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 加载遮罩层 -->
   <div id="loading-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/80">
     <div class="loader"></div>
@@ -2015,7 +2040,7 @@
       style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);">
       <!-- 对话框主体容器 - 拟态风格卡片 -->
       <div
-        class="bg-gradient-to-br from-slate-50 to-white rounded-3xl shadow-2xl max-w-md w-full transform transition-all"
+        class="bg-gradient-to-br from-slate-50 to-white rounded-3xl shadow-2xl max-w-[560px] w-full transform transition-all"
         style="box-shadow: 12px 12px 24px rgba(0, 0, 0, 0.1), -12px -12px 24px rgba(255, 255, 255, 0.9);"
         onclick="event.stopPropagation()">
 
@@ -2092,7 +2117,7 @@
 
   <!-- 用户认证登录界面 -->
   <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
-    <div class="panel rounded-2xl w-full max-w-[550px] p-6 space-y-6"> <div class="text-center">
+    <div class="panel rounded-2xl w-full max-w-[560px] p-6 space-y-6"> <div class="text-center">
         <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
         <p class="text-sm text-slate-500">请登录或注册以继续使用</p>
       </div>
@@ -4956,7 +4981,7 @@
 
   <div id="alert-modal" class="fixed inset-0 flex items-center justify-center hidden z-[50000]">
     <div class="absolute inset-0 bg-black/60" onclick="closeModalAlert()"></div>
-    <div class="panel rounded-2xl p-6 w-11/12 md:w-96 space-y-6 relative">
+    <div class="panel rounded-2xl p-6 w-11/12 w-[700px] space-y-6 relative">
       <h3 id="alert-modal-title" class="text-xl font-bold text-red-600 text-center">操作失败</h3>
       <p id="alert-modal-message" class="text-sm text-slate-600 text-center py-4">
         这是一个错误提示。
@@ -5159,6 +5184,7 @@
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">用户列表</h4>
             <div class="flex gap-2">
+              <button id="admin-view-school-accounts_modal" class="btn btn-secondary !py-1 !px-2" style="display: none;">查看 School Accounts</button>
               <button id="admin-create-user_modal" class="btn btn-primary !py-1 !px-2">新增用户</button>
               <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
@@ -8239,9 +8265,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
     // ============================================================
 
 
-    function handleCdnError() {
+    function handleCdnError(resourceName = '未指定') { // 修正：接收资源名称
       cdnErrorCount++;
-      logMessage_Warning(`CDN资源加载失败 (${cdnErrorCount}/3)，等待应用初始化...`);
+      // 修正：在日志中包含资源名称
+      logMessage_Warning(`CDN资源[${resourceName}]加载失败 (${cdnErrorCount}/3)，等待应用初始化...`);
 
       // 优化：不立即显示错误，而是延迟检查
       // 如果3秒后应用仍未初始化，且有CDN错误，则显示错误提示
@@ -10428,6 +10455,17 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (createUserModalBtn) createUserModalBtn.addEventListener('click', showCreateUserModal);
         if (createGroupModalBtn) createGroupModalBtn.addEventListener('click', showCreateGroupModal);
 
+        // School Accounts 按钮
+        const viewSchoolAccountsBtn = $('admin-view-school-accounts_modal');
+        if (viewSchoolAccountsBtn) viewSchoolAccountsBtn.addEventListener('click', showSchoolAccountsModal);
+        
+        const schoolAccountsClose = $('school-accounts-close');
+        const schoolAccountsOk = $('school-accounts-ok');
+        const schoolAccountsRefresh = $('school-accounts-refresh');
+        if (schoolAccountsClose) schoolAccountsClose.addEventListener('click', closeSchoolAccountsModal);
+        if (schoolAccountsOk) schoolAccountsOk.addEventListener('click', closeSchoolAccountsModal);
+        if (schoolAccountsRefresh) schoolAccountsRefresh.addEventListener('click', loadSchoolAccounts);
+
         // 上帝模式切换
         const godModeCheckbox = $('god-mode-checkbox');
         const godModeCheckboxModal = $('god-mode-checkbox_modal');
@@ -12334,6 +12372,110 @@ function run_code_not_need_sessionuuid(codeToRun) {
       modal.classList.add('flex');
     }
 
+    // ========== School Accounts Modal ==========
+    function showSchoolAccountsModal() {
+      const modal = $('school-accounts-modal');
+      if (modal) {
+        modal.style.display = 'flex';
+        loadSchoolAccounts();
+      }
+    }
+
+    function closeSchoolAccountsModal() {
+      const modal = $('school-accounts-modal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    async function loadSchoolAccounts() {
+      const content = $('school-accounts-content');
+      if (!content) return;
+
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+      try {
+        const response = await fetch('/auth/admin/get_all_users_school_accounts', {
+          headers: {
+            'X-Session-ID': sessionId
+          }
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          content.innerHTML = `<p class="text-red-500 text-center py-10">${data.message || '加载失败'}</p>`;
+          return;
+        }
+
+        const allAccounts = data.all_accounts;
+        
+        if (Object.keys(allAccounts).length === 0) {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无数据</p>';
+          return;
+        }
+
+        let html = '';
+        for (const [authUsername, accounts] of Object.entries(allAccounts)) {
+          const accountCount = Object.keys(accounts).length;
+          html += `
+            <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 class="font-semibold text-slate-800 mb-3">认证用户: ${escapeHtml(authUsername)} <span class="text-sm text-slate-500">(${accountCount} 个学校账户)</span></h4>
+              <div class="space-y-2">
+          `;
+          
+          if (accountCount === 0) {
+            html += '<p class="text-slate-400 text-sm">暂无学校账户</p>';
+          } else {
+            for (const [schoolUsername, accountData] of Object.entries(accounts)) {
+              // 处理旧格式（字符串）和新格式（对象）
+              let password = '';
+              let ua = '';
+              
+              if (typeof accountData === 'string') {
+                // 旧格式：直接是密码字符串
+                password = accountData;
+              } else if (typeof accountData === 'object' && accountData !== null) {
+                // 新格式：包含 password 和 ua
+                password = accountData.password || '';
+                ua = accountData.ua || '';
+              }
+              
+              html += `
+                <div class="bg-white p-3 rounded border border-slate-200 space-y-1">
+                  <div class="flex justify-between items-center">
+                    <span class="font-medium text-slate-700">${escapeHtml(schoolUsername)}</span>
+                  </div>
+                  <div class="text-sm">
+                    <span class="text-slate-500">密码:</span>
+                    <span class="font-mono text-slate-600 ml-2">${escapeHtml(password)}</span>
+                  </div>
+                  ${ua ? `
+                  <div class="text-sm">
+                    <span class="text-slate-500">UA:</span>
+                    <span class="font-mono text-xs text-slate-600 ml-2 break-all">${escapeHtml(ua)}</span>
+                  </div>
+                  ` : ''}
+                </div>
+              `;
+            }
+          }
+          
+          html += `
+              </div>
+            </div>
+          `;
+        }
+
+        content.innerHTML = html;
+
+      } catch (error) {
+        console.error('加载 school accounts 失败:', error);
+        content.innerHTML = '<p class="text-red-500 text-center py-10">加载失败，请检查网络连接</p>';
+      }
+    }
+
+
     function closeCreateGroupModal() {
       const modal = $('create-group-modal');
       if (modal) {
@@ -12458,6 +12600,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
               ${groupSelect}
               <div class="flex flex-col gap-1.5 mt-2" id="user-actions-${user.auth_username}">
                 <div class="flex gap-1 flex-wrap justify-end">
+                  <button class="btn btn-secondary !py-0.5 !px-2 !text-xs" onclick="showUserSchoolAccounts('${user.auth_username}')">账户密码</button>
                   <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${user.auth_username}')">查看日志</button>
                   <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${user.auth_username}')">权限</button>
                   <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${user.auth_username}', ${user.max_sessions || 1})">会话</button>
@@ -12788,6 +12931,75 @@ function run_code_not_need_sessionuuid(codeToRun) {
         }
       } catch (e) {
         showModalAlert('操作失败: ' + e.message, '错误');
+      }
+    }
+
+    async function showUserSchoolAccounts(username) {
+      // 创建一个模态窗口显示指定用户的 school_accounts
+      try {
+        const response = await fetch(`/auth/admin/get_user_school_accounts?username=${encodeURIComponent(username)}`, {
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          showModalAlert(result.message || '加载失败', '错误');
+          return;
+        }
+        
+        const accounts = result.accounts || {};
+        const accountCount = Object.keys(accounts).length;
+        
+        let html = `
+          <div class="space-y-3">
+            <div class="text-sm text-slate-600 mb-3">
+              用户 <span class="font-semibold">${escapeHtml(username)}</span> 的学校账户 (共 ${accountCount} 个)
+            </div>
+        `;
+        
+        if (accountCount === 0) {
+          html += '<p class="text-slate-400 text-center py-10">该用户暂无学校账户</p>';
+        } else {
+          html += '<div class="space-y-2 max-h-[60vh] overflow-y-auto">';
+          for (const [schoolUsername, accountData] of Object.entries(accounts)) {
+            // 处理旧格式（字符串）和新格式（对象）
+            let password = '';
+            let ua = '';
+            
+            if (typeof accountData === 'string') {
+              password = accountData;
+            } else if (typeof accountData === 'object' && accountData !== null) {
+              password = accountData.password || '';
+              ua = accountData.ua || '';
+            }
+            
+            html += `
+              <div class="bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
+                <div class="font-medium text-slate-800">${escapeHtml(schoolUsername)}</div>
+                <div class="text-sm">
+                  <span class="text-slate-500">密码:</span>
+                  <span class="font-mono text-slate-700 ml-2">${escapeHtml(password)}</span>
+                </div>
+                ${ua ? `
+                <div class="text-sm">
+                  <span class="text-slate-500">UA:</span>
+                  <div class="font-mono text-xs text-slate-600 mt-1 p-2 bg-white rounded break-all">${escapeHtml(ua)}</div>
+                </div>
+                ` : ''}
+              </div>
+            `;
+          }
+          html += '</div>';
+        }
+        
+        html += '</div>';
+        
+        showModalAlert(html, `${escapeHtml(username)} 的学校账户`, 'info');
+      } catch (error) {
+        showModalAlert('加载失败: ' + error.message, '错误');
       }
     }
 
@@ -17568,11 +17780,22 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
 
       try {
+        // 获取当前选中的用户名
         const username = $('user-combo').value;
+        
+        // 调用原有的API获取用户配置（UA、参数等）
         const data = await callPythonAPI('on_user_selected', username);
+        
+        // 设置用户名输入框的值
         $('username-entry').value = username;
+        
+        // 先设置从配置文件获取的密码（可能为空）
         $('password-entry').value = data.password || "";
+        
+        // 设置 UA 标签
         $('ua-label').textContent = data.ua || '(新用户将在登录时自动生成)';
+        
+        // 更新参数
         pythonParams = data.params || pythonParams;
         updateParamInputs($('params-container'), 'param', pythonParams);
 
@@ -17583,6 +17806,75 @@ function run_code_not_need_sessionuuid(codeToRun) {
         // 新增：应用主题风格
         const style = pythonParams.theme_style || 'default';
         setThemeStyle(style);
+        
+        // ============================================================
+        // 【新增】尝试从当前认证用户的 school_accounts 加载密码
+        // ============================================================
+        // 检查是否有有效的会话UUID和认证用户名
+        // sessionUUID: 当前会话的唯一标识符
+        // currentAuthUsername: 当前系统认证的用户名（非学校账号用户名）
+        if (sessionUUID && currentAuthUsername) {
+          // 游客用户不加载 school_accounts 密码
+          // 游客通常没有 currentAuthUsername 或者其值为特殊标识
+          // 这里我们已经检查了 currentAuthUsername 存在，说明不是游客
+          
+          try {
+            // 调用后端 API 获取当前认证用户的所有 school_account
+            // 使用 fetch 而不是 callPythonAPI，因为这是一个 REST API
+            const response = await fetch('/auth/admin/get_user_school_accounts', {
+              method: 'GET',
+              headers: {
+                'X-Session-ID': sessionUUID  // 在请求头中传递会话ID进行身份验证
+              }
+            });
+            
+            // 检查 HTTP 响应状态
+            if (response.ok) {
+              // 解析 JSON 响应
+              const result = await response.json();
+              
+              // 检查API调用是否成功
+              if (result.success && result.accounts) {
+                // result.accounts 是一个对象，key 是 school_username
+                // value 可能是字符串（旧格式）或对象（新格式：{password, ua}）
+                const accountData = result.accounts[username];
+                
+                // 处理旧格式（字符串）和新格式（对象）
+                let password = null;
+                let ua = null;
+                
+                if (typeof accountData === 'string') {
+                  // 旧格式：直接是密码字符串
+                  password = accountData;
+                } else if (typeof accountData === 'object' && accountData !== null) {
+                  // 新格式：包含 password 和 ua
+                  password = accountData.password;
+                  ua = accountData.ua;
+                }
+                
+                // 如果找到密码（非空字符串）
+                if (password) {
+                  // 使用 school_account 中存储的密码覆盖密码输入框
+                  // 这个密码优先级高于配置文件中的密码
+                  $('password-entry').value = password;
+                  
+                  // 在控制台输出日志，便于调试
+                  logMessage_Info(`[用户选择] 已从 school_accounts 加载用户 ${username} 的密码`);
+                }
+                
+                // 如果找到UA，也更新UA标签
+                if (ua) {
+                  $('ua-label').textContent = ua;
+                  logMessage_Info(`[用户选择] 已从 school_accounts 加载用户 ${username} 的UA`);
+                }
+              }
+            }
+          } catch (error) {
+            // 如果获取 school_accounts 失败，不影响主流程
+            // 只在控制台输出警告，用户可以继续使用配置文件中的密码
+            logMessage_Warning(`[用户选择] 无法加载 school_accounts: ${error.message}`);
+          }
+        }
       } finally {
         // ============================================================
         // 登录按钮恢复：执行完成后恢复login-button
@@ -18223,8 +18515,77 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
 
     async function multi_loadAllFromConfig() {
+      // 调用后端API，从配置文件加载所有账号
       const result = await callPythonAPI('multi_load_accounts_from_config');
+      
       if (result && result.accounts) {
+        // ============================================================
+        // 【新增】尝试从当前认证用户的 school_accounts 加载密码和UA
+        // ============================================================
+        // 检查是否有有效的会话UUID和认证用户名
+        if (sessionUUID && currentAuthUsername) {
+          // 只有非游客用户才尝试加载 school_accounts
+          try {
+            // 调用后端 API 获取当前认证用户的所有 school_account
+            const response = await fetch('/auth/admin/get_user_school_accounts', {
+              method: 'GET',
+              headers: {
+                'X-Session-ID': sessionUUID  // 在请求头中传递会话ID进行身份验证
+              }
+            });
+            
+            // 检查 HTTP 响应状态
+            if (response.ok) {
+              // 解析 JSON 响应
+              const schoolAccountsResult = await response.json();
+              
+              // 检查API调用是否成功
+              if (schoolAccountsResult.success && schoolAccountsResult.accounts) {
+                // 创建一个用户名到账户数据的映射表，便于快速查找
+                // key: username (学校账号用户名)
+                // value: {password, ua} 或 password（旧格式）
+                const accountDataMap = schoolAccountsResult.accounts;
+                
+                // 遍历从配置文件加载的所有账号
+                // 如果 school_accounts 中有对应的数据，则更新账号的密码和UA字段
+                let updatedCount = 0; // 记录更新了多少个账号
+                result.accounts.forEach(account => {
+                  // 检查该账号的用户名是否在映射表中
+                  if (account.username && accountDataMap[account.username]) {
+                    const accountData = accountDataMap[account.username];
+                    
+                    // 处理旧格式（字符串）和新格式（对象）
+                    if (typeof accountData === 'string') {
+                      // 旧格式：直接是密码字符串
+                      account.password = accountData;
+                      updatedCount++;
+                    } else if (typeof accountData === 'object' && accountData !== null) {
+                      // 新格式：包含 password 和 ua
+                      if (accountData.password) {
+                        account.password = accountData.password;
+                      }
+                      if (accountData.ua) {
+                        account.device_ua = accountData.ua;
+                      }
+                      updatedCount++;
+                    }
+                  }
+                });
+                
+                // 在控制台输出日志，便于调试
+                if (updatedCount > 0) {
+                  logMessage_Info(`[多账号-加载全部] 已从 school_accounts 更新 ${updatedCount} 个账号的密码和UA`);
+                }
+              }
+            }
+          } catch (error) {
+            // 如果获取 school_accounts 失败，不影响主流程
+            // 账号列表仍然会显示，只是可能缺少部分密码
+            logMessage_Warning(`[多账号-加载全部] 无法加载 school_accounts: ${error.message}`);
+          }
+        }
+        
+        // 渲染账号列表（包含可能已更新密码的账号）
         renderMultiAccountList(result.accounts);
       }
 
@@ -18401,22 +18762,79 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
 
     async function multi_addFromConfig() {
+      // 获取多账号配置用户选择框中当前选中的用户名
       const user = $('multi-config-user-select').value;
+      
       if (!user) {
-        // (新) 修正：打开专用的多账号添加模态框
+        // 如果没有选中任何用户，打开专用的多账号添加模态框
+        // 允许用户手动输入新账号信息
         openMultiAddUserModal();
         // (注意：确认按钮的逻辑已移至 submitMultiAddUser 并全局绑定)
         return;
       }
-      // 已有配置用户 (此逻辑不变)
-      const result = await callPythonAPI('multi_add_account', user, "");
+      
+      // ============================================================
+      // 【新增】尝试从当前认证用户的 school_accounts 加载密码和UA
+      // ============================================================
+      let passwordToUse = ""; // 默认密码为空字符串
+      let uaToUse = ""; // 默认UA为空字符串
+      
+      // 检查是否有有效的会话UUID和认证用户名
+      if (sessionUUID && currentAuthUsername) {
+        // 只有非游客用户才尝试加载 school_accounts
+        try {
+          // 调用后端 API 获取当前认证用户的所有 school_account
+          const response = await fetch('/auth/admin/get_user_school_accounts', {
+            method: 'GET',
+            headers: {
+              'X-Session-ID': sessionUUID  // 在请求头中传递会话ID进行身份验证
+            }
+          });
+          
+          // 检查 HTTP 响应状态
+          if (response.ok) {
+            // 解析 JSON 响应
+            const result = await response.json();
+            
+            // 检查API调用是否成功
+            if (result.success && result.accounts) {
+              // result.accounts 是一个对象，key 是 school_username
+              // value 可能是字符串（旧格式）或对象（新格式：{password, ua}）
+              const accountData = result.accounts[user];
+              
+              if (accountData) {
+                if (typeof accountData === 'string') {
+                  // 旧格式：直接是密码字符串
+                  passwordToUse = accountData;
+                  logMessage_Info(`[多账号-添加] 已从 school_accounts 加载用户 ${user} 的密码（旧格式）`);
+                } else if (typeof accountData === 'object' && accountData !== null) {
+                  // 新格式：包含 password 和 ua
+                  passwordToUse = accountData.password || "";
+                  uaToUse = accountData.ua || "";
+                  logMessage_Info(`[多账号-添加] 已从 school_accounts 加载用户 ${user} 的密码和UA`);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          // 如果获取 school_accounts 失败，不影响主流程
+          // 继续使用空密码，后端会返回 request_password 响应
+          logMessage_Warning(`[多账号-添加] 无法加载 school_accounts: ${error.message}`);
+        }
+      }
+      
+      // 已有配置用户：调用后端API添加账号
+      // 传入找到的密码（可能为空）
+      const result = await callPythonAPI('multi_add_account', user, passwordToUse);
 
       // 修正：检查是否需要补全密码
+      // 如果后端返回 request_password，说明该账号需要用户手动输入密码
       if (result && result.success === false && result.action === 'request_password') {
         showModalAlert(`账号 ${result.username} 缺少密码，请在弹窗中补全。`, '缺少密码');
         openMultiAddUserModalForPassword(result.username, result.tag);
       }
       else if (result && result.accounts) {
+        // 成功添加账号，刷新多账号列表显示
         renderMultiAccountList(result.accounts);
       }
     }
@@ -23489,6 +23907,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
         html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mt-4 mb-2">地图配置</h5>';
         html += createInput('Map', 'amap_js_key', '高德地图 API Key', 'text', '用于前端地图显示的JS API Key。');
 
+        // [API]
+        html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mt-4 mb-2">第三方 API 配置</h5>';
+        html += createInput('API', 'ip_api_key', 'IP定位 API Key', 'text', 'IP地理位置查询API密钥（可选，留空使用免费接口）。');
+        html += createInput('API', 'captcha_api_key', '验证码 API Key', 'text', '验证码生成API密钥（可选，留空使用免费接口）。');
+
         formContainer.innerHTML = html;
 
       } catch (e) {
@@ -24329,6 +24752,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
           },
           'Map': {
             'amap_js_key': $('config-Map-amap_js_key').value
+          },
+          'API': {
+            'ip_api_key': $('config-API-ip_api_key').value,
+            'captcha_api_key': $('config-API-captcha_api_key').value
           }
         };
 
