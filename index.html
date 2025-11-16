@@ -4469,6 +4469,98 @@
                 style="width: 0%"></div>
             </div>
           </div>
+
+          <!-- ========== 任务统计块 ========== -->
+          <!-- 显示已选任务的总距离和预计时间 -->
+          <div id="mobile-run-stats-block" class="mt-4 p-3 bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl text-center">
+            <p class="text-xs text-slate-600 mb-1">已选任务总览</p>
+            <p id="mobile-run-stats-label" class="font-bold text-lg text-emerald-600">-- km / --:--</p>
+          </div>
+
+          <!-- ========== 单任务进度条 ========== -->
+          <!-- 显示当前执行任务的详细进度 -->
+          <div id="mobile-single-progress-block" class="mt-3 p-3 bg-slate-50 rounded-xl">
+            <!-- 进度条容器 -->
+            <div class="h-2 bg-slate-200 rounded-full overflow-hidden mb-2">
+              <div id="mobile-single-progress-fill" class="h-2 bg-gradient-to-r from-sky-500 to-blue-500 transition-all duration-300" style="width:0%"></div>
+            </div>
+            <!-- 进度信息 - 显示进度百分比和额外信息 -->
+            <div class="flex justify-between text-xs">
+              <span id="mobile-single-progress-text" class="text-slate-600">未开始</span>
+              <span id="mobile-single-progress-extra" class="text-slate-400"></span>
+            </div>
+          </div>
+
+          <!-- ========== 执行选项复选框 ========== -->
+          <!-- 提供任务执行的额外选项控制 -->
+          <div class="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
+            <!-- 忽略已完成状态复选框 - 执行时跳过已完成的任务 -->
+            <label class="flex items-center gap-2 cursor-pointer p-2 bg-amber-50 rounded-lg hover:bg-amber-100 transition">
+              <input type="checkbox" id="mobile-run-completed-check" class="w-4 h-4 accent-sky-600 rounded flex-shrink-0">
+              <span class="text-xs text-slate-700 font-semibold">忽略已完成状态</span>
+            </label>
+            <!-- 自动生成路径复选框 - 自动为没有路径的任务生成路径 -->
+            <label class="flex items-center gap-2 cursor-pointer p-2 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
+              <input type="checkbox" id="mobile-auto-gen-all-check" class="w-4 h-4 accent-sky-600 rounded flex-shrink-0">
+              <span class="text-xs text-slate-700 font-semibold">自动生成路径</span>
+            </label>
+          </div>
+
+          <!-- ========== 实时状态面板 ========== -->
+          <!-- 显示任务执行过程中的实时数据 -->
+          <div class="mt-4 pt-3 border-t border-slate-100">
+            <h4 class="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+              <!-- 实时状态图标 -->
+              <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+              </svg>
+              实时状态
+            </h4>
+            <!-- 实时数据网格 - 四列布局显示关键数据 -->
+            <div class="grid grid-cols-2 gap-2">
+              <!-- 已跑距离 -->
+              <div class="p-2 bg-blue-50 rounded-lg text-center">
+                <p class="text-xs text-slate-500 mb-1">已跑距离</p>
+                <p id="mobile-live-dist-label" class="font-bold text-sm text-blue-600">0.00 km</p>
+              </div>
+              <!-- 总距离 -->
+              <div class="p-2 bg-green-50 rounded-lg text-center">
+                <p class="text-xs text-slate-500 mb-1">总距离</p>
+                <p id="mobile-total-dist-label" class="font-bold text-sm text-green-600">0.00 km</p>
+              </div>
+              <!-- 已用时间 -->
+              <div class="p-2 bg-purple-50 rounded-lg text-center">
+                <p class="text-xs text-slate-500 mb-1">已用时间</p>
+                <p id="mobile-live-time-label" class="font-bold text-sm text-purple-600">00:00</p>
+              </div>
+              <!-- 预计时间 -->
+              <div class="p-2 bg-orange-50 rounded-lg text-center">
+                <p class="text-xs text-slate-500 mb-1">预计时间</p>
+                <p id="mobile-total-time-label" class="font-bold text-sm text-orange-600">00:00</p>
+              </div>
+            </div>
+            <!-- 当前位置GPS坐标显示 -->
+            <div class="mt-2 text-center">
+              <p id="mobile-current-location-label" class="text-xs font-mono text-slate-500">当前位置: --, --</p>
+            </div>
+          </div>
+
+          <!-- ========== 打卡点列表 ========== -->
+          <!-- 显示当前任务的所有打卡点信息 -->
+          <div class="mt-4 pt-3 border-t border-slate-100">
+            <h4 class="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
+              <!-- 打卡点图标 -->
+              <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+              </svg>
+              打卡点
+            </h4>
+            <!-- 打卡点文本显示区域 - 可滚动 -->
+            <div id="mobile-target-points-text" class="max-h-32 overflow-y-auto p-2 bg-slate-50 rounded-lg text-xs text-slate-600 leading-relaxed">
+              <p class="text-slate-400 text-center py-4">开始任务后将显示打卡点</p>
+            </div>
+          </div>
+
         </div>
 
         <!-- ========================================
@@ -4601,6 +4693,257 @@
           <!-- 此容器将由JavaScript代码填充具体的参数表单项 -->
           <div id="mobile-params-container" class="space-y-3 max-h-[60vh] overflow-y-auto">
             <!-- 参数将在此处动态加载 -->
+          </div>
+        </div>
+
+        <!-- ========================================
+             【我的资料面板】- 移动端个人信息管理
+             - 100%复刻PC端 admin-profile-panel_modal 功能
+             - 包含头像、昵称、手机号、密码、2FA、主题设置
+             ======================================== -->
+        <div class="mobile-card hidden" id="mobile-profile-panel">
+          <!-- 面板头部 - 标题和刷新按钮 -->
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-sky-100">
+            <div class="flex items-center gap-2">
+              <!-- 用户资料图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <h3 class="text-xl font-bold text-sky-700">我的资料</h3>
+            </div>
+            <!-- 刷新按钮 - 点击重新加载个人信息 -->
+            <button onclick="loadMobileProfile()"
+              class="py-1 px-3 bg-sky-50 text-sky-600 rounded-lg text-xs font-medium hover:bg-sky-100 transition">
+              刷新
+            </button>
+          </div>
+
+          <!-- 资料内容容器 - 可滚动区域 -->
+          <div id="mobile-profile-content" class="space-y-4 max-h-[65vh] overflow-y-auto">
+
+            <!-- ========== 头像上传区块 ========== -->
+            <!-- 用户可以上传和预览头像图片 -->
+            <div class="bg-sky-50 border border-sky-100 rounded-xl p-4 space-y-3">
+              <h5 class="font-semibold text-sky-900 text-sm">头像设置</h5>
+              <!-- 头像展示和上传按钮容器 -->
+              <div class="flex items-center gap-4">
+                <!-- 头像预览 - 圆形显示，加载失败显示默认图标 -->
+                <img id="mobile-profile-avatar-display" src="" alt="用户头像"
+                  class="w-16 h-16 rounded-full border-2 border-sky-200 object-cover"
+                  onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23e0f2fe%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+                <!-- 头像上传控制区 -->
+                <div class="flex-1 space-y-2">
+                  <!-- 隐藏的文件输入框 - 只接受图片格式 -->
+                  <input type="file" id="mobile-profile-avatar-file" accept="image/*" class="hidden"
+                    onchange="previewAvatar(event)">
+                  <!-- 上传按钮 - 点击触发文件选择 -->
+                  <button
+                    class="w-full py-2 px-3 bg-white border border-sky-300 text-sky-600 rounded-lg text-sm font-medium hover:bg-sky-50 transition flex items-center justify-center gap-2"
+                    onclick="document.getElementById('mobile-profile-avatar-file').click();">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    选择头像
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ========== 基本信息区块 ========== -->
+            <!-- 包含昵称和手机号的修改 -->
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+              <h5 class="font-semibold text-slate-900 text-sm">基本信息</h5>
+              <div class="space-y-3">
+                <!-- 昵称输入框 -->
+                <div>
+                  <label class="block text-xs font-medium text-slate-700 mb-1">昵称</label>
+                  <input type="text" id="mobile-profile-nickname" class="input-field text-sm"
+                    placeholder="输入您的昵称">
+                </div>
+                <!-- 手机号显示和修改 -->
+                <div>
+                  <label class="block text-xs font-medium text-slate-700 mb-1">手机号</label>
+                  <div class="flex gap-2">
+                    <!-- 手机号输入框容器 - 带+86前缀 -->
+                    <div class="phone-input-wrapper flex-1">
+                      <span class="phone-prefix">+86 </span>
+                      <!-- 手机号输入框 - 只读状态 -->
+                      <input type="tel" id="mobile-profile-phone" class="input-field text-sm" placeholder="未绑定"
+                        readonly inputmode="numeric">
+                    </div>
+                    <!-- 修改手机号按钮 - 触发修改流程 -->
+                    <button onclick="modifyPhone()"
+                      class="py-2 px-3 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-50 transition whitespace-nowrap">
+                      修改
+                    </button>
+                  </div>
+                  <!-- 提示信息 -->
+                  <p class="text-xs text-slate-500 mt-1">💡 修改手机号需要短信验证</p>
+                </div>
+                <!-- 保存基本信息按钮 -->
+                <div class="flex justify-end pt-2">
+                  <button onclick="updateBasicInfo()"
+                    class="py-2 px-4 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-lg text-sm font-bold shadow-md hover:shadow-lg transition">
+                    保存基本信息
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ========== 修改密码区块 ========== -->
+            <!-- 用户可以更改登录密码 -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+              <h5 class="font-semibold text-amber-900 text-sm">修改密码</h5>
+              <div class="space-y-3">
+                <!-- 当前密码输入框 - 验证身份 -->
+                <div>
+                  <label class="block text-xs font-medium text-slate-700 mb-1">当前密码</label>
+                  <input type="password" id="mobile-profile-current-password" class="input-field text-sm"
+                    placeholder="输入当前密码">
+                </div>
+                <!-- 新密码输入框 -->
+                <div>
+                  <label class="block text-xs font-medium text-slate-700 mb-1">新密码</label>
+                  <input type="password" id="mobile-profile-new-password" class="input-field text-sm"
+                    placeholder="输入新密码">
+                </div>
+                <!-- 确认新密码输入框 - 防止输入错误 -->
+                <div>
+                  <label class="block text-xs font-medium text-slate-700 mb-1">确认新密码</label>
+                  <input type="password" id="mobile-profile-confirm-password" class="input-field text-sm"
+                    placeholder="再次输入新密码">
+                </div>
+                <!-- 修改密码按钮 -->
+                <div class="flex justify-end pt-2">
+                  <button onclick="updatePassword()"
+                    class="py-2 px-4 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg text-sm font-bold shadow-md hover:shadow-lg transition">
+                    修改密码
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ========== 双因素认证(2FA)区块 ========== -->
+            <!-- 提供额外的安全验证层 -->
+            <div class="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+              <h5 class="font-semibold text-green-900 text-sm">双因素认证 (2FA)</h5>
+              <!-- 2FA状态显示 -->
+              <div id="mobile-profile-2fa-status" class="mb-2">
+                <p class="text-xs text-slate-600">
+                  状态: <span id="mobile-profile-2fa-enabled" class="font-medium">检测中...</span>
+                </p>
+              </div>
+              <!-- 2FA设置区域 - 初始隐藏，生成密钥后显示 -->
+              <div id="mobile-profile-2fa-setup" class="space-y-3 hidden">
+                <!-- 二维码显示区 - 用于扫描绑定认证器 -->
+                <div class="bg-white border border-green-200 rounded-lg p-3 text-center">
+                  <canvas id="mobile-profile-2fa-qr" class="mx-auto"></canvas>
+                  <!-- 密钥显示 - 手动输入备用 -->
+                  <p class="text-xs text-slate-600 mt-2">
+                    密钥: <span id="mobile-profile-2fa-secret" class="font-mono font-semibold"></span>
+                  </p>
+                  <p class="text-xs text-slate-500 mt-1">使用Google Authenticator扫描此二维码</p>
+                </div>
+                <!-- 验证码输入框 - 验证2FA配置 -->
+                <div>
+                  <label class="block text-xs font-medium text-slate-700 mb-1">验证码</label>
+                  <input type="text" id="mobile-profile-2fa-code" class="input-field text-sm"
+                    placeholder="输入6位验证码" maxlength="6" inputmode="numeric">
+                </div>
+                <!-- 启用2FA按钮 -->
+                <div class="flex justify-end">
+                  <button onclick="enable2FA()"
+                    class="py-2 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-sm font-bold shadow-md hover:shadow-lg transition">
+                    启用2FA
+                  </button>
+                </div>
+              </div>
+              <!-- 2FA操作按钮 - 未启用时显示 -->
+              <div id="mobile-profile-2fa-actions" class="flex justify-end">
+                <button onclick="generate2FA()"
+                  class="py-2 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-sm font-bold shadow-md hover:shadow-lg transition">
+                  生成2FA密钥
+                </button>
+              </div>
+              <!-- 2FA已启用操作 - 已启用时显示 -->
+              <div id="mobile-profile-2fa-enabled-actions" class="flex justify-end gap-2 hidden">
+                <button onclick="test2FA()"
+                  class="py-2 px-3 bg-white border border-green-600 text-green-600 rounded-lg text-sm font-medium hover:bg-green-50 transition">
+                  测试2FA
+                </button>
+                <button onclick="disable2FA()"
+                  class="py-2 px-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg text-sm font-bold shadow-md hover:shadow-lg transition">
+                  关闭2FA
+                </button>
+              </div>
+            </div>
+
+            <!-- ========== 主题设置区块 ========== -->
+            <!-- 用户可以自定义界面主题和颜色 -->
+            <div class="bg-purple-50 border border-purple-200 rounded-xl p-4 space-y-3">
+              <h5 class="font-semibold text-purple-900 text-sm">主题设置</h5>
+
+              <!-- 主题风格选择 - 浅色/深色 -->
+              <div class="space-y-2">
+                <label class="block text-xs font-medium text-slate-700">主题风格</label>
+                <select id="mobile-profile-theme-select" onchange="updateTheme()" class="select-field text-sm">
+                  <option value="light">浅色主题</option>
+                  <option value="dark">深色主题</option>
+                </select>
+              </div>
+
+              <!-- 主题样式选择 - 默认/二次元/简约 -->
+              <div class="space-y-2">
+                <label class="block text-xs font-medium text-slate-700">主题样式</label>
+                <!-- 样式选择按钮组 - 三列网格布局 -->
+                <div class="grid grid-cols-3 gap-2">
+                  <!-- 默认主题按钮 -->
+                  <button onclick="setThemeStyle('default')"
+                    class="py-2 px-2 bg-white border-2 border-slate-300 text-slate-700 rounded-lg text-xs font-medium hover:border-purple-500 hover:bg-purple-50 transition">
+                    默认
+                  </button>
+                  <!-- 二次元主题按钮 -->
+                  <button onclick="setThemeStyle('theme-anime')"
+                    class="py-2 px-2 bg-white border-2 border-slate-300 text-slate-700 rounded-lg text-xs font-medium hover:border-purple-500 hover:bg-purple-50 transition">
+                    二次元
+                  </button>
+                  <!-- 简约主题按钮 -->
+                  <button onclick="setThemeStyle('theme-minimalist')"
+                    class="py-2 px-2 bg-white border-2 border-slate-300 text-slate-700 rounded-lg text-xs font-medium hover:border-purple-500 hover:bg-purple-50 transition">
+                    简约
+                  </button>
+                </div>
+              </div>
+
+              <!-- 主题基础颜色选择 - 自定义主题色 -->
+              <div class="space-y-2">
+                <label class="block text-xs font-medium text-slate-700">主题基础颜色</label>
+                <div class="flex gap-2 items-center">
+                  <!-- 颜色拾取器 - 可视化选择颜色 -->
+                  <input type="color" id="mobile-profile-theme_base_color-picker" value="#7dd3fc"
+                    class="w-10 h-10 border border-slate-300 rounded cursor-pointer"
+                    onchange="onColorPicked(this.value); updateParam('theme_base_color', this.value);"
+                    title="点击选择颜色">
+                  <!-- 颜色值文本框 - 支持手动输入16进制颜色代码 -->
+                  <input type="text" id="mobile-profile-theme_base_color" value="#7dd3fc"
+                    class="input-field flex-1 font-mono text-xs" placeholder="#7dd3fc"
+                    onchange="onColorPicked(this.value); updateParam('theme_base_color', this.value);"
+                    pattern="^#[0-9A-Fa-f]{6}$" title="输入16进制颜色值">
+                  <!-- 恢复默认颜色按钮 -->
+                  <button onclick="resetBaseColorToDefault('mobile-profile')"
+                    class="py-2 px-3 bg-white border border-slate-300 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-50 transition whitespace-nowrap"
+                    title="恢复为默认颜色 #7dd3fc">
+                    重置
+                  </button>
+                </div>
+                <!-- 颜色功能说明 -->
+                <p class="text-xs text-slate-500">💡 自定义主题的主要色调</p>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -4771,6 +5114,25 @@
               <div class="text-xs text-slate-600">已停止</div>
             </div>
           </div>
+
+          <!-- ========== 批量执行选项 ========== -->
+          <!-- 多账号批量执行时的额外控制选项 -->
+          <div class="mt-4 pt-3 border-t border-slate-100 space-y-3">
+            <!-- 延迟设置 - 控制账号启动间隔，避免同时启动造成服务器压力 -->
+            <div class="flex items-center gap-3">
+              <label class="text-sm text-slate-700 font-semibold flex-shrink-0">启动延迟</label>
+              <input type="number" step="1" min="0" max="60" id="mobile-multi-delay-input"
+                class="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+                placeholder="秒" value="2" title="每个账号启动之间的延迟时间（秒）">
+              <span class="text-xs text-slate-500 flex-shrink-0">秒</span>
+            </div>
+            
+            <!-- 仅未完成复选框 - 只启动未完成的任务 -->
+            <label class="flex items-center gap-2 cursor-pointer p-2 bg-amber-50 rounded-lg hover:bg-amber-100 transition">
+              <input type="checkbox" id="mobile-multi-only-incomplete-check" class="w-4 h-4 accent-orange-600 rounded flex-shrink-0">
+              <span class="text-sm text-slate-700 font-semibold">仅启动未完成任务</span>
+            </label>
+          </div>
         </div>
 
         <!-- ========================================
@@ -4908,6 +5270,123 @@
         <!-- 底部关闭按钮 -->
         <div class="flex justify-end pt-2">
           <button class="mobile-primary-btn" onclick="toggleMobileTaskDetails(false)">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================
+         【移动端历史记录模态框】
+         - 显示任务的历史执行记录
+         - 点击记录可查看路径详情
+         ======================================== -->
+    <div id="mobile-history-modal" class="fixed inset-0 hidden mobile-modal z-50"
+      onclick="closeMobileHistoryModal()">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 - 从底部弹出 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto"
+        onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+          <h3 class="text-xl font-bold text-purple-600">历史记录</h3>
+          <!-- 任务名称显示 -->
+          <span id="mobile-history-task-name" class="text-sm text-slate-600 bg-purple-50 px-3 py-1 rounded-full"></span>
+        </div>
+        <!-- 历史记录列表容器 - 由JavaScript动态填充 -->
+        <div id="mobile-history-list-content" class="space-y-2 max-h-[60vh] overflow-y-auto">
+          <p class="text-slate-400 text-center py-10">加载中...</p>
+        </div>
+        <!-- 底部关闭按钮 -->
+        <div class="flex justify-end pt-2">
+          <button class="mobile-primary-btn" onclick="closeMobileHistoryModal()">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================
+         【移动端路径显示模态框】
+         - 显示历史记录的跑步路径
+         - 包含小地图和路径绘制
+         ======================================== -->
+    <div id="mobile-track-modal" class="fixed inset-0 hidden mobile-modal z-50"
+      onclick="closeMobileTrackModal()">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+        onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+          <h3 class="text-xl font-bold text-teal-600">跑步路径</h3>
+          <!-- 记录时间显示 -->
+          <span id="mobile-track-time" class="text-xs text-slate-600 bg-teal-50 px-2 py-1 rounded-full"></span>
+        </div>
+        
+        <!-- 路径信息摘要 -->
+        <div class="grid grid-cols-3 gap-2">
+          <!-- 距离 -->
+          <div class="p-2 bg-blue-50 rounded-lg text-center">
+            <p class="text-xs text-slate-500 mb-1">距离</p>
+            <p id="mobile-track-distance" class="font-bold text-sm text-blue-600">-- km</p>
+          </div>
+          <!-- 时长 -->
+          <div class="p-2 bg-green-50 rounded-lg text-center">
+            <p class="text-xs text-slate-500 mb-1">时长</p>
+            <p id="mobile-track-duration" class="font-bold text-sm text-green-600">--:--</p>
+          </div>
+          <!-- 配速 -->
+          <div class="p-2 bg-purple-50 rounded-lg text-center">
+            <p class="text-xs text-slate-500 mb-1">配速</p>
+            <p id="mobile-track-pace" class="font-bold text-sm text-purple-600">--:--</p>
+          </div>
+        </div>
+
+        <!-- 小地图容器 - 用于显示跑步路径 -->
+        <div class="bg-slate-100 rounded-xl overflow-hidden border-2 border-slate-200">
+          <div id="mobile-track-map-container" class="w-full h-[300px] relative">
+            <!-- 地图加载占位符 -->
+            <div class="absolute inset-0 flex items-center justify-center text-slate-400">
+              <div class="text-center">
+                <svg class="w-12 h-12 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+                <p class="text-sm">加载路径中...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 地图控制按钮组 -->
+        <div class="flex gap-2">
+          <button
+            class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+            onclick="mobileTrackZoomIn()">
+            放大 +
+          </button>
+          <button
+            class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+            onclick="mobileTrackZoomOut()">
+            缩小 -
+          </button>
+          <button
+            class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+            onclick="mobileTrackFitView()">
+            适应 ⊡
+          </button>
+        </div>
+
+        <!-- 底部关闭按钮 -->
+        <div class="flex justify-end pt-2 border-t border-slate-100">
+          <button class="mobile-primary-btn" onclick="closeMobileTrackModal()">关闭</button>
         </div>
       </div>
     </div>
@@ -5439,12 +5918,22 @@
           <span>设置</span>
         </a>
 
-        <!-- 8. 我的菜单项 - 打开用户详情模态框 -->
-        <a href="#" class="mobile-sidebar-item" onclick="toggleMobileUserDetails(true); closeMobileSidebar(); return false;">
+        <!-- 8. 我的资料菜单项 - 切换到个人资料面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-profile-panel', 'single'); closeMobileSidebar(); return false;">
           <!-- 用户图标：用户头像图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+          </svg>
+          <span>我的资料</span>
+        </a>
+
+        <!-- 9. 我的菜单项 - 打开用户详情模态框 -->
+        <a href="#" class="mobile-sidebar-item" onclick="toggleMobileUserDetails(true); closeMobileSidebar(); return false;">
+          <!-- 用户详情图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <span>我的</span>
         </a>
@@ -24607,6 +25096,100 @@ function run_code_not_need_sessionuuid(codeToRun) {
     }
 
     /**
+     * 加载移动端个人资料面板
+     * 功能说明：
+     * - 从PC端的个人资料面板同步数据到移动端
+     * - 复用PC端的loadProfileData函数
+     * - 将数据填充到mobile-profile-*开头的元素中
+     */
+    async function loadMobileProfile() {
+      try {
+        // 获取移动端资料内容容器
+        const container = document.getElementById('mobile-profile-content');
+        if (!container) return;
+
+        // 显示加载状态
+        showTempMessage('正在加载个人资料...', 'info');
+
+        // 从服务器获取个人资料数据
+        const response = await fetch('/api/profile', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!response.ok) {
+          throw new Error('获取个人资料失败');
+        }
+
+        const data = await response.json();
+
+        // 填充头像 - 使用与PC端相同的元素ID模式
+        const avatar = document.getElementById('mobile-profile-avatar-display');
+        if (avatar && data.avatar) {
+          avatar.src = data.avatar;
+        }
+
+        // 填充昵称
+        const nickname = document.getElementById('mobile-profile-nickname');
+        if (nickname && data.nickname) {
+          nickname.value = data.nickname;
+        }
+
+        // 填充手机号 - 如果有绑定的话
+        const phone = document.getElementById('mobile-profile-phone');
+        if (phone) {
+          phone.value = data.phone || '';
+        }
+
+        // 更新2FA状态显示
+        const twoFAStatus = document.getElementById('mobile-profile-2fa-enabled');
+        const twoFAActions = document.getElementById('mobile-profile-2fa-actions');
+        const twoFAEnabledActions = document.getElementById('mobile-profile-2fa-enabled-actions');
+        
+        if (data.two_factor_enabled) {
+          // 2FA已启用状态
+          if (twoFAStatus) {
+            twoFAStatus.textContent = '已启用 ✓';
+            twoFAStatus.className = 'font-medium text-green-600';
+          }
+          // 隐藏"生成2FA密钥"按钮，显示"测试/关闭"按钮
+          if (twoFAActions) twoFAActions.classList.add('hidden');
+          if (twoFAEnabledActions) twoFAEnabledActions.classList.remove('hidden');
+        } else {
+          // 2FA未启用状态
+          if (twoFAStatus) {
+            twoFAStatus.textContent = '未启用';
+            twoFAStatus.className = 'font-medium text-slate-600';
+          }
+          // 显示"生成2FA密钥"按钮，隐藏"测试/关闭"按钮
+          if (twoFAActions) twoFAActions.classList.remove('hidden');
+          if (twoFAEnabledActions) twoFAEnabledActions.classList.add('hidden');
+        }
+
+        // 加载主题设置 - 从localStorage或服务器获取
+        const themeSelect = document.getElementById('mobile-profile-theme-select');
+        const themeColorPicker = document.getElementById('mobile-profile-theme_base_color-picker');
+        const themeColorInput = document.getElementById('mobile-profile-theme_base_color');
+        
+        // 设置主题选择器的值
+        if (themeSelect && data.theme) {
+          themeSelect.value = data.theme;
+        }
+        
+        // 设置主题颜色
+        if (data.theme_base_color) {
+          if (themeColorPicker) themeColorPicker.value = data.theme_base_color;
+          if (themeColorInput) themeColorInput.value = data.theme_base_color;
+        }
+
+        showTempMessage('个人资料加载成功', 'success');
+      } catch (error) {
+        console.error('加载个人资料失败:', error);
+        showTempMessage('加载个人资料失败: ' + error.message, 'error');
+      }
+    }
+
+    /**
      * 切换移动端面板显示（类似Tab切换）
      * @param {string} panelId - 要显示的面板ID
      * @param {string} mode - 'single' 或 'multi'，指定是单账号模式还是多账号模式
@@ -24625,7 +25208,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-notification-panel',
         'mobile-log-panel',            // 新增：日志面板
         'mobile-attendance-panel',
-        'mobile-settings-panel'
+        'mobile-settings-panel',
+        'mobile-profile-panel'         // 新增：我的资料面板
       ];
 
       const multiModePanels = [
@@ -26821,6 +27405,483 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       console.log('[移动端] Phase 4b功能绑定完成');
     });
+
+    // ==================== Phase 4c - 移动端面板交互增强 ====================
+    
+    /**
+     * 【移动端历史记录模态框】相关函数
+     * 功能：显示/关闭历史记录模态框，加载历史记录列表
+     */
+    
+    // 全局变量：存储当前查看历史记录的任务ID
+    let currentHistoryTaskId = null;
+    
+    /**
+     * 打开移动端历史记录模态框
+     * @param {string} taskId - 任务ID
+     * @param {string} taskName - 任务名称
+     */
+    async function openMobileHistoryModal(taskId, taskName) {
+      // 保存当前任务ID，供后续使用
+      currentHistoryTaskId = taskId;
+      
+      // 获取模态框元素
+      const modal = document.getElementById('mobile-history-modal');
+      const taskNameEl = document.getElementById('mobile-history-task-name');
+      const listContent = document.getElementById('mobile-history-list-content');
+      
+      if (!modal) return;
+      
+      // 显示模态框
+      modal.classList.remove('hidden');
+      
+      // 设置任务名称
+      if (taskNameEl) {
+        taskNameEl.textContent = taskName || '未知任务';
+      }
+      
+      // 显示加载状态
+      if (listContent) {
+        listContent.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      }
+      
+      try {
+        // 从服务器获取历史记录数据
+        const response = await fetch(`/api/history/${taskId}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          throw new Error('获取历史记录失败');
+        }
+        
+        const data = await response.json();
+        
+        // 渲染历史记录列表
+        if (data && data.history && data.history.length > 0) {
+          let html = '';
+          data.history.forEach((record, index) => {
+            // 格式化时间
+            const date = new Date(record.timestamp);
+            const timeStr = date.toLocaleString('zh-CN');
+            
+            // 格式化距离和时长
+            const distKm = (record.distance / 1000).toFixed(2);
+            const minutes = Math.floor(record.duration / 60);
+            const seconds = record.duration % 60;
+            const durationStr = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            // 状态颜色映射
+            const statusColors = {
+              'completed': 'green',
+              'failed': 'red',
+              'partial': 'orange'
+            };
+            const statusColor = statusColors[record.status] || 'slate';
+            
+            // 状态文本映射
+            const statusTexts = {
+              'completed': '已完成',
+              'failed': '失败',
+              'partial': '部分完成'
+            };
+            const statusText = statusTexts[record.status] || record.status;
+            
+            // 生成历史记录项HTML
+            html += `
+              <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100 transition"
+                onclick="openMobileTrackModal('${record.id}', '${record.task_id}')">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs text-slate-600">${timeStr}</span>
+                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-${statusColor}-100 text-${statusColor}-700">${statusText}</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p class="text-xs text-slate-500">距离</p>
+                    <p class="font-bold text-sm text-blue-600">${distKm} km</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-slate-500">时长</p>
+                    <p class="font-bold text-sm text-green-600">${durationStr}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-slate-500">配速</p>
+                    <p class="font-bold text-sm text-purple-600">${record.pace || '--:--'}</p>
+                  </div>
+                </div>
+              </div>
+            `;
+          });
+          listContent.innerHTML = html;
+        } else {
+          listContent.innerHTML = '<p class="text-slate-400 text-center py-10">暂无历史记录</p>';
+        }
+      } catch (error) {
+        console.error('加载历史记录失败:', error);
+        if (listContent) {
+          listContent.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${error.message}</p>`;
+        }
+      }
+    }
+    
+    /**
+     * 关闭移动端历史记录模态框
+     */
+    function closeMobileHistoryModal() {
+      const modal = document.getElementById('mobile-history-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+      currentHistoryTaskId = null;
+    }
+    
+    /**
+     * 【移动端路径显示模态框】相关函数
+     * 功能：显示/关闭路径模态框，绘制跑步路径
+     */
+    
+    // 全局变量：存储路径模态框中的地图实例
+    let mobileTrackMapInstance = null;
+    let mobileTrackPolyline = null;
+    let mobileTrackMarkers = [];
+    
+    /**
+     * 打开移动端路径显示模态框
+     * @param {string} recordId - 历史记录ID
+     * @param {string} taskId - 任务ID
+     */
+    async function openMobileTrackModal(recordId, taskId) {
+      // 获取模态框元素
+      const modal = document.getElementById('mobile-track-modal');
+      if (!modal) return;
+      
+      // 显示模态框
+      modal.classList.remove('hidden');
+      
+      // 初始化地图
+      await initMobileTrackMap();
+      
+      try {
+        // 从服务器获取历史路径数据
+        const response = await fetch(`/api/get_historical_track?task_id=${taskId}&record_id=${recordId}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          throw new Error('获取路径数据失败');
+        }
+        
+        const data = await response.json();
+        
+        // 更新路径信息显示
+        const timeEl = document.getElementById('mobile-track-time');
+        const distEl = document.getElementById('mobile-track-distance');
+        const durEl = document.getElementById('mobile-track-duration');
+        const paceEl = document.getElementById('mobile-track-pace');
+        
+        if (timeEl && data.timestamp) {
+          const date = new Date(data.timestamp);
+          timeEl.textContent = date.toLocaleString('zh-CN');
+        }
+        
+        if (distEl && data.distance) {
+          distEl.textContent = `${(data.distance / 1000).toFixed(2)} km`;
+        }
+        
+        if (durEl && data.duration) {
+          const min = Math.floor(data.duration / 60);
+          const sec = data.duration % 60;
+          durEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+        
+        if (paceEl && data.pace) {
+          paceEl.textContent = data.pace;
+        }
+        
+        // 在地图上绘制路径
+        if (mobileTrackMapInstance && data.path && data.path.length > 0) {
+          // 清除之前的路径和标记
+          clearMobileTrackMap();
+          
+          // 转换路径坐标
+          const path = data.path.map(p => new AMapInstance.LngLat(p[0], p[1]));
+          
+          // 绘制路径线
+          mobileTrackPolyline = new AMapInstance.Polyline({
+            path: path,
+            strokeColor: '#3b82f6',
+            strokeWeight: 4,
+            strokeOpacity: 0.8,
+            map: mobileTrackMapInstance
+          });
+          
+          // 添加起点标记
+          if (path.length > 0) {
+            const startMarker = new AMapInstance.Marker({
+              position: path[0],
+              icon: new AMapInstance.Icon({
+                image: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#22c55e" width="32" height="32"><circle cx="12" cy="12" r="10"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="12" font-weight="bold">起</text></svg>'),
+                size: new AMapInstance.Size(32, 32)
+              }),
+              map: mobileTrackMapInstance
+            });
+            mobileTrackMarkers.push(startMarker);
+          }
+          
+          // 添加终点标记
+          if (path.length > 1) {
+            const endMarker = new AMapInstance.Marker({
+              position: path[path.length - 1],
+              icon: new AMapInstance.Icon({
+                image: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ef4444" width="32" height="32"><circle cx="12" cy="12" r="10"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="12" font-weight="bold">终</text></svg>'),
+                size: new AMapInstance.Size(32, 32)
+              }),
+              map: mobileTrackMapInstance
+            });
+            mobileTrackMarkers.push(endMarker);
+          }
+          
+          // 添加打卡点标记
+          if (data.checkpoints && data.checkpoints.length > 0) {
+            data.checkpoints.forEach((cp, idx) => {
+              const marker = new AMapInstance.Marker({
+                position: new AMapInstance.LngLat(cp[0], cp[1]),
+                icon: new AMapInstance.Icon({
+                  image: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#f59e0b" width="28" height="28"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><text x="12" y="12" text-anchor="middle" fill="white" font-size="8" font-weight="bold">${idx + 1}</text></svg>`),
+                  size: new AMapInstance.Size(28, 28)
+                }),
+                map: mobileTrackMapInstance
+              });
+              mobileTrackMarkers.push(marker);
+            });
+          }
+          
+          // 自适应地图视野
+          mobileTrackMapInstance.setFitView();
+        }
+      } catch (error) {
+        console.error('加载路径失败:', error);
+        showTempMessage('加载路径失败: ' + error.message, 'error');
+      }
+    }
+    
+    /**
+     * 初始化移动端路径地图
+     */
+    async function initMobileTrackMap() {
+      // 如果地图已存在，直接返回
+      if (mobileTrackMapInstance) return;
+      
+      // 确保高德地图API已加载
+      if (!AMapInstance) {
+        console.error('高德地图API未加载');
+        return;
+      }
+      
+      try {
+        // 创建地图实例
+        mobileTrackMapInstance = new AMapInstance.Map('mobile-track-map-container', {
+          viewMode: '2D',
+          zoom: 15,
+          center: [113.390342, 22.527403]
+        });
+      } catch (error) {
+        console.error('初始化路径地图失败:', error);
+      }
+    }
+    
+    /**
+     * 清除移动端路径地图上的所有标记和路径
+     */
+    function clearMobileTrackMap() {
+      // 清除路径线
+      if (mobileTrackPolyline) {
+        mobileTrackPolyline.setMap(null);
+        mobileTrackPolyline = null;
+      }
+      
+      // 清除所有标记
+      mobileTrackMarkers.forEach(marker => {
+        marker.setMap(null);
+      });
+      mobileTrackMarkers = [];
+    }
+    
+    /**
+     * 关闭移动端路径显示模态框
+     */
+    function closeMobileTrackModal() {
+      const modal = document.getElementById('mobile-track-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+      
+      // 清除地图内容
+      clearMobileTrackMap();
+      
+      // 销毁地图实例（可选，以节省资源）
+      if (mobileTrackMapInstance) {
+        mobileTrackMapInstance.destroy();
+        mobileTrackMapInstance = null;
+      }
+    }
+    
+    /**
+     * 移动端路径地图控制函数
+     */
+    function mobileTrackZoomIn() {
+      if (mobileTrackMapInstance) {
+        mobileTrackMapInstance.zoomIn();
+      }
+    }
+    
+    function mobileTrackZoomOut() {
+      if (mobileTrackMapInstance) {
+        mobileTrackMapInstance.zoomOut();
+      }
+    }
+    
+    function mobileTrackFitView() {
+      if (mobileTrackMapInstance) {
+        mobileTrackMapInstance.setFitView();
+      }
+    }
+    
+    /**
+     * 【移动端任务面板】长按和单击交互
+     * 功能：为任务列表项添加触摸事件监听
+     */
+    
+    // 长按计时器和状态
+    let taskLongPressTimer = null;
+    let taskLongPressed = false;
+    
+    /**
+     * 为任务列表项添加触摸事件监听器
+     * @param {HTMLElement} taskItem - 任务列表项元素
+     * @param {object} taskData - 任务数据对象
+     */
+    function attachTaskTouchHandlers(taskItem, taskData) {
+      if (!taskItem) return;
+      
+      // 触摸开始事件 - 启动长按计时器
+      taskItem.addEventListener('touchstart', (e) => {
+        taskLongPressed = false;
+        
+        // 设置长按计时器（500ms后触发长按事件）
+        taskLongPressTimer = setTimeout(() => {
+          taskLongPressed = true;
+          // 触发震动反馈（如果设备支持）
+          if (navigator.vibrate) {
+            navigator.vibrate(50);
+          }
+          // 打开历史记录模态框
+          openMobileHistoryModal(taskData.id, taskData.name);
+        }, 500);
+      });
+      
+      // 触摸移动事件 - 取消长按计时器
+      taskItem.addEventListener('touchmove', () => {
+        if (taskLongPressTimer) {
+          clearTimeout(taskLongPressTimer);
+          taskLongPressTimer = null;
+        }
+      });
+      
+      // 触摸结束事件 - 判断是否触发单击或长按
+      taskItem.addEventListener('touchend', (e) => {
+        // 清除长按计时器
+        if (taskLongPressTimer) {
+          clearTimeout(taskLongPressTimer);
+          taskLongPressTimer = null;
+        }
+        
+        // 如果是长按，则不触发单击事件
+        if (taskLongPressed) {
+          e.preventDefault();
+          return;
+        }
+        
+        // 单击事件 - 打开任务详情模态框
+        showMobileTaskDetails(taskData);
+      });
+      
+      // 触摸取消事件 - 清除长按计时器
+      taskItem.addEventListener('touchcancel', () => {
+        if (taskLongPressTimer) {
+          clearTimeout(taskLongPressTimer);
+          taskLongPressTimer = null;
+        }
+      });
+    }
+    
+    /**
+     * 显示移动端任务详情
+     * @param {object} taskData - 任务数据对象
+     */
+    function showMobileTaskDetails(taskData) {
+      const modal = document.getElementById('mobile-task-details-modal');
+      const content = document.getElementById('mobile-task-details-content');
+      
+      if (!modal || !content) return;
+      
+      // 构建任务详情HTML
+      let html = `
+        <div class="space-y-3">
+          <div class="flex items-center justify-between p-3 bg-sky-50 rounded-lg">
+            <span class="text-sm text-slate-600">任务名称</span>
+            <span class="font-semibold text-slate-800">${taskData.name || '未命名'}</span>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <div class="p-3 bg-blue-50 rounded-lg text-center">
+              <p class="text-xs text-slate-500 mb-1">距离</p>
+              <p class="font-bold text-lg text-blue-600">${taskData.distance ? (taskData.distance / 1000).toFixed(2) : '--'} km</p>
+            </div>
+            <div class="p-3 bg-green-50 rounded-lg text-center">
+              <p class="text-xs text-slate-500 mb-1">时长</p>
+              <p class="font-bold text-lg text-green-600">${taskData.duration || '--:--'}</p>
+            </div>
+          </div>
+          
+          <div class="p-3 bg-slate-50 rounded-lg">
+            <p class="text-xs text-slate-500 mb-1">状态</p>
+            <p class="font-semibold text-slate-800">${taskData.status || '未知'}</p>
+          </div>
+          
+          ${taskData.description ? `
+          <div class="p-3 bg-slate-50 rounded-lg">
+            <p class="text-xs text-slate-500 mb-1">描述</p>
+            <p class="text-sm text-slate-700">${taskData.description}</p>
+          </div>
+          ` : ''}
+        </div>
+      `;
+      
+      content.innerHTML = html;
+      
+      // 显示模态框
+      modal.classList.remove('hidden');
+    }
+    
+    /**
+     * 切换移动端任务详情模态框显示状态
+     * @param {boolean} show - 是否显示
+     */
+    function toggleMobileTaskDetails(show) {
+      const modal = document.getElementById('mobile-task-details-modal');
+      if (!modal) return;
+      
+      if (show) {
+        modal.classList.remove('hidden');
+      } else {
+        modal.classList.add('hidden');
+      }
+    }
+    
+    console.log('[移动端] Phase 4c功能已加载');
   </script>
 
 
