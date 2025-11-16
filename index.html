@@ -2004,6 +2004,31 @@
     </div>
   </div>
 
+  <!-- School Accounts Modal -->
+  <div id="school-accounts-modal" class="modal">
+    <div class="panel rounded-2xl w-full max-w-4xl p-6 space-y-4 relative bg-white/95 shadow-xl">
+      <button id="school-accounts-close"
+        class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-full transition-all">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+          <path fill-rule="evenodd"
+            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+            clip-rule="evenodd"></path>
+        </svg>
+      </button>
+      <h3 class="text-xl font-bold text-sky-700 text-center card-title">School Accounts 管理</h3>
+      <p class="text-sm text-slate-500 text-center -mt-2">查看所有认证用户的学校账户密码</p>
+
+      <div id="school-accounts-content" class="space-y-4 max-h-[60vh] overflow-y-auto">
+        <p class="text-slate-400 text-center py-10">加载中...</p>
+      </div>
+
+      <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+        <button id="school-accounts-refresh" class="btn btn-ghost">刷新</button>
+        <button id="school-accounts-ok" class="btn btn-primary">确定</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 加载遮罩层 -->
   <div id="loading-overlay" class="absolute inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/80">
     <div class="loader"></div>
@@ -5159,6 +5184,7 @@
           <div class="flex justify-between items-center">
             <h4 class="font-semibold">用户列表</h4>
             <div class="flex gap-2">
+              <button id="admin-view-school-accounts_modal" class="btn btn-secondary !py-1 !px-2">查看 School Accounts</button>
               <button id="admin-create-user_modal" class="btn btn-primary !py-1 !px-2">新增用户</button>
               <button id="admin-refresh-users_modal" class="btn btn-ghost !py-1 !px-2">刷新</button>
             </div>
@@ -10428,6 +10454,17 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (createUserModalBtn) createUserModalBtn.addEventListener('click', showCreateUserModal);
         if (createGroupModalBtn) createGroupModalBtn.addEventListener('click', showCreateGroupModal);
 
+        // School Accounts 按钮
+        const viewSchoolAccountsBtn = $('admin-view-school-accounts_modal');
+        if (viewSchoolAccountsBtn) viewSchoolAccountsBtn.addEventListener('click', showSchoolAccountsModal);
+        
+        const schoolAccountsClose = $('school-accounts-close');
+        const schoolAccountsOk = $('school-accounts-ok');
+        const schoolAccountsRefresh = $('school-accounts-refresh');
+        if (schoolAccountsClose) schoolAccountsClose.addEventListener('click', closeSchoolAccountsModal);
+        if (schoolAccountsOk) schoolAccountsOk.addEventListener('click', closeSchoolAccountsModal);
+        if (schoolAccountsRefresh) schoolAccountsRefresh.addEventListener('click', loadSchoolAccounts);
+
         // 上帝模式切换
         const godModeCheckbox = $('god-mode-checkbox');
         const godModeCheckboxModal = $('god-mode-checkbox_modal');
@@ -12333,6 +12370,90 @@ function run_code_not_need_sessionuuid(codeToRun) {
       modal.classList.remove('hidden');
       modal.classList.add('flex');
     }
+
+    // ========== School Accounts Modal ==========
+    function showSchoolAccountsModal() {
+      const modal = $('school-accounts-modal');
+      if (modal) {
+        modal.style.display = 'flex';
+        loadSchoolAccounts();
+      }
+    }
+
+    function closeSchoolAccountsModal() {
+      const modal = $('school-accounts-modal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    async function loadSchoolAccounts() {
+      const content = $('school-accounts-content');
+      if (!content) return;
+
+      content.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+      try {
+        const response = await fetch('/auth/admin/get_all_users_school_accounts', {
+          headers: {
+            'X-Session-ID': sessionId
+          }
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+          content.innerHTML = `<p class="text-red-500 text-center py-10">${data.message || '加载失败'}</p>`;
+          return;
+        }
+
+        const allAccounts = data.all_accounts;
+        
+        if (Object.keys(allAccounts).length === 0) {
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">暂无数据</p>';
+          return;
+        }
+
+        let html = '';
+        for (const [authUsername, accounts] of Object.entries(allAccounts)) {
+          const accountCount = Object.keys(accounts).length;
+          html += `
+            <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
+              <h4 class="font-semibold text-slate-800 mb-3">认证用户: ${escapeHtml(authUsername)} <span class="text-sm text-slate-500">(${accountCount} 个学校账户)</span></h4>
+              <div class="space-y-2">
+          `;
+          
+          if (accountCount === 0) {
+            html += '<p class="text-slate-400 text-sm">暂无学校账户</p>';
+          } else {
+            for (const [schoolUsername, password] of Object.entries(accounts)) {
+              html += `
+                <div class="flex justify-between items-center bg-white p-3 rounded border border-slate-200">
+                  <div class="flex-1">
+                    <span class="font-medium text-slate-700">${escapeHtml(schoolUsername)}</span>
+                  </div>
+                  <div class="flex-1 font-mono text-sm text-slate-600">
+                    ${escapeHtml(password)}
+                  </div>
+                </div>
+              `;
+            }
+          }
+          
+          html += `
+              </div>
+            </div>
+          `;
+        }
+
+        content.innerHTML = html;
+
+      } catch (error) {
+        console.error('加载 school accounts 失败:', error);
+        content.innerHTML = '<p class="text-red-500 text-center py-10">加载失败，请检查网络连接</p>';
+      }
+    }
+
 
     function closeCreateGroupModal() {
       const modal = $('create-group-modal');
