@@ -6,6 +6,8 @@
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js" onerror="handleCdnError('Socket.IO')"></script>
   <meta charset="UTF-8">
   <title>跑步助手</title>
+  <!-- Task 1: 添加Favicon图标，用于在浏览器标签页显示网站图标 -->
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="https://cdn.tailwindcss.com" onerror="handleCdnError()"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -86,6 +88,261 @@
       /* 稍微减小圆角 */
     }
 
+    /* Task 13: 深色主题 (Dark Mode) */
+    /* 当body具有dark-mode类时，应用深色主题样式 */
+    body.dark-mode {
+      /* 深色背景渐变 - 从深蓝到深紫 */
+      background: linear-gradient(180deg, rgba(17, 24, 39, 1) 0%, rgba(31, 41, 55, 1) 40%, rgba(55, 48, 68, 1) 100%);
+      background-attachment: fixed;
+      /* 深色主题下的文字颜色 */
+      color: #e5e7eb;
+    }
+
+    /* 深色主题下的面板样式 */
+    body.dark-mode .panel {
+      background-color: rgba(31, 41, 55, 0.8);
+      /* 深灰色半透明背景 */
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(75, 85, 99, 0.5);
+      /* 深色边框 */
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+      /* 更深的阴影 */
+    }
+
+    /* 深色主题下的输入框样式 */
+    body.dark-mode .input-field,
+    body.dark-mode .select-field,
+    body.dark-mode input[type="text"],
+    body.dark-mode input[type="password"],
+    body.dark-mode input[type="email"],
+    body.dark-mode input[type="tel"],
+    body.dark-mode input[type="number"],
+    body.dark-mode textarea,
+    body.dark-mode select {
+      background-color: rgba(55, 65, 81, 0.8);
+      /* 深灰色背景 */
+      border-color: rgba(107, 114, 128, 0.5);
+      /* 深灰色边框 */
+      color: #e5e7eb;
+      /* 浅色文字 */
+    }
+
+    /* 深色主题下的输入框聚焦效果 */
+    body.dark-mode .input-field:focus,
+    body.dark-mode .select-field:focus,
+    body.dark-mode input:focus,
+    body.dark-mode textarea:focus,
+    body.dark-mode select:focus {
+      border-color: rgba(96, 165, 250, 0.8);
+      /* 蓝色高亮边框 */
+      box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+    }
+
+    /* 深色主题下的按钮样式 */
+    body.dark-mode .btn {
+      background-color: rgba(55, 65, 81, 0.9);
+      color: #e5e7eb;
+      border-color: rgba(107, 114, 128, 0.5);
+    }
+
+    body.dark-mode .btn:hover {
+      background-color: rgba(75, 85, 99, 1);
+    }
+
+    /* 深色主题下的主要按钮 */
+    body.dark-mode .btn-primary {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      border: none;
+    }
+
+    body.dark-mode .btn-primary:hover {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    }
+
+    /* 深色主题下的成功按钮 */
+    body.dark-mode .btn-success {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+    }
+
+    body.dark-mode .btn-success:hover {
+      background: linear-gradient(135deg, #059669, #047857);
+    }
+
+    /* 深色主题下的警告按钮 */
+    body.dark-mode .btn-warning {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: white;
+    }
+
+    /* 深色主题下的模态框样式 */
+    body.dark-mode .modal-content {
+      background: linear-gradient(135deg, rgba(31, 41, 55, 0.95), rgba(55, 65, 81, 0.95));
+      border: 1px solid rgba(107, 114, 128, 0.5);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    body.dark-mode .modal-content h3 {
+      color: #e5e7eb;
+    }
+
+    /* 深色主题下的表格样式 */
+    body.dark-mode table {
+      background-color: rgba(31, 41, 55, 0.5);
+      color: #e5e7eb;
+    }
+
+    body.dark-mode table th {
+      background-color: rgba(55, 65, 81, 0.8);
+      color: #f3f4f6;
+      border-bottom: 2px solid rgba(107, 114, 128, 0.5);
+    }
+
+    body.dark-mode table td {
+      border-bottom: 1px solid rgba(75, 85, 99, 0.3);
+    }
+
+    body.dark-mode table tr:hover {
+      background-color: rgba(55, 65, 81, 0.6);
+    }
+
+    /* 深色主题下的卡片样式 */
+    body.dark-mode .bg-slate-50 {
+      background-color: rgba(55, 65, 81, 0.5) !important;
+    }
+
+    body.dark-mode .border-slate-200 {
+      border-color: rgba(107, 114, 128, 0.5) !important;
+    }
+
+    body.dark-mode .text-slate-700 {
+      color: #d1d5db !important;
+    }
+
+    body.dark-mode .text-slate-600 {
+      color: #e5e7eb !important;
+    }
+
+    body.dark-mode .text-slate-400 {
+      color: #9ca3af !important;
+    }
+
+    /* 深色主题下的链接样式 */
+    body.dark-mode a {
+      color: #60a5fa;
+    }
+
+    body.dark-mode a:hover {
+      color: #93c5fd;
+    }
+
+    /* 深色主题下的滚动条样式 */
+    body.dark-mode ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    body.dark-mode ::-webkit-scrollbar-track {
+      background: rgba(31, 41, 55, 0.5);
+    }
+
+    body.dark-mode ::-webkit-scrollbar-thumb {
+      background: rgba(107, 114, 128, 0.8);
+      border-radius: 5px;
+    }
+
+    body.dark-mode ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.9);
+    }
+
+    /* 深色主题下的登录页面装饰元素 */
+    body.dark-mode #login-container .bg-gradient-to-br {
+      background: linear-gradient(135deg, rgba(31, 41, 55, 0.8), rgba(55, 65, 81, 0.8)) !important;
+    }
+
+    /* 深色主题下的通知和提示样式 */
+    body.dark-mode .bg-red-50 {
+      background-color: rgba(127, 29, 29, 0.3) !important;
+    }
+
+    body.dark-mode .bg-green-50 {
+      background-color: rgba(6, 78, 59, 0.3) !important;
+    }
+
+    body.dark-mode .bg-blue-50 {
+      background-color: rgba(30, 58, 138, 0.3) !important;
+    }
+
+    body.dark-mode .bg-yellow-50 {
+      background-color: rgba(120, 53, 15, 0.3) !important;
+    }
+
+    /* 深色主题下的边框颜色调整 */
+    body.dark-mode .border-red-200 {
+      border-color: rgba(220, 38, 38, 0.5) !important;
+    }
+
+    body.dark-mode .border-green-200 {
+      border-color: rgba(34, 197, 94, 0.5) !important;
+    }
+
+    body.dark-mode .border-blue-200 {
+      border-color: rgba(59, 130, 246, 0.5) !important;
+    }
+
+    body.dark-mode .border-yellow-200 {
+      border-color: rgba(234, 179, 8, 0.5) !important;
+    }
+
+    /* 深色主题下的拟态弹窗样式调整 */
+    body.dark-mode .modal-content.neumorphic,
+    body.dark-mode .neumorphic-modal .modal-content {
+      background: #2d3748;
+      box-shadow: 
+        12px 12px 24px rgba(0, 0, 0, 0.6),
+        -12px -12px 24px rgba(74, 85, 104, 0.4);
+    }
+
+    body.dark-mode .modal-content.neumorphic input,
+    body.dark-mode .neumorphic-modal .modal-content input,
+    body.dark-mode .modal-content.neumorphic select,
+    body.dark-mode .neumorphic-modal .modal-content select,
+    body.dark-mode .modal-content.neumorphic textarea,
+    body.dark-mode .neumorphic-modal .modal-content textarea {
+      background: #2d3748;
+      color: #e5e7eb;
+      box-shadow: 
+        inset 4px 4px 8px rgba(0, 0, 0, 0.5),
+        inset -4px -4px 8px rgba(74, 85, 104, 0.3);
+    }
+
+    body.dark-mode .modal-content.neumorphic button,
+    body.dark-mode .neumorphic-modal .modal-content button {
+      background: #2d3748;
+      color: #e5e7eb;
+      box-shadow: 
+        6px 6px 12px rgba(0, 0, 0, 0.6),
+        -6px -6px 12px rgba(74, 85, 104, 0.4);
+    }
+
+    /* 深色主题 + 二次元主题混合效果 */
+    body.dark-mode.theme-anime {
+      /* 保持二次元背景图，但添加深色遮罩 */
+      background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('https://api.paugram.com/wallpaper');
+    }
+
+    /* 深色主题 + 简约主题混合效果 */
+    body.dark-mode.theme-minimalist {
+      background: #1a202c;
+    }
+
+    body.dark-mode.theme-minimalist .panel {
+      background-color: #2d3748;
+      border: 1px solid #4a5568;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+
     /* 下拉选择框文本不换行，避免多行挤压导致“看起来不齐全” */
     #multi-config-user-select {
       white-space: nowrap;
@@ -105,8 +362,8 @@
       overflow: hidden;
     }
 
-    /* 模态框背景 */
-
+    /* Task 2: 模态框背景 - 统一弹窗风格 */
+    /* 所有模态框都使用统一的背景和居中布局 */
     .modal {
       display: none;
       position: fixed;
@@ -122,6 +379,102 @@
       /* display 将由 JS 控制为 'flex' 以实现居中 */
       align-items: center;
       justify-content: center;
+    }
+
+    /* Task 2: 拟态弹窗（Neumorphic）样式 - 统一所有弹窗的视觉风格 */
+    /* 拟态弹窗使用柔和的浮雕效果，通过双层阴影（高光+阴影）创建立体感 */
+    .modal-content.neumorphic,
+    .neumorphic-modal .modal-content {
+      /* 使用柔和的浅色背景 */
+      background: #e8ecf4;
+      /* 拟态核心：外凸效果 - 左上浅色高光 + 右下深色阴影 */
+      box-shadow: 
+        12px 12px 24px rgba(163, 177, 198, 0.6),    /* 右下深色阴影，营造凹陷感 */
+        -12px -12px 24px rgba(255, 255, 255, 0.8);  /* 左上高光，营造凸起感 */
+      border: none; /* 移除边框，拟态风格不需要明显边框 */
+      border-radius: 20px; /* 使用更大的圆角以配合柔和风格 */
+    }
+
+    /* 拟态弹窗内的输入框样式 - 内凹效果 */
+    .modal-content.neumorphic input,
+    .neumorphic-modal .modal-content input,
+    .modal-content.neumorphic select,
+    .neumorphic-modal .modal-content select,
+    .modal-content.neumorphic textarea,
+    .neumorphic-modal .modal-content textarea {
+      /* 输入框使用内凹拟态效果（与容器相反） */
+      background: #e8ecf4;
+      border: none;
+      /* 内凹核心：左上深色阴影 + 右下浅色高光（与外凸相反） */
+      box-shadow: 
+        inset 4px 4px 8px rgba(163, 177, 198, 0.5),   /* 内部右下阴影 */
+        inset -4px -4px 8px rgba(255, 255, 255, 0.7); /* 内部左上高光 */
+      border-radius: 10px;
+      padding: 10px 14px;
+      transition: all 0.3s ease;
+    }
+
+    /* 输入框聚焦时的效果 - 加深内凹感 */
+    .modal-content.neumorphic input:focus,
+    .neumorphic-modal .modal-content input:focus,
+    .modal-content.neumorphic select:focus,
+    .neumorphic-modal .modal-content select:focus,
+    .modal-content.neumorphic textarea:focus,
+    .neumorphic-modal .modal-content textarea:focus {
+      outline: none;
+      /* 聚焦时加深阴影，增强内凹感 */
+      box-shadow: 
+        inset 6px 6px 12px rgba(163, 177, 198, 0.7),
+        inset -6px -6px 12px rgba(255, 255, 255, 0.5);
+    }
+
+    /* 拟态弹窗内的按钮样式 - 可按压的外凸效果 */
+    .modal-content.neumorphic button,
+    .neumorphic-modal .modal-content button {
+      background: #e8ecf4;
+      border: none;
+      /* 按钮默认为外凸效果 */
+      box-shadow: 
+        6px 6px 12px rgba(163, 177, 198, 0.6),
+        -6px -6px 12px rgba(255, 255, 255, 0.8);
+      border-radius: 12px;
+      padding: 10px 20px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    /* 按钮悬停时的效果 - 轻微放大 */
+    .modal-content.neumorphic button:hover,
+    .neumorphic-modal .modal-content button:hover {
+      transform: translateY(-2px);
+      /* 悬停时增强阴影 */
+      box-shadow: 
+        8px 8px 16px rgba(163, 177, 198, 0.7),
+        -8px -8px 16px rgba(255, 255, 255, 0.9);
+    }
+
+    /* 按钮按下时的效果 - 变为内凹（模拟按压） */
+    .modal-content.neumorphic button:active,
+    .neumorphic-modal .modal-content button:active {
+      transform: translateY(0);
+      /* 按下时使用内凹阴影 */
+      box-shadow: 
+        inset 4px 4px 8px rgba(163, 177, 198, 0.6),
+        inset -4px -4px 8px rgba(255, 255, 255, 0.7);
+    }
+
+    /* 确认按钮的特殊颜色 - 使用主题色 */
+    .modal-content.neumorphic button.btn-primary,
+    .neumorphic-modal .modal-content button.btn-primary {
+      background: linear-gradient(145deg, #7aa3ff, #6b8ee6);
+      color: white;
+      font-weight: 600;
+    }
+
+    /* 确认按钮悬停效果 */
+    .modal-content.neumorphic button.btn-primary:hover,
+    .neumorphic-modal .modal-content button.btn-primary:hover {
+      background: linear-gradient(145deg, #8ab3ff, #7b9ef6);
     }
 
 
@@ -2363,6 +2716,18 @@
   <div id="desktop-container">
     <!-- 登录界面 -->
     <div id="login-container" class="w-full h-full grid grid-cols-1 lg:grid-cols-3">
+      <!-- Task 3: 退出应用按钮 - 添加在登录容器的右上角 -->
+      <!-- 使用绝对定位，确保按钮在所有内容之上，且位于右上角 -->
+      <button id="exit-app-btn" 
+              class="absolute top-4 right-4 z-50 btn btn-ghost !py-2 !px-4 bg-white/80 backdrop-blur-sm shadow-lg hover:bg-red-50 hover:text-red-600 transition-all duration-300 rounded-xl border border-slate-200"
+              title="退出应用">
+        <!-- 退出图标 -->
+        <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+        退出应用
+      </button>
+      
       <div
         class="flex flex-col items-center justify-center p-8 lg:p-12 bg-gradient-to-br from-purple-50 via-violet-50 to-purple-100 relative overflow-hidden">
         <!-- 背景装饰圆形 - 增加视觉深度 -->
@@ -5408,12 +5773,72 @@
               </div>
             </div>
 
+            <!-- Task 6: 主题设置 - 已从参数设置迁移到个人信息标签页 -->
             <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
               <h5 class="font-semibold text-slate-700 mb-3">主题设置</h5>
-              <select id="profile-theme-select" onchange="updateTheme()" class="select-field">
-                <option value="light">浅色主题</option>
-                <option value="dark">深色主题</option>
-              </select>
+              
+              <!-- 主题风格选择 -->
+              <div class="space-y-2">
+                <label class="block text-sm font-semibold text-slate-700">主题风格</label>
+                <select id="profile-theme-select" onchange="updateTheme()" class="select-field">
+                  <option value="light">浅色主题</option>
+                  <option value="dark">深色主题</option>
+                </select>
+              </div>
+              
+              <!-- 主题样式选择 -->
+              <div class="space-y-2">
+                <label class="block text-sm font-semibold text-slate-700">主题样式</label>
+                <div class="grid grid-cols-3 gap-2">
+                  <!-- 默认主题按钮 -->
+                  <button onclick="setThemeStyle('default')" 
+                          class="btn btn-ghost !py-2 text-sm border border-slate-300 hover:border-sky-500">
+                    默认
+                  </button>
+                  <!-- 二次元主题按钮 -->
+                  <button onclick="setThemeStyle('theme-anime')" 
+                          class="btn btn-ghost !py-2 text-sm border border-slate-300 hover:border-sky-500">
+                    二次元
+                  </button>
+                  <!-- 简约主题按钮 -->
+                  <button onclick="setThemeStyle('theme-minimalist')" 
+                          class="btn btn-ghost !py-2 text-sm border border-slate-300 hover:border-sky-500">
+                    简约
+                  </button>
+                </div>
+              </div>
+              
+              <!-- 主题基础颜色选择 -->
+              <div class="space-y-2">
+                <label class="block text-sm font-semibold text-slate-700">主题基础颜色</label>
+                <div class="flex gap-2 items-center">
+                  <!-- 颜色选择器（拾色器） -->
+                  <input type="color" 
+                         id="profile-theme_base_color-picker" 
+                         value="#7dd3fc"
+                         class="w-12 h-10 border border-slate-300 rounded cursor-pointer"
+                         onchange="onColorPicked(this.value); updateParam('theme_base_color', this.value);"
+                         title="点击选择颜色">
+                  
+                  <!-- 颜色值文本输入框（支持手动输入16进制颜色值） -->
+                  <input type="text" 
+                         id="profile-theme_base_color" 
+                         value="#7dd3fc"
+                         class="input-field flex-1 font-mono text-sm"
+                         placeholder="#7dd3fc"
+                         onchange="onColorPicked(this.value); updateParam('theme_base_color', this.value);"
+                         pattern="^#[0-9A-Fa-f]{6}$"
+                         title="输入16进制颜色值，如 #7dd3fc">
+                  
+                  <!-- 恢复默认颜色按钮 -->
+                  <button onclick="resetBaseColorToDefault('profile')" 
+                          class="btn btn-ghost border border-slate-300 !py-2 !px-3 text-sm whitespace-nowrap hover:bg-slate-100"
+                          title="恢复为默认颜色 #7dd3fc">
+                    恢复默认
+                  </button>
+                </div>
+                <p class="text-xs text-slate-500">💡 自定义主题的主要色调，影响按钮、边框等元素颜色</p>
+              </div>
             </div>
 
           </div>
@@ -9068,6 +9493,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
     };
 
     // 参数分组定义
+    // Task 6: 参数组配置 - 主题设置已迁移到个人信息标签页
     const paramGroups = [
       {
         title: "采样与速度",
@@ -9085,10 +9511,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         title: "自动生成目标",
         keys: ["min_time_m", "max_time_m", "min_dist_m"]
       },
-      {
-        title: "主题与外观",
-        keys: ["theme_style", "theme_base_color"]
-      },
+      // Task 6: "主题与外观" 组已被移除，主题设置已迁移到个人信息标签页
       {
         title: "自动签到",
         keys: ["auto_attendance_enabled", "auto_attendance_refresh_s", "attendance_user_radius_m"]
@@ -9165,9 +9588,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
 
 
-    // --- 新增：主题风格切换 ---
+    // Task 6 & Task 13: 主题风格切换函数 - 支持深色模式
+    // 切换主题样式（默认、二次元、简约）
     function setThemeStyle(styleName) {
-      // 移除 body 上所有可能的主题 class
+      // 移除 body 上所有可能的主题样式 class（但不移除dark-mode）
       document.body.classList.remove('theme-anime', 'theme-minimalist');
 
       // 如果不是默认主题，则添加对应的 class
@@ -9175,10 +9599,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
         document.body.classList.add(styleName);
       }
 
-      // 更新按钮的选中状态
-      const themeButtons = document.querySelectorAll('#params-tab .grid button[onclick^="setThemeStyle"]');
+      // 更新按钮的选中状态（仅在个人信息面板中）
+      const themeButtons = document.querySelectorAll('#admin-profile-panel_modal button[onclick^="setThemeStyle"]');
       themeButtons.forEach(btn => {
-        if (btn.getAttribute('onclick') === `setThemeStyle('${styleName}')`) {
+        const onclickValue = btn.getAttribute('onclick');
+        if (onclickValue && onclickValue.includes(`'${styleName}'`)) {
           btn.classList.add('border-2', 'border-sky-500'); // 高亮选中
         } else {
           btn.classList.remove('border-2', 'border-sky-500');
@@ -9187,7 +9612,45 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       // 调用 Python 后端保存设置
       callPythonAPI('update_param', 'theme_style', styleName);
-      logMessage_Info(`主题已切换为: ${styleName}`);
+      logMessage_Info(`主题样式已切换为: ${styleName}`);
+    }
+    
+    // Task 6 & Task 13: 应用并保存主题（深色/浅色模式）
+    // 此函数负责切换深色/浅色主题，并保存到后端
+    function applyAndSaveTheme(theme) {
+      // 根据主题值添加或移除dark-mode类
+      if (theme === 'dark') {
+        // 添加深色模式类
+        document.body.classList.add('dark-mode');
+        logMessage_Info('[主题] 已应用深色模式');
+      } else {
+        // 移除深色模式类（浅色主题）
+        document.body.classList.remove('dark-mode');
+        logMessage_Info('[主题] 已应用浅色模式');
+      }
+      
+      // 保存主题设置到后端（通过用户配置API）
+      // 注意：这里需要调用用户配置更新API，而不是参数API
+      // 因为theme是用户级别的设置，不是全局参数
+      try {
+        fetch('/auth/user/update_theme', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ theme: theme })
+        }).then(response => response.json())
+          .then(result => {
+            if (result.success) {
+              logMessage_Info(`[主题] 主题设置已保存: ${theme}`);
+            } else {
+              logMessage_Warning(`[主题] 保存主题设置失败: ${result.message}`);
+            }
+          });
+      } catch (e) {
+        logMessage_Error('[主题] 保存主题设置时出错:', e);
+      }
     }
 
 
@@ -9585,8 +10048,14 @@ function run_code_not_need_sessionuuid(codeToRun) {
       confirmBtn.textContent = '发送中...';
       
       try {
-        // 调用实际的SMS发送函数
-        await sendSMSWithCaptcha(pendingSMSContext.phone, captcha, pendingSMSContext.button, pendingSMSContext.originalText);
+        // Task 9: 调用实际的SMS发送函数，传递scene参数
+        await sendSMSWithCaptcha(
+          pendingSMSContext.phone, 
+          captcha, 
+          pendingSMSContext.button, 
+          pendingSMSContext.originalText,
+          pendingSMSContext.scene // 传递场景参数（如'modify'）
+        );
         
         // 成功后关闭模态窗
         closeCaptchaModal();
@@ -9607,9 +10076,22 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * @param {string} captcha - 图形验证码
      * @param {HTMLElement} button - 发送按钮元素
      * @param {string} originalText - 按钮原始文本
+     * @param {string} scene - 场景（如'modify'、'register'等）
      */
-    async function sendSMSWithCaptcha(phone, captcha, button, originalText) {
+    async function sendSMSWithCaptcha(phone, captcha, button, originalText, scene = null) {
       try {
+        // Task 9: 构建请求体，包含scene参数
+        const requestBody = {
+          phone: phone,
+          captcha: captcha,
+          captcha_id: captchaIds.modal  // 使用模态窗的验证码ID
+        };
+        
+        // 如果有场景参数，添加到请求体中
+        if (scene) {
+          requestBody.scene = scene;
+        }
+        
         // 调用后端API发送短信验证码
         const response = await fetch('/api/sms/send_code', {
           method: 'POST',
@@ -9617,11 +10099,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
             'Content-Type': 'application/json',
             'X-Session-ID': sessionUUID
           },
-          body: JSON.stringify({
-            phone: phone,
-            captcha: captcha,
-            captcha_id: captchaIds.modal  // 使用模态窗的验证码ID
-          })
+          body: JSON.stringify(requestBody)
         });
 
         const result = await response.json();
@@ -10294,6 +10772,53 @@ function run_code_not_need_sessionuuid(codeToRun) {
           if (e.key === 'Enter') handleAuthRegister();
         });
 
+        // Task 8: 添加更多Enter键响应支持
+        // 为多个输入框添加Enter键监听，提升用户体验
+        
+        // 1. 认证登录的图形验证码输入框 - 按Enter触发登录
+        const authLoginCaptcha = $('auth-login-captcha');
+        if (authLoginCaptcha) {
+          authLoginCaptcha.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+              // 按Enter键时触发登录操作
+              handleAuthLogin();
+            }
+          });
+        }
+        
+        // 2. 认证注册的图形验证码输入框 - 按Enter触发注册
+        const authRegisterCaptcha = $('auth-register-captcha');
+        if (authRegisterCaptcha) {
+          authRegisterCaptcha.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+              // 按Enter键时触发注册操作
+              handleAuthRegister();
+            }
+          });
+        }
+        
+        // 3. 个人信息面板的确认密码输入框 - 按Enter触发密码修改
+        const profileConfirmPassword = $('profile-confirm-password');
+        if (profileConfirmPassword) {
+          profileConfirmPassword.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+              // 按Enter键时触发密码修改操作
+              updatePassword();
+            }
+          });
+        }
+        
+        // 4. 修改手机号的验证码输入框 - 按Enter触发手机号确认修改
+        const modifyPhoneCode = $('modify-phone-code');
+        if (modifyPhoneCode) {
+          modifyPhoneCode.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+              // 按Enter键时触发手机号确认修改操作
+              confirmModifyPhone();
+            }
+          });
+        }
+
         // 管理面板按钮（多个位置）
         const adminPanelBtn = $('show-admin-panel');
         if (adminPanelBtn) adminPanelBtn.addEventListener('click', () => toggleAdminPanel(true));
@@ -10303,6 +10828,33 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
         const adminPanelBtnMulti = $('show-admin-panel-multi');
         if (adminPanelBtnMulti) adminPanelBtnMulti.addEventListener('click', () => toggleAdminPanel(true));
+
+        // Task 3: 退出应用按钮事件监听器
+        // 当用户点击退出应用按钮时，弹出确认对话框，确认后调用关闭API
+        const exitAppBtn = $('exit-app-btn');
+        if (exitAppBtn) {
+          exitAppBtn.addEventListener('click', async () => {
+            // 使用jsShowConfirm显示确认对话框，询问用户是否真的要退出
+            const confirmed = await jsShowConfirm('退出应用', '您确定要退出跑步助手应用吗？');
+            // 如果用户取消，直接返回，不执行任何操作
+            if (!confirmed) return;
+            
+            try {
+              // 调用后端的shutdown API来关闭应用程序
+              await callPythonAPI_raw('/api/shutdown', 'POST');
+              // API调用成功后，显示提示信息
+              jsShowAlert('应用即将关闭...', 'success');
+              // 延迟1秒后尝试关闭窗口（如果是Electron等桌面环境）
+              setTimeout(() => {
+                window.close(); // 尝试关闭窗口
+              }, 1000);
+            } catch (error) {
+              // 如果API调用失败，显示错误信息
+              console.error('[退出应用] 调用shutdown API失败:', error);
+              jsShowAlert('退出应用失败: ' + (error.message || '未知错误'), 'error');
+            }
+          });
+        }
 
         // 内联面板（登录页面）不再显示标签页 - 仅显示会话信息
         // 所有标签页切换功能仅用于模态对话框面板
@@ -10339,6 +10891,25 @@ function run_code_not_need_sessionuuid(codeToRun) {
           // SSL管理标签
           const modalSslTab = $('admin-tab-ssl_modal');
           if (modalSslTab) modalSslTab.addEventListener('click', () => switchAdminTab('ssl'));
+
+          // Task 4: 标签页滚轮导航
+          // 为管理面板的标签页导航栏添加鼠标滚轮事件监听
+          // 当用户在标签栏上滚动鼠标滚轮时，将垂直滚动转换为水平滚动
+          // 这样可以更方便地浏览所有标签页，特别是在标签页很多的情况下
+          const tabsContainer = modalAdminPanel.querySelector('.flex.border-b-2.border-slate-200');
+          if (tabsContainer) {
+            // 添加wheel事件监听器来捕获鼠标滚轮事件
+            tabsContainer.addEventListener('wheel', (event) => {
+              // 阻止默认的垂直滚动行为
+              event.preventDefault();
+              // 将垂直滚动量（deltaY）转换为水平滚动
+              // deltaY > 0 表示向下滚动，我们将其转换为向右滚动
+              // deltaY < 0 表示向上滚动，我们将其转换为向左滚动
+              tabsContainer.scrollLeft += event.deltaY;
+            }, { passive: false }); // passive: false 允许我们调用preventDefault()
+            
+            logMessage_Info('[标签页导航] 已添加滚轮水平滚动支持');
+          }
 
           logMessage_Info("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
         } else {
@@ -10852,11 +11423,13 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (groupsTab) groupsTab.style.display = canManageUsers ? 'block' : 'none';
         // ===================================================================
         // 【修复2】管理员标签页显示逻辑
-        // 功能说明：根据canViewLogs权限控制日志和健康状态标签的显示
-        // 权限要求：需要'view_logs'权限（管理员组默认拥有此权限）
+        // 功能说明：根据canViewLogs权限控制日志标签的显示
+        // Task 5: 权限修复 - 确认groupsTab只对有权限的用户显示
+        // Task 5: 权限修复 - healthTab对所有用户可见（包括普通用户）
         // ===================================================================
         if (logsTab) logsTab.style.display = canViewLogs ? 'block' : 'none';
-        if (healthTab) healthTab.style.display = canViewLogs ? 'block' : 'none';
+        // Task 5: 健康状态标签对所有用户可见，不再受canViewLogs权限限制
+        if (healthTab) healthTab.style.display = 'block';
 
 
         // 问题2修复：IP封禁和短信配置标签只对管理员显示
@@ -10876,11 +11449,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (sslTab) sslTab.style.display = canManageUsers ? 'block' : 'none';
 
         // 游客模式：只显示会话管理和留言板，隐藏个人信息
+        // Task 5: 游客也应该能看到健康状态标签（已在上面设置为始终可见）
         if (isGuest) {
           if (profileTab) profileTab.style.display = 'none';  // 游客不显示个人信息标签
           if (sessionsTab) sessionsTab.style.display = 'block';
           if (messagesTab) messagesTab.style.display = 'block';
-          if (healthTab) healthTab.style.display = 'block'; // 游客可以查看健康状态
+          // 注释：健康状态标签在上面已设置为对所有用户可见，这里不需要再设置
         } else {
           // 非游客：个人信息和会话管理标签页始终可见
           if (profileTab) profileTab.style.display = 'block';
@@ -11625,6 +12199,36 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (themeSelect && user.theme) {
           themeSelect.value = user.theme;
         }
+        
+        // Task 6: 加载并应用主题颜色设置
+        // 从后端获取主题基础颜色参数
+        try {
+          const paramsResult = await callPythonAPI('get_params');
+          if (paramsResult && paramsResult.theme_base_color) {
+            const themeColor = paramsResult.theme_base_color;
+            
+            // 更新个人信息面板中的颜色选择器
+            const colorPicker = $('profile-theme_base_color-picker');
+            const colorInput = $('profile-theme_base_color');
+            if (colorPicker) colorPicker.value = themeColor;
+            if (colorInput) colorInput.value = themeColor;
+            
+            // 应用主题颜色到界面
+            onColorPicked(themeColor);
+          }
+          
+          // 加载并应用主题样式
+          if (paramsResult && paramsResult.theme_style) {
+            setThemeStyle(paramsResult.theme_style);
+          }
+          
+          // 应用深色/浅色主题
+          if (user.theme) {
+            applyAndSaveTheme(user.theme);
+          }
+        } catch (e) {
+          logMessage_Warning('[loadPersonalInfo] 加载主题设置失败:', e);
+        }
       } catch (e) {
         logMessage_Error("加载个人信息失败:", e);
         showModalAlert(`加载失败: ${e.message}`, '错误');
@@ -12026,7 +12630,22 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // 3. 更新手机号
     }
 
+    // Task 10: 修改密码函数 - 添加二次确认
     async function updatePassword() {
+      // Task 10: 在修改密码前，先弹出确认对话框，要求用户确认操作
+      // 这是一个重要的安全措施，防止用户误操作修改密码
+      const confirmed = await jsShowConfirm(
+        '确认修改密码', 
+        '您确定要修改您的登录密码吗？\n\n修改后需要使用新密码重新登录。'
+      );
+      
+      // 如果用户点击取消，则直接返回，不执行任何操作
+      if (!confirmed) {
+        logMessage_Info('[修改密码] 用户取消了密码修改操作');
+        return;
+      }
+      
+      // 用户确认后，继续执行密码修改逻辑
       const currentPassword = $('profile-current-password');
       const newPassword = $('profile-new-password');
       const confirmPassword = $('profile-confirm-password');
@@ -12263,9 +12882,15 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
     }
 
+    // Task 6 & Task 13: 更新主题函数 - 应用深色/浅色模式
     async function updateTheme() {
       const themeSelect = $('profile-theme-select');
       if (!themeSelect) return;
+
+      const selectedTheme = themeSelect.value;
+      
+      // 立即应用主题效果（不等待后端响应，提升用户体验）
+      applyAndSaveTheme(selectedTheme);
 
       try {
         const response = await fetch('/auth/user/update_theme', {
@@ -12275,7 +12900,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
             'X-Session-ID': sessionUUID
           },
           body: JSON.stringify({
-            theme: themeSelect.value
+            theme: selectedTheme
           })
         });
         const result = await response.json();
@@ -12284,6 +12909,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
           showModalAlert('主题更新成功！', '成功');
         } else {
           showModalAlert(`更新失败: ${result.message}`, '错误');
+          // 如果保存失败，回滚主题应用
+          applyAndSaveTheme(selectedTheme === 'dark' ? 'light' : 'dark');
         }
       } catch (e) {
         logMessage_Error("更新主题失败:", e);
@@ -20564,6 +21191,17 @@ function run_code_not_need_sessionuuid(codeToRun) {
               $('user-id-label').textContent = `学号: ${sid}`;
             }
             showMainApp();
+            
+            // Task 11: 修复离线导入后丢失管理按钮的问题
+            // 在离线导入成功并显示主应用后，需要显示管理面板按钮
+            // 因为showMainApp()可能会隐藏某些按钮，所以需要在此之后明确显示管理按钮
+            const adminBtn = $('show-admin-panel');
+            if (adminBtn) {
+              // 移除hidden类，使管理按钮可见
+              adminBtn.classList.remove('hidden');
+              logMessage_Info('[离线导入] 管理面板按钮已显示');
+            }
+            
             await mapReadyPromise;
             currentTasks = result.tasks;
             renderTaskList();
@@ -21268,7 +21906,20 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
     }
 
+    // Task 12: 获取通知列表 - 添加离线模式检查
     async function fetchNotifications(limit = null, offset = 0) {
+      // Task 12: 离线模式下不获取通知
+      // 检查当前是否处于离线模式，如果是，则直接返回空通知列表
+      if (IS_OFFLINE) {
+        logMessage_Info('[通知] 离线模式下无法获取通知');
+        // 返回一个成功但无通知的结果对象
+        return {
+          success: true,
+          unreadCount: 0,
+          notices: []
+        };
+      }
+      
       logMessage_Debug("开始刷新通知", { limit, offset });
       const badge = $('notification-badge');
       let result = null; // <-- 1. 必须在函数顶部声明
@@ -21668,7 +22319,26 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
     }
 
+    // Task 12: 显示通知弹窗 - 添加离线模式检查
     function showNotifications() {
+      // Task 12: 离线模式下显示特殊提示
+      // 检查当前是否处于离线模式，如果是，则显示离线提示而不是实际通知
+      if (IS_OFFLINE) {
+        // 获取通知内容容器
+        const content = $('notifications-content');
+        if (content) {
+          // 显示离线模式提示信息
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">离线模式下无法获取通知</p>';
+        }
+        
+        // 打开通知模态框，显示离线提示
+        toggleNotifications(true);
+        
+        logMessage_Info('[通知] 离线模式下无法获取通知，已显示提示信息');
+        // 不继续执行UI刷新，直接返回
+        return;
+      }
+      
       // 1. 打开模态框
       toggleNotifications(true);
 
@@ -23837,70 +24507,33 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // document.body.classList.remove('modal-visible'); // 恢复地图版权
     }
 
+    // Task 9: 修改手机号 - 发送验证码（添加图形验证码验证）
     async function sendModifyPhoneCode() {
+      // 获取用户输入的新手机号
       const newPhone = document.getElementById('modify-phone-new').value;
+      
+      // Task 9: 验证手机号格式
       if (!newPhone || !/^1[3-9]\d{9}$/.test(newPhone)) {
         showModalAlert('请输入正确的新手机号');
         return;
       }
 
+      // Task 9: 在发送短信验证码之前，先要求用户完成图形验证码验证
+      // 调用openCaptchaModal函数，打开验证码模态框
+      // 传入phone、button等上下文信息，供后续confirmCaptchaAndSendSMS使用
       const btn = document.getElementById('modify-phone-send-btn');
-      btn.disabled = true;
       const originalText = btn.textContent;
-
-      try {
-        // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口
-        const response = await fetch('/api/sms/send_code', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Session-ID': sessionUUID
-          },
-          body: JSON.stringify({
-            phone: newPhone,
-            scene: 'modify' // 场景：用户修改
-          })
-        });
-        const result = await response.json();
-
-        if (result && result.success) {
-          const expireMin = result.expire_minutes || 5;
-          const retryAfter = result.retry_after || 180;
-          showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
-
-          let countdown = retryAfter;
-          const timer = setInterval(() => {
-            countdown--;
-            btn.textContent = `${countdown}秒`;
-            if (countdown <= 0) {
-              clearInterval(timer);
-              btn.disabled = false;
-              btn.textContent = originalText;
-            }
-          }, 1000);
-        } else {
-          if (result?.retry_after) {
-            const retrySeconds = result.retry_after;
-            let countdown = retrySeconds;
-            btn.textContent = `${countdown}秒`;
-            const timer = setInterval(() => {
-              countdown--;
-              btn.textContent = `${countdown}秒`;
-              if (countdown <= 0) {
-                clearInterval(timer);
-                btn.disabled = false;
-                btn.textContent = originalText;
-              }
-            }, 1000);
-          } else {
-            btn.disabled = false;
-          }
-          showModalAlert(result?.message || '发送失败');
-        }
-      } catch (error) {
-        btn.disabled = false;
-        showModalAlert('发送失败: ' + error.message);
-      }
+      
+      // 打开图形验证码模态框
+      // confirmCaptchaAndSendSMS函数会负责验证图形验证码并调用sendSMSWithCaptcha
+      openCaptchaModal({
+        phone: newPhone,
+        button: btn,
+        originalText: originalText,
+        scene: 'modify' // 场景：修改手机号
+      });
+      
+      logMessage_Info('[修改手机号] 已打开图形验证码模态框');
     }
 
 
