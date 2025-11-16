@@ -2040,7 +2040,7 @@
       style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);">
       <!-- 对话框主体容器 - 拟态风格卡片 -->
       <div
-        class="bg-gradient-to-br from-slate-50 to-white rounded-3xl shadow-2xl max-w-md w-full transform transition-all"
+        class="bg-gradient-to-br from-slate-50 to-white rounded-3xl shadow-2xl max-w-[560px] w-full transform transition-all"
         style="box-shadow: 12px 12px 24px rgba(0, 0, 0, 0.1), -12px -12px 24px rgba(255, 255, 255, 0.9);"
         onclick="event.stopPropagation()">
 
@@ -2117,7 +2117,7 @@
 
   <!-- 用户认证登录界面 -->
   <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
-    <div class="panel rounded-2xl w-full max-w-[550px] p-6 space-y-6"> <div class="text-center">
+    <div class="panel rounded-2xl w-full max-w-[560px] p-6 space-y-6"> <div class="text-center">
         <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
         <p class="text-sm text-slate-500">请登录或注册以继续使用</p>
       </div>
@@ -8265,9 +8265,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
     // ============================================================
 
 
-    function handleCdnError() {
+    function handleCdnError(resourceName = '未指定') { // 修正：接收资源名称
       cdnErrorCount++;
-      logMessage_Warning(`CDN资源加载失败 (${cdnErrorCount}/3)，等待应用初始化...`);
+      // 修正：在日志中包含资源名称
+      logMessage_Warning(`CDN资源[${resourceName}]加载失败 (${cdnErrorCount}/3)，等待应用初始化...`);
 
       // 优化：不立即显示错误，而是延迟检查
       // 如果3秒后应用仍未初始化，且有CDN错误，则显示错误提示
