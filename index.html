@@ -7101,32 +7101,14 @@
      * @returns {boolean} true表示移动设备，false表示桌面设备
      */
     function detectMobileDevice() {
-      // 方法1：通过User-Agent字符串检测
+      // 仅通过User-Agent字符串检测移动设备
       // 检测常见的移动设备User-Agent标识
       const userAgent = navigator.userAgent || navigator.vendor || window.opera;
       const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i;
-      const isMobileUA = mobileRegex.test(userAgent);
-
-      // 方法2：检测屏幕宽度
-      // 屏幕宽度小于等于768px认为是移动设备（标准移动端断点）
-      const isSmallScreen = window.innerWidth <= 768;
-
-      // 方法3：检测触摸支持
-      // 检测设备是否支持触摸事件（触摸屏设备）
-      const hasTouch = ('ontouchstart' in window) ||
-        (navigator.maxTouchPoints > 0) ||
-        (navigator.msMaxTouchPoints > 0);
-
-      // 综合判断：满足以下任一条件即视为移动设备
-      // 1. User-Agent明确显示为移动设备
-      // 2. 小屏幕且支持触摸（真实移动设备）
-      // 3. 仅小屏幕也视为移动设备（兼容模拟器和测试环境）
-      const isMobile = isMobileUA || (isSmallScreen && hasTouch) || isSmallScreen;
+      const isMobile = mobileRegex.test(userAgent);
 
       // 打印检测结果到控制台，便于调试
-      console.log('[移动端检测] User-Agent检测:', isMobileUA);
-      console.log('[移动端检测] 屏幕宽度:', window.innerWidth, 'px, 是否小屏:', isSmallScreen);
-      console.log('[移动端检测] 触摸支持:', hasTouch);
+      console.log('[移动端检测] User-Agent:', userAgent);
       console.log('[移动端检测] 最终判定:', isMobile ? '移动设备' : '桌面设备');
 
       return isMobile;
@@ -8251,99 +8233,19 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // (移除自动隐藏，因为 showModalAlert 会接管)
     }
     /**
-     * 处理窗口大小变化事件
+     * 【已废弃】窗口大小变化处理函数
      * 
-     * 当用户调整浏览器窗口大小或旋转手机屏幕时，重新检测设备类型
-     * 使用防抖技术，避免频繁触发切换
+     * 此函数原本用于在窗口大小变化时自动切换移动端/桌面端UI
+     * 现已移除相关监听器，改为仅在页面加载时根据User-Agent检测一次
+     * 保留此函数以避免可能的引用错误，但实际上不再被调用
      */
+    /*
     let resizeTimer = null; // 防抖定时器
     function handleResize() {
-      // 清除之前的定时器
-      if (resizeTimer) {
-        clearTimeout(resizeTimer);
-      }
-
-      // 设置新的定时器：300毫秒后执行切换
-      // 这样可以避免在调整窗口大小过程中频繁切换UI
-      resizeTimer = setTimeout(function () {
-        console.log('[窗口调整] 检测到窗口大小变化，重新检测设备类型');
-        // 修复：在切换前，检查当前是否有会话模态框处于打开状态
-        const desktopModal = $('session-picker-modal');
-        const mobileModal = $('mobile-session-picker-modal');
-
-        const wasDesktopModalOpen = desktopModal && !desktopModal.classList.contains('hidden');
-        const wasMobileModalOpen = mobileModal && !mobileModal.classList.contains('hidden');
-
-        // 声明 isModalSwap 变量 ---
-        let isModalSwap = false;
-
-        // 关键修复：检测新的设备模式（在调用 switchUIContainer 之前）
-        const willBeMobileMode = detectMobileDevice();
-
-        // 关键修复：在 switchUIContainer() 之前，根据模态框状态先隐藏登录界面
-        // 这样可以防止 switchUIContainer() 显示移动端容器时，登录界面短暂可见
-        if (willBeMobileMode && wasDesktopModalOpen) {
-          // 场景：从桌面切换到移动端，且桌面模态框是打开的
-          console.log('[窗口调整] 正在从桌面会话选择器切换到移动版...');
-
-          // 步骤1：设置 isModalSwap 标记，表示需要切换模态框
-          isModalSwap = true;
-
-          console.log('[窗口调整-FIX] 步骤1：标记模态框需要切换');
-
-        } else if (!willBeMobileMode && wasMobileModalOpen) {
-          // 场景：从移动端切换到桌面，且移动模态框是打开的
-          console.log('[窗口调整] 正在从移动会话选择器切换到桌面版...');
-
-          // 步骤1：设置 isModalSwap 标记，表示需要切换模态框
-          isModalSwap = true;
-
-          console.log('[窗口调整-FIX] 步骤1：标记模态框需要切换');
-        }
-
-        // 步骤2：重新执行UI容器切换 (这会更新全局变量 isMobileMode)
-        // 注意：此时登录界面已经被隐藏（如果需要的话）
-        switchUIContainer();
-
-        // 步骤3：根据新的 isMobileMode 状态，关闭旧的模态框并打开新的模态框
-        if (isModalSwap) {
-          if (isMobileMode) {
-            // 关闭桌面版并打开移动版会话选择器
-            closeSessionPicker(); // 关闭桌面版
-
-            // 关键修复：在显示移动端会话选择器之前，确保登录容器不可见
-            // 虽然依赖z-index理论上应该足够，但实践中发现需要显式隐藏
-            const mobileLogin = $('mobile-login-container');
-            const mobileAuth = $('mobile-auth-login-container');
-            if (mobileLogin && !mobileLogin.classList.contains('hidden')) {
-              mobileLogin.classList.add('hidden');
-            }
-            if (mobileAuth && !mobileAuth.classList.contains('hidden')) {
-              mobileAuth.classList.add('hidden');
-            }
-
-            showMobileSessionPicker(); // 打开移动版
-            console.log('[窗口调整-FIX] 步骤2-3：切换UI容器并显示移动端会话选择器');
-          } else {
-            // 关闭移动版并打开桌面版会话选择器
-            closeMobileSessionPicker(); // 关闭移动版
-
-            // 关键修复：在显示桌面会话选择器之前，确保登录容器不可见
-            const desktopLogin = $('login-container');
-            const desktopAuth = $('auth-login-container');
-            if (desktopLogin && !desktopLogin.classList.contains('hidden')) {
-              desktopLogin.classList.add('hidden');
-            }
-            if (desktopAuth && !desktopAuth.classList.contains('hidden')) {
-              desktopAuth.classList.add('hidden');
-            }
-
-            showSessionPicker(); // 打开桌面版
-            console.log('[窗口调整-FIX] 步骤2-3：切换UI容器并显示桌面会话选择器');
-          }
-        }
-      }, 300); // 防抖延迟：300毫秒
+      // 此函数已废弃，不再使用
+      console.warn('[已废弃] handleResize函数已不再使用，UI切换现在仅基于User-Agent');
     }
+    */
 
 
 
@@ -8354,49 +8256,21 @@ function run_code_not_need_sessionuuid(codeToRun) {
     /**
      * 在DOM内容加载完成后立即执行
      * 这是整个移动端UI切换功能的入口点
+     * 
+     * 【修改说明】：
+     * - 移除了窗口大小变化监听（window.addEventListener('resize')）
+     * - 移除了媒体查询监听（matchMedia）
+     * - 移除了屏幕方向变化监听（orientationchange）
+     * - 仅在页面加载时根据User-Agent检测一次设备类型
+     * - 不再动态切换UI，避免开发者工具切换设备模式时的问题
      */
     document.addEventListener('DOMContentLoaded', function () {
       console.log('[页面加载] DOM内容已加载，开始执行设备检测和UI切换');
 
-      // 执行首次UI容器切换
+      // 执行首次UI容器切换（仅此一次，基于User-Agent）
       switchUIContainer();
 
-      // 监听窗口大小变化事件
-      // 当用户调整窗口或旋转屏幕时，自动重新检测和切换
-      window.addEventListener('resize', handleResize);
-
-      // 监听屏幕方向变化事件（主要针对移动设备）
-      // 当手机从竖屏切换到横屏（或反之）时触发
-      window.addEventListener('orientationchange', function () {
-        console.log('[屏幕方向] 检测到屏幕方向变化');
-        // 延迟100毫秒后重新检测（等待方向变化完成）
-        setTimeout(function () {
-          switchUIContainer();
-        }, 100);
-      });
-
-      // 监听媒体查询变化（用于浏览器设备仿真）
-      // 当浏览器的设备仿真切换时，matchMedia 可以检测到视口变化
-      // 这比 resize 事件更可靠，因为设备仿真不总是触发 resize
-      const mobileMediaQuery = window.matchMedia('(max-width: 768px)');
-
-      // 定义媒体查询变化处理函数
-      function handleMediaQueryChange(e) {
-        console.log('[媒体查询] 检测到视口宽度变化，当前是否为移动端:', e.matches);
-        // 调用 handleResize 来处理模态框切换
-        handleResize();
-      }
-
-      // 添加监听器 - 兼容新旧API
-      if (mobileMediaQuery.addEventListener) {
-        // 现代浏览器使用 addEventListener
-        mobileMediaQuery.addEventListener('change', handleMediaQueryChange);
-      } else {
-        // 旧版浏览器使用 addListener
-        mobileMediaQuery.addListener(handleMediaQueryChange);
-      }
-
-      console.log('[页面加载] 移动端检测和切换功能已启动');
+      console.log('[页面加载] 移动端检测和UI切换完成（基于User-Agent，不监听窗口变化）');
     });
 
     // ============================================================
@@ -20001,13 +19875,20 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 【关键函数】此函数负责将用户手动录制的路径点转换为模拟的运动轨迹
      * 
      * 执行流程：
-     * 1. 调用后端的process_path API进行路径处理（添加时间戳、随机偏移等）
-     *    注意：草稿路径应该在调用此函数之前已经通过set_draft_path保存到后端
-     * 2. 将处理后的路径更新到当前任务数据中
-     * 3. 更新地图显示和UI界面
+     * 1. 如果存在未保存的草稿路径，先保存到后端
+     * 2. 调用后端的process_path API进行路径处理（添加时间戳、随机偏移等）
+     * 3. 将处理后的路径更新到当前任务数据中
+     * 4. 更新地图显示和UI界面
      */
     async function processCurrentPath() {
-      // 步骤1：调用后端API处理路径
+      // 步骤1：如果存在草稿路径，先保存到后端
+      // 这确保了无论是自动处理还是手动点击"处理路径"按钮，都能正确保存草稿路径
+      if (draftPath && draftPath.length > 0) {
+        logMessage_Info("正在保存草稿路径...");
+        await callPythonAPI('set_draft_path', draftPath);
+      }
+      
+      // 步骤2：调用后端API处理路径
       // 后端会检查draft_coords是否有效（至少2个点），并进行以下处理：
       // - 在路径点之间插值生成更多中间点
       // - 为每个点添加时间戳
@@ -20015,18 +19896,18 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const result = await callPythonAPI('process_path');
       
       if (result.success) {
-        // 步骤2：更新当前任务的运动路径数据
+        // 步骤3：更新当前任务的运动路径数据
         currentRunData.run_coords = result.run_coords;  // 处理后的GPS坐标序列
         currentRunData.total_run_distance_m = result.total_dist;  // 总距离（米）
         currentRunData.total_run_time_s = result.total_time;  // 总时长（秒）
         
-        // 步骤3：更新UI显示
+        // 步骤4：更新UI显示
         drawOnMap();  // 重新绘制地图上的路径和标记
         updateDashboard();  // 更新仪表盘信息
         renderTaskList();  // 更新任务列表
         discardBlackDraftPolyline();  // 清除草稿路径的临时显示
         
-        // 步骤4：重置单任务进度追踪
+        // 步骤5：重置单任务进度追踪
         // 处理路径后同步总点数并复位进度，为后续执行做准备
         singleProcessedPoints = 0;  // 已处理的点数归零
         singleTotalPoints = (currentRunData.run_coords?.length || 0);  // 记录总点数
