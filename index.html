@@ -19918,7 +19918,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
     let pendingUnlockMap = false;
 
-    function toggleRecordMode() {
+    async function toggleRecordMode() {
       const btn = $('record-button'); isDrawing = !isDrawing;
       if (isDrawing) {
         if (selectedTaskIndex === -1) { showModalAlert("请先选择一个任务！"); isDrawing = false; return; }
@@ -19954,10 +19954,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
         const inLastZone = totalTargets > 0 && currentRunData.target_sequence >= totalTargets && currentRunData.isInTargetZone === true;
         if (inLastZone) { 
           // 【修复问题1】：录制完成后立即调用set_draft_path，然后处理路径
-          // 修复方案：先调用set_draft_path保存草稿路径，等待完成后再调用processCurrentPath处理路径
-          // 注意：使用await确保set_draft_path完成后再调用processCurrentPath()
+          // 修复方案：先调用set_draft_path保存草稿路径，使用await等待完成后再调用processCurrentPath处理路径
+          // 关键：使用await确保set_draft_path和processCurrentPath都完成后，才继续执行后面的状态重置代码
           if (draftPath.length > 0) {
-            callPythonAPI('set_draft_path', draftPath).then(() => processCurrentPath());
+            await callPythonAPI('set_draft_path', draftPath);
+            await processCurrentPath();
           }
         }
         else { 
