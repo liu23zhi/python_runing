@@ -3700,6 +3700,47 @@
               </div>
             </div>
 
+            <!-- ========================================
+                 【验证码区域】移动端登录表单验证码
+                 - 对应PC端的 auth-login-captcha-display
+                 - 包含验证码显示区、刷新按钮和输入框
+                 ======================================== -->
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">验证码</label>
+              <!-- 验证码显示区域和刷新按钮（同一行） -->
+              <div class="flex gap-2 mt-1 items-center">
+                <!-- 验证码图片显示容器 - 点击可刷新 -->
+                <div id="mobile-login-captcha-display" 
+                     class="flex-shrink-0 w-auto h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+                     title="点击刷新验证码" 
+                     style="min-height: 64px;"
+                     onclick="refreshCaptcha('mobile-login')">
+                  <!-- 初始加载状态提示文字 -->
+                  <span class="text-slate-400 text-xs">加载中...</span>
+                </div>
+                <!-- 刷新按钮 - 点击重新加载验证码 -->
+                <button type="button" id="mobile-login-captcha-refresh" 
+                        class="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0" 
+                        title="刷新验证码"
+                        onclick="refreshCaptcha('mobile-login')">
+                  <!-- 刷新图标SVG -->
+                  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+              <!-- 验证码输入框（单独一行） -->
+              <div class="mt-2">
+                <!-- 用户输入验证码的文本框 -->
+                <input type="text" id="mobile-login-captcha" 
+                       class="w-full" 
+                       placeholder="请输入验证码" 
+                       maxlength="6" 
+                       autocomplete="off">
+              </div>
+            </div>
+
             <button id="mobile-login-btn" class="mobile-primary-btn">
               登录
             </button>
@@ -3777,6 +3818,47 @@
               <label class="mobile-form-label">确认密码</label>
               <input type="password" id="mobile-reg-password-confirm" class="w-full" placeholder="请再次输入密码"
                 autocomplete="new-password">
+            </div>
+
+            <!-- ========================================
+                 【验证码区域】移动端注册表单验证码
+                 - 对应PC端的 auth-register-captcha-display
+                 - 包含验证码显示区、刷新按钮和输入框
+                 ======================================== -->
+            <div class="mobile-form-group">
+              <label class="mobile-form-label">验证码</label>
+              <!-- 验证码显示区域和刷新按钮（同一行） -->
+              <div class="flex gap-2 mt-1 items-center">
+                <!-- 验证码图片显示容器 - 点击可刷新 -->
+                <div id="mobile-register-captcha-display" 
+                     class="flex-shrink-0 w-auto h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+                     title="点击刷新验证码" 
+                     style="min-height: 64px;"
+                     onclick="refreshCaptcha('mobile-register')">
+                  <!-- 初始加载状态提示文字 -->
+                  <span class="text-slate-400 text-xs">加载中...</span>
+                </div>
+                <!-- 刷新按钮 - 点击重新加载验证码 -->
+                <button type="button" id="mobile-register-captcha-refresh" 
+                        class="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0" 
+                        title="刷新验证码"
+                        onclick="refreshCaptcha('mobile-register')">
+                  <!-- 刷新图标SVG -->
+                  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
+              <!-- 验证码输入框（单独一行） -->
+              <div class="mt-2">
+                <!-- 用户输入验证码的文本框 -->
+                <input type="text" id="mobile-register-captcha" 
+                       class="w-full" 
+                       placeholder="请输入验证码" 
+                       maxlength="6" 
+                       autocomplete="off">
+              </div>
             </div>
 
             <button id="mobile-register-btn" class="mobile-primary-btn"
@@ -3866,6 +3948,70 @@
           <button id="mobile-single-login-btn" class="mobile-primary-btn">
             登录
           </button>
+
+          <!-- ========================================
+               【分隔线】用于视觉区分主要操作和次要操作
+               ======================================== -->
+          <div class="relative flex py-2 items-center">
+            <div class="flex-grow border-t border-slate-300"></div>
+          </div>
+
+          <!-- ========================================
+               【导入离线文件按钮】移动端版本
+               - 对应PC端的 import-button
+               - 允许用户导入离线保存的账号数据
+               ======================================== -->
+          <button id="mobile-import-button"
+            class="w-full py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-lg font-bold shadow-lg transition-all duration-300 flex items-center justify-center gap-2">
+            <!-- 上传图标SVG -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <span>导入离线文件</span>
+          </button>
+
+          <!-- ========================================
+               【User-Agent 显示区域】移动端版本
+               - 对应PC端的 ua-label 和 random-ua-btn
+               - 显示当前使用的浏览器标识，并提供随机生成功能
+               ======================================== -->
+          <div class="pt-4 space-y-3 border-t border-slate-200">
+            <!-- 标题栏：UA标签 + 随机按钮 -->
+            <div class="flex justify-between items-center">
+              <!-- 左侧：UA标题和信息图标 -->
+              <span class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                <!-- 信息图标SVG -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                User-Agent 标识
+              </span>
+
+              <!-- 右侧：随机生成UA按钮 - 用于模拟不同浏览器和设备 -->
+              <button id="mobile-random-ua-btn" 
+                      title="随机生成新的User-Agent，用于模拟不同设备和浏览器"
+                      class="py-1.5 px-3 text-xs bg-slate-100 hover:bg-sky-100 text-slate-700 rounded-lg transition-colors flex items-center gap-1">
+                <!-- 刷新图标SVG -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>随机</span>
+              </button>
+            </div>
+
+            <!-- UA显示框 - 显示当前使用的浏览器标识字符串 -->
+            <!-- 使用 break-all 确保长字符串能自动换行，避免溢出 -->
+            <p id="mobile-ua-label"
+              class="text-xs text-slate-600 break-all bg-gradient-to-br from-white to-slate-50 border border-slate-300 p-3 rounded-xl leading-relaxed shadow-inner">
+              (未加载)
+            </p>
+          </div>
         </div>
 
         <!-- ========================================
@@ -4111,37 +4257,24 @@
             </div>
           </div>
 
-          <!-- 通知标签切换 - 全部/签到 -->
-          <div class="flex border-b border-slate-200 mb-4">
-            <button id="mobile-notif-tab-all"
-              class="flex-1 py-2 text-sm font-semibold text-sky-600 border-b-2 border-sky-600 transition"
-              onclick="switchMobileNotifTab('all')">
-              全部通知
-            </button>
-            <button id="mobile-notif-tab-attendance"
-              class="flex-1 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent transition"
-              onclick="switchMobileNotifTab('attendance')">
-              签到任务
-            </button>
-          </div>
-
-          <!-- 全部通知列表 -->
+          <!-- ========================================
+               【通知列表显示区域】
+               - 只显示全部通知，移除了签到任务的独立标签页
+               - 优化：减少UI复杂度，统一在一个列表中展示
+               ======================================== -->
           <div id="mobile-all-notifications-list" class="space-y-2 max-h-[40vh] overflow-y-auto">
             <p class="text-slate-400 text-center py-8 text-sm">暂无通知</p>
           </div>
 
-          <!-- 签到任务列表 - 默认隐藏 -->
-          <div id="mobile-attendance-notifications-list" class="space-y-2 max-h-[40vh] overflow-y-auto hidden">
-            <p class="text-slate-400 text-center py-8 text-sm">暂无签到任务</p>
-          </div>
-
           <!-- 底部操作按钮 -->
           <div class="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-            <button
+            <!-- 全部已读按钮 - 点击将所有通知标记为已读 -->
+            <button id="mobile-mark-all-read-modal-btn"
               class="flex-1 py-2 px-4 bg-sky-50 text-sky-600 rounded-lg text-sm font-medium hover:bg-sky-100 transition"
               onclick="mobileMarkAllAsRead()">
-              全部已读
+              一键已读
             </button>
+            <!-- 查看更多按钮 - 展开查看更多通知 -->
             <button
               class="flex-1 py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition"
               onclick="expandMobileNotifications()">
@@ -4335,6 +4468,47 @@
                 class="bg-gradient-to-r from-sky-500 to-blue-600 h-2 rounded-full transition-all duration-300"
                 style="width: 0%"></div>
             </div>
+          </div>
+        </div>
+
+        <!-- ========================================
+             【日志面板】移动端单账号日志显示
+             - 对应PC端的 log-tab 和 log-text
+             - 显示任务执行的实时日志信息
+             - 支持自动滚动到最新日志
+             ======================================== -->
+        <div class="mobile-card hidden" id="mobile-log-panel">
+          <!-- 面板头部 - 标题和清空按钮 -->
+          <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+              <!-- 日志图标SVG -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-600" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 class="text-xl font-bold text-slate-700">运行日志</h3>
+            </div>
+
+            <!-- 清空日志按钮 - 点击清除所有日志内容 -->
+            <button id="mobile-clear-log-btn"
+              class="py-1 px-3 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 transition"
+              onclick="clearMobileLog()">
+              清空
+            </button>
+          </div>
+
+          <!-- 日志显示区域 - 使用只读textarea显示日志内容 -->
+          <!-- 
+            - readonly: 只读模式，用户无法编辑
+            - resize-none: 禁止用户调整大小
+            - leading-snug: 紧凑的行间距，显示更多内容
+            - font-mono: 等宽字体，便于阅读代码和日志
+          -->
+          <div class="h-64">
+            <textarea id="mobile-log-text" readonly
+              class="w-full h-full bg-white/80 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 resize-none focus:outline-none leading-snug font-mono"
+              placeholder="日志信息将在此处显示..."></textarea>
           </div>
         </div>
 
@@ -10027,6 +10201,14 @@ function run_code_not_need_sessionuuid(codeToRun) {
           }
           
           console.log(`[验证码] ${formType}表单验证码加载成功，ID: ${result.captcha_id.substring(0, 8)}...`);
+          
+          // ========================================
+          // 【移动端同步】同时加载移动端验证码
+          // - 调用loadMobileCaptcha函数，使用相同的formType
+          // - 移动端验证码使用相同的验证码ID（captchaIds[formType]）
+          // - 确保PC端和移动端验证码显示一致
+          // ========================================
+          loadMobileCaptcha(formType);
         } else {
           // 加载失败，显示错误提示
           displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
@@ -10041,12 +10223,22 @@ function run_code_not_need_sessionuuid(codeToRun) {
     
     /**
      * 刷新验证码（重新加载）
-     * @param {string} formType - 表单类型 ('login' 或 'register')
+     * @param {string} formType - 表单类型 ('login' 或 'register' 或 'mobile-login' 或 'mobile-register')
      * @description 点击刷新按钮或验证码区域时调用
+     * 
+     * 功能说明：
+     * - 支持PC端和移动端验证码刷新
+     * - 如果formType包含'mobile-'前缀，则转换为对应的PC端类型
+     * - 例如：'mobile-login' -> 'login'，'mobile-register' -> 'register'
+     * - 这样确保PC端和移动端使用相同的验证码ID
      */
     function refreshCaptcha(formType) {
-      console.log(`[验证码] 刷新${formType}表单验证码`);
-      loadCaptcha(formType);
+      // 如果是移动端的formType（包含'mobile-'前缀），转换为PC端类型
+      // 这样确保PC端和移动端共享同一个验证码
+      const actualFormType = formType.replace('mobile-', '');
+      console.log(`[验证码] 刷新${actualFormType}表单验证码`);
+      // 重新加载验证码（会同时加载PC端和移动端）
+      loadCaptcha(actualFormType);
     }
 
     // ==================== 验证码模态窗相关函数 ====================
@@ -18619,7 +18811,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (data && data.password) $('password-entry').value = data.password;
         logMessage_Info('获取到的data.ua:', data ? data.ua : 'null');
         const ua_data = (data && data.ua) ? data.ua : '(新用户将在登录时自动生成)';
+        // 更新PC端UA标签
         $('ua-label').textContent = ua_data;
+        // ========================================
+        // 【移动端同步】同步UA到移动端标签
+        // ========================================
+        syncUAToMobile(ua_data);
         logMessage_Info('User ua label set to:', ua_data);
 
         // if (data && data.ua) {
@@ -18639,7 +18836,14 @@ function run_code_not_need_sessionuuid(codeToRun) {
         }
       }
     });
-    $('random-ua-btn').addEventListener('click', async () => $('ua-label').textContent = await callPythonAPI('generate_new_ua'));
+    $('random-ua-btn').addEventListener('click', async () => {
+      const newUA = await callPythonAPI('generate_new_ua');
+      $('ua-label').textContent = newUA;
+      // ========================================
+      // 【移动端同步】同步UA到移动端标签
+      // ========================================
+      syncUAToMobile(newUA);
+    });
     $('login-button').addEventListener('click', async (e) => {
       // 校验登录按钮权限
       if (!await checkButtonPermission('login-button', 'use_login_button')) {
@@ -18890,7 +19094,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
         $('password-entry').value = data.password || "";
         
         // 设置 UA 标签
-        $('ua-label').textContent = data.ua || '(新用户将在登录时自动生成)';
+        const uaText = data.ua || '(新用户将在登录时自动生成)';
+        $('ua-label').textContent = uaText;
+        // ========================================
+        // 【移动端同步】同步UA到移动端标签
+        // ========================================
+        syncUAToMobile(uaText);
         
         // 更新参数
         pythonParams = data.params || pythonParams;
@@ -18962,6 +19171,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
                 // 如果找到UA，也更新UA标签
                 if (ua) {
                   $('ua-label').textContent = ua;
+                  // ========================================
+                  // 【移动端同步】同步UA到移动端标签
+                  // ========================================
+                  syncUAToMobile(ua);
                   logMessage_Info(`[用户选择] 已从 school_accounts 加载用户 ${username} 的UA`);
                 }
               }
@@ -21980,15 +22193,29 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const shouldShowInUI = isCoreLog(line, level);
 
       if (shouldShowInUI) {
+        // PC端单账号日志
         const single = $('log-text');
-        const multi = $('multi-log-text');
         if (single) {
           single.value += fullMessage + '\n'; // 使用组合后的消息
           single.scrollTop = single.scrollHeight;
         }
+        
+        // PC端多账号日志
+        const multi = $('multi-log-text');
         if (multi) {
           multi.value += fullMessage + '\n'; // 使用组合后的消息
           multi.scrollTop = multi.scrollHeight;
+        }
+        
+        // ========================================
+        // 【移动端日志同步】Phase 4b
+        // - 将日志同步到移动端日志面板
+        // - 确保移动端和PC端日志显示一致
+        // ========================================
+        const mobileLog = document.getElementById('mobile-log-text');
+        if (mobileLog) {
+          mobileLog.value += fullMessage + '\n';
+          mobileLog.scrollTop = mobileLog.scrollHeight; // 自动滚动到底部
         }
       }
     }
@@ -24396,6 +24623,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-map-panel',
         'mobile-task-panel',
         'mobile-notification-panel',
+        'mobile-log-panel',            // 新增：日志面板
         'mobile-attendance-panel',
         'mobile-settings-panel'
       ];
@@ -24626,6 +24854,121 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    // ==================== 移动端专用辅助函数 ====================
+
+    /**
+     * 清空移动端日志
+     * 
+     * 功能说明：
+     * - 清空移动端日志面板（#mobile-log-text）中的所有内容
+     * - 与PC端的日志清空功能对应
+     */
+    function clearMobileLog() {
+      // 获取移动端日志文本框元素
+      const mobileLogText = document.getElementById('mobile-log-text');
+      if (mobileLogText) {
+        // 清空内容
+        mobileLogText.value = '';
+        console.log('[移动端] 日志已清空');
+      }
+    }
+
+    /**
+     * 同步UA标签到移动端
+     * 
+     * 功能说明：
+     * - 将PC端的UA标签内容同步到移动端UA标签
+     * - 确保移动端和PC端显示一致的User-Agent信息
+     * 
+     * @param {string} uaText - User-Agent文本内容
+     */
+    function syncUAToMobile(uaText) {
+      // 获取移动端UA标签元素
+      const mobileUALabel = document.getElementById('mobile-ua-label');
+      if (mobileUALabel) {
+        // 设置文本内容
+        mobileUALabel.textContent = uaText || '(未加载)';
+        console.log('[移动端] UA已同步:', uaText);
+      }
+    }
+
+    /**
+     * 同步PC端验证码到移动端
+     * 
+     * 功能说明：
+     * - 当loadCaptcha函数被调用时，需要同时更新移动端的验证码显示
+     * - 支持登录表单和注册表单两种类型
+     * 
+     * @param {string} formType - 表单类型 ('login' 或 'register')
+     */
+    async function loadMobileCaptcha(formType) {
+      // 根据表单类型确定移动端验证码显示区域的ID
+      // 'login' -> 'mobile-login-captcha-display'
+      // 'register' -> 'mobile-register-captcha-display'
+      const displayId = formType === 'login' ? 'mobile-login-captcha-display' : 'mobile-register-captcha-display';
+      const displayElement = document.getElementById(displayId);
+      
+      if (!displayElement) {
+        console.log(`[移动端验证码] 未找到验证码显示元素: ${displayId}`);
+        return;
+      }
+      
+      // 显示加载状态提示
+      displayElement.innerHTML = '<span class="text-slate-400 text-xs">加载中...</span>';
+      
+      try {
+        // 调用后端API获取验证码
+        // 使用全局的sessionUUID作为会话标识
+        const response = await fetch('/api/captcha/get', {
+          method: 'GET',
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+        
+        const result = await response.json();
+        
+        // 检查API返回结果
+        if (result.success && result.html && result.captcha_id) {
+          // 存储验证码ID到全局captchaIds对象
+          // 注意：为了与PC端保持一致，移动端使用相同的formType作为key
+          // 例如：captchaIds['login'] 或 captchaIds['register']
+          if (typeof captchaIds !== 'undefined') {
+            captchaIds[formType] = result.captcha_id;
+          }
+          
+          // 将验证码HTML（包含img标签）插入到显示区域
+          displayElement.innerHTML = result.html;
+          
+          // 为验证码图片添加响应式样式，确保在移动端正确显示
+          const imgElement = displayElement.querySelector('img');
+          if (imgElement) {
+            // 设置图片样式：
+            // - max-width/max-height: 限制图片最大尺寸
+            // - width/height: auto 保持原始宽高比
+            // - object-fit: contain 确保图片完整显示不裁剪
+            // - imageRendering: crisp-edges 优化图片渲染，避免模糊
+            imgElement.style.maxWidth = '100%';
+            imgElement.style.maxHeight = '100%';
+            imgElement.style.width = 'auto';
+            imgElement.style.height = 'auto';
+            imgElement.style.objectFit = 'contain';
+            imgElement.style.imageRendering = 'crisp-edges';
+          }
+          
+          console.log(`[移动端验证码] ${formType}表单验证码加载成功，ID: ${result.captcha_id.substring(0, 8)}...`);
+        } else {
+          // 加载失败，显示错误提示
+          displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
+          console.error(`[移动端验证码] 加载失败: ${result.message || '未知错误'}`);
+        }
+      } catch (error) {
+        // 网络错误或其他异常
+        displayElement.innerHTML = '<span class="text-red-500 text-xs">网络错误</span>';
+        console.error(`[移动端验证码] 加载异常:`, error);
+      }
     }
 
     // ==================== 任务8-10: 注册登录和个人资料功能 ====================
@@ -26372,6 +26715,111 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // 页面加载完成后启动定时提醒功能，立即检查一次并设置每分钟检查一次
       console.log('[定时提醒] 正在启动定时提醒检查器...');
       startReminderChecker();
+    });
+
+    // ==================== 移动端事件绑定 (Phase 4b) ====================
+    document.addEventListener('DOMContentLoaded', function () {
+      console.log('[移动端] 开始绑定Phase 4b功能...');
+
+      // ========================================
+      // 【移动端UA相关】
+      // ========================================
+
+      // 移动端随机UA按钮 - 对应PC端的 random-ua-btn
+      const mobileRandomUABtn = document.getElementById('mobile-random-ua-btn');
+      if (mobileRandomUABtn) {
+        mobileRandomUABtn.addEventListener('click', async () => {
+          try {
+            // 调用后端API生成新的User-Agent
+            const newUA = await callPythonAPI('generate_new_ua');
+            // 更新移动端UA显示
+            const mobileUALabel = document.getElementById('mobile-ua-label');
+            if (mobileUALabel) {
+              mobileUALabel.textContent = newUA || '(生成失败)';
+            }
+            // 同时更新PC端UA显示，保持一致性
+            const pcUALabel = document.getElementById('ua-label');
+            if (pcUALabel) {
+              pcUALabel.textContent = newUA || '(生成失败)';
+            }
+            console.log('[移动端] 已生成新的UA:', newUA);
+          } catch (error) {
+            console.error('[移动端] 生成UA失败:', error);
+            showModalAlert('生成UA失败，请重试');
+          }
+        });
+        console.log('[移动端] 随机UA按钮已绑定');
+      }
+
+      // ========================================
+      // 【移动端导入按钮】
+      // ========================================
+
+      // 移动端导入离线文件按钮 - 对应PC端的 import-button
+      const mobileImportBtn = document.getElementById('mobile-import-button');
+      if (mobileImportBtn) {
+        mobileImportBtn.addEventListener('click', async (e) => {
+          // 检查按钮权限（复用PC端的权限检查逻辑）
+          if (typeof checkButtonPermission === 'function') {
+            if (!await checkButtonPermission('mobile-import-button', 'use_import_button')) {
+              return;
+            }
+          }
+          // 调用导入任务函数（复用PC端的importTask函数）
+          if (typeof importTask === 'function') {
+            await importTask();
+          } else {
+            console.error('[移动端] importTask函数未定义');
+            showModalAlert('导入功能暂不可用');
+          }
+        });
+        console.log('[移动端] 导入按钮已绑定');
+      }
+
+      // ========================================
+      // 【移动端参数设置面板】
+      // ========================================
+
+      // 动态生成移动端参数输入框
+      // 使用createParamInputs函数，排除主题相关参数
+      const mobileParamsContainer = document.getElementById('mobile-params-container');
+      if (mobileParamsContainer && typeof createParamInputs === 'function') {
+        // 排除主题相关参数和自动签到（自动签到在专属面板）
+        const excludeGroups = ['主题设置', '自动签到'];
+        
+        // 创建参数输入框
+        // prefix: 'mobile-param' - 用于生成唯一的元素ID
+        // changeHandler: 参数变化时的处理函数
+        createParamInputs(
+          mobileParamsContainer,
+          'mobile-param',
+          function(e) {
+            // 参数变化处理函数
+            const input = e.target;
+            const key = input.dataset.key;
+            let value;
+            
+            // 根据输入类型获取值
+            if (input.type === 'checkbox') {
+              value = input.checked;
+            } else if (input.type === 'number') {
+              value = parseFloat(input.value) || 0;
+            } else {
+              value = input.value;
+            }
+            
+            // 调用API保存参数
+            if (typeof callPythonAPI === 'function') {
+              callPythonAPI('update_param', key, value);
+              console.log(`[移动端] 参数已更新: ${key} = ${value}`);
+            }
+          },
+          excludeGroups
+        );
+        console.log('[移动端] 参数设置面板已初始化');
+      }
+
+      console.log('[移动端] Phase 4b功能绑定完成');
     });
   </script>
 
