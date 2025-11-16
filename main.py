@@ -15181,12 +15181,13 @@ def start_web_server(args_param):
     def sms_test_send():
         """
         短信测试发送API（管理员专用）
-        功能：向指定手机号发送随机验证码，用于测试短信配置是否正确
+        功能：向指定手机号发送验证码（可指定或随机），用于测试短信配置是否正确
         
         权限要求：仅管理员可调用
         
         请求参数：
         - phone: 手机号（必填）
+        - code: 验证码（可选，不填则自动生成随机验证码）
         
         返回：
         - success: 是否成功
@@ -15208,14 +15209,23 @@ def start_web_server(args_param):
             # 3. 获取并验证手机号
             data = request.get_json() or {}
             phone = data.get('phone', '').strip()
+            custom_code = data.get('code', '').strip()  # 获取自定义验证码（可选）
             
             # 验证手机号格式（11位数字，1开头）
             if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
                 return jsonify({"success": False, "message": "手机号格式不正确"})
             
-            # 4. 生成6位随机验证码
-            import random
-            code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            # 4. 生成或使用自定义验证码
+            if custom_code:
+                # 使用管理员指定的验证码
+                # 验证码格式检查：只允许数字，长度4-8位
+                if not re.match(r'^\d{4,8}$', custom_code):
+                    return jsonify({"success": False, "message": "自定义验证码格式不正确，仅支持4-8位数字"})
+                code = custom_code
+            else:
+                # 生成6位随机验证码
+                import random
+                code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
             
             # 5. 读取短信宝配置
             username = config.get('SMS_Service_SMSBao', 'username', fallback='')

@@ -6512,7 +6512,7 @@
         <p class="text-sm text-blue-800">
           <strong>💡 功能说明：</strong><br>
           • 此功能用于测试短信配置是否正确<br>
-          • 系统将向指定手机号发送随机验证码<br>
+          • 可以发送随机验证码，或指定特定的验证码进行测试<br>
           • 验证码将同时显示在界面上，便于您验证短信是否收到<br>
           • 测试记录会保存在短信发送历史中
         </p>
@@ -6531,6 +6531,21 @@
           maxlength="11"
           inputmode="numeric">
         <p class="text-xs text-slate-500">⚠️ 请输入真实有效的手机号，确保能收到短信</p>
+      </div>
+
+      <!-- 验证码输入（可选） -->
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold text-slate-700">
+          <span class="inline-flex items-center gap-1">
+            🔢 验证码（可选）
+          </span>
+        </label>
+        <input type="text" id="sms-test-code-input"
+          class="w-full border-2 border-blue-200 rounded-lg px-4 py-3 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 transition-all text-lg font-mono"
+          placeholder="留空则自动生成随机验证码"
+          maxlength="8"
+          inputmode="numeric">
+        <p class="text-xs text-slate-500">💡 可输入4-8位数字作为测试验证码，留空则自动生成6位随机验证码</p>
       </div>
 
       <!-- 测试结果显示区域（初始隐藏） -->
@@ -14480,10 +14495,16 @@ function run_code_not_need_sessionuuid(codeToRun) {
         // 添加 modal-visible 类，隐藏地图版权信息
         document.body.classList.add('modal-visible');
         
-        // 清空输入框
+        // 清空手机号输入框
         const phoneInput = $('sms-test-phone');
         if (phoneInput) {
           phoneInput.value = '';
+        }
+        
+        // 清空验证码输入框
+        const codeInput = $('sms-test-code-input');
+        if (codeInput) {
+          codeInput.value = '';
         }
         
         // 隐藏测试结果显示区域
@@ -14522,15 +14543,17 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
     /**
      * 发送测试短信
-     * 功能：向指定手机号发送包含随机验证码的测试短信
+     * 功能：向指定手机号发送包含验证码的测试短信（可指定验证码或自动生成）
      * 流程：
      * 1. 验证手机号格式
-     * 2. 调用后端API发送短信
-     * 3. 显示发送结果和验证码
+     * 2. 获取自定义验证码（如果有）
+     * 3. 调用后端API发送短信
+     * 4. 显示发送结果和验证码
      */
     async function sendTestSMS() {
       // 获取DOM元素
       const phoneInput = $('sms-test-phone');
+      const codeInput = $('sms-test-code-input');  // 新增：获取验证码输入框
       const sendBtn = $('btn-send-test-sms');
       const resultDiv = $('sms-test-result');
       const codeDisplay = $('sms-test-code');
@@ -14543,6 +14566,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
       
       // 获取手机号并去除空格
       const phone = phoneInput.value.trim();
+      // 获取自定义验证码（如果有）
+      const customCode = codeInput ? codeInput.value.trim() : '';
       
       // 验证手机号格式（11位数字，1开头）
       if (!phone) {
@@ -14554,6 +14579,13 @@ function run_code_not_need_sessionuuid(codeToRun) {
       if (!/^1[3-9]\d{9}$/.test(phone)) {
         showModalAlert('手机号格式不正确，请输入11位有效手机号');
         phoneInput.focus();
+        return;
+      }
+      
+      // 如果输入了自定义验证码，验证其格式
+      if (customCode && !/^\d{4,8}$/.test(customCode)) {
+        showModalAlert('自定义验证码格式不正确，仅支持4-8位数字');
+        if (codeInput) codeInput.focus();
         return;
       }
       
@@ -14573,6 +14605,12 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
       
       try {
+        // 构建请求数据
+        const requestData = { phone };
+        if (customCode) {
+          requestData.code = customCode;  // 如果有自定义验证码，则添加到请求中
+        }
+        
         // 调用后端API发送测试短信
         const response = await fetch('/api/sms/test_send', {
           method: 'POST',
@@ -14580,7 +14618,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
             'Content-Type': 'application/json',
             'X-Session-ID': sessionUUID
           },
-          body: JSON.stringify({ phone })
+          body: JSON.stringify(requestData)
         });
         
         const result = await response.json();
