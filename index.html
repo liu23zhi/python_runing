@@ -17744,15 +17744,15 @@ function run_code_not_need_sessionuuid(codeToRun) {
               
               // 检查API调用是否成功
               if (result.success && result.accounts) {
-                // result.accounts 是一个数组，每个元素包含 username 和 password
-                // 遍历所有账户，查找与当前选中用户名匹配的账户
-                const matchedAccount = result.accounts.find(acc => acc.username === username);
+                // result.accounts 是一个对象，key 是 school_username，value 是 password
+                // 直接查找当前选中用户名对应的密码
+                const password = result.accounts[username];
                 
-                // 如果找到匹配的账户且该账户有密码
-                if (matchedAccount && matchedAccount.password) {
+                // 如果找到密码（非空字符串）
+                if (password) {
                   // 使用 school_account 中存储的密码覆盖密码输入框
                   // 这个密码优先级高于配置文件中的密码
-                  $('password-entry').value = matchedAccount.password;
+                  $('password-entry').value = password;
                   
                   // 在控制台输出日志，便于调试
                   logMessage_Info(`[用户选择] 已从 school_accounts 加载用户 ${username} 的密码`);
