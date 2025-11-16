@@ -5142,6 +5142,17 @@
           </svg>
           验证码历史
         </button>
+
+        <!-- 定时提醒管理标签 -->
+        <button id="admin-tab-reminders_modal"
+          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          定时提醒
+        </button>
       </div>
 
       <div class="overflow-x-hidden flex-grow min-h-0">
@@ -5863,6 +5874,153 @@
           </div>
         </div>
 
+        <!-- 定时提醒管理面板 -->
+        <div id="admin-reminders-panel_modal" class="hidden space-y-4">
+          <!-- 标题和操作按钮 -->
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold text-lg">⏰ 定时提醒管理</h4>
+            <button id="admin-add-reminder_modal" class="btn btn-primary !py-2 !px-4"
+              onclick="openReminderEditModal()">
+              <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 4v16m8-8H4"></path>
+              </svg>
+              添加提醒
+            </button>
+          </div>
+
+          <!-- 说明文字 -->
+          <p class="text-xs text-blue-700 bg-blue-50 p-3 rounded-md">
+            💡 <strong>功能说明：</strong><br>
+            • 定时提醒会在设定的时间范围内自动弹出提示<br>
+            • 支持跨天时间设置（例如：20:00 到次日 08:00）<br>
+            • 禁用的提醒不会显示，但数据会保留<br>
+            • 用户打开页面或每分钟检查一次是否有提醒需要显示
+          </p>
+
+          <!-- 提醒列表 -->
+          <div id="admin-reminders-list_modal" class="space-y-2 max-h-[55vh] overflow-y-auto pr-2">
+            <p class="text-slate-400 text-center py-10">暂无提醒，点击"添加提醒"创建新提醒</p>
+          </div>
+
+          <!-- 统计信息 -->
+          <div class="grid grid-cols-3 gap-2 text-center text-sm">
+            <div class="p-2 bg-slate-100 rounded">
+              <div class="text-slate-600">总计</div>
+              <div id="reminder-stat-total" class="text-lg font-semibold">0</div>
+            </div>
+            <div class="p-2 bg-green-100 rounded">
+              <div class="text-green-700">启用</div>
+              <div id="reminder-stat-enabled" class="text-lg font-semibold text-green-700">0</div>
+            </div>
+            <div class="p-2 bg-slate-100 rounded">
+              <div class="text-slate-600">禁用</div>
+              <div id="reminder-stat-disabled" class="text-lg font-semibold text-slate-600">0</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 定时提醒编辑模态框 -->
+  <div id="reminder-edit-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
+    <!-- 半透明背景遮罩，点击关闭 -->
+    <div class="absolute inset-0 bg-black/70" onclick="closeReminderEditModal()"></div>
+    
+    <!-- 模态框主体内容 -->
+    <div class="panel rounded-2xl p-6 w-[90%] max-w-2xl max-h-[85vh] space-y-4 relative overflow-y-auto">
+      <!-- 标题栏 -->
+      <div class="flex items-center justify-between">
+        <h3 id="reminder-modal-title" class="text-xl font-bold text-sky-600">⏰ 添加定时提醒</h3>
+        <button onclick="closeReminderEditModal()"
+          class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+
+      <!-- 提醒表单 -->
+      <div class="space-y-4">
+        <!-- 隐藏的ID字段（编辑时使用） -->
+        <input type="hidden" id="reminder-id-field">
+
+        <!-- 提醒标题 -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">
+            📌 提醒标题 <span class="text-red-500">*</span>
+          </label>
+          <input type="text" id="reminder-title-field" 
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+            placeholder="例如：学校服务器关闭提醒" maxlength="50">
+          <p class="text-xs text-slate-500 mt-1">最多50个字符</p>
+        </div>
+
+        <!-- 提醒内容 -->
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">
+            📝 提醒内容 <span class="text-red-500">*</span>
+          </label>
+          <textarea id="reminder-message-field" rows="4"
+            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+            placeholder="例如：学校服务器将于20:00关闭，请各位注意时间" maxlength="500"></textarea>
+          <p class="text-xs text-slate-500 mt-1">最多500个字符</p>
+        </div>
+
+        <!-- 时间范围 -->
+        <div class="grid grid-cols-2 gap-4">
+          <!-- 开始时间 -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">
+              ⏰ 开始时间 <span class="text-red-500">*</span>
+            </label>
+            <input type="time" id="reminder-start-time-field" 
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <p class="text-xs text-slate-500 mt-1">24小时制（如 19:00）</p>
+          </div>
+
+          <!-- 结束时间 -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">
+              ⏰ 结束时间 <span class="text-red-500">*</span>
+            </label>
+            <input type="time" id="reminder-end-time-field" 
+              class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500">
+            <p class="text-xs text-slate-500 mt-1">24小时制（如 20:00）</p>
+          </div>
+        </div>
+
+        <!-- 跨天提示 -->
+        <div class="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
+          <p class="text-sm text-blue-700">
+            💡 <strong>跨天时间说明：</strong><br>
+            • 如果结束时间小于开始时间，系统会自动识别为跨天<br>
+            • 例如：开始 20:00，结束 08:00 → 表示从晚上20:00到次日早上08:00<br>
+            • 正常时间：开始 09:00，结束 17:00 → 表示当天09:00到17:00
+          </p>
+        </div>
+
+        <!-- 启用状态 -->
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="reminder-enabled-field" 
+            class="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+            checked>
+          <label for="reminder-enabled-field" class="text-sm font-semibold text-slate-700">
+            ✅ 启用此提醒（取消勾选则暂时禁用，不会删除数据）
+          </label>
+        </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="flex gap-3 border-t pt-4">
+        <button onclick="closeReminderEditModal()" class="btn btn-ghost flex-1">
+          取消
+        </button>
+        <button onclick="saveReminder()" class="btn btn-primary flex-1">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M5 13l4 4L19 7"></path>
+          </svg>
+          保存提醒
+        </button>
       </div>
     </div>
   </div>
@@ -9890,6 +10048,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
           const modalSmsTab = $('admin-tab-sms_modal');
           const modalConfigTab = $('admin-tab-config_modal');
           const modalCaptchaTab = $('admin-tab-captcha_modal');
+          const modalRemindersTab = $('admin-tab-reminders_modal');
 
           if (modalUsersTab) modalUsersTab.addEventListener('click', () => switchAdminTab('users'));
           if (modalGroupsTab) modalGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
@@ -9903,6 +10062,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
           if (modalSmsTab) modalSmsTab.addEventListener('click', () => switchAdminTab('sms'));
           if (modalConfigTab) modalConfigTab.addEventListener('click', () => switchAdminTab('config'));
           if (modalCaptchaTab) modalCaptchaTab.addEventListener('click', () => switchAdminTab('captcha'));
+          if (modalRemindersTab) modalRemindersTab.addEventListener('click', () => switchAdminTab('reminders'));
 
           logMessage_Info("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
         } else {
@@ -10415,6 +10575,14 @@ function run_code_not_need_sessionuuid(codeToRun) {
         // 权限要求：需要'manage_system'权限（仅管理员拥有）
         // ===================================================================
         if (configTab) configTab.style.display = canManageSystem ? 'block' : 'none';
+        
+        // ===================================================================
+        // 【新增】定时提醒管理标签显示逻辑
+        // 功能说明：根据canViewLogs权限控制定时提醒标签的显示
+        // 权限要求：需要'view_logs'权限（管理员组默认拥有此权限）
+        // ===================================================================
+        const remindersTab = $('admin-tab-reminders_modal');
+        if (remindersTab) remindersTab.style.display = canViewLogs ? 'block' : 'none';
 
         // 游客模式：只显示会话管理和留言板，隐藏个人信息
         if (isGuest) {
@@ -10484,6 +10652,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const smsTab = $('admin-tab-sms_modal');
       const configTab = $('admin-tab-config_modal');
       const captchaTab = $('admin-tab-captcha_modal');
+      const remindersTab = $('admin-tab-reminders_modal');
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
       const logsPanel = $('admin-logs-panel_modal');
@@ -10495,6 +10664,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const smsPanel = $('admin-sms-config-modal');
       const configPanel = $('admin-config-panel_modal');
       const captchaPanel = $('admin-captcha-panel_modal');
+      const remindersPanel = $('admin-reminders-panel_modal');
 
       // 根据用户组进行权限隔离
       // 如果是普通用户（'user'），只显示健康状态和留言板，隐藏用户组管理
@@ -10507,13 +10677,13 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
 
       // 重置所有标签按钮的样式
-      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab, configTab, captchaTab].filter(t => t).forEach(t => {
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab, configTab, captchaTab, remindersTab].filter(t => t).forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
       // 隐藏所有内容面板
-      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel, configPanel, captchaPanel].filter(p => p).forEach(p => {
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel, configPanel, captchaPanel, remindersPanel].filter(p => p).forEach(p => {
         p.classList.add('hidden');
       });
 
@@ -10628,6 +10798,19 @@ function run_code_not_need_sessionuuid(codeToRun) {
             dateInput.value = today;
           }
           loadCaptchaHistory();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
+      } else if (tab === 'reminders') {
+        // 定时提醒管理标签
+        const remindersTab = $('admin-tab-reminders_modal');
+        const remindersPanel = $('admin-reminders-panel_modal');
+        if (remindersTab && remindersPanel) {
+          remindersTab.classList.add('text-sky-600', 'border-sky-600');
+          remindersTab.classList.remove('text-slate-400', 'border-transparent');
+          remindersPanel.classList.remove('hidden');
+          // 加载提醒列表
+          loadReminders();
           // 停止健康状态自动刷新
           stopHealthAutoRefresh();
         }
@@ -22986,6 +23169,547 @@ function run_code_not_need_sessionuuid(codeToRun) {
       alert(`验证码ID: ${captchaId}\n\n详细信息功能待实现`);
     }
 
+    // ============================================================
+    // 定时提醒管理功能
+    // 提供定时提醒的增删改查和显示功能
+    // ============================================================
+
+    /**
+     * 加载定时提醒列表
+     * 从后端API获取所有提醒，并渲染到管理面板
+     */
+    async function loadReminders() {
+      // 获取提醒列表容器元素
+      const listContainer = $('admin-reminders-list_modal');
+      
+      // 显示加载中状态
+      listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+      try {
+        // 调用后端API获取提醒列表
+        const response = await fetch('/api/reminders/list', {
+          method: 'GET',
+          headers: {
+            'X-Session-ID': sessionUUID  // 使用全局会话ID
+          }
+        });
+
+        // 解析JSON响应
+        const result = await response.json();
+
+        // 检查响应状态
+        if (!result.success) {
+          // 显示错误消息
+          listContainer.innerHTML = `<p class="text-red-500 text-center py-10">${result.message || '加载失败'}</p>`;
+          return;
+        }
+
+        // 获取提醒数组
+        const reminders = result.reminders || [];
+
+        // 更新统计信息
+        const total = reminders.length;
+        const enabled = reminders.filter(r => r.enabled).length;
+        const disabled = total - enabled;
+
+        // 更新统计数字显示
+        $('reminder-stat-total').textContent = total;
+        $('reminder-stat-enabled').textContent = enabled;
+        $('reminder-stat-disabled').textContent = disabled;
+
+        // 如果没有提醒，显示提示信息
+        if (reminders.length === 0) {
+          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">暂无提醒，点击"添加提醒"创建新提醒</p>';
+          return;
+        }
+
+        // 清空容器，准备渲染提醒列表
+        listContainer.innerHTML = '';
+
+        // 遍历每个提醒，创建DOM元素
+        reminders.forEach(reminder => {
+          // 创建提醒卡片容器
+          const itemDiv = document.createElement('div');
+          itemDiv.className = 'p-4 bg-white border border-slate-200 rounded-lg hover:shadow-md transition-shadow';
+
+          // 判断时间范围类型（是否跨天）
+          const isCrossDay = reminder.start_time > reminder.end_time;
+          const timeRangeClass = isCrossDay ? 'text-purple-600' : 'text-blue-600';
+          const timeRangeIcon = isCrossDay ? '🌙' : '☀️';
+          const timeRangeHint = isCrossDay ? '（跨天）' : '';
+
+          // 设置卡片HTML内容
+          itemDiv.innerHTML = `
+            <div class="flex justify-between items-start">
+              <!-- 左侧：提醒信息 -->
+              <div class="flex-1">
+                <!-- 标题和状态标签 -->
+                <div class="flex items-center gap-2 mb-2">
+                  <h5 class="font-semibold text-slate-800 text-base">${escapeHtml(reminder.title)}</h5>
+                  ${reminder.enabled 
+                    ? '<span class="px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded">启用</span>' 
+                    : '<span class="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded">禁用</span>'}
+                </div>
+
+                <!-- 提醒内容 -->
+                <p class="text-sm text-slate-600 mb-3 line-clamp-2">${escapeHtml(reminder.message)}</p>
+
+                <!-- 时间范围 -->
+                <div class="flex items-center gap-2 text-sm ${timeRangeClass}">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>${timeRangeIcon} ${reminder.start_time} - ${reminder.end_time} ${timeRangeHint}</span>
+                </div>
+
+                <!-- 创建和更新时间 -->
+                <div class="mt-2 text-xs text-slate-400 space-y-0.5">
+                  <div>创建时间: ${formatTimestamp(reminder.created_at)}</div>
+                  ${reminder.updated_at && reminder.updated_at !== reminder.created_at 
+                    ? `<div>更新时间: ${formatTimestamp(reminder.updated_at)}</div>` 
+                    : ''}
+                </div>
+              </div>
+
+              <!-- 右侧：操作按钮 -->
+              <div class="flex flex-col gap-2 ml-4">
+                <!-- 编辑按钮 -->
+                <button onclick="openReminderEditModal('${reminder.id}')" 
+                  class="btn btn-ghost !py-1 !px-3 text-xs whitespace-nowrap hover:bg-sky-50 hover:text-sky-600"
+                  title="编辑提醒">
+                  <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                  </svg>
+                  编辑
+                </button>
+
+                <!-- 启用/禁用切换按钮 -->
+                <button onclick="toggleReminderEnabled('${reminder.id}', ${!reminder.enabled})" 
+                  class="btn btn-ghost !py-1 !px-3 text-xs whitespace-nowrap ${reminder.enabled ? 'hover:bg-yellow-50 hover:text-yellow-600' : 'hover:bg-green-50 hover:text-green-600'}"
+                  title="${reminder.enabled ? '禁用提醒' : '启用提醒'}">
+                  <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="${reminder.enabled ? 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636' : 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'}"></path>
+                  </svg>
+                  ${reminder.enabled ? '禁用' : '启用'}
+                </button>
+
+                <!-- 删除按钮 -->
+                <button onclick="deleteReminder('${reminder.id}', '${escapeHtml(reminder.title)}')" 
+                  class="btn btn-ghost !py-1 !px-3 text-xs whitespace-nowrap hover:bg-red-50 hover:text-red-600"
+                  title="删除提醒">
+                  <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                  删除
+                </button>
+              </div>
+            </div>
+          `;
+
+          // 将卡片添加到列表容器
+          listContainer.appendChild(itemDiv);
+        });
+
+        console.log(`[定时提醒] 已加载 ${reminders.length} 条提醒`);
+
+      } catch (error) {
+        // 捕获异常并显示错误信息
+        console.error('[定时提醒] 加载失败:', error);
+        listContainer.innerHTML = `<p class="text-red-500 text-center py-10">加载提醒时发生错误: ${error.message}</p>`;
+      }
+    }
+
+    /**
+     * 打开提醒编辑模态框
+     * @param {string} reminderId - 提醒ID，如果为空则表示添加新提醒
+     */
+    async function openReminderEditModal(reminderId = '') {
+      // 获取模态框元素
+      const modal = $('reminder-edit-modal');
+      const title = $('reminder-modal-title');
+      
+      // 获取表单字段元素
+      const idField = $('reminder-id-field');
+      const titleField = $('reminder-title-field');
+      const messageField = $('reminder-message-field');
+      const startTimeField = $('reminder-start-time-field');
+      const endTimeField = $('reminder-end-time-field');
+      const enabledField = $('reminder-enabled-field');
+
+      if (reminderId) {
+        // 编辑模式：加载现有提醒数据
+        title.textContent = '✏️ 编辑定时提醒';
+        
+        try {
+          // 从后端获取提醒列表（简单实现：从内存中查找）
+          const response = await fetch('/api/reminders/list', {
+            method: 'GET',
+            headers: { 'X-Session-ID': sessionUUID }
+          });
+          const result = await response.json();
+          
+          if (result.success) {
+            // 查找对应ID的提醒
+            const reminder = result.reminders.find(r => r.id === reminderId);
+            
+            if (reminder) {
+              // 填充表单字段
+              idField.value = reminder.id;
+              titleField.value = reminder.title;
+              messageField.value = reminder.message;
+              startTimeField.value = reminder.start_time;
+              endTimeField.value = reminder.end_time;
+              enabledField.checked = reminder.enabled;
+            } else {
+              showModalAlert('提醒不存在', '错误');
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('[定时提醒] 加载提醒数据失败:', error);
+          showModalAlert('加载提醒数据失败', '错误');
+          return;
+        }
+      } else {
+        // 添加模式：清空表单
+        title.textContent = '⏰ 添加定时提醒';
+        idField.value = '';
+        titleField.value = '';
+        messageField.value = '';
+        startTimeField.value = '';
+        endTimeField.value = '';
+        enabledField.checked = true;
+      }
+
+      // 显示模态框
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      
+      // 聚焦到标题输入框
+      titleField.focus();
+    }
+
+    /**
+     * 关闭提醒编辑模态框
+     */
+    function closeReminderEditModal() {
+      const modal = $('reminder-edit-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    /**
+     * 保存提醒（添加或更新）
+     */
+    async function saveReminder() {
+      // 获取表单数据
+      const id = $('reminder-id-field').value.trim();
+      const title = $('reminder-title-field').value.trim();
+      const message = $('reminder-message-field').value.trim();
+      const startTime = $('reminder-start-time-field').value;
+      const endTime = $('reminder-end-time-field').value;
+      const enabled = $('reminder-enabled-field').checked;
+
+      // ===== 前端验证 =====
+      
+      // 验证标题
+      if (!title) {
+        showModalAlert('请输入提醒标题', '错误');
+        return;
+      }
+      if (title.length > 50) {
+        showModalAlert('提醒标题不能超过50个字符', '错误');
+        return;
+      }
+
+      // 验证内容
+      if (!message) {
+        showModalAlert('请输入提醒内容', '错误');
+        return;
+      }
+      if (message.length > 500) {
+        showModalAlert('提醒内容不能超过500个字符', '错误');
+        return;
+      }
+
+      // 验证时间
+      if (!startTime || !endTime) {
+        showModalAlert('请选择开始时间和结束时间', '错误');
+        return;
+      }
+
+      // 时间格式验证（HH:MM）
+      const timePattern = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timePattern.test(startTime) || !timePattern.test(endTime)) {
+        showModalAlert('时间格式错误，应为 HH:MM（如 19:00）', '错误');
+        return;
+      }
+
+      try {
+        // 判断是添加还是更新
+        const isUpdate = !!id;
+        const apiUrl = isUpdate ? '/api/reminders/update' : '/api/reminders/add';
+
+        // 构建请求数据
+        const requestData = {
+          title: title,
+          message: message,
+          start_time: startTime,
+          end_time: endTime,
+          enabled: enabled
+        };
+
+        // 如果是更新，添加ID字段
+        if (isUpdate) {
+          requestData.id = id;
+        }
+
+        // 发送请求到后端
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify(requestData)
+        });
+
+        // 解析响应
+        const result = await response.json();
+
+        if (result.success) {
+          // 保存成功
+          showModalAlert(
+            isUpdate ? '提醒更新成功' : '提醒添加成功',
+            '成功',
+            'success'
+          );
+
+          // 关闭模态框
+          closeReminderEditModal();
+
+          // 重新加载提醒列表
+          loadReminders();
+        } else {
+          // 保存失败
+          showModalAlert(result.message || '保存失败', '错误');
+        }
+
+      } catch (error) {
+        // 捕获异常
+        console.error('[定时提醒] 保存失败:', error);
+        showModalAlert('保存提醒时发生错误: ' + error.message, '错误');
+      }
+    }
+
+    /**
+     * 切换提醒的启用状态
+     * @param {string} reminderId - 提醒ID
+     * @param {boolean} newEnabledState - 新的启用状态
+     */
+    async function toggleReminderEnabled(reminderId, newEnabledState) {
+      try {
+        // 发送更新请求到后端
+        const response = await fetch('/api/reminders/update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            id: reminderId,
+            enabled: newEnabledState
+          })
+        });
+
+        // 解析响应
+        const result = await response.json();
+
+        if (result.success) {
+          // 更新成功，重新加载列表
+          console.log(`[定时提醒] 提醒状态已更新: ID=${reminderId}, enabled=${newEnabledState}`);
+          loadReminders();
+        } else {
+          // 更新失败
+          showModalAlert(result.message || '更新状态失败', '错误');
+        }
+
+      } catch (error) {
+        // 捕获异常
+        console.error('[定时提醒] 更新状态失败:', error);
+        showModalAlert('更新提醒状态时发生错误: ' + error.message, '错误');
+      }
+    }
+
+    /**
+     * 删除提醒
+     * @param {string} reminderId - 提醒ID
+     * @param {string} reminderTitle - 提醒标题（用于确认对话框）
+     */
+    async function deleteReminder(reminderId, reminderTitle) {
+      // 显示确认对话框
+      const confirmed = await Swal.fire({
+        title: '确认删除？',
+        html: `确定要删除提醒 <strong>${escapeHtml(reminderTitle)}</strong> 吗？<br><span class="text-sm text-slate-500">此操作不可恢复</span>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#64748b'
+      });
+
+      // 如果用户取消，直接返回
+      if (!confirmed.isConfirmed) {
+        return;
+      }
+
+      try {
+        // 发送删除请求到后端
+        const response = await fetch('/api/reminders/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({ id: reminderId })
+        });
+
+        // 解析响应
+        const result = await response.json();
+
+        if (result.success) {
+          // 删除成功
+          showModalAlert('提醒已删除', '成功', 'success');
+          
+          // 重新加载提醒列表
+          loadReminders();
+        } else {
+          // 删除失败
+          showModalAlert(result.message || '删除失败', '错误');
+        }
+
+      } catch (error) {
+        // 捕获异常
+        console.error('[定时提醒] 删除失败:', error);
+        showModalAlert('删除提醒时发生错误: ' + error.message, '错误');
+      }
+    }
+
+    /**
+     * 格式化时间戳为可读字符串
+     * @param {number} timestamp - Unix时间戳（秒）
+     * @returns {string} 格式化后的时间字符串
+     */
+    function formatTimestamp(timestamp) {
+      // 将时间戳转换为Date对象
+      const date = new Date(timestamp * 1000);
+      
+      // 格式化为 "YYYY-MM-DD HH:MM:SS"
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    // ============================================================
+    // 定时检查提醒并显示
+    // 页面加载时和每分钟检查一次是否有需要显示的提醒
+    // ============================================================
+
+    /**
+     * 已显示的提醒ID集合（防止重复显示）
+     * 使用Set数据结构存储已显示的提醒ID
+     */
+    let shownReminders = new Set();
+
+    /**
+     * 检查并显示定时提醒
+     * 从后端API获取当前时间需要显示的提醒，并使用SweetAlert2显示
+     */
+    async function checkAndShowReminders() {
+      try {
+        // 调用后端API检查当前时间的提醒
+        const response = await fetch('/api/reminders/check', {
+          method: 'GET',
+          headers: {
+            'X-Session-ID': sessionUUID
+          }
+        });
+
+        // 解析响应
+        const result = await response.json();
+
+        // 检查请求是否成功
+        if (!result.success) {
+          console.error('[定时提醒] 检查失败:', result.message);
+          return;
+        }
+
+        // 获取需要显示的提醒列表
+        const reminders = result.reminders || [];
+
+        // 遍历每个提醒
+        for (const reminder of reminders) {
+          // 检查是否已经显示过此提醒
+          if (shownReminders.has(reminder.id)) {
+            // 已显示过，跳过
+            continue;
+          }
+
+          // 标记为已显示
+          shownReminders.add(reminder.id);
+
+          // 使用SweetAlert2显示提醒弹窗
+          Swal.fire({
+            title: reminder.title,
+            html: reminder.message.replace(/\n/g, '<br>'),  // 将换行符转换为HTML换行
+            icon: 'info',
+            confirmButtonText: '知道了',
+            allowOutsideClick: true,  // 允许点击外部关闭
+            allowEscapeKey: true,     // 允许按ESC关闭
+            customClass: {
+              popup: 'reminder-alert-popup',
+              title: 'reminder-alert-title',
+              htmlContainer: 'reminder-alert-content'
+            }
+          });
+
+          console.log(`[定时提醒] 已显示提醒: ${reminder.title}`);
+        }
+
+      } catch (error) {
+        // 捕获异常，但不影响页面正常使用
+        console.error('[定时提醒] 检查提醒时发生错误:', error);
+      }
+    }
+
+    /**
+     * 启动定时提醒检查
+     * 在页面加载完成后立即检查一次，然后每分钟检查一次
+     */
+    function startReminderChecker() {
+      // 立即执行一次检查
+      checkAndShowReminders();
+
+      // 设置定时器，每分钟（60秒）检查一次
+      setInterval(checkAndShowReminders, 60 * 1000);
+
+      console.log('[定时提醒] 定时检查已启动，每分钟检查一次');
+    }
+
+    // 在页面加载完成后启动定时提醒检查
+    // 注意：这需要在页面初始化逻辑中调用
+    // 建议在 window.onload 或 DOMContentLoaded 事件中调用 startReminderChecker()
+
     /**
      * 保存 config.ini 配置项
      */
@@ -23121,6 +23845,11 @@ function run_code_not_need_sessionuuid(codeToRun) {
         const profilePhoneHint = document.getElementById('profile-phone-hint');
         if (profilePhoneHint) profilePhoneHint.style.display = 'none';
       }
+      
+      // 3. 启动定时提醒检查器
+      // 页面加载完成后启动定时提醒功能，立即检查一次并设置每分钟检查一次
+      console.log('[定时提醒] 正在启动定时提醒检查器...');
+      startReminderChecker();
     });
   </script>
 

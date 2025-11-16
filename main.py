@@ -17965,6 +17965,568 @@ def start_web_server(args_param):
             })
 
     # ============================================================
+    # 定时提醒功能API
+    # 用于管理定时提醒，在特定时间段弹出提示
+    # ============================================================
+    
+    @app.route('/api/reminders/list', methods=['GET'])
+    def get_reminders_list():
+        """
+        获取所有提醒列表
+        
+        功能说明:
+            - 读取reminders.json文件中的所有提醒数据
+            - 返回提醒列表供前端显示
+            - 仅管理员有权查看和管理提醒
+        
+        返回格式:
+            {
+                "success": True/False,
+                "reminders": [提醒对象列表],
+                "message": "错误消息（仅失败时）"
+            }
+        
+        提醒对象格式:
+            {
+                "id": "唯一标识符",
+                "title": "提醒标题",
+                "message": "提醒内容",
+                "start_time": "开始时间 HH:MM",
+                "end_time": "结束时间 HH:MM",
+                "enabled": true/false,
+                "created_at": 创建时间戳,
+                "updated_at": 更新时间戳
+            }
+        """
+        # 从请求头获取session_id，进行权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 验证session_id是否存在且有效
+        if not session_id or session_id not in web_sessions:
+            return jsonify({
+                "success": False,
+                "message": "未授权访问，请先登录"
+            }), 401
+        
+        # 获取当前用户的认证信息
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查用户权限：只有管理员可以管理提醒
+        # 使用auth_system检查用户是否有管理员权限
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            # 这里使用view_logs权限作为管理员判断依据
+            # 您也可以添加专门的'manage_reminders'权限
+            return jsonify({
+                "success": False,
+                "message": "权限不足，仅管理员可以管理提醒"
+            }), 403
+        
+        try:
+            # 定义提醒数据文件路径
+            reminders_file = 'reminders.json'
+            
+            # 初始化提醒列表
+            reminders = []
+            
+            # 检查文件是否存在
+            if os.path.exists(reminders_file):
+                # 读取JSON文件
+                with open(reminders_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # 从JSON中提取reminders数组
+                    reminders = data.get('reminders', [])
+            
+            # 按创建时间倒序排序（最新的在前）
+            reminders.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+            
+            # 记录日志
+            logging.info(f"[定时提醒] 用户 {auth_username} 获取提醒列表，共 {len(reminders)} 条")
+            
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "reminders": reminders
+            })
+            
+        except json.JSONDecodeError as e:
+            # JSON解析错误
+            logging.error(f"[定时提醒] JSON解析失败: {e}")
+            return jsonify({
+                "success": False,
+                "message": "提醒数据文件格式错误"
+            }), 500
+            
+        except Exception as e:
+            # 其他异常
+            logging.error(f"[定时提醒] 获取提醒列表失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"获取提醒列表失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/add', methods=['POST'])
+    def add_reminder():
+        """
+        添加新提醒
+        
+        请求体:
+            {
+                "title": "提醒标题",
+                "message": "提醒内容",
+                "start_time": "19:00",
+                "end_time": "20:00",
+                "enabled": true
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "操作结果消息",
+                "reminder_id": "新创建的提醒ID（成功时）"
+            }
+        
+        验证规则:
+            - 标题和内容不能为空
+            - 时间格式必须为 HH:MM（24小时制）
+            - 标题长度不超过50字符
+            - 内容长度不超过500字符
+        """
+        # 权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查管理员权限
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        try:
+            # 获取请求数据
+            data = request.get_json() or {}
+            title = data.get('title', '').strip()
+            message = data.get('message', '').strip()
+            start_time = data.get('start_time', '').strip()
+            end_time = data.get('end_time', '').strip()
+            enabled = data.get('enabled', True)
+            
+            # ===== 数据验证 =====
+            
+            # 验证标题
+            if not title:
+                return jsonify({"success": False, "message": "提醒标题不能为空"})
+            if len(title) > 50:
+                return jsonify({"success": False, "message": "提醒标题不能超过50个字符"})
+            
+            # 验证内容
+            if not message:
+                return jsonify({"success": False, "message": "提醒内容不能为空"})
+            if len(message) > 500:
+                return jsonify({"success": False, "message": "提醒内容不能超过500个字符"})
+            
+            # 验证时间格式（HH:MM）
+            time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+            if not time_pattern.match(start_time):
+                return jsonify({"success": False, "message": "开始时间格式错误，应为 HH:MM（如 19:00）"})
+            if not time_pattern.match(end_time):
+                return jsonify({"success": False, "message": "结束时间格式错误，应为 HH:MM（如 20:00）"})
+            
+            # 验证enabled字段类型
+            if not isinstance(enabled, bool):
+                enabled = bool(enabled)
+            
+            # ===== 创建提醒对象 =====
+            
+            # 生成唯一ID
+            reminder_id = str(uuid.uuid4())
+            current_timestamp = time.time()
+            
+            # 构建提醒对象
+            new_reminder = {
+                "id": reminder_id,
+                "title": title,
+                "message": message,
+                "start_time": start_time,
+                "end_time": end_time,
+                "enabled": enabled,
+                "created_at": current_timestamp,
+                "updated_at": current_timestamp
+            }
+            
+            # ===== 保存到文件 =====
+            
+            reminders_file = 'reminders.json'
+            reminders = []
+            
+            # 读取现有提醒
+            if os.path.exists(reminders_file):
+                try:
+                    with open(reminders_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        reminders = data.get('reminders', [])
+                except (json.JSONDecodeError, OSError):
+                    # 文件损坏，使用空列表
+                    reminders = []
+            
+            # 添加新提醒到列表
+            reminders.append(new_reminder)
+            
+            # 写入文件
+            with open(reminders_file, 'w', encoding='utf-8') as f:
+                json.dump({"reminders": reminders}, f, indent=2, ensure_ascii=False)
+            
+            # 记录日志
+            logging.info(f"[定时提醒] 用户 {auth_username} 添加提醒: {title} ({start_time}-{end_time})")
+            
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "提醒添加成功",
+                "reminder_id": reminder_id
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 添加提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"添加提醒失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/update', methods=['POST'])
+    def update_reminder():
+        """
+        更新现有提醒
+        
+        请求体:
+            {
+                "id": "提醒ID",
+                "title": "新标题",
+                "message": "新内容",
+                "start_time": "19:00",
+                "end_time": "20:00",
+                "enabled": true
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "操作结果消息"
+            }
+        
+        说明:
+            - 必须提供提醒ID
+            - 其他字段可选，未提供的字段保持原值
+            - 更新updated_at时间戳
+        """
+        # 权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        try:
+            # 获取请求数据
+            data = request.get_json() or {}
+            reminder_id = data.get('id', '').strip()
+            
+            # 验证ID
+            if not reminder_id:
+                return jsonify({"success": False, "message": "提醒ID不能为空"})
+            
+            # 读取现有提醒
+            reminders_file = 'reminders.json'
+            if not os.path.exists(reminders_file):
+                return jsonify({"success": False, "message": "提醒文件不存在"}), 404
+            
+            with open(reminders_file, 'r', encoding='utf-8') as f:
+                reminders_data = json.load(f)
+                reminders = reminders_data.get('reminders', [])
+            
+            # 查找要更新的提醒
+            reminder_found = False
+            for reminder in reminders:
+                if reminder.get('id') == reminder_id:
+                    reminder_found = True
+                    
+                    # 更新字段（如果提供了新值）
+                    if 'title' in data:
+                        title = data['title'].strip()
+                        if not title:
+                            return jsonify({"success": False, "message": "标题不能为空"})
+                        if len(title) > 50:
+                            return jsonify({"success": False, "message": "标题不能超过50个字符"})
+                        reminder['title'] = title
+                    
+                    if 'message' in data:
+                        message = data['message'].strip()
+                        if not message:
+                            return jsonify({"success": False, "message": "内容不能为空"})
+                        if len(message) > 500:
+                            return jsonify({"success": False, "message": "内容不能超过500个字符"})
+                        reminder['message'] = message
+                    
+                    if 'start_time' in data:
+                        start_time = data['start_time'].strip()
+                        time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+                        if not time_pattern.match(start_time):
+                            return jsonify({"success": False, "message": "开始时间格式错误"})
+                        reminder['start_time'] = start_time
+                    
+                    if 'end_time' in data:
+                        end_time = data['end_time'].strip()
+                        time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+                        if not time_pattern.match(end_time):
+                            return jsonify({"success": False, "message": "结束时间格式错误"})
+                        reminder['end_time'] = end_time
+                    
+                    if 'enabled' in data:
+                        reminder['enabled'] = bool(data['enabled'])
+                    
+                    # 更新时间戳
+                    reminder['updated_at'] = time.time()
+                    
+                    break
+            
+            if not reminder_found:
+                return jsonify({"success": False, "message": "提醒不存在"}), 404
+            
+            # 保存更新后的数据
+            with open(reminders_file, 'w', encoding='utf-8') as f:
+                json.dump({"reminders": reminders}, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"[定时提醒] 用户 {auth_username} 更新提醒: {reminder_id}")
+            
+            return jsonify({
+                "success": True,
+                "message": "提醒更新成功"
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 更新提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"更新提醒失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/delete', methods=['POST'])
+    def delete_reminder():
+        """
+        删除提醒
+        
+        请求体:
+            {
+                "id": "提醒ID"
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "操作结果消息"
+            }
+        """
+        # 权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        try:
+            # 获取请求数据
+            data = request.get_json() or {}
+            reminder_id = data.get('id', '').strip()
+            
+            # 验证ID
+            if not reminder_id:
+                return jsonify({"success": False, "message": "提醒ID不能为空"})
+            
+            # 读取现有提醒
+            reminders_file = 'reminders.json'
+            if not os.path.exists(reminders_file):
+                return jsonify({"success": False, "message": "提醒文件不存在"}), 404
+            
+            with open(reminders_file, 'r', encoding='utf-8') as f:
+                reminders_data = json.load(f)
+                reminders = reminders_data.get('reminders', [])
+            
+            # 查找并删除提醒
+            original_count = len(reminders)
+            reminders = [r for r in reminders if r.get('id') != reminder_id]
+            
+            if len(reminders) == original_count:
+                # 没有删除任何提醒，说明ID不存在
+                return jsonify({"success": False, "message": "提醒不存在"}), 404
+            
+            # 保存更新后的数据
+            with open(reminders_file, 'w', encoding='utf-8') as f:
+                json.dump({"reminders": reminders}, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"[定时提醒] 用户 {auth_username} 删除提醒: {reminder_id}")
+            
+            return jsonify({
+                "success": True,
+                "message": "提醒删除成功"
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 删除提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"删除提醒失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/check', methods=['GET'])
+    def check_reminders():
+        """
+        检查当前时间是否有需要显示的提醒
+        
+        功能说明:
+            - 获取当前时间（HH:MM格式）
+            - 遍历所有启用的提醒
+            - 判断当前时间是否在提醒的时间范围内
+            - 支持跨天时间段判断（如 20:00 到次日 08:00）
+        
+        返回:
+            {
+                "success": True,
+                "reminders": [当前需要显示的提醒列表]
+            }
+        
+        时间判断逻辑:
+            - 正常时间段（start_time < end_time）：
+              当前时间 >= start_time 且 当前时间 < end_time
+            - 跨天时间段（start_time > end_time）：
+              当前时间 >= start_time 或 当前时间 < end_time
+        """
+        try:
+            # 获取当前时间（HH:MM格式）
+            from datetime import datetime
+            current_time_str = datetime.now().strftime('%H:%M')
+            
+            # 读取所有提醒
+            reminders_file = 'reminders.json'
+            if not os.path.exists(reminders_file):
+                # 文件不存在，返回空列表
+                return jsonify({
+                    "success": True,
+                    "reminders": []
+                })
+            
+            with open(reminders_file, 'r', encoding='utf-8') as f:
+                reminders_data = json.load(f)
+                all_reminders = reminders_data.get('reminders', [])
+            
+            # 筛选需要显示的提醒
+            active_reminders = []
+            
+            for reminder in all_reminders:
+                # 只处理启用的提醒
+                if not reminder.get('enabled', False):
+                    continue
+                
+                start_time = reminder.get('start_time', '')
+                end_time = reminder.get('end_time', '')
+                
+                # 验证时间格式
+                if not start_time or not end_time:
+                    continue
+                
+                # 判断当前时间是否在提醒时间范围内
+                if _is_time_in_range(current_time_str, start_time, end_time):
+                    # 添加到活动提醒列表
+                    active_reminders.append({
+                        "id": reminder.get('id'),
+                        "title": reminder.get('title'),
+                        "message": reminder.get('message')
+                    })
+            
+            # 返回结果
+            return jsonify({
+                "success": True,
+                "reminders": active_reminders
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 检查提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"检查提醒失败: {str(e)}"
+            }), 500
+    
+    def _is_time_in_range(current_time, start_time, end_time):
+        """
+        辅助函数：判断当前时间是否在指定的时间范围内
+        
+        参数:
+            current_time (str): 当前时间，格式为 HH:MM
+            start_time (str): 开始时间，格式为 HH:MM
+            end_time (str): 结束时间，格式为 HH:MM
+        
+        返回:
+            bool: True表示在范围内，False表示不在范围内
+        
+        逻辑说明:
+            - 情况1：正常时间段（start_time < end_time）
+              例如：09:00 到 17:00
+              判断：current_time >= start_time 且 current_time < end_time
+            
+            - 情况2：跨天时间段（start_time > end_time）
+              例如：20:00 到次日 08:00
+              判断：current_time >= start_time 或 current_time < end_time
+        
+        示例:
+            - _is_time_in_range("19:30", "19:00", "20:00") -> True
+            - _is_time_in_range("20:30", "20:00", "08:00") -> True （跨天）
+            - _is_time_in_range("07:30", "20:00", "08:00") -> True （跨天）
+            - _is_time_in_range("09:00", "20:00", "08:00") -> False
+        """
+        try:
+            # 将时间字符串转换为分钟数（从00:00开始计算）
+            # 例如："19:30" -> 19 * 60 + 30 = 1170分钟
+            def time_to_minutes(time_str):
+                """将HH:MM格式的时间转换为从00:00开始的分钟数"""
+                hours, minutes = map(int, time_str.split(':'))
+                return hours * 60 + minutes
+            
+            # 转换所有时间为分钟数
+            current_minutes = time_to_minutes(current_time)
+            start_minutes = time_to_minutes(start_time)
+            end_minutes = time_to_minutes(end_time)
+            
+            # 情况1：正常时间段（不跨天）
+            if start_minutes < end_minutes:
+                # 例如：09:00 到 17:00
+                # 判断当前时间是否在 [start, end) 区间内
+                return start_minutes <= current_minutes < end_minutes
+            
+            # 情况2：跨天时间段
+            elif start_minutes > end_minutes:
+                # 例如：20:00 到次日 08:00
+                # 判断当前时间是否 >= 20:00 或者 < 08:00
+                return current_minutes >= start_minutes or current_minutes < end_minutes
+            
+            # 情况3：start_time == end_time（边界情况，视为无效）
+            else:
+                return False
+                
+        except Exception as e:
+            # 时间解析失败，记录错误并返回False
+            logging.warning(f"[定时提醒] 时间范围判断失败: {e}")
+            return False
+
+    # ============================================================
     # 验证码功能API
     # 用于获取和验证图形验证码，增强系统安全性
     # ============================================================

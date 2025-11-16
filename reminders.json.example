@@ -1,0 +1,24 @@
+{
+  "reminders": [
+    {
+      "id": "example-reminder-1",
+      "title": "学校服务器关闭提醒",
+      "message": "学校服务器将于20:00关闭，请各位注意时间",
+      "start_time": "19:00",
+      "end_time": "20:00",
+      "enabled": true,
+      "created_at": 1700000000,
+      "updated_at": 1700000000
+    },
+    {
+      "id": "example-reminder-2",
+      "title": "服务器维护提醒",
+      "message": "学校服务器按照预期应于20:00关闭，如果出现错误，请在学校服务器运行时间使用。",
+      "start_time": "20:00",
+      "end_time": "08:00",
+      "enabled": true,
+      "created_at": 1700000100,
+      "updated_at": 1700000100
+    }
+  ]
+}
