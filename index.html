@@ -19945,10 +19945,25 @@ function run_code_not_need_sessionuuid(codeToRun) {
         }
         // ==========================================
 
+        // 获取任务的总打卡点数，用于判断是否已完成所有打卡点
         const totalTargets = (currentRunData.target_points?.length || 0);
+        // 判断是否在最后一个打卡区域内：
+        // 1. totalTargets > 0: 任务必须有打卡点
+        // 2. target_sequence >= totalTargets: 当前已经到达或超过最后一个打卡点
+        // 3. isInTargetZone === true: 当前位置确实在目标区域内
         const inLastZone = totalTargets > 0 && currentRunData.target_sequence >= totalTargets && currentRunData.isInTargetZone === true;
-        if (inLastZone) { if (draftPath.length > 0) callPythonAPI('set_draft_path', draftPath).then(() => processCurrentPath()); }
-        else { discardBlackDraftPolyline(); logMessage_Info("未达到最后打卡点，已舍弃路径。"); }
+        if (inLastZone) { 
+          // 【修复问题1】：移除重复的set_draft_path调用
+          // 原代码：callPythonAPI('set_draft_path', draftPath).then(() => processCurrentPath())
+          // 问题原因：processCurrentPath()内部已经会调用set_draft_path，这里重复调用可能导致异步竞争
+          // 修复方案：直接调用processCurrentPath()，它会在内部先设置草稿路径，再处理路径
+          if (draftPath.length > 0) processCurrentPath(); 
+        }
+        else { 
+          // 如果未达到最后打卡点就结束录制，则舍弃这次录制的路径
+          discardBlackDraftPolyline(); 
+          logMessage_Info("未达到最后打卡点，已舍弃路径。"); 
+        }
         currentRunData.target_sequence = 0; draftTotalDist = 0;
         updateDashboard(); drawMarkers(); resetMapView();
       }
@@ -19979,44 +19994,97 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (currentRunData) currentRunData.draft_coords = [];
       } catch (e) { logMessage_Error("discardBlackDraftPolyline() error:", e); }
     }
+    /**
+     * 处理当前录制的路径，将草稿路径转换为带时间戳的运动路径
+     * 【关键函数】此函数负责将用户手动录制的路径点转换为模拟的运动轨迹
+     * 
+     * 执行流程：
+     * 1. 首先将draftPath（前端草稿路径）发送到后端保存
+     * 2. 调用后端的process_path API进行路径处理（添加时间戳、随机偏移等）
+     * 3. 将处理后的路径更新到当前任务数据中
+     * 4. 更新地图显示和UI界面
+     */
     async function processCurrentPath() {
+      // 步骤1：如果存在草稿路径，先将其发送到后端保存
+      // 这里使用await确保set_draft_path完成后再继续执行，避免process_path时草稿路径还未设置
       if (draftPath.length > 0) await callPythonAPI('set_draft_path', draftPath);
+      
+      // 步骤2：调用后端API处理路径
+      // 后端会检查draft_coords是否有效（至少2个点），并进行以下处理：
+      // - 在路径点之间插值生成更多中间点
+      // - 为每个点添加时间戳
+      // - 为非打卡点添加GPS随机偏移（模拟真实GPS漂移）
       const result = await callPythonAPI('process_path');
+      
       if (result.success) {
-        currentRunData.run_coords = result.run_coords;
-        currentRunData.total_run_distance_m = result.total_dist;
-        currentRunData.total_run_time_s = result.total_time;
-        drawOnMap(); updateDashboard(); renderTaskList(); discardBlackDraftPolyline();
-        // 处理路径后同步总点数并复位进度
-        singleProcessedPoints = 0;
-        singleTotalPoints = (currentRunData.run_coords?.length || 0);
-        updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');
+        // 步骤3：更新当前任务的运动路径数据
+        currentRunData.run_coords = result.run_coords;  // 处理后的GPS坐标序列
+        currentRunData.total_run_distance_m = result.total_dist;  // 总距离（米）
+        currentRunData.total_run_time_s = result.total_time;  // 总时长（秒）
+        
+        // 步骤4：更新UI显示
+        drawOnMap();  // 重新绘制地图上的路径和标记
+        updateDashboard();  // 更新仪表盘信息
+        renderTaskList();  // 更新任务列表
+        discardBlackDraftPolyline();  // 清除草稿路径的临时显示
+        
+        // 步骤5：重置单任务进度追踪
+        // 处理路径后同步总点数并复位进度，为后续执行做准备
+        singleProcessedPoints = 0;  // 已处理的点数归零
+        singleTotalPoints = (currentRunData.run_coords?.length || 0);  // 记录总点数
+        updateSingleProgress(0, '0 / ' + singleTotalPoints + ' 点');  // 更新进度显示
 
-      } else showModalAlert(result.message);
+      } else {
+        // 如果处理失败（例如路径点少于2个），显示错误消息
+        showModalAlert(result.message);
+      }
     }
+    /**
+     * 切换单个任务的执行状态（开始/停止）
+     * 这个函数处理单个任务的启动和停止操作
+     * 
+     * 【关于问题2的说明】：
+     * 本函数正确实现了自动生成路径功能：
+     * - 获取"自动生成路径"复选框的状态（auto-gen-all-check）
+     * - 将auto_generate参数传递给后端API
+     * - 后端会在执行任务前自动为没有路径的任务生成路径
+     */
     async function toggleRun() {
-      const btn = $('start-run-button'); runAccumulatedMs = 0;
+      const btn = $('start-run-button'); 
+      runAccumulatedMs = 0;  // 重置累计运行时间
+      
       if (btn.textContent === '开始执行') {
+        // ========== 启动单个任务的执行 ==========
+        
+        // 【关键】获取"自动生成路径"复选框的状态
+        // 如果勾选，后端会在任务没有路径时自动调用高德API规划路径
         const autoGen = $('auto-gen-all-check').checked;
-        // 使用后台任务执行模式运行单个任务
+        
+        // 验证是否已选择任务
         if (selectedTaskIndex < 0) {
           showModalAlert('请先选择任务');
           return;
         }
 
+        // 重置任务状态，准备开始执行
         if (currentRunData) {
-          currentRunData.target_sequence = 1; // 重置为第一个打卡点 (JS UI 使用 1-based 索引)
-          currentRunData.isInTargetZone = false;
-          updateDashboard(); // 立即更新仪表盘
-          drawMarkers();     // 立即重绘地图标记（高亮第一个点）
+          currentRunData.target_sequence = 1;  // 重置为第一个打卡点 (JS UI 使用 1-based 索引)
+          currentRunData.isInTargetZone = false;  // 标记当前不在打卡区域内
+          updateDashboard();  // 立即更新仪表盘显示
+          drawMarkers();  // 立即重绘地图标记（高亮第一个打卡点）
         }
 
+        // 【关键】调用后台任务API启动任务执行
+        // 传递参数：
+        // - task_indices: 要执行的任务索引数组（这里只包含当前选中的任务）
+        // - auto_generate: 是否自动生成路径（从复选框获取）
         const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
           task_indices: [selectedTaskIndex],
-          auto_generate: autoGen
+          auto_generate: autoGen  // 【问题2相关】这个参数会传递到后端，触发自动路径生成
         });
 
         if (result.success) {
+          // 任务启动成功，更新按钮状态为"停止"
           btn.textContent = '停止';
           btn.classList.remove('btn-primary');
           btn.classList.add('btn-danger');
@@ -20040,61 +20108,88 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
     }
 
+    /**
+     * 切换执行所有任务的状态（开始/停止）
+     * 这个函数处理批量任务的启动和停止操作
+     * 
+     * 【关于问题2的说明】：
+     * 本函数同样正确实现了自动生成路径功能：
+     * - 获取"自动生成路径"复选框的状态（auto-gen-all-check）
+     * - 筛选出符合条件的任务（未过期、已开始、未完成或忽略已完成）
+     * - 将auto_generate参数传递给后端API
+     * - 后端会在执行每个任务前检查是否需要自动生成路径
+     */
     async function toggleAllRuns() {
-      const btn = $('start-all-button'); runAccumulatedMs = 0;
+      const btn = $('start-all-button'); 
+      runAccumulatedMs = 0;  // 重置累计运行时间
+      
       if (btn.textContent === '执行所有') {
-        const ignoreCompleted = $('run-completed-check').checked;
-        const autoGen = $('auto-gen-all-check').checked;
+        // ========== 启动批量任务执行 ==========
+        
+        // 获取用户选项
+        const ignoreCompleted = $('run-completed-check').checked;  // 是否忽略已完成的任务
+        const autoGen = $('auto-gen-all-check').checked;  // 【关键】是否自动生成路径
 
-        // 筛选符合条件的任务
+        // 筛选符合执行条件的任务
         const taskIndices = [];
         for (let i = 0; i < currentTasks.length; i++) {
           const task = currentTasks[i];
+          
+          // 如果任务已完成且未勾选"忽略已完成"，则跳过
           if (task.status == 1 && !ignoreCompleted) continue;
 
-          // 检查任务的时间范围是否有效 (JS)
-          // 修复：使用 task.info_text...
+          // 检查任务的时间范围是否有效
+          // 通过task.info_text判断任务是否已过期或未开始
           const infoText = task.info_text || "";
 
 
 
           if (infoText === '已过期') {
-            continue; // 任务已过期
+            continue; // 任务已过期，跳过
           }
           if (infoText.startsWith('开始于')) {
-            continue; // 任务未开始
+            continue; // 任务尚未开始，跳过
           }
 
-
-
+          // 任务通过了所有筛选条件，加入待执行列表
           taskIndices.push(i);
         }
 
+        // 验证是否有可执行的任务
         if (taskIndices.length === 0) {
           showModalAlert('没有可执行的任务');
           return;
         }
 
-        // （因为UI会显示第一个被执行的任务）
+        // 重置第一个任务的状态（因为UI会显示第一个被执行的任务）
         if (currentRunData) {
-          currentRunData.target_sequence = 1; // 重置为第一个打卡点 (JS UI 使用 1-based 索引)
-          currentRunData.isInTargetZone = false;
-          updateDashboard(); // 立即更新仪表盘
-          drawMarkers();     // 立即重绘地图标记
+          currentRunData.target_sequence = 1;  // 重置为第一个打卡点 (JS UI 使用 1-based 索引)
+          currentRunData.isInTargetZone = false;  // 标记当前不在打卡区域内
+          updateDashboard();  // 立即更新仪表盘显示
+          drawMarkers();  // 立即重绘地图标记
         }
 
-        // 使用后台任务执行模式运行多个任务
+        // 【关键】调用后台任务API启动批量任务执行
+        // 传递参数：
+        // - task_indices: 要执行的任务索引数组（包含所有符合条件的任务）
+        // - auto_generate: 是否自动生成路径（从复选框获取）
+        // 【问题2相关】后端收到这个请求后，会遍历所有任务：
+        //   1. 如果任务没有路径(run_coords为空)且auto_generate=true
+        //   2. 则自动调用高德API规划路径
+        //   3. 然后生成模拟GPS数据
+        //   4. 最后执行任务
         const result = await callPythonAPI_raw('/api/background_task/start', 'POST', {
           task_indices: taskIndices,
-          auto_generate: autoGen
+          auto_generate: autoGen  // 【问题2相关】这个参数控制自动路径生成功能
         });
 
         if (result.success) {
+          // 批量任务启动成功，更新按钮状态为"全部停止"
           btn.textContent = '全部停止';
           btn.classList.remove('btn-secondary');
           btn.classList.add('btn-danger');
 
-          // 初始化进度显示界面
+          // 初始化进度显示界面（显示任务总数）
           updateSingleProgress(0, `0 / ${taskIndices.length} 任务`);
 
           // Start polling (with a small delay to let backend initialize)
@@ -20643,6 +20738,21 @@ function run_code_not_need_sessionuuid(codeToRun) {
       return all_path;
     }
 
+    /**
+     * 用户点击"确认自动生成"按钮时的处理函数
+     * 【重要说明】这个函数与问题2中的"自动生成"功能不同：
+     * 
+     * - 本函数是响应用户在路径面板中手动点击"自动生成"按钮的操作
+     * - 问题2中的"自动生成"是指在任务执行时，如果勾选了"自动生成路径"复选框，
+     *   系统会在执行任务前自动为没有路径的任务生成路径，无需用户手动点击
+     * 
+     * 本函数的工作流程：
+     * 1. 获取用户设置的路径参数（最短/最长时间、最小间隔距离）
+     * 2. 验证参数有效性和任务状态
+     * 3. 调用高德API规划路径（通过getWalkingPath函数）
+     * 4. 将规划好的路径发送给后端，生成带时间戳的模拟GPS数据
+     * 5. 更新当前任务的路径数据和UI显示
+     */
     async function onConfirmAutoGenerate() {
       const minTime = parseInt($('min-time-input').value), maxTime = parseInt($('max-time-input').value), minDist = parseInt($('min-dist-input').value);
       if (minTime > maxTime) { showModalAlert("最短时间不能大于最长时间"); return; }
