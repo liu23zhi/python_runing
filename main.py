@@ -17983,7 +17983,11 @@ def start_web_server(args_param):
 
         # 2. 缓存未命中或已过期，调用API
         try:
-            api_url = f'https://api.vore.top/api/IPdata?ip={ip_address}'
+            api_key = config.get('ip_api_key', '')  # 如果有API密钥，可以在这里设置
+            if api_key and api_key != 'your_api_key_here' and api_key.strip() != '':
+                api_url = f'https://api.vore.top/api/IPdata?key={api_key}&ip={ip_address}'
+            else:
+                api_url = f'https://api.vore.top/api/IPdata?ip={ip_address}'
             
             # 发送GET请求，设置5秒超时
             response = requests.get(api_url, timeout=5)
@@ -18923,7 +18927,11 @@ def start_web_server(args_param):
         try:
             # 调用第三方验证码API
             # length=4 表示生成4位验证码
-            captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
+            api_key = config.get('captcha_api_key', '').strip()
+            if api_key and api_key != '' and api_key != 'your_api_key_here':
+                captcha_api_url = f'https://api.vore.top/api/VerifyCode?key={api_key}&length=4'
+            else:
+                captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
             
             # 发送GET请求获取验证码，设置5秒超时
             response = requests.get(captcha_api_url, timeout=5)
