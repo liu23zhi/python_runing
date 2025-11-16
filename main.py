@@ -18057,6 +18057,48 @@ def start_web_server(args_param):
             with open(captcha_file, 'w', encoding='utf-8') as f:
                 json.dump(captcha_data, f, indent=2, ensure_ascii=False)
             
+            # 记录验证码请求历史（用于排查错误）
+            def log_captcha_history():
+                try:
+                    history_dir = os.path.join('logs', 'captcha_history')
+                    os.makedirs(history_dir, exist_ok=True)
+                    
+                    # 获取客户端IP和User-Agent
+                    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+                    user_agent = request.headers.get('User-Agent', 'unknown')
+                    
+                    # 准备历史记录数据
+                    history_data = {
+                        'captcha_id': captcha_id,
+                        'code': captcha_code.upper(),
+                        'html': captcha_html,  # 保存HTML以便查看验证码图片
+                        'session_id': session_id,
+                        'client_ip': client_ip,
+                        'user_agent': user_agent,
+                        'timestamp': time.time(),
+                        'timestamp_readable': datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S'),
+                        'expires_at': time.time() + 600,
+                        'status': 'created',  # created, verified_success, verified_failed, expired
+                        'verified_at': None,
+                        'verified_input': None
+                    }
+                    
+                    # 使用时间戳作为历史记录文件名的一部分，便于查询
+                    date_str = datetime.datetime.now().strftime('%Y%m%d')
+                    history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+                    
+                    # 追加到历史记录文件（使用JSONL格式，每行一个JSON对象）
+                    with open(history_file, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps(history_data, ensure_ascii=False) + '\n')
+                    
+                    logging.debug(f"[验证码历史] 已记录验证码请求: ID={captcha_id[:8]}...")
+                except Exception as e:
+                    logging.error(f"[验证码历史] 记录历史失败: {e}", exc_info=True)
+            
+            # 在后台线程中记录历史
+            import threading
+            threading.Thread(target=log_captcha_history, daemon=True).start()
+            
             # 清理过期的验证码文件（后台任务）
             def cleanup_expired_captchas():
                 try:
@@ -18182,6 +18224,48 @@ def start_web_server(args_param):
             # 比对验证码
             is_correct = (user_input_upper == stored_code)
             
+            # 记录验证结果到历史
+            def update_captcha_history():
+                try:
+                    history_dir = os.path.join('logs', 'captcha_history')
+                    date_str = datetime.datetime.now().strftime('%Y%m%d')
+                    history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+                    
+                    if os.path.exists(history_file):
+                        # 读取所有历史记录
+                        lines = []
+                        with open(history_file, 'r', encoding='utf-8') as f:
+                            lines = f.readlines()
+                        
+                        # 更新对应的记录
+                        updated = False
+                        for i, line in enumerate(lines):
+                            try:
+                                record = json.loads(line.strip())
+                                if record.get('captcha_id') == captcha_id:
+                                    record['status'] = 'verified_success' if is_correct else 'verified_failed'
+                                    record['verified_at'] = time.time()
+                                    record['verified_at_readable'] = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+                                    record['verified_input'] = user_input_upper
+                                    lines[i] = json.dumps(record, ensure_ascii=False) + '\n'
+                                    updated = True
+                                    break
+                            except:
+                                pass
+                        
+                        if updated:
+                            # 写回文件
+                            with open(history_file, 'w', encoding='utf-8') as f:
+                                f.writelines(lines)
+                            
+                            logging.debug(f"[验证码历史] 已更新验证结果: ID={captcha_id[:8]}..., 结果={'成功' if is_correct else '失败'}")
+                except Exception as e:
+                    logging.error(f"[验证码历史] 更新验证结果失败: {e}", exc_info=True)
+            
+            # 在后台线程中更新历史
+            import threading
+            threading.Thread(target=update_captcha_history, daemon=True).start()
+            
             # 删除验证码文件（无论验证成功或失败，都删除）
             # 这确保验证码只能使用一次
             try:
@@ -18210,6 +18294,105 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"[验证码] 验证过程出错: {e}", exc_info=True)
             return False, "验证码验证失败"
+    
+    @app.route('/api/captcha/history', methods=['GET'])
+    def get_captcha_history():
+        """
+        获取验证码请求历史记录（管理员功能）
+        
+        查询参数:
+            date: 日期（格式：YYYYMMDD），默认为今天
+            limit: 返回记录数量限制，默认100
+            status: 状态过滤（created, verified_success, verified_failed, expired）
+        
+        返回格式:
+            {
+                "success": True/False,
+                "data": [验证码历史记录列表],
+                "total": 总记录数,
+                "message": "错误消息"
+            }
+        """
+        # 权限检查：只有管理员可以查看验证码历史
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({
+                "success": False,
+                "message": "未授权访问"
+            }), 401
+        
+        session_data = web_sessions.get(session_id, {})
+        username = session_data.get('username')
+        
+        if not username:
+            return jsonify({
+                "success": False,
+                "message": "未登录"
+            }), 401
+        
+        # 检查是否为管理员
+        if not auth_system.has_permission(username, 'view_captcha_history'):
+            return jsonify({
+                "success": False,
+                "message": "没有权限查看验证码历史"
+            }), 403
+        
+        try:
+            # 获取查询参数
+            date_str = request.args.get('date', datetime.datetime.now().strftime('%Y%m%d'))
+            limit = int(request.args.get('limit', 100))
+            status_filter = request.args.get('status', '')
+            
+            # 读取历史记录
+            history_dir = os.path.join('logs', 'captcha_history')
+            history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+            
+            if not os.path.exists(history_file):
+                return jsonify({
+                    "success": True,
+                    "data": [],
+                    "total": 0,
+                    "message": "该日期没有验证码历史记录"
+                })
+            
+            # 读取并解析历史记录
+            records = []
+            with open(history_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        record = json.loads(line.strip())
+                        # 状态过滤
+                        if status_filter and record.get('status') != status_filter:
+                            continue
+                        # 移除敏感信息
+                        record.pop('session_id', None)
+                        records.append(record)
+                    except Exception as e:
+                        logging.warning(f"[验证码历史] 解析记录失败: {e}")
+                        continue
+            
+            # 按时间戳倒序排列（最新的在前）
+            records.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+            
+            # 限制返回数量
+            total = len(records)
+            records = records[:limit]
+            
+            logging.info(f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条")
+            
+            return jsonify({
+                "success": True,
+                "data": records,
+                "total": total,
+                "date": date_str
+            })
+            
+        except Exception as e:
+            logging.error(f"[验证码历史] 获取历史记录失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": "获取验证码历史失败"
+            }), 500
 
     @app.route('/health')
     def health():

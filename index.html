@@ -5130,6 +5130,18 @@
           </svg>
           系统配置
         </button>
+
+        <!-- 验证码历史标签 -->
+        <button id="admin-tab-captcha_modal"
+          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap"
+          style="display:none;">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+            </path>
+          </svg>
+          验证码历史
+        </button>
       </div>
 
       <div class="overflow-x-hidden flex-grow min-h-0">
@@ -5802,6 +5814,53 @@
             <p class="text-slate-400 text-center py-10">加载中...</p>
           </div>
 
+        </div>
+
+        <!-- 验证码历史面板 -->
+        <div id="admin-captcha-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h4 class="font-semibold text-lg">📜 验证码历史记录</h4>
+            <div class="flex gap-2 items-center">
+              <input type="date" id="captcha-history-date" 
+                class="px-3 py-1 border border-slate-300 rounded-md text-sm"
+                value="">
+              <select id="captcha-history-status" class="px-3 py-1 border border-slate-300 rounded-md text-sm">
+                <option value="">全部状态</option>
+                <option value="created">已创建</option>
+                <option value="verified_success">验证成功</option>
+                <option value="verified_failed">验证失败</option>
+                <option value="expired">已过期</option>
+              </select>
+              <button id="admin-refresh-captcha_modal" class="btn btn-ghost !py-1 !px-2"
+                onclick="loadCaptchaHistory()">刷新</button>
+            </div>
+          </div>
+          <p class="text-xs text-blue-700 bg-blue-50 p-2 rounded-md">💡
+            提示：此面板显示验证码的请求和验证历史，用于排查验证码相关问题。历史记录按日期存储在 logs/captcha_history/ 目录。</p>
+
+          <div id="admin-captcha-list_modal" class="space-y-2 max-h-[55vh] overflow-y-auto pr-2">
+            <p class="text-slate-400 text-center py-10">请选择日期并点击刷新按钮查看验证码历史</p>
+          </div>
+
+          <!-- 统计信息 -->
+          <div id="captcha-stats" class="grid grid-cols-4 gap-2 text-center text-sm">
+            <div class="p-2 bg-slate-100 rounded">
+              <div class="text-slate-600">总计</div>
+              <div id="captcha-stat-total" class="text-lg font-semibold">0</div>
+            </div>
+            <div class="p-2 bg-green-100 rounded">
+              <div class="text-green-700">成功</div>
+              <div id="captcha-stat-success" class="text-lg font-semibold text-green-700">0</div>
+            </div>
+            <div class="p-2 bg-red-100 rounded">
+              <div class="text-red-700">失败</div>
+              <div id="captcha-stat-failed" class="text-lg font-semibold text-red-700">0</div>
+            </div>
+            <div class="p-2 bg-yellow-100 rounded">
+              <div class="text-yellow-700">待验证</div>
+              <div id="captcha-stat-pending" class="text-lg font-semibold text-yellow-700">0</div>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -9830,6 +9889,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
           const modalIpbanTab = $('admin-tab-ipban_modal');
           const modalSmsTab = $('admin-tab-sms_modal');
           const modalConfigTab = $('admin-tab-config_modal');
+          const modalCaptchaTab = $('admin-tab-captcha_modal');
 
           if (modalUsersTab) modalUsersTab.addEventListener('click', () => switchAdminTab('users'));
           if (modalGroupsTab) modalGroupsTab.addEventListener('click', () => switchAdminTab('groups'));
@@ -9842,6 +9902,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
           if (modalIpbanTab) modalIpbanTab.addEventListener('click', () => switchAdminTab('ipban'));
           if (modalSmsTab) modalSmsTab.addEventListener('click', () => switchAdminTab('sms'));
           if (modalConfigTab) modalConfigTab.addEventListener('click', () => switchAdminTab('config'));
+          if (modalCaptchaTab) modalCaptchaTab.addEventListener('click', () => switchAdminTab('captcha'));
 
           logMessage_Info("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
         } else {
@@ -10422,6 +10483,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const ipbanTab = $('admin-tab-ipban_modal');
       const smsTab = $('admin-tab-sms_modal');
       const configTab = $('admin-tab-config_modal');
+      const captchaTab = $('admin-tab-captcha_modal');
       const usersPanel = $('admin-users-panel_modal');
       const groupsPanel = $('admin-groups-panel_modal');
       const logsPanel = $('admin-logs-panel_modal');
@@ -10432,6 +10494,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const ipbanPanel = $('admin-ip-ban-modal');
       const smsPanel = $('admin-sms-config-modal');
       const configPanel = $('admin-config-panel_modal');
+      const captchaPanel = $('admin-captcha-panel_modal');
 
       // 根据用户组进行权限隔离
       // 如果是普通用户（'user'），只显示健康状态和留言板，隐藏用户组管理
@@ -10444,13 +10507,13 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
 
       // 重置所有标签按钮的样式
-      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab, configTab].filter(t => t).forEach(t => { // 新增 configTab
+      [usersTab, groupsTab, logsTab, healthTab, profileTab, sessionsTab, messagesTab, ipbanTab, smsTab, configTab, captchaTab].filter(t => t).forEach(t => {
         t.classList.remove('text-sky-600', 'border-sky-600');
         t.classList.add('text-slate-400', 'border-transparent');
       });
 
       // 隐藏所有内容面板
-      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel, configPanel].filter(p => p).forEach(p => { // 新增 configPanel
+      [usersPanel, groupsPanel, logsPanel, healthPanel, profilePanel, sessionsPanel, messagesPanel, ipbanPanel, smsPanel, configPanel, captchaPanel].filter(p => p).forEach(p => {
         p.classList.add('hidden');
       });
 
@@ -10550,6 +10613,21 @@ function run_code_not_need_sessionuuid(codeToRun) {
           configTab.classList.remove('text-slate-400', 'border-transparent');
           configPanel.classList.remove('hidden');
           loadSystemConfig();
+          // 停止健康状态自动刷新
+          stopHealthAutoRefresh();
+        }
+      } else if (tab === 'captcha') {
+        if (captchaTab && captchaPanel) {
+          captchaTab.classList.add('text-sky-600', 'border-sky-600');
+          captchaTab.classList.remove('text-slate-400', 'border-transparent');
+          captchaPanel.classList.remove('hidden');
+          // 设置默认日期为今天
+          const dateInput = $('captcha-history-date');
+          if (dateInput && !dateInput.value) {
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.value = today;
+          }
+          loadCaptchaHistory();
           // 停止健康状态自动刷新
           stopHealthAutoRefresh();
         }
@@ -22790,6 +22868,122 @@ function run_code_not_need_sessionuuid(codeToRun) {
       } catch (e) {
         formContainer.innerHTML = `<p class="text-red-500 text-center py-10">加载配置时发生错误: ${e.message}</p>`;
       }
+    }
+
+    /**
+     * 加载验证码历史记录
+     */
+    async function loadCaptchaHistory() {
+      const listContainer = $('admin-captcha-list_modal');
+      listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
+      try {
+        // 获取查询参数
+        const dateInput = $('captcha-history-date');
+        const statusSelect = $('captcha-history-status');
+        
+        const date = dateInput.value.replace(/-/g, ''); // YYYYMMDD格式
+        const status = statusSelect.value;
+        
+        // 构建查询参数
+        const params = new URLSearchParams({ date });
+        if (status) {
+          params.append('status', status);
+        }
+
+        const response = await fetch(`/api/captcha/history?${params}`, {
+          headers: { 'X-Session-ID': sessionUUID }
+        });
+        const result = await response.json();
+
+        if (!result.success) {
+          listContainer.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+
+        const records = result.data || [];
+        
+        // 更新统计信息
+        const total = records.length;
+        const success = records.filter(r => r.status === 'verified_success').length;
+        const failed = records.filter(r => r.status === 'verified_failed').length;
+        const pending = records.filter(r => r.status === 'created').length;
+        
+        $('captcha-stat-total').textContent = total;
+        $('captcha-stat-success').textContent = success;
+        $('captcha-stat-failed').textContent = failed;
+        $('captcha-stat-pending').textContent = pending;
+
+        if (records.length === 0) {
+          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">该日期没有验证码记录</p>';
+          return;
+        }
+
+        // 渲染记录列表
+        listContainer.innerHTML = '';
+        records.forEach(record => {
+          const statusClass = {
+            'created': 'bg-yellow-100 text-yellow-800',
+            'verified_success': 'bg-green-100 text-green-800',
+            'verified_failed': 'bg-red-100 text-red-800',
+            'expired': 'bg-gray-100 text-gray-800'
+          }[record.status] || 'bg-gray-100 text-gray-800';
+          
+          const statusText = {
+            'created': '待验证',
+            'verified_success': '验证成功',
+            'verified_failed': '验证失败',
+            'expired': '已过期'
+          }[record.status] || record.status;
+
+          const itemDiv = document.createElement('div');
+          itemDiv.className = 'p-3 bg-white border border-slate-200 rounded-lg hover:shadow-md transition-shadow';
+          itemDiv.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-mono text-sm text-slate-600">ID: ${record.captcha_id.substring(0, 8)}...</span>
+                  <span class="px-2 py-0.5 text-xs rounded ${statusClass}">${statusText}</span>
+                </div>
+                <div class="text-xs text-slate-500 space-y-0.5">
+                  <div>验证码: <span class="font-semibold text-slate-700">${record.code}</span></div>
+                  <div>创建时间: ${record.timestamp_readable || new Date(record.timestamp * 1000).toLocaleString('zh-CN')}</div>
+                  ${record.verified_at_readable ? `<div>验证时间: ${record.verified_at_readable}</div>` : ''}
+                  ${record.verified_input ? `<div>用户输入: <span class="${record.status === 'verified_success' ? 'text-green-600' : 'text-red-600'} font-semibold">${record.verified_input}</span></div>` : ''}
+                  <div>客户端IP: ${record.client_ip || 'N/A'}</div>
+                </div>
+              </div>
+              <button onclick="showCaptchaDetail('${record.captcha_id}')" 
+                class="text-sm text-blue-600 hover:text-blue-800 ml-2">
+                查看详情
+              </button>
+            </div>
+            ${record.html ? `
+              <div class="mt-2 pt-2 border-t border-slate-100">
+                <div class="text-xs text-slate-500 mb-1">验证码图片:</div>
+                <div class="flex items-center justify-center bg-slate-50 p-2 rounded">
+                  ${record.html}
+                </div>
+              </div>
+            ` : ''}
+          `;
+          listContainer.appendChild(itemDiv);
+        });
+
+        console.log(`[验证码历史] 已加载 ${records.length} 条记录`);
+      } catch (e) {
+        console.error('[验证码历史] 加载失败:', e);
+        listContainer.innerHTML = `<p class="text-red-500 text-center py-10">加载验证码历史时发生错误: ${e.message}</p>`;
+      }
+    }
+
+    /**
+     * 显示验证码详细信息
+     */
+    function showCaptchaDetail(captchaId) {
+      // 这里可以实现一个模态窗显示更详细的信息
+      console.log('显示验证码详情:', captchaId);
+      alert(`验证码ID: ${captchaId}\n\n详细信息功能待实现`);
     }
 
     /**
