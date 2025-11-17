@@ -4382,11 +4382,20 @@
              【地图显示面板】- 显示任务路径
              【问题7修复】改为全屏高度，添加复位视角按钮
              ======================================== -->
+        <!-- ========================================
+             【问题25修复】单账号地图面板 - 与多账号地图面板保持一致
+             修复说明：参照mobile-multi-map-panel重构，统一结构和样式
+             - 统一地图容器结构和样式
+             - 统一控制按钮布局和功能
+             - 统一注释风格和详细程度
+             ======================================== -->
         <div class="mobile-card p-0 overflow-hidden hidden h-screen flex flex-col" id="mobile-map-panel">
-          <!-- 地图容器 - 【修复】使用flex-1自动填充剩余空间 -->
+          <!-- 地图容器 - 使用flex-1自动填充剩余空间，实现全屏地图显示 -->
           <div id="mobile-map-container" class="w-full flex-1 relative bg-slate-100" style="height: calc(100vh - 60px);">
+            <!-- 地图加载占位符 - 在地图初始化前显示 -->
             <div class="absolute inset-0 flex items-center justify-center text-slate-400">
               <div class="text-center">
+                <!-- 地图图标 - SVG地图占位图标 -->
                 <svg class="w-12 h-12 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor"
                   viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -4396,36 +4405,40 @@
               </div>
             </div>
             
-            <!-- 【问题7修复】添加复位视角按钮，浮动在地图右上角 -->
+            <!-- 【问题7&25修复】复位视角按钮 - 浮动在地图右上角，用于重置地图视角到默认位置 -->
             <button id="mobile-map-reset-btn"
                     class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10"
                     onclick="resetMobileMapView()"
                     title="复位视角">
-              <!-- 复位图标 -->
+              <!-- 复位图标 - 四角扩散图标表示复位视角 -->
               <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
               </svg>
             </button>
           </div>
-          <!-- 地图控制按钮 - 【修复】固定高度 -->
+
+          <!-- 地图控制按钮区域 - 固定高度，不占用地图空间 -->
           <div class="flex gap-2 p-3 bg-slate-50 flex-shrink-0">
+            <!-- 放大按钮 - 增加地图缩放级别 -->
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="mobileZoomIn()">
               放大 +
             </button>
+            <!-- 缩小按钮 - 减少地图缩放级别 -->
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="mobileZoomOut()">
               缩小 -
             </button>
+            <!-- 自适应视图按钮 - 自动调整视角以显示所有轨迹 -->
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="mobileFitView()">
               适应 ⊡
             </button>
-            <!-- 【问题7修复】复位按钮 -->
+            <!-- 【问题7&25修复】复位按钮 - 重置地图视角到默认位置（与浮动按钮功能一致，提供多种交互方式） -->
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="resetMobileMapView()">
@@ -4943,10 +4956,12 @@
         </div>
 
         <!-- ========================================
-             【问题15&18修复】【管理面板】- 单账号模式管理面板
+             【问题15&18&20修复】【管理面板】- 单账号模式管理面板
+             修复说明：参照PC端admin-panel-modal补全所有管理功能
              - 将模态框改为面板形式
-             - 显示用户管理、密码管理、2FA设置等功能
-             - 与PC端管理面板功能对等
+             - 添加所有13个管理功能标签页（用户管理、权限组、日志、系统状态等）
+             - 移动端优化：触摸友好的按钮尺寸、横向滚动标签页
+             - 与PC端管理面板功能完全对等
              ======================================== -->
         <div class="mobile-card hidden" id="mobile-admin-panel">
           <!-- 面板头部 - 标题和图标 -->
@@ -4962,14 +4977,102 @@
             <h3 class="text-xl font-bold text-sky-600">管理面板</h3>
           </div>
 
-          <!-- 标签页导航 - 横向滚动支持 -->
-          <div id="mobile-admin-tabs-nav-panel" class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 mb-4" style="scrollbar-width: none;">
-            <!-- 标签页按钮将由JavaScript动态创建和管理 -->
+          <!-- 【问题20修复】标签页导航 - 参照PC端，添加所有管理功能标签 -->
+          <!-- 移动端优化：横向滚动、隐藏滚动条、触摸友好的间距 -->
+          <div id="mobile-admin-tabs-nav-panel" class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 mb-4" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+            
+            <!-- 【用户管理标签】- 管理系统用户，增删改查 -->
+            <button id="mobile-admin-tab-users"
+              class="px-4 py-2 text-xs font-semibold text-sky-600 border-b-3 border-sky-600 whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              👥 用户
+            </button>
+
+            <!-- 【权限组管理标签】- 管理用户权限组 -->
+            <button id="mobile-admin-tab-groups"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              👨‍👩‍👧‍👦 权限组
+            </button>
+
+            <!-- 【日志查看标签】- 查看系统运行日志 -->
+            <button id="mobile-admin-tab-logs"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              📋 日志
+            </button>
+
+            <!-- 【系统状态标签】- 查看系统健康状态 -->
+            <button id="mobile-admin-tab-health"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              📊 系统状态
+            </button>
+
+            <!-- 【个人信息标签】- 修改个人资料、密码、2FA、主题等 -->
+            <button id="mobile-admin-tab-profile"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
+              👤 个人信息
+            </button>
+
+            <!-- 【会话管理标签】- 管理用户会话，强制下线 -->
+            <button id="mobile-admin-tab-sessions"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
+              ⏱️ 会话
+            </button>
+
+            <!-- 【留言板标签】- 查看和管理用户留言 -->
+            <button id="mobile-admin-tab-messages"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
+              💬 留言板
+            </button>
+
+            <!-- 【IP封禁标签】- 管理IP黑名单 -->
+            <button id="mobile-admin-tab-ipban"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              🚫 IP封禁
+            </button>
+
+            <!-- 【短信配置标签】- 配置短信服务 -->
+            <button id="mobile-admin-tab-sms"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              📱 短信
+            </button>
+
+            <!-- 【系统配置标签】- 修改系统参数 -->
+            <button id="mobile-admin-tab-config"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              ⚙️ 配置
+            </button>
+
+            <!-- 【验证码历史标签】- 查看验证码历史记录 -->
+            <button id="mobile-admin-tab-captcha"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
+              🔢 验证码
+            </button>
+
+            <!-- 【定时提醒标签】- 管理系统定时提醒 -->
+            <button id="mobile-admin-tab-reminders"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              ⏰ 提醒
+            </button>
+
+            <!-- 【HTTPS设置标签】- 配置SSL证书 -->
+            <button id="mobile-admin-tab-ssl"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              🔒 HTTPS
+            </button>
           </div>
 
-          <!-- 管理面板内容区域 - 由JavaScript动态填充 -->
+          <!-- 【问题20修复】管理面板内容区域 - 显示选中标签页的内容 -->
+          <!-- 说明：内容通过JavaScript动态加载，引用PC端对应的面板HTML -->
           <div id="mobile-admin-panel-content-panel" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto">
-            <p class="text-slate-400 text-center py-10">加载中...</p>
+            <p class="text-slate-400 text-center py-10">请选择管理功能</p>
           </div>
         </div>
 
@@ -5513,13 +5616,17 @@
              【地图面板】- 多账号模式地图显示
              【问题17修复】地图改为全屏高度(100vh)，添加复位视角按钮
              ======================================== -->
+        <!-- ========================================
+             【问题25修复】多账号地图面板 - 与单账号地图面板保持一致
+             说明：此面板与mobile-map-panel结构完全一致，仅ID和函数名不同
+             ======================================== -->
         <div class="mobile-card p-0 overflow-hidden h-screen flex flex-col" id="mobile-multi-map-panel">
-          <!-- 地图容器 - 【修复】改为flex-1自动填充剩余空间，实现全屏效果 -->
+          <!-- 地图容器 - 使用flex-1自动填充剩余空间，实现全屏地图显示 -->
           <div id="mobile-multi-map-container" class="w-full flex-1 relative bg-slate-100" style="height: calc(100vh - 60px);">
-            <!-- 地图加载占位符 -->
+            <!-- 地图加载占位符 - 在地图初始化前显示 -->
             <div class="absolute inset-0 flex items-center justify-center text-slate-400">
               <div class="text-center">
-                <!-- 地图图标 -->
+                <!-- 地图图标 - SVG地图占位图标 -->
                 <svg class="w-12 h-12 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor"
                   viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -5529,12 +5636,12 @@
               </div>
             </div>
             
-            <!-- 【问题17修复】添加复位视角按钮，浮动在地图右上角 -->
+            <!-- 【问题17&25修复】复位视角按钮 - 浮动在地图右上角，用于重置地图视角到默认位置 -->
             <button id="mobile-multi-map-reset-btn"
                     class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10"
                     onclick="resetMultiMapView()"
                     title="复位视角">
-              <!-- 复位图标 -->
+              <!-- 复位图标 - 四角扩散图标表示复位视角 -->
               <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -5542,27 +5649,27 @@
             </button>
           </div>
 
-          <!-- 地图控制按钮区域 - 【修复】改为固定高度，不占用地图空间 -->
+          <!-- 地图控制按钮区域 - 固定高度，不占用地图空间 -->
           <div class="flex gap-2 p-3 bg-slate-50 flex-shrink-0">
-            <!-- 放大按钮 -->
+            <!-- 放大按钮 - 增加地图缩放级别 -->
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="mobileMultiZoomIn()">
               放大 +
             </button>
-            <!-- 缩小按钮 -->
+            <!-- 缩小按钮 - 减少地图缩放级别 -->
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="mobileMultiZoomOut()">
               缩小 -
             </button>
-            <!-- 自适应视图按钮 -->
+            <!-- 自适应视图按钮 - 自动调整视角以显示所有轨迹 -->
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="mobileMultiFitView()">
               适应 ⊡
             </button>
-            <!-- 【问题17修复】复位按钮 - 重置地图视角到默认位置 -->
+            <!-- 【问题17&25修复】复位按钮 - 重置地图视角到默认位置（与浮动按钮功能一致，提供多种交互方式） -->
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="resetMultiMapView()">
@@ -5608,9 +5715,11 @@
         </div>
 
         <!-- ========================================
-             【问题4修复】管理面板 - 多账号模式管理面板
-             修复前问题：管理菜单项打开的是模态框
-             修复方案：创建一个真正的面板，对应PC端的管理面板功能
+             【问题4&30修复】管理面板 - 多账号模式管理面板
+             修复说明：复用mobile-admin-panel的结构，避免代码重复
+             - 问题4修复前：管理菜单项打开的是模态框
+             - 问题30修复：改为复用mobile-admin-panel的完整结构和标签页
+             - 多账号模式和单账号模式使用相同的管理功能
              ======================================== -->
         <div class="mobile-card hidden" id="mobile-multi-admin-panel">
           <!-- 面板头部 - 标题和图标 -->
@@ -5625,15 +5734,102 @@
             <h3 class="text-xl font-bold text-sky-700">管理面板</h3>
           </div>
 
-          <!-- 管理面板标签页导航 -->
-          <div id="mobile-multi-admin-tabs" class="flex gap-2 mb-4 overflow-x-auto pb-2">
-            <!-- 标签页按钮将由JavaScript动态创建 -->
+          <!-- 【问题30修复】标签页导航 - 复用mobile-admin-panel的所有标签页 -->
+          <!-- 说明：与mobile-admin-panel保持完全一致，使用multi前缀的ID -->
+          <div id="mobile-multi-admin-tabs" class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 mb-4" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+            
+            <!-- 【用户管理标签】- 管理系统用户，增删改查 -->
+            <button id="mobile-multi-admin-tab-users"
+              class="px-4 py-2 text-xs font-semibold text-sky-600 border-b-3 border-sky-600 whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              👥 用户
+            </button>
+
+            <!-- 【权限组管理标签】- 管理用户权限组 -->
+            <button id="mobile-multi-admin-tab-groups"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              👨‍👩‍👧‍👦 权限组
+            </button>
+
+            <!-- 【日志查看标签】- 查看系统运行日志 -->
+            <button id="mobile-multi-admin-tab-logs"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              📋 日志
+            </button>
+
+            <!-- 【系统状态标签】- 查看系统健康状态 -->
+            <button id="mobile-multi-admin-tab-health"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              📊 系统状态
+            </button>
+
+            <!-- 【个人信息标签】- 修改个人资料、密码、2FA、主题等 -->
+            <button id="mobile-multi-admin-tab-profile"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
+              👤 个人信息
+            </button>
+
+            <!-- 【会话管理标签】- 管理用户会话，强制下线 -->
+            <button id="mobile-multi-admin-tab-sessions"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
+              ⏱️ 会话
+            </button>
+
+            <!-- 【留言板标签】- 查看和管理用户留言 -->
+            <button id="mobile-multi-admin-tab-messages"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
+              💬 留言板
+            </button>
+
+            <!-- 【IP封禁标签】- 管理IP黑名单 -->
+            <button id="mobile-multi-admin-tab-ipban"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              🚫 IP封禁
+            </button>
+
+            <!-- 【短信配置标签】- 配置短信服务 -->
+            <button id="mobile-multi-admin-tab-sms"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              📱 短信
+            </button>
+
+            <!-- 【系统配置标签】- 修改系统参数 -->
+            <button id="mobile-multi-admin-tab-config"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              ⚙️ 配置
+            </button>
+
+            <!-- 【验证码历史标签】- 查看验证码历史记录 -->
+            <button id="mobile-multi-admin-tab-captcha"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
+              🔢 验证码
+            </button>
+
+            <!-- 【定时提醒标签】- 管理系统定时提醒 -->
+            <button id="mobile-multi-admin-tab-reminders"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              ⏰ 提醒
+            </button>
+
+            <!-- 【HTTPS设置标签】- 配置SSL证书 -->
+            <button id="mobile-multi-admin-tab-ssl"
+              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
+              style="display:none;">
+              🔒 HTTPS
+            </button>
           </div>
 
-          <!-- 管理面板内容区域 - 动态加载管理功能 -->
-          <div id="mobile-multi-admin-content" class="space-y-3 max-h-[60vh] overflow-y-auto">
-            <!-- 管理面板内容将由JavaScript动态填充 -->
-            <p class="text-slate-400 text-center py-8 text-sm">请选择管理功能标签页</p>
+          <!-- 【问题30修复】管理面板内容区域 - 与mobile-admin-panel共享相同的内容显示逻辑 -->
+          <!-- 说明：内容通过JavaScript动态加载，引用PC端对应的面板HTML -->
+          <div id="mobile-multi-admin-content" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">请选择管理功能</p>
           </div>
         </div>
 
