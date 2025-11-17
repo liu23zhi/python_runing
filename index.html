@@ -2407,7 +2407,7 @@
 
   <!-- ========== School Account 编辑模态框 ========== -->
   <!-- 用于添加或编辑学校账户信息的弹窗 -->
-  <div id="edit-school-account-modal" class="fixed inset-0 hidden z-[70] flex items-center justify-center p-4"
+  <div id="edit-school-account-modal" class="fixed inset-0 hidden z-[1055] flex items-center justify-center p-4"
     style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);">
     <!-- 对话框主体容器 - 拟态风格卡片 -->
     <div
@@ -4407,7 +4407,7 @@
             
             <!-- 【问题7&25修复】复位视角按钮 - 浮动在地图右上角，用于重置地图视角到默认位置 -->
             <button id="mobile-map-reset-btn"
-                    class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10"
+                    class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10" style="display: none;"
                     onclick="resetMobileMapView()"
                     title="复位视角">
               <!-- 复位图标 - 四角扩散图标表示复位视角 -->
@@ -5638,7 +5638,7 @@
             
             <!-- 【问题17&25修复】复位视角按钮 - 浮动在地图右上角，用于重置地图视角到默认位置 -->
             <button id="mobile-multi-map-reset-btn"
-                    class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10"
+                    class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10" style="display: none;"
                     onclick="resetMultiMapView()"
                     title="复位视角">
               <!-- 复位图标 - 四角扩散图标表示复位视角 -->
@@ -6935,7 +6935,7 @@
 
         <!-- 4. 管理菜单项 - 切换到管理面板 -->
         <!-- 【问题4修复】修改管理菜单项，切换到管理面板而不是打开模态框 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-admin-panel', 'multi'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-admin-panel', 'multi'); closeMobileSidebar(); return false;" id="mobile_multi_admin_panel_bnt">
           <!-- 管理图标：齿轮/设置图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6946,7 +6946,7 @@
         </a>
 
         <!-- 5. 设置菜单项 - 切换到设置面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-settings-panel', 'multi'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-settings-panel', 'multi'); closeMobileSidebar(); return false;" id="mobile_multi_settings_panel_bnt">
           <!-- 设置图标：调节滑块图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6956,7 +6956,7 @@
         </a>
 
         <!-- 6. 日志菜单项 - 切换到全局日志面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-log-panel', 'multi'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-log-panel', 'multi'); closeMobileSidebar(); return false;" id="mobile_multi_log_panel_bnt">
           <!-- 日志图标：文档图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"

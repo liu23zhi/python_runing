@@ -1450,6 +1450,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言（游客需填写邮箱和昵称）
                     "delete_own_messages": False,  # 删除自己的留言（游客不能删除）
                     "delete_any_messages": False,  # 删除任何人的留言（游客不能）
+                    "exit_single_account_mode": True, # 退出单账号模式
                 }
             },
             "user": {
@@ -1501,6 +1502,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": False,  # 删除任何人的留言（仅管理员）
+                    "execute_single_account": True, # 退出单账号模式
                 }
             },
             "admin": {
@@ -1562,7 +1564,8 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
-                    "view_captcha_history": True
+                    "view_captcha_history": True,
+                    "execute_single_account": True # 退出单账号模式
                 }
             },
             "super_admin": {
@@ -1630,6 +1633,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
+                    "execute_single_account": True, # 退出单账号模式
                 }
             }
         },
@@ -12545,7 +12549,7 @@ def start_web_server(args_param):
                 return False, jsonify({"success": False, "message": f"权限不足：需要 {required_permission} 权限"}), 403
         
         # 验证通过，返回成功和用户信息
-        return True, user_info
+        return True, user_info, 200
 
 
     @app.route('/auth/register', methods=['POST'])
