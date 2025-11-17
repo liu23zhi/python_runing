@@ -6343,7 +6343,7 @@
           <!-- 签到按钮 -->
           <button
             class="w-full flex items-center gap-3 p-4 bg-slate-50 hover:bg-slate-100 rounded-xl transition"
-            onclick="toggleMobileMoreMenu(false); switchMobilePanel('mobile-notification-panel', 'single'); setTimeout(() => switchMobileNotifTab('attendance'), 100);">
+            onclick="toggleMobileMoreMenu(false); switchMobileSinglePanel('mobile-notification-panel'); setTimeout(() => switchMobileNotifTab('attendance'), 100);">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24"
               stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -6477,7 +6477,7 @@
 
       <!-- 1. 控制按钮 - 切换到控制面板 (默认激活) -->
       <a href="#" class="mobile-nav-btn active" data-nav="control"
-        onclick="switchMobilePanel('mobile-control-panel', 'single')">
+        onclick="switchMobileSinglePanel('mobile-control-panel')">
         <!-- 控制图标：滑动条/调节器图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor">
@@ -6488,7 +6488,7 @@
       </a>
 
       <!-- 2. 地图按钮 - 切换到地图面板 -->
-      <a href="#" class="mobile-nav-btn" data-nav="map" onclick="switchMobilePanel('mobile-map-panel', 'single')">
+      <a href="#" class="mobile-nav-btn" data-nav="map" onclick="switchMobileSinglePanel('mobile-map-panel')">
         <!-- 地图图标：折叠地图图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor">
@@ -6500,7 +6500,7 @@
 
       <!-- 3. 任务按钮 - 切换到任务面板 -->
       <a href="#" class="mobile-nav-btn" data-nav="task"
-        onclick="switchMobilePanel('mobile-task-panel', 'single')">
+        onclick="switchMobileSinglePanel('mobile-task-panel')">
         <!-- 任务图标：剪贴板/任务列表图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor">
@@ -6512,7 +6512,7 @@
 
       <!-- 4. 通知按钮 - 切换到通知面板 -->
       <a href="#" class="mobile-nav-btn" data-nav="notifications"
-        onclick="switchMobilePanel('mobile-notification-panel', 'single')">
+        onclick="switchMobileSinglePanel('mobile-notification-panel')">
         <!-- 通知图标：铃铛图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor">
@@ -6524,7 +6524,7 @@
 
       <!-- 5. 签到按钮 - 切换到签到面板 -->
       <a href="#" class="mobile-nav-btn" data-nav="attendance"
-        onclick="switchMobilePanel('mobile-attendance-panel', 'single')">
+        onclick="switchMobileSinglePanel('mobile-attendance-panel')">
         <!-- 签到图标：日历带勾选标记 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor">
@@ -6548,7 +6548,7 @@
 
       <!-- 7. 设置按钮 - 切换到参数面板 -->
       <a href="#" class="mobile-nav-btn" data-nav="settings"
-        onclick="switchMobilePanel('mobile-settings-panel', 'single')">
+        onclick="switchMobileSinglePanel('mobile-settings-panel')">
         <!-- 设置图标：调节滑块图标 -->
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
           stroke="currentColor">
@@ -6678,7 +6678,7 @@
       <div class="mobile-sidebar-menu">
         
         <!-- 1. 控制菜单项 - 切换到控制面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-control-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-control-panel'); closeMobileSidebar(); return false;">
           <!-- 控制图标：滑动条/调节器图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6688,7 +6688,7 @@
         </a>
 
         <!-- 2. 地图菜单项 - 切换到地图面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-map-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-map-panel'); closeMobileSidebar(); return false;">
           <!-- 地图图标：折叠地图图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6698,7 +6698,7 @@
         </a>
 
         <!-- 3. 任务菜单项 - 切换到任务面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-task-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-task-panel'); closeMobileSidebar(); return false;">
           <!-- 任务图标：剪贴板/任务列表图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6709,7 +6709,7 @@
 
         <!-- 3.5 【问题11修复】任务详情菜单项 - 切换到任务详情面板 -->
         <!-- 修复说明：新增任务详情面板菜单项，用于查看当前选中任务的详细信息 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-task-details-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-task-details-panel'); closeMobileSidebar(); return false;">
           <!-- 任务详情图标：文档搜索图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6719,7 +6719,7 @@
         </a>
 
         <!-- 4. 通知菜单项 - 切换到通知面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-notification-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-notification-panel'); closeMobileSidebar(); return false;">
           <!-- 通知图标：铃铛图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6729,7 +6729,7 @@
         </a>
 
         <!-- 5. 签到菜单项 - 切换到签到面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-attendance-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-attendance-panel'); closeMobileSidebar(); return false;">
           <!-- 签到图标：日历带勾选标记 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6740,7 +6740,7 @@
 
         <!-- 5.5 【问题22修复】日志菜单项 - 切换到日志面板 -->
         <!-- 修复说明：单账号模式侧栏之前缺少日志面板菜单项，现在添加 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-log-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-log-panel'); closeMobileSidebar(); return false;">
           <!-- 日志图标：文档图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6751,7 +6751,7 @@
 
         <!-- 5.6 【问题6修复】打卡点菜单项 - 切换到打卡点面板 -->
         <!-- 修复说明：将打卡点列表从控制面板移动到独立的侧边栏面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-checkpoints-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-checkpoints-panel'); closeMobileSidebar(); return false;">
           <!-- 打卡点图标：地图标记图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6763,7 +6763,7 @@
         </a>
 
         <!-- 6. 【问题15&18修复】管理菜单项 - 切换到管理面板（改为面板而非模态框） -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-admin-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-admin-panel'); closeMobileSidebar(); return false;">
           <!-- 管理图标：齿轮/设置图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6774,7 +6774,7 @@
         </a>
 
         <!-- 7. 设置菜单项 - 切换到设置面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-settings-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-settings-panel'); closeMobileSidebar(); return false;">
           <!-- 设置图标：调节滑块图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6785,7 +6785,7 @@
 
         <!-- 8. 我的资料菜单项 - 切换到个人资料面板 -->
         <!-- 【问题17修复】隐藏"我的资料"菜单项，因为该功能已包含在管理面板里 -->
-        <a href="#" class="mobile-sidebar-item hidden" onclick="switchMobilePanel('mobile-profile-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item hidden" onclick="switchMobileSinglePanel('mobile-profile-panel'); closeMobileSidebar(); return false;">
           <!-- 用户图标：用户头像图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6796,7 +6796,7 @@
 
         <!-- 9. 【问题11修复】我的菜单项 - 打开个人资料面板（而非模态框） -->
         <!-- 修复说明：之前点击"我的"会打开模态框toggleMobileUserDetails，现在改为切换到mobile-profile-panel面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-profile-panel', 'single'); closeMobileSidebar(); return false;">
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobileSinglePanel('mobile-profile-panel'); closeMobileSidebar(); return false;">
           <!-- 用户详情图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -9366,7 +9366,7 @@
           updateMobileNavVisibility(true, 'single');
           console.log('[UI切换] PC端main-app可见，显示移动端mobile-main-app');
           // 【问题13修复】默认激活mobile-control-panel
-          switchMobilePanel('mobile-control-panel', 'single');
+          switchMobileSinglePanel('mobile-control-panel');
           console.log('[UI切换] 已默认激活mobile-control-panel');
         } else if (desktopMultiAccountVisible) {
           // PC端显示multi-account-app，则移动端显示mobile-multi-account-app
@@ -9921,7 +9921,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
                 mobileMainApp.classList.remove('hidden');
                 console.log('[移动端UI] 已显示 mobile-main-app');
                 // 初始化面板显示：默认显示控制面板
-                switchMobilePanel('mobile-control-panel', 'single');
+                switchMobileSinglePanel('mobile-control-panel');
               }
 
               // 显示底部导航和菜单按钮 - 单账号模式
@@ -20639,7 +20639,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         updateMobileNavVisibility(true, 'single');
         
         // 【问题9修复】默认激活控制面板，避免刷新后页面空白
-        switchMobilePanel('mobile-control-panel', 'single');
+        switchMobileSinglePanel('mobile-control-panel');
         console.log('[单账号模式] 移动端：已默认激活 mobile-control-panel');
         
         // 确保桌面端应用隐藏
@@ -27747,6 +27747,237 @@ function run_code_not_need_sessionuuid(codeToRun) {
           console.error('[移动端地图] 单账号地图初始化失败:', error);
         }
       }
+    }
+
+    /**
+     * 【新增函数】移动端单账号模式专用面板切换函数
+     * 
+     * 功能说明：
+     * - 本函数专门用于单账号模式下的面板切换，解决单账号面板总是显示的问题
+     * - 与多账号模式的 switchMobilePanel 函数分离，避免相互干扰
+     * - 负责隐藏所有单账号模式的面板，然后显示目标面板
+     * - 包含面板激活时的初始化逻辑（如加载配置、初始化地图等）
+     * 
+     * 为什么需要单独的函数：
+     * - 单账号和多账号模式有不同的面板列表，混在一起容易出现状态混乱
+     * - 单账号面板可能被多账号逻辑影响，导致应该隐藏的面板没有被隐藏
+     * - 代码分离提高可维护性，让单账号和多账号的逻辑更加清晰
+     * 
+     * @param {string} panelId - 要显示的目标面板的DOM元素ID
+     *                           例如：'mobile-control-panel', 'mobile-map-panel' 等
+     */
+    function switchMobileSinglePanel(panelId) {
+      // 定义单账号模式下所有需要管理的面板列表
+      // 这个列表包含了单账号模式下所有可能显示的面板
+      // 切换时会先将这些面板全部隐藏，然后只显示目标面板
+      const singleModePanels = [
+        'mobile-control-panel',        // 控制面板（主页）
+        'mobile-map-panel',            // 地图面板
+        'mobile-task-panel',           // 任务列表面板
+        'mobile-task-details-panel',   // 任务详情面板
+        'mobile-notification-panel',   // 通知中心面板
+        'mobile-log-panel',            // 日志面板
+        'mobile-checkpoints-panel',    // 打卡点管理面板
+        'mobile-attendance-panel',     // 签到管理面板
+        'mobile-admin-panel',          // 管理面板
+        'mobile-settings-panel',       // 设置面板
+        'mobile-profile-panel'         // 用户资料面板
+      ];
+
+      // 第一步：隐藏所有单账号面板
+      // 遍历面板列表，为每个面板添加 'hidden' CSS类
+      // 'hidden' 类通常定义为 display: none，使元素不可见
+      singleModePanels.forEach(id => {
+        // 通过ID获取面板的DOM元素
+        const panel = document.getElementById(id);
+        // 如果面板存在（防止因HTML结构变化导致的错误）
+        if (panel) {
+          // 添加hidden类，隐藏面板
+          panel.classList.add('hidden');
+        }
+      });
+
+      // 第二步：显示目标面板
+      // 获取用户想要显示的目标面板的DOM元素
+      const targetPanel = document.getElementById(panelId);
+      // 检查目标面板是否存在
+      if (targetPanel) {
+        // 移除hidden类，显示面板
+        targetPanel.classList.remove('hidden');
+        
+        // 第三步：执行面板激活时的初始化逻辑
+        // 不同的面板在激活时需要执行不同的初始化操作
+        // 例如：加载配置、初始化地图、刷新数据等
+        
+        // 【设置面板】激活时自动加载配置
+        // 当用户切换到设置面板时，自动从 pythonParams 加载当前配置并填充到输入框
+        // 这样用户看到的就是当前生效的配置值，而不是空白表单
+        if (panelId === 'mobile-settings-panel') {
+          console.log('[移动端单账号] 激活设置面板，开始加载配置...');
+          // 获取设置面板中的参数容器元素
+          const mobileParamsContainer = document.getElementById('mobile-params-container');
+          // 检查容器存在、pythonParams全局变量已定义、updateParamInputs函数可用
+          if (mobileParamsContainer && typeof pythonParams !== 'undefined' && typeof updateParamInputs === 'function') {
+            // 调用 updateParamInputs 函数，将 pythonParams 的配置数值填充到输入框
+            // 参数说明：
+            // - mobileParamsContainer: 包含所有输入框的容器元素
+            // - 'mobile-param': 输入框ID的前缀，用于定位正确的输入框
+            // - pythonParams: 包含当前配置值的全局对象
+            updateParamInputs(mobileParamsContainer, 'mobile-param', pythonParams);
+            console.log('[移动端单账号] 设置面板配置已自动加载');
+          } else {
+            // 如果依赖项不满足，输出警告信息，帮助调试
+            console.warn('[移动端单账号] 无法加载配置：容器或函数未定义');
+          }
+        }
+        
+        // 【地图面板】激活时初始化地图
+        // 当用户切换到地图面板时，自动初始化高德地图实例
+        // 原因：地图需要在DOM元素可见后才能正确初始化和渲染
+        if (panelId === 'mobile-map-panel') {
+          console.log('[移动端单账号] 激活地图面板，初始化地图...');
+          // 延迟100ms执行，确保DOM已完全渲染
+          // 如果立即执行，地图容器可能还没有完成显示动画，导致地图尺寸计算错误
+          setTimeout(() => {
+            // 调用 initMobileMap 函数初始化地图
+            // 参数说明：
+            // - 'mobile-map-container': 地图容器的DOM元素ID
+            // - false: 表示这是单账号模式的地图（非多账号）
+            initMobileMap('mobile-map-container', false);
+            // 如果已有任务数据，重新在地图上绘制路径和标记
+            // currentRunData 存储当前任务的运行数据
+            // drawOnMap 函数负责将任务路径绘制到地图上
+            if (currentRunData && typeof drawOnMap === 'function') {
+              drawOnMap();
+            }
+          }, 100); // 延迟100毫秒
+        }
+        
+        // 【签到面板】激活时自动加载默认配置值
+        // 当用户切换到签到面板时，自动从 pythonParams 加载签到相关的配置
+        // 原因：签到面板包含多个配置项（开关、时间、延迟范围等），需要显示当前的配置状态
+        if (panelId === 'mobile-attendance-panel') {
+          console.log('[移动端单账号] 激活签到面板，开始加载配置...');
+          // 延迟50ms执行，确保DOM已渲染
+          setTimeout(() => {
+            // 加载签到开关状态
+            // 获取签到开关的checkbox元素
+            const attendanceEnabled = document.getElementById('mobile-attendance-enabled');
+            if (attendanceEnabled && typeof pythonParams !== 'undefined') {
+              // 从 pythonParams 获取签到开关状态
+              // 如果参数不存在或不为false，则默认为true（启用签到）
+              attendanceEnabled.checked = pythonParams.attendance_enabled !== false;
+            }
+            
+            // 加载签到时间配置
+            // 获取签到时间的输入框元素
+            const attendanceTime = document.getElementById('mobile-attendance-time');
+            if (attendanceTime && typeof pythonParams !== 'undefined') {
+              // 从 pythonParams 获取签到时间，默认为 "08:00"（早上8点）
+              attendanceTime.value = pythonParams.attendance_time || '08:00';
+            }
+            
+            // 加载签到随机延迟范围
+            // 为了让签到时间更自然（避免准点签到被识别为机器行为），
+            // 系统支持设置一个随机延迟范围，在该范围内随机选择延迟时间
+            const attendanceDelayMin = document.getElementById('mobile-attendance-delay-min');
+            const attendanceDelayMax = document.getElementById('mobile-attendance-delay-max');
+            if (attendanceDelayMin && attendanceDelayMax && typeof pythonParams !== 'undefined') {
+              // 从 pythonParams 获取延迟范围
+              // 默认为0-300秒（0秒到5分钟）
+              attendanceDelayMin.value = pythonParams.attendance_delay_min || 0;
+              attendanceDelayMax.value = pythonParams.attendance_delay_max || 300;
+            }
+            
+            // 加载自动刷新间隔配置
+            // 签到页面支持自动刷新功能，定期更新签到状态
+            const autoRefreshInterval = document.getElementById('mobile-param-auto_attendance_refresh_s');
+            if (autoRefreshInterval && typeof pythonParams !== 'undefined') {
+              // 获取刷新间隔参数，默认为60秒
+              autoRefreshInterval.value = pythonParams.auto_attendance_refresh_s || 60;
+              console.log('[移动端单账号] 自动刷新间隔已加载:', autoRefreshInterval.value, '秒');
+            }
+            
+            // 加载签到随机半径配置
+            // 签到时可以在真实位置附近随机偏移一定距离，让位置更自然
+            const userRadius = document.getElementById('mobile-param-attendance_user_radius_m');
+            if (userRadius && typeof pythonParams !== 'undefined') {
+              // 获取随机半径参数，默认为0米（精确签到，不偏移）
+              userRadius.value = pythonParams.attendance_user_radius_m || 0;
+              console.log('[移动端单账号] 签到随机半径已加载:', userRadius.value, '米');
+            }
+            
+            console.log('[移动端单账号] 签到面板配置已自动加载');
+          }, 50); // 延迟50毫秒
+        }
+        
+        // 【任务详情面板】激活时自动加载任务详情
+        // 当用户切换到任务详情面板时，自动调用 loadMobileTaskDetails 加载当前任务的详细信息
+        // 原因：任务详情面板需要显示特定任务的完整信息，激活时需要加载最新数据
+        if (panelId === 'mobile-task-details-panel') {
+          console.log('[移动端单账号] 激活任务详情面板，开始加载任务详情...');
+          // 延迟50ms确保DOM已渲染
+          setTimeout(() => {
+            // 检查 loadMobileTaskDetails 函数是否存在
+            if (typeof loadMobileTaskDetails === 'function') {
+              // 调用函数加载任务详情
+              loadMobileTaskDetails();
+              console.log('[移动端单账号] 任务详情已自动加载');
+            } else {
+              // 如果函数不存在，输出警告
+              console.warn('[移动端单账号] loadMobileTaskDetails函数未定义');
+            }
+          }, 50);
+        }
+        
+        // 【用户详情面板】激活时自动加载用户详情
+        // 当用户切换到用户详情面板（我的资料）时，自动加载用户的详细信息
+        // 原因：用户资料面板需要显示当前用户的信息，激活时需要加载最新数据
+        if (panelId === 'mobile-profile-panel') {
+          console.log('[移动端单账号] 激活用户详情面板，开始加载用户详情...');
+          // 延迟50ms确保DOM已渲染
+          setTimeout(() => {
+            // 检查 loadMobileUserDetails 函数是否存在
+            if (typeof loadMobileUserDetails === 'function') {
+              // 调用函数加载用户详情
+              loadMobileUserDetails();
+              console.log('[移动端单账号] 用户详情已自动加载');
+            } else {
+              // 如果函数不存在，输出警告
+              console.warn('[移动端单账号] loadMobileUserDetails函数未定义');
+            }
+          }, 50);
+        }
+        
+        // 【管理面板】激活时初始化
+        // 当用户切换到管理面板时，自动初始化管理面板的标签页和内容
+        // 原因：管理面板包含多个标签页（用户管理、角色管理等），需要根据用户权限动态创建
+        if (panelId === 'mobile-admin-panel') {
+          console.log('[移动端单账号] 激活管理面板，开始初始化...');
+          // 调用 initMobileAdminPanel 函数初始化管理面板
+          // 参数 'mobile-admin-panel' 是前缀，用于区分单账号和多账号的管理面板
+          if (typeof initMobileAdminPanel === 'function') {
+            initMobileAdminPanel('mobile-admin-panel');
+          } else {
+            console.warn('[移动端单账号] initMobileAdminPanel函数未定义');
+          }
+        }
+        
+        // 第四步：滚动到页面顶部
+        // 切换面板后，自动滚动到页面顶部，确保用户看到面板的完整内容
+        // 使用平滑滚动效果（smooth），提供更好的用户体验
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        // 如果找不到目标面板，输出警告信息
+        // 这可能是因为传入了错误的panelId，或者HTML结构发生了变化
+        console.warn(`[移动端单账号] 找不到ID为 ${panelId} 的面板`);
+      }
+
+      // 第五步：更新导航栏和侧边栏的激活状态
+      // 当面板切换后，需要更新底部导航栏和侧边栏菜单的视觉状态
+      // 让当前激活的菜单项高亮显示，其他菜单项恢复默认样式
+      updateMobileNavActiveState(panelId);   // 更新底部导航栏的激活状态
+      updateMobileSidebarActive(panelId);     // 更新侧边栏菜单的激活状态
     }
 
     function switchMobilePanel(panelId, mode = 'single') {
