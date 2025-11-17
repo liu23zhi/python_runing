@@ -10930,7 +10930,7 @@ def load_all_sessions(args):
 
                 # --- 如果成功恢复 ---
                 logging.info(
-                    f"成功恢复会话: {session_id[:8]}... (用户: {api_instance.auth_username if hasattr(api_instance, 'auth_username') else 'Unknown'}, 文件: {filename})")
+                    f"成功恢复会话: {session_id}... (用户: {api_instance.auth_username if hasattr(api_instance, 'auth_username') else 'Unknown'}, 文件: {filename})")
                 web_sessions[session_id] = api_instance  # 加入内存
                 session_activity[session_id] = last_accessed  # 恢复活动时间
                 successful_sessions[session_id] = session_hash  # 记录成功加载的会话及其哈希
@@ -10999,7 +10999,7 @@ class BackgroundTaskManager:
         try:
             with open(task_file, 'w', encoding='utf-8') as f:
                 json.dump(task_state, f, indent=2, ensure_ascii=False)
-            logging.debug(f"后台任务状态已保存，会话ID前缀: {session_id[:8]}")
+            logging.debug(f"后台任务状态已保存，会话ID: {session_id}")
         except Exception as e:
             logging.error(f"保存后台任务状态失败: {e}")
 
@@ -11011,7 +11011,7 @@ class BackgroundTaskManager:
         try:
             with open(task_file, 'r', encoding='utf-8') as f:
                 task_state = json.load(f)
-            logging.debug(f"后台任务状态已加载，会话ID前缀: {session_id[:8]}")
+            logging.debug(f"后台任务状态已加载，会话ID: {session_id}")
             return task_state
         except Exception as e:
             logging.error(f"加载后台任务状态失败: {e}")
@@ -21409,17 +21409,16 @@ def start_web_server(args_param):
             # 将当前 WebSocket 连接加入以 session_id 命名的房间
             join_room(session_id)
             logging.info(
-                f"WebSocket client {request.sid} joined room: {session_id[:8]}...")
+                f"WebSocket 客户端 {request.sid} 成功加入 {session_id}...")
             # 可以选择性地在这里发送一条欢迎消息
             # emit('log_message', {'msg': 'WebSocket connected successfully.'}, room=session_id)
         else:
             logging.warning(
-                f"WebSocket client {request.sid} failed to join room: session_id missing.")
+                f"WebSocket 客户端 {request.sid} 加入房间失败：缺少 session_id。")
 
     @socketio.on('disconnect')
     def handle_disconnect():
-        logging.info(f"WebSocket client disconnected: {request.sid}")
-
+        logging.info(f"WebSocket 客户端断开连接: {request.sid}")
     # 辅助函数，用于向指定会话推送验证码列表更新
     def _emit_verification_codes_update(session_id):
         """辅助函数：向指定会话推送验证码列表更新事件"""
