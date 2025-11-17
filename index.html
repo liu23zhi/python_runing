@@ -3707,27 +3707,26 @@
                  ======================================== -->
             <div class="mobile-form-group">
               <label class="mobile-form-label">验证码</label>
-              <!-- 验证码显示区域和刷新按钮（同一行） -->
-              <div class="flex gap-2 mt-1 items-center">
+              <!-- 【修复问题3】验证码显示区域（独占一行） -->
+              <div class="mt-1">
                 <!-- 验证码图片显示容器 - 点击可刷新 -->
                 <div id="mobile-login-captcha-display" 
-                     class="flex-shrink-0 w-auto h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+                     class="w-full h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
                      title="点击刷新验证码" 
                      style="min-height: 64px;"
                      onclick="refreshCaptcha('mobile-login')">
                   <!-- 初始加载状态提示文字 -->
                   <span class="text-slate-400 text-xs">加载中...</span>
                 </div>
-                <!-- 刷新按钮 - 点击重新加载验证码 -->
+              </div>
+              <!-- 【修复问题3】刷新按钮（独占一行，显示文字） -->
+              <div class="mt-2">
                 <button type="button" id="mobile-login-captcha-refresh" 
-                        class="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0" 
+                        class="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors text-sm font-medium" 
                         title="刷新验证码"
                         onclick="refreshCaptcha('mobile-login')">
-                  <!-- 刷新图标SVG -->
-                  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  <!-- 显示文字而不是SVG图标 -->
+                  刷新验证码
                 </button>
               </div>
               <!-- 验证码输入框（单独一行） -->
@@ -3827,27 +3826,26 @@
                  ======================================== -->
             <div class="mobile-form-group">
               <label class="mobile-form-label">验证码</label>
-              <!-- 验证码显示区域和刷新按钮（同一行） -->
-              <div class="flex gap-2 mt-1 items-center">
+              <!-- 【修复问题3】验证码显示区域（独占一行） -->
+              <div class="mt-1">
                 <!-- 验证码图片显示容器 - 点击可刷新 -->
                 <div id="mobile-register-captcha-display" 
-                     class="flex-shrink-0 w-auto h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+                     class="w-full h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
                      title="点击刷新验证码" 
                      style="min-height: 64px;"
                      onclick="refreshCaptcha('mobile-register')">
                   <!-- 初始加载状态提示文字 -->
                   <span class="text-slate-400 text-xs">加载中...</span>
                 </div>
-                <!-- 刷新按钮 - 点击重新加载验证码 -->
+              </div>
+              <!-- 【修复问题3】刷新按钮（独占一行，显示文字） -->
+              <div class="mt-2">
                 <button type="button" id="mobile-register-captcha-refresh" 
-                        class="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0" 
+                        class="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors text-sm font-medium" 
                         title="刷新验证码"
                         onclick="refreshCaptcha('mobile-register')">
-                  <!-- 刷新图标SVG -->
-                  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  <!-- 显示文字而不是SVG图标 -->
+                  刷新验证码
                 </button>
               </div>
               <!-- 验证码输入框（单独一行） -->
@@ -9029,31 +9027,44 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       // === 1. Helper function for tab switching ===
       function showMobileAuthForm(formToShow) {
-        // Get all elements
+        // 获取所有相关的DOM元素
+        // loginTab, registerTab: 顶部的标签页切换按钮
         const loginTab = document.getElementById('mobile-auth-tab-login');
         const registerTab = document.getElementById('mobile-auth-tab-register');
+        // loginForm, registerForm, tfaForm: 三个不同的表单区域
         const loginForm = document.getElementById('mobile-login-form');
         const registerForm = document.getElementById('mobile-register-form');
         const tfaForm = document.getElementById('mobile-auth-2fa-form');
 
-        // Hide all forms
+        // 首先隐藏所有表单，确保同一时间只显示一个表单
         if (loginForm) loginForm.classList.add('hidden');
         if (registerForm) registerForm.classList.add('hidden');
         if (tfaForm) tfaForm.classList.add('hidden');
 
+        // 根据传入的formToShow参数决定显示哪个表单
         if (formToShow === 'register') {
+          // 显示注册表单
           if (registerForm) registerForm.classList.remove('hidden');
-          // Update Tab styles
+          // 更新标签页样式：注册标签高亮（天蓝色），登录标签变灰
           if (loginTab) loginTab.className = 'flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition';
           if (registerTab) registerTab.className = 'flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition';
-        } else { // Default to login
+          
+          // 【修复问题2】自动加载注册表单的验证码
+          // 调用loadCaptcha函数为PC端加载验证码，该函数内部会自动同步到移动端
+          loadCaptcha('register');
+        } else { // 默认显示登录表单（formToShow === 'login'）
+          // 显示登录表单
           if (loginForm) loginForm.classList.remove('hidden');
-          // Update Tab styles
+          // 更新标签页样式：登录标签高亮（天蓝色），注册标签变灰
           if (loginTab) loginTab.className = 'flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition';
           if (registerTab) registerTab.className = 'flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition';
+          
+          // 【修复问题2】自动加载登录表单的验证码
+          // 调用loadCaptcha函数为PC端加载验证码，该函数内部会自动同步到移动端
+          loadCaptcha('login');
         }
 
-        // Clear messages
+        // 清除之前可能显示的错误或成功消息
         showMobileMessage('', 'clear');
       }
 
@@ -9120,20 +9131,25 @@ function run_code_not_need_sessionuuid(codeToRun) {
       });
 
       // === 5. Bind "Send Code" buttons (Proxy to desktop logic) ===
-      // 代理模式：将值复制到隐藏的桌面输入框，然后触发桌面按钮的点击事件
+      // 【修复问题6】绑定移动端"发送验证码"按钮事件
+      // 代理模式：使用验证码模态窗进行图形验证码验证，验证通过后发送短信
 
+      // 【修复问题6】绑定移动端登录表单的"发送验证码"按钮
       const mobileSendLoginCodeBtn = document.getElementById('mobile-auth-send-login-code');
       if (mobileSendLoginCodeBtn) {
         // 使用验证码模态窗进行验证
         mobileSendLoginCodeBtn.addEventListener('click', async function () {
-          // 1. 使用移动端ID获取手机号
+          // 1. 从移动端输入框获取手机号
           const phone = document.getElementById('mobile-auth-username').value;
+          // 2. 验证手机号格式（中国大陆11位手机号，1开头，第二位3-9）
           if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
             showMobileMessage('请输入正确的手机号', 'error');
             return;
           }
 
-          // 打开验证码验证模态窗
+          // 3. 打开验证码验证模态窗
+          // 传递上下文信息：手机号、按钮元素、按钮原始文本
+          // 用户输入图形验证码后，会调用sendSMSWithCaptcha发送短信
           openCaptchaModal({
             phone: phone,
             button: mobileSendLoginCodeBtn,
@@ -9142,18 +9158,22 @@ function run_code_not_need_sessionuuid(codeToRun) {
         });
       }
 
+      // 【修复问题6】绑定移动端注册表单的"发送验证码"按钮
       const mobileSendRegCodeBtn = document.getElementById('mobile-reg-send-code-btn');
       if (mobileSendRegCodeBtn) {
         // 使用验证码模态窗进行验证
         mobileSendRegCodeBtn.addEventListener('click', async function () {
-          // 1. 使用移动端ID获取手机号
+          // 1. 从移动端输入框获取手机号
           const phone = document.getElementById('mobile-reg-phone').value;
+          // 2. 验证手机号格式（中国大陆11位手机号，1开头，第二位3-9）
           if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
             showMobileMessage('请输入正确的手机号', 'error');
             return;
           }
 
-          // 打开验证码验证模态窗
+          // 3. 打开验证码验证模态窗
+          // 传递上下文信息：手机号、按钮元素、按钮原始文本
+          // 用户输入图形验证码后，会调用sendSMSWithCaptcha发送短信
           openCaptchaModal({
             phone: phone,
             button: mobileSendRegCodeBtn,
@@ -9168,14 +9188,19 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // --- Mobile Login ---
       const mobileLoginBtn = document.getElementById('mobile-login-btn');
       if (mobileLoginBtn) mobileLoginBtn.addEventListener('click', async () => {
-        // 修复2：为移动端按钮添加加载状态
+        // 为移动端按钮添加加载状态
         setButtonLoading('mobile-login-btn', true, '登录中...');
 
         try {
-          // 1. 复制所有相关值到隐藏的桌面字段
+          // 【修复问题5】1. 复制所有相关值到隐藏的桌面字段（包括验证码）
+          // 复制用户名/手机号
           document.getElementById('auth-username').value = document.getElementById('mobile-auth-username').value;
+          // 复制密码
           document.getElementById('auth-password').value = document.getElementById('mobile-auth-password').value;
+          // 复制短信验证码
           document.getElementById('auth-sms-code').value = document.getElementById('mobile-auth-sms-code').value;
+          // 【修复问题5】复制图形验证码 - 确保验证码值从移动端输入框传递到PC端
+          document.getElementById('auth-login-captcha').value = document.getElementById('mobile-login-captcha').value;
 
           // 2. 同步桌面UI的 *状态* (这对 handleAuthLogin 的内部逻辑至关重要)
           if (!document.getElementById('mobile-password-section').classList.contains('hidden')) {
@@ -9246,13 +9271,21 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const mobileRegisterBtn = document.getElementById('mobile-register-btn');
       if (mobileRegisterBtn) mobileRegisterBtn.addEventListener('click', async () => {
         try {
-          // 1. 复制所有值
+          // 【修复问题5】1. 复制所有值（包括验证码）
+          // 复制用户名
           document.getElementById('auth-reg-username').value = document.getElementById('mobile-reg-username').value;
+          // 复制手机号
           document.getElementById('auth-reg-phone').value = document.getElementById('mobile-reg-phone').value;
+          // 复制短信验证码
           document.getElementById('auth-reg-sms-code').value = document.getElementById('mobile-reg-sms-code').value;
+          // 复制昵称
           document.getElementById('auth-reg-nickname').value = document.getElementById('mobile-reg-nickname').value;
+          // 复制密码
           document.getElementById('auth-reg-password').value = document.getElementById('mobile-reg-password').value;
+          // 复制确认密码
           document.getElementById('auth-reg-password-confirm').value = document.getElementById('mobile-reg-password-confirm').value;
+          // 【修复问题5】复制图形验证码 - 确保验证码值从移动端输入框传递到PC端
+          document.getElementById('auth-register-captcha').value = document.getElementById('mobile-register-captcha').value;
 
           // 2. 头像 Blob (registrationCroppedAvatarBlob) 是全局变量，无需复制
 
@@ -13675,84 +13708,76 @@ function run_code_not_need_sessionuuid(codeToRun) {
       reader.readAsDataURL(file);
     }
 
+    // 【修复问题4】清理裁剪模态框
+    // 函数功能：销毁裁剪器实例，清除文件输入，重置标志，关闭模态框
     function closeCropModal() {
-      // 销毁裁剪器
+      // 销毁裁剪器实例，释放资源
       if (avatarCropper) {
         avatarCropper.destroy();
         avatarCropper = null;
       }
 
-      // 清除文件输入 (两个输入框都清除)
+      // 清除文件输入（包括PC端和移动端的输入框）
       const fileInput = $('profile-avatar-file');
       if (fileInput) fileInput.value = '';
       const regFileInput = $('auth-reg-avatar');
       if (regFileInput) regFileInput.value = '';
+      // 【修复问题4】同时清除移动端注册头像文件输入
+      const mobileRegFileInput = $('mobile-reg-avatar');
+      if (mobileRegFileInput) mobileRegFileInput.value = '';
 
-      isRegistrationCrop = false; // 重置标志
+      // 重置注册裁剪标志
+      isRegistrationCrop = false;
 
+      // 关闭裁剪模态框
       hideModal('avatar-crop-modal');
     }
 
-    // 专用于注册流程的确认函数
+    // 【修复问题4】专用于注册流程的确认函数
+    // 功能：裁剪图片，暂存为Blob，更新预览图（包括PC端和移动端），关闭模态框
     async function confirmCropForRegistration() {
+      // 验证裁剪器是否已初始化
       if (!avatarCropper) {
         showModalAlert('裁剪器未初始化', '错误');
         return;
       }
 
+      // 获取裁剪后的canvas对象
+      // 参数：width/height设置输出尺寸为200x200像素，imageSmoothingQuality设置为高质量
       const canvas = avatarCropper.getCroppedCanvas({
         width: 200, height: 200, imageSmoothingQuality: 'high'
       });
+      
+      // 验证canvas是否成功生成
       if (!canvas) {
         showModalAlert('裁剪失败', '错误');
         return;
       }
 
-      // 将 canvas 转换为 blob 并暂存
+      // 将canvas转换为Blob对象（异步操作）
       canvas.toBlob(function (blob) {
+        // 将Blob包装为File对象，设置文件名为avatar.jpg，MIME类型为image/jpeg
+        // 暂存到全局变量registrationCroppedAvatarBlob，供注册提交时使用
         registrationCroppedAvatarBlob = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
 
-        // 更新注册表单的预览图
+        // 【修复问题4】更新PC端注册表单的头像预览图
         const previewImg = $('auth-reg-avatar-preview');
         if (previewImg) {
+          // 使用createObjectURL创建Blob的临时URL，并设置为预览图的src
           previewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
         }
 
-        // 关闭模态框
-        closeCropModal();
-      }, 'image/jpeg', 0.9);
-    }
-
-
-    async function confirmCropForRegistration() {
-      if (!avatarCropper) {
-        showModalAlert('裁剪器未初始化', '错误');
-        return;
-      }
-
-      const canvas = avatarCropper.getCroppedCanvas({
-        width: 200, height: 200, imageSmoothingQuality: 'high'
-      });
-      if (!canvas) {
-        showModalAlert('裁剪失败', '错误');
-        return;
-      }
-
-      // 将 canvas 转换为 blob 并暂存
-      canvas.toBlob(function (blob) {
-        // 暂存裁剪后的文件 Blob，用于注册时提交
-        registrationCroppedAvatarBlob = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-
-        // 更新注册表单的预览图
-        const previewImg = $('auth-reg-avatar-preview');
-        if (previewImg) {
-          // 使用 createObjectURL 更新预览图
-          previewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
+        // 【修复问题4】同时更新移动端注册表单的头像预览图
+        // 这样用户在移动端也能看到裁剪后的头像预览
+        const mobilePreviewImg = $('mobile-reg-avatar-preview');
+        if (mobilePreviewImg) {
+          // 使用相同的Blob创建URL，更新移动端预览
+          mobilePreviewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
         }
 
-        // 关闭模态框
+        // 关闭裁剪模态框
         closeCropModal();
-      }, 'image/jpeg', 0.9);
+      }, 'image/jpeg', 0.9); // JPEG格式，质量0.9（90%）
     }
 
     async function confirmCropAndUpload() {
@@ -18454,6 +18479,15 @@ function run_code_not_need_sessionuuid(codeToRun) {
                     // 确保背景可见（有时需要 z-index，但通常不需要）
                     // authContainer.style.zIndex = '10'; // 一般不需要
                   }
+                  
+                  // 【修复问题1】同时处理移动端认证容器
+                  const mobileAuthContainer = document.getElementById('mobile-auth-container');
+                  if (mobileAuthContainer) {
+                    // 显示移动端认证容器
+                    mobileAuthContainer.classList.remove('hidden');
+                    // 确保移动端容器也是全屏显示
+                    mobileAuthContainer.classList.add('fixed', 'inset-0');
+                  }
 
                   // 3. 禁用 auth-login-container 内的输入框
                   const inputsToDisable = [
@@ -18472,14 +18506,31 @@ function run_code_not_need_sessionuuid(codeToRun) {
                       // inputElement.style.cursor = 'not-allowed';
                     }
                   });
+                  
+                  // 【修复问题1】禁用移动端输入框
+                  const mobileInputsToDisable = [
+                    'mobile-auth-username',
+                    'mobile-auth-password',
+                    'mobile-reg-username',
+                    'mobile-reg-password',
+                    'mobile-reg-password-confirm'
+                  ];
+                  mobileInputsToDisable.forEach(inputId => {
+                    const inputElement = document.getElementById(inputId);
+                    if (inputElement) {
+                      inputElement.disabled = true;
+                    }
+                  });
 
                   if (authContainer) authContainer.classList.remove('hidden');
                   // Swal.fire会返回一个Promise对象，在用户关闭提示弹窗后该Promise会被解析
                   Swal.fire({
                     title: '会话不存在', // 弹窗标题
                     text: '该会话已过期或不存在，请重新登录', // 弹窗消息
-                    icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-                    confirmButtonText: '确定' // 按钮文字
+                    icon: 'warning', // 'warning' 图标，显示为黄色感叹号
+                    confirmButtonText: '确定', // 按钮文字
+                    allowOutsideClick: false, // 【修复问题1】防止用户点击外部关闭弹窗
+                    allowEscapeKey: false // 【修复问题1】防止用户按ESC键关闭弹窗
                   }).then(() => {
                     // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
                     logMessage_Info('用户确认弹窗，正在跳转到登录页面...');
