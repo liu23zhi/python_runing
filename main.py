@@ -13681,18 +13681,6 @@ def start_web_server(args_param):
         响应格式：
         成功：{"success": true, "groups": {权限组配置}}
         失败：{"success": false, "message": "错误信息"}
-
-        权限组结构示例：
-        {
-            "admin": ["manage_users", "manage_permissions", ...],
-            "user": ["view_data", "edit_own_data"],
-            "guest": ["view_public_data"]
-        }
-
-        使用场景：
-        - 权限配置界面数据源
-        - 显示可用的权限组列表
-        - 权限分配参考
         """
         # 从请求头提取会话ID
         session_id = request.headers.get('X-Session-ID', '')
@@ -13717,14 +13705,9 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": "权限不足"})
 
         # 获取并返回权限组配置
-        groups = auth_system.list_permission_groups()
-        return jsonify({"success": True, "groups": groups})
-        if not auth_system.check_permission(api_instance.auth_username, 'manage_permissions'):
-            return jsonify({"success": False, "message": "权限不足"})
-
+        # 修正：使用 AuthSystem 中已定义的 get_all_groups() 方法
         groups = auth_system.get_all_groups()
         return jsonify({"success": True, "groups": groups})
-
     @app.route('/auth/admin/create_group', methods=['POST'])
     def auth_admin_create_group():
         """问题7修复：超级管理员：创建权限组（验证必填字段）"""
@@ -19458,8 +19441,8 @@ def start_web_server(args_param):
                 'generate_new_ua': 'modify_params',  # 生成新的User-Agent
                 'save_amap_key': 'modify_params',  # 保存高德地图API密钥
                 
-                # ===== 参数查看权限 =====
-                'get_params': 'view_params',  # 获取当前参数配置（用于前端读取配置）
+                # # ===== 参数查看权限 =====
+                # 'get_params': 'view_params',  # 获取当前参数配置（用于前端读取配置）
                 
                 # ===== 地图查看权限 =====
                 'get_map_data': 'view_map',  # 获取地图数据
