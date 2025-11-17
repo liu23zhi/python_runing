@@ -823,42 +823,43 @@ def setup_logging():
 
     logger.addHandler(file_handler)
 
-    # ========== 新增：错误日志文件处理器 ==========
-    # 创建专门用于记录ERROR和CRITICAL级别日志的处理器
-    # 这样可以将严重错误单独记录到一个文件中，方便快速定位问题
-    error_log_file = os.path.join(log_dir, 'zx-slm-tool-ERROR.log')
+    # ========== 新增：警告和错误日志文件处理器 ==========
+    # 创建专门用于记录WARNING、ERROR和CRITICAL级别日志的处理器
+    # 这样可以将警告和严重错误单独记录到一个文件中，方便快速定位问题
+    # 使用WARNING.log作为文件名，表示记录WARNING及以上级别的日志
+    warning_log_file = os.path.join(log_dir, 'zx-slm-tool-WARNING.log')
     
     # 使用与主日志相同的轮转配置（max_bytes）和归档逻辑
-    # 这确保了错误日志也会被自动轮转和归档，防止文件过大
-    error_file_handler = CustomLogHandler(
-        error_log_file,  # 错误日志文件路径
-        mode='a',  # 追加模式（append），保留历史错误日志
+    # 这确保了警告日志也会被自动轮转和归档，防止文件过大
+    warning_file_handler = CustomLogHandler(
+        warning_log_file,  # 警告日志文件路径
+        mode='a',  # 追加模式（append），保留历史警告日志
         encoding='utf-8',  # UTF-8编码，支持中文日志
         max_bytes=max_bytes  # 使用与主日志相同的大小限制
     )
     
-    # 设置日志级别为ERROR：只记录ERROR和CRITICAL级别的日志
-    # 这样可以过滤掉DEBUG、INFO、WARNING级别的日志
-    error_file_handler.setLevel(logging.ERROR)
+    # 设置日志级别为WARNING：记录WARNING、ERROR和CRITICAL级别的日志
+    # 这样可以过滤掉DEBUG和INFO级别的日志，只保留需要关注的警告和错误
+    warning_file_handler.setLevel(logging.WARNING)
     
-    # 为错误日志处理器应用"无颜色"格式化程序
+    # 为警告日志处理器应用"无颜色"格式化程序
     # 使用与主日志相同的格式，确保日志格式的一致性
-    error_no_color_formatter = NoColorFileFormatter(
+    warning_no_color_formatter = NoColorFileFormatter(
         log_format._fmt,  # 使用相同的日志格式字符串
         datefmt=log_format.datefmt  # 使用相同的日期格式
     )
-    error_file_handler.setFormatter(error_no_color_formatter)
+    warning_file_handler.setFormatter(warning_no_color_formatter)
     
-    # 将错误日志处理器添加到logger中
-    # 现在所有ERROR和CRITICAL日志会同时写入主日志和错误日志文件
-    logger.addHandler(error_file_handler)
-    # ========== 结束：错误日志文件处理器 ==========
+    # 将警告日志处理器添加到logger中
+    # 现在所有WARNING、ERROR和CRITICAL日志会同时写入主日志和警告日志文件
+    logger.addHandler(warning_file_handler)
+    # ========== 结束：警告和错误日志文件处理器 ==========
 
     # 记录日志系统启动
     logging.info("="*80)
     logging.info("日志系统初始化完成（启用自定义轮转）")
     logging.info(f"日志文件: {log_file}")
-    logging.info(f"错误日志文件: {error_log_file}")  # 添加错误日志文件信息
+    logging.info(f"警告日志文件: {warning_log_file}")  # 添加警告日志文件信息
     logging.info(f"日志级别: DEBUG (所有级别)")
     logging.info(f"日志轮转: 单文件最大{log_rotation_size_mb}MB")
     logging.info(
@@ -6836,6 +6837,35 @@ class Api:
                 return {"success": False, "message": str(e)}
         return {"success": False, "message": "Unknown parameter"}
 
+    def get_params(self):
+        """
+        获取当前参数配置
+        
+        功能说明：
+        - 用于前端获取所有参数配置，包括主题颜色、主题风格等
+        - 在多账号模式下返回全局参数
+        - 在单账号模式下返回当前账号的参数
+        
+        返回:
+            dict: 包含所有参数的字典
+        """
+        try:
+            # 根据模式返回对应的参数
+            if self.is_multi_account_mode:
+                return self.global_params.copy()
+            else:
+                return self.params.copy()
+        except Exception as e:
+            logging.error(f"获取参数失败: {e}", exc_info=True)
+            # 返回默认参数
+            return {
+                "theme_base_color": "#7dd3fc",
+                "theme_style": "default",
+                "auto_attendance_enabled": False,
+                "auto_attendance_refresh_s": 30,
+                "attendance_user_radius_m": 40
+            }
+
     def export_task_data(self):
         """导出当前任务数据为JSON文件（Web模式：返回JSON数据让前端下载）"""
         logging.info("API调用: export_task_data - 导出当前任务数据为JSON格式")
@@ -7133,6 +7163,43 @@ class Api:
         self.is_multi_account_mode = False
         self.log("进入单账号模式。")
         return {"success": True}
+
+    def exit_single_account_mode(self):
+        """
+        退出单账号模式
+        
+        功能说明：
+        - 用于移动端退出单账号模式，返回会话选择界面
+        - 清理当前会话状态，但保留认证信息
+        - 停止所有正在运行的任务
+        
+        返回:
+            dict: {"success": True} 表示退出成功
+        """
+        try:
+            # 停止当前运行的任务
+            if hasattr(self, 'stop_event'):
+                self.stop_event.set()
+            
+            # 如果有工作线程，等待其结束
+            if hasattr(self, 'worker_thread') and self.worker_thread and self.worker_thread.is_alive():
+                self.worker_thread.join(timeout=1.0)
+            
+            # 清空路径规划回调，避免延迟回传
+            if hasattr(self, 'path_gen_callbacks'):
+                for key, (path_result, completion_event) in list(self.path_gen_callbacks.items()):
+                    path_result['error'] = '退出单账号模式已取消'
+                    try:
+                        completion_event.set()
+                    except Exception:
+                        pass
+                self.path_gen_callbacks.clear()
+            
+            self.log("已退出单账号模式")
+            return {"success": True}
+        except Exception as e:
+            logging.error(f"退出单账号模式失败: {e}", exc_info=True)
+            return {"success": False, "message": f"退出失败: {str(e)}"}
 
     def get_session_mode_info(self):
         """获取会话模式信息（单账号/多账号），用于页面刷新时恢复状态"""
@@ -12371,6 +12438,83 @@ def start_web_server(args_param):
     # ====================
     # 认证相关API路由
     # ====================
+    
+    # ====================
+    # 辅助函数：线程安全的会话管理
+    # ====================
+    
+    def get_session_user_safe(session_id, required_permission=None, require_super_admin=False):
+        """
+        【并发安全辅助函数】线程安全地获取会话用户信息并验证权限
+        
+        功能说明：
+        1. 使用锁保护web_sessions字典的并发访问
+        2. 验证会话有效性和用户认证状态
+        3. 提取用户信息（在锁保护范围内）
+        4. 释放锁后执行权限检查（避免长时间持锁）
+        
+        参数:
+            session_id (str): 会话ID，从请求头X-Session-ID获取
+            required_permission (str, optional): 需要检查的权限名称，如'manage_users'
+            require_super_admin (bool, optional): 是否要求超级管理员权限
+        
+        返回:
+            tuple: (success: bool, result: dict或Response)
+            - 成功时: (True, {"username": str, "group": str, "api_instance": object})
+            - 失败时: (False, jsonify({...})) - 可直接返回给前端的错误响应
+        
+        使用示例：
+            success, result = get_session_user_safe(session_id, 'manage_users')
+            if not success:
+                return result  # 返回错误响应
+            username = result['username']  # 使用用户信息
+        
+        线程安全说明：
+        - 函数内部使用web_sessions_lock确保线程安全
+        - 只在锁内访问web_sessions字典和api_instance属性
+        - 耗时的权限检查操作在锁外执行，避免阻塞其他请求
+        """
+        # 使用锁保护对共享资源web_sessions的访问
+        with web_sessions_lock:
+            # 验证会话ID的存在性和有效性
+            if not session_id or session_id not in web_sessions:
+                # 返回401未授权错误
+                return False, jsonify({"success": False, "message": "未授权"}), 401
+            
+            # 从会话字典中获取API实例对象
+            api_instance = web_sessions[session_id]
+            
+            # 检查用户是否已通过认证（是否有auth_username属性）
+            if not hasattr(api_instance, 'auth_username'):
+                # 返回401未登录错误
+                return False, jsonify({"success": False, "message": "未登录"}), 401
+            
+            # 在锁保护范围内提取用户信息
+            # 这样可以确保读取的是一致的状态，避免竞态条件
+            user_info = {
+                'username': api_instance.auth_username,
+                'group': getattr(api_instance, 'auth_group', 'user'),
+                'api_instance': api_instance  # 某些情况下可能需要完整的实例
+            }
+        # 锁已释放，现在可以安全地执行耗时操作
+        
+        # 如果要求超级管理员权限
+        if require_super_admin:
+            if user_info['group'] != 'super_admin':
+                # 返回403权限不足错误
+                return False, jsonify({"success": False, "message": "仅超级管理员可执行此操作"}), 403
+        
+        # 如果需要检查特定权限
+        if required_permission:
+            # 调用权限系统检查用户是否拥有指定权限
+            # 这个操作可能较耗时（需要查询配置文件），所以在锁外执行
+            if not auth_system.check_permission(user_info['username'], required_permission):
+                # 返回403权限不足错误
+                return False, jsonify({"success": False, "message": f"权限不足：需要 {required_permission} 权限"}), 403
+        
+        # 验证通过，返回成功和用户信息
+        return True, user_info
+
 
     @app.route('/auth/register', methods=['POST'])
     def auth_register():
@@ -13109,19 +13253,25 @@ def start_web_server(args_param):
         - 点击操作前的预先验证
         - 动态菜单生成
         """
+        # 从请求头中提取会话ID，用于识别当前用户的会话
         session_id = request.headers.get('X-Session-ID', '')
+        # 解析请求体中的JSON数据，如果解析失败则返回空字典
         data = request.get_json() or {}
+        # 提取要检查的权限名称
         permission = data.get('permission', '')
 
-        if not session_id or session_id not in web_sessions:
+        # 【并发安全】使用辅助函数进行线程安全的会话验证
+        # 这个函数会自动加锁、验证会话、提取用户信息，然后释放锁
+        success, result, status_code = get_session_user_safe(session_id)
+        if not success:
+            # 如果验证失败，返回特殊的权限检查响应格式
             return jsonify({"success": False, "has_permission": False})
-
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "has_permission": False})
-
-        has_permission = auth_system.check_permission(
-            api_instance.auth_username, permission)
+        
+        # 提取用户名
+        auth_username = result['username']
+        
+        # 执行权限检查（已在锁外，不会阻塞其他请求）
+        has_permission = auth_system.check_permission(auth_username, permission)
         return jsonify({"success": True, "has_permission": has_permission})
 
     @app.route('/auth/switch_session', methods=['POST'])
@@ -13343,19 +13493,29 @@ def start_web_server(args_param):
         - 用户管理界面的数据源
         - 审计和统计分析
         """
+        # 从请求头中提取会话ID
         session_id = request.headers.get('X-Session-ID', '')
 
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未授权"})
+        # 【并发安全修复】使用锁保护web_sessions字典访问
+        with web_sessions_lock:
+            # 验证会话ID的存在性和有效性
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未授权"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+            # 从会话字典中获取API实例
+            api_instance = web_sessions[session_id]
+            # 检查是否已认证登录
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
+            
+            # 在锁保护范围内提取用户名，确保线程安全
+            auth_username = api_instance.auth_username
 
-        # 检查权限
-        if not auth_system.check_permission(api_instance.auth_username, 'manage_users'):
+        # 在释放锁后执行权限检查（耗时操作不应在锁内）
+        if not auth_system.check_permission(auth_username, 'manage_users'):
             return jsonify({"success": False, "message": "权限不足"})
 
+        # 获取用户列表并返回
         users = auth_system.list_users()
         return jsonify({"success": True, "users": users})
 
@@ -13408,17 +13568,27 @@ def start_web_server(args_param):
         if target_username == super_admin:
             return jsonify({"success": False, "message": "不允许修改超级管理员用户组的用户"})
             
+        # 验证会话ID和用户认证状态
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+        # 【并发安全修复】使用锁保护web_sessions字典访问
+        # 这是一个竞态条件的关键点：多个请求可能同时读取会话字典
+        with web_sessions_lock:
+            # 从会话字典中获取API实例
+            api_instance = web_sessions[session_id]
+            # 检查用户是否已认证登录
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
+            
+            # 在锁保护范围内提取用户名，确保数据一致性
+            auth_username = api_instance.auth_username
 
-        # 检查权限
-        if not auth_system.check_permission(api_instance.auth_username, 'manage_users'):
+        # 在锁外执行权限检查，避免长时间持有锁
+        if not auth_system.check_permission(auth_username, 'manage_users'):
             return jsonify({"success": False, "message": "权限不足"})
 
+        # 执行用户组更新操作
         result = auth_system.update_user_group(target_username, new_group)
         return jsonify(result)
 
@@ -13455,16 +13625,31 @@ def start_web_server(args_param):
         - 显示可用的权限组列表
         - 权限分配参考
         """
+        # 从请求头提取会话ID
         session_id = request.headers.get('X-Session-ID', '')
 
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未授权"})
+        # 【并发安全修复】在访问共享资源web_sessions前加锁
+        with web_sessions_lock:
+            # 验证会话ID的有效性
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未授权"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+            # 从会话字典获取API实例
+            api_instance = web_sessions[session_id]
+            # 检查用户认证状态
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
+            
+            # 提取用户名（在锁保护范围内）
+            auth_username = api_instance.auth_username
 
-        # 检查权限
+        # 在锁外执行权限检查（不阻塞其他请求）
+        if not auth_system.check_permission(auth_username, 'manage_permissions'):
+            return jsonify({"success": False, "message": "权限不足"})
+
+        # 获取并返回权限组配置
+        groups = auth_system.list_permission_groups()
+        return jsonify({"success": True, "groups": groups})
         if not auth_system.check_permission(api_instance.auth_username, 'manage_permissions'):
             return jsonify({"success": False, "message": "权限不足"})
 
@@ -13477,20 +13662,28 @@ def start_web_server(args_param):
         session_id = request.headers.get('X-Session-ID', '')
         data = request.get_json() or {}
         # 去除首尾空格
+        # 验证必填参数
         group_name = data.get('group_name', '').strip()
         display_name = data.get('display_name', '').strip()
         permissions = data.get('permissions', {})
 
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未授权"})
+        # 【并发安全修复】使用锁保护会话字典访问
+        with web_sessions_lock:
+            # 验证会话有效性
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未授权"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+            # 获取API实例
+            api_instance = web_sessions[session_id]
+            # 验证用户已登录
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
 
-        # 检查是否为超级管理员
-        if api_instance.auth_group != 'super_admin':
-            return jsonify({"success": False, "message": "仅超级管理员可创建权限组"})
+            # 检查是否为超级管理员（需要访问auth_group属性）
+            # 在锁保护范围内进行检查，确保读取的是一致的状态
+            if api_instance.auth_group != 'super_admin':
+                return jsonify({"success": False, "message": "仅超级管理员可创建权限组"})
+        # 锁已释放，可以执行后续的业务逻辑
 
         # 问题7修复：验证必填字段不能为空
         if not group_name:
@@ -13499,6 +13692,7 @@ def start_web_server(args_param):
         if not display_name:
             return jsonify({"success": False, "message": "权限组名称（display_name）不能为空"})
 
+        # 执行权限组创建操作
         result = auth_system.create_permission_group(
             group_name, permissions, display_name)
         return jsonify(result)
@@ -13512,24 +13706,32 @@ def start_web_server(args_param):
         group_name = data.get('group_key') or data.get('group_name', '')
         permissions = data.get('permissions', {})
 
+        # 预先验证权限组名称（防止修改超级管理员组）
         if group_name == 'super_admin':
             return jsonify({"success": False, "message": "不允许修改超级管理员组"})
 
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未授权"})
+        # 【并发安全修复】使用锁保护会话字典的并发访问
+        with web_sessions_lock:
+            # 验证会话存在性
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未授权"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+            # 从会话字典获取API实例
+            api_instance = web_sessions[session_id]
+            # 验证用户已认证
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
 
-        # 检查是否为超级管理员
-        if api_instance.auth_group != 'super_admin':
-            return jsonify({"success": False, "message": "仅超级管理员可更新权限组"})
+            # 检查超级管理员权限（auth_group属性访问必须在锁内）
+            if api_instance.auth_group != 'super_admin':
+                return jsonify({"success": False, "message": "仅超级管理员可更新权限组"})
+        # 锁已释放
 
         # 问题6修复：验证权限组名称
         if not group_name:
             return jsonify({"success": False, "message": "权限组标识不能为空"})
 
+        # 执行权限组更新操作
         result = auth_system.update_permission_group(group_name, permissions)
         
         # 问题6修复：检查权限组是否存在
@@ -14828,6 +15030,128 @@ def start_web_server(args_param):
             return jsonify({
                 "success": True, 
                 "message": f"账户 {school_username} 删除成功"
+            })
+            
+        except Exception as e:
+            # 保存失败，记录错误并返回500错误
+            logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "保存账户数据失败"}), 500
+
+    @app.route('/api/admin/school_account/update', methods=['POST'])
+    def api_admin_school_account_update():
+        """
+        更新 School Account（PC端管理面板CRUD支持）。
+        
+        功能说明：
+        - 允许管理员或有权限的用户更新学校账户的密码和UA
+        - 支持修改指定认证用户的学校账户信息
+        
+        请求参数（JSON）：
+        - auth_username: 认证用户名（所属用户）
+        - school_username: 学校账户用户名
+        - password: 新密码
+        - ua: 新User-Agent（可选）
+        
+        权限要求：
+        - 管理员可以更新任何用户的账户
+        - 普通用户只能更新自己的账户
+        
+        返回值：
+        - success: 是否成功
+        - message: 提示信息
+        """
+        # ========== 1. 验证会话 ==========
+        # 从请求头获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 检查会话是否存在
+        if not session_id or session_id not in web_sessions:
+            # 会话不存在或已过期，返回401未授权
+            return jsonify({"success": False, "message": "未登录或会话无效"}), 401
+        
+        # 获取当前用户的API实例
+        api_instance = web_sessions[session_id]
+        
+        # 获取当前用户的权限信息
+        auth_group = getattr(api_instance, 'auth_group', 'guest')  # 用户组
+        current_auth_username = getattr(api_instance, 'auth_username', None)  # 当前登录用户
+        
+        # ========== 2. 解析请求数据 ==========
+        try:
+            # 从请求体获取JSON数据
+            data = request.get_json()
+            if not data:
+                # 如果没有提供JSON数据，返回400错误
+                return jsonify({"success": False, "message": "缺少请求数据"}), 400
+            
+            # 提取必需的字段并去除首尾空格
+            auth_username = data.get('auth_username', '').strip()  # 目标认证用户
+            school_username = data.get('school_username', '').strip()  # 学校账户用户名
+            password = data.get('password', '').strip()  # 新密码
+            ua = data.get('ua', '').strip()  # 新User-Agent（可选）
+            
+            # 验证必填字段
+            if not auth_username or not school_username or not password:
+                # 如果任何必填字段为空，返回400错误
+                return jsonify({"success": False, "message": "缺少必填字段：auth_username, school_username, password"}), 400
+                
+        except Exception as e:
+            # 捕获JSON解析错误或其他异常
+            logging.error(f"解析school_account更新请求失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "请求数据格式错误"}), 400
+        
+        # ========== 3. 权限检查 ==========
+        # 检查当前用户是否有权限更新指定用户的账户
+        is_admin = auth_group in ['admin', 'super_admin']  # 是否是管理员
+        
+        # 权限规则：
+        # 1. 管理员可以更新任何用户的账户
+        # 2. 普通用户只能更新自己的账户（auth_username 必须等于 current_auth_username）
+        if not is_admin and auth_username != current_auth_username:
+            # 权限不足：普通用户试图更新其他用户的账户
+            logging.warning(f"用户 {current_auth_username} 试图更新 {auth_username} 的账户 {school_username}，权限不足")
+            return jsonify({"success": False, "message": "权限不足：只能更新自己的账户"}), 403
+        
+        # ========== 4. 加载现有账户数据 ==========
+        try:
+            # 调用 API 实例的方法加载指定用户的所有 school_accounts
+            accounts = api_instance._load_user_school_accounts(auth_username)
+            
+            # 如果 accounts 为 None，初始化为空字典
+            if accounts is None:
+                accounts = {}
+                
+        except Exception as e:
+            # 加载失败，记录错误并返回500错误
+            logging.error(f"加载用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "加载账户数据失败"}), 500
+        
+        # ========== 5. 更新账户 ==========
+        # 检查要更新的账户是否存在
+        if school_username not in accounts:
+            # 账户不存在，返回404错误
+            logging.warning(f"试图更新不存在的账户: 认证用户={auth_username}, 学校账户={school_username}")
+            return jsonify({"success": False, "message": f"账户 {school_username} 不存在"}), 404
+        
+        # 更新账户信息
+        # 使用新格式（字典）存储密码和UA
+        accounts[school_username] = {
+            "password": password,
+            "ua": ua if ua else ""
+        }
+        
+        # 记录操作日志
+        logging.info(f"更新 school_account: 认证用户={auth_username}, 学校账户={school_username}, 操作者={current_auth_username}")
+        
+        # ========== 6. 保存到文件 ==========
+        try:
+            # 调用 API 实例的方法将更新后的数据保存到文件
+            api_instance._save_user_school_accounts(auth_username, accounts)
+            
+            # 更新成功，返回成功响应
+            return jsonify({
+                "success": True, 
+                "message": f"账户 {school_username} 更新成功"
             })
             
         except Exception as e:

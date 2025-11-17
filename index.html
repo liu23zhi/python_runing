@@ -3707,27 +3707,26 @@
                  ======================================== -->
             <div class="mobile-form-group">
               <label class="mobile-form-label">验证码</label>
-              <!-- 验证码显示区域和刷新按钮（同一行） -->
-              <div class="flex gap-2 mt-1 items-center">
+              <!-- 【修复问题3】验证码显示区域（独占一行） -->
+              <div class="mt-1">
                 <!-- 验证码图片显示容器 - 点击可刷新 -->
                 <div id="mobile-login-captcha-display" 
-                     class="flex-shrink-0 w-auto h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+                     class="w-full h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
                      title="点击刷新验证码" 
                      style="min-height: 64px;"
                      onclick="refreshCaptcha('mobile-login')">
                   <!-- 初始加载状态提示文字 -->
                   <span class="text-slate-400 text-xs">加载中...</span>
                 </div>
-                <!-- 刷新按钮 - 点击重新加载验证码 -->
+              </div>
+              <!-- 【修复问题3】刷新按钮（独占一行，显示文字） -->
+              <div class="mt-2">
                 <button type="button" id="mobile-login-captcha-refresh" 
-                        class="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0" 
+                        class="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors text-sm font-medium" 
                         title="刷新验证码"
                         onclick="refreshCaptcha('mobile-login')">
-                  <!-- 刷新图标SVG -->
-                  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  <!-- 显示文字而不是SVG图标 -->
+                  刷新验证码
                 </button>
               </div>
               <!-- 验证码输入框（单独一行） -->
@@ -3827,27 +3826,26 @@
                  ======================================== -->
             <div class="mobile-form-group">
               <label class="mobile-form-label">验证码</label>
-              <!-- 验证码显示区域和刷新按钮（同一行） -->
-              <div class="flex gap-2 mt-1 items-center">
+              <!-- 【修复问题3】验证码显示区域（独占一行） -->
+              <div class="mt-1">
                 <!-- 验证码图片显示容器 - 点击可刷新 -->
                 <div id="mobile-register-captcha-display" 
-                     class="flex-shrink-0 w-auto h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
+                     class="w-full h-auto flex items-center justify-center border border-slate-300 rounded bg-white cursor-pointer hover:border-sky-400 transition-colors"
                      title="点击刷新验证码" 
                      style="min-height: 64px;"
                      onclick="refreshCaptcha('mobile-register')">
                   <!-- 初始加载状态提示文字 -->
                   <span class="text-slate-400 text-xs">加载中...</span>
                 </div>
-                <!-- 刷新按钮 - 点击重新加载验证码 -->
+              </div>
+              <!-- 【修复问题3】刷新按钮（独占一行，显示文字） -->
+              <div class="mt-2">
                 <button type="button" id="mobile-register-captcha-refresh" 
-                        class="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0" 
+                        class="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors text-sm font-medium" 
                         title="刷新验证码"
                         onclick="refreshCaptcha('mobile-register')">
-                  <!-- 刷新图标SVG -->
-                  <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  <!-- 显示文字而不是SVG图标 -->
+                  刷新验证码
                 </button>
               </div>
               <!-- 验证码输入框（单独一行） -->
@@ -8640,6 +8638,82 @@
     </div>
   </div>
 
+  <!-- 管理学校账户模态框 -->
+  <div id="manage-school-accounts-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <!-- 背景遮罩层，点击可关闭模态框 -->
+    <div class="absolute inset-0 bg-black/60" onclick="closeManageSchoolAccountsModal()"></div>
+    
+    <!-- 模态框主体 -->
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+      <!-- 标题栏 -->
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-sky-600">
+          管理学校账户: <span id="school-accounts-username" class="text-slate-700"></span>
+        </h3>
+        <button onclick="closeManageSchoolAccountsModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
+      </div>
+
+      <!-- 账户统计信息 -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+        <p class="text-sm text-blue-700">
+          <strong>账户总数:</strong> <span id="school-accounts-count" class="font-mono">0</span>
+        </p>
+        <p class="text-xs text-slate-600 mt-1">
+          💡 您可以查看、编辑或删除此用户的学校账户信息
+        </p>
+      </div>
+
+      <!-- 账户列表容器 -->
+      <div id="school-accounts-list" class="space-y-3 max-h-[50vh] overflow-y-auto">
+        <!-- 账户列表将由JavaScript动态填充 -->
+      </div>
+
+      <!-- 底部按钮区 -->
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeManageSchoolAccountsModal()" class="btn btn-ghost border border-slate-300">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑学校账户模态框 -->
+  <div id="edit-school-account-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
+    <!-- 背景遮罩层，z-index更高以覆盖上一个模态框 -->
+    <div class="absolute inset-0 bg-black/60" onclick="closeEditSchoolAccountModal()"></div>
+    
+    <!-- 模态框主体 -->
+    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
+      <h3 class="text-xl font-bold text-amber-600">编辑学校账户</h3>
+
+      <!-- 账户信息显示 -->
+      <div class="space-y-2">
+        <p class="text-sm text-slate-600">
+          认证用户: <span id="edit-auth-username" class="font-semibold text-slate-800"></span>
+        </p>
+        <p class="text-sm text-slate-600">
+          学校账户: <span id="edit-school-username" class="font-semibold text-slate-800"></span>
+        </p>
+      </div>
+
+      <!-- 编辑表单 -->
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">密码</label>
+          <input type="text" id="edit-school-password" class="input-field" placeholder="输入新密码">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">User-Agent（可选）</label>
+          <textarea id="edit-school-ua" class="input-field" rows="3" placeholder="输入User-Agent（可选）"></textarea>
+        </div>
+      </div>
+
+      <!-- 底部按钮 -->
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeEditSchoolAccountModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitEditSchoolAccount()" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 设置会话限制模态框 -->
   <div id="set-max-sessions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
     <div class="absolute inset-0 bg-black/60" onclick="hideModal('set-max-sessions-modal')"></div>
@@ -9029,31 +9103,44 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       // === 1. Helper function for tab switching ===
       function showMobileAuthForm(formToShow) {
-        // Get all elements
+        // 获取所有相关的DOM元素
+        // loginTab, registerTab: 顶部的标签页切换按钮
         const loginTab = document.getElementById('mobile-auth-tab-login');
         const registerTab = document.getElementById('mobile-auth-tab-register');
+        // loginForm, registerForm, tfaForm: 三个不同的表单区域
         const loginForm = document.getElementById('mobile-login-form');
         const registerForm = document.getElementById('mobile-register-form');
         const tfaForm = document.getElementById('mobile-auth-2fa-form');
 
-        // Hide all forms
+        // 首先隐藏所有表单，确保同一时间只显示一个表单
         if (loginForm) loginForm.classList.add('hidden');
         if (registerForm) registerForm.classList.add('hidden');
         if (tfaForm) tfaForm.classList.add('hidden');
 
+        // 根据传入的formToShow参数决定显示哪个表单
         if (formToShow === 'register') {
+          // 显示注册表单
           if (registerForm) registerForm.classList.remove('hidden');
-          // Update Tab styles
+          // 更新标签页样式：注册标签高亮（天蓝色），登录标签变灰
           if (loginTab) loginTab.className = 'flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition';
           if (registerTab) registerTab.className = 'flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition';
-        } else { // Default to login
+          
+          // 【修复问题2】自动加载注册表单的验证码
+          // 调用loadCaptcha函数为PC端加载验证码，该函数内部会自动同步到移动端
+          loadCaptcha('register');
+        } else { // 默认显示登录表单（formToShow === 'login'）
+          // 显示登录表单
           if (loginForm) loginForm.classList.remove('hidden');
-          // Update Tab styles
+          // 更新标签页样式：登录标签高亮（天蓝色），注册标签变灰
           if (loginTab) loginTab.className = 'flex-1 py-3 font-semibold text-sky-600 border-b-2 border-sky-600 transition';
           if (registerTab) registerTab.className = 'flex-1 py-3 font-semibold text-slate-400 border-b-2 border-transparent transition';
+          
+          // 【修复问题2】自动加载登录表单的验证码
+          // 调用loadCaptcha函数为PC端加载验证码，该函数内部会自动同步到移动端
+          loadCaptcha('login');
         }
 
-        // Clear messages
+        // 清除之前可能显示的错误或成功消息
         showMobileMessage('', 'clear');
       }
 
@@ -9120,20 +9207,25 @@ function run_code_not_need_sessionuuid(codeToRun) {
       });
 
       // === 5. Bind "Send Code" buttons (Proxy to desktop logic) ===
-      // 代理模式：将值复制到隐藏的桌面输入框，然后触发桌面按钮的点击事件
+      // 【修复问题6】绑定移动端"发送验证码"按钮事件
+      // 代理模式：使用验证码模态窗进行图形验证码验证，验证通过后发送短信
 
+      // 【修复问题6】绑定移动端登录表单的"发送验证码"按钮
       const mobileSendLoginCodeBtn = document.getElementById('mobile-auth-send-login-code');
       if (mobileSendLoginCodeBtn) {
         // 使用验证码模态窗进行验证
         mobileSendLoginCodeBtn.addEventListener('click', async function () {
-          // 1. 使用移动端ID获取手机号
+          // 1. 从移动端输入框获取手机号
           const phone = document.getElementById('mobile-auth-username').value;
+          // 2. 验证手机号格式（中国大陆11位手机号，1开头，第二位3-9）
           if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
             showMobileMessage('请输入正确的手机号', 'error');
             return;
           }
 
-          // 打开验证码验证模态窗
+          // 3. 打开验证码验证模态窗
+          // 传递上下文信息：手机号、按钮元素、按钮原始文本
+          // 用户输入图形验证码后，会调用sendSMSWithCaptcha发送短信
           openCaptchaModal({
             phone: phone,
             button: mobileSendLoginCodeBtn,
@@ -9142,18 +9234,22 @@ function run_code_not_need_sessionuuid(codeToRun) {
         });
       }
 
+      // 【修复问题6】绑定移动端注册表单的"发送验证码"按钮
       const mobileSendRegCodeBtn = document.getElementById('mobile-reg-send-code-btn');
       if (mobileSendRegCodeBtn) {
         // 使用验证码模态窗进行验证
         mobileSendRegCodeBtn.addEventListener('click', async function () {
-          // 1. 使用移动端ID获取手机号
+          // 1. 从移动端输入框获取手机号
           const phone = document.getElementById('mobile-reg-phone').value;
+          // 2. 验证手机号格式（中国大陆11位手机号，1开头，第二位3-9）
           if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
             showMobileMessage('请输入正确的手机号', 'error');
             return;
           }
 
-          // 打开验证码验证模态窗
+          // 3. 打开验证码验证模态窗
+          // 传递上下文信息：手机号、按钮元素、按钮原始文本
+          // 用户输入图形验证码后，会调用sendSMSWithCaptcha发送短信
           openCaptchaModal({
             phone: phone,
             button: mobileSendRegCodeBtn,
@@ -9168,14 +9264,19 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // --- Mobile Login ---
       const mobileLoginBtn = document.getElementById('mobile-login-btn');
       if (mobileLoginBtn) mobileLoginBtn.addEventListener('click', async () => {
-        // 修复2：为移动端按钮添加加载状态
+        // 为移动端按钮添加加载状态
         setButtonLoading('mobile-login-btn', true, '登录中...');
 
         try {
-          // 1. 复制所有相关值到隐藏的桌面字段
+          // 【修复问题5】1. 复制所有相关值到隐藏的桌面字段（包括验证码）
+          // 复制用户名/手机号
           document.getElementById('auth-username').value = document.getElementById('mobile-auth-username').value;
+          // 复制密码
           document.getElementById('auth-password').value = document.getElementById('mobile-auth-password').value;
+          // 复制短信验证码
           document.getElementById('auth-sms-code').value = document.getElementById('mobile-auth-sms-code').value;
+          // 【修复问题5】复制图形验证码 - 确保验证码值从移动端输入框传递到PC端
+          document.getElementById('auth-login-captcha').value = document.getElementById('mobile-login-captcha').value;
 
           // 2. 同步桌面UI的 *状态* (这对 handleAuthLogin 的内部逻辑至关重要)
           if (!document.getElementById('mobile-password-section').classList.contains('hidden')) {
@@ -9246,13 +9347,21 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const mobileRegisterBtn = document.getElementById('mobile-register-btn');
       if (mobileRegisterBtn) mobileRegisterBtn.addEventListener('click', async () => {
         try {
-          // 1. 复制所有值
+          // 【修复问题5】1. 复制所有值（包括验证码）
+          // 复制用户名
           document.getElementById('auth-reg-username').value = document.getElementById('mobile-reg-username').value;
+          // 复制手机号
           document.getElementById('auth-reg-phone').value = document.getElementById('mobile-reg-phone').value;
+          // 复制短信验证码
           document.getElementById('auth-reg-sms-code').value = document.getElementById('mobile-reg-sms-code').value;
+          // 复制昵称
           document.getElementById('auth-reg-nickname').value = document.getElementById('mobile-reg-nickname').value;
+          // 复制密码
           document.getElementById('auth-reg-password').value = document.getElementById('mobile-reg-password').value;
+          // 复制确认密码
           document.getElementById('auth-reg-password-confirm').value = document.getElementById('mobile-reg-password-confirm').value;
+          // 【修复问题5】复制图形验证码 - 确保验证码值从移动端输入框传递到PC端
+          document.getElementById('auth-register-captcha').value = document.getElementById('mobile-register-captcha').value;
 
           // 2. 头像 Blob (registrationCroppedAvatarBlob) 是全局变量，无需复制
 
@@ -13675,84 +13784,76 @@ function run_code_not_need_sessionuuid(codeToRun) {
       reader.readAsDataURL(file);
     }
 
+    // 【修复问题4】清理裁剪模态框
+    // 函数功能：销毁裁剪器实例，清除文件输入，重置标志，关闭模态框
     function closeCropModal() {
-      // 销毁裁剪器
+      // 销毁裁剪器实例，释放资源
       if (avatarCropper) {
         avatarCropper.destroy();
         avatarCropper = null;
       }
 
-      // 清除文件输入 (两个输入框都清除)
+      // 清除文件输入（包括PC端和移动端的输入框）
       const fileInput = $('profile-avatar-file');
       if (fileInput) fileInput.value = '';
       const regFileInput = $('auth-reg-avatar');
       if (regFileInput) regFileInput.value = '';
+      // 【修复问题4】同时清除移动端注册头像文件输入
+      const mobileRegFileInput = $('mobile-reg-avatar');
+      if (mobileRegFileInput) mobileRegFileInput.value = '';
 
-      isRegistrationCrop = false; // 重置标志
+      // 重置注册裁剪标志
+      isRegistrationCrop = false;
 
+      // 关闭裁剪模态框
       hideModal('avatar-crop-modal');
     }
 
-    // 专用于注册流程的确认函数
+    // 【修复问题4】专用于注册流程的确认函数
+    // 功能：裁剪图片，暂存为Blob，更新预览图（包括PC端和移动端），关闭模态框
     async function confirmCropForRegistration() {
+      // 验证裁剪器是否已初始化
       if (!avatarCropper) {
         showModalAlert('裁剪器未初始化', '错误');
         return;
       }
 
+      // 获取裁剪后的canvas对象
+      // 参数：width/height设置输出尺寸为200x200像素，imageSmoothingQuality设置为高质量
       const canvas = avatarCropper.getCroppedCanvas({
         width: 200, height: 200, imageSmoothingQuality: 'high'
       });
+      
+      // 验证canvas是否成功生成
       if (!canvas) {
         showModalAlert('裁剪失败', '错误');
         return;
       }
 
-      // 将 canvas 转换为 blob 并暂存
+      // 将canvas转换为Blob对象（异步操作）
       canvas.toBlob(function (blob) {
+        // 将Blob包装为File对象，设置文件名为avatar.jpg，MIME类型为image/jpeg
+        // 暂存到全局变量registrationCroppedAvatarBlob，供注册提交时使用
         registrationCroppedAvatarBlob = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
 
-        // 更新注册表单的预览图
+        // 【修复问题4】更新PC端注册表单的头像预览图
         const previewImg = $('auth-reg-avatar-preview');
         if (previewImg) {
+          // 使用createObjectURL创建Blob的临时URL，并设置为预览图的src
           previewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
         }
 
-        // 关闭模态框
-        closeCropModal();
-      }, 'image/jpeg', 0.9);
-    }
-
-
-    async function confirmCropForRegistration() {
-      if (!avatarCropper) {
-        showModalAlert('裁剪器未初始化', '错误');
-        return;
-      }
-
-      const canvas = avatarCropper.getCroppedCanvas({
-        width: 200, height: 200, imageSmoothingQuality: 'high'
-      });
-      if (!canvas) {
-        showModalAlert('裁剪失败', '错误');
-        return;
-      }
-
-      // 将 canvas 转换为 blob 并暂存
-      canvas.toBlob(function (blob) {
-        // 暂存裁剪后的文件 Blob，用于注册时提交
-        registrationCroppedAvatarBlob = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-
-        // 更新注册表单的预览图
-        const previewImg = $('auth-reg-avatar-preview');
-        if (previewImg) {
-          // 使用 createObjectURL 更新预览图
-          previewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
+        // 【修复问题4】同时更新移动端注册表单的头像预览图
+        // 这样用户在移动端也能看到裁剪后的头像预览
+        const mobilePreviewImg = $('mobile-reg-avatar-preview');
+        if (mobilePreviewImg) {
+          // 使用相同的Blob创建URL，更新移动端预览
+          mobilePreviewImg.src = URL.createObjectURL(registrationCroppedAvatarBlob);
         }
 
-        // 关闭模态框
+        // 关闭裁剪模态框
         closeCropModal();
-      }, 'image/jpeg', 0.9);
+      }, 'image/jpeg', 0.9); // JPEG格式，质量0.9（90%）
     }
 
     async function confirmCropAndUpload() {
@@ -15201,71 +15302,297 @@ function run_code_not_need_sessionuuid(codeToRun) {
     }
 
     async function showUserSchoolAccounts(username) {
-      // 创建一个模态窗口显示指定用户的 school_accounts
+      // ========== 功能说明 ==========
+      // 打开学校账户管理模态框，显示指定用户的所有学校账户
+      // 支持查看、编辑和删除操作
+      // ========== 功能说明结束 ==========
+      
       try {
+        // ========== 1. 发起API请求，获取用户的学校账户列表 ==========
+        // 使用fetch发送GET请求到后端API
+        // encodeURIComponent确保用户名中的特殊字符被正确编码
         const response = await fetch(`/auth/admin/get_user_school_accounts?username=${encodeURIComponent(username)}`, {
           headers: {
-            'X-Session-ID': sessionUUID
+            'X-Session-ID': sessionUUID  // 在请求头中携带会话ID进行身份验证
           }
         });
         
+        // 解析响应的JSON数据
         const result = await response.json();
         
+        // ========== 2. 检查API响应是否成功 ==========
         if (!result.success) {
+          // 如果API返回失败，显示错误信息并退出
           showModalAlert(result.message || '加载失败', '错误');
           return;
         }
         
+        // ========== 3. 提取账户数据 ==========
+        // result.accounts 是一个对象，键为学校账户用户名，值为账户数据（密码+UA）
         const accounts = result.accounts || {};
+        // 计算账户总数，用于统计显示
         const accountCount = Object.keys(accounts).length;
         
-        let html = `
-          <div class="space-y-3">
-            <div class="text-sm text-slate-600 mb-3">
-              用户 <span class="font-semibold">${escapeHtml(username)}</span> 的学校账户 (共 ${accountCount} 个)
-            </div>
-        `;
+        // ========== 4. 更新模态框的用户名和统计信息 ==========
+        // 在模态框标题中显示当前管理的用户名
+        $('school-accounts-username').textContent = username;
+        // 显示账户总数
+        $('school-accounts-count').textContent = accountCount;
         
+        // ========== 5. 动态生成账户列表HTML ==========
+        const listContainer = $('school-accounts-list');
+        
+        // 如果用户没有任何学校账户
         if (accountCount === 0) {
-          html += '<p class="text-slate-400 text-center py-10">该用户暂无学校账户</p>';
+          // 显示一个友好的空状态提示
+          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">该用户暂无学校账户</p>';
         } else {
-          html += '<div class="space-y-2 max-h-[60vh] overflow-y-auto">';
+          // 用户有学校账户，需要逐个渲染
+          let html = '';
+          
+          // 遍历所有账户，为每个账户生成一个卡片
           for (const [schoolUsername, accountData] of Object.entries(accounts)) {
-            // 处理旧格式（字符串）和新格式（对象）
-            let password = '';
-            let ua = '';
+            // ========== 5.1. 兼容旧格式和新格式的账户数据 ==========
+            // 旧格式：accountData 是一个字符串（只有密码）
+            // 新格式：accountData 是一个对象 {password: "...", ua: "..."}
+            let password = '';  // 学校账户密码
+            let ua = '';  // User-Agent字符串（可选）
             
             if (typeof accountData === 'string') {
+              // 旧格式：直接使用字符串作为密码
               password = accountData;
             } else if (typeof accountData === 'object' && accountData !== null) {
+              // 新格式：从对象中提取password和ua字段
               password = accountData.password || '';
               ua = accountData.ua || '';
             }
             
+            // ========== 5.2. 为安全传递数据，使用JSON编码 ==========
+            // 将需要传递给事件处理函数的数据编码为JSON字符串
+            // 然后使用escapeHtml进行HTML转义，防止XSS攻击
+            // 在onclick中使用JSON.parse解码，避免单引号/双引号问题
+            const accountDataJson = JSON.stringify({
+              authUsername: username,
+              schoolUsername: schoolUsername,
+              password: password,
+              ua: ua
+            });
+            
+            // ========== 5.3. 生成账户卡片HTML ==========
+            // 每个账户卡片包含：学校账户名、密码、UA（如果有）、操作按钮
             html += `
-              <div class="bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
-                <div class="font-medium text-slate-800">${escapeHtml(schoolUsername)}</div>
+              <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
+                <!-- 学校账户用户名 -->
+                <div class="flex items-center justify-between">
+                  <div class="font-semibold text-slate-800 text-lg">${escapeHtml(schoolUsername)}</div>
+                  <!-- 操作按钮组 -->
+                  <div class="flex gap-2">
+                    <!-- 编辑按钮：打开编辑模态框 -->
+                    <!-- 使用data属性存储JSON数据，点击时解析并调用函数 -->
+                    <button 
+                      class="btn btn-sm btn-primary !py-1 !px-3 !text-xs" 
+                      data-account='${escapeHtml(accountDataJson)}'
+                      onclick="(function(btn) { const data = JSON.parse(btn.getAttribute('data-account')); editSchoolAccount(data.authUsername, data.schoolUsername, data.password, data.ua); })(this)"
+                      title="编辑此账户">
+                      编辑
+                    </button>
+                    <!-- 删除按钮：确认后删除账户 -->
+                    <!-- 同样使用data属性存储数据 -->
+                    <button 
+                      class="btn btn-sm btn-danger !py-1 !px-3 !text-xs" 
+                      data-auth-username='${escapeHtml(username)}'
+                      data-school-username='${escapeHtml(schoolUsername)}'
+                      onclick="(function(btn) { deleteSchoolAccount(btn.getAttribute('data-auth-username'), btn.getAttribute('data-school-username')); })(this)"
+                      title="删除此账户">
+                      删除
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- 密码显示 -->
                 <div class="text-sm">
                   <span class="text-slate-500">密码:</span>
-                  <span class="font-mono text-slate-700 ml-2">${escapeHtml(password)}</span>
+                  <span class="font-mono text-slate-700 ml-2 select-all">${escapeHtml(password)}</span>
                 </div>
+                
+                <!-- User-Agent显示（如果存在） -->
                 ${ua ? `
                 <div class="text-sm">
-                  <span class="text-slate-500">UA:</span>
-                  <div class="font-mono text-xs text-slate-600 mt-1 p-2 bg-white rounded break-all">${escapeHtml(ua)}</div>
+                  <span class="text-slate-500">User-Agent:</span>
+                  <div class="font-mono text-xs text-slate-600 mt-1 p-2 bg-white rounded break-all select-all">${escapeHtml(ua)}</div>
                 </div>
                 ` : ''}
               </div>
             `;
           }
-          html += '</div>';
+          
+          // 将生成的HTML插入到列表容器中
+          listContainer.innerHTML = html;
         }
         
-        html += '</div>';
+        // ========== 6. 显示模态框 ==========
+        // 调用辅助函数显示学校账户管理模态框
+        showModal('manage-school-accounts-modal');
         
-        showModalAlert(html, `${escapeHtml(username)} 的学校账户`, 'info');
       } catch (error) {
+        // ========== 7. 错误处理 ==========
+        // 捕获所有可能的异常（网络错误、解析错误等）
+        console.error('showUserSchoolAccounts error:', error);
         showModalAlert('加载失败: ' + error.message, '错误');
+      }
+    }
+
+    // ========== 关闭学校账户管理模态框 ==========
+    function closeManageSchoolAccountsModal() {
+      // 隐藏主模态框
+      hideModal('manage-school-accounts-modal');
+    }
+
+    // ========== 编辑学校账户 ==========
+    function editSchoolAccount(authUsername, schoolUsername, password, ua) {
+      // ========== 功能说明 ==========
+      // 打开编辑模态框，填充现有数据，允许用户修改密码和UA
+      // ========== 功能说明结束 ==========
+      
+      // ========== 1. 填充模态框的显示字段 ==========
+      // 这些字段是只读的，用于显示当前编辑的是哪个账户
+      $('edit-auth-username').textContent = authUsername;  // 认证用户名
+      $('edit-school-username').textContent = schoolUsername;  // 学校账户用户名
+      
+      // ========== 2. 填充模态框的可编辑字段 ==========
+      // 这些字段可以被用户修改
+      $('edit-school-password').value = password;  // 当前密码
+      $('edit-school-ua').value = ua || '';  // 当前UA（如果没有则为空）
+      
+      // ========== 3. 显示编辑模态框 ==========
+      // z-index更高，会覆盖在学校账户列表模态框之上
+      showModal('edit-school-account-modal');
+    }
+
+    // ========== 关闭编辑学校账户模态框 ==========
+    function closeEditSchoolAccountModal() {
+      // 隐藏编辑模态框
+      hideModal('edit-school-account-modal');
+    }
+
+    // ========== 提交编辑学校账户 ==========
+    async function submitEditSchoolAccount() {
+      // ========== 功能说明 ==========
+      // 提交编辑后的学校账户信息到后端API
+      // 验证输入，发送请求，处理响应
+      // ========== 功能说明结束 ==========
+      
+      // ========== 1. 获取表单数据 ==========
+      // 从模态框中读取用户输入的数据
+      const authUsername = $('edit-auth-username').textContent;  // 认证用户名（只读）
+      const schoolUsername = $('edit-school-username').textContent;  // 学校账户名（只读）
+      const password = $('edit-school-password').value.trim();  // 新密码（去除首尾空格）
+      const ua = $('edit-school-ua').value.trim();  // 新UA（去除首尾空格）
+      
+      // ========== 2. 验证必填字段 ==========
+      if (!password) {
+        // 密码是必填的，如果为空则提示用户
+        showModalAlert('密码不能为空', '错误');
+        return;  // 停止提交
+      }
+      
+      try {
+        // ========== 3. 发送更新请求到后端API ==========
+        const response = await fetch('/api/admin/school_account/update', {
+          method: 'POST',  // 使用POST方法
+          headers: {
+            'Content-Type': 'application/json',  // 指定请求体为JSON格式
+            'X-Session-ID': sessionUUID  // 携带会话ID进行身份验证
+          },
+          body: JSON.stringify({
+            // 将表单数据序列化为JSON字符串
+            auth_username: authUsername,
+            school_username: schoolUsername,
+            password: password,
+            ua: ua
+          })
+        });
+        
+        // 解析响应的JSON数据
+        const result = await response.json();
+        
+        // ========== 4. 处理响应结果 ==========
+        if (result.success) {
+          // 更新成功
+          showModalAlert(result.message || '更新成功', '成功');
+          
+          // 关闭编辑模态框
+          closeEditSchoolAccountModal();
+          
+          // 重新加载学校账户列表，以显示最新数据
+          // 调用showUserSchoolAccounts会关闭并重新打开主模态框，实现刷新效果
+          await showUserSchoolAccounts(authUsername);
+        } else {
+          // 更新失败，显示错误信息
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+        
+      } catch (error) {
+        // ========== 5. 错误处理 ==========
+        // 捕获网络错误或其他异常
+        console.error('submitEditSchoolAccount error:', error);
+        showModalAlert('更新失败: ' + error.message, '错误');
+      }
+    }
+
+    // ========== 删除学校账户 ==========
+    async function deleteSchoolAccount(authUsername, schoolUsername) {
+      // ========== 功能说明 ==========
+      // 删除指定的学校账户
+      // 需要用户确认后才会执行删除操作
+      // ========== 功能说明结束 ==========
+      
+      // ========== 1. 请求用户确认 ==========
+      // 使用自定义的确认对话框（支持异步）
+      const confirmed = await jsShowConfirm(
+        '确认删除', 
+        `确定要删除学校账户 <strong>${escapeHtml(schoolUsername)}</strong> 吗？此操作不可恢复。`
+      );
+      
+      // 如果用户点击取消，则退出
+      if (!confirmed) return;
+      
+      try {
+        // ========== 2. 发送删除请求到后端API ==========
+        const response = await fetch('/api/admin/school_account/delete', {
+          method: 'POST',  // 使用POST方法
+          headers: {
+            'Content-Type': 'application/json',  // 指定请求体为JSON格式
+            'X-Session-ID': sessionUUID  // 携带会话ID进行身份验证
+          },
+          body: JSON.stringify({
+            // 将要删除的账户信息序列化为JSON字符串
+            auth_username: authUsername,
+            school_username: schoolUsername
+          })
+        });
+        
+        // 解析响应的JSON数据
+        const result = await response.json();
+        
+        // ========== 3. 处理响应结果 ==========
+        if (result.success) {
+          // 删除成功
+          showModalAlert(result.message || '删除成功', '成功');
+          
+          // 重新加载学校账户列表，移除已删除的账户
+          // 调用showUserSchoolAccounts会关闭并重新打开主模态框，实现刷新效果
+          await showUserSchoolAccounts(authUsername);
+        } else {
+          // 删除失败，显示错误信息
+          showModalAlert(result.message || '删除失败', '错误');
+        }
+        
+      } catch (error) {
+        // ========== 4. 错误处理 ==========
+        // 捕获网络错误或其他异常
+        console.error('deleteSchoolAccount error:', error);
+        showModalAlert('删除失败: ' + error.message, '错误');
       }
     }
 
@@ -18454,6 +18781,15 @@ function run_code_not_need_sessionuuid(codeToRun) {
                     // 确保背景可见（有时需要 z-index，但通常不需要）
                     // authContainer.style.zIndex = '10'; // 一般不需要
                   }
+                  
+                  // 【修复问题1】同时处理移动端认证容器
+                  const mobileAuthContainer = document.getElementById('mobile-auth-container');
+                  if (mobileAuthContainer) {
+                    // 显示移动端认证容器
+                    mobileAuthContainer.classList.remove('hidden');
+                    // 确保移动端容器也是全屏显示
+                    mobileAuthContainer.classList.add('fixed', 'inset-0');
+                  }
 
                   // 3. 禁用 auth-login-container 内的输入框
                   const inputsToDisable = [
@@ -18472,14 +18808,31 @@ function run_code_not_need_sessionuuid(codeToRun) {
                       // inputElement.style.cursor = 'not-allowed';
                     }
                   });
+                  
+                  // 【修复问题1】禁用移动端输入框
+                  const mobileInputsToDisable = [
+                    'mobile-auth-username',
+                    'mobile-auth-password',
+                    'mobile-reg-username',
+                    'mobile-reg-password',
+                    'mobile-reg-password-confirm'
+                  ];
+                  mobileInputsToDisable.forEach(inputId => {
+                    const inputElement = document.getElementById(inputId);
+                    if (inputElement) {
+                      inputElement.disabled = true;
+                    }
+                  });
 
                   if (authContainer) authContainer.classList.remove('hidden');
                   // Swal.fire会返回一个Promise对象，在用户关闭提示弹窗后该Promise会被解析
                   Swal.fire({
                     title: '会话不存在', // 弹窗标题
                     text: '该会话已过期或不存在，请重新登录', // 弹窗消息
-                    icon: 'warning', // 'true' for isWarning 对应 'warning' 图标
-                    confirmButtonText: '确定' // 按钮文字
+                    icon: 'warning', // 'warning' 图标，显示为黄色感叹号
+                    confirmButtonText: '确定', // 按钮文字
+                    allowOutsideClick: false, // 【修复问题1】防止用户点击外部关闭弹窗
+                    allowEscapeKey: false // 【修复问题1】防止用户按ESC键关闭弹窗
                   }).then(() => {
                     // 这个 .then() 中的代码会在用户点击“确定”按钮后执行
                     logMessage_Info('用户确认弹窗，正在跳转到登录页面...');
