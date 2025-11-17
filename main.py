@@ -7252,10 +7252,42 @@ class Api:
         return mode_info
 
     def multi_get_all_config_users(self):
-        """获取所有存在配置文件的用户列表，用于前端便捷添加"""
-        users = sorted([os.path.splitext(f)[0]
-                       for f in os.listdir(self.user_dir) if f.endswith(".ini")])
-        return {"users": users}
+        """
+        获取所有存在配置文件的用户列表，用于前端便捷添加
+        
+        功能增强：根据当前认证用户的权限过滤返回结果
+        - 如果用户有school_accounts权限，则可以看到该认证用户名下管理的所有学校账号
+        - 如果没有特定权限，则只返回空列表
+        - 这确保了用户只能访问自己有权限的配置数据
+        
+        返回:
+            dict: {"users": [用户名列表]}
+        """
+        # 获取所有存在.ini配置文件的用户名列表
+        all_users = sorted([os.path.splitext(f)[0]
+                           for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+        
+        # 权限过滤：根据当前认证用户的school_accounts权限过滤
+        # 只返回当前认证用户有权限访问的账号
+        filtered_users = []
+        
+        if hasattr(self, 'auth_username') and self.auth_username:
+            # 加载当前认证用户管理的school_accounts
+            # _load_user_school_accounts返回格式：{school_username: {"password": "xxx", "ua": "xxx"}, ...}
+            school_accounts = self._load_user_school_accounts(self.auth_username)
+            
+            # 只返回在school_accounts中存在的用户
+            # 这确保了用户只能看到自己有权限访问的学校账号配置
+            for username in all_users:
+                if username in school_accounts:
+                    filtered_users.append(username)
+            
+            logging.debug(f"用户 {self.auth_username} 可访问的配置用户: {len(filtered_users)}/{len(all_users)}")
+        else:
+            # 如果没有认证用户信息，返回空列表（安全起见）
+            logging.warning("multi_get_all_config_users: 没有认证用户信息，返回空列表")
+        
+        return {"users": filtered_users}
 
     def multi_load_accounts_from_config(self):
         """模式一：从所有.ini配置文件加载账号"""
@@ -19315,6 +19347,11 @@ def start_web_server(args_param):
                 'enter_multi_account_mode': 'execute_multi_account',  # 进入多账号模式
                 'exit_multi_account_mode': 'execute_multi_account',  # 退出多账号模式
                 
+                # ===== 单账号管理相关权限 =====
+                # 单账号模式切换 - 用于移动端在单账号和会话选择之间切换
+                'enter_single_account_mode': 'execute_single_account',  # 进入单账号模式（从会话列表进入）
+                'exit_single_account_mode': 'execute_single_account',  # 退出单账号模式（返回会话列表）
+                
                 # 多账号的账户管理
                 'multi_add_account': 'execute_multi_account',  # 添加多账号
                 'multi_remove_account': 'execute_multi_account',  # 删除单个多账号
@@ -19382,6 +19419,9 @@ def start_web_server(args_param):
                 'update_param': 'modify_params',  # 更新参数
                 'generate_new_ua': 'modify_params',  # 生成新的User-Agent
                 'save_amap_key': 'modify_params',  # 保存高德地图API密钥
+                
+                # ===== 参数查看权限 =====
+                'get_params': 'view_params',  # 获取当前参数配置（用于前端读取配置）
                 
                 # ===== 地图查看权限 =====
                 'get_map_data': 'view_map',  # 获取地图数据
