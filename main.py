@@ -855,11 +855,44 @@ def setup_logging():
     logger.addHandler(warning_file_handler)
     # ========== 结束：警告和错误日志文件处理器 ==========
 
+    # ========== 新增：错误日志文件处理器 ==========
+    # 创建专门用于记录ERROR和CRITICAL级别日志的处理器
+    # 这样可以将严重错误单独记录到一个文件中，方便快速定位关键问题
+    # 使用ERROR.log作为文件名，只记录ERROR及以上级别的日志
+    error_log_file = os.path.join(log_dir, 'zx-slm-tool-ERROR.log')
+    
+    # 使用与主日志相同的轮转配置（max_bytes）和归档逻辑
+    # 这确保了错误日志也会被自动轮转和归档，防止文件过大
+    error_file_handler = CustomLogHandler(
+        error_log_file,  # 错误日志文件路径
+        mode='a',  # 追加模式（append），保留历史错误日志
+        encoding='utf-8',  # UTF-8编码，支持中文日志
+        max_bytes=max_bytes  # 使用与主日志相同的大小限制
+    )
+    
+    # 设置日志级别为ERROR：只记录ERROR和CRITICAL级别的日志
+    # 这样可以过滤掉DEBUG、INFO和WARNING级别的日志，只保留最严重的错误
+    error_file_handler.setLevel(logging.ERROR)
+    
+    # 为错误日志处理器应用"无颜色"格式化程序
+    # 使用与主日志相同的格式，确保日志格式的一致性
+    error_no_color_formatter = NoColorFileFormatter(
+        log_format._fmt,  # 使用相同的日志格式字符串
+        datefmt=log_format.datefmt  # 使用相同的日期格式
+    )
+    error_file_handler.setFormatter(error_no_color_formatter)
+    
+    # 将错误日志处理器添加到logger中
+    # 现在所有ERROR和CRITICAL日志会同时写入主日志、警告日志和错误日志文件
+    logger.addHandler(error_file_handler)
+    # ========== 结束：错误日志文件处理器 ==========
+
     # 记录日志系统启动
     logging.info("="*80)
     logging.info("日志系统初始化完成（启用自定义轮转）")
     logging.info(f"日志文件: {log_file}")
     logging.info(f"警告日志文件: {warning_log_file}")  # 添加警告日志文件信息
+    logging.info(f"错误日志文件: {error_log_file}")  # 添加错误日志文件信息
     logging.info(f"日志级别: DEBUG (所有级别)")
     logging.info(f"日志轮转: 单文件最大{log_rotation_size_mb}MB")
     logging.info(
@@ -19353,8 +19386,9 @@ def start_web_server(args_param):
                 
                 # ===== 单账号管理相关权限 =====
                 # 单账号模式切换 - 用于移动端在单账号和会话选择之间切换
-                'enter_single_account_mode': 'execute_single_account',  # 进入单账号模式（从会话列表进入）
-                'exit_single_account_mode': 'execute_single_account',  # 退出单账号模式（返回会话列表）
+                # 注意：进入和退出单账号模式不需要权限验证，允许用户自由切换
+                # 'enter_single_account_mode': 'execute_single_account',  # 已删除：进入单账号模式不需要授权
+                # 'exit_single_account_mode': 'execute_single_account',  # 已删除：退出单账号模式不需要授权
                 
                 # 多账号的账户管理
                 'multi_add_account': 'execute_multi_account',  # 添加多账号

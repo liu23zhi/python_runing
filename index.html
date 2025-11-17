@@ -2491,9 +2491,22 @@
 
           <!-- User Agent 字段（可编辑） -->
           <div class="space-y-2">
-            <label for="edit-school-account-ua" class="block text-sm font-medium text-slate-700">
-              User Agent (UA)
-            </label>
+            <div class="flex items-center justify-between">
+              <label for="edit-school-account-ua" class="block text-sm font-medium text-slate-700">
+                User Agent (UA)
+              </label>
+              <!-- 【问题3修复】添加随机UA按钮 -->
+              <button 
+                type="button"
+                onclick="generateRandomUAForSchoolAccount()"
+                class="px-3 py-1 text-xs font-medium text-sky-600 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 transition-all flex items-center gap-1"
+                title="点击生成随机User-Agent">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                随机UA
+              </button>
+            </div>
             <textarea 
               id="edit-school-account-ua" 
               name="ua"
@@ -2501,7 +2514,7 @@
               class="w-full px-4 py-2.5 text-slate-700 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent transition font-mono text-sm resize-none"
               placeholder="（可选）请输入 User Agent"
               style="box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.05);"></textarea>
-            <p class="text-xs text-slate-500">如果不填写，将使用系统默认 User Agent</p>
+            <p class="text-xs text-slate-500">如果不填写，将使用系统默认 User Agent。点击"随机UA"按钮可自动生成。</p>
           </div>
 
           <!-- 隐藏字段：存储原始的 school_username（用于编辑模式） -->
@@ -4276,14 +4289,13 @@
             </div>
 
             <!-- 刷新按钮 - 使用渐变色背景和阴影效果 -->
+            <!-- 【修改：将图标改为文字"刷新"】 -->
+            <!-- 原因：用户要求直接显示"刷新"二字，而不是SVG图标 -->
+            <!-- 保持相同的样式（渐变背景、圆角、阴影、悬停效果） -->
             <button id="mobile-refresh-notifications-btn" 
-              class="p-2.5 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-lg transition-all duration-200 hover:from-sky-600 hover:to-sky-700 shadow-md hover:shadow-lg"
+              class="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-lg transition-all duration-200 hover:from-sky-600 hover:to-sky-700 shadow-md hover:shadow-lg font-semibold text-sm"
               onclick="mobileRefreshNotifications()">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor" stroke-width="2.5">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
+              刷新
             </button>
           </div>
 
@@ -9162,12 +9174,23 @@
 
       <!-- 账户统计信息 -->
       <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-        <p class="text-sm text-blue-700">
-          <strong>账户总数:</strong> <span id="school-accounts-count" class="font-mono">0</span>
-        </p>
-        <p class="text-xs text-slate-600 mt-1">
-          💡 您可以查看、编辑或删除此用户的学校账户信息
-        </p>
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-blue-700">
+              <strong>账户总数:</strong> <span id="school-accounts-count" class="font-mono">0</span>
+            </p>
+            <p class="text-xs text-slate-600 mt-1">
+              💡 您可以查看、编辑或删除此用户的学校账户信息
+            </p>
+          </div>
+          <!-- 【问题2修复】添加新增学校账户按钮 -->
+          <button onclick="addNewSchoolAccount()" class="btn btn-primary !py-2 !px-4 !text-sm flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            新增账户
+          </button>
+        </div>
       </div>
 
       <!-- 账户列表容器 -->
@@ -15995,19 +16018,192 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // 打开编辑模态框，填充现有数据，允许用户修改密码和UA
       // ========== 功能说明结束 ==========
       
-      // ========== 1. 填充模态框的显示字段 ==========
-      // 这些字段是只读的，用于显示当前编辑的是哪个账户
-      $('edit-auth-username').textContent = authUsername;  // 认证用户名
-      $('edit-school-username').textContent = schoolUsername;  // 学校账户用户名
+      // ========== 【问题2修复】修正字段ID ==========
+      // 原因：HTML中有两个edit-school-account-modal定义，导致字段ID不一致
+      // 第一个模态框（2410行）使用的字段ID包含完整前缀：edit-school-account-xxx
+      // 第二个模态框（9186行）使用简短的字段ID：edit-xxx
+      // 由于showModal会找到第一个模态框，所以需要填充第一个模态框的字段
       
-      // ========== 2. 填充模态框的可编辑字段 ==========
+      // ========== 1. 填充第一个模态框的显示字段（只读） ==========
+      // 这些字段显示当前编辑的是哪个账户
+      const authUsernameField = $('edit-school-account-auth-username');
+      const schoolUsernameField = $('edit-school-account-school-username');
+      
+      if (authUsernameField) {
+        authUsernameField.value = authUsername;  // 认证用户名（只读字段）
+      }
+      
+      if (schoolUsernameField) {
+        schoolUsernameField.value = schoolUsername;  // 学校账户用户名（可编辑）
+      }
+      
+      // ========== 2. 填充第一个模态框的可编辑字段 ==========
       // 这些字段可以被用户修改
-      $('edit-school-password').value = password;  // 当前密码
-      $('edit-school-ua').value = ua || '';  // 当前UA（如果没有则为空）
+      const passwordField = $('edit-school-account-password');
+      const uaField = $('edit-school-account-ua');
       
-      // ========== 3. 显示编辑模态框 ==========
+      if (passwordField) {
+        passwordField.value = password;  // 当前密码
+      }
+      
+      if (uaField) {
+        uaField.value = ua || '';  // 当前UA（如果没有则为空）
+      }
+      
+      // ========== 3. 同时也填充第二个模态框的字段（兼容性） ==========
+      // 以防万一第二个模态框被显示，也填充它的字段
+      const authUsernameSpan = $('edit-auth-username');
+      const schoolUsernameSpan = $('edit-school-username');
+      const passwordInput = $('edit-school-password');
+      const uaTextarea = $('edit-school-ua');
+      
+      if (authUsernameSpan) {
+        authUsernameSpan.textContent = authUsername;
+      }
+      
+      if (schoolUsernameSpan) {
+        schoolUsernameSpan.textContent = schoolUsername;
+      }
+      
+      if (passwordInput) {
+        passwordInput.value = password;
+      }
+      
+      if (uaTextarea) {
+        uaTextarea.value = ua || '';
+      }
+      
+      // ========== 4. 显示编辑模态框 ==========
       // z-index更高，会覆盖在学校账户列表模态框之上
       showModal('edit-school-account-modal');
+    }
+
+    // ========== 【问题2修复】新增学校账户功能 ==========
+    function addNewSchoolAccount() {
+      // ========== 功能说明 ==========
+      // 打开编辑模态框，但清空所有字段，允许用户新增一个学校账户
+      // 将认证用户名设置为当前正在管理的用户
+      // ========== 功能说明结束 ==========
+      
+      // ========== 1. 获取当前正在管理的认证用户名 ==========
+      // 从manage-school-accounts-modal的标题中获取用户名
+      const currentAuthUsername = $('school-accounts-username')?.textContent || '';
+      
+      // ========== 2. 清空第一个模态框的所有字段 ==========
+      // 为新增操作准备干净的表单
+      const authUsernameField = $('edit-school-account-auth-username');
+      const schoolUsernameField = $('edit-school-account-school-username');
+      const passwordField = $('edit-school-account-password');
+      const uaField = $('edit-school-account-ua');
+      
+      if (authUsernameField) {
+        authUsernameField.value = currentAuthUsername;  // 设置为当前管理的用户
+      }
+      
+      if (schoolUsernameField) {
+        schoolUsernameField.value = '';  // 清空学校账户用户名，允许用户输入
+        schoolUsernameField.readOnly = false;  // 确保字段可编辑
+      }
+      
+      if (passwordField) {
+        passwordField.value = '';  // 清空密码字段
+      }
+      
+      if (uaField) {
+        uaField.value = '';  // 清空UA字段
+      }
+      
+      // ========== 3. 同时也清空第二个模态框的字段（兼容性） ==========
+      const authUsernameSpan = $('edit-auth-username');
+      const schoolUsernameSpan = $('edit-school-username');
+      const passwordInput = $('edit-school-password');
+      const uaTextarea = $('edit-school-ua');
+      
+      if (authUsernameSpan) {
+        authUsernameSpan.textContent = currentAuthUsername;
+      }
+      
+      if (schoolUsernameSpan) {
+        schoolUsernameSpan.textContent = '';
+      }
+      
+      if (passwordInput) {
+        passwordInput.value = '';
+      }
+      
+      if (uaTextarea) {
+        uaTextarea.value = '';
+      }
+      
+      // ========== 4. 修改模态框标题，表明这是新增操作 ==========
+      const modalTitle = $('edit-school-account-modal-title');
+      if (modalTitle) {
+        modalTitle.textContent = '新增学校账户';
+      }
+      
+      // ========== 5. 显示编辑模态框 ==========
+      // z-index更高，会覆盖在学校账户列表模态框之上
+      showModal('edit-school-account-modal');
+      
+      console.log('[学校账户管理] 已打开新增学校账户模态框');
+    }
+
+    // ========== 【问题3修复】为学校账户生成随机User-Agent ==========
+    async function generateRandomUAForSchoolAccount() {
+      // ========== 功能说明 ==========
+      // 调用后端API生成随机的User-Agent字符串
+      // 并将生成的UA填充到编辑模态框的UA字段中
+      // 这样可以模拟不同的设备和浏览器访问
+      // ========== 功能说明结束 ==========
+      
+      try {
+        // ========== 1. 显示加载状态 ==========
+        // 在按钮上显示"生成中..."，防止用户重复点击
+        console.log('[学校账户管理] 开始生成随机User-Agent...');
+        
+        // ========== 2. 调用后端API生成新的UA ==========
+        // 使用callPythonAPI函数调用后端的generate_new_ua接口
+        const result = await callPythonAPI('generate_new_ua');
+        
+        // ========== 3. 检查API调用结果 ==========
+        if (!result) {
+          console.error('[学校账户管理] 生成UA失败：API返回空结果');
+          showTempMessage('生成失败：无法连接到服务器', 'error');
+          return;
+        }
+        
+        // ========== 4. 提取生成的UA字符串 ==========
+        // API可能返回字符串或包含ua字段的对象
+        const newUA = typeof result === 'string' ? result : result.ua;
+        
+        if (!newUA) {
+          console.error('[学校账户管理] 生成UA失败：返回的UA为空');
+          showTempMessage('生成失败：返回的User-Agent为空', 'error');
+          return;
+        }
+        
+        // ========== 5. 填充到第一个模态框的UA字段 ==========
+        const uaField = $('edit-school-account-ua');
+        if (uaField) {
+          uaField.value = newUA;
+          console.log('[学校账户管理] 已生成并填充随机UA:', newUA.substring(0, 50) + '...');
+        }
+        
+        // ========== 6. 同时也填充第二个模态框的UA字段（兼容性） ==========
+        const uaTextarea = $('edit-school-ua');
+        if (uaTextarea) {
+          uaTextarea.value = newUA;
+        }
+        
+        // ========== 7. 显示成功提示 ==========
+        showTempMessage('已生成随机User-Agent', 'success');
+        
+      } catch (error) {
+        // ========== 8. 错误处理 ==========
+        // 捕获并显示任何错误
+        console.error('[学校账户管理] 生成UA时发生错误:', error);
+        showTempMessage('生成失败: ' + error.message, 'error');
+      }
     }
 
     // ========== 关闭编辑学校账户模态框 ==========
@@ -28170,15 +28366,16 @@ function run_code_not_need_sessionuuid(codeToRun) {
           multiAccountMap.setFitView(allOverlays, false, [50, 50, 50, 50]);
           console.log('[多账号地图] 复位视角：自动适应所有路线');
         } else {
-          // 如果没有覆盖物，则重置到默认中心点和缩放级别
-          // 默认中心点设为中国地理中心（约北京附近）
-          const defaultCenter = [116.397128, 39.916527]; // 北京天安门坐标
+          // 【问题6修复】如果没有覆盖物，则重置到指定的中心点和缩放级别
+          // 修改原因：用户要求回到指定的中心坐标 [113.390342, 22.527403]
+          // 这个坐标位于广东省深圳市附近
+          const defaultCenter = [113.390342, 22.527403]; // 用户指定的中心坐标（深圳附近）
           const defaultZoom = 11; // 城市级别的缩放
           
           // 设置地图中心点和缩放级别
           multiAccountMap.setCenter(defaultCenter);
           multiAccountMap.setZoom(defaultZoom);
-          console.log('[多账号地图] 复位视角：重置到默认位置');
+          console.log('[多账号地图] 复位视角：重置到指定位置 [113.390342, 22.527403]');
         }
       } else {
         // 地图实例不存在，输出警告日志
