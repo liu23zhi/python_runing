@@ -4534,8 +4534,14 @@ class Api:
         # 先将旧配置文件（可能是中文+各种编码）规范化为英文+UTF-8
         self.normalize_chinese_config_to_english(self.user_config_path)
 
-        cfg = configparser.ConfigParser()
-        cfg.read(self.user_config_path, encoding='utf-8')
+        # 修正：设置 strict=False 以允许配置文件中存在重复选项（容错）
+        # 并添加 try-except 块处理其他可能的读取错误
+        cfg = configparser.ConfigParser(strict=False)
+        try:
+            cfg.read(self.user_config_path, encoding='utf-8')
+        except Exception as e:
+            logging.warning(f"解析用户配置文件 {username} 时出错 (已忽略): {e}")
+
         password = cfg.get('Config', 'Password', fallback='')
         if not password:
             # 如果密码为空，尝试从原始文件中扫描 "Password=" 或 "密码="，以兼容规范化失败的情况
@@ -4556,6 +4562,9 @@ class Api:
             except Exception:
                 pass
         
+        # 初始化 ua 变量，防止 UnboundLocalError
+        ua = None
+
         # 尝试从 auth_username 的 school_accounts 加载密码和UA（优先级更高）
         if hasattr(self, 'auth_username') and self.auth_username:
             school_password = self._get_school_account_password(self.auth_username, username)

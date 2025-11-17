@@ -3790,13 +3790,13 @@
               <input type="text" id="mobile-reg-nickname" class="w-full" placeholder="请输入昵称（可含中文）">
             </div>
 
-            <div class="mobile-form-group">
+            <div class="mobile-form-group" id="mobile-reg-avatar-group">
               <label class="mobile-form-label">头像</label>
               <div class="flex items-center gap-3 mt-1">
                 <img id="mobile-reg-avatar-preview" src="/static/default_avatar.png"
                   class="w-16 h-16 rounded-full object-cover border-2 border-slate-200">
                 <input type="file" id="mobile-reg-avatar" accept="image/*" class="hidden">
-                <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm"
+                <button class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm" id="mobile-reg-upload-avatar-btn"
                   onclick="document.getElementById('mobile-reg-avatar').click(); return false;">
                   <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                     xmlns="http://www.w3.org/2000/svg">
@@ -4276,7 +4276,7 @@
             </button>
             <!-- 查看更多按钮 - 展开查看更多通知 -->
             <button
-              class="flex-1 py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition"
+              class="flex-1 py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition" style="display:none;"
               onclick="expandMobileNotifications()">
               查看更多
             </button>
@@ -5087,7 +5087,7 @@
               </button>
               <!-- 【问题19修复】手动添加按钮 - 打开手动输入账号密码的模态框 -->
               <button
-                class="py-2 px-3 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition flex items-center justify-center gap-1"
+                class="py-2 px-3 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition flex items-center justify-center gap-1" id="mobile_multi_account_manual_input_button"
                 onclick="openManualAccountModal()">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
