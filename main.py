@@ -126,6 +126,7 @@ def import_standard_libraries():
 
     # (模块名, 导入命令)
     std_libs = [
+        ('ssl', 'import ssl'), # <-- 修正：添加 SSL 模块导入
         ('argparse', 'import argparse'),
         ('base64', 'import base64'),
         ('bisect', 'import bisect'),
@@ -151,7 +152,9 @@ def import_standard_libraries():
         ('warnings', 'import warnings'),
         ('atexit', 'import atexit'),
         ('io', 'import io'),
-        ('zipfile', 'import zipfile')
+        ('zipfile', 'import zipfile'),
+        ('functools', 'import functools'),
+        ('ipaddress', 'import ipaddress')
     ]
 
     failed_imports = []
@@ -192,6 +195,22 @@ def import_standard_libraries():
         logging.warning("  -> fcntl 模块在 Windows 平台不可用，已跳过。")
         print("[依赖检查]   -> fcntl (Windows平台跳过)")
     
+    if 'eventlet' in globals():
+        try:
+            logging.info("  -> 正在应用 eventlet.monkey_patch()...")
+            print("[依赖检查]   -> eventlet.monkey_patch()...", end=" ")
+            eventlet.monkey_patch()
+            logging.info("  ✓ eventlet.monkey_patch() 应用成功")
+            print("✓")
+        except Exception as e:
+            logging.error(f"  ✗ eventlet.monkey_patch() 应用失败: {e}")
+            print(f"✗ ({e})")
+            failed_imports.append({
+                'name': 'eventlet.monkey_patch()',
+                'pip_name': 'eventlet',
+                'error': str(e)
+            })
+
     # 如果有导入失败，统一报告
     if failed_imports:
         logging.critical(f"标准库导入失败，共 {len(failed_imports)} 个模块")
@@ -224,7 +243,8 @@ def import_core_third_party():
     core_libs = [
         ('PIL (Pillow)', 'from PIL import Image', 'Pillow'),
         ('bcrypt', 'import bcrypt', 'bcrypt'),
-        ('Flask-SocketIO', 'from flask_socketio import SocketIO, emit, join_room, leave_room', 'Flask-SocketIO')
+        ('Flask-SocketIO', 'from flask_socketio import SocketIO, emit, join_room, leave_room', 'Flask-SocketIO'),
+            ('eventlet', 'import eventlet', 'eventlet') # <-- 修正：添加 eventlet 导入
     ]
 
     failed_imports = []
@@ -279,19 +299,23 @@ def check_and_import_dependencies():
     print("[依赖检查] 开始检查并导入主要应用依赖库...")
 
     # 声明我们将要修改全局变量
-    global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response
+    global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g, send_file
     global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
     global cssutils, playwright_available
 
+    global cryptography
+
     # 将所有变量预设为 None，以防导入成功但未完全解包
-    Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response = (None,) * 8
+    Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g = (None,) * 9
     CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np, cssutils = (None,) * 10
     playwright_available = False
+
+    cryptography = None
 
     # (显示名称, 导入代码, pip包名)
     dependencies = [
         ('Flask Web框架', 
-         'from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response',
+         'from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g, send_file',
          'Flask'),
         ('Flask CORS',
          'from flask_cors import CORS',
@@ -322,7 +346,10 @@ def check_and_import_dependencies():
          'numpy'),
         ('cssutils (CSS解析)',
          'import cssutils',
-         'cssutils')
+         'cssutils'),
+         ('cryptography (SSL/加密)',
+         'import cryptography',
+         'cryptography')
     ]
     
     failed_imports = []
@@ -527,44 +554,64 @@ class CustomLogHandler(logging.FileHandler):
 
     def do_rollover(self):
         """
-        执行日志轮转。
+        执行标准的日志轮转。
+        实现逻辑：
+        1. 检查 zx-slm-tool-09.log 是否存在，如果存在则删除
+        2. 将 zx-slm-tool-08.log 重命名为 zx-slm-tool-09.log
+        3. 将 zx-slm-tool-07.log 重命名为 zx-slm-tool-08.log
+        4. ...
+        5. 将 zx-slm-tool-01.log 重命名为 zx-slm-tool-02.log
+        6. 最后将 zx-slm-tool.log 重命名为 zx-slm-tool-01.log
+        7. 创建一个新的 zx-slm-tool.log 文件用于后续写入
         """
+        # 关闭当前文件流
         if self.stream:
             self.stream.close()
             self.stream = None
 
+        # 获取日志目录和基础文件名
         log_dir = os.path.dirname(self.baseFilename)
         base_name = 'zx-slm-tool'
+        
+        # 定义最大轮转文件数量（保留10个历史文件：zx-slm-tool-01.log 到 zx-slm-tool-10.log）
+        max_backup_count = 10
 
-        # 查找已存在的编号文件
-        existing_numbers = []
-        for filename in os.listdir(log_dir):
-            if filename.startswith(f'{base_name}-') and filename.endswith('.log'):
-                try:
-                    # 提取编号
-                    num_str = filename[len(base_name)+1:-4]  # 去掉前缀和.log
-                    num = int(num_str)
-                    existing_numbers.append(num)
-                except ValueError:
-                    pass
+        # 从最大编号开始，依次向后移动文件
+        # 如果 zx-slm-tool-10.log 存在，则删除它（最旧的文件）
+        for i in range(max_backup_count, 0, -1):
+            old_log = os.path.join(log_dir, f'{base_name}-{i:02d}.log')
+            
+            if i == max_backup_count:
+                # 删除最旧的文件（编号为 max_backup_count）
+                if os.path.exists(old_log):
+                    try:
+                        os.remove(old_log)
+                        print(f"[日志轮转] 已删除最旧的日志文件: {os.path.basename(old_log)}")
+                    except Exception as e:
+                        print(f"[日志轮转] 删除 {os.path.basename(old_log)} 失败: {e}")
+            else:
+                # 将 zx-slm-tool-0X.log 重命名为 zx-slm-tool-0(X+1).log
+                if os.path.exists(old_log):
+                    new_log = os.path.join(log_dir, f'{base_name}-{i+1:02d}.log')
+                    try:
+                        os.rename(old_log, new_log)
+                        print(f"[日志轮转] {os.path.basename(old_log)} -> {os.path.basename(new_log)}")
+                    except Exception as e:
+                        print(f"[日志轮转] 重命名 {os.path.basename(old_log)} 失败: {e}")
 
-        # 确定新的编号
-        if existing_numbers:
-            next_num = max(existing_numbers) + 1
-        else:
-            next_num = 1
-
-        # 重命名当前文件
-        new_name = os.path.join(log_dir, f'{base_name}-{next_num:02d}.log')
-
+        # 最后，将当前的 zx-slm-tool.log 重命名为 zx-slm-tool-01.log
+        first_backup = os.path.join(log_dir, f'{base_name}-01.log')
         try:
-            os.rename(self.baseFilename, new_name)
-            print(
-                f"[日志轮转] 已轮转: {os.path.basename(self.baseFilename)} -> {os.path.basename(new_name)}")
+            # 如果 zx-slm-tool-01.log 已经存在（不应该发生，但作为安全检查）
+            if os.path.exists(first_backup):
+                os.remove(first_backup)
+            
+            os.rename(self.baseFilename, first_backup)
+            print(f"[日志轮转] {os.path.basename(self.baseFilename)} -> {os.path.basename(first_backup)}")
         except Exception as e:
-            print(f"[日志轮转] 轮转失败: {e}")
+            print(f"[日志轮转] 轮转主日志文件失败: {e}")
 
-        # 重新打开文件
+        # 重新打开一个新的 zx-slm-tool.log 文件用于后续写入
         self.stream = self._open()
 
 
@@ -576,10 +623,6 @@ def archive_old_logs():
     在程序启动时调用，将上一次运行的日志文件压缩并移动到归档目录。
     支持归档 zx-slm-tool.log 和 zx-slm-tool-*.log 格式的文件。
     """
-
-
-    log_dir = 'logs'
-    archive_dir = os.path.join(log_dir, 'archive')
 
     # 确保归档目录存在
     if not os.path.exists(archive_dir):
@@ -709,6 +752,7 @@ def setup_logging():
     # 读取配置（如果配置文件存在）
     log_rotation_size_mb = 10  # 默认10MB
     archive_max_size_mb = 500  # 默认500MB
+    global log_dir, archive_dir
     log_dir = 'logs'
     archive_dir = os.path.join(log_dir, 'archive')
 
@@ -779,10 +823,43 @@ def setup_logging():
 
     logger.addHandler(file_handler)
 
+    # ========== 新增：警告和错误日志文件处理器 ==========
+    # 创建专门用于记录WARNING、ERROR和CRITICAL级别日志的处理器
+    # 这样可以将警告和严重错误单独记录到一个文件中，方便快速定位问题
+    # 使用WARNING.log作为文件名，表示记录WARNING及以上级别的日志
+    warning_log_file = os.path.join(log_dir, 'zx-slm-tool-WARNING.log')
+    
+    # 使用与主日志相同的轮转配置（max_bytes）和归档逻辑
+    # 这确保了警告日志也会被自动轮转和归档，防止文件过大
+    warning_file_handler = CustomLogHandler(
+        warning_log_file,  # 警告日志文件路径
+        mode='a',  # 追加模式（append），保留历史警告日志
+        encoding='utf-8',  # UTF-8编码，支持中文日志
+        max_bytes=max_bytes  # 使用与主日志相同的大小限制
+    )
+    
+    # 设置日志级别为WARNING：记录WARNING、ERROR和CRITICAL级别的日志
+    # 这样可以过滤掉DEBUG和INFO级别的日志，只保留需要关注的警告和错误
+    warning_file_handler.setLevel(logging.WARNING)
+    
+    # 为警告日志处理器应用"无颜色"格式化程序
+    # 使用与主日志相同的格式，确保日志格式的一致性
+    warning_no_color_formatter = NoColorFileFormatter(
+        log_format._fmt,  # 使用相同的日志格式字符串
+        datefmt=log_format.datefmt  # 使用相同的日期格式
+    )
+    warning_file_handler.setFormatter(warning_no_color_formatter)
+    
+    # 将警告日志处理器添加到logger中
+    # 现在所有WARNING、ERROR和CRITICAL日志会同时写入主日志和警告日志文件
+    logger.addHandler(warning_file_handler)
+    # ========== 结束：警告和错误日志文件处理器 ==========
+
     # 记录日志系统启动
     logging.info("="*80)
     logging.info("日志系统初始化完成（启用自定义轮转）")
     logging.info(f"日志文件: {log_file}")
+    logging.info(f"警告日志文件: {warning_log_file}")  # 添加警告日志文件信息
     logging.info(f"日志级别: DEBUG (所有级别)")
     logging.info(f"日志轮转: 单文件最大{log_rotation_size_mb}MB")
     logging.info(
@@ -794,24 +871,11 @@ def setup_logging():
 
 
 
-# ==============================================================================
-# 自动初始化系统 (整合自 auto_init.py)
-# ==============================================================================
-# 这一部分实现"零配置启动"功能：
-# - 首次运行时自动创建所有必需的目录和文件
-# - 生成默认的配置文件和权限设置
-# - 创建初始管理员账号（admin/admin）
-# 设计理念：让用户只需要main.py和index.html就能启动程序
+# 自动初始化系统
 
 def auto_init_system():
     """
     自动初始化系统，创建所有必需的文件和目录。
-
-    功能清单：
-    1. 创建目录结构（logs、账号存储、会话存储）
-    2. 生成或更新config.ini配置文件
-    3. 创建permissions.json权限配置
-    4. 创建默认管理员账号（用户名：admin，密码：admin）
     """
     logging.info("="*80)
     logging.info("开始自动初始化系统...")
@@ -962,6 +1026,15 @@ def _create_directories():
         else:
             print(f"[目录创建] 目录已存在: {name} -> {directory}")
     
+    # 创建 user_accounts 子目录用于存储按用户分类的 school_account 密码
+    user_accounts_dir = os.path.join(SCHOOL_ACCOUNTS_DIR, 'user_accounts')
+    if not os.path.exists(user_accounts_dir):
+        os.makedirs(user_accounts_dir, exist_ok=True)
+        print(f"[目录创建] 创建目录: user_accounts -> {user_accounts_dir}")
+        logging.info(f"[系统初始化] 创建目录: user_accounts -> {user_accounts_dir}")
+    else:
+        print(f"[目录创建] 目录已存在: user_accounts -> {user_accounts_dir}")
+    
     # 初始化依赖于目录路径的全局变量
     SESSION_INDEX_FILE = os.path.join(SESSION_STORAGE_DIR, '_index.json')
     LOGIN_LOG_FILE = os.path.join(LOGIN_LOGS_DIR, 'login_history.jsonl')
@@ -1006,7 +1079,9 @@ def _get_default_config():
         'system_accounts_dir': 'system_accounts',
         'sessions_dir': 'sessions',  # 新增：会话存储目录
         'tokens_dir': 'tokens',  # 新增：Token存储目录
-        'permissions_file': 'permissions.json'
+        'permissions_file': 'permissions.json',
+        'session_monitor_check_interval': '60',  # 会话监控检查间隔（秒），默认60秒
+        'session_inactivity_timeout': '300'  # 会话不活跃超时时间（秒），默认300秒（5分钟）
     }
 
     # [Logging] 日志配置
@@ -1027,6 +1102,35 @@ def _get_default_config():
     # [Map] 地图配置
     config['Map'] = {
         'amap_js_key': '',  # 高德地图JS API密钥
+    }
+    
+    # [API] 第三方API配置
+    config['API'] = {
+        'ip_api_key': '',  # IP地理位置查询API密钥（可选，留空则使用免费接口）
+        'captcha_api_key': '',  # 验证码API密钥（可选，留空则使用免费接口）
+    }
+
+    # [Features] 功能开关配置
+    # 控制系统各项功能的启用/禁用状态，便于灵活管理
+    config['Features'] = {
+        'enable_phone_modification': 'false',  # 是否允许用户修改手机号
+        'enable_phone_login': 'false',  # 是否支持手机号登录
+        'enable_phone_registration_verify': 'false',  # 注册时是否需要短信验证
+        'enable_sms_service': 'false',  # 短信服务总开关（关闭则所有短信功能不可用）
+    }
+
+    # [SMS_Service_SMSBao] 短信宝服务配置
+    # 用于发送验证码、通知等短信，需要在短信宝官网注册账号获取凭证
+    config['SMS_Service_SMSBao'] = {
+        'username': '',  # 短信宝账户用户名
+        'api_key': '',  # 短信宝API密钥（在短信宝后台获取）
+        'signature': '【电科大跑步助手】',  # 短信签名（需提前在短信宝审核通过）
+        'template_register': '您的验证码是：{code}，{minutes}分钟内有效。',  # 注册验证码短信模板，支持{code}和{minutes}占位符
+        'code_expire_minutes': '5',  # 验证码有效期（分钟），默认5分钟，管理员可修改
+        'send_interval_seconds': '180',  # 发送间隔（秒），默认180秒（3分钟），防止频繁发送
+        'rate_limit_per_account_day': '10',  # 单个账号每天最多发送次数
+        'rate_limit_per_ip_day': '20',  # 单个IP每天最多发送次数
+        'rate_limit_per_phone_day': '5',  # 单个手机号每天最多发送次数
     }
 
     return config
@@ -1075,7 +1179,23 @@ def _write_config_with_comments(config_obj, filepath):
             f"system_accounts_dir = {config_obj.get('System', 'system_accounts_dir', fallback='system_accounts')}\n")
         f.write("# 权限配置文件路径\n")
         f.write(
-            f"permissions_file = {config_obj.get('System', 'permissions_file', fallback='permissions.json')}\n\n")
+            f"permissions_file = {config_obj.get('System', 'permissions_file', fallback='permissions.json')}\n")
+        
+        f.write("# 会话持久化数据存储目录\n")
+        f.write(
+            f"sessions_dir = {config_obj.get('System', 'sessions_dir', fallback='sessions')}\n")
+        f.write("# API令牌数据存储目录\n")
+        f.write(
+            f"tokens_dir = {config_obj.get('System', 'tokens_dir', fallback='tokens')}\n")
+
+        f.write("# 会话监控检查间隔时间（秒）\n")
+        f.write("# 系统每隔此时间检查一次会话活跃状态，默认60秒\n")
+        f.write(
+            f"session_monitor_check_interval = {config_obj.get('System', 'session_monitor_check_interval', fallback='60')}\n")
+        f.write("# 会话不活跃超时时间（秒）\n")
+        f.write("# 会话超过此时间无活动（且无正在执行的任务）将被自动清理，默认300秒（5分钟）\n")
+        f.write(
+            f"session_inactivity_timeout = {config_obj.get('System', 'session_inactivity_timeout', fallback='300')}\n\n")
 
         # [Logging] 配置
         f.write("[Logging]\n")
@@ -1118,6 +1238,93 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 申请类型：Web端(JS API)，服务平台：Web端\n")
         f.write(
             f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
+        
+        # [API] 第三方API配置
+        f.write("[API]\n")
+        f.write("# IP地理位置查询API密钥（可选）\n")
+        f.write("# 用于获取用户登录IP的地理位置信息\n")
+        f.write("# 留空则使用免费接口（有频率限制）\n")
+        f.write(
+            f"ip_api_key = {config_obj.get('API', 'ip_api_key', fallback='')}\n")
+        f.write("# 验证码生成API密钥（可选）\n")
+        f.write("# 用于生成图形验证码\n")
+        f.write("# 留空则使用免费接口（有频率限制）\n")
+        f.write(
+            f"captcha_api_key = {config_obj.get('API', 'captcha_api_key', fallback='')}\n\n")
+
+        # [Features] 功能开关配置
+        f.write("[Features]\n")
+        f.write("# 是否允许用户修改手机号（true/false）\n")
+        f.write("# true：用户可在个人资料中修改手机号\n")
+        f.write(
+            f"enable_phone_modification = {config_obj.get('Features', 'enable_phone_modification', fallback='false')}\n")
+        f.write("# 是否支持手机号登录（true/false）\n")
+        f.write("# true：用户可使用手机号+密码登录（手机号作为login_id）\n")
+        f.write(
+            f"enable_phone_login = {config_obj.get('Features', 'enable_phone_login', fallback='false')}\n")
+        f.write("# 注册时是否需要短信验证（true/false）\n")
+        f.write("# true：用户注册时必须填写手机号并通过短信验证码验证\n")
+        f.write(
+            f"enable_phone_registration_verify = {config_obj.get('Features', 'enable_phone_registration_verify', fallback='false')}\n")
+        f.write("# 短信服务总开关（true/false）\n")
+        f.write("# false：关闭所有短信功能，即使其他选项为true也不会发送短信\n")
+        f.write(
+            f"enable_sms_service = {config_obj.get('Features', 'enable_sms_service', fallback='false')}\n\n")
+
+        # [SMS_Service_SMSBao] 短信宝服务配置
+        f.write("[SMS_Service_SMSBao]\n")
+        f.write("# 短信宝服务配置（官网：https://www.smsbao.com/）\n")
+        f.write("# 用于发送验证码、通知等短信\n")
+        f.write("# 注意：使用前需要在短信宝注册账号并充值\n")
+        f.write("# 短信宝账户用户名\n")
+        f.write(
+            f"username = {config_obj.get('SMS_Service_SMSBao', 'username', fallback='')}\n")
+        f.write("# 短信宝API密钥（在短信宝后台获取）\n")
+        f.write(
+            f"api_key = {config_obj.get('SMS_Service_SMSBao', 'api_key', fallback='')}\n")
+        f.write("# 短信签名（需提前在短信宝审核通过，格式：【签名内容】）\n")
+        f.write(
+            f"signature = {config_obj.get('SMS_Service_SMSBao', 'signature', fallback='【电科大跑步助手】')}\n")
+        f.write("# 注册验证码短信模板（{code}会被替换为验证码，{minutes}会被替换为有效期分钟数）\n")
+        f.write(
+            f"template_register = {config_obj.get('SMS_Service_SMSBao', 'template_register', fallback='您的验证码是：{{code}}，{{minutes}}分钟内有效。')}\n")
+        f.write("# 验证码有效期（分钟），默认5分钟，管理员可根据需要修改\n")
+        f.write(
+            f"code_expire_minutes = {config_obj.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5')}\n")
+        f.write("# 发送间隔（秒），默认180秒（3分钟），防止频繁发送，增强安全性\n")
+        f.write(
+            f"send_interval_seconds = {config_obj.get('SMS_Service_SMSBao', 'send_interval_seconds', fallback='180')}\n")
+        f.write("# 单个账号每天最多发送次数（防止滥用）\n")
+        f.write(
+            f"rate_limit_per_account_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_account_day', fallback='10')}\n")
+        f.write("# 单个IP每天最多发送次数（防止攻击）\n")
+        f.write(
+            f"rate_limit_per_ip_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_ip_day', fallback='20')}\n")
+        f.write("# 单个手机号每天最多发送次数（防止骚扰）\n")
+        f.write(
+            f"rate_limit_per_phone_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback='5')}\n\n")
+
+        # [SSL] 配置 - 新增SSL配置节的写入逻辑
+        f.write("[SSL]\n")
+        f.write("# SSL/HTTPS 配置\n")
+        f.write("# 是否启用SSL（true/false）\n")
+        f.write("# true：启用HTTPS协议访问\n")
+        f.write("# false：使用HTTP协议访问\n")
+        f.write(
+            f"ssl_enabled = {config_obj.get('SSL', 'ssl_enabled', fallback='false')}\n")
+        f.write("# SSL证书文件路径\n")
+        f.write("# 用于HTTPS服务的证书文件（PEM格式）\n")
+        f.write(
+            f"ssl_cert_path = {config_obj.get('SSL', 'ssl_cert_path', fallback='ssl/fullchain.pem')}\n")
+        f.write("# SSL私钥文件路径\n")
+        f.write("# 用于HTTPS服务的私钥文件（KEY格式）\n")
+        f.write(
+            f"ssl_key_path = {config_obj.get('SSL', 'ssl_key_path', fallback='ssl/privkey.key')}\n")
+        f.write("# 是否仅允许HTTPS访问（true/false）\n")
+        f.write("# true：禁止HTTP访问，所有HTTP请求将被重定向到HTTPS\n")
+        f.write("# false：同时允许HTTP和HTTPS访问\n")
+        f.write(
+            f"https_only = {config_obj.get('SSL', 'https_only', fallback='false')}\n\n")
 
 
 def _create_config_ini():
@@ -1227,10 +1434,11 @@ def _create_permissions_json():
                     "clear_logs": False,
 
                     # 新增细分权限
-                    "auto_fill_password": False,  # 自动填充密码
+                    "auto_fill_password": False,  # 查看全部 school_account
                     "import_offline": True,
                     "export_data": True,
                     "modify_params": True,
+                    "manage_own_sessions": False,  # 管理自己的会话（游客默认不能）
 
                     # UI按钮权限（细粒度控制）
                     "use_login_button": True,  # 登录按钮（游客默认有）
@@ -1277,7 +1485,7 @@ def _create_permissions_json():
                     "clear_logs": False,
 
                     # 新增细分权限
-                    "auto_fill_password": False,  # 自动填充密码（普通用户默认无此权限）
+                    "auto_fill_password": False,  # 查看全部 school_account（普通用户默认无此权限）
                     "import_offline": True,
                     "export_data": True,
                     "modify_params": True,
@@ -1285,8 +1493,14 @@ def _create_permissions_json():
 
                     # UI按钮权限（细粒度控制）
                     "use_login_button": True,  # 登录按钮
-                    "use_multi_account_button": True,  # 多账号控制台按钮
-                    "use_import_button": True,  # 导入离线文件按钮
+                    "use_multi_account_button": False,  # 多账号控制台按钮（新用户默认关闭）
+                    "use_import_button": False,  # 导入离线文件按钮（新用户默认关闭）
+
+                    # 留言板权限
+                    "view_messages": True,  # 查看留言
+                    "post_messages": True,  # 发表留言
+                    "delete_own_messages": True,  # 删除自己的留言
+                    "delete_any_messages": False,  # 删除任何人的留言（仅管理员）
                 }
             },
             "admin": {
@@ -1348,6 +1562,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
+                    "view_captcha_history": True
                 }
             },
             "super_admin": {
@@ -1401,6 +1616,7 @@ def _create_permissions_json():
                     "modify_params": True,
                     "manage_own_sessions": True,
                     "manage_user_sessions": True,
+                    "view_captcha_history": True,
                     "view_session_details": True,
                     "god_mode": True,  # 上帝模式：可以查看和销毁所有会话
 
@@ -1446,18 +1662,22 @@ def _create_default_admin():
     print("[管理员账号] 创建默认管理员账号 (用户名: admin, 密码: admin)...")
     logging.info(
         f"[系统初始化] 开始创建默认管理员账号 --> 用户名: admin, 密码: admin (⚠️ 建议首次登录后立即修改), 权限组: super_admin, 文件路径: {admin_file}")
+    # 创建默认管理员账户数据，包含所有必要字段
+    # 新增字段：phone（手机号）、nickname（昵称）、avatar_url（头像URL）
     admin_data = {
-        "auth_username": "admin",
-        "password": "admin",
-        "group": "super_admin",
-        "created_at": time.time(),
-        "last_login": None,
-        "session_ids": [],
-        "2fa_enabled": False,
-        "2fa_secret": None,
-        "avatar_url": "",
-        "max_sessions": -1,
-        "theme": "light"
+        "auth_username": "admin",  # 管理员登录用户名
+        "password": "admin",  # 默认密码
+        "group": "super_admin",  # 权限组：超级管理员
+        "created_at": time.time(),  # 创建时间戳
+        "last_login": None,  # 最后登录时间
+        "session_ids": [],  # 活跃会话ID列表
+        "2fa_enabled": False,  # 双因素认证开关
+        "2fa_secret": None,  # 双因素认证密钥
+        "avatar_url": "default_avatar.png",  # 默认头像文件名
+        "max_sessions": -1,  # 最大并发会话数
+        "theme": "light",  # 界面主题
+        "phone": "",  # 手机号
+        "nickname": "超级管理员"  # 显示昵称
     }
 
     with open(admin_file, 'w', encoding='utf-8') as f:
@@ -1551,6 +1771,72 @@ class AuthSystem:
             print(f"\n[配置文件错误] 读取 config.ini 文件时发生意外错误: {e}")
             print(f"  请检查文件是否存在、是否有读取权限以及格式是否基本正确。")
             sys.exit(1)
+
+
+    def find_user_by_phone(self, phone):
+        """
+        遍历所有系统账号，查找绑定了特定手机号的用户。
+        
+        参数:
+            phone (str): 要查找的手机号。
+            
+        返回:
+            str: 绑定的用户名，如果未找到则返回 None。
+        """
+        # 仅在 system_accounts_dir 中查找，因为学校账号是导入的，不参与系统认证
+        accounts_dir = SYSTEM_ACCOUNTS_DIR 
+        if not os.path.exists(accounts_dir):
+            return None
+            
+        for filename in os.listdir(accounts_dir):
+            if filename.endswith('.json'):
+                user_file = os.path.join(accounts_dir, filename)
+                try:
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                        if user_data.get('phone') == phone:
+                            return user_data.get('auth_username')
+                except Exception:
+                    continue # 跳过损坏的文件
+        return None
+
+    def unbind_phone_from_user(self, phone, except_username=None):
+        """
+        查找绑定了指定手机号的用户，并将其手机号字段清空。
+        
+        参数:
+            phone (str): 要解绑的手机号。
+            except_username (str, 可选): 如果找到的用户是此用户，则不解绑。
+        """
+        if not phone:
+            return
+
+        bound_username = self.find_user_by_phone(phone)
+        
+        if bound_username and bound_username != except_username:
+            logging.info(f"[手机号解绑] 手机号 {phone} 原本绑定在 {bound_username}。正在解绑...")
+            user_file = self.get_user_file_path(bound_username)
+            if os.path.exists(user_file):
+                try:
+                    # 使用 AuthSystem 的锁确保文件操作安全
+                    with self.lock:
+                        with open(user_file, 'r', encoding='utf-8') as f:
+                            user_data = json.load(f)
+                        
+                        if user_data.get('phone') == phone:
+                            user_data['phone'] = "" # 清空手机号
+                            with open(user_file, 'w', encoding='utf-8') as f:
+                                json.dump(user_data, f, indent=2, ensure_ascii=False)
+                            logging.info(f"[手机号解绑] 已成功解绑用户 {bound_username} 的手机号。")
+                            
+                            # 记录审计日志
+                            self.log_audit(
+                                'System',
+                                'auto_unbind_phone',
+                                f'因手机号 {phone} 被新用户注册或绑定，系统自动解绑了用户 {bound_username} 的手机号'
+                            )
+                except Exception as e:
+                    logging.error(f"[手机号解绑] 解绑用户 {bound_username} 手机号失败: {e}", exc_info=True)
 
     def _load_permissions(self):
         """加载权限配置"""
@@ -1981,11 +2267,27 @@ class AuthSystem:
             logging.warning("2FA验证失败：pyotp库未安装")
             return True  # 如果库未安装，允许通过
 
-    def register_user(self, auth_username, auth_password, group='user'):
-        """注册新用户"""
+    def register_user(self, auth_username, auth_password, group='user', phone='', nickname='', avatar_url=''):
+        """
+        注册新用户（已升级支持扩展字段）
+        
+        参数：
+        - auth_username: 用户名（必填，唯一标识）
+        - auth_password: 密码（必填，将根据配置加密存储）
+        - group: 权限组（默认'user'）
+        - phone: 手机号（可选）
+        - nickname: 昵称（可选，默认为用户名）
+        - avatar_url: 头像URL（可选，默认为空）
+        
+        返回：
+        - success: 是否成功
+        - message: 提示信息
+        """
         logging.info(f"register_user: 开始注册新用户: {auth_username}, 权限组: {group}")
         print(f"[用户注册] 开始注册新用户: {auth_username}, 权限组: {group}")
         with self.lock:
+            if phone:
+                self.unbind_phone_from_user(phone, except_username=auth_username)
             user_file = self.get_user_file_path(auth_username)
             logging.debug(f"register_user: 检查用户文件是否存在: {user_file}")
             if os.path.exists(user_file):
@@ -1998,18 +2300,21 @@ class AuthSystem:
             print(f"[用户注册] 加密密码...")
             stored_password = self._encrypt_password(auth_password)
 
+            # 创建用户数据，包含扩展字段
             user_data = {
-                'auth_username': auth_username,
-                'password': stored_password,
-                'group': group,
-                'created_at': time.time(),
-                'last_login': None,
-                'session_ids': [],  # 用于关联用户的会话ID
-                '2fa_enabled': False,
-                '2fa_secret': None,
-                'avatar_url': '',  # 用户头像URL
+                'auth_username': auth_username,  # 用户名（登录凭证）
+                'password': stored_password,  # 加密后的密码
+                'group': group,  # 权限组
+                'created_at': time.time(),  # 创建时间戳
+                'last_login': None,  # 最后登录时间（初始为空）
+                'session_ids': [],  # 用于关联用户的会话ID列表
+                '2fa_enabled': False,  # 双因素认证开关
+                '2fa_secret': None,  # 双因素认证密钥
+                'avatar_url': avatar_url or 'default_avatar.png',  # 用户头像URL（新增）
                 'max_sessions': 1,  # 允许的最大会话数量 (1=单会话, >1=多会话, -1=无限制)
-                'theme': 'light'  # 主题偏好：light/dark
+                'theme': 'light',  # 主题偏好：light/dark
+                'phone': phone,  # 手机号（新增，用于登录和通知）
+                'nickname': nickname or auth_username  # 显示昵称（新增，用于前端展示）
             }
 
             logging.debug(f"register_user: 保存用户数据到文件: {user_file}")
@@ -2022,9 +2327,10 @@ class AuthSystem:
             self.permissions['user_groups'][auth_username] = group
             self._save_permissions()
 
-            logging.info(f"新用户注册: {auth_username} (组: {group})")
+            logging.info(f"新用户注册: {auth_username} (组: {group}, 手机: {phone}, 昵称: {nickname})")
             print(f"[用户注册] ✓ 用户注册成功: {auth_username} (组: {group})")
             return {"success": True, "message": "注册成功"}
+
 
     def authenticate(self, auth_username, auth_password, ip_address='', user_agent='', two_fa_code=''):
         """验证用户登录（支持2FA和暴力破解防护）"""
@@ -2097,7 +2403,8 @@ class AuthSystem:
                 if not two_fa_code:
                     logging.info(f"authenticate: 需要2FA验证码: {auth_username}")
                     print(f"[用户认证] 需要2FA验证码: {auth_username}")
-                    return {"success": False, "message": "需要2FA验证码", "requires_2fa": True}
+                    # 返回 success: True，并附带 auth_username，以便前端JS正确处理
+                    return {"success": True, "message": "需要2FA验证码", "requires_2fa": True, "auth_username": auth_username}
 
                 if not self.verify_2fa(auth_username, two_fa_code):
                     logging.warning(f"authenticate: 2FA验证失败: {auth_username}")
@@ -2110,6 +2417,7 @@ class AuthSystem:
             logging.debug(f"authenticate: 更新最后登录时间: {auth_username}")
             print(f"[用户认证] 更新最后登录时间: {auth_username}")
             user_data['last_login'] = time.time()
+            user_data['last_login_ip'] = ip_address
             if 'session_ids' not in user_data:
                 user_data['session_ids'] = []
 
@@ -2136,7 +2444,7 @@ class AuthSystem:
                 "group": group,
                 "is_guest": False,
                 "max_sessions": user_data.get('max_sessions', 1),
-                "avatar_url": user_data.get('avatar_url', ''),
+                "avatar_url": user_data.get('avatar_url') or 'default_avatar.png',
                 "theme": user_data.get('theme', 'light'),
                 "session_ids": user_data.get('session_ids', [])
             }
@@ -2147,34 +2455,59 @@ class AuthSystem:
         权限计算顺序：
         1. 获取用户所属权限组的基础权限
         2. 应用用户的自定义权限（added/removed）
+        
+        重要说明：
+        此方法已完全支持 user_custom_permissions 差分授权！
+        - 即使用户所在组没有某权限，也可以通过 user_custom_permissions.added 单独授予
+        - 即使用户所在组有某权限，也可以通过 user_custom_permissions.removed 单独撤销
+        
+        示例：用户 zelly 在 user 组（默认无 use_multi_account_button 权限）
+        通过在 permissions.json 中添加：
+        {
+          "user_custom_permissions": {
+            "zelly": {
+              "added": ["use_multi_account_button"],
+              "removed": []
+            }
+          }
+        }
+        该用户即可获得该权限，check_permission 会正确返回 True。
         """
-        # 获取用户组
-        group = self.permissions['user_groups'].get(auth_username, 'guest')
-
-        # 检查是否为超级管理员
-        super_admin = self.config.get('Admin', 'super_admin', fallback='admin')
-        if auth_username == super_admin:
-            group = 'super_admin'
+        # 获取用户组（此函数已包含 super_admin 检查）
+        group = self.get_user_group(auth_username)
 
         # 获取组权限（基础权限）
         group_perms = self.permissions['permission_groups'].get(
             group, {}).get('permissions', {})
         has_permission = group_perms.get(permission, False)
+        
+        # 记录组权限检查结果（用于调试）
+        logging.debug(f"[权限检查] 用户 {auth_username} 的组 {group} 对权限 {permission} 的基础权限: {has_permission}")
 
-        # 应用用户的差分化权限
+        # 应用用户的差分化权限（user_custom_permissions）
+        # 这是差分授权的核心：允许在不改变用户组的情况下，为特定用户添加或移除权限
         user_custom = self.permissions.get(
             'user_custom_permissions', {}).get(auth_username, {})
         added_perms = user_custom.get('added', [])
         removed_perms = user_custom.get('removed', [])
 
-        # 如果权限在added列表中，则有权限
+        # 记录用户自定义权限（用于调试）
+        if added_perms or removed_perms:
+            logging.debug(f"[权限检查] 用户 {auth_username} 的自定义权限 - 添加: {added_perms}, 移除: {removed_perms}")
+
+        # 如果权限在added列表中，则有权限（覆盖组权限）
         if permission in added_perms:
             has_permission = True
+            logging.debug(f"[权限检查] 用户 {auth_username} 通过 user_custom_permissions.added 获得权限 {permission}")
 
-        # 如果权限在removed列表中，则无权限
+        # 如果权限在removed列表中，则无权限（覆盖组权限和added）
         if permission in removed_perms:
             has_permission = False
+            logging.debug(f"[权限检查] 用户 {auth_username} 通过 user_custom_permissions.removed 被撤销权限 {permission}")
 
+        # 记录最终权限结果
+        logging.debug(f"[权限检查] 最终结果 - 用户 {auth_username} 对权限 {permission}: {has_permission}")
+        
         return has_permission
 
     def get_user_permissions(self, auth_username):
@@ -2361,18 +2694,34 @@ class AuthSystem:
                 try:
                     with open(user_file, 'r', encoding='utf-8') as f:
                         user_data = json.load(f)
+                    
+                    # 修正：获取IP并查询城市
+                    last_ip = user_data.get('last_login_ip', None)
+                    last_city = None
+                    if last_ip:
+                        try:
+                            # 调用已移至全局的 get_ip_location
+                            last_city = get_ip_location(last_ip)
+                        except Exception as ip_e:
+                            logging.warning(f"查询IP归属地失败 {last_ip}: {ip_e}")
+                            last_city = "查询失败"
+
                     users.append({
                         'auth_username': user_data['auth_username'],
+                        'nickname': user_data.get('nickname', ''), # 修正：添加昵称
+                        'phone': user_data.get('phone', ''),       # 修正：添加手机号
                         'group': user_data.get('group', 'user'),
                         'created_at': user_data.get('created_at'),
                         'last_login': user_data.get('last_login'),
+                        'last_login_ip': last_ip,                  # 修正：添加IP
+                        'last_login_city': last_city,              # 修正：添加城市
                         '2fa_enabled': user_data.get('2fa_enabled', False),
                         'banned': user_data.get('banned', False),
                         'max_sessions': user_data.get('max_sessions', 1)
                     })
                 except Exception as e:
                     logging.error(
-                        f"[用户管理] 读取用户文件失败 --> 文件名: {filename}, 文件路径: {filepath}, 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 文件损坏、JSON格式错误或权限不足", exc_info=True)
+                        f"[用户管理] 读取用户文件失败 --> 文件名: {filename}, 文件路径: {user_file}, 错误类型: {type(e).__name__}, 错误详情: {e}, 可能原因: 文件损坏、JSON格式错误或权限不足", exc_info=True)
         return users
 
     def get_all_groups(self):
@@ -2582,6 +2931,17 @@ class AuthSystem:
                 logging.error(f"删除用户文件失败: {e}")
                 return {"success": False, "message": f"删除失败: {e}"}
 
+            # 删除用户对应的 school accounts 文件
+            # 这样可以确保用户的所有关联数据都被清理
+            try:
+                school_accounts_file = self._get_user_accounts_file(auth_username)
+                if os.path.exists(school_accounts_file):
+                    os.remove(school_accounts_file)
+                    logging.info(f"已删除用户 {auth_username} 的 school accounts 文件")
+            except Exception as e:
+                logging.error(f"删除用户 {auth_username} 的 school accounts 文件失败: {e}")
+                # 不中断流程，继续删除权限信息
+
             # 从权限组映射中移除
             if auth_username in self.permissions.get('user_groups', {}):
                 del self.permissions['user_groups'][auth_username]
@@ -2606,16 +2966,18 @@ class AuthSystem:
 
         # 返回用户信息（不包含密码）
         return {
-            'auth_username': user_data['auth_username'],
-            'group': user_data.get('group', 'user'),
-            'created_at': user_data.get('created_at'),
-            'last_login': user_data.get('last_login'),
-            '2fa_enabled': user_data.get('2fa_enabled', False),
-            'avatar_url': user_data.get('avatar_url', ''),
-            'max_sessions': user_data.get('max_sessions', 1),
-            'theme': user_data.get('theme', 'light'),
-            'session_ids': user_data.get('session_ids', [])
-        }
+                'auth_username': user_data['auth_username'],
+                'group': user_data.get('group', 'user'),
+                'created_at': user_data.get('created_at'),
+                'last_login': user_data.get('last_login'),
+                '2fa_enabled': user_data.get('2fa_enabled', False),
+                'avatar_url': user_data.get('avatar_url') or 'default_avatar.png',
+                'max_sessions': user_data.get('max_sessions', 1),
+                'theme': user_data.get('theme', 'light'),
+                'session_ids': user_data.get('session_ids', []),
+                'nickname': user_data.get('nickname', user_data['auth_username']),
+                'phone': user_data.get('phone', '')
+            }
 
     def check_single_session_enforcement(self, auth_username, new_session_id):
         """检查并强制执行会话数量限制
@@ -2712,8 +3074,9 @@ class AuthSystem:
                 for line in f:
                     try:
                         entry = json.loads(line.strip())
-                        if (username is None or entry.get('username') == username) and \
-                           (action is None or entry.get('action') == action):
+                        # 修复：使用 (not username ...) 来同时处理 None 和 "" (空字符串)
+                        if (not username or entry.get('username') == username) and \
+                           (not action or entry.get('action') == action):
                             logs.append(entry)
                     except (json.JSONDecodeError, KeyError, ValueError) as e:
                         logging.debug(f"[审计日志] 跳过无效日志行: {e}")
@@ -3846,6 +4209,152 @@ class Api:
         with open(path, "w", encoding="utf-8") as f:
             cfg_en.write(f)
 
+    def _get_user_accounts_file(self, auth_username):
+        """
+        获取指定认证用户的 school_accounts 存储文件路径。
+        
+        参数:
+            auth_username: 认证用户名（system_accounts中的用户名）
+        
+        返回:
+            文件路径字符串
+        """
+        user_accounts_dir = os.path.join(SCHOOL_ACCOUNTS_DIR, 'user_accounts')
+        return os.path.join(user_accounts_dir, f"{auth_username}.json")
+    
+    def _load_user_school_accounts(self, auth_username):
+        """
+        加载指定认证用户的所有 school_account 账户密码和UA。
+        
+        参数:
+            auth_username: 认证用户名
+        
+        返回:
+            字典，格式为 {school_username: {"password": "xxx", "ua": "xxx"}, ...}
+            或旧格式 {school_username: password, ...}（向后兼容）
+        """
+        if not auth_username or auth_username == 'guest':
+            # 游客没有 school_accounts
+            return {}
+        
+        file_path = self._get_user_accounts_file(auth_username)
+        if not os.path.exists(file_path):
+            return {}
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            logging.debug(f"成功加载用户 {auth_username} 的 school_accounts，共 {len(data)} 个账户")
+            return data
+        except Exception as e:
+            logging.error(f"加载用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return {}
+    
+    def _save_user_school_accounts(self, auth_username, accounts_dict):
+        """
+        保存指定认证用户的所有 school_account 账户密码和UA。
+        
+        参数:
+            auth_username: 认证用户名
+            accounts_dict: 字典，格式为 {school_username: {"password": "xxx", "ua": "xxx"}, ...}
+        """
+        if not auth_username or auth_username == 'guest':
+            # 游客不保存 school_accounts
+            logging.debug("游客用户不保存 school_accounts")
+            return
+        
+        file_path = self._get_user_accounts_file(auth_username)
+        
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(accounts_dict, f, ensure_ascii=False, indent=2)
+            logging.debug(f"成功保存用户 {auth_username} 的 school_accounts，共 {len(accounts_dict)} 个账户")
+        except Exception as e:
+            logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+    
+    def _update_school_account_password(self, auth_username, school_username, password, ua=None, login_verified=False):
+        """
+        更新指定认证用户的某个 school_account 的密码和UA。
+        
+        参数:
+            auth_username: 认证用户名
+            school_username: 学校账户用户名
+            password: 密码
+            ua: User-Agent（可选）
+            login_verified: 是否已验证登录成功（True 时才会覆盖现有密码）
+        """
+        if not auth_username or auth_username == 'guest':
+            return
+        
+        accounts = self._load_user_school_accounts(auth_username)
+        
+        # 处理旧格式（字符串）和新格式（字典）
+        existing_data = accounts.get(school_username)
+        if existing_data:
+            # 检查是否是旧格式（字符串）
+            if isinstance(existing_data, str):
+                # 旧格式，转换为新格式
+                existing_data = {"password": existing_data, "ua": ""}
+            
+            # 如果存在冲突，只在登录验证成功后才覆盖
+            if not login_verified:
+                logging.debug(f"school_account {school_username} 已存在，且未验证登录成功，跳过更新")
+                return
+        
+        # 更新或添加账户信息
+        accounts[school_username] = {
+            "password": password,
+            "ua": ua if ua else ""
+        }
+        self._save_user_school_accounts(auth_username, accounts)
+        logging.info(f"已更新用户 {auth_username} 的 school_account {school_username} 的密码和UA")
+    
+    def _get_school_account_password(self, auth_username, school_username):
+        """
+        获取指定认证用户的某个 school_account 的密码。
+        
+        参数:
+            auth_username: 认证用户名
+            school_username: 学校账户用户名
+        
+        返回:
+            密码字符串，如果不存在则返回 None
+        """
+        if not auth_username or auth_username == 'guest':
+            return None
+        
+        accounts = self._load_user_school_accounts(auth_username)
+        account_data = accounts.get(school_username)
+        
+        # 处理旧格式（字符串）和新格式（字典）
+        if isinstance(account_data, str):
+            return account_data
+        elif isinstance(account_data, dict):
+            return account_data.get('password')
+        return None
+    
+    def _get_school_account_ua(self, auth_username, school_username):
+        """
+        获取指定认证用户的某个 school_account 的UA。
+        
+        参数:
+            auth_username: 认证用户名
+            school_username: 学校账户用户名
+        
+        返回:
+            UA字符串，如果不存在则返回 None
+        """
+        if not auth_username or auth_username == 'guest':
+            return None
+        
+        accounts = self._load_user_school_accounts(auth_username)
+        account_data = accounts.get(school_username)
+        
+        # 只有新格式（字典）才有UA
+        if isinstance(account_data, dict):
+            return account_data.get('ua', '')
+        return None
+
     def _save_config(self, username, password=None, ua=None):
         """保存指定用户的配置到 user/<username>.ini；当 password 为 None 时保留现有密码；当 ua 为 None 时保留现有 UA。同时更新主 config.ini 的 LastUser 和 amap_js_key。"""
         logging.debug(
@@ -3945,6 +4454,13 @@ class Api:
         except Exception as e:
             logging.error(f"写入用户配置文件 {user_ini_path} 失败: {e}", exc_info=True)
             # 可以选择在这里向上抛出异常或返回错误状态
+        
+        # --- 7.5. 保存到 auth_username 的 school_accounts 文件 ---
+        # 如果有密码且当前有认证用户，保存到 user_accounts/<auth_username>.json
+        if password is not None and hasattr(self, 'auth_username') and self.auth_username:
+            self._update_school_account_password(
+                self.auth_username, username, password, ua, login_verified=False
+            )
 
         # --- 2. 处理主 config.ini 文件 ---
         main_cfg = configparser.RawConfigParser()
@@ -4019,8 +4535,14 @@ class Api:
         # 先将旧配置文件（可能是中文+各种编码）规范化为英文+UTF-8
         self.normalize_chinese_config_to_english(self.user_config_path)
 
-        cfg = configparser.ConfigParser()
-        cfg.read(self.user_config_path, encoding='utf-8')
+        # 修正：设置 strict=False 以允许配置文件中存在重复选项（容错）
+        # 并添加 try-except 块处理其他可能的读取错误
+        cfg = configparser.ConfigParser(strict=False)
+        try:
+            cfg.read(self.user_config_path, encoding='utf-8')
+        except Exception as e:
+            logging.warning(f"解析用户配置文件 {username} 时出错 (已忽略): {e}")
+
         password = cfg.get('Config', 'Password', fallback='')
         if not password:
             # 如果密码为空，尝试从原始文件中扫描 "Password=" 或 "密码="，以兼容规范化失败的情况
@@ -4040,13 +4562,28 @@ class Api:
                                     break
             except Exception:
                 pass
+        
+        # 初始化 ua 变量，防止 UnboundLocalError
+        ua = None
+
+        # 尝试从 auth_username 的 school_accounts 加载密码和UA（优先级更高）
+        if hasattr(self, 'auth_username') and self.auth_username:
+            school_password = self._get_school_account_password(self.auth_username, username)
+            school_ua = self._get_school_account_ua(self.auth_username, username)
+            if school_password:
+                password = school_password
+                logging.debug(f"从用户 {self.auth_username} 的 school_accounts 加载了 {username} 的密码")
+            if school_ua:
+                ua = school_ua
+                logging.debug(f"从用户 {self.auth_username} 的 school_accounts 加载了 {username} 的UA")
 
         # 加载的配置应该应用到正确的对象上
         target_params = self.params
         if self.is_multi_account_mode and username in self.accounts:
             target_params = self.accounts[username].params
 
-        ua = cfg.get('System', 'UA', fallback="")
+        if not ua:
+            ua = cfg.get('System', 'UA', fallback="")
         if self.is_multi_account_mode and username in self.accounts:
             self.accounts[username].device_ua = ua
         else:
@@ -4125,8 +4662,74 @@ class Api:
             logging.info("API调用: get_initial_data - 获取应用初始数据（用户列表和最后登录用户）")
 
             # 获取当前已有的用户配置文件列表
-            users = sorted([os.path.splitext(f)[0]
+            all_users = sorted([os.path.splitext(f)[0]
                             for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+
+            # 检查认证状态
+            is_authenticated = hasattr(
+                self, 'is_authenticated') and self.is_authenticated
+            auth_username = getattr(self, 'auth_username', None)
+            auth_group = getattr(self, 'auth_group', 'guest')
+            is_guest = getattr(self, 'is_guest', False)
+
+            # ========== 权限检查：根据用户权限过滤可见的用户列表 ==========
+            # 这是一个关键的安全功能，防止普通用户看到或访问其他用户的账户
+            if is_guest:
+                # 游客不返回任何用户列表
+                # 游客没有任何权限，不应该看到任何学校账户
+                users = []
+                logging.debug(f"游客用户请求 get_initial_data，返回空用户列表")
+            elif auth_username and not is_guest:
+                # 已认证的非游客用户：需要检查 auto_fill_password 权限
+                # 此权限决定用户是否可以查看和自动填充所有学校账户的密码
+                
+                # 第一步：检查是否有 auto_fill_password 权限
+                has_view_all_permission = False
+                
+                # 方法1：检查用户组（管理员自动拥有此权限）
+                if auth_group in ['admin', 'super_admin']:
+                    has_view_all_permission = True
+                    logging.debug(f"用户 {auth_username} 是管理员，拥有查看所有账户的权限")
+                elif hasattr(self, 'auth_system'):
+                    # 方法2：使用 auth_system 检查权限（支持差分化授权）
+                    # 即使用户不是管理员，也可能通过 user_custom_permissions 获得此权限
+                    try:
+                        has_view_all_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
+                        if has_view_all_permission:
+                            logging.debug(f"用户 {auth_username} 通过自定义权限获得了查看所有账户的权限")
+                    except Exception as e:
+                        # 权限检查失败（例如 auth_system 不可用），保持 False
+                        logging.warning(f"检查用户 {auth_username} 的 auto_fill_password 权限时出错: {e}")
+                        pass
+                
+                # 第二步：根据权限决定返回的用户列表
+                if has_view_all_permission:
+                    # 有权限的用户可以查看所有 .ini 文件（所有学校账户）
+                    # 这允许管理员管理和查看所有学校账户的信息
+                    users = all_users
+                    logging.debug(f"用户 {auth_username} 有权限，返回所有 {len(users)} 个学校账户")
+                else:
+                    # 普通用户只能看到自己的账户（从 school_accounts/<auth_username>.json 加载）
+                    # 这是关键的安全措施：防止普通用户访问其他用户的账户密码
+                    users = []
+                    
+                    # 加载该认证用户自己的学校账户列表
+                    # _load_user_school_accounts 返回格式：{school_username: {"password": "xxx", "ua": "xxx"}, ...}
+                    school_accounts = self._load_user_school_accounts(auth_username)
+                    
+                    if school_accounts:
+                        # 提取所有学校账户的用户名（键）
+                        users = list(school_accounts.keys())
+                        logging.debug(f"普通用户 {auth_username} 无全局权限，返回其自己的 {len(users)} 个学校账户")
+                    else:
+                        # 如果该用户还没有任何学校账户，返回空列表
+                        logging.debug(f"普通用户 {auth_username} 还没有任何学校账户")
+            else:
+                # 未认证用户：返回所有用户列表（向后兼容旧版本逻辑）
+                # 注意：这可能是一个安全风险，但为了向后兼容保留
+                # 建议在未来版本中要求用户必须先认证才能访问
+                users = all_users
+                logging.debug(f"未认证用户请求 get_initial_data，返回所有 {len(users)} 个账户（向后兼容）")
 
             # 读取全局配置
             cfg = configparser.RawConfigParser()
@@ -4140,7 +4743,7 @@ class Api:
             last_user = cfg.get('Config', 'LastUser', fallback="").strip()
 
             # 如果 last_user 不为空但对应的 .ini 不存在，则清空并写回
-            if last_user and last_user not in users:
+            if last_user and last_user not in all_users:
                 logging.warning(f"LastUser '{last_user}' 不存在对应的 .ini，自动清空。")
                 cfg.set('Config', 'LastUser', '')
                 try:
@@ -4163,13 +4766,6 @@ class Api:
             logging.debug(
                 f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
 
-            # 检查认证状态
-            is_authenticated = hasattr(
-                self, 'is_authenticated') and self.is_authenticated
-            auth_username = getattr(self, 'auth_username', None)
-            auth_group = getattr(self, 'auth_group', 'guest')
-            is_guest = getattr(self, 'is_guest', False)
-
             # [代码片段 2.1：替换掉旧的 return 语句]
             # 构造返回字典
             response_data = {
@@ -4183,7 +4779,9 @@ class Api:
                 "is_authenticated": is_authenticated,
                 "auth_username": auth_username,
                 "auth_group": auth_group,
-                "is_guest": is_guest
+                "is_guest": is_guest,
+                # [修复] 添加多账号模式状态，用于会话恢复和PC/移动端切换
+                "is_multi_account_mode": getattr(self, 'is_multi_account_mode', False)
             }
 
             # [BUG 2 修复] 如果是已登录状态（会话恢复），则从实例中提取 device_ua
@@ -4318,11 +4916,81 @@ class Api:
 
     def on_user_selected(self, username):
         # return
-        """当用户在登录界面选择一个已有用户时调用"""
+        """
+        当用户在登录界面选择一个已有用户时调用。
+        
+        功能说明：
+        - 返回选中用户的密码、UA和其他配置信息
+        - 用于自动填充登录表单
+        
+        权限检查（安全增强）：
+        - 管理员或有 auto_fill_password 权限的用户：可以查看所有学校账户的密码
+        - 普通用户：只能查看自己的学校账户列表中的密码
+        - 未认证用户：向后兼容，可以查看所有账户（但建议在未来版本中移除）
+        
+        参数:
+            username: 选中的学校账户用户名
+            
+        返回:
+            字典，包含 password, ua, params, userInfo
+        """
         logging.info(
             f"API调用: on_user_selected - 用户选择事件触发，选中的用户名: '{username}'")
+        
+        # ========== 输入验证 ==========
+        # 如果没有提供用户名，返回空数据
         if not username:
             return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
+        
+        # ========== 关键安全增强：权限检查 ==========
+        # 获取当前认证用户的信息
+        auth_username = getattr(self, 'auth_username', None)  # 当前认证用户名
+        auth_group = getattr(self, 'auth_group', 'guest')  # 用户组
+        is_guest = getattr(self, 'is_guest', False)  # 是否是游客
+        is_authenticated = hasattr(self, 'is_authenticated') and self.is_authenticated  # 是否已认证
+        
+        # 只对已认证的非游客用户进行权限检查
+        if is_authenticated and auth_username and not is_guest:
+            # 第一步：检查是否有 auto_fill_password 权限
+            has_view_all_permission = False
+            
+            # 方法1：检查用户组（管理员自动拥有此权限）
+            if auth_group in ['admin', 'super_admin']:
+                has_view_all_permission = True
+                logging.debug(f"用户 {auth_username} 是管理员，可以查看所有账户密码")
+            elif hasattr(self, 'auth_system'):
+                # 方法2：使用 auth_system 检查权限（支持差分化授权）
+                try:
+                    has_view_all_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
+                    if has_view_all_permission:
+                        logging.debug(f"用户 {auth_username} 通过自定义权限获得了查看所有账户密码的权限")
+                except Exception as e:
+                    # 权限检查失败，保持 False
+                    logging.warning(f"检查用户 {auth_username} 的 auto_fill_password 权限时出错: {e}")
+                    pass
+            
+            # 第二步：如果用户没有全局权限，检查是否在其授权列表中
+            if not has_view_all_permission:
+                # 普通用户只能查看自己的学校账户列表中的账户
+                # 加载该认证用户自己的学校账户列表
+                school_accounts = self._load_user_school_accounts(auth_username)
+                
+                # 检查请求的 username 是否在该用户的授权列表中
+                if not school_accounts or username not in school_accounts:
+                    # 权限不足：用户试图访问不属于他的账户
+                    logging.warning(
+                        f"权限拒绝: 普通用户 {auth_username} 试图访问未授权的学校账户 {username}"
+                    )
+                    # 返回空数据，不泄露任何信息
+                    # 前端会显示为"未保存密码"或"新用户"
+                    return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
+                else:
+                    # 权限验证通过：该账户在用户的授权列表中
+                    logging.debug(f"权限验证通过: 用户 {auth_username} 可以访问其学校账户 {username}")
+        
+        # ========== 权限检查通过或未启用认证，继续加载数据 ==========
+        # 从配置文件加载密码
+        # _load_config 会读取 school_accounts/<username>.ini 文件
         password = self._load_config(username)
 
         # 修复：如果配置文件不存在（password返回None），UA应该返回空字符串
@@ -4331,10 +4999,16 @@ class Api:
             ua = ""
         else:
             ua = self.device_ua or ""
+        
+        # 记录调试日志（不记录真实密码，只记录是否存在）
         logging.debug(
             f"on_user_selected: username={username}, ua={ua}, password={'***' if password else 'empty'}")
+        
+        # 构建用户信息字典
         info = {"name": self.user_data.name,
                 "student_id": self.user_data.student_id}
+        
+        # 返回完整数据
         return {"password": password or "", "ua": ua, "params": self.params, "userInfo": info}
 
     def generate_new_ua(self):
@@ -4369,7 +5043,7 @@ class Api:
         resp = self.api_client.login(input_username, password)
         if not resp or not resp.get('success'):
             msg = resp.get('message', '未知错误') if resp else '网络连接失败'
-            self.log(f"登录失败：{msg}")
+            self.log(f"服务器反馈登录失败：{msg}")
             logging.warning(f"用户登录失败: {msg}")
             return {"success": False, "message": msg}
 
@@ -4397,11 +5071,43 @@ class Api:
         ud.school_name = dept_info.get('schoolName', '')
         ud.attribute_type = dept_info.get('typeValue', '')
 
+        # ---备份 user_info 到 school_accounts/<username>_backup.json ---
+        try:
+            # 确保 self.user_dir (即 school_accounts) 存在
+            if ud.username and os.path.exists(self.user_dir):
+                backup_filename = f"{ud.username}_backup.json"
+                backup_filepath = os.path.join(self.user_dir, backup_filename)
+                
+                # 将 user_info 和 dept_info 合并备份
+                backup_data = {
+                    'userInfo': user_info,
+                    'deptInfo': dept_info,
+                    'backup_timestamp': time.time()
+                }
+                
+                with open(backup_filepath, 'w', encoding='utf-8') as f:
+                    json.dump(backup_data, f, indent=2, ensure_ascii=False)
+                
+                logging.info(f"已成功备份 user_info 到: {backup_filepath}")
+            elif not ud.username:
+                logging.warning("备份 user_info 失败：无法确定用户名(学号)")
+            
+        except Exception as e:
+            logging.error(f"备份 user_info 失败: {e}", exc_info=True)
+            # 备份失败不应阻止登录流程，仅记录日志
+
         # 至此，ud.username 已经是“用于保存配置的主键”（学号优先）
         # 现在再保存配置（文件名与 LastUser 都用 ud.username）
         self._save_config(ud.username, password, self.device_ua)
+        
+        # 登录成功后，更新 school_account 密码和UA（使用 login_verified=True）
+        if hasattr(self, 'auth_username') and self.auth_username:
+            self._update_school_account_password(
+                self.auth_username, ud.username, password, self.device_ua, login_verified=True
+            )
+            logging.info(f"已更新认证用户 {self.auth_username} 的 school_account {ud.username} 密码和UA（登录验证成功）")
 
-        # --- 新增：登录成功后，立即获取并缓存签到半径 ---
+        # --- 登录成功后，立即获取并缓存签到半径 ---
         try:
             # None 表示这是在单账号模式下调用
             self._fetch_server_attendance_radius_if_needed(
@@ -4410,7 +5116,6 @@ class Api:
             self.log(f"获取签到半径失败: {e}")
             logging.warning(
                 f"Failed to fetch attendance radius post-login: {e}")
-        # --- 结束新增 ---
 
         self._first_center_done = False
         logging.info(
@@ -4434,7 +5139,7 @@ class Api:
 
         # 构造要返回给前端的 userInfo 字典
         user_info_dict = self._get_full_user_info_dict()
-        # --- 新增：将获取到的半径附加到返回信息中 ---
+        # --- 将获取到的半径附加到返回信息中 ---
         user_info_dict['server_attendance_radius_m'] = self.server_attendance_radius_m
 
         # 修复Issue 5: 设置登录状态标志用于会话持久化
@@ -4443,7 +5148,7 @@ class Api:
         logging.info(
             f"会话状态已保存: login_success={self.login_success}, user_id={ud.id}")
 
-        # --- 新增：预加载前5条通知并缓存到会话 ---
+        # --- 预加载前5条通知并缓存到会话 ---
         cached_notifications = None
         try:
             logging.info("登录成功后预加载前5条通知...")
@@ -4459,9 +5164,9 @@ class Api:
                 logging.info(f"成功预加载并缓存 {len(cached_notifications['notices'])} 条通知")
         except Exception as e:
             logging.warning(f"预加载通知失败（非致命错误）: {e}")
-        # --- 结束预加载通知 ---
 
-        # --- 新增: 在成功登录的返回结果中包含 auth_group ---
+
+        # --- 在成功登录的返回结果中包含 auth_group ---
         auth_group = getattr(self, 'auth_group', 'guest')  # 从 Api 实例获取认证时确定的组
 
         return {
@@ -5903,9 +6608,10 @@ class Api:
                     run_data = self.all_run_data[idx]
 
                 if not run_data.target_points:
-                    self.log(f"任务 '{run_data.run_name}' 无打卡点，无法自动生成，跳过。")
+                    # 任务25: 记录无打卡点日志，使用明确的提示格式
+                    self.log(f"跳过: 任务 '{run_data.run_name}' 无打卡点")
                     logging.warning(
-                        f"Skipping task {run_data.run_name}: no target points for auto-generation.")
+                        f"[Task Skipped] No checkpoints for task {run_data.run_name}, cannot auto-generate path.")
                     continue
 
                 # 2) 触发前端JS路径规划，使用与多账号相同的回调机制
@@ -6130,6 +6836,35 @@ class Api:
             except (ValueError, TypeError) as e:
                 return {"success": False, "message": str(e)}
         return {"success": False, "message": "Unknown parameter"}
+
+    def get_params(self):
+        """
+        获取当前参数配置
+        
+        功能说明：
+        - 用于前端获取所有参数配置，包括主题颜色、主题风格等
+        - 在多账号模式下返回全局参数
+        - 在单账号模式下返回当前账号的参数
+        
+        返回:
+            dict: 包含所有参数的字典
+        """
+        try:
+            # 根据模式返回对应的参数
+            if self.is_multi_account_mode:
+                return self.global_params.copy()
+            else:
+                return self.params.copy()
+        except Exception as e:
+            logging.error(f"获取参数失败: {e}", exc_info=True)
+            # 返回默认参数
+            return {
+                "theme_base_color": "#7dd3fc",
+                "theme_style": "default",
+                "auto_attendance_enabled": False,
+                "auto_attendance_refresh_s": 30,
+                "attendance_user_radius_m": 40
+            }
 
     def export_task_data(self):
         """导出当前任务数据为JSON文件（Web模式：返回JSON数据让前端下载）"""
@@ -6429,6 +7164,43 @@ class Api:
         self.log("进入单账号模式。")
         return {"success": True}
 
+    def exit_single_account_mode(self):
+        """
+        退出单账号模式
+        
+        功能说明：
+        - 用于移动端退出单账号模式，返回会话选择界面
+        - 清理当前会话状态，但保留认证信息
+        - 停止所有正在运行的任务
+        
+        返回:
+            dict: {"success": True} 表示退出成功
+        """
+        try:
+            # 停止当前运行的任务
+            if hasattr(self, 'stop_event'):
+                self.stop_event.set()
+            
+            # 如果有工作线程，等待其结束
+            if hasattr(self, 'worker_thread') and self.worker_thread and self.worker_thread.is_alive():
+                self.worker_thread.join(timeout=1.0)
+            
+            # 清空路径规划回调，避免延迟回传
+            if hasattr(self, 'path_gen_callbacks'):
+                for key, (path_result, completion_event) in list(self.path_gen_callbacks.items()):
+                    path_result['error'] = '退出单账号模式已取消'
+                    try:
+                        completion_event.set()
+                    except Exception:
+                        pass
+                self.path_gen_callbacks.clear()
+            
+            self.log("已退出单账号模式")
+            return {"success": True}
+        except Exception as e:
+            logging.error(f"退出单账号模式失败: {e}", exc_info=True)
+            return {"success": False, "message": f"退出失败: {str(e)}"}
+
     def get_session_mode_info(self):
         """获取会话模式信息（单账号/多账号），用于页面刷新时恢复状态"""
         mode_info = {
@@ -6491,11 +7263,22 @@ class Api:
         users = sorted([os.path.splitext(f)[0]
                        for f in os.listdir(self.user_dir) if f.endswith(".ini")])
         loaded_count = 0
+        accounts_missing_password = []
         for username in users:
             if username not in self.accounts:
-                self.multi_add_account(username, "")
-                loaded_count += 1
+                # 内部调用 multi_add_account 并检查其返回值
+                add_result = self.multi_add_account(username, "")
+                if add_result and add_result.get('action') == 'request_password':
+                    # 修正：存储完整的对象(包含username和tag)
+                    accounts_missing_password.append({
+                        "username": add_result.get("username"),
+                        "tag": add_result.get("tag")
+                    })
+                elif add_result and add_result.get('success'):
+                    loaded_count += 1
         self.log(f"已加载 {loaded_count} 个账号。")
+        if accounts_missing_password:
+            self.log(f"发现 {len(accounts_missing_password)} 个账号缺少密码，等待用户手动添加。")
         self._update_multi_global_buttons()
 
         # # 批量加载后立即触发一次“刷新全部”，便于自动拉取状态与汇总
@@ -6504,7 +7287,9 @@ class Api:
         # except Exception:
         #     logging.error(f"触发刷新全部失败: {traceback.format_exc()}")
 
-        return self.multi_get_all_accounts_status()
+        final_status = self.multi_get_all_accounts_status()
+        final_status['accounts_missing_password'] = accounts_missing_password
+        return final_status
 
     def multi_add_account(self, username, password, tag=None):
         """模式二：手动或选择性添加账号
@@ -6585,20 +7370,9 @@ class Api:
             except Exception:
                 pass
             self.log(f"账号 {username} 缺少密码，已弹出输入框以完善密码。")
-            if self.window:
-                # 复用已有的“新用户”模态框，预填用户名
-                js = (
-                    f'openNewUserModal();'
-                    f'document.getElementById("newUsername").value = {json.dumps(username)};'
-                    f'document.getElementById("newPassword").value = "";'
-                )
-                try:
-                    self.window.evaluate_js(js)
-                except Exception:
-                    logging.debug("打开新用户模态框失败（非致命错误）")
-            # 返回当前状态列表（不新增该账号）
-            self._update_multi_global_buttons()
-            return self.multi_get_all_accounts_status()
+            # [修正] 返回一个特定动作，由前端JS处理弹窗
+            # 修正：同时返回tag，以便前端预填充
+            return {"success": False, "message": "缺少密码", "action": "request_password", "username": username, "tag": final_tag}
 
         # 检查是否需要首次验证
         # 如果导入的密码与已有配置文件中的密码不同，或者配置文件不存在，则需要首次验证
@@ -7934,7 +8708,9 @@ class Api:
                 waypoints = [(float(p['lon']), float(p['lat'])) for p in details.get(
                     'geoCoorList', []) if p.get('lon') is not None]
                 if not waypoints:
-                    acc.log(f"任务无打卡点，无法自动规划，跳过。")
+                    # 任务25: 记录无打卡点日志，便于追溯
+                    task_name = details.get('title', run_data.run_name)
+                    acc.log(f"跳过: 任务 '{task_name}' 无打卡点")
                     continue
                 run_data.target_points = waypoints
 
@@ -8830,18 +9606,11 @@ class Api:
 
                 # 读取刷新间隔，并设置合理的默认值和最小值
                 refresh_interval_s = self.params.get(
-                    "auto_attendance_refresh_s", 60)  # 默认60秒
+                    "auto_attendance_refresh_s", 30)  # 默认30秒
                 # 确保间隔不小于一个最小值，例如15秒，防止过高频率
                 refresh_interval_s = max(15, refresh_interval_s)
 
-                # (修复：将等待日志移到 wait 之前)
-                # self.log(f"自动刷新: 等待 {refresh_interval_s} 秒...")
-
-                # 使用 wait() 替代 time.sleep()，以便在等待期间可以被 'stop_auto_refresh.set()' 立即中断
-                if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
-                    break  # 如果在等待时收到停止信号，则退出循环
-
-                # 再次检查登录状态 (可能在等待时退出了)
+                # 再次检查登录状态
                 if (self.is_multi_account_mode or not self.user_data.id):
                     continue
 
@@ -8882,6 +9651,12 @@ class Api:
                 else:
                     # 如果未启用，则不执行任何操作也不记录日志，保持安静
                     pass
+
+                # 问题15修复：刷新完成后等待，减轻服务器负担
+                self.log(f"自动刷新完成，等待 {refresh_interval_s} 秒后再次刷新...")
+                # 使用 wait() 替代 time.sleep()，以便在等待期间可以被 'stop_auto_refresh.set()' 立即中断
+                if self.stop_auto_refresh.wait(timeout=refresh_interval_s):
+                    break  # 如果在等待时收到停止信号，则退出循环
 
             except Exception as e:
                 self.log(f"自动刷新线程出错: {e}")
@@ -9118,12 +9893,59 @@ def check_port_available(host, port):
 # ==============================================================================
 
 
+IP_CACHE_FILE = os.path.join('logs', 'ip_location_cache.json')
+ip_location_cache = {}  # 内存缓存
+ip_cache_lock = threading.Lock()  # 线程安全锁
+CACHE_DURATION_SECONDS = 86400  # 缓存有效期：1天
+
+def _load_ip_cache():
+    """启动时加载IP归属地缓存文件"""
+    global ip_location_cache
+    if not os.path.exists(IP_CACHE_FILE):
+        logging.info("[IP缓存] 缓存文件不存在，将创建新缓存")
+        return
+    
+    with ip_cache_lock:
+        try:
+            with open(IP_CACHE_FILE, 'r', encoding='utf-8') as f:
+                ip_location_cache = json.load(f)
+            logging.info(f"[IP缓存] 成功加载 {len(ip_location_cache)} 条IP缓存记录")
+        except (json.JSONDecodeError, OSError) as e:
+            logging.warning(f"[IP缓存] 加载缓存文件失败: {e}，将创建新缓存")
+            ip_location_cache = {}
+
+def _save_ip_cache():
+    """保存IP归属地缓存到文件（线程安全）"""
+    with ip_cache_lock:
+        try:
+            # 确保logs目录存在
+            os.makedirs(os.path.dirname(IP_CACHE_FILE), exist_ok=True)
+            # 创建缓存的临时副本以进行写入
+            cache_copy = ip_location_cache.copy()
+            
+            with open(IP_CACHE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(cache_copy, f, indent=2, ensure_ascii=False)
+            logging.debug("[IP缓存] IP缓存已保存到文件")
+        except OSError as e:
+            logging.error(f"[IP缓存] 保存缓存文件失败: {e}")
+        except Exception as e:
+            logging.error(f"[IP缓存] 序列化缓存数据失败: {e}")
+
+
 
 def update_session_activity(session_id):
     """更新会话活动时间"""
     with session_activity_lock:
         session_activity[session_id] = time.time()
 
+
+def update_session_activity(session_id):
+    """更新会话活动时间（线程安全）"""
+    if not session_id:
+        return
+    with session_activity_lock:
+        session_activity[session_id] = time.time()
+        logging.debug(f"[会话活跃] 更新会话 {session_id} 的活跃时间")
 
 def cleanup_session(session_id, reason="manual"):
     """清理指定会话（支持指定原因）"""
@@ -9192,69 +10014,133 @@ def cleanup_inactive_session(session_id):
 
 
 def monitor_session_inactivity():
-    """监控会话不活跃状态并清理（5分钟无活动）"""
+    """
+    监控会话不活跃状态并清理 (已优化)
+    
+    功能说明：
+    1. 定期检查所有会话。
+    2. 如果会话有正在执行的跑步任务或自动签到任务，则自动更新其“最后活跃时间”。
+    3. 如果会话没有活跃任务，则检查其“最后活跃时间”是否超时。
+    4. 如果超时，则调用 cleanup_inactive_session 清理该会话。
+    """
+    # 从config.ini读取配置参数
+    check_interval = 60
+    inactivity_timeout = 300
+    
+    try:
+        if os.path.exists('config.ini'):
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            if config.has_section('System'):
+                check_interval = config.getint('System', 'session_monitor_check_interval', fallback=60)
+                inactivity_timeout = config.getint('System', 'session_inactivity_timeout', fallback=300)
+        
+        logging.info(f"会话监控配置：检查间隔={check_interval}秒，不活跃超时={inactivity_timeout}秒")
+    except Exception as e:
+        logging.warning(f"读取会话监控配置失败，使用默认值: {e}")
+    
     while True:
         try:
-            time.sleep(60)  # 每分钟检查一次
-
+            # 按配置的间隔时间进行检查
+            time.sleep(check_interval)
+            
             current_time = time.time()
-            inactive_sessions = []
+            inactive_sessions_to_cleanup = []
+            active_sessions_to_update = []
 
-            with session_activity_lock:
-                for session_id, last_activity in list(session_activity.items()):
-                    # 检查是否在登录页面且5分钟无活动
-                    if current_time - last_activity > 300:  # 5分钟 = 300秒
-                        with web_sessions_lock:
-                            if session_id in web_sessions:
-                                api_instance = web_sessions[session_id]
-                                # 只清理已认证但未登录应用的会话
-                                is_authenticated = getattr(
-                                    api_instance, 'is_authenticated', False)
-                                is_logged_in = getattr(
-                                    api_instance, 'login_success', False)
+            if len(web_sessions) > 0:
+                # 1. 锁定 web_sessions 以安全迭代
+                with web_sessions_lock:
+                    logging.debug(f"[会话监控] 开始检查 {len(web_sessions)} 个内存会话...")
+                    
+                    # 遍历所有在内存中的会话
+                    for session_id, api_instance in list(web_sessions.items()):
+                        
+                        if not api_instance:
+                            inactive_sessions_to_cleanup.append(session_id)
+                            continue
 
-                                # 检查是否有任务正在执行
-                                has_active_task = False
+                        # --- 核心逻辑：检查该会话是否有活跃任务 ---
+                        has_active_task = False
+                        
+                        try:
+                            # 1. 检查单账号模式：跑步任务是否正在执行
+                            if hasattr(api_instance, 'stop_run_flag') and not api_instance.stop_run_flag.is_set():
+                                has_active_task = True
+                                logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有单账号跑步任务正在执行")
+                            
+                            # 2. 检查多账号模式：跑步任务是否正在执行
+                            if not has_active_task and hasattr(api_instance, 'multi_run_stop_flag') and not api_instance.multi_run_stop_flag.is_set():
+                                has_active_task = True
+                                logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有多账号跑步任务正在执行")
 
-                                # 单账号模式：检查是否有跑步任务正在执行
-                                if hasattr(api_instance, 'stop_run_flag'):
-                                    has_active_task = has_active_task or not api_instance.stop_run_flag.is_set()
+                            # 3. 检查单账号模式：自动签到线程是否正在运行
+                            if not has_active_task and hasattr(api_instance, 'auto_refresh_thread'):
+                                thread = api_instance.auto_refresh_thread
+                                if thread is not None and thread.is_alive():
+                                    has_active_task = True
+                                    logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有单账号自动签到任务正在执行")
 
-                                # 单账号模式：检查自动签到是否正在运行
-                                if hasattr(api_instance, 'auto_refresh_thread'):
-                                    thread = api_instance.auto_refresh_thread
-                                    has_active_task = has_active_task or (
-                                        thread is not None and thread.is_alive())
+                            # 4. 检查多账号模式：自动签到线程是否正在运行
+                            if not has_active_task and hasattr(api_instance, 'multi_auto_refresh_thread'):
+                                thread = api_instance.multi_auto_refresh_thread
+                                if thread is not None and thread.is_alive():
+                                    has_active_task = True
+                                    logging.debug(f"[会话监控] 会话 {session_id[:8]}... 有多账号自动签到任务正在执行")
 
-                                # 多账号模式：检查多账号自动签到是否正在运行
-                                if hasattr(api_instance, 'multi_auto_refresh_thread'):
-                                    thread = api_instance.multi_auto_refresh_thread
-                                    has_active_task = has_active_task or (
-                                        thread is not None and thread.is_alive())
+                            # 5. 检查多账号模式：各个子账号的任务线程是否正在运行
+                            if not has_active_task and getattr(api_instance, 'is_multi_account_mode', False) and hasattr(api_instance, 'accounts'):
+                                for acc in api_instance.accounts.values():
+                                    if hasattr(acc, 'worker_thread') and acc.worker_thread and acc.worker_thread.is_alive():
+                                        has_active_task = True
+                                        logging.debug(f"[会话监控] 会话 {session_id[:8]}... 的多账号子账号有任务正在执行")
+                                        break  # 找到一个即可
+                        
+                        except Exception as e:
+                            logging.error(f"[会话监控] 检查会话 {session_id[:8]}... 活跃状态时出错: {e}")
+                            # 出现异常时，保守起见，视为活跃
+                            has_active_task = True
 
-                                # 多账号模式：检查是否有账号的任务线程正在运行
-                                if hasattr(api_instance, 'multi_accounts'):
-                                    for acc in api_instance.multi_accounts:
-                                        if hasattr(acc, 'worker_thread'):
-                                            thread = acc.worker_thread
-                                            has_active_task = has_active_task or (
-                                                thread is not None and thread.is_alive())
+                        # --- 根据活跃状态决定操作 ---
+                        if has_active_task:
+                            # 如果有活跃任务，则将其加入“更新活跃时间”列表
+                            active_sessions_to_update.append(session_id)
+                        else:
+                            # 如果没有活跃任务，检查是否超时
+                            last_activity = 0
+                            # 嵌套锁定 session_activity_lock 来读取时间
+                            with session_activity_lock:
+                                # 满足用户要求：尝试读取，如果未定义，默认为0 (即“空”)
+                                last_activity = session_activity.get(session_id, 0)
+                            
+                            # 只有在 last_activity > 0 (即至少活跃过一次) 且超时的情况下才清理
+                            if last_activity > 0 and (current_time - last_activity > inactivity_timeout):
+                                inactive_sessions_to_cleanup.append(session_id)
+                                time_since_activity = current_time - last_activity
+                                logging.debug(
+                                    f"[会话监控] 会话 {session_id[:8]}... 标记为不活跃（超时{int(time_since_activity)}秒，无任务执行）")
+                
+            # --- 2. 释放 web_sessions_lock ---
 
-                                # 只清理：已认证但未登录应用，并且没有任务正在执行的会话
-                                if is_authenticated and not is_logged_in and not has_active_task:
-                                    inactive_sessions.append(session_id)
-                                    logging.debug(
-                                        f"会话 {session_id[:32]}... 标记为不活跃（无任务执行）")
-                                elif has_active_task:
-                                    logging.debug(
-                                        f"会话 {session_id[:32]}... 有活跃任务，跳过清理")
+            # 3. 批量更新活跃会话的时间（在主循环外）
+            if active_sessions_to_update:
+                logging.debug(f"[会话监控] 更新 {len(active_sessions_to_update)} 个活跃会话的时间...")
+                # 重新获取锁以进行写操作
+                with session_activity_lock:
+                    for session_id in active_sessions_to_update:
+                        session_activity[session_id] = current_time
 
-            # 清理不活跃会话
-            for session_id in inactive_sessions:
-                cleanup_inactive_session(session_id)
-
+            # 4. 批量清理不活跃会话
+            if inactive_sessions_to_cleanup:
+                logging.info(f"[会话监控] 准备清理 {len(inactive_sessions_to_cleanup)} 个不活跃会话...")
+                for session_id in inactive_sessions_to_cleanup:
+                    # cleanup_inactive_session 包含自己的锁，是安全的
+                    cleanup_inactive_session(session_id)
+        
         except Exception as e:
-            logging.error(f"会话监控线程错误: {e}")
+            logging.error(f"会话监控线程错误: {e}", exc_info=True)
+            # 即使出错，也继续下一次循环
+            time.sleep(check_interval) # 发生错误时也保持间隔休眠
 
 # 启动会话监控线程
 
@@ -9439,7 +10325,7 @@ def save_session_state(session_id, api_instance, force_save=False):
             # 如果是多账号模式，保存多账号相关信息
             if getattr(api_instance, 'is_multi_account_mode', False):
 
-                # --- [BUG修复] 保存多账号列表的状态 ---
+                
                 # 保存全局参数
                 if hasattr(api_instance, 'global_params'):
                     global_params_to_save = api_instance.global_params.copy()
@@ -9457,7 +10343,7 @@ def save_session_state(session_id, api_instance, force_save=False):
                         account_state = {
                             # 'username': username, # 键名就是 username，无需重复
                             'status_text': getattr(account_session, 'status_text', '待命'),
-                            'school_account_logged_in': getattr(account_session, 'login_success', False),
+                            'school_account_logged_in': bool(getattr(account_session, 'user_data', None) and getattr(account_session.user_data, 'id', '')) and getattr(account_session, 'is_first_login_verified', False),
                             
                             # [BUG 修复] 必须保存 summary 字典，UI 恢复依赖此信息
                             'summary': getattr(account_session, 'summary', {}),
@@ -9495,7 +10381,7 @@ def save_session_state(session_id, api_instance, force_save=False):
                         account_state = {
                             # 'username': username, # 键名就是 username，无需重复
                             'status_text': getattr(account_session, 'status_text', '待命'),
-                            'school_account_logged_in': getattr(account_session, 'login_success', False),
+                            'school_account_logged_in': bool(getattr(account_session, 'user_data', None) and getattr(account_session.user_data, 'id', '')) and getattr(account_session, 'is_first_login_verified', False),
                             
                             # [BUG 修复] 必须保存 summary 字典，UI 恢复依赖此信息
                             'summary': getattr(account_session, 'summary', {}),
@@ -9646,7 +10532,6 @@ def cleanup_expired_sessions():
     清理过期的会话文件（7天未访问）
 
     此函数遍历所有会话文件，删除超过7天未访问的会话。
-    建议在应用启动时调用一次，以及定期后台调用。
     """
     try:
         if not os.path.exists(SESSION_STORAGE_DIR):
@@ -10834,7 +11719,8 @@ def _cleanup_playwright():
     if chrome_pool:
         logging.info("捕获到程序退出信号，正在清理 Playwright 资源...")
         try:
-            chrome_pool.cleanup()
+            # 修正：调用线程本地的清理方法 cleanup_thread()，而不是不存在的 cleanup()
+            chrome_pool.cleanup_thread()
             logging.info("Playwright浏览器自动化框架资源清理完成")
         except Exception as e:
             # 在退出时尽量不抛出新异常，只记录错误
@@ -11010,87 +11896,347 @@ def start_background_auto_attendance(args):
         logging.error(f"启动后台自动签到服务时发生严重错误: {e}", exc_info=True)
 
 
+# ============================================================================
+# SSL/HTTPS 配置和证书管理相关函数
+# 这些函数用于加载、验证和管理SSL证书，支持HTTPS服务
+# ============================================================================
+
+def load_ssl_config():
+    """
+    从config.ini文件加载SSL配置。
+    
+    功能说明：
+    1. 读取配置文件中的[SSL]节
+    2. 解析SSL相关的配置项（启用状态、证书路径、仅HTTPS模式等）
+    3. 返回配置字典供后续使用
+    
+    返回值：
+        dict: 包含SSL配置的字典，键包括：
+            - ssl_enabled (bool): 是否启用SSL
+            - ssl_cert_path (str): 证书文件路径
+            - ssl_key_path (str): 私钥文件路径
+            - https_only (bool): 是否仅允许HTTPS访问
+        如果配置文件不存在或读取失败，返回默认配置（SSL禁用）
+    """
+    # 定义配置文件路径（相对于程序根目录）
+    config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+    
+    # 创建配置解析器对象
+    config = configparser.ConfigParser()
+    
+    # 默认的SSL配置（向后兼容，默认禁用SSL）
+    # 这确保了即使没有配置文件，程序也能正常以HTTP模式运行
+    default_config = {
+        'ssl_enabled': False,         # 默认不启用SSL
+        'ssl_cert_path': 'ssl/fullchain.pem',  # 默认证书路径
+        'ssl_key_path': 'ssl/privkey.key',     # 默认密钥路径
+        'https_only': False           # 默认允许HTTP访问
+    }
+    
+    try:
+        # 尝试读取配置文件
+        # 如果文件不存在，read()方法会返回空列表，不会抛出异常
+        if not os.path.exists(config_file):
+            logging.warning(f"配置文件 {config_file} 不存在，使用默认SSL配置（禁用）")
+            return default_config
+        
+        # 读取配置文件内容
+        config.read(config_file, encoding='utf-8')
+        
+        # 检查[SSL]节是否存在
+        if not config.has_section('SSL'):
+            logging.warning("配置文件中未找到[SSL]节，使用默认SSL配置（禁用）")
+            return default_config
+        
+        # 从配置文件中读取各项配置，使用getboolean和get方法
+        # getboolean会自动将'true'/'false'字符串转换为布尔值
+        ssl_config = {
+            'ssl_enabled': config.getboolean('SSL', 'ssl_enabled', fallback=False),
+            'ssl_cert_path': config.get('SSL', 'ssl_cert_path', fallback='ssl/fullchain.pem'),
+            'ssl_key_path': config.get('SSL', 'ssl_key_path', fallback='ssl/privkey.key'),
+            'https_only': config.getboolean('SSL', 'https_only', fallback=False)
+        }
+        
+        # 记录加载的配置信息（不记录路径细节，避免泄露敏感信息）
+        logging.info(f"SSL配置加载成功: enabled={ssl_config['ssl_enabled']}, https_only={ssl_config['https_only']}")
+        
+        return ssl_config
+        
+    except Exception as e:
+        # 如果读取配置文件时发生任何错误，记录错误并返回默认配置
+        # 这样可以确保程序不会因为配置问题而崩溃
+        logging.error(f"加载SSL配置时发生错误: {e}，使用默认配置（禁用SSL）")
+        return default_config
+
+
+def save_ssl_config(ssl_config):
+    """
+    将SSL配置保存到config.ini文件。
+    
+    参数：
+        ssl_config (dict): 包含SSL配置的字典，键应包括：
+            - ssl_enabled (bool): 是否启用SSL
+            - ssl_cert_path (str): 证书文件路径
+            - ssl_key_path (str): 私钥文件路径
+            - https_only (bool): 是否仅允许HTTPS访问
+    
+    返回值：
+        bool: 保存成功返回True，失败返回False
+    """
+    # 定义配置文件路径
+    config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+    
+    # 创建配置解析器对象
+    config = configparser.ConfigParser()
+    
+    try:
+        # 读取完整的 config.ini 文件到 ConfigParser 对象
+        # 这样可以保留所有现有的节和配置项，而不仅仅是 [SSL] 节
+        if os.path.exists(config_file):
+            config.read(config_file, encoding='utf-8')
+        else:
+            # 如果配置文件不存在，使用默认配置初始化
+            logging.warning("config.ini 文件不存在，将创建新的配置文件")
+            config = _get_default_config()
+        
+        # 确保[SSL]节存在，如果不存在则创建
+        if not config.has_section('SSL'):
+            config.add_section('SSL')
+        
+        # 将字典中的配置写入到[SSL]节
+        # 布尔值会自动转换为'true'/'false'字符串
+        config.set('SSL', 'ssl_enabled', str(ssl_config.get('ssl_enabled', False)).lower())
+        config.set('SSL', 'ssl_cert_path', ssl_config.get('ssl_cert_path', 'ssl/fullchain.pem'))
+        config.set('SSL', 'ssl_key_path', ssl_config.get('ssl_key_path', 'ssl/privkey.key'))
+        config.set('SSL', 'https_only', str(ssl_config.get('https_only', False)).lower())
+        
+        # 使用 _write_config_with_comments 函数写入配置文件
+        # 这个函数会保留所有注释和配置项，不会造成数据丢失
+        _write_config_with_comments(config, config_file)
+        
+        logging.info("SSL配置已成功保存到配置文件")
+        return True
+        
+    except Exception as e:
+        # 记录保存失败的错误信息
+        logging.error(f"保存SSL配置时发生错误: {e}")
+        return False
+
+
+def validate_ssl_certificate(cert_path, key_path):
+    """
+    验证SSL证书文件和密钥文件是否有效。
+    
+    功能说明：
+    1. 检查证书文件和密钥文件是否存在
+    2. 检查文件是否可读
+    3. 验证证书格式和有效期（基础验证）
+    4. 检查证书和密钥是否匹配
+    
+    参数：
+        cert_path (str): 证书文件路径（相对或绝对路径）
+        key_path (str): 密钥文件路径（相对或绝对路径）
+    
+    返回值：
+        tuple: (bool, str, dict)
+            - bool: 验证是否通过
+            - str: 错误消息（验证通过时为空字符串）
+            - dict: 证书信息字典（验证通过时包含证书详细信息，失败时为空）
+    """
+    # 如果路径是相对路径，转换为相对于程序根目录的绝对路径
+    if not os.path.isabs(cert_path):
+        cert_path = os.path.join(os.path.dirname(__file__), cert_path)
+    if not os.path.isabs(key_path):
+        key_path = os.path.join(os.path.dirname(__file__), key_path)
+    
+    # 1. 检查证书文件是否存在
+    if not os.path.exists(cert_path):
+        error_msg = f"证书文件不存在: {cert_path}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 2. 检查密钥文件是否存在
+    if not os.path.exists(key_path):
+        error_msg = f"密钥文件不存在: {key_path}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 3. 检查证书文件是否可读
+    if not os.access(cert_path, os.R_OK):
+        error_msg = f"证书文件不可读（权限不足）: {cert_path}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 4. 检查密钥文件是否可读
+    if not os.access(key_path, os.R_OK):
+        error_msg = f"密钥文件不可读（权限不足）: {key_path}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 5. 尝试读取证书文件内容，验证基本格式
+    try:
+        with open(cert_path, 'r', encoding='utf-8') as f:
+            cert_content = f.read()
+            # 检查是否包含PEM格式的标识头
+            if '-----BEGIN CERTIFICATE-----' not in cert_content:
+                error_msg = f"证书文件格式无效（不是PEM格式）: {cert_path}"
+                logging.error(error_msg)
+                return False, error_msg, {}
+    except Exception as e:
+        error_msg = f"读取证书文件时发生错误: {e}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 6. 尝试读取密钥文件内容，验证基本格式
+    try:
+        with open(key_path, 'r', encoding='utf-8') as f:
+            key_content = f.read()
+            # 检查是否包含PEM格式的标识头（支持多种私钥格式）
+            valid_key_headers = [
+                '-----BEGIN PRIVATE KEY-----',
+                '-----BEGIN RSA PRIVATE KEY-----',
+                '-----BEGIN EC PRIVATE KEY-----',
+                '-----BEGIN DSA PRIVATE KEY-----'
+            ]
+            if not any(header in key_content for header in valid_key_headers):
+                error_msg = f"密钥文件格式无效（不是PEM格式）: {key_path}"
+                logging.error(error_msg)
+                return False, error_msg, {}
+    except Exception as e:
+        error_msg = f"读取密钥文件时发生错误: {e}"
+        logging.error(error_msg)
+        return False, error_msg, {}
+    
+    # 7. 尝试使用OpenSSL库解析证书并提取信息（如果可用）
+    # 注意：这里使用基础的文件验证，更复杂的证书验证需要pyOpenSSL库
+    cert_info = {
+        'cert_path': cert_path,
+        'key_path': key_path,
+        'valid': True,
+        'message': '证书文件格式验证通过'
+    }
+    
+    # 尝试导入ssl模块进行更详细的验证（Python标准库）
+    try:
+        import ssl
+        # 使用ssl.SSLContext来加载证书，这会进行更严格的验证
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(cert_path, key_path)
+        
+        # 如果没有抛出异常，说明证书和密钥匹配且有效
+        cert_info['message'] = '证书和密钥验证通过，可以安全使用'
+        logging.info(f"SSL证书验证成功: {cert_path}")
+        
+    except Exception as e:
+        # 如果ssl模块验证失败，记录警告但不阻止使用
+        # 因为某些环境可能没有完整的SSL支持
+        error_msg = f"SSL证书深度验证失败: {e}，但基础格式验证已通过"
+        logging.warning(error_msg)
+        cert_info['message'] = error_msg
+        # 仍然返回True，因为基础验证已通过
+    
+    return True, "", cert_info
+
+
+def get_ssl_certificate_info(cert_path):
+    """
+    获取SSL证书的详细信息（如有效期、颁发者、主题等）。
+    
+    参数：
+        cert_path (str): 证书文件路径
+    
+    返回值：
+        dict: 包含证书详细信息的字典，失败时返回空字典
+    """
+    # 如果路径是相对路径，转换为绝对路径
+    if not os.path.isabs(cert_path):
+        cert_path = os.path.join(os.path.dirname(__file__), cert_path)
+    
+    # 默认返回值
+    cert_info = {}
+    
+    try:
+        # 导入ssl和OpenSSL相关模块
+        import ssl
+        from datetime import datetime
+        
+        # 读取证书文件
+        with open(cert_path, 'rb') as f:
+            cert_data = f.read()
+        
+        # 使用ssl模块解析证书
+        # 注意：这需要证书是PEM格式
+        from cryptography import x509
+        from cryptography.hazmat.backends import default_backend
+        
+        # 加载证书
+        cert = x509.load_pem_x509_certificate(cert_data, default_backend())
+        
+        # 提取证书信息
+        cert_info = {
+            'subject': cert.subject.rfc4514_string(),  # 证书主题（服务器域名等）
+            'issuer': cert.issuer.rfc4514_string(),    # 颁发者
+            'version': cert.version.name,               # 证书版本
+            'serial_number': str(cert.serial_number),   # 序列号
+            'not_before': cert.not_valid_before_utc.isoformat(),  # 生效日期
+            'not_after': cert.not_valid_after_utc.isoformat(),    # 过期日期
+            'is_expired': datetime.now() > cert.not_valid_after_utc.replace(tzinfo=None),  # 是否已过期
+        }
+        
+        # 提取SAN（Subject Alternative Names）扩展
+        try:
+            san_ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+            cert_info['san'] = [name.value for name in san_ext.value]
+        except x509.ExtensionNotFound:
+            cert_info['san'] = []
+        
+        logging.info(f"成功获取证书信息: {cert_path}")
+        
+    except ImportError:
+        # 如果cryptography库不可用，使用简化的方法
+        logging.warning("cryptography库不可用，无法获取详细的证书信息")
+        cert_info = {
+            'error': '需要安装cryptography库才能查看详细证书信息',
+            'install_hint': 'pip install cryptography'
+        }
+    except Exception as e:
+        # 记录错误但不抛出异常
+        logging.error(f"获取证书信息时发生错误: {e}")
+        cert_info = {
+            'error': f'读取证书信息失败: {str(e)}'
+        }
+    
+    return cert_info
+
+
 def start_web_server(args_param):
     """
     启动Flask Web服务器主函数，集成SocketIO实时通信和Chrome浏览器自动化。
-
-    功能说明：
-    - 初始化Flask应用和所有必需的全局组件
-    - 配置跨域请求（CORS）和WebSocket实时通信（SocketIO）
-    - 启动Chrome浏览器池用于服务端JS渲染
-    - 初始化后台任务管理器
-    - 设置会话管理和安全密钥
-
-    主要组件：
-
-    **1. Chrome浏览器池（ChromeBrowserPool）**
-    - 管理可重用的浏览器实例
-    - 支持headless模式（无界面运行）
-    - 自动清理和资源回收
-
-    **2. 后台任务管理器（BackgroundTaskManager）**
-    - 管理长时间运行的任务（如批量任务执行）
-    - 任务状态持久化到文件
-    - 启动时清理历史任务记录
-
-    **3. 会话管理系统**
-    - web_sessions: 存储用户会话状态（登录信息、Api实例）
-    - session_file_locks: 防止会话文件并发冲突
-    - session_activity: 跟踪会话活跃时间
-    - 所有会话数据都有对应的线程锁保护
-
-    **4. SocketIO实时通信**
-    - async_mode='threading': 使用线程模式处理异步请求
-    - 支持后台任务进度实时推送
-    - 双向通信（服务器可主动推送消息到客户端）
-
-    参数说明：
-    - args_param: 命令行参数对象，包含headless、port等配置
-
-    初始化流程：
-    1. 重置所有内存锁和会话状态（防止重启后的状态污染）
-    2. 初始化Chrome浏览器池并注册退出清理函数
-    3. 初始化后台任务管理器并清理历史任务
-    4. 创建Flask应用并配置CORS、SocketIO
-    5. 配置会话管理（SESSION_TYPE=filesystem，7天有效期）
-    6. 注册所有Flask路由（在后续代码中）
-    7. 启动Flask开发服务器
-
-    全局变量：
-    - chrome_pool: ChromeBrowserPool实例
-    - background_task_manager: BackgroundTaskManager实例
-    - web_sessions: 用户会话字典 {session_id: {'api': Api实例, ...}}
-    - web_sessions_lock: 保护web_sessions的线程锁
-    - session_file_locks: 会话文件锁字典 {username: Lock}
-    - session_file_locks_lock: 保护session_file_locks的线程锁
-    - session_activity: 会话活跃时间字典 {session_id: timestamp}
-    - session_activity_lock: 保护session_activity的线程锁
-    - socketio: SocketIO实例用于实时通信
-    - args: 命令行参数（全局可访问）
-
-    安全特性：
-    - 使用secrets.token_hex(32)生成强随机密钥（256位）
-    - 会话数据加密存储在文件系统中
-    - 跨域请求受CORS控制
-
-    错误处理：
-    - Chrome池或任务管理器初始化失败会sys.exit(1)终止程序
-    - 单个任务文件删除失败只记录错误，不影响整体启动
-
-    注意事项：
-    - 此函数会阻塞当前线程（Flask服务器运行在主线程）
-    - 需要先调用check_install_dependencies()确保依赖已安装
-    - 建议在后台自动签到服务启动后调用
-
-    使用示例：
     """
     global chrome_pool, background_task_manager, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
+    
+    # ========== 新增：记录服务器启动时间 ==========
+    # 使用全局变量记录服务器启动时间，用于计算运行时长（uptime）
+    # time.time() 返回当前时间的时间戳（自1970年1月1日以来的秒数）
+    global server_start_time
+    server_start_time = time.time()
+    # 记录启动时间到日志（使用人类可读的格式）
+    logging.info(f"服务器启动时间: {datetime.datetime.fromtimestamp(server_start_time).strftime('%Y-%m-%d %H:%M:%S')}")
+    # ========== 结束：服务器启动时间记录 ==========
 
     # Make args available globally for Flask routes
     # 将命令行参数存储为全局变量，供Flask路由函数访问
     args = args_param
 
-    # --- 新增：显式初始化/重置内存锁状态 ---
+
+    # 用于速率限制的简单内存缓存
+    global cache
+    cache = {}
+    # 用于存储待验证短信验证码
+    global sms_verification_codes
+    sms_verification_codes = {}
+
+    # --- 显式初始化/重置内存锁状态 ---
     # 重置所有会话相关的全局变量，防止程序重启后出现状态污染
     web_sessions = {}
     web_sessions_lock = threading.Lock()
@@ -11150,521 +12296,568 @@ def start_web_server(args_param):
     # 声明 socketio 为全局变量
     global socketio
     # 初始化 SocketIO
-    socketio = SocketIO(app, async_mode='threading')
+    socketio = SocketIO(app, async_mode='eventlet')
 
     # 会话配置
     app.config['SESSION_TYPE'] = 'filesystem'
     app.config['PERMANENT_SESSION_LIFETIME'] = datetime.timedelta(
         days=7)  # 会话保持7天
 
-    # ====================
-    # JavaScript 压缩工具函数
-    # ====================
+    # ===== 登录验证装饰器 =====
+    def login_required(f):
+        """
+        一个装饰器，用于验证用户是否已登录。
+        它检查 X-Session-ID，验证会话，并将用户信息存储在 g 对象中。
+        """
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            session_id = request.headers.get('X-Session-ID', '')
+            api_instance = None
+            is_authenticated = False
+            auth_username = None
+
+            # 1. 检查会话ID是否存在且在内存中
+            if session_id:
+                with web_sessions_lock:
+                    if session_id in web_sessions:
+                        api_instance = web_sessions[session_id]
+                        # 检查是否已通过认证（非游客或已登录的系统用户）
+                        is_authenticated = getattr(api_instance, 'is_authenticated', False)
+                        auth_username = getattr(api_instance, 'auth_username', None)
+
+            # 2. 如果未认证，返回401
+            if not is_authenticated or not api_instance or not auth_username:
+                return jsonify({"success": False, "message": "未登录或会话无效"}), 401
+            
+            # 3. 检查是否为游客
+            if getattr(api_instance, 'is_guest', False):
+                 return jsonify({"success": False, "message": "游客无权访问此功能"}), 403
+
+            # 4. 认证成功，将用户信息存入g (Flask的请求上下文)
+            g.user = auth_username
+            g.api_instance = api_instance
+            
+            # 5. 执行原始的路由函数
+            return f(*args, **kwargs)
+        return decorated_function
+    # ===============================
+
+    # ============================================================
+    # IP封禁全局检查 - before_request拦截器
+    # 在所有请求之前执行，检查IP是否被封禁
+    # ============================================================
+    @app.before_request
+    def check_ip_ban_before_request():
+        """
+        全局IP封禁检查拦截器
+        """
+        # 获取客户端IP地址
+        client_ip = request.remote_addr
+        
+        # 跳过静态资源和健康检查端点（这些不需要IP封禁检查）
+        # 静态资源路径示例：/static/, /css/, /js/, /default_avatar.png
+        if request.path.startswith('/static/') or \
+           request.path.startswith('/css/') or \
+           request.path.startswith('/js/') or \
+           request.path == '/health' or \
+           request.path.endswith('.png') or \
+           request.path.endswith('.jpg') or \
+           request.path.endswith('.ico'):
+            return None  # 允许请求继续处理
+        
+        # 检查IP是否被全局封禁（scope='all'）
+        # check_ip_ban函数定义在下方，用于检查IP封禁列表
+        is_banned = check_ip_ban(client_ip, scope='all')
+        
+        if is_banned:
+            # IP被全局封禁，返回封禁提示页面
+            logging.warning(f"[IP封禁] 全局封禁拦截：IP {client_ip} 尝试访问 {request.path}")
+            
+            # 返回HTML格式的封禁提示页面（使用简单的内联HTML）
+            banned_html = """
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>访问被拒绝</title>
+                <style>
+                    body {
+                        font-family: 'Microsoft YaHei', Arial, sans-serif;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        height: 100vh;
+                        margin: 0;
+                        color: #333;
+                    }
+                    .container {
+                        background: white;
+                        padding: 40px;
+                        border-radius: 15px;
+                        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                        text-align: center;
+                        max-width: 500px;
+                    }
+                    h1 {
+                        color: #e74c3c;
+                        font-size: 48px;
+                        margin: 0 0 20px 0;
+                    }
+                    p {
+                        font-size: 18px;
+                        color: #555;
+                        line-height: 1.6;
+                    }
+                    .ip {
+                        background: #f8f9fa;
+                        padding: 10px;
+                        border-radius: 5px;
+                        font-family: monospace;
+                        color: #495057;
+                        margin-top: 20px;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>🚫 访问被拒绝</h1>
+                    <p>您的IP地址已被系统封禁。</p>
+                    <p>如有疑问，请联系系统管理员。</p>
+                    <div class="ip">您的IP: """ + client_ip + """</div>
+                </div>
+            </body>
+            </html>
+            """
+            return make_response(banned_html, 403)
+        
+        # IP未被封禁，允许请求继续处理
+        return None
     
-    def minify_javascript(code):
-        """
-        JavaScript 代码压缩函数
-        
-        功能说明：
-            对 JavaScript 代码进行压缩，移除注释、多余空白和换行符，减小文件大小。
-            这是一个轻量级的压缩实现，不依赖外部库。
-        
-        压缩策略：
-            1. 移除单行注释（// ...）
-            2. 移除多行注释（/* ... */）
-            3. 移除多余的空白字符和换行符
-            4. 保留字符串和正则表达式中的内容不变
-            5. 保留必要的空格（如关键字后的空格）
-        
-        参数：
-            code (str): 原始 JavaScript 代码
-        
-        返回：
-            str: 压缩后的 JavaScript 代码
-        
-        压缩效果：
-            通常可减小 30-50% 的文件大小
-        
-        注意事项：
-            - 此实现为基础版本，不处理复杂的边缘情况
-            - 生产环境建议使用专业工具（如 jsmin、uglifyjs）
-            - 压缩后的代码难以阅读，仅用于生产环境
-        """
-        if not code:
-            return code
-        
-        # 压缩结果
-        result = []
-        
-        # 状态标志
-        in_string = False          # 是否在字符串中
-        string_delimiter = None    # 字符串分隔符（' 或 "）
-        in_regex = False           # 是否在正则表达式中
-        in_single_comment = False  # 是否在单行注释中
-        in_multi_comment = False   # 是否在多行注释中
-        
-        # 遍历每个字符
-        i = 0
-        length = len(code)
-        
-        while i < length:
-            char = code[i]
-            next_char = code[i + 1] if i + 1 < length else ''
-            prev_char = result[-1] if result else ''
-            
-            # 处理多行注释结束
-            if in_multi_comment:
-                if char == '*' and next_char == '/':
-                    in_multi_comment = False
-                    i += 2  # 跳过 */
-                    continue
-                i += 1
-                continue
-            
-            # 处理单行注释结束
-            if in_single_comment:
-                if char == '\n':
-                    in_single_comment = False
-                    # 换行符在某些情况下需要保留（如语句结束）
-                    if result and result[-1] not in [';', '{', '}', '\n']:
-                        result.append('\n')
-                i += 1
-                continue
-            
-            # 检测多行注释开始
-            if not in_string and not in_regex and char == '/' and next_char == '*':
-                in_multi_comment = True
-                i += 2
-                continue
-            
-            # 检测单行注释开始
-            if not in_string and not in_regex and char == '/' and next_char == '/':
-                in_single_comment = True
-                i += 2
-                continue
-            
-            # 处理字符串
-            if char in ['"', "'", '`'] and not in_regex:
-                if not in_string:
-                    # 进入字符串
-                    in_string = True
-                    string_delimiter = char
-                    result.append(char)
-                elif char == string_delimiter and (not result or result[-1] != '\\'):
-                    # 退出字符串（检查是否被转义）
-                    in_string = False
-                    string_delimiter = None
-                    result.append(char)
-                else:
-                    # 字符串内部
-                    result.append(char)
-                i += 1
-                continue
-            
-            # 字符串内部：保留所有字符
-            if in_string:
-                result.append(char)
-                i += 1
-                continue
-            
-            # 处理正则表达式（简化处理：检测 / 前后的上下文）
-            # 注意：这是一个简化的正则检测，可能不完美
-            if char == '/' and not in_string:
-                # 检查是否是正则表达式的开始
-                # 正则通常出现在 =、(、[、,、:、; 等符号后
-                if result and result[-1] in ['=', '(', '[', ',', ':', ';', '!', '&', '|', '?', '{', '}', '\n']:
-                    in_regex = True
-                    result.append(char)
-                    i += 1
-                    continue
-            
-            # 正则表达式内部
-            if in_regex:
-                result.append(char)
-                if char == '/' and (not result or result[-2] != '\\'):
-                    in_regex = False
-                i += 1
-                continue
-            
-            # 压缩空白字符
-            if char in [' ', '\t', '\n', '\r']:
-                # 检查前一个字符
-                if result and result[-1] not in [' ', '\n', '{', '}', '(', ')', '[', ']', ';', ',', ':', '=', '+', '-', '*', '/', '%', '<', '>', '!', '&', '|', '?']:
-                    # 检查下一个字符
-                    next_non_space = ''
-                    j = i + 1
-                    while j < length and code[j] in [' ', '\t', '\n', '\r']:
-                        j += 1
-                    if j < length:
-                        next_non_space = code[j]
-                    
-                    # 如果下一个字符不是特殊字符，保留一个空格
-                    if next_non_space and next_non_space not in ['{', '}', '(', ')', '[', ']', ';', ',', ':', '=', '+', '-', '*', '/', '%', '<', '>', '!', '&', '|', '?']:
-                        result.append(' ')
-                i += 1
-                continue
-            
-            # 普通字符：直接添加
-            result.append(char)
-            i += 1
-        
-        # 返回压缩后的代码
-        minified = ''.join(result)
-        
-        # 记录压缩效果
-        original_size = len(code)
-        minified_size = len(minified)
-        compression_ratio = (1 - minified_size / original_size) * 100 if original_size > 0 else 0
-        
-        logging.debug(f"JavaScript 压缩完成：原始大小 {original_size} 字节，压缩后 {minified_size} 字节，压缩率 {compression_ratio:.1f}%")
-        
-        return minified
-
-    def minify_html(html):
-        """
-        HTML 代码压缩函数
-        
-        功能说明：
-            对 HTML 代码进行压缩，移除注释、多余空白和换行符，减小文件大小。
-            保留标签结构和属性，不影响页面功能。
-        
-        压缩策略：
-            1. 移除 HTML 注释（<!-- ... -->）
-            2. 移除标签之间的多余空白和换行
-            3. 移除属性值周围的多余空格
-            4. 保留 <script>、<style>、<pre> 标签内的格式
-            5. 保留必要的空格（防止标签粘连）
-        
-        参数：
-            html (str): 原始 HTML 代码
-        
-        返回：
-            str: 压缩后的 HTML 代码
-        
-        压缩效果：
-            通常可减小 20-40% 的文件大小
-        
-        注意事项：
-            - 保留 <script> 和 <style> 标签内的空白（避免破坏代码）
-            - 保留 <pre> 标签内的格式（预格式化文本）
-            - 不会改变 HTML 结构和语义
-        """
-        if not html:
-            return html
-        
-        result = []
-        i = 0
-        length = len(html)
-        
-        # 状态标志
-        in_script = False      # 是否在 <script> 标签内
-        in_style = False       # 是否在 <style> 标签内
-        in_pre = False         # 是否在 <pre> 标签内
-        in_tag = False         # 是否在标签内 < >
-        in_comment = False     # 是否在注释内
-        
-        while i < length:
-            # 检查是否进入注释
-            if not in_comment and i + 4 < length and html[i:i+4] == '<!--':
-                in_comment = True
-                i += 4
-                continue
-            
-            # 检查是否退出注释
-            if in_comment:
-                if i + 3 < length and html[i:i+3] == '-->':
-                    in_comment = False
-                    i += 3
-                else:
-                    i += 1
-                continue
-            
-            # 检查是否进入 <script> 标签
-            if not in_script and i + 7 < length and html[i:i+7].lower() == '<script':
-                in_script = True
-                # 找到标签结束位置
-                while i < length and html[i] != '>':
-                    result.append(html[i])
-                    i += 1
-                if i < length:
-                    result.append(html[i])  # 添加 >
-                    i += 1
-                continue
-            
-            # 检查是否退出 <script> 标签
-            if in_script and i + 9 < length and html[i:i+9].lower() == '</script>':
-                in_script = False
-                result.append(html[i:i+9])
-                i += 9
-                continue
-            
-            # 检查是否进入 <style> 标签
-            if not in_style and i + 6 < length and html[i:i+6].lower() == '<style':
-                in_style = True
-                while i < length and html[i] != '>':
-                    result.append(html[i])
-                    i += 1
-                if i < length:
-                    result.append(html[i])
-                    i += 1
-                continue
-            
-            # 检查是否退出 <style> 标签
-            if in_style and i + 8 < length and html[i:i+8].lower() == '</style>':
-                in_style = False
-                result.append(html[i:i+8])
-                i += 8
-                continue
-            
-            # 检查是否进入 <pre> 标签
-            if not in_pre and i + 4 < length and html[i:i+4].lower() == '<pre':
-                in_pre = True
-                while i < length and html[i] != '>':
-                    result.append(html[i])
-                    i += 1
-                if i < length:
-                    result.append(html[i])
-                    i += 1
-                continue
-            
-            # 检查是否退出 <pre> 标签
-            if in_pre and i + 6 < length and html[i:i+6].lower() == '</pre>':
-                in_pre = False
-                result.append(html[i:i+6])
-                i += 6
-                continue
-            
-            # 在 <script>、<style>、<pre> 标签内：保留所有内容
-            if in_script or in_style or in_pre:
-                result.append(html[i])
-                i += 1
-                continue
-            
-            # 检测标签开始
-            if html[i] == '<':
-                in_tag = True
-                result.append(html[i])
-                i += 1
-                continue
-            
-            # 检测标签结束
-            if html[i] == '>':
-                in_tag = False
-                result.append(html[i])
-                i += 1
-                continue
-            
-            # 在标签内：保留内容（但压缩多余空格）
-            if in_tag:
-                # 压缩标签内的多个空白为一个空格
-                if html[i] in [' ', '\t', '\n', '\r']:
-                    if result and result[-1] not in [' ', '<', '=']:
-                        result.append(' ')
-                    i += 1
-                    continue
-                else:
-                    result.append(html[i])
-                    i += 1
-                    continue
-            
-            # 标签之间的空白：移除或压缩
-            if html[i] in [' ', '\t', '\n', '\r']:
-                # 查看前一个字符
-                if result and result[-1] == '>':
-                    # 跳过标签后的空白
-                    i += 1
-                    continue
-                # 查看下一个字符
-                j = i + 1
-                while j < length and html[j] in [' ', '\t', '\n', '\r']:
-                    j += 1
-                if j < length and html[j] == '<':
-                    # 空白后面是标签，跳过所有空白
-                    i = j
-                    continue
-                # 保留一个空格（防止文本粘连）
-                if result and result[-1] not in [' ', '>']:
-                    result.append(' ')
-                i += 1
-                continue
-            
-            # 普通字符：直接添加
-            result.append(html[i])
-            i += 1
-        
-        # 返回压缩后的 HTML
-        minified = ''.join(result)
-        
-        # 记录压缩效果
-        original_size = len(html)
-        minified_size = len(minified)
-        compression_ratio = (1 - minified_size / original_size) * 100 if original_size > 0 else 0
-        
-        logging.debug(f"HTML 压缩完成：原始大小 {original_size} 字节，压缩后 {minified_size} 字节，压缩率 {compression_ratio:.1f}%")
-        
-        return minified
-
     # ====================
     # 认证相关API路由
     # ====================
+    
+    # ====================
+    # 辅助函数：线程安全的会话管理
+    # ====================
+    
+    def get_session_user_safe(session_id, required_permission=None, require_super_admin=False):
+        """
+        【并发安全辅助函数】线程安全地获取会话用户信息并验证权限
+        
+        功能说明：
+        1. 使用锁保护web_sessions字典的并发访问
+        2. 验证会话有效性和用户认证状态
+        3. 提取用户信息（在锁保护范围内）
+        4. 释放锁后执行权限检查（避免长时间持锁）
+        
+        参数:
+            session_id (str): 会话ID，从请求头X-Session-ID获取
+            required_permission (str, optional): 需要检查的权限名称，如'manage_users'
+            require_super_admin (bool, optional): 是否要求超级管理员权限
+        
+        返回:
+            tuple: (success: bool, result: dict或Response)
+            - 成功时: (True, {"username": str, "group": str, "api_instance": object})
+            - 失败时: (False, jsonify({...})) - 可直接返回给前端的错误响应
+        
+        使用示例：
+            success, result = get_session_user_safe(session_id, 'manage_users')
+            if not success:
+                return result  # 返回错误响应
+            username = result['username']  # 使用用户信息
+        
+        线程安全说明：
+        - 函数内部使用web_sessions_lock确保线程安全
+        - 只在锁内访问web_sessions字典和api_instance属性
+        - 耗时的权限检查操作在锁外执行，避免阻塞其他请求
+        """
+        # 使用锁保护对共享资源web_sessions的访问
+        with web_sessions_lock:
+            # 验证会话ID的存在性和有效性
+            if not session_id or session_id not in web_sessions:
+                # 返回401未授权错误
+                return False, jsonify({"success": False, "message": "未授权"}), 401
+            
+            # 从会话字典中获取API实例对象
+            api_instance = web_sessions[session_id]
+            
+            # 检查用户是否已通过认证（是否有auth_username属性）
+            if not hasattr(api_instance, 'auth_username'):
+                # 返回401未登录错误
+                return False, jsonify({"success": False, "message": "未登录"}), 401
+            
+            # 在锁保护范围内提取用户信息
+            # 这样可以确保读取的是一致的状态，避免竞态条件
+            user_info = {
+                'username': api_instance.auth_username,
+                'group': getattr(api_instance, 'auth_group', 'user'),
+                'api_instance': api_instance  # 某些情况下可能需要完整的实例
+            }
+        # 锁已释放，现在可以安全地执行耗时操作
+        
+        # 如果要求超级管理员权限
+        if require_super_admin:
+            if user_info['group'] != 'super_admin':
+                # 返回403权限不足错误
+                return False, jsonify({"success": False, "message": "仅超级管理员可执行此操作"}), 403
+        
+        # 如果需要检查特定权限
+        if required_permission:
+            # 调用权限系统检查用户是否拥有指定权限
+            # 这个操作可能较耗时（需要查询配置文件），所以在锁外执行
+            if not auth_system.check_permission(user_info['username'], required_permission):
+                # 返回403权限不足错误
+                return False, jsonify({"success": False, "message": f"权限不足：需要 {required_permission} 权限"}), 403
+        
+        # 验证通过，返回成功和用户信息
+        return True, user_info
+
 
     @app.route('/auth/register', methods=['POST'])
     def auth_register():
         """
-        用户注册API端点。
-
-        请求方法：POST
-        请求路径：/auth/register
-        Content-Type：application/json
-
-        请求体（JSON）：
-        {
-            "auth_username": "用户名",  # 必填，会被trim()处理
-            "auth_password": "密码"     # 必填，会被trim()处理
-        }
-
-        响应体（JSON）：
-        {
-            "success": true/false,
-            "message": "成功/失败信息"
-        }
-
-        处理流程：
-        1. 解析JSON请求体（使用 or {} 防止None）
-        2. 提取并trim用户名和密码
-        3. 验证非空（两者都必填）
-        4. 调用auth_system.register_user()执行注册逻辑
-        5. 返回注册结果
-
-        安全特性：
-        - 密码由AuthSystem内部加密存储（SHA256或明文，取决于配置）
-        - 用户名去除首尾空格，防止输入错误
-        - 所有验证逻辑委托给AuthSystem处理
-
-        错误情况：
-        - 用户名或密码为空：返回 {"success": false, "message": "用户名和密码不能为空"}
-        - 用户名已存在：由auth_system返回相应错误信息
-        - 其他错误：由auth_system捕获并返回
-
-        注意：
-        - 此接口不需要认证（公开接口）
-        - 注册成功后用户需要再调用 /auth/login 登录
-        - 默认分组由AuthSystem配置决定
+        用户注册API端点（已升级支持手机号、昵称、头像）。
         """
-        data = request.get_json() or {}
-        auth_username = data.get('auth_username', '').strip()
-        auth_password = data.get('auth_password', '').strip()
+        try:
 
-        if not auth_username or not auth_password:
-            return jsonify({"success": False, "message": "用户名和密码不能为空"})
+            # 确保 configparser 和 os 模块已在文件顶部导入
+            config = configparser.ConfigParser()
+            if os.path.exists(CONFIG_FILE):
+                config.read(CONFIG_FILE, encoding='utf-8')
 
-        result = auth_system.register_user(auth_username, auth_password)
-        return jsonify(result)
+            # 1. 解析请求数据（支持JSON和表单两种方式）
+            content_type = request.headers.get('Content-Type', '').lower()
+            
+            if 'application/json' in content_type:
+                # 备用：如果请求是纯 JSON (没有头像上传)
+                data = request.get_json() or {}
+            else:
+                # 核心：处理 multipart/form-data 或 x-www-form-urlencoded
+                # request.form 会自动解析 FormData 中的文本字段。
+                data = request.form.to_dict()
+            
+            # 2. 提取基本字段并去除首尾空格
+            auth_username = data.get('auth_username', '').strip()
+            auth_password = data.get('auth_password', '').strip()
+            phone = data.get('phone', '').strip()
+            nickname = data.get('nickname', '').strip()
+            sms_code = data.get('sms_code', '').strip()
+            captcha_input = data.get('captcha', '').strip()  # 获取用户输入的验证码
+            captcha_id = data.get('captcha_id', '').strip()  # 获取验证码ID
+            
+            # 3. 验证图形验证码（必须首先验证，防止恶意注册）
+            is_captcha_valid, captcha_error_msg = verify_captcha(captcha_id, captcha_input)
+            if not is_captcha_valid:
+                return jsonify({"success": False, "message": captcha_error_msg})
+            
+            # 4. 验证必填字段
+            if not auth_username or not auth_password:
+                return jsonify({"success": False, "message": "用户名和密码不能为空"})
+            
+            # 5. 验证用户名不包含中文字符（防止显示和排序问题）
+            if re.search(r'[\u4e00-\u9fff]', auth_username):
+                return jsonify({"success": False, "message": "用户名不能包含中文字符"})
+            
+            # 6. 验证手机号格式（如果提供）
+            if phone and not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+            # 7. 校验短信验证码（如果启用了注册验证功能）
+            if config.get('Features', 'enable_phone_registration_verify', fallback='false').lower() == 'true':
+                if not phone:
+                    return jsonify({"success": False, "message": "注册需要填写手机号"})
+                if not sms_code:
+                    return jsonify({"success": False, "message": "请输入短信验证码"})
+                
+                # 查找验证码记录
+                code_verified = False
+                if phone in sms_verification_codes:
+                    stored_code, expires_at = sms_verification_codes[phone]
+                    
+                    if time.time() > expires_at:
+                        # 验证码过期
+                        del sms_verification_codes[phone]
+                        return jsonify({"success": False, "message": "验证码已过期，请重新获取"})
+                    
+                    if stored_code == sms_code:
+                        # 验证成功
+                        code_verified = True
+                        del sms_verification_codes[phone] # 验证码一次性使用
+                
+                if not code_verified:
+                    return jsonify({"success": False, "message": "验证码错误或已过期"})
+            
+            # 8. 处理头像上传（如果提供）
+            avatar_url = "default_avatar.png"  # 默认头像
+            avatar_file = request.files.get('avatar')
+            avatar_sha256_hash = None # 用于注册后更新索引
+
+            if avatar_file and avatar_file.filename:
+                # 验证文件类型（仅允许图片）
+                allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+                file_ext = avatar_file.filename.rsplit('.', 1)[-1].lower()
+                if file_ext not in allowed_extensions:
+                    return jsonify({"success": False, "message": "头像文件格式不支持，请使用png/jpg/gif"})
+
+                # 读取文件内容
+                file_content = avatar_file.read()
+                
+                # 验证文件大小（限制5MB）
+                max_size = 5 * 1024 * 1024  # 5MB
+                if len(file_content) > max_size:
+                    return jsonify({"success": False, "message": "文件过大，请上传小于5MB的图片"}), 400
+
+                try:
+                    # 使用PIL打开图片并转换为PNG格式
+                    img = Image.open(io.BytesIO(file_content))
+
+                    # 转换为RGB模式（PNG不支持CMYK等模式）
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        pass # 保留透明度
+                    elif img.mode != 'RGB':
+                        img = img.convert('RGB')
+
+                    # 将图片转换为PNG格式的字节流
+                    png_buffer = io.BytesIO()
+                    img.save(png_buffer, format='PNG', optimize=True)
+                    png_content = png_buffer.getvalue()
+
+                    # 计算SHA256哈希
+                    avatar_sha256_hash = hashlib.sha256(png_content).hexdigest()
+
+                    # 创建存储目录 (修正路径)
+                    images_dir = os.path.join('system_accounts', 'images')
+                    os.makedirs(images_dir, exist_ok=True)
+
+                    # 保存为PNG文件 (修正文件名)
+                    filename = f"{avatar_sha256_hash}.png"
+                    filepath = os.path.join(images_dir, filename)
+
+                    with open(filepath, 'wb') as f:
+                        f.write(png_content)
+
+                    # 更新索引文件，记录为 "Guest" (用户请求)
+                    index_file = os.path.join(images_dir, '_index.json')
+                    try:
+                        if os.path.exists(index_file):
+                            with open(index_file, 'r', encoding='utf-8') as f:
+                                index_data = json.load(f)
+                        else:
+                            index_data = {'version': '1.0', 'description': '用户头像索引文件', 'files': {}}
+
+                        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+
+                        # 添加/更新文件信息，用户名为 "Guest"
+                        index_data['files'][filename] = {
+                            'username': 'Guest', # <--- 修正：注册时标记为Guest
+                            'upload_time': time.time(),
+                            'upload_time_str': datetime.datetime.now().isoformat(),
+                            'ip_address': ip_address,
+                            'original_filename': avatar_file.filename,
+                            'file_size': len(png_content),
+                            'sha256': avatar_sha256_hash
+                        }
+
+                        with open(index_file, 'w', encoding='utf-8') as f:
+                            json.dump(index_data, f, indent=2, ensure_ascii=False)
+
+                        logging.info(f"访客 (注册前) 从 {ip_address} 上传头像: {filename}")
+                    except Exception as e:
+                        logging.error(f"注册时更新头像索引失败: {e}", exc_info=True)
+                        # 索引失败不应阻止注册，继续
+
+                    # 构建正确的头像URL (修正URL)
+                    avatar_url = f"/api/avatar/{filename}"
+
+                except Exception as e:
+                    logging.error(f"注册时处理头像失败: {e}", exc_info=True)
+                    return jsonify({"success": False, "message": f"图片处理失败: {str(e)}"}), 500
+            
+            # 8. 调用auth_system.register_user()执行注册逻辑
+            # 传递额外参数：phone, nickname, avatar_url
+            result = auth_system.register_user(
+                auth_username, 
+                auth_password,
+                phone=phone,
+                nickname=nickname or auth_username,  # 默认昵称为用户名
+                avatar_url=avatar_url
+            )
+
+            # 9. (新) 注册成功后，更新头像索引中的用户名
+            if result.get('success') and avatar_sha256_hash:
+                try:
+                    images_dir = os.path.join('system_accounts', 'images')
+                    index_file = os.path.join(images_dir, '_index.json')
+                    filename = f"{avatar_sha256_hash}.png"
+
+                    if os.path.exists(index_file):
+                        # 此处需要加锁，以防并发写入索引文件
+                        # 假设 auth_system.lock 可用于此目的
+                        with auth_system.lock: 
+                            with open(index_file, 'r', encoding='utf-8') as f:
+                                index_data = json.load(f)
+                            
+                            # 查找由Guest上传的、匹配哈希值的条目
+                            if filename in index_data.get('files', {}) and index_data['files'][filename].get('username') == 'Guest':
+                                # 更新用户名为新注册的用户名
+                                index_data['files'][filename]['username'] = auth_username
+                                
+                                with open(index_file, 'w', encoding='utf-8') as f:
+                                    json.dump(index_data, f, indent=2, ensure_ascii=False)
+                                
+                                logging.info(f"头像索引已更新：文件 {filename} 的所有者已从 'Guest' 更新为 '{auth_username}'")
+                            else:
+                                logging.warning(f"注册后尝试更新头像索引：未找到匹配的 'Guest' 条目 (文件: {filename})")
+                except Exception as e:
+                    logging.error(f"注册成功后更新头像索引失败: {e}", exc_info=True)
+                    # 索引更新失败不影响注册成功响应
+
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            app.logger.error(f"[注册] 处理异常：{str(e)}")
+            return jsonify({"success": False, "message": "注册失败，请稍后重试"})
+
 
     @app.route('/auth/login', methods=['POST'])
     def auth_login():
         """
         用户登录认证API端点。
-
-        请求方法：POST
-        请求路径：/auth/login
-        Content-Type：application/json
-        请求头：X-Session-ID: <客户端会话ID>（可选）
-
-        请求体（JSON）：
-        {
-            "auth_username": "用户名",      # 必填
-            "auth_password": "密码",        # 必填
-            "two_fa_code": "双因素认证码"   # 可选，仅在启用2FA时需要
-        }
-
-        响应体（JSON）：
-        {
-            "success": true/false,
-            "message": "成功/失败信息",
-            "auth_username": "用户名",
-            "group": "用户组",
-            "is_guest": false
-        }
-
-        处理流程：
-        1. 解析请求体和请求头（session_id、IP、User-Agent）
-        2. 调用auth_system.authenticate()验证用户凭据
-        3. 验证成功后创建或获取Api实例
-        4. 将认证信息附加到web_sessions
-        5. 执行单会话强制策略（可选，非游客用户）
-        6. 返回认证结果
-
-        会话管理：
-        - 每个客户端通过X-Session-ID标识唯一会话
-        - 如果session_id已存在，复用现有Api实例
-        - 如果session_id不存在，创建新的Api实例
-        - Api实例包含：
-          * auth_username: 认证用户名
-          * auth_group: 用户组
-          * is_guest: 是否为游客
-          * is_authenticated: 认证状态标志
-          * _session_created_at: 会话创建时间戳
-          * _web_session_id: 关联的会话ID
-
-        单会话强制策略（仅注册用户）：
-        - check_single_session_enforcement()检查同一用户的活跃会话数
-        - 如果超过限制，返回需要清理的旧会话列表
-        - 使用后台线程异步清理旧会话（不阻塞登录响应）
-        - 清理过程：
-          1. 从web_sessions中移除旧会话
-          2. 尝试关闭旧会话的Api实例资源
-          3. 记录清理结果到日志
-
-        安全特性：
-        - 密码由AuthSystem验证（支持明文或加密存储）
-        - IP地址和User-Agent用于登录日志和安全审计
-        - 双因素认证支持（如果用户启用）
-        - 会话数量限制防止会话劫持
-        - 所有会话操作都有web_sessions_lock保护（线程安全）
-
-        双因素认证（2FA）：
-        - 如果用户启用了2FA，必须提供正确的two_fa_code
-        - AuthSystem会验证TOTP代码（Time-based One-Time Password）
-        - 验证失败会拒绝登录
-
-        错误情况：
-        - 用户名或密码错误：由auth_system返回 {"success": false, "message": "..."}
-        - 2FA代码错误：由auth_system返回相应错误
-        - 内部错误：捕获并返回错误信息
-
-        注意：
-        - 此接口不需要预先认证（公开接口）
-        - 注释掉的session_id检查代码表明曾经需要会话ID，现在已改为可选
-        - 游客用户不受单会话限制
-        - 旧会话清理是异步的，不影响新登录的响应速度
         """
+        global config
+
+        # 加载配置以检查功能开关
+        config = configparser.ConfigParser()
+        config.read(CONFIG_FILE, encoding='utf-8')
+        
         data = request.get_json() or {}
+        
+        # --- 提取所有可能的字段 ---
+        auth_phone = data.get('auth_phone', '').strip()
         auth_username = data.get('auth_username', '').strip()
         auth_password = data.get('auth_password', '').strip()
+        sms_code = data.get('auth_sms_code', '').strip()
         two_fa_code = data.get('two_fa_code', '').strip()
+        captcha_input = data.get('captcha', '').strip()  # 获取用户输入的验证码
+        captcha_id = data.get('captcha_id', '').strip()  # 获取验证码ID
+        
+        # 验证图形验证码（在所有登录尝试前进行验证，增强安全性）
+        is_captcha_valid, captcha_error_msg = verify_captcha(captcha_id, captcha_input)
+        if not is_captcha_valid:
+            return jsonify({"success": False, "message": captcha_error_msg})
+        
         session_id = request.headers.get('X-Session-ID', '')
-
-        # 获取IP和UA
-        # 用于安全审计和登录日志记录
-        ip_address = request.remote_addr or ''
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr) or ''
         user_agent = request.headers.get('User-Agent', '')
 
-        # if not session_id:
-        #     return jsonify({"success": False, "message": "缺少会话ID"})
+        # 此处不能分配新 session_id，登录时必须使用客户端提供的 ID
+        
+        auth_result = None
+        target_username = None # 用于2FA和日志记录
+        
 
-        # # 更新会话活动时间
-        # update_session_activity(session_id)
+        # 模式1: 手机号 + 验证码
+        if auth_phone and sms_code:
+            target_username = auth_system.find_user_by_phone(auth_phone)
+            if not target_username:
+                return jsonify({"success": False, "message": "该手机号未注册"})
+                
+            logging.info(f"[登录] 模式: 手机号/验证码 (用户: {target_username})")
+            
+            if config.get('Features', 'enable_phone_login', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "手机号登录功能未启用"})
+            if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "短信服务未启用"})
 
-        # 验证用户
-        # authenticate()方法会：
-        # 1. 验证密码（明文或加密比较）
-        # 2. 验证2FA代码（如果启用）
-        # 3. 检查账号状态（是否锁定等）
-        # 4. 记录登录日志（IP、UA、时间、结果）
-        auth_result = auth_system.authenticate(
-            auth_username, auth_password, ip_address, user_agent, two_fa_code)
-        if not auth_result['success']:
+            # 验证短信验证码
+            global sms_verification_codes
+            stored_code_info = sms_verification_codes.get(auth_phone)
+            if not stored_code_info:
+                return jsonify({"success": False, "message": "请先获取验证码"})
+            
+            code_value, expires_at = stored_code_info
+            if time.time() > expires_at:
+                del sms_verification_codes[auth_phone]
+                return jsonify({"success": False, "message": "验证码已过期，请重新获取"})
+            
+            if code_value != sms_code:
+                return jsonify({"success": False, "message": "验证码错误"})
+            
+            # 验证码正确，清除
+            del sms_verification_codes[auth_phone]
+            
+            # 检查2FA
+            user_file = auth_system.get_user_file_path(target_username)
+            if os.path.exists(user_file):
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                if user_data.get('2fa_enabled', False):
+                    if not two_fa_code:
+                        # 需要2FA
+                        return jsonify({"success": True, "message": "需要2FA验证码", "requires_2fa": True, "auth_username": target_username})
+                    if not auth_system.verify_2fa(target_username, two_fa_code):
+                        auth_system._log_login_attempt(target_username, False, ip_address, user_agent, '2fa_failed')
+                        return jsonify({"success": False, "message": "2FA验证码错误"})
+            
+            # 登录成功 (短信 + 2FA通过)
+            # 手动构建 auth_result
+            auth_result = {
+                'success': True,
+                'auth_username': target_username,
+                'group': auth_system.get_user_group(target_username),
+                'is_guest': False,
+                'message': '登录成功'
+            }
+            auth_system._log_login_attempt(target_username, True, ip_address, user_agent, 'SMS code login')
+
+        # 模式2: 手机号 + 密码
+        elif auth_phone and auth_password:
+            target_username = auth_system.find_user_by_phone(auth_phone)
+            if not target_username:
+                return jsonify({"success": False, "message": "该手机号未注册"})
+            
+            logging.info(f"[登录] 模式: 手机号/密码 (用户: {target_username})")
+            
+            if config.get('Features', 'enable_phone_login', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "手机号登录功能未启用"})
+
+            # 调用authenticate进行密码和2FA验证
+            auth_result = auth_system.authenticate(
+                target_username, auth_password, ip_address, user_agent, two_fa_code)
+
+        # 模式3: 用户名 + 密码
+        elif auth_username and auth_password:
+            target_username = auth_username
+            logging.info(f"[登录] 模式: 用户名/密码 (用户: {target_username})")
+            
+            # 调用authenticate进行密码和2FA验证
+            auth_result = auth_system.authenticate(
+                target_username, auth_password, ip_address, user_agent, two_fa_code)
+
+        # 模式4: 游客 (特殊处理)
+        elif auth_username == 'guest' and not auth_password:
+            logging.info(f"[登录] 模式: 游客")
+            auth_result = auth_system.authenticate(
+                auth_username, auth_password, ip_address, user_agent, two_fa_code)
+                
+        else:
+            return jsonify({"success": False, "message": "无效的登录凭据"})
+
+        
+        if not auth_result:
+             return jsonify({"success": False, "message": "认证时发生未知错误"})
+
+        # 如果需要2FA (来自密码验证)
+        if auth_result.get('requires_2fa'):
+            return jsonify(auth_result)
+
+        # 如果登录失败 (密码错误, 2FA错误等)
+        if not auth_result.get('success'):
             return jsonify(auth_result)
 
         # 将认证信息附加到会话
@@ -11710,7 +12903,10 @@ def start_web_server(args_param):
                     auth_system.link_session_to_user(auth_username, session_id)
 
                     # 记录审计日志
-                    audit_details = f'登录成功，会话ID: {session_id}'
+                    if session_id=='' or session_id is None or session_id=='null':
+                        audit_details = f'登录成功'
+                    else:
+                        audit_details = f'登录成功，会话ID: {session_id}'
                     if cleanup_message:
                         audit_details += f'; {cleanup_message}'
 
@@ -11833,64 +13029,10 @@ def start_web_server(args_param):
                 "group": auth_result.get('group', 'user'),
                 "is_guest": False
             })
-
     @app.route('/auth/guest_login', methods=['POST'])
     def auth_guest_login():
         """
         游客登录API - 无需密码的快速访问入口。
-
-        功能说明：
-        - 为未注册用户提供受限的访问权限
-        - 无需用户名和密码，只需会话ID
-        - 适用于试用、演示或临时访问场景
-
-        请求格式：
-        - 方法：POST
-        - 路径：/auth/guest_login
-        - 请求头：
-          * X-Session-ID: 会话标识符（必需）
-        - 请求体：无需
-
-        响应格式：
-        {
-          "success": true/false,
-          "message": "错误信息（仅失败时）",
-          "auth_username": "guest",
-          "group": "guest",
-          "is_guest": true
-        }
-
-        处理流程：
-        1. 从请求头获取session_id
-        2. 验证session_id存在性
-        3. 更新会话活动时间（防止超时）
-        4. 检查系统是否允许游客登录（从配置文件读取）
-        5. 创建或获取游客的Api实例
-        6. 设置游客属性（auth_username='guest', auth_group='guest', is_guest=True）
-        7. 保存会话状态到磁盘
-        8. 返回成功响应
-
-        游客权限限制：
-        - 无法使用需要认证的高级功能
-        - 会话不支持多设备同步
-        - 可能无法访问某些敏感API
-        - 数据不会长期保存
-
-        配置项：
-        - auth.ini [Guest] allow_guest_login：控制是否允许游客登录（默认true）
-
-        错误情况：
-        - 缺少session_id：返回400错误
-        - 系统不允许游客登录：返回失败消息
-
-        安全考虑：
-        - 游客会话不受单会话强制限制
-        - 游客不生成token和cookie
-        - 游客数据可能被定期清理
-
-        注意：
-        - 游客会话不会记录到登录日志
-        - 游客切换到注册用户需要重新登录
         """
         session_id = request.headers.get('X-Session-ID', '')
 
@@ -12064,10 +13206,28 @@ def start_web_server(args_param):
         - 格式：permission_name = group1,group2,group3
         - 例如：admin_panel = admin
         - 支持多组共享同一权限
+        
+        差分授权支持（user_custom_permissions）：
+        - 此API完全支持差分授权功能
+        - 通过 auth_system.check_permission() 调用，该方法会自动：
+          1. 检查用户所在组的基础权限
+          2. 应用 user_custom_permissions 中的 added 权限（授予）
+          3. 应用 user_custom_permissions 中的 removed 权限（撤销）
+        - 示例：用户在 'user' 组，但通过 user_custom_permissions.added 获得了特定权限
+          {
+            "user_custom_permissions": {
+              "zelly": {
+                "added": ["use_multi_account_button"],
+                "removed": []
+              }
+            }
+          }
+          该用户调用 /auth/check_permission 检查 use_multi_account_button 时会返回 true
 
         常见权限示例：
         - "admin_panel"：访问管理面板
-        - "multi_account"：多账号管理
+        - "execute_multi_account"：多账号管理
+        - "use_multi_account_button"：多账号控制台按钮
         - "export_data"：导出数据
         - "view_logs"：查看日志
         - "manage_users"：用户管理
@@ -12093,19 +13253,25 @@ def start_web_server(args_param):
         - 点击操作前的预先验证
         - 动态菜单生成
         """
+        # 从请求头中提取会话ID，用于识别当前用户的会话
         session_id = request.headers.get('X-Session-ID', '')
+        # 解析请求体中的JSON数据，如果解析失败则返回空字典
         data = request.get_json() or {}
+        # 提取要检查的权限名称
         permission = data.get('permission', '')
 
-        if not session_id or session_id not in web_sessions:
+        # 【并发安全】使用辅助函数进行线程安全的会话验证
+        # 这个函数会自动加锁、验证会话、提取用户信息，然后释放锁
+        success, result, status_code = get_session_user_safe(session_id)
+        if not success:
+            # 如果验证失败，返回特殊的权限检查响应格式
             return jsonify({"success": False, "has_permission": False})
-
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "has_permission": False})
-
-        has_permission = auth_system.check_permission(
-            api_instance.auth_username, permission)
+        
+        # 提取用户名
+        auth_username = result['username']
+        
+        # 执行权限检查（已在锁外，不会阻塞其他请求）
+        has_permission = auth_system.check_permission(auth_username, permission)
         return jsonify({"success": True, "has_permission": has_permission})
 
     @app.route('/auth/switch_session', methods=['POST'])
@@ -12327,19 +13493,29 @@ def start_web_server(args_param):
         - 用户管理界面的数据源
         - 审计和统计分析
         """
+        # 从请求头中提取会话ID
         session_id = request.headers.get('X-Session-ID', '')
 
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未授权"})
+        # 【并发安全修复】使用锁保护web_sessions字典访问
+        with web_sessions_lock:
+            # 验证会话ID的存在性和有效性
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未授权"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+            # 从会话字典中获取API实例
+            api_instance = web_sessions[session_id]
+            # 检查是否已认证登录
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
+            
+            # 在锁保护范围内提取用户名，确保线程安全
+            auth_username = api_instance.auth_username
 
-        # 检查权限
-        if not auth_system.check_permission(api_instance.auth_username, 'manage_users'):
+        # 在释放锁后执行权限检查（耗时操作不应在锁内）
+        if not auth_system.check_permission(auth_username, 'manage_users'):
             return jsonify({"success": False, "message": "权限不足"})
 
+        # 获取用户列表并返回
         users = auth_system.list_users()
         return jsonify({"success": True, "users": users})
 
@@ -12392,17 +13568,27 @@ def start_web_server(args_param):
         if target_username == super_admin:
             return jsonify({"success": False, "message": "不允许修改超级管理员用户组的用户"})
             
+        # 验证会话ID和用户认证状态
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+        # 【并发安全修复】使用锁保护web_sessions字典访问
+        # 这是一个竞态条件的关键点：多个请求可能同时读取会话字典
+        with web_sessions_lock:
+            # 从会话字典中获取API实例
+            api_instance = web_sessions[session_id]
+            # 检查用户是否已认证登录
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
+            
+            # 在锁保护范围内提取用户名，确保数据一致性
+            auth_username = api_instance.auth_username
 
-        # 检查权限
-        if not auth_system.check_permission(api_instance.auth_username, 'manage_users'):
+        # 在锁外执行权限检查，避免长时间持有锁
+        if not auth_system.check_permission(auth_username, 'manage_users'):
             return jsonify({"success": False, "message": "权限不足"})
 
+        # 执行用户组更新操作
         result = auth_system.update_user_group(target_username, new_group)
         return jsonify(result)
 
@@ -12439,16 +13625,31 @@ def start_web_server(args_param):
         - 显示可用的权限组列表
         - 权限分配参考
         """
+        # 从请求头提取会话ID
         session_id = request.headers.get('X-Session-ID', '')
 
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未授权"})
+        # 【并发安全修复】在访问共享资源web_sessions前加锁
+        with web_sessions_lock:
+            # 验证会话ID的有效性
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未授权"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+            # 从会话字典获取API实例
+            api_instance = web_sessions[session_id]
+            # 检查用户认证状态
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
+            
+            # 提取用户名（在锁保护范围内）
+            auth_username = api_instance.auth_username
 
-        # 检查权限
+        # 在锁外执行权限检查（不阻塞其他请求）
+        if not auth_system.check_permission(auth_username, 'manage_permissions'):
+            return jsonify({"success": False, "message": "权限不足"})
+
+        # 获取并返回权限组配置
+        groups = auth_system.list_permission_groups()
+        return jsonify({"success": True, "groups": groups})
         if not auth_system.check_permission(api_instance.auth_username, 'manage_permissions'):
             return jsonify({"success": False, "message": "权限不足"})
 
@@ -12457,48 +13658,88 @@ def start_web_server(args_param):
 
     @app.route('/auth/admin/create_group', methods=['POST'])
     def auth_admin_create_group():
-        """超级管理员：创建权限组"""
+        """问题7修复：超级管理员：创建权限组（验证必填字段）"""
         session_id = request.headers.get('X-Session-ID', '')
         data = request.get_json() or {}
-        group_name = data.get('group_name', '')
-        display_name = data.get('display_name', '')
+        # 去除首尾空格
+        # 验证必填参数
+        group_name = data.get('group_name', '').strip()
+        display_name = data.get('display_name', '').strip()
         permissions = data.get('permissions', {})
 
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未授权"})
+        # 【并发安全修复】使用锁保护会话字典访问
+        with web_sessions_lock:
+            # 验证会话有效性
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未授权"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+            # 获取API实例
+            api_instance = web_sessions[session_id]
+            # 验证用户已登录
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
 
-        # 检查是否为超级管理员
-        if api_instance.auth_group != 'super_admin':
-            return jsonify({"success": False, "message": "仅超级管理员可创建权限组"})
+            # 检查是否为超级管理员（需要访问auth_group属性）
+            # 在锁保护范围内进行检查，确保读取的是一致的状态
+            if api_instance.auth_group != 'super_admin':
+                return jsonify({"success": False, "message": "仅超级管理员可创建权限组"})
+        # 锁已释放，可以执行后续的业务逻辑
 
+        # 问题7修复：验证必填字段不能为空
+        if not group_name:
+            return jsonify({"success": False, "message": "权限组标识（group_name）不能为空"})
+        
+        if not display_name:
+            return jsonify({"success": False, "message": "权限组名称（display_name）不能为空"})
+
+        # 执行权限组创建操作
         result = auth_system.create_permission_group(
             group_name, permissions, display_name)
         return jsonify(result)
 
     @app.route('/auth/admin/update_group', methods=['POST'])
     def auth_admin_update_group():
-        """超级管理员：更新权限组"""
+        """问题6修复：超级管理员：更新权限组（支持group_key和group_name参数）"""
         session_id = request.headers.get('X-Session-ID', '')
         data = request.get_json() or {}
-        group_name = data.get('group_name', '')
+        # 问题6修复：兼容group_key和group_name两种参数名
+        group_name = data.get('group_key') or data.get('group_name', '')
         permissions = data.get('permissions', {})
 
-        if not session_id or session_id not in web_sessions:
-            return jsonify({"success": False, "message": "未授权"})
+        # 预先验证权限组名称（防止修改超级管理员组）
+        if group_name == 'super_admin':
+            return jsonify({"success": False, "message": "不允许修改超级管理员组"})
 
-        api_instance = web_sessions[session_id]
-        if not hasattr(api_instance, 'auth_username'):
-            return jsonify({"success": False, "message": "未登录"})
+        # 【并发安全修复】使用锁保护会话字典的并发访问
+        with web_sessions_lock:
+            # 验证会话存在性
+            if not session_id or session_id not in web_sessions:
+                return jsonify({"success": False, "message": "未授权"})
 
-        # 检查是否为超级管理员
-        if api_instance.auth_group != 'super_admin':
-            return jsonify({"success": False, "message": "仅超级管理员可更新权限组"})
+            # 从会话字典获取API实例
+            api_instance = web_sessions[session_id]
+            # 验证用户已认证
+            if not hasattr(api_instance, 'auth_username'):
+                return jsonify({"success": False, "message": "未登录"})
 
+            # 检查超级管理员权限（auth_group属性访问必须在锁内）
+            if api_instance.auth_group != 'super_admin':
+                return jsonify({"success": False, "message": "仅超级管理员可更新权限组"})
+        # 锁已释放
+
+        # 问题6修复：验证权限组名称
+        if not group_name:
+            return jsonify({"success": False, "message": "权限组标识不能为空"})
+
+        # 执行权限组更新操作
         result = auth_system.update_permission_group(group_name, permissions)
+        
+        # 问题6修复：检查权限组是否存在
+        if not result.get('success', False):
+            # 如果更新失败，检查是否因为权限组不存在
+            if '不存在' in result.get('message', ''):
+                return jsonify({"success": False, "message": f"权限组 '{group_name}' 不存在"})
+        
         return jsonify(result)
 
     @app.route('/auth/admin/delete_group', methods=['POST'])
@@ -12678,11 +13919,34 @@ def start_web_server(args_param):
 
     @app.route('/auth/get_config', methods=['GET'])
     def auth_get_config():
-        """获取认证配置（用于前端显示）"""
+        """
+        获取认证配置（用于前端显示）
+        使用 _get_config_value 辅助函数安全地读取配置，避免 ValueError 崩溃
+        """
+        # 安全地读取 allow_guest_login 配置，使用 _get_config_value 辅助函数
+        # type_func 参数设置为 lambda 函数，用于处理布尔值转换
+        # 支持 'true', 'yes', '1', 'on' 等多种格式
+        allow_guest_login = _get_config_value(
+            auth_system.config, 
+            'Guest', 
+            'allow_guest_login', 
+            type_func=lambda x: str(x).lower() in ('true', 'yes', '1', 'on'),  # 布尔值转换逻辑
+            fallback=True  # 默认值为 True
+        )
+        
+        # 安全地读取 amap_js_key 配置
+        amap_js_key = _get_config_value(
+            auth_system.config, 
+            'Map', 
+            'amap_js_key', 
+            type_func=str,  # 字符串类型
+            fallback=''  # 默认值为空字符串
+        )
+        
         return jsonify({
             "success": True,
-            "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True),
-            "amap_js_key": auth_system.config.get('Map', 'amap_js_key', fallback='')
+            "allow_guest_login": allow_guest_login,
+            "amap_js_key": amap_js_key
         })
 
     @app.route('/auth/check_uuid_type', methods=['POST'])
@@ -13162,6 +14426,275 @@ def start_web_server(args_param):
 
         return jsonify(result)
 
+    @app.route('/api/admin/users/<username>/basic_info', methods=['PUT'])
+    def api_admin_update_user_basic_info(username):
+        """
+        问题8修复：管理员或用户本人：更新用户基本信息
+        
+        功能说明：
+        允许管理员或用户本人更新基本信息（如昵称）
+        
+        URL参数:
+            username: 要更新的用户名
+            
+        请求体参数（JSON）:
+            nickname: 新昵称（可选）
+            
+        权限要求:
+            - 管理员可以更新任何用户的信息
+            - 普通用户只能更新自己的信息
+            
+        返回:
+            操作结果
+        """
+        # 获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        # 验证会话
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        # 获取API实例和当前用户信息
+        api_instance = web_sessions[session_id]
+        current_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查权限：管理员可以更新任何用户，普通用户只能更新自己
+        is_admin = auth_system.check_permission(current_username, 'manage_users')
+        if not is_admin and current_username != username:
+            return jsonify({"success": False, "message": "权限不足：您只能修改自己的信息"}), 403
+
+        # 获取请求数据
+        data = request.get_json() or {}
+        nickname = data.get('nickname', '').strip()  # 获取昵称并去除空格
+
+        # 验证昵称不能为空
+        if not nickname:
+            return jsonify({"success": False, "message": "昵称不能为空"}), 400
+
+        try:
+            # 获取用户文件路径
+            user_file_path = auth_system.get_user_file_path(username)
+            
+            # 检查用户是否存在
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "用户不存在"}), 404
+
+            # 读取用户数据
+            with open(user_file_path, 'r', encoding='utf-8') as f:
+                user_data = json.load(f)
+
+            # 更新昵称
+            user_data['nickname'] = nickname
+            
+            # 保存更新后的用户数据
+            with open(user_file_path, 'w', encoding='utf-8') as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            # 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                current_username,
+                'update_basic_info',
+                f'更新用户 {username} 的昵称为: {nickname}',
+                ip_address,
+                session_id
+            )
+
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "基本信息更新成功",
+                "data": {
+                    "username": username,
+                    "nickname": nickname
+                }
+            })
+
+        except Exception as e:
+            # 捕获异常并记录日志
+            app.logger.error(f"[更新基本信息] 失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+
+
+    @app.route('/auth/admin/update_user_nickname', methods=['POST'])
+    @login_required
+    def auth_admin_update_user_nickname():
+        """
+        新功能：管理员强制修改用户昵称
+        
+        权限要求:
+            - 管理员权限 ('manage_users')
+            
+        请求体参数（JSON）:
+            username: 要更新的用户名
+            nickname: 新昵称
+            
+        返回:
+            操作结果
+        """
+        try:
+            # 1. 获取当前登录用户 (来自 @login_required 装饰器设置的 g.user)
+            current_username = g.user
+            
+            # 2. 检查管理员权限
+            if not auth_system.check_permission(current_username, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足：需要管理员权限"}), 403
+
+            # 3. 获取请求数据
+            data = request.get_json() or {}
+            target_username = data.get('username', '').strip()
+            new_nickname = data.get('nickname', '').strip()
+
+            # 4. 验证参数
+            if not target_username:
+                return jsonify({"success": False, "message": "缺少用户名参数"}), 400
+            
+            if not new_nickname:
+                return jsonify({"success": False, "message": "新昵称不能为空"}), 400
+
+            # 5. 获取用户文件路径
+            user_file_path = auth_system.get_user_file_path(target_username)
+            
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "用户不存在"}), 404
+
+            # 6. 读取、更新、保存用户数据
+            # (使用 auth_system.lock 确保文件操作的线程安全)
+            with auth_system.lock:
+                with open(user_file_path, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+
+                user_data['nickname'] = new_nickname
+                
+                with open(user_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            # 7. 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                current_username,
+                'admin_update_nickname',
+                f'管理员 {current_username} 更新了用户 {target_username} 的昵称为: {new_nickname}',
+                ip_address,
+                g.api_instance._web_session_id if hasattr(g, 'api_instance') else ''
+            )
+
+            # 8. 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "昵称更新成功",
+                "data": {
+                    "username": target_username,
+                    "nickname": new_nickname
+                }
+            })
+
+        except Exception as e:
+            app.logger.error(f"[管理员更新昵称] 失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+
+
+    @app.route('/auth/admin/update_user_phone', methods=['POST'])
+    def auth_admin_update_user_phone():
+        """
+        问题4修复：管理员更新用户手机号
+        任务 3/3：落实一个手机号只能绑定一个账号
+        
+        功能说明：
+        允许管理员更新用户的手机号（验证码非必需）
+        
+        请求体参数（JSON）:
+            username: 要更新的用户名
+            new_phone: 新手机号
+            sms_code: 验证码（可选，管理员操作不强制）
+            
+        权限要求:
+            - 管理员权限
+            
+        返回:
+            操作结果
+        """
+        # 获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        # 验证会话
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        # 获取API实例和当前用户信息
+        api_instance = web_sessions[session_id]
+        current_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查管理员权限
+        if not auth_system.check_permission(current_username, 'manage_users'):
+            return jsonify({"success": False, "message": "权限不足：需要管理员权限"}), 403
+
+        # 获取请求数据
+        data = request.get_json() or {}
+        username = data.get('username', '').strip() # 目标用户
+        new_phone = data.get('new_phone', '').strip()
+        sms_code = data.get('sms_code', '').strip() # 管理员操作时，sms_code可选
+
+        # 验证参数
+        if not username:
+            return jsonify({"success": False, "message": "缺少用户名参数"}), 400
+            
+        if not new_phone:
+            return jsonify({"success": False, "message": "新手机号不能为空"}), 400
+        
+        # 验证手机号格式
+        import re
+        if not re.match(r'^1[3-9]\d{9}$', new_phone):
+            return jsonify({"success": False, "message": "手机号格式不正确"}), 400
+
+        try:
+            # 获取用户文件路径
+            user_file_path = auth_system.get_user_file_path(username)
+            
+            # 检查用户是否存在
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "用户不存在"}), 404
+
+
+            # 管理员修改时，允许将手机号绑定到目标用户，即使该手机号已绑定到其他人
+            auth_system.unbind_phone_from_user(new_phone, except_username=username)
+
+            # 读取用户数据
+            # (使用 AuthSystem 的锁确保文件操作的线程安全)
+            with auth_system.lock:
+                with open(user_file_path, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+
+                # 更新手机号
+                user_data['phone'] = new_phone
+                
+                # 保存更新后的用户数据
+                with open(user_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            # 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                current_username,
+                'admin_update_phone',
+                f'管理员 {current_username} 更新了用户 {username} 的手机号为: {new_phone}',
+                ip_address,
+                session_id
+            )
+
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "手机号更新成功",
+                "data": {
+                    "username": username,
+                    "phone": new_phone
+                }
+            })
+
+        except Exception as e:
+            # 捕获异常并记录日志
+            app.logger.error(f"[管理员更新手机号] 失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+
     @app.route('/auth/admin/login_logs', methods=['GET'])
     def auth_admin_login_logs():
         """获取登录日志（管理员）"""
@@ -13185,6 +14718,446 @@ def start_web_server(args_param):
             "success": True,
             "logs": logs
         })
+    
+    @app.route('/auth/admin/get_user_school_accounts', methods=['GET'])
+    def auth_admin_get_user_school_accounts():
+        """获取指定认证用户的所有 school_account（管理员或有 auto_fill_password 权限）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        api_instance = web_sessions[session_id]
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        auth_username = getattr(api_instance, 'auth_username', None)
+        
+        # 检查权限：管理员或有 auto_fill_password 权限
+        has_permission = False
+        if auth_group in ['admin', 'super_admin']:
+            has_permission = True
+        elif auth_username:
+            has_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
+        
+        if not has_permission:
+            return jsonify({"success": False, "message": "权限不足"}), 403
+
+        # 获取参数：要查询的用户名（如果不提供，则查询当前用户自己的）
+        target_username = request.args.get('username', auth_username)
+        
+        # 如果是普通用户（非管理员），只能查询自己的
+        if auth_group not in ['admin', 'super_admin'] and target_username != auth_username:
+            return jsonify({"success": False, "message": "只能查询自己的账户"}), 403
+        
+        # 加载 school_accounts
+        accounts = api_instance._load_user_school_accounts(target_username)
+        
+        return jsonify({
+            "success": True,
+            "username": target_username,
+            "accounts": accounts
+        })
+    
+    @app.route('/auth/admin/get_all_users_school_accounts', methods=['GET'])
+    def auth_admin_get_all_users_school_accounts():
+        """获取所有认证用户的 school_account 列表（管理员或有 auto_fill_password 权限）"""
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        api_instance = web_sessions[session_id]
+        auth_group = getattr(api_instance, 'auth_group', 'guest')
+        auth_username = getattr(api_instance, 'auth_username', None)
+        
+        # 检查权限：管理员或有 auto_fill_password 权限
+        has_permission = False
+        if auth_group in ['admin', 'super_admin']:
+            has_permission = True
+        elif auth_username:
+            has_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
+        
+        if not has_permission:
+            return jsonify({"success": False, "message": "权限不足"}), 403
+
+        # 扫描 user_accounts 目录，获取所有用户的 school_accounts
+        user_accounts_dir = os.path.join(SCHOOL_ACCOUNTS_DIR, 'user_accounts')
+        all_users_accounts = {}
+        
+        if os.path.exists(user_accounts_dir):
+            for filename in os.listdir(user_accounts_dir):
+                if filename.endswith('.json'):
+                    username = filename[:-5]  # 去掉 .json 后缀
+                    try:
+                        file_path = os.path.join(user_accounts_dir, filename)
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            accounts = json.load(f)
+                        all_users_accounts[username] = accounts
+                    except Exception as e:
+                        logging.error(f"读取用户 {username} 的 school_accounts 失败: {e}")
+        
+        return jsonify({
+            "success": True,
+            "all_accounts": all_users_accounts
+        })
+
+    # ========== 新增：School Account 管理API（保存/添加） ==========
+    @app.route('/api/admin/school_account/save', methods=['POST'])
+    def api_admin_school_account_save():
+        """
+        保存或添加 School Account（PC端管理面板CRUD支持）。
+        
+        功能说明：
+        - 允许管理员或有权限的用户保存/更新学校账户信息
+        - 支持添加新账户和更新现有账户
+        - 数据包括：用户名、密码、UA（User-Agent）
+        
+        请求参数（JSON）：
+        - auth_username: 认证用户名（所属用户）
+        - school_username: 学校账户用户名
+        - password: 学校账户密码
+        - ua: User-Agent字符串（可选）
+        
+        权限要求：
+        - 管理员可以保存任何用户的账户
+        - 普通用户只能保存自己的账户
+        
+        返回值：
+        - success: 是否成功
+        - message: 提示信息
+        """
+        # ========== 1. 验证会话 ==========
+        # 从请求头获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 检查会话是否存在
+        if not session_id or session_id not in web_sessions:
+            # 会话不存在或已过期，返回401未授权
+            return jsonify({"success": False, "message": "未登录或会话无效"}), 401
+        
+        # 获取当前用户的API实例
+        api_instance = web_sessions[session_id]
+        
+        # 获取当前用户的权限信息
+        auth_group = getattr(api_instance, 'auth_group', 'guest')  # 用户组（guest/user/admin/super_admin）
+        current_auth_username = getattr(api_instance, 'auth_username', None)  # 当前登录的认证用户名
+        
+        # ========== 2. 解析请求数据 ==========
+        try:
+            # 从请求体获取JSON数据
+            data = request.get_json()
+            if not data:
+                # 如果没有提供JSON数据，返回400错误
+                return jsonify({"success": False, "message": "缺少请求数据"}), 400
+            
+            # 提取必需的字段并去除首尾空格
+            auth_username = data.get('auth_username', '').strip()  # 目标认证用户（账户所属）
+            school_username = data.get('school_username', '').strip()  # 学校账户用户名
+            password = data.get('password', '').strip()  # 学校账户密码
+            ua = data.get('ua', '').strip()  # User-Agent（可选）
+            
+            # 验证必填字段
+            if not auth_username or not school_username or not password:
+                # 如果任何必填字段为空，返回400错误
+                return jsonify({"success": False, "message": "缺少必填字段：auth_username, school_username, password"}), 400
+                
+        except Exception as e:
+            # 捕获JSON解析错误或其他异常
+            logging.error(f"解析school_account保存请求失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "请求数据格式错误"}), 400
+        
+        # ========== 3. 权限检查 ==========
+        # 检查当前用户是否有权限保存指定用户的账户
+        is_admin = auth_group in ['admin', 'super_admin']  # 是否是管理员
+        
+        # 权限规则：
+        # 1. 管理员可以保存任何用户的账户
+        # 2. 普通用户只能保存自己的账户（auth_username 必须等于 current_auth_username）
+        if not is_admin and auth_username != current_auth_username:
+            # 权限不足：普通用户试图保存其他用户的账户
+            logging.warning(f"用户 {current_auth_username} 试图保存 {auth_username} 的账户，权限不足")
+            return jsonify({"success": False, "message": "权限不足：只能保存自己的账户"}), 403
+        
+        # ========== 4. 加载现有账户数据 ==========
+        try:
+            # 调用 API 实例的方法加载指定用户的所有 school_accounts
+            # 返回格式：{school_username: {"password": "xxx", "ua": "xxx"}, ...}
+            accounts = api_instance._load_user_school_accounts(auth_username)
+            
+            # 如果 accounts 为 None（不应该发生，但作为防御性编程），初始化为空字典
+            if accounts is None:
+                accounts = {}
+                
+        except Exception as e:
+            # 加载失败，记录错误并返回500错误
+            logging.error(f"加载用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "加载账户数据失败"}), 500
+        
+        # ========== 5. 更新或添加账户 ==========
+        # 检查该 school_username 是否已存在
+        is_new_account = school_username not in accounts
+        
+        # 更新账户信息（如果已存在则覆盖，如果不存在则添加）
+        accounts[school_username] = {
+            "password": password,  # 保存密码
+            "ua": ua if ua else ""  # 保存UA，如果未提供则为空字符串
+        }
+        
+        # 记录操作日志
+        action = "添加" if is_new_account else "更新"
+        logging.info(f"{action} school_account: 认证用户={auth_username}, 学校账户={school_username}, 操作者={current_auth_username}")
+        
+        # ========== 6. 保存到文件 ==========
+        try:
+            # 调用 API 实例的方法将更新后的数据保存到文件
+            api_instance._save_user_school_accounts(auth_username, accounts)
+            
+            # 保存成功，返回成功响应
+            return jsonify({
+                "success": True, 
+                "message": f"账户 {school_username} {action}成功",
+                "is_new": is_new_account  # 告诉前端这是新账户还是更新
+            })
+            
+        except Exception as e:
+            # 保存失败，记录错误并返回500错误
+            logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "保存账户数据失败"}), 500
+    
+    # ========== 新增：School Account 管理API（删除） ==========
+    @app.route('/api/admin/school_account/delete', methods=['POST'])
+    def api_admin_school_account_delete():
+        """
+        删除 School Account（PC端管理面板CRUD支持）。
+        
+        功能说明：
+        - 允许管理员或有权限的用户删除学校账户
+        - 从指定认证用户的账户列表中移除指定的学校账户
+        
+        请求参数（JSON）：
+        - auth_username: 认证用户名（所属用户）
+        - school_username: 要删除的学校账户用户名
+        
+        权限要求：
+        - 管理员可以删除任何用户的账户
+        - 普通用户只能删除自己的账户
+        
+        返回值：
+        - success: 是否成功
+        - message: 提示信息
+        """
+        # ========== 1. 验证会话 ==========
+        # 从请求头获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 检查会话是否存在
+        if not session_id or session_id not in web_sessions:
+            # 会话不存在或已过期，返回401未授权
+            return jsonify({"success": False, "message": "未登录或会话无效"}), 401
+        
+        # 获取当前用户的API实例
+        api_instance = web_sessions[session_id]
+        
+        # 获取当前用户的权限信息
+        auth_group = getattr(api_instance, 'auth_group', 'guest')  # 用户组
+        current_auth_username = getattr(api_instance, 'auth_username', None)  # 当前登录用户
+        
+        # ========== 2. 解析请求数据 ==========
+        try:
+            # 从请求体获取JSON数据
+            data = request.get_json()
+            if not data:
+                # 如果没有提供JSON数据，返回400错误
+                return jsonify({"success": False, "message": "缺少请求数据"}), 400
+            
+            # 提取必需的字段并去除首尾空格
+            auth_username = data.get('auth_username', '').strip()  # 目标认证用户
+            school_username = data.get('school_username', '').strip()  # 要删除的学校账户
+            
+            # 验证必填字段
+            if not auth_username or not school_username:
+                # 如果任何必填字段为空，返回400错误
+                return jsonify({"success": False, "message": "缺少必填字段：auth_username, school_username"}), 400
+                
+        except Exception as e:
+            # 捕获JSON解析错误或其他异常
+            logging.error(f"解析school_account删除请求失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "请求数据格式错误"}), 400
+        
+        # ========== 3. 权限检查 ==========
+        # 检查当前用户是否有权限删除指定用户的账户
+        is_admin = auth_group in ['admin', 'super_admin']  # 是否是管理员
+        
+        # 权限规则：
+        # 1. 管理员可以删除任何用户的账户
+        # 2. 普通用户只能删除自己的账户（auth_username 必须等于 current_auth_username）
+        if not is_admin and auth_username != current_auth_username:
+            # 权限不足：普通用户试图删除其他用户的账户
+            logging.warning(f"用户 {current_auth_username} 试图删除 {auth_username} 的账户 {school_username}，权限不足")
+            return jsonify({"success": False, "message": "权限不足：只能删除自己的账户"}), 403
+        
+        # ========== 4. 加载现有账户数据 ==========
+        try:
+            # 调用 API 实例的方法加载指定用户的所有 school_accounts
+            accounts = api_instance._load_user_school_accounts(auth_username)
+            
+            # 如果 accounts 为 None，初始化为空字典
+            if accounts is None:
+                accounts = {}
+                
+        except Exception as e:
+            # 加载失败，记录错误并返回500错误
+            logging.error(f"加载用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "加载账户数据失败"}), 500
+        
+        # ========== 5. 删除账户 ==========
+        # 检查要删除的账户是否存在
+        if school_username not in accounts:
+            # 账户不存在，返回404错误
+            logging.warning(f"试图删除不存在的账户: 认证用户={auth_username}, 学校账户={school_username}")
+            return jsonify({"success": False, "message": f"账户 {school_username} 不存在"}), 404
+        
+        # 从字典中删除该账户
+        # 使用 pop() 方法安全地删除键值对
+        accounts.pop(school_username)
+        
+        # 记录操作日志
+        logging.info(f"删除 school_account: 认证用户={auth_username}, 学校账户={school_username}, 操作者={current_auth_username}")
+        
+        # ========== 6. 保存到文件 ==========
+        try:
+            # 调用 API 实例的方法将更新后的数据保存到文件
+            api_instance._save_user_school_accounts(auth_username, accounts)
+            
+            # 删除成功，返回成功响应
+            return jsonify({
+                "success": True, 
+                "message": f"账户 {school_username} 删除成功"
+            })
+            
+        except Exception as e:
+            # 保存失败，记录错误并返回500错误
+            logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "保存账户数据失败"}), 500
+
+    @app.route('/api/admin/school_account/update', methods=['POST'])
+    def api_admin_school_account_update():
+        """
+        更新 School Account（PC端管理面板CRUD支持）。
+        
+        功能说明：
+        - 允许管理员或有权限的用户更新学校账户的密码和UA
+        - 支持修改指定认证用户的学校账户信息
+        
+        请求参数（JSON）：
+        - auth_username: 认证用户名（所属用户）
+        - school_username: 学校账户用户名
+        - password: 新密码
+        - ua: 新User-Agent（可选）
+        
+        权限要求：
+        - 管理员可以更新任何用户的账户
+        - 普通用户只能更新自己的账户
+        
+        返回值：
+        - success: 是否成功
+        - message: 提示信息
+        """
+        # ========== 1. 验证会话 ==========
+        # 从请求头获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 检查会话是否存在
+        if not session_id or session_id not in web_sessions:
+            # 会话不存在或已过期，返回401未授权
+            return jsonify({"success": False, "message": "未登录或会话无效"}), 401
+        
+        # 获取当前用户的API实例
+        api_instance = web_sessions[session_id]
+        
+        # 获取当前用户的权限信息
+        auth_group = getattr(api_instance, 'auth_group', 'guest')  # 用户组
+        current_auth_username = getattr(api_instance, 'auth_username', None)  # 当前登录用户
+        
+        # ========== 2. 解析请求数据 ==========
+        try:
+            # 从请求体获取JSON数据
+            data = request.get_json()
+            if not data:
+                # 如果没有提供JSON数据，返回400错误
+                return jsonify({"success": False, "message": "缺少请求数据"}), 400
+            
+            # 提取必需的字段并去除首尾空格
+            auth_username = data.get('auth_username', '').strip()  # 目标认证用户
+            school_username = data.get('school_username', '').strip()  # 学校账户用户名
+            password = data.get('password', '').strip()  # 新密码
+            ua = data.get('ua', '').strip()  # 新User-Agent（可选）
+            
+            # 验证必填字段
+            if not auth_username or not school_username or not password:
+                # 如果任何必填字段为空，返回400错误
+                return jsonify({"success": False, "message": "缺少必填字段：auth_username, school_username, password"}), 400
+                
+        except Exception as e:
+            # 捕获JSON解析错误或其他异常
+            logging.error(f"解析school_account更新请求失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "请求数据格式错误"}), 400
+        
+        # ========== 3. 权限检查 ==========
+        # 检查当前用户是否有权限更新指定用户的账户
+        is_admin = auth_group in ['admin', 'super_admin']  # 是否是管理员
+        
+        # 权限规则：
+        # 1. 管理员可以更新任何用户的账户
+        # 2. 普通用户只能更新自己的账户（auth_username 必须等于 current_auth_username）
+        if not is_admin and auth_username != current_auth_username:
+            # 权限不足：普通用户试图更新其他用户的账户
+            logging.warning(f"用户 {current_auth_username} 试图更新 {auth_username} 的账户 {school_username}，权限不足")
+            return jsonify({"success": False, "message": "权限不足：只能更新自己的账户"}), 403
+        
+        # ========== 4. 加载现有账户数据 ==========
+        try:
+            # 调用 API 实例的方法加载指定用户的所有 school_accounts
+            accounts = api_instance._load_user_school_accounts(auth_username)
+            
+            # 如果 accounts 为 None，初始化为空字典
+            if accounts is None:
+                accounts = {}
+                
+        except Exception as e:
+            # 加载失败，记录错误并返回500错误
+            logging.error(f"加载用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "加载账户数据失败"}), 500
+        
+        # ========== 5. 更新账户 ==========
+        # 检查要更新的账户是否存在
+        if school_username not in accounts:
+            # 账户不存在，返回404错误
+            logging.warning(f"试图更新不存在的账户: 认证用户={auth_username}, 学校账户={school_username}")
+            return jsonify({"success": False, "message": f"账户 {school_username} 不存在"}), 404
+        
+        # 更新账户信息
+        # 使用新格式（字典）存储密码和UA
+        accounts[school_username] = {
+            "password": password,
+            "ua": ua if ua else ""
+        }
+        
+        # 记录操作日志
+        logging.info(f"更新 school_account: 认证用户={auth_username}, 学校账户={school_username}, 操作者={current_auth_username}")
+        
+        # ========== 6. 保存到文件 ==========
+        try:
+            # 调用 API 实例的方法将更新后的数据保存到文件
+            api_instance._save_user_school_accounts(auth_username, accounts)
+            
+            # 更新成功，返回成功响应
+            return jsonify({
+                "success": True, 
+                "message": f"账户 {school_username} 更新成功"
+            })
+            
+        except Exception as e:
+            # 保存失败，记录错误并返回500错误
+            logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "保存账户数据失败"}), 500
 
     @app.route('/logs/view', methods=['GET'])
     def view_logs():
@@ -13293,8 +15266,21 @@ def start_web_server(args_param):
                 return jsonify({"success": False, "message": "请提供当前密码"})
 
             # 验证原密码
-            if not auth_system.verify_password(target_username, old_password):
-                return jsonify({"success": False, "message": "当前密码错误"}), 401
+            user_file = auth_system.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return jsonify({"success": False, "message": "用户不存在"}), 404
+                
+            try:
+                with open(user_file, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                stored_password = user_data.get('password')
+            except Exception as e:
+                logging.error(f"读取用户 {auth_username} 密码失败: {e}")
+                return jsonify({"success": False, "message": "无法验证密码"}), 500
+
+                # 验证原密码 (修正：使用 _verify_password 并比较 input vs stored)
+                if not auth_system._verify_password(old_password, stored_password):
+                    return jsonify({"success": False, "message": "当前密码错误"}), 401
         else:
             # 管理员重置他人密码：需要管理权限
             if not auth_system.check_permission(auth_username, 'reset_user_password'):
@@ -13462,10 +15448,53 @@ def start_web_server(args_param):
                 logging.warning(f"[会话索引] 更新索引文件失败: {e}")
             return jsonify(result)
 
+    @app.route('/default_avatar.png')
+    @app.route('/static/default_avatar.png')
+    def serve_default_avatar():
+        """
+    
+        为 default_avatar.png 提供根路径和 /static 路径的访问。
+        
+        问题：
+        - 注册页面 (auth-reg-avatar-preview) hardcodes /static/default_avatar.png (404)
+        - 个人资料 (loadPersonalInfo) 在 avatar_url 为 'default_avatar.png' 时，
+          会直接请求 /default_avatar.png (404)
+        
+        解决：
+        添加这两个路由，统一指向 ./default_avatar.png 文件。
+        """
+        try:
+            # 确保 os 模块已导入
+            import os
+            
+            # 使用 os.path.dirname(__file__) 确保路径是相对于 main.py 的
+            # __file__ 在 main() 中已保证可用
+            base_dir = os.path.dirname(__file__)
+            default_avatar_path = os.path.join(base_dir, 'default_avatar.png')
+            
+            if os.path.exists(default_avatar_path):
+                # 使用 send_file 发送文件 (必须在顶部导入)
+                return send_file(default_avatar_path, mimetype='image/png')
+            else:
+                logging.warning(f"Default avatar not found at {default_avatar_path}")
+                return "Default avatar not found", 404
+        except NameError as e:
+            # 如果 send_file 未导入 (虽然我们上面修复了，但作为兜底)
+            logging.error(f"Serve default avatar failed: {e}. Is send_file imported?")
+            return "Server configuration error", 500
+        except Exception as e:
+            logging.error(f"Error serving default avatar: {e}", exc_info=True)
+            return "Server error", 500
+
+
+
     @app.route('/api/avatar/<filename>', methods=['GET'])
     def serve_avatar(filename):
         """提供头像图片服务（需要会话认证，管理员可访问）"""
 
+        if filename == 'default_avatar.png':
+            return redirect('/default_avatar.png')
+            
 
         # 验证会话 - 支持从header、cookie或query参数获取session_id
         session_id = request.headers.get('X-Session-ID', '') or \
@@ -13484,6 +15513,18 @@ def start_web_server(args_param):
 
         # 管理员可以访问所有头像，无需进一步验证
         # 普通用户也可以访问（因为他们已通过会话验证）
+
+        # 问题1修复：特殊处理默认头像文件
+        # 默认头像位于项目根目录的default_avatar.png
+        if filename == 'default_avatar.png':
+            default_avatar_path = os.path.join(os.path.dirname(__file__), 'default_avatar.png')
+            if os.path.exists(default_avatar_path):
+                try:
+                    return send_file(default_avatar_path, mimetype='image/png')
+                except Exception as e:
+                    return jsonify({"success": False, "message": f"读取默认头像失败: {str(e)}"}), 500
+            else:
+                return jsonify({"success": False, "message": "默认头像文件不存在"}), 404
 
         # 验证文件名格式（只允许PNG文件，且文件名为64字符的十六进制哈希值）
         # 64 chars hash + .png (4 chars)
@@ -13531,7 +15572,7 @@ def start_web_server(args_param):
         old_avatar_url = user_details.get('avatar_url', '')
 
         # 清除用户头像URL
-        result = auth_system.update_user_avatar(target_username, '')
+        result = auth_system.update_user_avatar(target_username, 'default_avatar.png')
 
         if result.get('success'):
             # 如果有旧头像，尝试删除文件和索引（但不强制，因为可能被其他用户共享）
@@ -13813,6 +15854,20 @@ def start_web_server(args_param):
 
                         # 确保加载的数据属于当前用户
                         if session_data.get('auth_username') == auth_username:
+                            # 15. 修正多账号模式下的“未登录”状态
+                            is_multi_mode = session_data.get('is_multi_account_mode', False)
+                            session_login_success = session_data.get('login_success', False) # 单账号模式的状态
+                            
+                            if is_multi_mode:
+                                # 多账号模式：检查是否有任何一个子账号已登录
+                                account_states = session_data.get('multi_account_states', {})
+                                # 检查是否有任何一个 'school_account_logged_in' 为 True
+                                # (这依赖于步骤1中 save_session_state 的修正)
+                                session_login_success = any(
+                                    acc.get('school_account_logged_in', False) 
+                                    for acc in account_states.values()
+                                )
+
                             sessions_info.append({
                                 'session_id': sid,
                                 # 添加哈希
@@ -13821,7 +15876,8 @@ def start_web_server(args_param):
                                 # 使用 last_accessed
                                 'last_activity': session_data.get('last_accessed', 0),
                                 'is_current': sid == session_id,
-                                'login_success': session_data.get('login_success', False),
+                                'login_success': session_login_success, # <-- 使用修正后的状态
+                                'is_multi_account_mode': is_multi_mode, # <-- 确保传递此标志
                                 'user_data': session_data.get('user_data', {})
                             })
                     except Exception as e:
@@ -14145,6 +16201,20 @@ def start_web_server(args_param):
                         if not sid or sid in session_ids_in_memory:
                             continue  # 跳过已在内存中的会话
 
+                        # 15. 修正多账号模式下的“未登录”状态
+                        is_multi_mode = state.get('is_multi_account_mode', False)
+                        session_login_success = state.get('login_success', False) # 单账号模式的状态
+                        
+                        if is_multi_mode:
+                            # 多账号模式：检查是否有任何一个子账号已登录
+                            account_states = state.get('multi_account_states', {})
+                            # 检查是否有任何一个 'school_account_logged_in' 为 True
+                            # (这依赖于步骤1中 save_session_state 的修正)
+                            session_login_success = any(
+                                acc.get('school_account_logged_in', False) 
+                                for acc in account_states.values()
+                            )
+
                         # 从文件中读取会话信息
                         session_info = {
                             'session_id': sid,
@@ -14154,7 +16224,8 @@ def start_web_server(args_param):
                             'is_authenticated': state.get('is_authenticated', False),
                             'is_guest': state.get('is_guest', False),
                             'created_at': state.get('created_at', 0),
-                            'login_success': state.get('login_success', False),
+                            'login_success': session_login_success, # <-- 使用修正后的状态
+                            'is_multi_account_mode': is_multi_mode, # <-- 传递多账号模式标志
                             'user_info': state.get('user_info', {}),
                             'is_current': sid == session_id,
                             # 添加username字段供前端使用
@@ -14268,6 +16339,767 @@ def start_web_server(args_param):
         })
 
     # ====================
+    # 短信服务API
+    # ====================
+
+    @app.route('/api/sms/send_code', methods=['POST'])
+    def sms_send_code():
+        """
+        发送短信验证码API
+        功能：向指定手机号发送验证码，用于注册、登录或修改手机号等场景
+        
+        请求参数：
+        - phone: 手机号（必填）
+        - scene: 使用场景（register/login/modify，默认register）
+        
+        返回：
+        - success: 是否成功
+        - message: 提示信息
+        - code_id: 验证码ID（用于后续验证）
+        """
+        try:
+            # 检查短信服务总开关
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "短信服务未启用"})
+            # 1. 获取并验证请求参数
+            data = request.get_json() or {}
+            phone = data.get('phone', '').strip()
+            scene = data.get('scene', 'register').strip()  # 使用场景
+            captcha_input = data.get('captcha', '').strip()  # 获取用户输入的验证码
+            captcha_id = data.get('captcha_id', '').strip()  # 获取验证码ID
+            
+            # 2. 验证图形验证码（必须首先验证，防止恶意短信攻击）
+            is_captcha_valid, captcha_error_msg = verify_captcha(captcha_id, captcha_input)
+            if not is_captcha_valid:
+                return jsonify({"success": False, "message": captcha_error_msg})
+            
+            # 3. 验证手机号格式（11位数字，1开头）
+            if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+            # 4. 检查发送间隔限制（安全增强）
+            sms_interval_seconds = int(config.get('SMS_Service_SMSBao', 'send_interval_seconds', fallback='180'))
+            last_send_key = f"sms_last_send_{phone}"
+            last_send_time = cache.get(last_send_key, 0)
+            current_time = time.time()
+            
+            if last_send_time and (current_time - last_send_time) < sms_interval_seconds:
+                remaining_seconds = int(sms_interval_seconds - (current_time - last_send_time))
+                return jsonify({
+                    "success": False, 
+                    "message": f"发送过于频繁，请{remaining_seconds}秒后再试",
+                    "retry_after": remaining_seconds
+                })
+            
+            # 5. 执行速率限制检查（防止滥用和攻击）
+            client_ip = request.remote_addr
+            current_date = time.strftime('%Y-%m-%d')
+            
+            # 检查IP限制
+            ip_limit_key = f"sms_ip_{client_ip}_{current_date}"
+            ip_count = cache.get(ip_limit_key, 0)
+            ip_limit = int(config.get('SMS_Service_SMSBao', 'rate_limit_per_ip_day', fallback='20'))
+            if ip_count >= ip_limit:
+                return jsonify({"success": False, "message": f"IP每日发送次数已达上限({ip_limit}次)"})
+            
+            # 检查手机号限制
+            phone_limit_key = f"sms_phone_{phone}_{current_date}"
+            phone_count = cache.get(phone_limit_key, 0)
+            phone_limit = int(config.get('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback='5'))
+            if phone_count >= phone_limit:
+                return jsonify({"success": False, "message": f"该手机号每日发送次数已达上限({phone_limit}次)"})
+            
+            # 6. 生成6位数字验证码（安全：仅后端存储，不返回前端）
+            import random
+            code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            
+            # 7. 调用短信宝API发送短信
+            username = config.get('SMS_Service_SMSBao', 'username', fallback='')
+            api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
+            signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【电科大跑步助手】')
+            code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+            template = config.get('SMS_Service_SMSBao', 'template_register', 
+                                 fallback=f'您的验证码是：{{code}}，{code_expire_minutes}分钟内有效。')
+            
+            if not username or not api_key:
+                return jsonify({"success": False, "message": "短信服务配置不完整，请联系管理员"})
+            
+            # 构造短信内容（签名+模板），支持{code}和{minutes}占位符
+            content = signature + template.replace('{code}', code).replace('{minutes}', str(code_expire_minutes))
+            
+            # 调用短信宝HTTP API
+            import urllib.parse
+            import urllib.request
+            url = f"http://api.smsbao.com/sms?u={username}&p={api_key}&m={phone}&c={urllib.parse.quote(content)}"
+
+            logging.debug(f"[短信服务] 发送请求到短信宝API: {url}")
+            
+            try:
+                response = urllib.request.urlopen(url, timeout=10)
+                result = response.read().decode('utf-8').strip()
+                
+                # 短信宝返回码：0=成功，其他为错误码
+                if result == '0':
+                    # 7. 存储验证码到缓存（有效期可配置，默认5分钟）
+                    # 安全增强：验证码仅存储在后端，不返回前端
+                    code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+                    code_expire_seconds = code_expire_minutes * 60
+                    
+                    # 存储验证码到sms_verification_codes（用于后端验证）
+                    sms_verification_codes[phone] = (code, time.time() + code_expire_seconds)
+                    
+                    # 更新速率限制计数
+                    cache[ip_limit_key] = ip_count + 1
+                    cache[phone_limit_key] = phone_count + 1
+                    
+                    # 更新最后发送时间（用于间隔限制）
+                    cache[last_send_key] = current_time
+                    
+                    # 记录日志（安全：不记录验证码内容）
+                    app.logger.info(f"[短信服务] 向 {phone} 发送验证码成功，场景：{scene}，有效期：{code_expire_minutes}分钟")
+                    
+                    # 8. 记录短信发送历史到JSON文件
+                    try:
+                        # 确保log目录存在
+                        log_dir = LOGIN_LOGS_DIR
+                        os.makedirs(log_dir, exist_ok=True)
+                        
+                        # 获取会话ID（如果存在）
+                        session_id = request.headers.get('X-Session-ID', None)
+                        
+                        # 确定用户名
+                        username = None
+                        if scene == 'register':
+                            # 注册场景：使用手机号作为用户名（因为用户还未创建）
+                            username = f"注册用户({phone})"
+                        elif scene == 'modify':
+                            # 修改手机号场景：需要从会话中获取当前用户
+                            if g and hasattr(g, 'user'):
+                                username = g.user
+                            else:
+                                username = "未知用户"
+                        elif scene == 'admin_modify':
+                            # 管理员修改用户手机号：从请求数据中获取目标用户名
+                            username = data.get('target_username', '未知用户')
+                        else:
+                            # 其他场景（如登录）：尝试从会话获取
+                            if g and hasattr(g, 'user'):
+                                username = g.user
+                            else:
+                                username = phone  # 使用手机号作为标识
+                        
+                               # 构建历史记录
+                        history_entry = {
+                            'username': username,
+                            'phone': phone,
+                            'scene': scene,
+                            'timestamp': time.time(),
+                            'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+                            'content': content,
+                            'ip': client_ip
+                        }
+                        # 有条件地添加 session_id（仅当存在且非空时）
+                        if session_id is not None and session_id != '' and session_id != 'null':
+                            history_entry['session_id'] = session_id
+                 
+                        # 追加到JSON文件（每行一个JSON对象）
+                        history_file = os.path.join(log_dir, 'sms_history.jsonl')
+                        with open(history_file, 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
+                        
+                        app.logger.debug(f"[短信历史] 已记录发送历史: {phone} -> {username}")
+
+                        # 如果场景是管理员操作，则推送SocketIO更新
+                        # 检查是否是管理员在“验证码管理”中
+                        if scene in ['admin_modify', 'register']: # 假设 register 也可能在管理面板触发
+                            # 尝试从 g 对象获取 session_id
+                            session_id = getattr(g, 'api_instance', None)
+                            if session_id:
+                                session_id = getattr(session_id, '_web_session_id', None)
+                            
+                            if session_id:
+                                # 修正：只在 admin_add_manual 场景下触发
+                                # send_code 本身不应触发，因为它可能是用户自己注册
+                                # 让我们把这个逻辑移到 add_manual_verification_code
+                                pass
+                            else:
+                                # 如果 g.api_instance 不可用（例如非Flask请求上下文），则无法推送
+                                logging.debug("[SocketIO] sms_send_code：无法获取 session_id，跳过推送")
+
+
+                    except Exception as e:
+                        # 记录历史失败不应影响主流程
+                        app.logger.error(f"[短信历史] 记录失败: {str(e)}")
+                    
+                    # 安全：返回信息中不包含验证码
+                    return jsonify({
+                        "success": True, 
+                        "message": f"验证码已发送，{code_expire_minutes}分钟内有效",
+                        "expire_minutes": code_expire_minutes,
+                        "retry_after": sms_interval_seconds  # 告知前端下次可发送的间隔
+                    })
+                else:
+                    # 短信宝错误码映射（仅用于日志记录）
+                    # 安全策略：不向前端暴露具体错误原因，只记录到日志
+                    error_map = {
+                        '30': '密码错误', '40': '账号不存在', '41': '余额不足',
+                        '42': '账户已过期', '43': 'IP地址限制', '50': '内容含有敏感词'
+                    }
+                    # 将详细错误信息记录到日志（包含错误码和具体原因）
+                    detailed_error_msg = error_map.get(result, f'未知错误(错误码:{result})')
+                    app.logger.error(f"[短信服务] 短信宝API返回错误码: {result}, 原因: {detailed_error_msg}, 手机号: {phone}")
+                    
+                    # 向前端返回通用错误提示，不暴露具体错误原因
+                    # 这样可以防止攻击者通过错误信息探测系统配置
+                    return jsonify({"success": False, "message": "验证码发送失败，请稍后重试"})
+                    
+            except Exception as e:
+                # 网络或其他异常：详细错误记录到日志，前端显示通用提示
+                app.logger.error(f"[短信服务] API调用异常：{str(e)}, 手机号: {phone}", exc_info=True)
+                # 向前端返回通用错误提示
+                return jsonify({"success": False, "message": "验证码发送失败，请稍后重试"})
+                
+        except Exception as e:
+            # 请求处理异常：详细错误记录到日志，前端显示通用提示
+            app.logger.error(f"[短信服务] 处理请求异常：{str(e)}", exc_info=True)
+            # 向前端返回通用错误提示
+            return jsonify({"success": False, "message": "验证码发送失败，请稍后重试"})
+
+    @app.route('/sms-reply-webhook', methods=['GET'])
+    def sms_reply_webhook():
+        """
+        接收短信宝的用户回复推送（Webhook）
+        
+        短信宝会通过GET请求推送用户回复内容：
+        - m: 手机号
+        - c: 回复内容（UTF-8编码）
+        
+        功能：记录所有用户回复到日志文件，便于后续分析
+        """
+        try:
+            # 1. 获取推送参数
+            phone = request.args.get('m', '')  # 手机号
+            content = request.args.get('c', '')  # 回复内容（可能需要解码）
+            
+            if not phone or not content:
+                return "0"  # 短信宝要求返回"0"表示接收成功
+            
+            # 2. 解码UTF-8内容（如果需要）
+            try:
+                import urllib.parse
+                content = urllib.parse.unquote(content, encoding='utf-8')
+            except:
+                pass  # 解码失败则使用原始内容
+            
+            # 3. 记录到日志文件（JSONL格式，每行一条记录）
+            log_dir = LOGIN_LOGS_DIR
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = os.path.join(log_dir, 'sms_replies.jsonl')
+            
+            import json
+            log_entry = {
+                'timestamp': time.time(),
+                'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'phone': phone,
+                'content': content,
+                'ip': request.remote_addr
+            }
+            
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            
+            app.logger.info(f"[短信回复] 收到用户 {phone} 的回复：{content}")
+            
+            # 4. 返回"0"告知短信宝接收成功
+            return "0"
+            
+        except Exception as e:
+            app.logger.error(f"[短信回复] 处理异常：{str(e)}")
+            return "0"  # 即使出错也返回0，避免短信宝重复推送
+
+    @app.route('/api/sms/test_send', methods=['POST'])
+    @login_required
+    def sms_test_send():
+        """
+        短信测试发送API（管理员专用）
+        功能：向指定手机号发送验证码（可指定或随机），用于测试短信配置是否正确
+        
+        权限要求：仅管理员可调用
+        
+        请求参数：
+        - phone: 手机号（必填）
+        - code: 验证码（可选，不填则自动生成随机验证码）
+        
+        返回：
+        - success: 是否成功
+        - message: 提示信息
+        - code: 发送的验证码（仅测试模式下返回，便于管理员验证）
+        """
+        try:
+            # 1. 验证管理员权限
+            current_user = g.user
+            if not auth_system.is_super_admin(current_user) and not auth_system.is_admin(current_user):
+                return jsonify({"success": False, "message": "权限不足，仅管理员可使用测试功能"}), 403
+            
+            # 2. 检查短信服务总开关
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            if config.get('Features', 'enable_sms_service', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "短信服务未启用，请先在配置中启用"})
+            
+            # 3. 获取并验证手机号
+            data = request.get_json() or {}
+            phone = data.get('phone', '').strip()
+            custom_code = data.get('code', '').strip()  # 获取自定义验证码（可选）
+            
+            # 验证手机号格式（11位数字，1开头）
+            if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+            # 4. 生成或使用自定义验证码
+            if custom_code:
+                # 使用管理员指定的验证码
+                # 验证码格式检查：只允许数字，长度4-8位
+                if not re.match(r'^\d{4,8}$', custom_code):
+                    return jsonify({"success": False, "message": "自定义验证码格式不正确，仅支持4-8位数字"})
+                code = custom_code
+            else:
+                # 生成6位随机验证码
+                import random
+                code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+            
+            # 5. 读取短信宝配置
+            username = config.get('SMS_Service_SMSBao', 'username', fallback='')
+            api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
+            signature = config.get('SMS_Service_SMSBao', 'signature', fallback='【电科大跑步助手】')
+            code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+            
+            if not username or not api_key:
+                return jsonify({"success": False, "message": "短信服务配置不完整，请先完善短信宝用户名和API Key"})
+            
+            # 6. 构造测试短信内容
+            content = signature + f'【测试短信】您的验证码是：{code}，{code_expire_minutes}分钟内有效。这是一条测试短信。'
+            
+            # 7. 调用短信宝API发送短信
+            import urllib.parse
+            import urllib.request
+            url = f"http://api.smsbao.com/sms?u={username}&p={api_key}&m={phone}&c={urllib.parse.quote(content)}"
+            
+            logging.info(f"[短信测试] 管理员 {current_user} 发送测试短信到 {phone}")
+            
+            try:
+                response = urllib.request.urlopen(url, timeout=10)
+                result = response.read().decode('utf-8').strip()
+                
+                # 短信宝返回码：0=成功，其他为错误码
+                if result == '0':
+                    # 记录到短信发送历史
+                    try:
+                        log_dir = LOGIN_LOGS_DIR
+                        os.makedirs(log_dir, exist_ok=True)
+                        
+                        client_ip = request.remote_addr
+                        history_entry = {
+                            'username': f"{current_user}(测试)",
+                            'phone': phone,
+                            'scene': 'admin_test',
+                            'timestamp': time.time(),
+                            'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+                            'content': content,
+                            'ip': client_ip,
+                            'test_code': code  # 测试模式下记录验证码
+                        }
+                        
+                        history_file = os.path.join(log_dir, 'sms_history.jsonl')
+                        with open(history_file, 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
+                        
+                        logging.info(f"[短信测试] 已记录测试短信历史: {phone} -> 验证码: {code}")
+                    except Exception as e:
+                        logging.error(f"[短信测试] 记录历史失败: {str(e)}")
+                    
+                    # 测试模式下返回验证码，便于管理员验证
+                    return jsonify({
+                        "success": True,
+                        "message": f"测试短信发送成功！验证码：{code}",
+                        "code": code,  # 仅测试模式下返回
+                        "phone": phone
+                    })
+                else:
+                    # 短信宝错误码映射
+                    error_map = {
+                        '30': '密码错误',
+                        '40': '账号不存在',
+                        '41': '余额不足',
+                        '42': '账户已过期',
+                        '43': 'IP地址限制',
+                        '50': '内容含有敏感词'
+                    }
+                    error_msg = error_map.get(result, f'未知错误(错误码:{result})')
+                    logging.error(f"[短信测试] 短信宝API返回错误: {result} - {error_msg}")
+                    return jsonify({
+                        "success": False,
+                        "message": f"发送失败：{error_msg}",
+                        "error_code": result
+                    })
+                    
+            except Exception as e:
+                logging.error(f"[短信测试] API调用异常: {str(e)}", exc_info=True)
+                return jsonify({
+                    "success": False,
+                    "message": f"网络错误：{str(e)}"
+                })
+                
+        except Exception as e:
+            logging.error(f"[短信测试] 处理请求异常: {str(e)}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"处理失败：{str(e)}"
+            })
+
+    # ====================
+    # 管理员日志查看API
+    # ====================
+
+    @app.route('/api/admin/logs/login_history', methods=['GET'])
+    @login_required
+    def admin_logs_login_history():
+        """
+        查看用户登录历史记录
+        
+        权限要求：管理员或用户本人
+        
+        参数：
+        - username: 用户名（可选，管理员可查看任意用户，普通用户只能查看自己）
+        - limit: 返回条数（默认100）
+        
+        返回：登录记录列表
+        """
+        try:
+            # 获取当前登录用户
+            current_user = g.user
+            
+            # 获取查询参数
+            target_username = request.args.get('username', '').strip()
+            limit = int(request.args.get('limit', 100))
+            
+            # 问题5修复：使用check_permission替代is_admin
+            # 权限检查：非管理员只能查看自己的记录
+            if not auth_system.check_permission(current_user, 'manage_users'):
+                if target_username and target_username != current_user:
+                    return jsonify({"success": False, "message": "权限不足"}), 403
+                target_username = current_user
+            
+            # 如果未指定用户名且是管理员，则查看所有用户
+            if not target_username:
+                if not auth_system.check_permission(current_user, 'manage_users'):
+                    target_username = current_user
+            
+            # --- 调用 AuthSystem 的方法，而不是手动读取错误的文件 ---
+            # target_username 在权限检查后，要么是目标用户，要么是管理员(空字符串)，要么是用户自己
+            # 如果 target_username 为空字符串 (管理员查看全部)，需转为 None 以匹配 get_login_history
+            
+            username_to_query = target_username if target_username else None
+            
+            # 调用 auth_system 中正确的方法
+            # get_login_history 会返回最近的N条记录（但按时间正序）
+            history = auth_system.get_login_history(username_to_query, limit)
+            
+            # 前端期望的是倒序（最新的在前），所以我们在这里反转一下
+            history.reverse()
+            
+            return jsonify({
+                "success": True,
+                "logs": history,  # 改为logs以匹配前端期望
+                "total": len(history)
+            })
+            
+        except Exception as e:
+            app.logger.error(f"[登录历史] 查询失败：{str(e)}")
+            return jsonify({"success": False, "message": "查询失败"}), 500
+
+    @app.route('/api/admin/logs/audit', methods=['GET'])
+    @login_required
+    def admin_logs_audit():
+        """
+        查看用户审计日志（操作记录）
+        
+        权限要求：管理员
+        
+        参数：
+        - username: 用户名
+        - action: 操作类型
+        - limit: 返回条数（默认100）
+        
+        返回：审计日志列表
+        """
+
+        try:
+            # 权限检查：仅管理员可访问
+            if not auth_system.check_permission(g.user, 'view_logs'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 获取查询参数
+            username = request.args.get('username', '').strip()
+            action = request.args.get('action', '').strip()
+            limit = int(request.args.get('limit', 100))
+            
+            # 调用AuthSystem的审计日志方法
+            logs = auth_system.get_audit_logs(username, action, limit)
+            
+            return jsonify({
+                "success": True,
+                "logs": logs,
+                "total": len(logs)
+            })
+            
+        except Exception as e:
+            app.logger.error(f"[审计日志] 查询失败：{str(e)}")
+            return jsonify({"success": False, "message": "查询失败"}), 500
+
+    # ============================================================
+    # 任务：系统配置API (config.ini)
+    # ============================================================
+    
+    def _get_config_value(config, section, key, type_func=str, fallback=None):
+        """
+        辅助函数：从 configparser 安全地获取值，并应用类型转换。
+        如果 key 不存在，返回 fallback。
+        """
+        if config.has_option(section, key):
+            try:
+                # 尝试从 config 对象获取并转换
+                return type_func(config.get(section, key))
+            except (ValueError, TypeError):
+                # 转换失败，返回 fallback
+                return fallback
+        # 选项不存在，返回 fallback
+        return fallback
+
+    @app.route('/api/admin/config/load', methods=['GET'])
+    @login_required
+    def admin_config_load():
+        """
+        加载 config.ini 中的可配置项
+        权限要求: manage_system
+        """
+        try:
+            # 1. 权限检查
+            if not auth_system.check_permission(g.user, 'manage_system'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 2. 获取默认配置作为回退
+            default_config = _get_default_config()
+            
+            # 3. 读取当前配置
+            config = configparser.ConfigParser()
+            # 确保 config.ini 存在（如果不存在，_get_default_config() 逻辑在 auto_init 中已处理)
+            if os.path.exists(CONFIG_FILE):
+                config.read(CONFIG_FILE, encoding='utf-8')
+            else:
+                # 如果文件意外丢失，使用默认值
+                config = default_config
+            
+            # 4. 提取用户请求的特定配置项
+            config_data = {
+                'Guest': {
+                    'allow_guest_login': _get_config_value(
+                        config, 'Guest', 'allow_guest_login', 
+                        type_func=config.getboolean, 
+                        fallback=default_config.getboolean('Guest', 'allow_guest_login', fallback=True)
+                    )
+                },
+                'System': {
+                    'session_expiry_days': _get_config_value(
+                        config, 'System', 'session_expiry_days', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('System', 'session_expiry_days', fallback=7)
+                    ),
+                    'school_accounts_dir': _get_config_value(
+                        config, 'System', 'school_accounts_dir', 
+                        fallback=default_config.get('System', 'school_accounts_dir', fallback='school_accounts')
+                    ),
+                    'system_accounts_dir': _get_config_value(
+                        config, 'System', 'system_accounts_dir', 
+                        fallback=default_config.get('System', 'system_accounts_dir', fallback='system_accounts')
+                    ),
+                    'permissions_file': _get_config_value(
+                        config, 'System', 'permissions_file', 
+                        fallback=default_config.get('System', 'permissions_file', fallback='permissions.json')
+                    ),
+                    'session_monitor_check_interval': _get_config_value(
+                        config, 'System', 'session_monitor_check_interval', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('System', 'session_monitor_check_interval', fallback=60)
+                    ),
+                    'session_inactivity_timeout': _get_config_value(
+                        config, 'System', 'session_inactivity_timeout', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('System', 'session_inactivity_timeout', fallback=300)
+                    ),
+                },
+                'Logging': {
+                    'log_rotation_size_mb': _get_config_value(
+                        config, 'Logging', 'log_rotation_size_mb', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('Logging', 'log_rotation_size_mb', fallback=10)
+                    ),
+                    'archive_max_size_mb': _get_config_value(
+                        config, 'Logging', 'archive_max_size_mb', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('Logging', 'archive_max_size_mb', fallback=500)
+                    ),
+                    'log_dir': _get_config_value(
+                        config, 'Logging', 'log_dir', 
+                        fallback=default_config.get('Logging', 'log_dir', fallback='logs')
+                    ),
+                    'archive_dir': _get_config_value(
+                        config, 'Logging', 'archive_dir', 
+                        fallback=default_config.get('Logging', 'archive_dir', fallback='logs/archive')
+                    ),
+                },
+                'Security': {
+                    'password_storage': _get_config_value(
+                        config, 'Security', 'password_storage', 
+                        fallback=default_config.get('Security', 'password_storage', fallback='plaintext')
+                    ),
+                    'brute_force_protection': _get_config_value(
+                        config, 'Security', 'brute_force_protection', 
+                        type_func=config.getboolean,
+                        fallback=default_config.getboolean('Security', 'brute_force_protection', fallback=True)
+                    ),
+                    'login_log_retention_days': _get_config_value(
+                        config, 'Security', 'login_log_retention_days', 
+                        type_func=config.getint,
+                        fallback=default_config.getint('Security', 'login_log_retention_days', fallback=90)
+                    ),
+                },
+                'Map': {
+                    'amap_js_key': _get_config_value(
+                        config, 'Map', 'amap_js_key', 
+                        fallback=default_config.get('Map', 'amap_js_key', fallback='')
+                    )
+                },
+                'API': {
+                    'ip_api_key': _get_config_value(
+                        config, 'API', 'ip_api_key', 
+                        fallback=default_config.get('API', 'ip_api_key', fallback='')
+                    ),
+                    'captcha_api_key': _get_config_value(
+                        config, 'API', 'captcha_api_key', 
+                        fallback=default_config.get('API', 'captcha_api_key', fallback='')
+                    )
+                }
+            }
+            
+            return jsonify({"success": True, "config": config_data})
+            
+        except Exception as e:
+            app.logger.error(f"[系统配置] 加载配置失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": "加载配置失败"}), 500
+
+    @app.route('/api/admin/config/save', methods=['POST'])
+    @login_required
+    def admin_config_save():
+        """
+        保存 config.ini 中的可配置项
+        权限要求: manage_system
+        """
+        try:
+            # 1. 权限检查
+            if not auth_system.check_permission(g.user, 'manage_system'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+
+            data = request.get_json() or {}
+            
+            # 2. 读取现有配置（必须保留注释和其他未修改项）
+            config = configparser.ConfigParser()
+            config.optionxform = str # 保持键的大小写
+            if os.path.exists(CONFIG_FILE):
+                config.read(CONFIG_FILE, encoding='utf-8')
+            else:
+                # 如果文件不存在，从默认值创建
+                config = _get_default_config()
+
+            # 3. 逐项更新配置
+            # 辅助函数：确保节存在
+            def ensure_section(cfg, section_name):
+                if not cfg.has_section(section_name):
+                    cfg.add_section(section_name)
+
+            # [Guest]
+            if 'Guest' in data and 'allow_guest_login' in data['Guest']:
+                ensure_section(config, 'Guest')
+                config.set('Guest', 'allow_guest_login', str(data['Guest']['allow_guest_login']).lower())
+
+            # [System]
+            if 'System' in data:
+                ensure_section(config, 'System')
+                system_data = data['System']
+                for key in ['session_expiry_days', 'school_accounts_dir', 'system_accounts_dir', 'permissions_file', 'session_monitor_check_interval', 'session_inactivity_timeout']:
+                    if key in system_data:
+                        config.set('System', key, str(system_data[key]))
+            
+            # [Logging]
+            if 'Logging' in data:
+                ensure_section(config, 'Logging')
+                logging_data = data['Logging']
+                for key in ['log_rotation_size_mb', 'archive_max_size_mb', 'log_dir', 'archive_dir']:
+                    if key in logging_data:
+                        config.set('Logging', key, str(logging_data[key]))
+
+            # [Security]
+            if 'Security' in data:
+                ensure_section(config, 'Security')
+                security_data = data['Security']
+                if 'password_storage' in security_data:
+                    # 验证 password_storage 是否为允许的值
+                    allowed_storage = ['plaintext', 'sha256', 'bcrypt']
+                    if security_data['password_storage'] in allowed_storage:
+                        config.set('Security', 'password_storage', security_data['password_storage'])
+                    else:
+                        return jsonify({"success": False, "message": f"无效的 password_storage 值，必须是 {allowed_storage} 之一"}), 400
+                if 'brute_force_protection' in security_data:
+                    config.set('Security', 'brute_force_protection', str(security_data['brute_force_protection']).lower())
+                if 'login_log_retention_days' in security_data:
+                    config.set('Security', 'login_log_retention_days', str(security_data['login_log_retention_days']))
+
+            # [Map]
+            if 'Map' in data and 'amap_js_key' in data['Map']:
+                ensure_section(config, 'Map')
+                config.set('Map', 'amap_js_key', data['Map']['amap_js_key'])
+            
+            # [API]
+            if 'API' in data:
+                ensure_section(config, 'API')
+                api_data = data['API']
+                if 'ip_api_key' in api_data:
+                    config.set('API', 'ip_api_key', api_data['ip_api_key'])
+                if 'captcha_api_key' in api_data:
+                    config.set('API', 'captcha_api_key', api_data['captcha_api_key'])
+
+            # 4. 使用 _write_config_with_comments 保存以保留注释
+            _write_config_with_comments(config, CONFIG_FILE)
+
+            # 5. 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                g.user,
+                'update_system_config',
+                '管理员更新了 config.ini 系统配置',
+                ip_address,
+                g.api_instance._web_session_id if hasattr(g, 'api_instance') else ''
+            )
+
+            return jsonify({"success": True, "message": "系统配置已保存"})
+
+        except Exception as e:
+            app.logger.error(f"[系统配置] 保存配置失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": "保存配置失败"}), 500
+
+    # ====================
     # 前端日志接收API
     # ====================
 
@@ -14338,16 +17170,1339 @@ def start_web_server(args_param):
                 f"[前端日志处理错误][IP:{ip_address_err}][Sess:{session_id_err[:8]}] {e}", exc_info=True)
             return jsonify({"success": False, "message": str(e)}), 500
 
+    @app.route('/api/auth/check_phone', methods=['POST'])
+    def auth_check_phone():
+        """
+        检查手机号是否已被绑定。
+        
+        请求体:
+            { "phone": "13800138000" }
+            
+        返回:
+            { "success": true, "is_bound": true/false, "bound_to_user": "username" (如果已绑定) }
+        """
+        data = request.get_json() or {}
+        phone = data.get('phone', '').strip()
+        
+        if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
+            return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+        try:
+            bound_username = auth_system.find_user_by_phone(phone)
+            
+            if bound_username:
+                return jsonify({
+                    "success": True, 
+                    "is_bound": True, 
+                    "bound_to_user": bound_username
+                })
+            else:
+                return jsonify({
+                    "success": True, 
+                    "is_bound": False
+                })
+        except Exception as e:
+            logging.error(f"[检查手机号] 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"服务器内部错误: {e}"}), 500
+
+    # 用户修改自己的手机号
+    @app.route('/api/user/update_phone', methods=['POST'])
+    @login_required # 使用装饰器确保用户已登录
+    def user_update_phone():
+        """
+        用户修改自己的手机号。
+        - 检查 enable_phone_modification 开关
+        - 强制验证短信
+        - 强制解绑其他账号
+        """
+        try:
+            # 1. 检查功能开关
+            config = configparser.ConfigParser()
+            config.read(CONFIG_FILE, encoding='utf-8')
+            if config.get('Features', 'enable_phone_modification', fallback='false').lower() != 'true':
+                return jsonify({"success": False, "message": "系统未开启手机号修改功能"})
+                
+            # 2. 获取参数
+            data = request.get_json() or {}
+            new_phone = data.get('new_phone', '').strip()
+            sms_code = data.get('sms_code', '').strip()
+            
+            if not new_phone or not re.match(r'^1[3-9]\d{9}$', new_phone):
+                return jsonify({"success": False, "message": "新手机号格式不正确"})
+                
+            if not sms_code:
+                return jsonify({"success": False, "message": "请输入短信验证码"})
+                
+            # 3. 验证短信验证码
+            global sms_verification_codes
+            stored_code_info = sms_verification_codes.get(new_phone)
+            
+            if not stored_code_info:
+                return jsonify({"success": False, "message": "请先获取验证码"})
+            
+            stored_code, expires_at = stored_code_info
+            
+            if time.time() > expires_at:
+                del sms_verification_codes[new_phone]
+                return jsonify({"success": False, "message": "验证码已过期，请重新获取"})
+                
+            if stored_code != sms_code:
+                return jsonify({"success": False, "message": "验证码错误"})
+                
+            # 验证成功，删除验证码
+            del sms_verification_codes[new_phone]
+            
+            # 4. 获取当前用户名
+            current_username = g.user
+            
+            # 5. 强制解绑该手机号（如果被其他人绑定）
+            auth_system.unbind_phone_from_user(new_phone, except_username=current_username)
+            
+            # 6. 更新当前用户的手机号
+            user_file_path = auth_system.get_user_file_path(current_username)
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "当前用户文件不存在"}), 404
+
+            with auth_system.lock:
+                with open(user_file_path, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                
+                user_data['phone'] = new_phone
+                
+                with open(user_file_path, 'w', encoding='utf-8') as f:
+                    json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            # 7. 记录审计日志
+            ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+            auth_system.log_audit(
+                current_username,
+                'user_update_phone',
+                f'用户 {current_username} 成功修改手机号为: {new_phone}',
+                ip_address,
+                g.api_instance._web_session_id
+            )
+            
+            return jsonify({
+                "success": True,
+                "message": "手机号修改成功",
+                "new_phone": new_phone
+            })
+            
+        except Exception as e:
+            app.logger.error(f"[用户修改手机号] 失败：{str(e)}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+    
+    # IP封禁数据存储文件路径
+    IP_BANS_FILE = os.path.join('logs', 'ip_bans.json')
+
+    @app.route('/api/admin/ip_bans', methods=['GET'])
+    @login_required
+    def get_ip_bans():
+        """
+        获取IP封禁列表
+        
+        权限要求：管理员
+        返回：所有IP封禁规则列表
+        """
+        try:
+            # 问题5修复：使用check_permission替代is_admin
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 问题11修复：自动创建文件和目录
+            # 如果logs目录不存在，自动创建
+            if not os.path.exists('logs'):
+                os.makedirs('logs', exist_ok=True)
+            
+            # 读取封禁列表
+            if os.path.exists(IP_BANS_FILE):
+                with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                    bans = json.load(f)
+            else:
+                # 如果文件不存在，自动创建空列表
+                bans = []
+            
+            return jsonify({"success": True, "bans": bans})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 获取列表失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取列表失败"}), 500
+
+    @app.route('/api/admin/ip_bans', methods=['POST'])
+    @login_required
+    def add_ip_ban():
+        """
+        添加IP封禁规则
+        
+        权限要求：管理员
+        参数：
+        - target: 封禁目标（IP/IP段/城市）
+        - type: 类型（ip/cidr/city）
+        - scope: 范围（all/messages_only）
+        """
+        try:
+            # 问题5修复：使用check_permission替代is_admin
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            data = request.get_json() or {}
+            target = data.get('target', '').strip()
+            ban_type = data.get('type', 'ip')
+            scope = data.get('scope', 'all')
+            
+            if not target:
+                return jsonify({"success": False, "message": "封禁目标不能为空"})
+            
+            # 问题11修复：确保目录存在
+            if not os.path.exists('logs'):
+                os.makedirs('logs', exist_ok=True)
+            
+            # 读取现有封禁列表
+            if os.path.exists(IP_BANS_FILE):
+                with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                    bans = json.load(f)
+            else:
+                bans = []
+            
+            # 添加新规则
+            new_ban = {
+                "id": str(time.time()),
+                "target": target,
+                "type": ban_type,
+                "scope": scope,
+                "created_at": time.time(),
+                "created_by": g.user
+            }
+            bans.append(new_ban)
+            
+            # 保存
+            os.makedirs(os.path.dirname(IP_BANS_FILE), exist_ok=True)
+            with open(IP_BANS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(bans, f, indent=2, ensure_ascii=False)
+            
+            app.logger.info(f"[IP封禁] {g.user} 添加封禁规则：{target} ({ban_type}, {scope})")
+            return jsonify({"success": True, "message": "封禁规则已添加"})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 添加规则失败：{str(e)}")
+            return jsonify({"success": False, "message": "添加失败"}), 500
+
+    @app.route('/api/admin/ip_bans/<ban_id>', methods=['DELETE'])
+    @login_required
+    def delete_ip_ban(ban_id):
+        """
+        删除IP封禁规则
+        
+        权限要求：管理员
+        参数：
+        - ban_id: 封禁规则ID
+        """
+        try:
+            # 问题5修复：使用check_permission替代is_admin
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            if not os.path.exists(IP_BANS_FILE):
+                return jsonify({"success": False, "message": "封禁列表不存在"})
+            
+            with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                bans = json.load(f)
+            
+            # 过滤掉要删除的规则
+            original_count = len(bans)
+            bans = [b for b in bans if b['id'] != ban_id]
+            
+            if len(bans) == original_count:
+                return jsonify({"success": False, "message": "封禁规则不存在"})
+            
+            with open(IP_BANS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(bans, f, indent=2, ensure_ascii=False)
+            
+            app.logger.info(f"[IP封禁] {g.user} 删除封禁规则：{ban_id}")
+            return jsonify({"success": True, "message": "封禁规则已删除"})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 删除规则失败：{str(e)}")
+            return jsonify({"success": False, "message": "删除失败"}), 500
+
+    @app.route('/api/admin/check_ip_ban', methods=['POST'])
+    def check_ip_ban_api():
+        """
+        检查IP封禁状态API
+        
+        功能说明：
+            供前端调用，检查当前客户端IP是否被封禁。
+            前端在切换到留言板标签或发表留言前调用此接口。
+        
+        请求参数：
+            - scope: 检查范围（'all'或'messages_only'），可选，默认为'all'
+        
+        返回：
+            {
+                "success": True,
+                "is_banned": True/False  # true表示IP被封禁
+            }
+        """
+        try:
+            # 获取客户端IP地址
+            client_ip = request.remote_addr
+            
+            # 获取检查范围（默认为'all'）
+            data = request.get_json() or {}
+            scope = data.get('scope', 'all')
+            
+            # 调用check_ip_ban函数进行检查
+            is_banned = check_ip_ban(client_ip, scope=scope)
+            
+            return jsonify({"success": True, "is_banned": is_banned})
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 检查失败：{str(e)}")
+            # 出错时默认返回未被封禁（避免误伤用户）
+            return jsonify({"success": True, "is_banned": False})
+
+    def check_ip_ban(ip_address, scope='all'):
+        """
+        检查IP是否被封禁
+        
+        参数：
+        - ip_address: 要检查的IP地址
+        - scope: 检查范围（all或具体功能如messages_only）
+        
+        返回：True表示被封禁，False表示未被封禁
+        """
+        if not os.path.exists(IP_BANS_FILE):
+            return False
+        
+        try:
+            with open(IP_BANS_FILE, 'r', encoding='utf-8') as f:
+                bans = json.load(f)
+            
+            for ban in bans:
+                # 检查scope是否匹配
+                if ban['scope'] != 'all' and ban['scope'] != scope:
+                    continue
+                
+                if ban['type'] == 'ip':
+                    # 单个IP匹配
+                    if ip_address == ban['target']:
+                        return True
+                elif ban['type'] == 'range':
+                    # IP范围匹配
+                    try:
+                        # 解析范围，例如 "192.168.1.1-192.168.1.100"
+                        start_ip_str, end_ip_str = ban['target'].split('-')
+                        
+                        # 使用 ipaddress 模块将IP转换为整数
+                        start_ip = int(ipaddress.ip_address(start_ip_str.strip()))
+                        end_ip = int(ipaddress.ip_address(end_ip_str.strip()))
+                        current_ip = int(ipaddress.ip_address(ip_address))
+                        
+                        # 检查当前IP是否在范围内
+                        if start_ip <= current_ip <= end_ip:
+                            return True
+                    except (ValueError, TypeError) as e:
+                        # 记录解析错误，但继续检查其他规则
+                        app.logger.warning(f"[IP封禁] 解析IP范围失败: {ban['target']}, 错误: {e}")
+                        pass
+                elif ban['type'] == 'city':
+                    # 城市匹配（需要IP归属地查询，这里简化处理）
+                    pass
+            
+            return False
+        except Exception as e:
+            app.logger.error(f"[IP封禁] 检查失败：{str(e)}")
+            return False
+
     # ====================
+    # 任务20：短信服务配置API
+    # ====================
+
+    @app.route('/api/admin/sms/config', methods=['GET'])
+    @login_required
+    def get_sms_config():
+        """
+        获取短信服务配置
+        
+        权限要求：管理员
+        返回：短信服务配置信息（包含三个新增的功能开关）
+        """
+        try:
+            # 问题5修复：使用check_permission替代is_admin
+            # 权限检查：只有具有manage_users权限的用户才能访问
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 问题12修复：自动补全config.ini配置
+            # 读取配置文件
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            
+            # 确保所需的配置节存在，如果不存在则创建
+            if 'Features' not in config:
+                config.add_section('Features')
+            if 'SMS_Service_SMSBao' not in config:
+                config.add_section('SMS_Service_SMSBao')
+            
+            # 补全缺失的配置项（使用默认值）
+            # 主开关：启用短信服务
+            if not config.has_option('Features', 'enable_sms_service'):
+                config.set('Features', 'enable_sms_service', 'false')
+            
+            # 新增：三个功能开关配置项
+            # 允许用户修改手机号
+            if not config.has_option('Features', 'enable_phone_modification'):
+                config.set('Features', 'enable_phone_modification', 'false')
+            # 允许手机号登录
+            if not config.has_option('Features', 'enable_phone_login'):
+                config.set('Features', 'enable_phone_login', 'false')
+            # 注册时需要短信验证
+            if not config.has_option('Features', 'enable_phone_registration_verify'):
+                config.set('Features', 'enable_phone_registration_verify', 'false')
+            
+            # 短信宝服务配置项
+            if not config.has_option('SMS_Service_SMSBao', 'username'):
+                config.set('SMS_Service_SMSBao', 'username', '')
+            if not config.has_option('SMS_Service_SMSBao', 'api_key'):
+                config.set('SMS_Service_SMSBao', 'api_key', '')
+            if not config.has_option('SMS_Service_SMSBao', 'signature'):
+                config.set('SMS_Service_SMSBao', 'signature', '')
+            if not config.has_option('SMS_Service_SMSBao', 'template_register'):
+                config.set('SMS_Service_SMSBao', 'template_register', '')
+            if not config.has_option('SMS_Service_SMSBao', 'code_expire_minutes'):
+                config.set('SMS_Service_SMSBao', 'code_expire_minutes', '5')
+            if not config.has_option('SMS_Service_SMSBao', 'rate_limit_per_account_day'):
+                config.set('SMS_Service_SMSBao', 'rate_limit_per_account_day', '10')
+            if not config.has_option('SMS_Service_SMSBao', 'rate_limit_per_ip_day'):
+                config.set('SMS_Service_SMSBao', 'rate_limit_per_ip_day', '20')
+            if not config.has_option('SMS_Service_SMSBao', 'rate_limit_per_phone_day'):
+                config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', '5')
+            
+            # 保存补全后的配置（如果有修改的话）
+            with open('config.ini', 'w', encoding='utf-8') as f:
+                config.write(f)
+            
+            # 构建返回的配置对象
+            sms_config = {
+                # 主开关
+                'enable_sms_service': config.getboolean('Features', 'enable_sms_service', fallback=False),
+                
+                # 新增：三个功能开关
+                'enable_phone_modification': config.getboolean('Features', 'enable_phone_modification', fallback=False),
+                'enable_phone_login': config.getboolean('Features', 'enable_phone_login', fallback=False),
+                'enable_phone_registration_verify': config.getboolean('Features', 'enable_phone_registration_verify', fallback=False),
+                
+                # 短信宝服务配置
+                'username': config.get('SMS_Service_SMSBao', 'username', fallback=''),
+                'api_key': config.get('SMS_Service_SMSBao', 'api_key', fallback=''),
+                'signature': config.get('SMS_Service_SMSBao', 'signature', fallback=''),
+                'template_register': config.get('SMS_Service_SMSBao', 'template_register', fallback=''),
+                'code_expire_minutes': config.getint('SMS_Service_SMSBao', 'code_expire_minutes', fallback=5),
+                'rate_limit_per_account_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_account_day', fallback=10),
+                'rate_limit_per_ip_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_ip_day', fallback=20),
+                'rate_limit_per_phone_day': config.getint('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback=5)
+            }
+            
+            return jsonify({"success": True, "config": sms_config})
+        except Exception as e:
+            # 捕获异常并记录日志
+            app.logger.error(f"[短信配置] 获取配置失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取配置失败"}), 500
+
+    @app.route('/api/admin/sms/config', methods=['POST'])
+    @login_required
+    def save_sms_config():
+        """
+        保存短信服务配置
+        
+        权限要求：管理员
+        参数：配置对象（enable_sms_service, enable_phone_modification等）
+        使用 _write_config_with_comments 函数保存配置，确保注释不会丢失
+        """
+        try:
+            # 问题5修复：使用check_permission替代is_admin
+            # 权限检查：只有具有manage_users权限的用户才能保存配置
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 获取前端提交的配置数据
+            data = request.get_json() or {}
+            
+            # 读取现有配置文件
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            
+            # 问题12修复：确保配置节存在
+            # 更新 [Features] 节的配置
+            if 'Features' not in config:
+                config.add_section('Features')
+            
+            # 更新主开关：启用短信服务
+            config.set('Features', 'enable_sms_service', str(data.get('enable_sms_service', False)).lower())
+            
+            # 新增：更新三个功能开关配置项
+            # 允许用户修改手机号
+            config.set('Features', 'enable_phone_modification', str(data.get('enable_phone_modification', False)).lower())
+            # 允许手机号登录
+            config.set('Features', 'enable_phone_login', str(data.get('enable_phone_login', False)).lower())
+            # 注册时需要短信验证
+            config.set('Features', 'enable_phone_registration_verify', str(data.get('enable_phone_registration_verify', False)).lower())
+            
+            # 更新 [SMS_Service_SMSBao] 节的配置
+            if 'SMS_Service_SMSBao' not in config:
+                config.add_section('SMS_Service_SMSBao')
+            
+            # 更新短信宝服务配置项
+            config.set('SMS_Service_SMSBao', 'username', data.get('username', ''))
+            config.set('SMS_Service_SMSBao', 'api_key', data.get('api_key', ''))
+            config.set('SMS_Service_SMSBao', 'signature', data.get('signature', ''))
+            config.set('SMS_Service_SMSBao', 'template_register', data.get('template_register', ''))
+            config.set('SMS_Service_SMSBao', 'code_expire_minutes', str(data.get('code_expire_minutes', 5)))
+            config.set('SMS_Service_SMSBao', 'rate_limit_per_account_day', str(data.get('rate_limit_per_account_day', 10)))
+            config.set('SMS_Service_SMSBao', 'rate_limit_per_ip_day', str(data.get('rate_limit_per_ip_day', 20)))
+            config.set('SMS_Service_SMSBao', 'rate_limit_per_phone_day', str(data.get('rate_limit_per_phone_day', 5)))
+            
+            # 使用 _write_config_with_comments 函数保存配置文件
+            # 这个函数会保留配置文件中的所有注释，而不是简单的 config.write()
+            _write_config_with_comments(config, 'config.ini')
+            
+            # 记录操作日志
+            app.logger.info(f"[短信配置] {g.user} 更新了短信服务配置")
+            return jsonify({"success": True, "message": "配置已保存"})
+        except Exception as e:
+            # 捕获异常并记录日志
+            app.logger.error(f"[短信配置] 保存配置失败：{str(e)}")
+            return jsonify({"success": False, "message": "保存失败"}), 500
+
+    @app.route('/api/admin/sms/check_balance', methods=['GET'])
+    @login_required
+    def check_sms_balance():
+        """
+        查询短信宝余额
+        
+        权限要求：管理员
+        返回：短信余额
+        
+        修正：
+        1. 增加了120秒的速率限制，限制期间返回缓存数据。
+        2. 修正了解析逻辑，以正确处理 "0\n今日条数,剩余条数" 格式的响应。
+        """
+        try:
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+
+            # --- 1. 增加速率限制（120秒） ---
+            # cache 和 time 模块在 start_web_server 和文件顶部已导入
+            cache_key = "sms_balance_cache"
+            current_time = time.time()
+            rate_limit_seconds = 120  # 2分钟
+
+            if cache_key in cache:
+                last_request_time, cached_data = cache[cache_key]
+                if (current_time - last_request_time) < rate_limit_seconds:
+                    # 在限制时间内，返回缓存数据
+                    remaining_wait = int(rate_limit_seconds - (current_time - last_request_time))
+                    # 复制缓存数据以安全地添加提示消息
+                    response_data = cached_data.copy()
+                    response_data['message'] = f"查询过于频繁，请 {remaining_wait} 秒后再试 (返回上次结果)"
+                    
+                    logging.debug(f"[短信配置] 查询余额命中速率限制，返回缓存数据。")
+                    return jsonify(response_data)
+
+            # --- 2. 执行查询 ---
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            
+            username = config.get('SMS_Service_SMSBao', 'username', fallback='')
+            api_key = config.get('SMS_Service_SMSBao', 'api_key', fallback='')
+            
+            if not username or not api_key:
+                return jsonify({"success": False, "message": "短信宝配置不完整"})
+            
+            # 调用短信宝查询余额API
+            url = f'https://api.smsbao.com/query?u={username}&p={api_key}'
+            logging.debug(f"[短信配置] 查询余额URL: {url}")
+            response = requests.get(url, timeout=10)
+            response_text = response.text.strip()
+            logging.debug(f"[短信配置] 查询余额响应: {response_text}")
+            
+            # --- 3. 修正解析逻辑 ---
+            lines = response_text.split('\n')
+            
+            # 检查第一行是否为 '0' (成功)
+            if lines and lines[0] == '0':
+                if len(lines) > 1:
+                    # 第二行格式为 "今日条数,剩余条数"
+                    parts = lines[1].split(',')
+                    if len(parts) == 2:
+                        try:
+                            sent_today = int(parts[0])
+                            remaining_balance = int(parts[1])
+                            
+                            # 准备成功的数据
+                            result_data = {
+                                "success": True,
+                                "balance": remaining_balance,
+                                "sent_today": sent_today,
+                                "message": "查询成功"
+                            }
+                            
+                            # 存入缓存
+                            cache[cache_key] = (current_time, result_data)
+                            
+                            return jsonify(result_data)
+                        except (ValueError, IndexError):
+                            # 解析第二行失败
+                            return jsonify({"success": False, "message": f"查询成功，但解析余额失败: {lines[1]}"})
+                    else:
+                        # 格式不符合 "x,y"
+                        return jsonify({"success": False, "message": f"查询成功，但余额格式不正确: {lines[1]}"})
+                else:
+                    # 只有 '0'，没有第二行（异常情况）
+                    return jsonify({"success": False, "message": "查询成功，但未返回余额数据"})
+            else:
+                # 失败：第一行不是 '0'，是错误码
+                status_code = lines[0] if lines else response_text
+                error_codes = {
+                    '30': '密码错误',
+                    '40': '账号不存在',
+                    '41': '余额不足',
+                    '43': 'IP地址限制',
+                    '50': '内容含有敏感词',
+                    '51': '手机号码不正确'
+                }
+                error_msg = error_codes.get(status_code, f'未知错误码: {status_code}')
+                return jsonify({"success": False, "message": f"查询失败：{error_msg}"})
+        except Exception as e:
+            app.logger.error(f"[短信配置] 查询余额失败：{str(e)}")
+            return jsonify({"success": False, "message": f"查询失败：{str(e)}"}), 500
+
+    @app.route('/api/admin/sms/history', methods=['GET'])
+    @login_required
+    def get_sms_history():
+        """
+        获取短信发送历史记录
+        
+        权限要求：管理员
+        查询参数：
+        - date: 按日期过滤（格式：YYYY-MM-DD）
+        - phone: 按手机号过滤
+        返回：短信发送历史记录列表
+        """
+        try:
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 获取过滤参数
+            date_filter = request.args.get('date', '').strip()
+            phone_filter = request.args.get('phone', '').strip()
+            
+            # 读取历史记录文件
+            history_file = os.path.join(LOGIN_LOGS_DIR, 'sms_history.jsonl')
+            
+            if not os.path.exists(history_file):
+                return jsonify({"success": True, "records": []})
+            
+            records = []
+            with open(history_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        record = json.loads(line.strip())
+                        
+                        # 应用过滤条件
+                        if date_filter and not record.get('datetime', '').startswith(date_filter):
+                            continue
+                        if phone_filter and phone_filter not in record.get('phone', ''):
+                            continue
+                        
+                        records.append(record)
+                    except json.JSONDecodeError:
+                        continue
+            
+            # 按时间倒序排列（最新的在前）
+            records.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+            
+            # 限制返回数量（最多100条）
+            records = records[:100]
+
+            # 在函数末尾添加对 g.api_instance._web_session_id 的引用
+            _ = getattr(g, 'api_instance', None)
+            
+            return jsonify({"success": True, "records": records})
+        except Exception as e:
+            app.logger.error(f"[短信历史] 获取历史失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取历史失败"}), 500
+
+    @app.route('/api/admin/sms/verification_codes', methods=['GET'])
+    @login_required
+    def get_verification_codes():
+        """
+        获取当前有效的验证码列表
+        
+        权限要求：管理员
+        返回：当前有效的验证码列表
+        """
+        try:
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            current_time = time.time()
+            codes = []
+            
+            # 遍历所有验证码
+            for phone, (code, expire_time) in list(sms_verification_codes.items()):
+                # 检查是否过期
+                if expire_time > current_time:
+                    codes.append({
+                        'phone': phone,
+                        'code': code,
+                        'expires_at': expire_time,
+                        'expires_in': int(expire_time - current_time)  # 剩余秒数
+                    })
+            
+            # 按过期时间排序（最快过期的在前）
+            codes.sort(key=lambda x: x['expires_at'])
+            
+            return jsonify({"success": True, "codes": codes})
+        except Exception as e:
+            app.logger.error(f"[验证码管理] 获取列表失败：{str(e)}")
+            return jsonify({"success": False, "message": "获取列表失败"}), 500
+
+    @app.route('/api/admin/sms/invalidate_code', methods=['POST'])
+    @login_required
+    def invalidate_verification_code():
+        """
+        使指定手机号的验证码失效
+        
+        权限要求：管理员
+        参数：
+        - phone: 手机号
+        返回：操作结果
+        """
+        try:
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            data = request.get_json() or {}
+            phone = data.get('phone', '').strip()
+            
+            if not phone:
+                return jsonify({"success": False, "message": "手机号不能为空"})
+            
+            # 从验证码字典中删除
+            if phone in sms_verification_codes:
+                del sms_verification_codes[phone]
+                app.logger.info(f"[验证码管理] {g.user} 使 {phone} 的验证码失效")
+                # 推送SocketIO更新
+                _emit_verification_codes_update(g.api_instance._web_session_id)
+                return jsonify({"success": True, "message": "验证码已失效"})
+            else:
+                return jsonify({"success": False, "message": "未找到该手机号的验证码"})
+        except Exception as e:
+            app.logger.error(f"[验证码管理] 使验证码失效失败：{str(e)}")
+            return jsonify({"success": False, "message": "操作失败"}), 500
+
+    @app.route('/api/admin/sms/add_manual_code', methods=['POST'])
+    @login_required
+    def add_manual_verification_code():
+        """
+        手动添加验证码（模拟发送，用于测试或紧急情况）
+        
+        权限要求：管理员
+        参数：
+        - phone: 手机号
+        - code: 验证码（6位数字）
+        返回：操作结果
+        """
+        try:
+            # 权限检查
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            data = request.get_json() or {}
+            phone = data.get('phone', '').strip()
+            code = data.get('code', '').strip()
+            
+            # 验证手机号格式
+            if not phone or not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+            
+            # 验证验证码格式
+            if not code or not re.match(r'^\d{6}$', code):
+                return jsonify({"success": False, "message": "验证码必须是6位数字"})
+            
+            # 获取验证码有效期配置
+            config = configparser.ConfigParser()
+            config.read('config.ini', encoding='utf-8')
+            code_expire_minutes = int(config.get('SMS_Service_SMSBao', 'code_expire_minutes', fallback='5'))
+            code_expire_seconds = code_expire_minutes * 60
+            
+            # 添加到验证码字典
+            expire_time = time.time() + code_expire_seconds
+            sms_verification_codes[phone] = (code, expire_time)
+            
+            app.logger.info(f"[验证码管理] {g.user} 手动添加验证码: {phone} (有效期{code_expire_minutes}分钟)")
+
+            try:
+                
+                os.makedirs(log_dir, exist_ok=True)
+                
+                session_id = g.api_instance._web_session_id if hasattr(g, 'api_instance') else None
+                client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+                
+                # 构造一个内容，模仿真实短信
+                content = f"管理员 {g.user} 手动添加的验证码: {code}，{code_expire_minutes}分钟内有效。"
+                
+                history_entry = {
+                    'session_id': session_id,
+                    'username': g.user, # 操作的管理员
+                    'phone': phone, # 目标手机号
+                    'scene': 'admin_manual_add', # 场景
+                    'timestamp': time.time(),
+                    'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'content': content,
+                    'ip': client_ip
+                }
+                
+                history_file = os.path.join(log_dir, 'sms_history.jsonl')
+                with open(history_file, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
+                
+                app.logger.debug(f"[短信历史] 已记录手动添加验证码: {phone} -> {g.user}")
+            except Exception as e:
+                app.logger.error(f"[短信历史] 记录手动添加验证码失败: {str(e)}")
+
+            # 推送SocketIO更新
+            _emit_verification_codes_update(g.api_instance._web_session_id)
+            
+            return jsonify({
+                "success": True, 
+                "message": f"验证码已添加，{code_expire_minutes}分钟内有效"
+            })
+        except Exception as e:
+            app.logger.error(f"[验证码管理] 添加验证码失败：{str(e)}")
+            return jsonify({"success": False, "message": "添加失败"}), 500
+
+    # ============================================================================
+    # SSL/HTTPS 管理 API
+    # 提供SSL证书上传、配置更新、信息查询等功能
+    # 仅管理员可访问
+    # ============================================================================
+    
+    @app.route('/api/admin/ssl/info', methods=['GET'])
+    @login_required
+    def get_ssl_info():
+        """
+        获取当前SSL配置和证书信息。
+        
+        功能说明：
+        1. 返回当前SSL配置（是否启用、仅HTTPS模式等）
+        2. 如果启用了SSL，返回证书详细信息（有效期、颁发者等）
+        
+        权限要求：管理员
+        
+        返回示例：
+        {
+            "success": true,
+            "config": {
+                "ssl_enabled": true,
+                "https_only": false,
+                "cert_path": "ssl/fullchain.pem",
+                "key_path": "ssl/privkey.key"
+            },
+            "cert_info": {
+                "subject": "CN=example.com",
+                "issuer": "CN=Let's Encrypt Authority",
+                "not_before": "2024-01-01T00:00:00",
+                "not_after": "2024-04-01T00:00:00",
+                "is_expired": false
+            }
+        }
+        """
+        try:
+            # 权限检查：只有管理员才能查看SSL配置
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 加载当前SSL配置
+            current_ssl_config = load_ssl_config()
+            
+            # 准备返回的配置信息（不包含敏感的完整路径）
+            config_info = {
+                'ssl_enabled': current_ssl_config.get('ssl_enabled', False),
+                'https_only': current_ssl_config.get('https_only', False),
+                'cert_path': current_ssl_config.get('ssl_cert_path', ''),
+                'key_path': current_ssl_config.get('ssl_key_path', '')
+            }
+            
+            # 尝试获取证书详细信息（无论SSL是否启用）
+            cert_info = {}
+            
+            # 1. 从配置中获取证书路径
+            cert_path = current_ssl_config.get('ssl_cert_path', '')
+            
+            # 2. 检查路径是否已配置
+            if cert_path:
+                logging.info(f"检测到证书路径配置: {cert_path}，正在尝试读取证书信息...")
+                # 3. 获取证书详细信息
+                # get_ssl_certificate_info 会处理文件不存在或解析失败的情况
+                cert_info = get_ssl_certificate_info(cert_path)
+            else:
+                logging.info("证书路径未配置，跳过证书信息读取。")
+                # 如果路径为空，也明确返回一个错误信息，便于前端判断
+                cert_info = {"error": "证书路径未在 config.ini 中配置"}
+
+            logging.info(f"[SSL管理] {g.user} 查询SSL配置和证书信息")
+            
+            return jsonify({
+                "success": True,
+                "config": config_info,
+                "cert_info": cert_info
+            })
+            
+        except Exception as e:
+            logging.error(f"[SSL管理] 获取SSL信息失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"获取SSL信息失败: {str(e)}"}), 500
+    
+    
+    @app.route('/api/admin/ssl/upload', methods=['POST'])
+    @login_required
+    def upload_ssl_certificate():
+        """
+        上传SSL证书文件和密钥文件。
+        
+        功能说明：
+        1. 接收证书文件（PEM格式）和密钥文件
+        2. 验证文件格式和有效性
+        3. 保存到ssl/目录
+        4. 返回上传结果
+        
+        权限要求：管理员
+        
+        请求参数（multipart/form-data）：
+        - cert_file: 证书文件（.pem或.crt）
+        - key_file: 密钥文件（.key或.pem）
+        
+        返回示例：
+        {
+            "success": true,
+            "message": "证书上传成功",
+            "cert_path": "ssl/fullchain.pem",
+            "key_path": "ssl/privkey.key"
+        }
+        """
+        try:
+            # 权限检查：只有管理员才能上传证书
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 检查是否有文件上传
+            if 'cert_file' not in request.files or 'key_file' not in request.files:
+                return jsonify({"success": False, "message": "请同时上传证书文件和密钥文件"}), 400
+            
+            cert_file = request.files['cert_file']
+            key_file = request.files['key_file']
+            
+            # 检查文件名是否为空
+            if cert_file.filename == '' or key_file.filename == '':
+                return jsonify({"success": False, "message": "文件名不能为空"}), 400
+            
+            # 确定ssl目录路径
+            ssl_dir = os.path.join(os.path.dirname(__file__), 'ssl')
+            # 确保ssl目录存在
+            os.makedirs(ssl_dir, exist_ok=True)
+            
+            # 生成临时文件名（用于验证）
+            import tempfile
+            # 创建临时文件用于保存上传的内容并验证
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.pem') as temp_cert:
+                cert_file.save(temp_cert.name)
+                temp_cert_path = temp_cert.name
+            
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False, suffix='.key') as temp_key:
+                key_file.save(temp_key.name)
+                temp_key_path = temp_key.name
+            
+            try:
+                # 验证上传的证书和密钥
+                # 检查文件内容格式和证书-密钥匹配性
+                is_valid, error_msg, cert_info = validate_ssl_certificate(
+                    temp_cert_path,
+                    temp_key_path
+                )
+                
+                if not is_valid:
+                    # 如果验证失败，删除临时文件并返回错误
+                    os.unlink(temp_cert_path)
+                    os.unlink(temp_key_path)
+                    return jsonify({"success": False, "message": f"证书验证失败: {error_msg}"}), 400
+                
+                # 验证通过，移动文件到ssl目录
+                final_cert_path = os.path.join(ssl_dir, 'fullchain.pem')
+                final_key_path = os.path.join(ssl_dir, 'privkey.key')
+                
+                # 如果目标文件已存在，先备份
+                if os.path.exists(final_cert_path):
+                    backup_cert_path = final_cert_path + '.backup'
+                    os.replace(final_cert_path, backup_cert_path)
+                    logging.info(f"[SSL管理] 已备份旧证书: {backup_cert_path}")
+                
+                if os.path.exists(final_key_path):
+                    backup_key_path = final_key_path + '.backup'
+                    os.replace(final_key_path, backup_key_path)
+                    logging.info(f"[SSL管理] 已备份旧密钥: {backup_key_path}")
+                
+                # 移动临时文件到最终位置
+                os.replace(temp_cert_path, final_cert_path)
+                os.replace(temp_key_path, final_key_path)
+                
+                # 设置文件权限（仅所有者可读写，密钥文件更严格）
+                os.chmod(final_cert_path, 0o644)  # 证书文件：rw-r--r--
+                os.chmod(final_key_path, 0o600)   # 密钥文件：rw-------（仅所有者可读写）
+                
+                logging.info(f"[SSL管理] {g.user} 成功上传SSL证书")
+                
+                return jsonify({
+                    "success": True,
+                    "message": "证书上传成功",
+                    "cert_path": "ssl/fullchain.pem",
+                    "key_path": "ssl/privkey.key",
+                    "cert_info": cert_info
+                })
+                
+            except Exception as e:
+                # 如果处理过程中出错，清理临时文件
+                if os.path.exists(temp_cert_path):
+                    os.unlink(temp_cert_path)
+                if os.path.exists(temp_key_path):
+                    os.unlink(temp_key_path)
+                raise e
+                
+        except Exception as e:
+            logging.error(f"[SSL管理] 上传证书失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"上传失败: {str(e)}"}), 500
+    
+    
+    @app.route('/api/admin/ssl/config', methods=['POST'])
+    @login_required
+    def update_ssl_config():
+        """
+        更新SSL配置（不包括证书文件，仅更新配置选项）。
+        
+        功能说明：
+        更新config.ini中的SSL配置项，如启用状态、仅HTTPS模式等
+        注意：更新配置后需要重启服务器才能生效
+        
+        权限要求：管理员
+        
+        请求参数（JSON）：
+        {
+            "ssl_enabled": true/false,
+            "https_only": true/false,
+            "cert_path": "ssl/fullchain.pem",  // 可选
+            "key_path": "ssl/privkey.key"      // 可选
+        }
+        
+        返回示例：
+        {
+            "success": true,
+            "message": "配置已更新，重启服务器后生效"
+        }
+        """
+        try:
+            # 权限检查：只有管理员才能修改SSL配置
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 获取请求数据
+            data = request.get_json()
+            if not data:
+                return jsonify({"success": False, "message": "请求数据为空"}), 400
+            
+            # 加载当前配置
+            current_config = load_ssl_config()
+            
+            # 更新配置项（只更新提供的字段）
+            if 'ssl_enabled' in data:
+                current_config['ssl_enabled'] = bool(data['ssl_enabled'])
+            
+            if 'https_only' in data:
+                current_config['https_only'] = bool(data['https_only'])
+            
+            if 'cert_path' in data and data['cert_path']:
+                current_config['ssl_cert_path'] = str(data['cert_path'])
+            
+            if 'key_path' in data and data['key_path']:
+                current_config['ssl_key_path'] = str(data['key_path'])
+            
+            # 如果要启用SSL，验证证书文件是否存在
+            if current_config.get('ssl_enabled', False):
+                is_valid, error_msg, _ = validate_ssl_certificate(
+                    current_config['ssl_cert_path'],
+                    current_config['ssl_key_path']
+                )
+                
+                if not is_valid:
+                    return jsonify({
+                        "success": False, 
+                        "message": f"证书验证失败，无法启用SSL: {error_msg}"
+                    }), 400
+            
+            # 保存配置到文件
+            if save_ssl_config(current_config):
+                logging.info(f"[SSL管理] {g.user} 更新SSL配置: {current_config}")
+                return jsonify({
+                    "success": True,
+                    "message": "配置已更新，需要重启服务器才能生效",
+                    "config": current_config
+                })
+            else:
+                return jsonify({"success": False, "message": "保存配置失败"}), 500
+                
+        except Exception as e:
+            logging.error(f"[SSL管理] 更新配置失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"更新配置失败: {str(e)}"}), 500
+    
+    
+    @app.route('/api/admin/ssl/toggle', methods=['POST'])
+    @login_required
+    def toggle_ssl():
+        """
+        快速启用/禁用SSL（开关功能）。
+        
+        功能说明：
+        快速切换SSL启用状态，无需修改其他配置
+        注意：启用时会验证证书是否存在，禁用时不验证
+        
+        权限要求：管理员
+        
+        请求参数（JSON）：
+        {
+            "enabled": true/false
+        }
+        
+        返回示例：
+        {
+            "success": true,
+            "message": "SSL已启用，需要重启服务器",
+            "ssl_enabled": true
+        }
+        """
+        try:
+            # 权限检查：只有管理员才能切换SSL
+            if not auth_system.check_permission(g.user, 'manage_users'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 获取请求数据
+            data = request.get_json()
+            if not data or 'enabled' not in data:
+                return jsonify({"success": False, "message": "缺少enabled参数"}), 400
+            
+            enabled = bool(data['enabled'])
+            
+            # 加载当前配置
+            current_config = load_ssl_config()
+            
+            # 如果要启用SSL，验证证书文件
+            if enabled:
+                is_valid, error_msg, _ = validate_ssl_certificate(
+                    current_config['ssl_cert_path'],
+                    current_config['ssl_key_path']
+                )
+                
+                if not is_valid:
+                    return jsonify({
+                        "success": False,
+                        "message": f"无法启用SSL，证书验证失败: {error_msg}"
+                    }), 400
+            
+            # 更新配置
+            current_config['ssl_enabled'] = enabled
+            
+            # 保存配置
+            if save_ssl_config(current_config):
+                action = "启用" if enabled else "禁用"
+                logging.info(f"[SSL管理] {g.user} {action}了SSL")
+                return jsonify({
+                    "success": True,
+                    "message": f"SSL已{action}，需要重启服务器才能生效",
+                    "ssl_enabled": enabled
+                })
+            else:
+                return jsonify({"success": False, "message": "保存配置失败"}), 500
+                
+        except Exception as e:
+            logging.error(f"[SSL管理] 切换SSL状态失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"操作失败: {str(e)}"}), 500
+
+    # ============================================================================
     # 应用主路由
-    # ====================
+    # ============================================================================
+
+    def get_frontend_config():
+        """辅助函数：读取前端需要的功能开关配置"""
+        config = configparser.ConfigParser()
+        config.read(CONFIG_FILE, encoding='utf-8')
+        
+        sms_enabled = config.get('Features', 'enable_sms_service', fallback='false').lower() == 'true'
+        reg_verify_enabled = config.get('Features', 'enable_phone_registration_verify', fallback='false').lower() == 'true'
+
+        phone_modification_enabled = config.get('Features', 'enable_phone_modification', fallback='false').lower() == 'true'
+
+        
+        return {
+            'sms_enabled': sms_enabled,
+            'reg_verify_enabled': reg_verify_enabled,
+            # --- 新增代码 开始 ---
+            'enable_phone_modification': phone_modification_enabled
+            # --- 新增代码 结束 ---
+        }
+
+    # ========== 新增路由：Favicon ==========
+    @app.route('/favicon.ico')
+    def favicon():
+        """
+        返回网站图标（Favicon）文件。
+        
+        功能说明：
+        - 当浏览器请求网站图标时，返回位于项目根目录的 favicon.ico 文件
+        - 使用 send_file 函数安全地发送文件到客户端
+        - 设置正确的 MIME 类型（image/vnd.microsoft.icon）以确保浏览器正确识别
+        
+        返回值：
+        - 成功：返回 favicon.ico 文件
+        - 失败：返回 404 错误（如果文件不存在）
+        """
+        try:
+            # 获取当前脚本所在的目录（项目根目录）
+            # __file__ 是当前 Python 文件的路径
+            # os.path.dirname() 获取其所在目录
+            root_dir = os.path.dirname(__file__)
+            
+            # 构建 favicon.ico 的完整路径
+            # os.path.join() 会根据操作系统自动处理路径分隔符（Windows用\，Linux用/）
+            favicon_path = os.path.join(root_dir, 'favicon.ico')
+            
+            # 检查文件是否存在
+            if not os.path.exists(favicon_path):
+                # 如果文件不存在，记录警告日志并返回404错误
+                logging.warning(f"Favicon文件不存在: {favicon_path}")
+                return jsonify({"success": False, "message": "Favicon文件未找到"}), 404
+            
+            # 使用 Flask 的 send_file 函数发送文件
+            # mimetype 参数指定文件的 MIME 类型，这样浏览器就知道如何处理这个文件
+            # image/vnd.microsoft.icon 是 .ico 文件的标准 MIME 类型
+            return send_file(favicon_path, mimetype='image/vnd.microsoft.icon')
+            
+        except Exception as e:
+            # 捕获所有可能的异常（如文件权限问题、路径错误等）
+            # 记录详细的错误日志，包括异常堆栈信息（exc_info=True）
+            logging.error(f"返回 favicon.ico 时发生错误: {e}", exc_info=True)
+            # 返回500服务器内部错误
+            return jsonify({"success": False, "message": "服务器内部错误"}), 500
+
+    # ========== 新增路由：应用退出API ==========
+    @app.route('/api/shutdown', methods=['POST'])
+    def api_shutdown():
+        """
+        应用退出API端点。
+        
+        功能说明：
+        - 响应PC端登录页的退出按钮点击事件
+        - 安全地关闭 Flask + SocketIO 服务器
+        - 执行必要的清理工作（如关闭数据库连接、保存状态等）
+        
+        安全考虑：
+        - 此API应该受到权限保护，避免被恶意调用
+        - 在生产环境中，建议添加身份验证或IP白名单
+        
+        返回值：
+        - JSON 响应，表示关闭操作已启动
+        """
+        try:
+            # 记录关闭请求的来源信息（IP地址和User-Agent）
+            client_ip = request.remote_addr  # 获取客户端IP地址
+            user_agent = request.headers.get('User-Agent', 'Unknown')  # 获取浏览器信息
+            
+            # 记录关键操作日志：谁在什么时候请求关闭服务器
+            logging.warning(f"[应用退出] 收到关闭请求 - IP: {client_ip}, User-Agent: {user_agent}")
+            
+            # 先返回成功响应给客户端，让客户端知道服务器收到了关闭请求
+            # 这样可以避免客户端等待超时
+            response = jsonify({
+                "success": True, 
+                "message": "服务器正在关闭..."
+            })
+            
+            # 定义一个延迟关闭的函数，在后台线程中执行
+            # 这样可以先返回响应，再执行关闭操作
+            def delayed_shutdown():
+                """
+                延迟关闭函数：在独立线程中执行关闭操作。
+                
+                为什么要延迟？
+                - 让 Flask 有时间完成当前请求的响应发送
+                - 避免客户端收到连接中断错误
+                """
+                # 等待1秒，让响应有足够时间发送给客户端
+                time.sleep(1)
+                
+                # 记录关闭操作开始
+                logging.info("[应用退出] 正在执行关闭操作...")
+                
+                try:
+                    # 方法1：尝试使用 SocketIO 的 stop() 方法优雅关闭
+                    # 这会正确关闭所有 WebSocket 连接和后台任务
+                    if socketio:
+                        logging.info("[应用退出] 调用 socketio.stop() 关闭服务器...")
+                        socketio.stop()
+                    else:
+                        # 方法2：如果 socketio 不可用，直接使用 sys.exit() 退出程序
+                        # exit code 0 表示正常退出（非错误）
+                        logging.info("[应用退出] 使用 sys.exit(0) 退出程序...")
+                        sys.exit(0)
+                        
+                except Exception as e:
+                    # 如果关闭过程中出现异常，记录错误并强制退出
+                    logging.error(f"[应用退出] 关闭过程中发生错误: {e}", exc_info=True)
+                    # 强制退出，exit code 1 表示异常退出
+                    sys.exit(1)
+            
+            # 在后台线程中启动延迟关闭函数
+            # daemon=True 表示这是一个守护线程，主程序退出时它会自动退出
+            shutdown_thread = threading.Thread(target=delayed_shutdown, daemon=True)
+            shutdown_thread.start()
+            
+            # 立即返回响应给客户端
+            return response
+            
+        except Exception as e:
+            # 捕获所有可能的异常，避免服务器崩溃
+            logging.error(f"[应用退出] 处理关闭请求时发生错误: {e}", exc_info=True)
+            return jsonify({
+                "success": False, 
+                "message": f"关闭失败: {str(e)}"
+            }), 500
 
     @app.route('/')
     def index():
         """首页：显示登录页面，等待用户认证后分配UUID"""
         # 不再自动分配UUID，直接返回HTML让前端处理认证
         # UUID将在用户完成认证（游客登录或系统账号登录）后由前端或后端API分配
-        return render_template_string(html_content)
+        # 注入前端配置
+        app_config = get_frontend_config()
+        config_script = f"""
+        <script>
+            window.APP_CONFIG = {json.dumps(app_config)};
+        </script>
+        """
+        # 注入到 </body> 标签之前
+        modified_html = html_content.replace('</body>', f'{config_script}</body>')
+        
+        return render_template_string(modified_html)
 
     @app.route('/uuid=<uuid>')
     def session_view(uuid):
@@ -14397,115 +18552,18 @@ def start_web_server(args_param):
                     api_instance._web_session_id = uuid
                 logging.debug(f"使用现有会话: {uuid[:32]}...")
 
+         # 注入前端配置
+        app_config = get_frontend_config()
+        config_script = f"""
+        <script>
+            window.APP_CONFIG = {json.dumps(app_config)};
+        </script>
+        """
+        # 注入到 </body> 标签之前
+        modified_html = html_content.replace('</body>', f'{config_script}</body>')
+
         # 返回HTML内容
-        return render_template_string(html_content)
-
-    # @app.route('/JavaScript.js', methods=['GET'])
-    # def serve_full_javascript():
-    #     """
-    #     返回完整的 JavaScript.js 文件（支持自动压缩）
-        
-    #     功能说明：
-    #         返回整个 JavaScript.js 文件内容，供浏览器加载和执行。
-    #         默认会自动压缩代码以减小文件大小，提升加载速度。
-        
-    #     查询参数：
-    #         - minify: 是否压缩代码（默认 true）
-    #           * true/1/yes: 压缩代码（移除注释和空白）
-    #           * false/0/no: 返回原始代码（保留注释）
-        
-    #     返回：
-    #         - 200: 成功返回 JavaScript 代码
-    #         - 304: 使用缓存版本（内容未修改）
-    #         - 404: 文件未找到
-    #         - 500: 服务器内部错误
-        
-    #     缓存策略：
-    #         - 设置 Cache-Control 头，允许浏览器缓存 1 小时
-    #         - 使用 Last-Modified 和 ETag 支持条件请求
-    #         - 压缩版和非压缩版使用不同的 ETag
-        
-    #     压缩效果：
-    #         - 通常可减小 30-50% 的文件大小
-    #         - 首次加载后浏览器会缓存压缩版本
-        
-    #     使用示例：
-    #         - /JavaScript.js             --> 返回压缩版本（推荐）
-    #         - /JavaScript.js?minify=true --> 返回压缩版本
-    #         - /JavaScript.js?minify=false--> 返回原始版本（用于调试）
-    #     """
-    #     try:
-    #         js_file_path = os.path.join(os.path.dirname(__file__), 'JavaScript.js')
-            
-    #         if not os.path.exists(js_file_path):
-    #             logging.error(f"JavaScript.js 文件不存在: {js_file_path}")
-    #             return jsonify({"error": "JavaScript file not found"}), 404
-            
-    #         # 读取文件内容
-    #         with open(js_file_path, 'r', encoding='utf-8') as f:
-    #             original_content = f.read()
-            
-    #         # 检查是否需要压缩（默认为 true）
-    #         minify_param = request.args.get('minify', 'true').lower()
-    #         should_minify = minify_param in ['true', '1', 'yes', '']
-            
-    #         # # 根据参数决定是否压缩
-    #         # if should_minify:
-    #         #     # 压缩代码
-    #         #     content = minify_javascript(original_content)
-    #         #     content_type_suffix = ' (minified)'
-    #         #     logging.info(f"JavaScript.js 压缩：{len(original_content)} 字节 -> {len(content)} 字节 ({(1-len(content)/len(original_content))*100:.1f}% 压缩率)")
-    #         # else:
-    #         #     # 返回原始代码
-    #         #     content = original_content
-    #         #     content_type_suffix = ' (original)'
-    #         #     logging.info(f"JavaScript.js 返回原始版本：{len(content)} 字节")
-    #         # 根据参数决定是否压缩
-    #         if should_minify:
-    #             # 压缩功能已禁用（原始压缩器有Bug），始终返回原始代码
-    #             content = original_content
-    #             content_type_suffix = ' (original, compression disabled)'
-    #             logging.info(f"JavaScript.js 压缩功能已禁用，返回原始大小: {len(original_content)} 字节")
-    #         else:
-    #             # 返回原始代码
-    #             content = original_content
-    #             content_type_suffix = ' (original)'
-
-
-    #         # 设置 Last-Modified（基于文件修改时间）
-    #         file_mtime = os.path.getmtime(js_file_path)
-    #         from datetime import datetime
-    #         last_modified = datetime.fromtimestamp(file_mtime).strftime('%a, %d %b %Y %H:%M:%S GMT')
-            
-    #         # 设置 ETag（基于内容哈希 + 压缩标志）
-    #         import hashlib
-    #         etag_base = hashlib.md5(content.encode('utf-8')).hexdigest()
-    #         etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
-            
-    #         # 检查条件请求
-    #         if_modified_since = request.headers.get('If-Modified-Since')
-    #         if_none_match = request.headers.get('If-None-Match')
-            
-    #         if (if_modified_since == last_modified) or (if_none_match == etag):
-    #             logging.debug(f"JavaScript.js 使用缓存版本 (304){content_type_suffix}")
-    #             return '', 304
-            
-    #         # 创建响应
-    #         response = make_response(content)
-    #         response.headers['Content-Type'] = 'application/javascript; charset=utf-8'
-    #         response.headers['Cache-Control'] = 'public, max-age=3600'
-    #         response.headers['Last-Modified'] = last_modified
-    #         response.headers['ETag'] = etag
-            
-    #         # 添加自定义头，标识是否已压缩
-    #         response.headers['X-Minified'] = 'true' if should_minify else 'false'
-            
-    #         logging.info(f"成功返回 JavaScript.js{content_type_suffix} ({len(content)} 字符)")
-    #         return response
-            
-    #     except Exception as e:
-    #         logging.error(f"加载 JavaScript.js 时发生错误: {e}", exc_info=True)
-    #         return jsonify({"error": "Internal server error"}), 500
+        return render_template_string(modified_html)
 
     @app.route('/JavaScript/<path:function_path>.js', methods=['GET'])
     def serve_javascript(function_path):
@@ -14956,11 +19014,6 @@ def start_web_server(args_param):
     def serve_css(css_path):
         """
         CSS 样式分段动态加载 API 端点
-        
-        使用示例：
-            - /css/body.css
-            - /css/.panel.css
-            - /css/#admin-modal-close-btn:hover.css
         """
         
         # --- 1. 代码复用：定义统一的 CSS 文件路径常量 ---
@@ -15079,60 +19132,6 @@ def start_web_server(args_param):
     def serve_html_fragment(fragment_name):
         """
         HTML 片段动态加载 API 端点（支持自动压缩，从统一文件读取）
-        
-        功能说明：
-            根据请求的片段名称，从 html_fragments.html 统一文件中提取对应的 HTML 片段。
-            支持自动压缩和浏览器缓存，大幅减小传输大小。
-        
-        参数：
-            fragment_name (str): HTML 片段名称（不含 .html 后缀）
-              例如：'admin-panel-modal', 'main-app', 'auto-gen-modal', 'notifications-modal'
-        
-        查询参数：
-            - minify: 是否压缩 HTML（默认 true）
-              * true/1/yes: 压缩 HTML（移除注释和空白）
-              * false/0/no: 返回原始 HTML（保留格式）
-        
-        返回：
-            - 200: 成功返回 HTML 片段
-            - 304: 使用缓存版本（内容未修改）
-            - 404: 片段未找到
-            - 500: 服务器内部错误
-        
-        缓存策略：
-            - 设置 Cache-Control 头，允许浏览器缓存 1 小时
-            - 使用 Last-Modified 和 ETag 支持条件请求
-            - 压缩版和原始版使用不同的 ETag
-        
-        压缩效果：
-            - 通常可减小 20-40% 的文件大小
-            - 首次加载后浏览器会缓存压缩版本
-        
-        使用示例：
-            - /html/admin-panel-modal.html             --> 返回压缩版本（推荐）
-            - /html/auto-gen-modal.html?minify=true    --> 返回压缩版本
-            - /html/notifications-modal.html?minify=false --> 返回原始版本（调试）
-        
-        支持的片段：
-            大区域：
-            - admin-panel-modal      (13.5 KB) - 管理员面板模态框
-            - main-app               (10.0 KB) - 主应用界面
-            - multi-account-app      (6.1 KB)  - 多账号控制台
-            - auth-login-container   (4.8 KB)  - 认证登录容器
-            - login-container        (4.4 KB)  - 登录容器
-            
-            模态框：
-            - auto-gen-modal          (1.2 KB) - 自动生成路径模态框
-            - notifications-modal     (0.9 KB) - 通知模态框
-            - session-picker-modal    (1.9 KB) - 会话选择器
-            - create-group-modal      (1.7 KB) - 创建权限组
-            - 以及其他 10+ 个模态框
-        
-        实现细节：
-            片段存储在 html_fragments.html 文件中，格式如下：
-            <!-- 段落开始： fragment-name -->
-            <div id="fragment-name">...</div>
-            <!-- 段落结束： fragment-name -->
         """
         try:
             # 统一的 HTML 片段文件
@@ -15292,13 +19291,112 @@ def start_web_server(args_param):
 
         # 调用对应的API方法
         try:
-            # 权限检查：需要特定权限的方法
+            # ============================================================
+            # 权限检查：细粒度权限控制
+            # 为不同的API方法配置所需的权限
+            # ============================================================
+            # 说明：
+            # - 未列出的方法（如login、logout、get_initial_data等）无需权限检查
+            # - 内部方法和回调方法也不需要权限检查
+            # - 权限名称遵循"动词_名词"格式（如view_tasks, execute_multi_account）
+            # ============================================================
             permission_required_methods = {
-                'mark_notification_read': 'mark_notifications_read',
-                'mark_all_read': 'mark_notifications_read',
-                'trigger_attendance': 'use_attendance',
-                'multi_start_single_account': 'execute_multi_account',
-                'multi_start_all_accounts': 'execute_multi_account',
+                # ===== 通知相关权限 =====
+                'mark_notification_read': 'mark_notifications_read',  # 标记单个通知已读
+                'mark_all_read': 'mark_notifications_read',  # 标记所有通知已读
+                'get_notifications': 'view_notifications',  # 获取通知列表
+                'get_cached_notifications': 'view_notifications',  # 获取缓存的通知
+                
+                # ===== 签到相关权限 =====
+                'trigger_attendance': 'use_attendance',  # 触发签到操作
+                
+                # ===== 多账号管理相关权限 =====
+                # 多账号模式切换
+                'enter_multi_account_mode': 'execute_multi_account',  # 进入多账号模式
+                'exit_multi_account_mode': 'execute_multi_account',  # 退出多账号模式
+                
+                # 多账号的账户管理
+                'multi_add_account': 'execute_multi_account',  # 添加多账号
+                'multi_remove_account': 'execute_multi_account',  # 删除单个多账号
+                'multi_remove_selected_accounts': 'execute_multi_account',  # 删除选中的多个账号
+                'multi_remove_all_accounts': 'execute_multi_account',  # 删除所有多账号
+                
+                # 多账号的配置管理
+                'multi_get_all_config_users': 'execute_multi_account',  # 获取配置文件中的所有用户
+                'multi_load_accounts_from_config': 'execute_multi_account',  # 从配置文件加载账号
+                'multi_import_accounts': 'execute_multi_account',  # 导入多账号数据
+                'multi_export_accounts_summary': 'execute_multi_account',  # 导出多账号摘要
+                'multi_download_import_template': 'execute_multi_account',  # 下载导入模板
+                
+                # 多账号的状态查询
+                'multi_refresh_all_statuses': 'execute_multi_account',  # 刷新所有账号状态
+                'multi_refresh_single_status': 'execute_multi_account',  # 刷新单个账号状态
+                'multi_get_all_accounts_status': 'execute_multi_account',  # 获取所有账号状态
+                
+                # 多账号的参数管理
+                'multi_get_account_params': 'execute_multi_account',  # 获取账号参数
+                'multi_update_account_param': 'execute_multi_account',  # 更新账号参数
+                
+                # 多账号的任务执行
+                'multi_start_single_account': 'execute_multi_account',  # 启动单个账号任务
+                'multi_start_all_accounts': 'execute_multi_account',  # 启动所有账号任务
+                'multi_stop_single_account': 'execute_multi_account',  # 停止单个账号任务
+                'multi_stop_all_accounts': 'execute_multi_account',  # 停止所有账号任务
+                
+                # ===== 任务管理相关权限 =====
+                # 任务查看
+                'load_tasks': 'view_tasks',  # 加载任务列表
+                'get_task_details': 'view_tasks',  # 获取任务详情
+                'get_task_history': 'view_tasks',  # 获取任务历史记录
+                'get_historical_track': 'view_tasks',  # 获取历史轨迹数据
+                'get_run_status': 'view_tasks',  # 获取运行状态
+                
+                # 任务创建和删除
+                'create_task': 'create_tasks',  # 创建新任务
+                'delete_task': 'delete_tasks',  # 删除任务
+                
+                # 任务执行控制
+                'start_single_run': 'start_tasks',  # 启动单个任务
+                'start_all_runs': 'start_tasks',  # 启动所有任务
+                'stop_run': 'stop_tasks',  # 停止当前运行的任务
+                'stop_current_run': 'stop_tasks',  # 停止当前运行（别名）
+                
+                # ===== 数据操作权限 =====
+                'import_offline_file': 'import_offline',  # 导入离线数据文件
+                'import_task_data': 'import_offline',  # 导入任务数据
+                'export_offline_file': 'export_data',  # 导出离线数据文件
+                'export_task_data': 'export_data',  # 导出任务数据
+                
+                # ===== 路径操作权限 =====
+                'record_path': 'record_path',  # 记录路径
+                'set_draft_path': 'record_path',  # 设置草稿路径
+                'clear_path': 'record_path',  # 清除路径
+                'process_path': 'record_path',  # 处理路径数据
+                'clear_current_task_draft': 'record_path',  # 清除当前任务草稿
+                
+                # 路径自动生成
+                'auto_generate_path': 'auto_generate_path',  # 自动生成路径
+                'auto_generate_path_with_api': 'auto_generate_path',  # 使用API自动生成路径
+                
+                # ===== 参数修改权限 =====
+                'update_param': 'modify_params',  # 更新参数
+                'generate_new_ua': 'modify_params',  # 生成新的User-Agent
+                'save_amap_key': 'modify_params',  # 保存高德地图API密钥
+                
+                # ===== 地图查看权限 =====
+                'get_map_data': 'view_map',  # 获取地图数据
+                
+                # ===== 用户信息权限 =====
+                'get_user_info': 'view_user_details',  # 获取用户信息
+                'on_user_selected': 'view_user_details',  # 选择用户时查看详情
+                'update_user_settings': 'modify_user_settings',  # 更新用户设置
+                
+                # ===== 会话管理权限 =====
+                'get_user_sessions': 'manage_own_sessions',  # 查看自己的会话列表
+                
+                # ===== 日志权限 =====
+                'get_logs': 'view_logs',  # 查看日志
+                'clear_logs': 'clear_logs',  # 清除日志
             }
 
             if method in permission_required_methods:
@@ -15309,31 +19407,37 @@ def start_web_server(args_param):
                 else:
                     return jsonify({"success": False, "message": "请先登录认证"}), 401
 
+            # ============================================================
+            # 特殊处理：记录get_initial_data调用时的会话活跃时间
+            # 说明：
+            # - get_initial_data是前端初始化时调用的核心方法
+            # - 每次调用都表示用户在活跃使用应用
+            # - 通过更新session_activity时间戳，配合monitor_session_inactivity
+            #   实现基于实际用户活跃度的会话管理
+            # - 这个记录会覆盖前面的update_session_activity(session_id)调用
+            # ============================================================
+            if method == 'get_initial_data':
+                # 记录当前时间为会话最后活跃时间
+                # (已提取到 update_session_activity 函数)
+                update_session_activity(session_id)
+                logging.debug(f"会话 {session_id[:8]}... 调用 get_initial_data，更新活跃时间戳")
+
             if hasattr(api_instance, method):
                 func = getattr(api_instance, method)
 
+                
                 # 调试：记录params类型和内容
                 # logging.debug(f"API call: method={method}, params type={type(params)}, params={str(params)[:200]}")
                 logging.debug(f"API调用: 方法={method}, 参数类型={type(params)}, 参数内容={str(params)[:200]}")
 
-                if method == 'set_draft_path':
-                    # set_draft_path 函数 (def set_draft_path(self, coords)) 总是需要一个 coords 参数。
-
-                    if isinstance(params, list):
-                        # 正常情况：前端发送了 [...] (坐标列表) 或 [] (清空)
-                        result = func(params)
-                    else:
-                        # 异常情况：前端发送了 {} (如日志所示) 或 null/空body (导致 params 变为 {})
-                        # 此时，我们强制将其视为空列表 [] 来调用，以满足函数签名要求。
-                        # logging.warning(f"API call to set_draft_path received non-list params (type: {type(params)}). Coercing to empty list [].")
-                        logging.warning(
-                            f"调用 set_draft_path 时收到非列表参数 (类型: {type(params)})。强制转换为空列表 []。")
-                        result = func([])  # 传递一个空列表
-
-                elif params:
+                if params:
                     # 保持原有逻辑不变，用于处理其他所有API调用
                     # (例如 login(user, pass) 会收到 params=[user, pass]，
                     #  执行 func(*params) 变为 login(self, user, pass)，这是正确的)
+                    
+                    # （新）set_draft_path 将落入此分支：
+                    # params = [[{...}, ...]]
+                    # func(*params) -> set_draft_path(self, [{...}, ...])
                     result = func(**params) if isinstance(params,dict) else func(*params)
                 else:
                     result = func()
@@ -15482,6 +19586,15 @@ def start_web_server(args_param):
     @app.route('/api/messages/list', methods=['GET'])
     def get_messages():
         """获取留言列表"""
+        # ============================================================
+        # IP封禁检查：留言板功能专项封禁
+        # 检查客户端IP是否被封禁（scope='messages_only'或'all'）
+        # ============================================================
+        client_ip = request.remote_addr
+        if check_ip_ban(client_ip, scope='messages_only'):
+            logging.warning(f"[IP封禁] 留言功能封禁拦截：IP {client_ip} 尝试访问 /api/messages/list")
+            return jsonify({"success": False, "message": "您的IP已被限制访问留言功能"}), 403
+        
         # 验证会话
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
@@ -15494,7 +19607,7 @@ def start_web_server(args_param):
         if not auth_system.check_permission(auth_username, 'view_messages'):
             return jsonify({"success": False, "message": "无权查看留言"}), 403
 
-        # 读取留言文件
+        # 读取原始留言文件
         messages_file = 'messages.json'
         messages = []
 
@@ -15505,15 +19618,177 @@ def start_web_server(args_param):
             except (json.JSONDecodeError, OSError) as e:
                 logging.error(f"[留言板] 读取留言失败: {e}")
                 messages = []
+        
+        # --- 实时数据扩充 ---
+        enriched_messages = []
+        for msg in messages:
+            # 复制原始数据
+            enriched_msg = msg.copy()
+            
+            msg_auth_username = msg.get('auth_username')
+            msg_ip = msg.get('ip')
+            msg_is_guest = msg.get('is_guest', True)
+
+            # 1. 实时获取IP归属地
+            enriched_msg['ip_city'] = get_ip_location(msg_ip)
+
+            # 2. 实时获取昵称和头像
+            if not msg_is_guest and msg_auth_username:
+                # 注册用户：从 auth_system 获取
+                user_details = auth_system.get_user_details(msg_auth_username)
+                if user_details:
+                    enriched_msg['nickname'] = user_details.get('nickname', msg_auth_username)
+                    enriched_msg['avatar_url'] = user_details.get('avatar_url', 'default_avatar.png')
+                else:
+                    # 如果用户文件被删了
+                    enriched_msg['nickname'] = f"{msg_auth_username} (已注销)"
+                    enriched_msg['avatar_url'] = 'default_avatar.png'
+            else:
+                # 游客：优先使用保存的昵称，其次是邮箱，最后是"游客"
+                enriched_msg['nickname'] = msg.get('nickname') or msg.get('email') or '游客'
+                enriched_msg['avatar_url'] = 'default_avatar.png'
+            
+            enriched_messages.append(enriched_msg)
+        # --- 扩充结束 ---
 
         # 按时间倒序排序（最新的在前）
-        messages.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+        enriched_messages.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
 
-        return jsonify({"success": True, "messages": messages})
+        return jsonify({"success": True, "messages": enriched_messages})
+
+    # ============================================================
+    # 任务15：IP归属地获取辅助函数
+    # 用于获取IP地址的地理位置信息
+    # ============================================================
+    global get_ip_location
+    def get_ip_location(ip_address):
+        """
+        获取IP地址的地理位置信息 (带1天缓存)
+        
+        参数:
+            ip_address (str): IP地址字符串（支持IPv4和IPv6）
+        
+        返回:
+            str: 地理位置信息字符串，格式为去重后的"info1 info2 info3 isp"
+                 获取失败返回"未知"
+        
+        实现说明:
+            - 优先从内存和文件缓存 (logs/ip_location_cache.json) 中读取
+            - 缓存有效期为1天 (CACHE_DURATION_SECONDS)
+            - 缓存未命中或过期时，调用第三方API（https://api.vore.top/api/IPdata）查询
+            - 查询成功后更新内存缓存和文件缓存
+            - 异常情况返回'未知'，确保不影响主业务流程
+        """
+        if not ip_address:
+            return '未知'
+
+        current_time = time.time()
+        
+        # 1. 检查内存缓存
+        with ip_cache_lock:
+            cached_entry = ip_location_cache.get(ip_address)
+        
+        if cached_entry:
+            timestamp = cached_entry.get('timestamp', 0)
+            location = cached_entry.get('location')
+            
+            # 检查缓存是否在有效期内
+            if (current_time - timestamp < CACHE_DURATION_SECONDS) and location:
+                logging.debug(f"[IP缓存] 命中: ip={ip_address}, 位置={location}")
+                return location
+            else:
+                logging.debug(f"[IP缓存] 过期: ip={ip_address}")
+
+        # 2. 缓存未命中或已过期，调用API
+        try:
+            # 从 config.ini 读取 API 密钥
+            config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+            api_key = ''
+            if os.path.exists(config_file):
+                try:
+                    cfg = configparser.ConfigParser()
+                    cfg.read(config_file, encoding='utf-8')
+                    api_key = cfg.get('API', 'ip_api_key', fallback='')
+                except Exception as e:
+                    logging.debug(f"[IP定位] 读取配置文件失败: {e}")
+            
+            if api_key and api_key != 'your_api_key_here' and api_key.strip() != '':
+                api_url = f'https://api.vore.top/api/IPdata?key={api_key}&ip={ip_address}'
+            else:
+                api_url = f'https://api.vore.top/api/IPdata?ip={ip_address}'
+            
+            # 发送GET请求，设置5秒超时
+            response = requests.get(api_url, timeout=5)
+            data = response.json()
+            
+            code = data.get('code')
+            msg = data.get('msg', '')
+            
+            if code != 200:
+                logging.warning(f"[IP定位] API返回错误码: code={code}, msg={msg}, ip={ip_address}")
+                return '未知'
+            
+            ipdata = data.get('ipdata', {})
+            
+            info1 = ipdata.get('info1', '').strip()
+            info2 = ipdata.get('info2', '').strip()
+            info3 = ipdata.get('info3', '').strip()
+            isp = ipdata.get('isp', '').strip()
+            
+            location_parts = [info1, info2, info3, isp]
+            
+            seen = {}
+            unique_parts = []
+            
+            for part in location_parts:
+                if part and part not in seen:
+                    seen[part] = True
+                    unique_parts.append(part)
+            
+            if unique_parts:
+                location_str = ' '.join(unique_parts)
+                logging.debug(f"[IP定位] 成功获取: ip={ip_address}, 位置={location_str}")
+                
+                # 3. 存入缓存并保存
+                with ip_cache_lock:
+                    ip_location_cache[ip_address] = {
+                        "location": location_str,
+                        "timestamp": current_time
+                    }
+                # 立即保存到文件
+                _save_ip_cache() 
+                
+                return location_str
+            else:
+                logging.warning(f"[IP定位] API返回空数据: ip={ip_address}")
+                return '未知'
+        
+        except requests.exceptions.Timeout:
+            logging.warning(f"[IP定位] 请求超时: ip={ip_address}")
+            return '未知'
+        except requests.exceptions.RequestException as e:
+            logging.warning(f"[IP定位] 网络请求失败: ip={ip_address}, 错误={str(e)}")
+            return '未知'
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
+            # 添加 JSONDecodeError
+            logging.warning(f"[IP定位] 数据解析失败: ip={ip_address}, 错误={str(e)}")
+            return '未知'
+        except Exception as e:
+            logging.error(f"[IP定位] 未知错误: ip={ip_address}, 错误={str(e)}", exc_info=True)
+            return '未知'
 
     @app.route('/api/messages/post', methods=['POST'])
     def post_message():
         """发表留言"""
+        # ============================================================
+        # IP封禁检查：留言板功能专项封禁
+        # 检查客户端IP是否被封禁（scope='messages_only'或'all'）
+        # ============================================================
+        client_ip = request.remote_addr
+        if check_ip_ban(client_ip, scope='messages_only'):
+            logging.warning(f"[IP封禁] 留言功能封禁拦截：IP {client_ip} 尝试发表留言")
+            return jsonify({"success": False, "message": "您的IP已被限制访问留言功能"}), 403
+        
         # 验证会话
         session_id = request.headers.get('X-Session-ID', '')
         if not session_id or session_id not in web_sessions:
@@ -15551,18 +19826,50 @@ def start_web_server(args_param):
             if not re.match(email_pattern, email):
                 return jsonify({"success": False, "message": "邮箱格式不正确"})
 
-        # 构建留言对象
-
+        # ============================================================
+        # 任务15：获取用户信息（昵称、头像）和IP归属地
+        # 为留言添加更丰富的用户信息和位置信息
+        # ============================================================
+        
+        # 获取客户端IP地址
+        client_ip = request.remote_addr
+        
+        # 获取IP归属地（城市）
+        ip_city = get_ip_location(client_ip)
+        
+        # 获取用户的昵称和头像（对于已登录用户）
+        user_nickname = nickname  # 默认使用提交的昵称
+        avatar_url = 'default_avatar.png'  # 默认头像
+        
+        if not is_guest and auth_username:
+            # 已登录用户：从用户文件中读取昵称和头像
+            try:
+                user_hash = hashlib.sha256(auth_username.encode()).hexdigest()
+                user_file = os.path.join(SYSTEM_ACCOUNTS_DIR, f"{user_hash}.json")
+                
+                if os.path.exists(user_file):
+                    with open(user_file, 'r', encoding='utf-8') as f:
+                        user_data = json.load(f)
+                        # 读取用户设置的昵称，如果没有则使用用户名
+                        user_nickname = user_data.get('nickname', auth_username)
+                        # 读取用户的头像URL
+                        avatar_url = user_data.get('avatar_url') or 'default_avatar.png'
+            except Exception as e:
+                # 读取用户信息失败，使用默认值
+                logging.warning(f"[留言板] 读取用户信息失败: {str(e)}")
+                user_nickname = auth_username
+        
+        # 构建留言对象（增强版，包含更多信息）
         message = {
-            "id": str(uuid.uuid4()),
-            "content": content,
-            "username": auth_username if not is_guest else None,
-            "nickname": nickname if is_guest else None,
-            "email": email if is_guest else None,
-            "is_guest": is_guest,
-            "timestamp": time.time(),
-            "ip": request.remote_addr
-        }
+                "id": str(uuid.uuid4()),                           # 留言唯一ID
+                "content": content,                                # 留言内容
+                "auth_username": auth_username if not is_guest else None,  # 用户名（已登录用户）
+                "nickname": nickname if is_guest else None,        # 昵称（游客）
+                "email": email if is_guest else None,              # 邮箱（游客）
+                "is_guest": is_guest,                              # 是否游客
+                "timestamp": time.time(),                          # 发表时间戳
+                "ip": request.remote_addr                          # IP地址（用于管理）
+            }
 
         # 读取现有留言
         messages_file = 'messages.json'
@@ -15635,7 +19942,7 @@ def start_web_server(args_param):
             auth_username, 'delete_any_messages')
         can_delete_own = auth_system.check_permission(
             auth_username, 'delete_own_messages')
-        is_own_message = (message_to_delete.get('username') ==
+        is_own_message = (message_to_delete.get('auth_username') ==
                           auth_username and not message_to_delete.get('is_guest'))
 
         if can_delete_any:
@@ -15662,22 +19969,1361 @@ def start_web_server(args_param):
             logging.error(f"[留言板] 保存留言失败: {e}")
             return jsonify({"success": False, "message": "保存留言失败"}), 500
 
+    # ============================================================
+    # 任务22：高德地图Key验证API
+    # 用于验证用户输入的高德地图API Key是否有效
+    # ============================================================
+    @app.route('/api/validate_amap_key', methods=['POST'])
+    def validate_amap_key():
+        """
+        验证高德地图API Key的有效性
+        
+        请求体:
+            {
+                "key": "高德地图API Key字符串"
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "验证结果消息"
+            }
+        
+        实现说明:
+            - 调用高德地图的地理编码API进行验证
+            - 使用固定坐标（天安门）作为测试参数
+            - 根据返回的status字段判断Key是否有效
+        """
+        try:
+            # 从请求体中获取要验证的API Key
+            data = request.get_json() or {}
+            amap_key = data.get('key', '').strip()
+            
+            # 验证Key不能为空
+            if not amap_key:
+                return jsonify({
+                    "success": False,
+                    "message": "API Key不能为空"
+                })
+            
+            # 调用高德地图逆地理编码API进行验证
+            # 使用天安门的坐标（116.397428,39.90923）作为测试参数
+            import requests
+            test_url = f'https://restapi.amap.com/v3/geocode/regeo?location=116.397428,39.90923&key={amap_key}'
+            
+            # 设置5秒超时，防止长时间等待
+            response = requests.get(test_url, timeout=5)
+            result = response.json()
+            
+            # 检查高德API返回的status字段
+            # status='1' 表示成功，Key有效
+            # status='0' 表示失败，Key无效或其他错误
+            if result.get('status') == '1':
+                return jsonify({
+                    "success": True,
+                    "message": "API Key验证成功，该Key有效"
+                })
+            else:
+                # 获取错误信息
+                error_info = result.get('info', '未知错误')
+                return jsonify({
+                    "success": False,
+                    "message": f"API Key无效: {error_info}"
+                })
+                
+        except requests.exceptions.Timeout:
+            # 请求超时
+            return jsonify({
+                "success": False,
+                "message": "验证超时，请检查网络连接"
+            })
+        except requests.exceptions.RequestException as e:
+            # 网络错误
+            return jsonify({
+                "success": False,
+                "message": f"网络请求失败: {str(e)}"
+            })
+        except Exception as e:
+            # 其他异常
+            logging.error(f"[高德Key验证] 验证失败: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": f"验证失败: {str(e)}"
+            })
+
+    # ============================================================
+    # 定时提醒功能API
+    # 用于管理定时提醒，在特定时间段弹出提示
+    # ============================================================
+    
+    @app.route('/api/reminders/list', methods=['GET'])
+    def get_reminders_list():
+        """
+        获取所有提醒列表
+        
+        功能说明:
+            - 读取reminders.json文件中的所有提醒数据
+            - 返回提醒列表供前端显示
+            - 仅管理员有权查看和管理提醒
+        
+        返回格式:
+            {
+                "success": True/False,
+                "reminders": [提醒对象列表],
+                "message": "错误消息（仅失败时）"
+            }
+        
+        提醒对象格式:
+            {
+                "id": "唯一标识符",
+                "title": "提醒标题",
+                "message": "提醒内容",
+                "start_time": "开始时间 HH:MM",
+                "end_time": "结束时间 HH:MM",
+                "enabled": true/false,
+                "created_at": 创建时间戳,
+                "updated_at": 更新时间戳
+            }
+        """
+        # 从请求头获取session_id，进行权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 验证session_id是否存在且有效
+        if not session_id or session_id not in web_sessions:
+            return jsonify({
+                "success": False,
+                "message": "未授权访问，请先登录"
+            }), 401
+        
+        # 获取当前用户的认证信息
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查用户权限：只有管理员可以管理提醒
+        # 使用auth_system检查用户是否有管理员权限
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            # 这里使用view_logs权限作为管理员判断依据
+            # 您也可以添加专门的'manage_reminders'权限
+            return jsonify({
+                "success": False,
+                "message": "权限不足，仅管理员可以管理提醒"
+            }), 403
+        
+        try:
+            # 定义提醒数据文件路径
+            reminders_file = 'reminders.json'
+            
+            # 初始化提醒列表
+            reminders = []
+            
+            # 检查文件是否存在
+            if os.path.exists(reminders_file):
+                # 读取JSON文件
+                with open(reminders_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # 从JSON中提取reminders数组
+                    reminders = data.get('reminders', [])
+            
+            # 按创建时间倒序排序（最新的在前）
+            reminders.sort(key=lambda x: x.get('created_at', 0), reverse=True)
+            
+            # 记录日志
+            logging.info(f"[定时提醒] 用户 {auth_username} 获取提醒列表，共 {len(reminders)} 条")
+            
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "reminders": reminders
+            })
+            
+        except json.JSONDecodeError as e:
+            # JSON解析错误
+            logging.error(f"[定时提醒] JSON解析失败: {e}")
+            return jsonify({
+                "success": False,
+                "message": "提醒数据文件格式错误"
+            }), 500
+            
+        except Exception as e:
+            # 其他异常
+            logging.error(f"[定时提醒] 获取提醒列表失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"获取提醒列表失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/add', methods=['POST'])
+    def add_reminder():
+        """
+        添加新提醒
+        
+        请求体:
+            {
+                "title": "提醒标题",
+                "message": "提醒内容",
+                "start_time": "19:00",
+                "end_time": "20:00",
+                "enabled": true
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "操作结果消息",
+                "reminder_id": "新创建的提醒ID（成功时）"
+            }
+        
+        验证规则:
+            - 标题和内容不能为空
+            - 时间格式必须为 HH:MM（24小时制）
+            - 标题长度不超过50字符
+            - 内容长度不超过500字符
+        """
+        # 权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        # 检查管理员权限
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        try:
+            # 获取请求数据
+            data = request.get_json() or {}
+            title = data.get('title', '').strip()
+            message = data.get('message', '').strip()
+            start_time = data.get('start_time', '').strip()
+            end_time = data.get('end_time', '').strip()
+            enabled = data.get('enabled', True)
+            
+            # ===== 数据验证 =====
+            
+            # 验证标题
+            if not title:
+                return jsonify({"success": False, "message": "提醒标题不能为空"})
+            if len(title) > 50:
+                return jsonify({"success": False, "message": "提醒标题不能超过50个字符"})
+            
+            # 验证内容
+            if not message:
+                return jsonify({"success": False, "message": "提醒内容不能为空"})
+            if len(message) > 500:
+                return jsonify({"success": False, "message": "提醒内容不能超过500个字符"})
+            
+            # 验证时间格式（HH:MM）
+            time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+            if not time_pattern.match(start_time):
+                return jsonify({"success": False, "message": "开始时间格式错误，应为 HH:MM（如 19:00）"})
+            if not time_pattern.match(end_time):
+                return jsonify({"success": False, "message": "结束时间格式错误，应为 HH:MM（如 20:00）"})
+            
+            # 验证enabled字段类型
+            if not isinstance(enabled, bool):
+                enabled = bool(enabled)
+            
+            # ===== 创建提醒对象 =====
+            
+            # 生成唯一ID
+            reminder_id = str(uuid.uuid4())
+            current_timestamp = time.time()
+            
+            # 构建提醒对象
+            new_reminder = {
+                "id": reminder_id,
+                "title": title,
+                "message": message,
+                "start_time": start_time,
+                "end_time": end_time,
+                "enabled": enabled,
+                "created_at": current_timestamp,
+                "updated_at": current_timestamp
+            }
+            
+            # ===== 保存到文件 =====
+            
+            reminders_file = 'reminders.json'
+            reminders = []
+            
+            # 读取现有提醒
+            if os.path.exists(reminders_file):
+                try:
+                    with open(reminders_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        reminders = data.get('reminders', [])
+                except (json.JSONDecodeError, OSError):
+                    # 文件损坏，使用空列表
+                    reminders = []
+            
+            # 添加新提醒到列表
+            reminders.append(new_reminder)
+            
+            # 写入文件
+            with open(reminders_file, 'w', encoding='utf-8') as f:
+                json.dump({"reminders": reminders}, f, indent=2, ensure_ascii=False)
+            
+            # 记录日志
+            logging.info(f"[定时提醒] 用户 {auth_username} 添加提醒: {title} ({start_time}-{end_time})")
+            
+            # 返回成功响应
+            return jsonify({
+                "success": True,
+                "message": "提醒添加成功",
+                "reminder_id": reminder_id
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 添加提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"添加提醒失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/update', methods=['POST'])
+    def update_reminder():
+        """
+        更新现有提醒
+        
+        请求体:
+            {
+                "id": "提醒ID",
+                "title": "新标题",
+                "message": "新内容",
+                "start_time": "19:00",
+                "end_time": "20:00",
+                "enabled": true
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "操作结果消息"
+            }
+        
+        说明:
+            - 必须提供提醒ID
+            - 其他字段可选，未提供的字段保持原值
+            - 更新updated_at时间戳
+        """
+        # 权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        try:
+            # 获取请求数据
+            data = request.get_json() or {}
+            reminder_id = data.get('id', '').strip()
+            
+            # 验证ID
+            if not reminder_id:
+                return jsonify({"success": False, "message": "提醒ID不能为空"})
+            
+            # 读取现有提醒
+            reminders_file = 'reminders.json'
+            if not os.path.exists(reminders_file):
+                return jsonify({"success": False, "message": "提醒文件不存在"}), 404
+            
+            with open(reminders_file, 'r', encoding='utf-8') as f:
+                reminders_data = json.load(f)
+                reminders = reminders_data.get('reminders', [])
+            
+            # 查找要更新的提醒
+            reminder_found = False
+            for reminder in reminders:
+                if reminder.get('id') == reminder_id:
+                    reminder_found = True
+                    
+                    # 更新字段（如果提供了新值）
+                    if 'title' in data:
+                        title = data['title'].strip()
+                        if not title:
+                            return jsonify({"success": False, "message": "标题不能为空"})
+                        if len(title) > 50:
+                            return jsonify({"success": False, "message": "标题不能超过50个字符"})
+                        reminder['title'] = title
+                    
+                    if 'message' in data:
+                        message = data['message'].strip()
+                        if not message:
+                            return jsonify({"success": False, "message": "内容不能为空"})
+                        if len(message) > 500:
+                            return jsonify({"success": False, "message": "内容不能超过500个字符"})
+                        reminder['message'] = message
+                    
+                    if 'start_time' in data:
+                        start_time = data['start_time'].strip()
+                        time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+                        if not time_pattern.match(start_time):
+                            return jsonify({"success": False, "message": "开始时间格式错误"})
+                        reminder['start_time'] = start_time
+                    
+                    if 'end_time' in data:
+                        end_time = data['end_time'].strip()
+                        time_pattern = re.compile(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]$')
+                        if not time_pattern.match(end_time):
+                            return jsonify({"success": False, "message": "结束时间格式错误"})
+                        reminder['end_time'] = end_time
+                    
+                    if 'enabled' in data:
+                        reminder['enabled'] = bool(data['enabled'])
+                    
+                    # 更新时间戳
+                    reminder['updated_at'] = time.time()
+                    
+                    break
+            
+            if not reminder_found:
+                return jsonify({"success": False, "message": "提醒不存在"}), 404
+            
+            # 保存更新后的数据
+            with open(reminders_file, 'w', encoding='utf-8') as f:
+                json.dump({"reminders": reminders}, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"[定时提醒] 用户 {auth_username} 更新提醒: {reminder_id}")
+            
+            return jsonify({
+                "success": True,
+                "message": "提醒更新成功"
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 更新提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"更新提醒失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/delete', methods=['POST'])
+    def delete_reminder():
+        """
+        删除提醒
+        
+        请求体:
+            {
+                "id": "提醒ID"
+            }
+        
+        返回:
+            {
+                "success": True/False,
+                "message": "操作结果消息"
+            }
+        """
+        # 权限验证
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未授权访问"}), 401
+        
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, 'auth_username', '')
+        
+        if not auth_system.check_permission(auth_username, 'view_logs'):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+        
+        try:
+            # 获取请求数据
+            data = request.get_json() or {}
+            reminder_id = data.get('id', '').strip()
+            
+            # 验证ID
+            if not reminder_id:
+                return jsonify({"success": False, "message": "提醒ID不能为空"})
+            
+            # 读取现有提醒
+            reminders_file = 'reminders.json'
+            if not os.path.exists(reminders_file):
+                return jsonify({"success": False, "message": "提醒文件不存在"}), 404
+            
+            with open(reminders_file, 'r', encoding='utf-8') as f:
+                reminders_data = json.load(f)
+                reminders = reminders_data.get('reminders', [])
+            
+            # 查找并删除提醒
+            original_count = len(reminders)
+            reminders = [r for r in reminders if r.get('id') != reminder_id]
+            
+            if len(reminders) == original_count:
+                # 没有删除任何提醒，说明ID不存在
+                return jsonify({"success": False, "message": "提醒不存在"}), 404
+            
+            # 保存更新后的数据
+            with open(reminders_file, 'w', encoding='utf-8') as f:
+                json.dump({"reminders": reminders}, f, indent=2, ensure_ascii=False)
+            
+            logging.info(f"[定时提醒] 用户 {auth_username} 删除提醒: {reminder_id}")
+            
+            return jsonify({
+                "success": True,
+                "message": "提醒删除成功"
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 删除提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"删除提醒失败: {str(e)}"
+            }), 500
+    
+    @app.route('/api/reminders/check', methods=['GET'])
+    def check_reminders():
+        """
+        检查当前时间是否有需要显示的提醒
+        
+        功能说明:
+            - 获取当前时间（HH:MM格式）
+            - 遍历所有启用的提醒
+            - 判断当前时间是否在提醒的时间范围内
+            - 支持跨天时间段判断（如 20:00 到次日 08:00）
+        
+        返回:
+            {
+                "success": True,
+                "reminders": [当前需要显示的提醒列表]
+            }
+        
+        时间判断逻辑:
+            - 正常时间段（start_time < end_time）：
+              当前时间 >= start_time 且 当前时间 < end_time
+            - 跨天时间段（start_time > end_time）：
+              当前时间 >= start_time 或 当前时间 < end_time
+        """
+        try:
+            # 获取当前时间（HH:MM格式）
+            from datetime import datetime
+            current_time_str = datetime.now().strftime('%H:%M')
+            
+            # 读取所有提醒
+            reminders_file = 'reminders.json'
+            if not os.path.exists(reminders_file):
+                # 文件不存在，返回空列表
+                return jsonify({
+                    "success": True,
+                    "reminders": []
+                })
+            
+            with open(reminders_file, 'r', encoding='utf-8') as f:
+                reminders_data = json.load(f)
+                all_reminders = reminders_data.get('reminders', [])
+            
+            # 筛选需要显示的提醒
+            active_reminders = []
+            
+            for reminder in all_reminders:
+                # 只处理启用的提醒
+                if not reminder.get('enabled', False):
+                    continue
+                
+                start_time = reminder.get('start_time', '')
+                end_time = reminder.get('end_time', '')
+                
+                # 验证时间格式
+                if not start_time or not end_time:
+                    continue
+                
+                # 判断当前时间是否在提醒时间范围内
+                if _is_time_in_range(current_time_str, start_time, end_time):
+                    # 添加到活动提醒列表
+                    active_reminders.append({
+                        "id": reminder.get('id'),
+                        "title": reminder.get('title'),
+                        "message": reminder.get('message')
+                    })
+            
+            # 返回结果
+            return jsonify({
+                "success": True,
+                "reminders": active_reminders
+            })
+            
+        except Exception as e:
+            logging.error(f"[定时提醒] 检查提醒失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"检查提醒失败: {str(e)}"
+            }), 500
+    
+    def _is_time_in_range(current_time, start_time, end_time):
+        """
+        辅助函数：判断当前时间是否在指定的时间范围内
+        
+        参数:
+            current_time (str): 当前时间，格式为 HH:MM
+            start_time (str): 开始时间，格式为 HH:MM
+            end_time (str): 结束时间，格式为 HH:MM
+        
+        返回:
+            bool: True表示在范围内，False表示不在范围内
+        
+        逻辑说明:
+            - 情况1：正常时间段（start_time < end_time）
+              例如：09:00 到 17:00
+              判断：current_time >= start_time 且 current_time < end_time
+            
+            - 情况2：跨天时间段（start_time > end_time）
+              例如：20:00 到次日 08:00
+              判断：current_time >= start_time 或 current_time < end_time
+        
+        示例:
+            - _is_time_in_range("19:30", "19:00", "20:00") -> True
+            - _is_time_in_range("20:30", "20:00", "08:00") -> True （跨天）
+            - _is_time_in_range("07:30", "20:00", "08:00") -> True （跨天）
+            - _is_time_in_range("09:00", "20:00", "08:00") -> False
+        """
+        try:
+            # 将时间字符串转换为分钟数（从00:00开始计算）
+            # 例如："19:30" -> 19 * 60 + 30 = 1170分钟
+            def time_to_minutes(time_str):
+                """将HH:MM格式的时间转换为从00:00开始的分钟数"""
+                hours, minutes = map(int, time_str.split(':'))
+                return hours * 60 + minutes
+            
+            # 转换所有时间为分钟数
+            current_minutes = time_to_minutes(current_time)
+            start_minutes = time_to_minutes(start_time)
+            end_minutes = time_to_minutes(end_time)
+            
+            # 情况1：正常时间段（不跨天）
+            if start_minutes < end_minutes:
+                # 例如：09:00 到 17:00
+                # 判断当前时间是否在 [start, end) 区间内
+                return start_minutes <= current_minutes < end_minutes
+            
+            # 情况2：跨天时间段
+            elif start_minutes > end_minutes:
+                # 例如：20:00 到次日 08:00
+                # 判断当前时间是否 >= 20:00 或者 < 08:00
+                return current_minutes >= start_minutes or current_minutes < end_minutes
+            
+            # 情况3：start_time == end_time（边界情况，视为无效）
+            else:
+                return False
+                
+        except Exception as e:
+            # 时间解析失败，记录错误并返回False
+            logging.warning(f"[定时提醒] 时间范围判断失败: {e}")
+            return False
+
+    # ============================================================
+    # 验证码功能API
+    # 用于获取和验证图形验证码，增强系统安全性
+    # ============================================================
+    
+    @app.route('/api/captcha/get', methods=['GET'])
+    def get_captcha():
+        """
+        获取验证码接口
+        
+        功能说明:
+            - 从第三方API (https://api.vore.top/api/VerifyCode) 获取验证码图片HTML和答案
+            - 生成唯一的验证码ID，将ID和答案存储在JSON文件中
+            - 返回验证码的HTML内容和验证码ID给前端显示
+        
+        返回格式:
+            {
+                "success": True/False,
+                "html": "验证码HTML内容（用于在前端显示图片）",
+                "captcha_id": "唯一的验证码ID",
+                "message": "错误消息（仅失败时返回）"
+            }
+        
+        安全说明:
+            - 验证码答案存储在服务器端JSON文件中，不会返回给前端
+            - 使用UUID生成唯一的验证码ID，防止冲突
+            - 验证码文件存储在logs/captchas目录下
+            - 验证码有效期10分钟，过期自动清理
+        """
+        # 从请求头获取session_id
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 验证session_id是否存在
+        if not session_id:
+            return jsonify({
+                "success": False,
+                "message": "缺少会话ID"
+            }), 401
+        
+        try:
+            # 调用第三方验证码API
+            # length=4 表示生成4位验证码
+            # 从 config.ini 读取 API 密钥
+            config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
+            api_key = ''
+            if os.path.exists(config_file):
+                try:
+                    cfg = configparser.ConfigParser()
+                    cfg.read(config_file, encoding='utf-8')
+                    api_key = cfg.get('API', 'captcha_api_key', fallback='')
+                except Exception as e:
+                    logging.debug(f"[验证码] 读取配置文件失败: {e}")
+            
+            if api_key and api_key != '' and api_key != 'your_api_key_here':
+                captcha_api_url = f'https://api.vore.top/api/VerifyCode?key={api_key}&length=4'
+            else:
+                captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
+            
+            # 发送GET请求获取验证码，设置5秒超时
+            response = requests.get(captcha_api_url, timeout=5)
+            
+            # 解析返回的JSON数据
+            result = response.json()
+            
+            # 检查API返回状态码
+            if result.get('code') != 200:
+                logging.error(f"[验证码API] 获取失败: {result.get('msg', '未知错误')}")
+                return jsonify({
+                    "success": False,
+                    "message": "验证码服务暂时不可用，请稍后重试"
+                }), 500
+            
+            # 提取验证码数据
+            data = result.get('data', {})
+            captcha_html = data.get('html', '')  # 验证码图片的HTML内容
+            captcha_code = data.get('code', '')  # 验证码答案
+            
+            # 验证数据完整性
+            if not captcha_html or not captcha_code:
+                logging.error(f"[验证码API] 返回数据不完整: html={bool(captcha_html)}, code={bool(captcha_code)}")
+                return jsonify({
+                    "success": False,
+                    "message": "验证码数据获取失败"
+                }), 500
+            
+            # 生成唯一的验证码ID
+            import uuid
+            captcha_id = str(uuid.uuid4())
+            
+            # 确保captchas目录存在
+            captchas_dir = os.path.join('logs', 'captchas')
+            os.makedirs(captchas_dir, exist_ok=True)
+            
+            # 准备验证码数据
+            captcha_data = {
+                'id': captcha_id,
+                'code': captcha_code.upper(),  # 统一转换为大写
+                'session_id': session_id,
+                'timestamp': time.time(),
+                'expires_at': time.time() + 600  # 10分钟后过期
+            }
+            
+            # 将验证码数据存储到JSON文件
+            captcha_file = os.path.join(captchas_dir, f'{captcha_id}.json')
+            with open(captcha_file, 'w', encoding='utf-8') as f:
+                json.dump(captcha_data, f, indent=2, ensure_ascii=False)
+            
+                        # 记录验证码请求历史（用于排查错误）
+            # 修正：函数定义接收参数，以避免在线程中访问 request 上下文
+            def log_captcha_history(p_captcha_id, p_code, p_html, p_session_id, p_client_ip, p_user_agent):
+                try:
+                    history_dir = os.path.join('logs', 'captcha_history')
+                    os.makedirs(history_dir, exist_ok=True)
+                    
+                    # 获取客户端IP和User-Agent (已通过参数传入)
+                    
+                    # 准备历史记录数据
+                    history_data = {
+                        'captcha_id': p_captcha_id, # 修正：使用参数
+                        'code': p_code.upper(),  # 修正：使用参数
+                        'html': p_html,  # 保存HTML以便查看验证码图片 # 修正：使用参数
+                        'session_id': p_session_id, # 修正：使用参数
+                        'client_ip': p_client_ip, # 修正：使用参数
+                        'user_agent': p_user_agent, # 修正：使用参数
+                        'timestamp': time.time(),
+                        'timestamp_readable': datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S'),
+                        'expires_at': time.time() + 600,  # 10分钟后过期
+                        'status': 'created',  # created, verified_success, verified_failed, expired
+                        'verified_at': None,
+                        'verified_input': None
+                    }
+                    
+                    # 使用时间戳作为历史记录文件名的一部分，便于查询
+                    date_str = datetime.datetime.now().strftime('%Y%m%d')
+                    history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+                    
+                    # 追加到历史记录文件（使用JSONL格式，每行一个JSON对象）
+                    with open(history_file, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps(history_data, ensure_ascii=False) + '\n')
+                    
+                    logging.debug(f"[验证码历史] 已记录验证码请求: ID={p_captcha_id[:8]}...")
+                except Exception as e:
+                    logging.error(f"[验证码历史] 记录历史失败: {e}", exc_info=True)
+            
+            # 在后台线程中记录历史
+            import threading
+            # 修正：在启动线程前，从 request 上下文中提取所需数据
+            client_ip_data = request.headers.get('X-Forwarded-For', request.remote_addr) or 'unknown'
+            user_agent_data = request.headers.get('User-Agent', 'unknown')
+
+            # 修正：将提取的数据作为 args 传递给线程
+            threading.Thread(
+                target=log_captcha_history, 
+                args=(
+                    captcha_id, 
+                    captcha_code, 
+                    captcha_html, 
+                    session_id, 
+                    client_ip_data, 
+                    user_agent_data
+                ),
+                daemon=True
+            ).start()
+            
+            # 清理过期的验证码文件（后台任务）
+            def cleanup_expired_captchas():
+                try:
+                    current_time = time.time()
+                    for filename in os.listdir(captchas_dir):
+                        if filename.endswith('.json'):
+                            file_path = os.path.join(captchas_dir, filename)
+                            try:
+                                with open(file_path, 'r', encoding='utf-8') as f:
+                                    data = json.load(f)
+                                if data.get('expires_at', 0) < current_time:
+                                    os.remove(file_path)
+                                    logging.debug(f"[验证码清理] 删除过期验证码: {filename}")
+                            except Exception as e:
+                                logging.warning(f"[验证码清理] 处理文件 {filename} 时出错: {e}")
+                except Exception as e:
+                    logging.error(f"[验证码清理] 清理过期验证码失败: {e}")
+            
+            # 在后台线程中清理过期验证码
+            import threading
+            threading.Thread(target=cleanup_expired_captchas, daemon=True).start()
+            
+            # 记录日志（不记录验证码答案）
+            logging.info(f"[验证码] 已生成验证码 ID: {captcha_id[:8]}... 会话: {session_id[:8]}...")
+            
+            # 返回验证码HTML和ID给前端
+            return jsonify({
+                "success": True,
+                "html": captcha_html,
+                "captcha_id": captcha_id
+            })
+            
+        except requests.exceptions.Timeout:
+            logging.warning(f"[验证码API] 请求超时")
+            return jsonify({
+                "success": False,
+                "message": "验证码服务响应超时，请重试"
+            }), 500
+            
+        except requests.exceptions.RequestException as e:
+            logging.error(f"[验证码API] 网络请求失败: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": "网络错误，无法获取验证码"
+            }), 500
+            
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
+            logging.error(f"[验证码API] 数据解析失败: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": "验证码数据解析错误"
+            }), 500
+            
+        except Exception as e:
+            logging.error(f"[验证码API] 未知错误: {str(e)}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": "获取验证码时发生错误"
+            }), 500
+    
+    def verify_captcha(captcha_id, user_input):
+        """
+        验证验证码辅助函数
+        
+        参数:
+            captcha_id (str): 验证码ID
+            user_input (str): 用户输入的验证码
+        
+        返回:
+            tuple: (是否验证成功: bool, 错误消息: str)
+                   成功返回 (True, "")
+                   失败返回 (False, "具体错误原因")
+        
+        验证逻辑:
+            1. 根据验证码ID从JSON文件中读取验证码数据
+            2. 检查验证码是否过期
+            3. 不区分大小写比对用户输入与存储的验证码答案
+            4. 验证后立即删除验证码文件（一次性使用）
+        
+        安全特性:
+            - 验证码使用后立即失效（防止重放攻击）
+            - 不区分大小写，提升用户体验
+            - 验证失败也会删除验证码，需要重新获取
+            - 支持验证码过期机制
+        """
+        # 检查验证码ID是否为空
+        if not captcha_id or not captcha_id.strip():
+            return False, "验证码ID不能为空"
+        
+        # 检查用户输入是否为空
+        if not user_input or not user_input.strip():
+            return False, "验证码不能为空"
+        
+        # 构建验证码文件路径
+        captchas_dir = os.path.join('logs', 'captchas')
+        captcha_file = os.path.join(captchas_dir, f'{captcha_id}.json')
+        
+        # 检查验证码文件是否存在
+        if not os.path.exists(captcha_file):
+            return False, "验证码不存在或已失效"
+        
+        try:
+            # 读取验证码数据
+            with open(captcha_file, 'r', encoding='utf-8') as f:
+                captcha_data = json.load(f)
+            
+            # 检查验证码是否过期
+            current_time = time.time()
+            if captcha_data.get('expires_at', 0) < current_time:
+                # 删除过期的验证码文件
+                try:
+                    os.remove(captcha_file)
+                except Exception as e:
+                    logging.warning(f"[验证码] 删除过期验证码文件失败: {e}")
+                return False, "验证码已过期"
+            
+            # 获取存储的验证码答案
+            stored_code = captcha_data.get('code', '')
+            
+            # 不区分大小写比对（统一转换为大写）
+            user_input_upper = user_input.strip().upper()
+            
+            # 比对验证码
+            is_correct = (user_input_upper == stored_code)
+            
+            # 记录验证结果到历史
+            def update_captcha_history():
+                try:
+                    history_dir = os.path.join('logs', 'captcha_history')
+                    date_str = datetime.datetime.now().strftime('%Y%m%d')
+                    history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+                    
+                    if os.path.exists(history_file):
+                        # 读取所有历史记录
+                        lines = []
+                        with open(history_file, 'r', encoding='utf-8') as f:
+                            lines = f.readlines()
+                        
+                        # 更新对应的记录
+                        updated = False
+                        for i, line in enumerate(lines):
+                            try:
+                                record = json.loads(line.strip())
+                                if record.get('captcha_id') == captcha_id:
+                                    record['status'] = 'verified_success' if is_correct else 'verified_failed'
+                                    record['verified_at'] = time.time()
+                                    record['verified_at_readable'] = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+                                    record['verified_input'] = user_input_upper
+                                    lines[i] = json.dumps(record, ensure_ascii=False) + '\n'
+                                    updated = True
+                                    break
+                            except:
+                                pass
+                        
+                        if updated:
+                            # 写回文件
+                            with open(history_file, 'w', encoding='utf-8') as f:
+                                f.writelines(lines)
+                            
+                            logging.debug(f"[验证码历史] 已更新验证结果: ID={captcha_id[:8]}..., 结果={'成功' if is_correct else '失败'}")
+                except Exception as e:
+                    logging.error(f"[验证码历史] 更新验证结果失败: {e}", exc_info=True)
+            
+            # 在后台线程中更新历史
+            import threading
+            threading.Thread(target=update_captcha_history, daemon=True).start()
+            
+            # 删除验证码文件（无论验证成功或失败，都删除）
+            # 这确保验证码只能使用一次
+            try:
+                os.remove(captcha_file)
+                logging.debug(f"[验证码] 已删除验证码文件: {captcha_id}")
+            except Exception as e:
+                logging.warning(f"[验证码] 删除验证码文件失败: {e}")
+            
+            # 返回验证结果
+            if is_correct:
+                logging.info(f"[验证码] 验证成功: ID={captcha_id[:8]}...")
+                return True, ""
+            else:
+                logging.warning(f"[验证码] 验证失败: ID={captcha_id[:8]}...")
+                return False, "验证码错误"
+                
+        except json.JSONDecodeError as e:
+            logging.error(f"[验证码] JSON解析失败: {e}")
+            # 删除损坏的验证码文件
+            try:
+                os.remove(captcha_file)
+            except:
+                pass
+            return False, "验证码数据损坏"
+            
+        except Exception as e:
+            logging.error(f"[验证码] 验证过程出错: {e}", exc_info=True)
+            return False, "验证码验证失败"
+    
+    @app.route('/api/captcha/history', methods=['GET'])
+    def get_captcha_history():
+        """
+        获取验证码请求历史记录（管理员功能）
+        
+        权限要求：管理员
+        查询参数：
+        - date: 日期（格式：YYYYMMDD），默认为今天
+        - limit: 返回记录数量限制，默认100
+        - status: 状态过滤（created, verified_success, verified_failed, expired）
+        
+        返回格式：
+            {
+                "success": True/False,
+                "data": [验证码历史记录列表],
+                "total": 总记录数,
+                "message": "错误消息"
+            }
+        """
+        # 权限检查：只有管理员可以查看验证码历史
+        session_id = request.headers.get('X-Session-ID', '')
+        if not session_id or session_id not in web_sessions:
+            return jsonify({
+                "success": False,
+                "message": "未授权访问"
+            }), 401
+        
+        # 修正：web_sessions 存储的是 Api 实例，不是字典
+        api_instance = web_sessions.get(session_id)
+        if not api_instance:
+            return jsonify({"success": False, "message": "会话无效"}), 401
+        
+        username = getattr(api_instance, 'auth_username', None)
+        
+        if not username:
+            return jsonify({
+                "success": False,
+                "message": "未登录"
+            }), 401
+        
+        # 检查是否为管理员
+        # 修正：AuthSystem 的方法是 check_permission
+        if not auth_system.check_permission(username, 'view_captcha_history'):
+            return jsonify({
+                "success": False,
+                "message": "没有权限查看验证码历史"
+            }), 403
+
+        try:
+            # 获取查询参数
+            date_str = request.args.get('date', datetime.datetime.now().strftime('%Y%m%d'))
+            limit = int(request.args.get('limit', 100))
+            status_filter = request.args.get('status', '')
+            
+            # 读取历史记录
+            history_dir = os.path.join('logs', 'captcha_history')
+            history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+            
+            if not os.path.exists(history_file):
+                return jsonify({
+                    "success": True,
+                    "data": [],
+                    "total": 0,
+                    "message": "该日期没有验证码历史记录"
+                })
+            
+            # 读取并解析历史记录
+            records = []
+            current_time = time.time()
+            expiry_threshold = 30 * 60  # 30分钟（1800秒）
+            
+            with open(history_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        record = json.loads(line.strip())
+                        
+                        # 自动标记过期的验证码
+                        # 如果状态是 'created' 且已经超过30分钟，自动标记为 'expired'
+                        if record.get('status') == 'created':
+                            timestamp = record.get('timestamp', 0)
+                            if current_time - timestamp > expiry_threshold:
+                                record['status'] = 'expired'
+                                record['expired_at'] = timestamp + expiry_threshold
+                                record['expired_at_readable'] = datetime.datetime.fromtimestamp(
+                                    timestamp + expiry_threshold
+                                ).strftime('%Y-%m-%d %H:%M:%S')
+                        
+                        # 状态过滤
+                        if status_filter and record.get('status') != status_filter:
+                            continue
+                        # 移除敏感信息
+                        record.pop('session_id', None)
+                        records.append(record)
+                    except Exception as e:
+                        logging.warning(f"[验证码历史] 解析记录失败: {e}")
+                        continue
+            
+            # 按时间戳倒序排列（最新的在前）
+            records.sort(key=lambda x: x.get('timestamp', 0), reverse=True)
+            
+            # 修正：在限制（slicing）之前获取总数
+            total = len(records)
+            
+            # 限制返回数量（最多100条）
+            records = records[:limit]
+            
+            logging.info(f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条 (总计={total}条)")
+            
+            # 后台任务：永久标记过期的验证码（异步更新历史文件）
+            def update_expired_captchas_in_history():
+                try:
+                    if not os.path.exists(history_file):
+                        return
+                    
+                    # 读取所有记录
+                    lines = []
+                    updated_count = 0
+                    current_time = time.time()
+                    expiry_threshold = 30 * 60  # 30分钟
+                    
+                    with open(history_file, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            try:
+                                record = json.loads(line.strip())
+                                # 如果状态是 'created' 且已经超过30分钟，永久标记为 'expired'
+                                if record.get('status') == 'created':
+                                    timestamp = record.get('timestamp', 0)
+                                    if current_time - timestamp > expiry_threshold:
+                                        record['status'] = 'expired'
+                                        record['expired_at'] = timestamp + expiry_threshold
+                                        record['expired_at_readable'] = datetime.datetime.fromtimestamp(
+                                            timestamp + expiry_threshold
+                                        ).strftime('%Y-%m-%d %H:%M:%S')
+                                        updated_count += 1
+                                lines.append(json.dumps(record, ensure_ascii=False) + '\n')
+                            except:
+                                lines.append(line)  # 保留原始行
+                    
+                    # 如果有更新，写回文件
+                    if updated_count > 0:
+                        with open(history_file, 'w', encoding='utf-8') as f:
+                            f.writelines(lines)
+                        logging.info(f"[验证码历史] 已永久标记 {updated_count} 个过期验证码: {date_str}")
+                except Exception as e:
+                    logging.error(f"[验证码历史] 更新过期验证码状态失败: {e}")
+            
+            # 在后台线程中更新历史文件
+            import threading
+            threading.Thread(target=update_expired_captchas_in_history, daemon=True).start()
+            
+            return jsonify({
+                "success": True,
+                "data": records,
+                "total": total, # 此时 'total' 变量已定义
+                "date": date_str
+            })
+            
+        except Exception as e:
+            logging.error(f"[验证码历史] 获取历史记录失败: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": "获取验证码历史失败"
+            }), 500
+
+    # ============================================================
+    # 修正：验证码详情API
+    # 用于根据ID获取单个验证码的详细信息
+    # ============================================================
+    @app.route('/api/captcha/detail/<captcha_id>', methods=['GET'])
+    @login_required
+    def get_captcha_detail(captcha_id):
+        """
+        获取单个验证码的详细信息
+        
+        权限要求：管理员 (view_captcha_history)
+        """
+        try:
+            # 1. 权限检查
+            if not auth_system.check_permission(g.user, 'view_captcha_history'):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 2. 验证 captcha_id (防止路径遍历)
+            if not captcha_id or '..' in captcha_id or '/' in captcha_id:
+                return jsonify({"success": False, "message": "无效的验证码ID"}), 400
+
+            # 3. 遍历所有历史文件查找该ID
+            history_dir = os.path.join('logs', 'captcha_history')
+            if not os.path.exists(history_dir):
+                return jsonify({"success": False, "message": "验证码历史目录不存在"}), 404
+
+            found_record = None
+            current_time = time.time()
+            expiry_threshold = 30 * 60  # 30分钟
+
+            # 遍历目录中的所有 .jsonl 文件
+            for filename in os.listdir(history_dir):
+                if filename.endswith('.jsonl'):
+                    history_file = os.path.join(history_dir, filename)
+                    try:
+                        with open(history_file, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                try:
+                                    record = json.loads(line.strip())
+                                    if record.get('captcha_id') == captcha_id:
+                                        # 找到了！
+                                        found_record = record
+                                        
+                                        # 自动标记过期的验证码
+                                        if record.get('status') == 'created':
+                                            timestamp = record.get('timestamp', 0)
+                                            if current_time - timestamp > expiry_threshold:
+                                                found_record['status'] = 'expired'
+                                                found_record['expired_at'] = timestamp + expiry_threshold
+                                                found_record['expired_at_readable'] = datetime.datetime.fromtimestamp(
+                                                    timestamp + expiry_threshold
+                                                ).strftime('%Y-%m-%d %H:%M:%S')
+                                        
+                                        # 移除敏感信息 (如果需要)
+                                        found_record.pop('session_id', None)
+                                        
+                                        # 返回成功响应
+                                        return jsonify({
+                                            "success": True,
+                                            "data": found_record
+                                        })
+                                except json.JSONDecodeError:
+                                    continue # 跳过损坏的行
+                    except (IOError, OSError) as e:
+                        logging.warning(f"[验证码详情] 读取历史文件 {filename} 失败: {e}")
+                        continue # 继续查找下一个文件
+
+            # 4. 如果遍历完所有文件都未找到
+            if not found_record:
+                return jsonify({"success": False, "message": "未找到该验证码的详细信息"}), 404
+
+        except Exception as e:
+            logging.error(f"[验证码详情] 获取详情失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "获取验证码详情时发生错误"}), 500
+
+
     @app.route('/health')
     def health():
-        """健康检查端点"""
-
-        # 修复：'contexts' 属性已移至 'thread_local' 以实现线程安全
+        """
+        健康检查端点（已增强）
+        
+        功能说明：
+        - 提供服务器的健康状态和运行统计信息
+        - 用于监控系统、负载均衡器或运维人员检查服务是否正常
+        
+        返回的信息包括：
+        1. status: 服务器状态（ok表示正常）
+        2. uptime_seconds: 服务器运行秒数（原始数值）
+        3. uptime_formatted: 服务器运行时间（人类可读格式，如"2天3小时15分钟"）
+        4. active_memory_sessions: 活跃的内存会话数
+        5. active_background_tasks: 活跃的后台任务数
+        6. current_thread_chrome_contexts: 当前线程的Chrome上下文数
+        7. response_time_ms: 请求响应延迟（毫秒）
+        """
+        
+        # ========== 记录请求开始时间（用于计算响应延迟） ==========
+        request_start_time = time.time()
+        
+        # ========== 计算服务器运行时间 ==========
+        # 获取当前时间戳
+        current_time = time.time()
+        
+        # 计算运行时长（秒）
+        # 如果 server_start_time 未定义（理论上不应该发生），则默认为0
+        uptime_seconds = current_time - server_start_time if 'server_start_time' in globals() else 0
+        
+        # 将运行时长转换为人类可读格式
+        # 例如："2天3小时15分钟30秒"
+        def format_uptime(seconds):
+            """
+            将秒数转换为人类可读的时间格式。
+            
+            参数:
+                seconds: 总秒数
+            
+            返回:
+                格式化的字符串，如 "2天3小时15分钟30秒"
+            """
+            # 计算天数：1天 = 86400秒
+            days = int(seconds // 86400)
+            seconds %= 86400  # 取余数，剩余不足一天的秒数
+            
+            # 计算小时数：1小时 = 3600秒
+            hours = int(seconds // 3600)
+            seconds %= 3600  # 取余数，剩余不足一小时的秒数
+            
+            # 计算分钟数：1分钟 = 60秒
+            minutes = int(seconds // 60)
+            seconds = int(seconds % 60)  # 剩余秒数
+            
+            # 构建格式化字符串
+            # 只显示非零的时间单位，避免冗余（如 "0天0小时5分钟"）
+            parts = []
+            if days > 0:
+                parts.append(f"{days}天")
+            if hours > 0:
+                parts.append(f"{hours}小时")
+            if minutes > 0:
+                parts.append(f"{minutes}分钟")
+            if seconds > 0 or len(parts) == 0:  # 如果所有单位都是0，至少显示"0秒"
+                parts.append(f"{seconds}秒")
+            
+            return "".join(parts)
+        
+        uptime_formatted = format_uptime(uptime_seconds)
+        
+        # ========== 获取活跃会话数 ==========
+        # 从全局变量 web_sessions 获取当前活跃的会话数
+        # 注意：原代码中减1可能是为了排除某个特殊会话（如管理员会话）
+        # 这里保持一致，减1
+        active_sessions = len(web_sessions) - 1 if web_sessions else 0
+        # 确保不出现负数
+        active_sessions = max(0, active_sessions)
+        
+        # ========== 获取后台任务数 ==========
+        # 从后台任务管理器获取当前活跃的任务数
+        active_tasks = 0
+        if background_task_manager:
+            # 使用线程锁保护，确保线程安全
+            with background_task_manager.lock:
+                # background_task_manager.tasks 是一个字典，存储所有任务
+                active_tasks = len(background_task_manager.tasks)
+        
+        # ========== 获取Chrome上下文数（线程安全） ==========
+        # Chrome上下文数表示当前有多少个浏览器实例在运行
         # 注意：这只显示当前工作线程的上下文数量，而不是全局总数
         contexts_count = 0
         if chrome_pool and hasattr(chrome_pool, 'thread_local'):
             # 使用 getattr 安全访问，如果 'contexts' 尚未在当前线程创建，则返回空字典 {}
             contexts_count = len(
                 getattr(chrome_pool.thread_local, 'contexts', {}))
-
+        
+        # ========== 计算响应延迟 ==========
+        # 记录请求处理完成的时间
+        request_end_time = time.time()
+        # 计算响应延迟（毫秒）
+        response_time_ms = round((request_end_time - request_start_time) * 1000, 2)
+        
+        # ========== 返回健康检查信息 ==========
         return jsonify({
-            "status": "ok",
-            "sessions": len(web_sessions),
-            "chrome_contexts": contexts_count
+            "status": "ok",  # 服务器状态：正常
+            "uptime_seconds": int(uptime_seconds),  # 运行秒数（整数）
+            "uptime_formatted": uptime_formatted,  # 运行时间（格式化）
+            "active_memory_sessions": active_sessions,  # 活跃会话数
+            "active_background_tasks": active_tasks,  # 活跃后台任务数
+            "current_thread_chrome_contexts": contexts_count,  # 当前线程Chrome上下文数
+            "response_time_ms": response_time_ms  # 响应延迟（毫秒）
         })
 
     @socketio.on('connect')
@@ -15712,6 +21358,18 @@ def start_web_server(args_param):
     @socketio.on('disconnect')
     def handle_disconnect():
         logging.info(f"WebSocket client disconnected: {request.sid}")
+
+    # 辅助函数，用于向指定会话推送验证码列表更新
+    def _emit_verification_codes_update(session_id):
+        """辅助函数：向指定会话推送验证码列表更新事件"""
+        if not session_id or not socketio:
+            logging.debug(f"[SocketIO] 跳过 'verification_codes_updated' 推送（缺少 session_id 或 socketio）")
+            return
+        try:
+            socketio.emit('verification_codes_updated', {}, room=session_id)
+            logging.debug(f"[SocketIO] 已向会话 {session_id[:8]}... 推送 'verification_codes_updated' 事件")
+        except Exception as e:
+            logging.error(f"[SocketIO] 推送 'verification_codes_updated' 失败: {e}")
 
     # 定期清理过期会话
 
@@ -15843,10 +21501,219 @@ def start_web_server(args_param):
             background_task_manager.tasks.clear()
             logging.info(f"已清空后台任务管理器的内存状态（清理了 {initial_task_count} 个任务记录）。")
 
+    # ============================================================================
+    # SSL/HTTPS 配置加载和验证
+    # 在启动服务器之前，加载SSL配置并验证证书（如果启用了SSL）
+    # ============================================================================
+    
+    # 加载SSL配置
+    # 从config.ini文件读取SSL相关设置
+    ssl_config = load_ssl_config()
+    
+    # 定义SSL上下文变量，用于存储SSL配置
+    # 如果不启用SSL，此值为None
+    ssl_context = None
+    cert_path = None
+    key_path = None
+    
+    # 如果启用了SSL，进行证书验证和SSL上下文创建
+    if ssl_config['ssl_enabled']:
+        logging.info("检测到SSL已启用，正在验证证书文件...")
+        
+        # 验证证书文件和密钥文件
+        # validate_ssl_certificate函数会检查文件是否存在、可读、格式正确等
+        is_valid, error_msg, cert_info = validate_ssl_certificate(
+            ssl_config['ssl_cert_path'],
+            ssl_config['ssl_key_path']
+        )
+        
+        if not is_valid:
+            # 如果证书验证失败，记录错误并退出程序
+            # 这是为了防止使用无效证书导致安全问题
+            print(f"\n{'='*60}")
+            print(f"错误: SSL证书验证失败")
+            print(f"")
+            print(f"原因: {error_msg}")
+            print(f"")
+            print(f"请检查以下内容：")
+            print(f"  1. 证书文件路径是否正确")
+            print(f"  2. 证书文件是否存在且可读")
+            print(f"  3. 证书文件格式是否为PEM格式")
+            print(f"  4. 证书和密钥是否匹配")
+            print(f"")
+            print(f"配置文件位置: config.ini")
+            print(f"证书路径: {ssl_config['ssl_cert_path']}")
+            print(f"密钥路径: {ssl_config['ssl_key_path']}")
+            print(f"{'='*60}\n")
+            logging.error(f"SSL证书验证失败，程序退出: {error_msg}")
+            sys.exit(1)
+        
+        # 证书验证通过，创建SSL上下文
+        try:
+            import ssl as ssl_module
+            
+            # 创建SSL上下文，使用TLS协议
+            # PROTOCOL_TLS_SERVER会自动选择最安全的TLS版本
+            ssl_context = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_SERVER)
+            
+            # 加载证书链和私钥
+            # 如果路径是相对路径，需要转换为绝对路径
+            cert_path = ssl_config['ssl_cert_path']
+            key_path = ssl_config['ssl_key_path']
+            
+            if not os.path.isabs(cert_path):
+                cert_path = os.path.join(os.path.dirname(__file__), cert_path)
+            if not os.path.isabs(key_path):
+                key_path = os.path.join(os.path.dirname(__file__), key_path)
+            
+            # 加载证书和密钥到SSL上下文
+            ssl_context.load_cert_chain(cert_path, key_path)
+            
+            # 设置SSL选项，禁用不安全的协议版本
+            # OP_NO_SSLv2 和 OP_NO_SSLv3 禁用旧版SSL协议
+            # OP_NO_TLSv1 和 OP_NO_TLSv1_1 禁用旧版TLS协议（可选）
+            ssl_context.options |= ssl_module.OP_NO_SSLv2
+            ssl_context.options |= ssl_module.OP_NO_SSLv3
+            # ssl_context.options |= ssl_module.OP_NO_TLSv1
+            # ssl_context.options |= ssl_module.OP_NO_TLSv1_1
+            
+            logging.info(f"SSL上下文创建成功，使用证书: {cert_path}")
+            print(f"✓ SSL/HTTPS 已启用")
+            print(f"  证书文件: {cert_path}")
+            print(f"  密钥文件: {key_path}")
+            if ssl_config['https_only']:
+                print(f"  ⚠ 仅HTTPS模式: 已启用（HTTP请求将被重定向）")
+            
+        except Exception as e:
+            # 如果创建SSL上下文失败，记录错误并退出
+            print(f"\n{'='*60}")
+            print(f"错误: 创建SSL上下文失败")
+            print(f"")
+            print(f"详细信息: {e}")
+            print(f"")
+            print(f"可能的原因：")
+            print(f"  1. 证书和密钥不匹配")
+            print(f"  2. 证书或密钥文件损坏")
+            print(f"  3. Python SSL模块配置问题")
+            print(f"{'='*60}\n")
+            logging.error(f"创建SSL上下文失败: {e}", exc_info=True)
+            sys.exit(1)
+    else:
+        # SSL未启用，使用HTTP模式
+        logging.info("SSL未启用，服务器将以HTTP模式运行")
+    
+    # ============================================================================
+    # 添加请求钩子：处理X-Forwarded-*头和HTTPS重定向
+    # 这些钩子在每个请求处理之前执行
+    # ============================================================================
+    
+    @app.before_request
+    def handle_forwarded_proto():
+        """
+        处理反向代理（如Nginx）转发的请求头。
+        
+        功能说明：
+        1. 检查X-Forwarded-Proto头，识别原始请求是HTTP还是HTTPS
+        2. 检查X-Forwarded-For头，获取真实客户端IP
+        3. 如果启用了https_only模式且检测到HTTP请求，重定向到HTTPS
+        
+        这个函数在每个请求处理之前自动执行。
+        """
+        # 1. 处理X-Forwarded-Proto头
+        # 当使用Nginx等反向代理时，实际的请求协议（HTTP/HTTPS）会通过此头传递
+        forwarded_proto = request.headers.get('X-Forwarded-Proto', '')
+        
+        # 2. 处理X-Forwarded-For头
+        # 获取真实的客户端IP地址（当使用代理时）
+        forwarded_for = request.headers.get('X-Forwarded-For', '')
+        if forwarded_for:
+            # X-Forwarded-For可能包含多个IP（逗号分隔），取第一个
+            real_ip = forwarded_for.split(',')[0].strip()
+            # 将真实IP存储到request对象，供其他路由使用
+            request.environ['REMOTE_ADDR'] = real_ip
+        
+        # 3. HTTPS重定向逻辑（仅在启用https_only模式时）
+        if ssl_config.get('https_only', False) and ssl_config.get('ssl_enabled', False):
+            # 检查请求是否通过HTTP协议
+            # 需要同时检查request.is_secure和X-Forwarded-Proto
+            is_https = request.is_secure or forwarded_proto.lower() == 'https'
+            
+            if not is_https:
+                # 如果是HTTP请求，构造HTTPS URL并重定向
+                # 排除某些特殊路径（如健康检查）不进行重定向
+                excluded_paths = ['/health', '/api/health']
+                if request.path not in excluded_paths:
+                    # 构造HTTPS URL
+                    url = request.url.replace('http://', 'https://', 1)
+                    logging.info(f"HTTP请求被重定向到HTTPS: {request.url} -> {url}")
+                    # 返回301永久重定向
+                    from flask import redirect
+                    return redirect(url, code=301)
+    
+    @app.after_request
+    def add_security_headers(response):
+        """
+        为所有响应添加安全相关的HTTP头。
+        
+        功能说明：
+        添加多个安全响应头，提升应用的安全性：
+        1. HSTS (Strict-Transport-Security): 强制浏览器使用HTTPS
+        2. X-Content-Type-Options: 防止MIME类型嗅探攻击
+        3. X-Frame-Options: 防止点击劫持攻击
+        4. X-XSS-Protection: 启用浏览器XSS防护
+        5. Referrer-Policy: 控制Referer头的发送策略
+        
+        这个函数在每个响应发送之前自动执行。
+        """
+        # 1. 添加HSTS头（仅在启用SSL时）
+        # HSTS告诉浏览器在指定时间内，该域名只能通过HTTPS访问
+        if ssl_config.get('ssl_enabled', False):
+            # max-age=31536000: 一年内强制使用HTTPS
+            # includeSubDomains: 该策略也适用于所有子域名
+            # preload: 允许加入HSTS预加载列表
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+        
+        # 2. 防止MIME类型嗅探
+        # 这可以防止浏览器错误地将非可执行MIME类型作为可执行内容
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        
+        # 3. 防止点击劫持（Clickjacking）
+        # SAMEORIGIN表示页面只能被同源页面嵌入frame/iframe
+        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        
+        # 4. 启用XSS防护
+        # 1; mode=block表示检测到XSS攻击时阻止页面加载
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        
+        # 5. Referrer策略
+        # strict-origin-when-cross-origin: 同源请求发送完整referer，跨域只发送origin
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        
+        # 6. 内容安全策略（可选，较为严格）
+        # 这里注释掉，因为可能会影响现有功能，可以根据需要启用
+        # response.headers['Content-Security-Policy'] = "default-src 'self'"
+        
+        return response
+    
+    # ============================================================================
     # 启动服务器
+    # 根据SSL配置选择HTTP或HTTPS模式
+    # ============================================================================
+    
+    # 确定服务器协议和访问地址
+    protocol = 'https' if ssl_config.get('ssl_enabled', False) else 'http'
+    server_url = f"{protocol}://{args.host}:{args.port}"
+    
+    # 打印启动信息
     print(f"\n{'='*60}")
     print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染，2048位UUID）")
-    print(f"  访问地址: http://{args.host}:{args.port}")
+    print(f"  访问地址: {server_url}")
+    if ssl_config.get('ssl_enabled', False):
+        print(f"  SSL/HTTPS: 已启用 ✓")
+        if ssl_config.get('https_only', False):
+            print(f"  仅HTTPS模式: 已启用 ⚠")
+    else:
+        print(f"  SSL/HTTPS: 未启用（使用HTTP）")
     print(f"  首次访问将自动分配2048位UUID并重定向")
     print(f"  会话持久化已启用（服务器重启后保留登录状态）")
     print(f"  JS计算在服务器端Chrome中执行，提升安全性")
@@ -15854,9 +21721,50 @@ def start_web_server(args_param):
     print(f"{'='*60}\n")
 
     try:
-        logging.info(
-            f"正在启动带有 WebSocket 支持的 Web 服务器于 http://{args.host}:{args.port}")
-        socketio.run(app, host=args.host, port=args.port, debug=False)
+        # 修正：HTTPS/SSL 启动方式
+        # 当 async_mode='eventlet' 时，Flask-SocketIO 不支持 ssl_context 参数
+        # 需要使用 certfile 和 keyfile 参数代替
+        
+        if ssl_context:
+            # HTTPS 模式
+            logging.info(
+                f"正在启动带有 WebSocket 和 SSL(HTTPS) 支持的 Web 服务器于 {server_url}")
+            
+            try:
+                logging.info(f"Eventlet 将使用证书文件启动 SSL 服务器...")
+                logging.info(f"  证书文件: {cert_path}")
+                logging.info(f"  密钥文件: {key_path}")
+                
+                # Flask-SocketIO 的 eventlet 后端需要使用 certfile 和 keyfile 参数
+                # 而不是 ssl_context
+                socketio.run(
+                    app, 
+                    host=args.host, 
+                    port=args.port, 
+                    debug=False,
+                    certfile=cert_path,  # 传递证书文件路径
+                    keyfile=key_path     # 传递密钥文件路径
+                )
+            except ImportError:
+                logging.error("Eventlet 模块未找到，无法启动HTTPS服务器。请运行 'pip install eventlet'")
+                raise
+            except Exception as ssl_e:
+                logging.error(f"使用 Eventlet 启动 SSL 服务器失败: {ssl_e}", exc_info=True)
+                print(f"\n[错误] 无法使用 eventlet 启动 HTTPS 服务器: {ssl_e}")
+                print("请检查证书文件路径和权限是否正确。")
+                raise
+                
+        else:
+            # HTTP 模式 (保持不变)
+            logging.info(
+                f"正在启动带有 WebSocket 支持的 Web 服务器于 {server_url}")
+            
+            socketio.run(
+                app, 
+                host=args.host, 
+                port=args.port, 
+                debug=False
+            )
     except OSError as e:
         if "WinError 10013" in str(e) or "permission" in str(e).lower() or "访问权限" in str(e):
             print(f"\n{'='*60}")
@@ -15919,6 +21827,8 @@ def main():
         print(f"[错误] 日志系统初始化失败: {e}")
         traceback.print_exc()
         # 不退出，继续尝试运行
+        # 启动时加载IP缓存
+        _load_ip_cache()
 
     # ========== 第3步：导入所有依赖库 ==========
     # 导入标准库 (socket, math, etc.)
