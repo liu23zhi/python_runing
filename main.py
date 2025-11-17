@@ -6836,6 +6836,35 @@ class Api:
                 return {"success": False, "message": str(e)}
         return {"success": False, "message": "Unknown parameter"}
 
+    def get_params(self):
+        """
+        获取当前参数配置
+        
+        功能说明：
+        - 用于前端获取所有参数配置，包括主题颜色、主题风格等
+        - 在多账号模式下返回全局参数
+        - 在单账号模式下返回当前账号的参数
+        
+        返回:
+            dict: 包含所有参数的字典
+        """
+        try:
+            # 根据模式返回对应的参数
+            if self.is_multi_account_mode:
+                return self.global_params.copy()
+            else:
+                return self.params.copy()
+        except Exception as e:
+            logging.error(f"获取参数失败: {e}", exc_info=True)
+            # 返回默认参数
+            return {
+                "theme_base_color": "#7dd3fc",
+                "theme_style": "default",
+                "auto_attendance_enabled": False,
+                "auto_attendance_refresh_s": 30,
+                "attendance_user_radius_m": 40
+            }
+
     def export_task_data(self):
         """导出当前任务数据为JSON文件（Web模式：返回JSON数据让前端下载）"""
         logging.info("API调用: export_task_data - 导出当前任务数据为JSON格式")
@@ -7133,6 +7162,43 @@ class Api:
         self.is_multi_account_mode = False
         self.log("进入单账号模式。")
         return {"success": True}
+
+    def exit_single_account_mode(self):
+        """
+        退出单账号模式
+        
+        功能说明：
+        - 用于移动端退出单账号模式，返回会话选择界面
+        - 清理当前会话状态，但保留认证信息
+        - 停止所有正在运行的任务
+        
+        返回:
+            dict: {"success": True} 表示退出成功
+        """
+        try:
+            # 停止当前运行的任务
+            if hasattr(self, 'stop_event'):
+                self.stop_event.set()
+            
+            # 如果有工作线程，等待其结束
+            if hasattr(self, 'worker_thread') and self.worker_thread and self.worker_thread.is_alive():
+                self.worker_thread.join(timeout=1.0)
+            
+            # 清空路径规划回调，避免延迟回传
+            if hasattr(self, 'path_gen_callbacks'):
+                for key, (path_result, completion_event) in list(self.path_gen_callbacks.items()):
+                    path_result['error'] = '退出单账号模式已取消'
+                    try:
+                        completion_event.set()
+                    except Exception:
+                        pass
+                self.path_gen_callbacks.clear()
+            
+            self.log("已退出单账号模式")
+            return {"success": True}
+        except Exception as e:
+            logging.error(f"退出单账号模式失败: {e}", exc_info=True)
+            return {"success": False, "message": f"退出失败: {str(e)}"}
 
     def get_session_mode_info(self):
         """获取会话模式信息（单账号/多账号），用于页面刷新时恢复状态"""
