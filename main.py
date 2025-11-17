@@ -554,44 +554,64 @@ class CustomLogHandler(logging.FileHandler):
 
     def do_rollover(self):
         """
-        执行日志轮转。
+        执行标准的日志轮转。
+        实现逻辑：
+        1. 检查 zx-slm-tool-09.log 是否存在，如果存在则删除
+        2. 将 zx-slm-tool-08.log 重命名为 zx-slm-tool-09.log
+        3. 将 zx-slm-tool-07.log 重命名为 zx-slm-tool-08.log
+        4. ...
+        5. 将 zx-slm-tool-01.log 重命名为 zx-slm-tool-02.log
+        6. 最后将 zx-slm-tool.log 重命名为 zx-slm-tool-01.log
+        7. 创建一个新的 zx-slm-tool.log 文件用于后续写入
         """
+        # 关闭当前文件流
         if self.stream:
             self.stream.close()
             self.stream = None
 
+        # 获取日志目录和基础文件名
         log_dir = os.path.dirname(self.baseFilename)
         base_name = 'zx-slm-tool'
+        
+        # 定义最大轮转文件数量（保留10个历史文件：zx-slm-tool-01.log 到 zx-slm-tool-10.log）
+        max_backup_count = 10
 
-        # 查找已存在的编号文件
-        existing_numbers = []
-        for filename in os.listdir(log_dir):
-            if filename.startswith(f'{base_name}-') and filename.endswith('.log'):
-                try:
-                    # 提取编号
-                    num_str = filename[len(base_name)+1:-4]  # 去掉前缀和.log
-                    num = int(num_str)
-                    existing_numbers.append(num)
-                except ValueError:
-                    pass
+        # 从最大编号开始，依次向后移动文件
+        # 如果 zx-slm-tool-10.log 存在，则删除它（最旧的文件）
+        for i in range(max_backup_count, 0, -1):
+            old_log = os.path.join(log_dir, f'{base_name}-{i:02d}.log')
+            
+            if i == max_backup_count:
+                # 删除最旧的文件（编号为 max_backup_count）
+                if os.path.exists(old_log):
+                    try:
+                        os.remove(old_log)
+                        print(f"[日志轮转] 已删除最旧的日志文件: {os.path.basename(old_log)}")
+                    except Exception as e:
+                        print(f"[日志轮转] 删除 {os.path.basename(old_log)} 失败: {e}")
+            else:
+                # 将 zx-slm-tool-0X.log 重命名为 zx-slm-tool-0(X+1).log
+                if os.path.exists(old_log):
+                    new_log = os.path.join(log_dir, f'{base_name}-{i+1:02d}.log')
+                    try:
+                        os.rename(old_log, new_log)
+                        print(f"[日志轮转] {os.path.basename(old_log)} -> {os.path.basename(new_log)}")
+                    except Exception as e:
+                        print(f"[日志轮转] 重命名 {os.path.basename(old_log)} 失败: {e}")
 
-        # 确定新的编号
-        if existing_numbers:
-            next_num = max(existing_numbers) + 1
-        else:
-            next_num = 1
-
-        # 重命名当前文件
-        new_name = os.path.join(log_dir, f'{base_name}-{next_num:02d}.log')
-
+        # 最后，将当前的 zx-slm-tool.log 重命名为 zx-slm-tool-01.log
+        first_backup = os.path.join(log_dir, f'{base_name}-01.log')
         try:
-            os.rename(self.baseFilename, new_name)
-            print(
-                f"[日志轮转] 已轮转: {os.path.basename(self.baseFilename)} -> {os.path.basename(new_name)}")
+            # 如果 zx-slm-tool-01.log 已经存在（不应该发生，但作为安全检查）
+            if os.path.exists(first_backup):
+                os.remove(first_backup)
+            
+            os.rename(self.baseFilename, first_backup)
+            print(f"[日志轮转] {os.path.basename(self.baseFilename)} -> {os.path.basename(first_backup)}")
         except Exception as e:
-            print(f"[日志轮转] 轮转失败: {e}")
+            print(f"[日志轮转] 轮转主日志文件失败: {e}")
 
-        # 重新打开文件
+        # 重新打开一个新的 zx-slm-tool.log 文件用于后续写入
         self.stream = self._open()
 
 
@@ -803,10 +823,42 @@ def setup_logging():
 
     logger.addHandler(file_handler)
 
+    # ========== 新增：错误日志文件处理器 ==========
+    # 创建专门用于记录ERROR和CRITICAL级别日志的处理器
+    # 这样可以将严重错误单独记录到一个文件中，方便快速定位问题
+    error_log_file = os.path.join(log_dir, 'zx-slm-tool-ERROR.log')
+    
+    # 使用与主日志相同的轮转配置（max_bytes）和归档逻辑
+    # 这确保了错误日志也会被自动轮转和归档，防止文件过大
+    error_file_handler = CustomLogHandler(
+        error_log_file,  # 错误日志文件路径
+        mode='a',  # 追加模式（append），保留历史错误日志
+        encoding='utf-8',  # UTF-8编码，支持中文日志
+        max_bytes=max_bytes  # 使用与主日志相同的大小限制
+    )
+    
+    # 设置日志级别为ERROR：只记录ERROR和CRITICAL级别的日志
+    # 这样可以过滤掉DEBUG、INFO、WARNING级别的日志
+    error_file_handler.setLevel(logging.ERROR)
+    
+    # 为错误日志处理器应用"无颜色"格式化程序
+    # 使用与主日志相同的格式，确保日志格式的一致性
+    error_no_color_formatter = NoColorFileFormatter(
+        log_format._fmt,  # 使用相同的日志格式字符串
+        datefmt=log_format.datefmt  # 使用相同的日期格式
+    )
+    error_file_handler.setFormatter(error_no_color_formatter)
+    
+    # 将错误日志处理器添加到logger中
+    # 现在所有ERROR和CRITICAL日志会同时写入主日志和错误日志文件
+    logger.addHandler(error_file_handler)
+    # ========== 结束：错误日志文件处理器 ==========
+
     # 记录日志系统启动
     logging.info("="*80)
     logging.info("日志系统初始化完成（启用自定义轮转）")
     logging.info(f"日志文件: {log_file}")
+    logging.info(f"错误日志文件: {error_log_file}")  # 添加错误日志文件信息
     logging.info(f"日志级别: DEBUG (所有级别)")
     logging.info(f"日志轮转: 单文件最大{log_rotation_size_mb}MB")
     logging.info(
@@ -1250,6 +1302,28 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 单个手机号每天最多发送次数（防止骚扰）\n")
         f.write(
             f"rate_limit_per_phone_day = {config_obj.get('SMS_Service_SMSBao', 'rate_limit_per_phone_day', fallback='5')}\n\n")
+
+        # [SSL] 配置 - 新增SSL配置节的写入逻辑
+        f.write("[SSL]\n")
+        f.write("# SSL/HTTPS 配置\n")
+        f.write("# 是否启用SSL（true/false）\n")
+        f.write("# true：启用HTTPS协议访问\n")
+        f.write("# false：使用HTTP协议访问\n")
+        f.write(
+            f"ssl_enabled = {config_obj.get('SSL', 'ssl_enabled', fallback='false')}\n")
+        f.write("# SSL证书文件路径\n")
+        f.write("# 用于HTTPS服务的证书文件（PEM格式）\n")
+        f.write(
+            f"ssl_cert_path = {config_obj.get('SSL', 'ssl_cert_path', fallback='ssl/fullchain.pem')}\n")
+        f.write("# SSL私钥文件路径\n")
+        f.write("# 用于HTTPS服务的私钥文件（KEY格式）\n")
+        f.write(
+            f"ssl_key_path = {config_obj.get('SSL', 'ssl_key_path', fallback='ssl/privkey.key')}\n")
+        f.write("# 是否仅允许HTTPS访问（true/false）\n")
+        f.write("# true：禁止HTTP访问，所有HTTP请求将被重定向到HTTPS\n")
+        f.write("# false：同时允许HTTP和HTTPS访问\n")
+        f.write(
+            f"https_only = {config_obj.get('SSL', 'https_only', fallback='false')}\n\n")
 
 
 def _create_config_ini():
@@ -2856,6 +2930,17 @@ class AuthSystem:
                 logging.error(f"删除用户文件失败: {e}")
                 return {"success": False, "message": f"删除失败: {e}"}
 
+            # 删除用户对应的 school accounts 文件
+            # 这样可以确保用户的所有关联数据都被清理
+            try:
+                school_accounts_file = self._get_user_accounts_file(auth_username)
+                if os.path.exists(school_accounts_file):
+                    os.remove(school_accounts_file)
+                    logging.info(f"已删除用户 {auth_username} 的 school accounts 文件")
+            except Exception as e:
+                logging.error(f"删除用户 {auth_username} 的 school accounts 文件失败: {e}")
+                # 不中断流程，继续删除权限信息
+
             # 从权限组映射中移除
             if auth_username in self.permissions.get('user_groups', {}):
                 del self.permissions['user_groups'][auth_username]
@@ -4449,8 +4534,14 @@ class Api:
         # 先将旧配置文件（可能是中文+各种编码）规范化为英文+UTF-8
         self.normalize_chinese_config_to_english(self.user_config_path)
 
-        cfg = configparser.ConfigParser()
-        cfg.read(self.user_config_path, encoding='utf-8')
+        # 修正：设置 strict=False 以允许配置文件中存在重复选项（容错）
+        # 并添加 try-except 块处理其他可能的读取错误
+        cfg = configparser.ConfigParser(strict=False)
+        try:
+            cfg.read(self.user_config_path, encoding='utf-8')
+        except Exception as e:
+            logging.warning(f"解析用户配置文件 {username} 时出错 (已忽略): {e}")
+
         password = cfg.get('Config', 'Password', fallback='')
         if not password:
             # 如果密码为空，尝试从原始文件中扫描 "Password=" 或 "密码="，以兼容规范化失败的情况
@@ -4471,6 +4562,9 @@ class Api:
             except Exception:
                 pass
         
+        # 初始化 ua 变量，防止 UnboundLocalError
+        ua = None
+
         # 尝试从 auth_username 的 school_accounts 加载密码和UA（优先级更高）
         if hasattr(self, 'auth_username') and self.auth_username:
             school_password = self._get_school_account_password(self.auth_username, username)
@@ -4577,34 +4671,64 @@ class Api:
             auth_group = getattr(self, 'auth_group', 'guest')
             is_guest = getattr(self, 'is_guest', False)
 
-            # 根据权限过滤用户列表
+            # ========== 权限检查：根据用户权限过滤可见的用户列表 ==========
+            # 这是一个关键的安全功能，防止普通用户看到或访问其他用户的账户
             if is_guest:
                 # 游客不返回任何用户列表
+                # 游客没有任何权限，不应该看到任何学校账户
                 users = []
+                logging.debug(f"游客用户请求 get_initial_data，返回空用户列表")
             elif auth_username and not is_guest:
-                # 检查是否有 auto_fill_password 权限（查看全部 school_account）
+                # 已认证的非游客用户：需要检查 auto_fill_password 权限
+                # 此权限决定用户是否可以查看和自动填充所有学校账户的密码
+                
+                # 第一步：检查是否有 auto_fill_password 权限
                 has_view_all_permission = False
+                
+                # 方法1：检查用户组（管理员自动拥有此权限）
                 if auth_group in ['admin', 'super_admin']:
                     has_view_all_permission = True
+                    logging.debug(f"用户 {auth_username} 是管理员，拥有查看所有账户的权限")
                 elif hasattr(self, 'auth_system'):
-                    # 使用 auth_system 检查权限（如果可用）
+                    # 方法2：使用 auth_system 检查权限（支持差分化授权）
+                    # 即使用户不是管理员，也可能通过 user_custom_permissions 获得此权限
                     try:
                         has_view_all_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
-                    except:
+                        if has_view_all_permission:
+                            logging.debug(f"用户 {auth_username} 通过自定义权限获得了查看所有账户的权限")
+                    except Exception as e:
+                        # 权限检查失败（例如 auth_system 不可用），保持 False
+                        logging.warning(f"检查用户 {auth_username} 的 auto_fill_password 权限时出错: {e}")
                         pass
                 
+                # 第二步：根据权限决定返回的用户列表
                 if has_view_all_permission:
-                    # 有权限的用户可以查看所有账户
+                    # 有权限的用户可以查看所有 .ini 文件（所有学校账户）
+                    # 这允许管理员管理和查看所有学校账户的信息
                     users = all_users
+                    logging.debug(f"用户 {auth_username} 有权限，返回所有 {len(users)} 个学校账户")
                 else:
-                    # 普通用户只能看到自己的账户（从 school_accounts 加载）
+                    # 普通用户只能看到自己的账户（从 school_accounts/<auth_username>.json 加载）
+                    # 这是关键的安全措施：防止普通用户访问其他用户的账户密码
                     users = []
+                    
+                    # 加载该认证用户自己的学校账户列表
+                    # _load_user_school_accounts 返回格式：{school_username: {"password": "xxx", "ua": "xxx"}, ...}
                     school_accounts = self._load_user_school_accounts(auth_username)
+                    
                     if school_accounts:
+                        # 提取所有学校账户的用户名（键）
                         users = list(school_accounts.keys())
+                        logging.debug(f"普通用户 {auth_username} 无全局权限，返回其自己的 {len(users)} 个学校账户")
+                    else:
+                        # 如果该用户还没有任何学校账户，返回空列表
+                        logging.debug(f"普通用户 {auth_username} 还没有任何学校账户")
             else:
-                # 未认证用户返回所有用户列表（向后兼容）
+                # 未认证用户：返回所有用户列表（向后兼容旧版本逻辑）
+                # 注意：这可能是一个安全风险，但为了向后兼容保留
+                # 建议在未来版本中要求用户必须先认证才能访问
                 users = all_users
+                logging.debug(f"未认证用户请求 get_initial_data，返回所有 {len(users)} 个账户（向后兼容）")
 
             # 读取全局配置
             cfg = configparser.RawConfigParser()
@@ -4791,11 +4915,81 @@ class Api:
 
     def on_user_selected(self, username):
         # return
-        """当用户在登录界面选择一个已有用户时调用"""
+        """
+        当用户在登录界面选择一个已有用户时调用。
+        
+        功能说明：
+        - 返回选中用户的密码、UA和其他配置信息
+        - 用于自动填充登录表单
+        
+        权限检查（安全增强）：
+        - 管理员或有 auto_fill_password 权限的用户：可以查看所有学校账户的密码
+        - 普通用户：只能查看自己的学校账户列表中的密码
+        - 未认证用户：向后兼容，可以查看所有账户（但建议在未来版本中移除）
+        
+        参数:
+            username: 选中的学校账户用户名
+            
+        返回:
+            字典，包含 password, ua, params, userInfo
+        """
         logging.info(
             f"API调用: on_user_selected - 用户选择事件触发，选中的用户名: '{username}'")
+        
+        # ========== 输入验证 ==========
+        # 如果没有提供用户名，返回空数据
         if not username:
             return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
+        
+        # ========== 关键安全增强：权限检查 ==========
+        # 获取当前认证用户的信息
+        auth_username = getattr(self, 'auth_username', None)  # 当前认证用户名
+        auth_group = getattr(self, 'auth_group', 'guest')  # 用户组
+        is_guest = getattr(self, 'is_guest', False)  # 是否是游客
+        is_authenticated = hasattr(self, 'is_authenticated') and self.is_authenticated  # 是否已认证
+        
+        # 只对已认证的非游客用户进行权限检查
+        if is_authenticated and auth_username and not is_guest:
+            # 第一步：检查是否有 auto_fill_password 权限
+            has_view_all_permission = False
+            
+            # 方法1：检查用户组（管理员自动拥有此权限）
+            if auth_group in ['admin', 'super_admin']:
+                has_view_all_permission = True
+                logging.debug(f"用户 {auth_username} 是管理员，可以查看所有账户密码")
+            elif hasattr(self, 'auth_system'):
+                # 方法2：使用 auth_system 检查权限（支持差分化授权）
+                try:
+                    has_view_all_permission = auth_system.check_permission(auth_username, 'auto_fill_password')
+                    if has_view_all_permission:
+                        logging.debug(f"用户 {auth_username} 通过自定义权限获得了查看所有账户密码的权限")
+                except Exception as e:
+                    # 权限检查失败，保持 False
+                    logging.warning(f"检查用户 {auth_username} 的 auto_fill_password 权限时出错: {e}")
+                    pass
+            
+            # 第二步：如果用户没有全局权限，检查是否在其授权列表中
+            if not has_view_all_permission:
+                # 普通用户只能查看自己的学校账户列表中的账户
+                # 加载该认证用户自己的学校账户列表
+                school_accounts = self._load_user_school_accounts(auth_username)
+                
+                # 检查请求的 username 是否在该用户的授权列表中
+                if not school_accounts or username not in school_accounts:
+                    # 权限不足：用户试图访问不属于他的账户
+                    logging.warning(
+                        f"权限拒绝: 普通用户 {auth_username} 试图访问未授权的学校账户 {username}"
+                    )
+                    # 返回空数据，不泄露任何信息
+                    # 前端会显示为"未保存密码"或"新用户"
+                    return {"password": "", "ua": "", "params": self.params, "userInfo": {}}
+                else:
+                    # 权限验证通过：该账户在用户的授权列表中
+                    logging.debug(f"权限验证通过: 用户 {auth_username} 可以访问其学校账户 {username}")
+        
+        # ========== 权限检查通过或未启用认证，继续加载数据 ==========
+        # 从配置文件加载密码
+        # _load_config 会读取 school_accounts/<username>.ini 文件
         password = self._load_config(username)
 
         # 修复：如果配置文件不存在（password返回None），UA应该返回空字符串
@@ -4804,10 +4998,16 @@ class Api:
             ua = ""
         else:
             ua = self.device_ua or ""
+        
+        # 记录调试日志（不记录真实密码，只记录是否存在）
         logging.debug(
             f"on_user_selected: username={username}, ua={ua}, password={'***' if password else 'empty'}")
+        
+        # 构建用户信息字典
         info = {"name": self.user_data.name,
                 "student_id": self.user_data.student_id}
+        
+        # 返回完整数据
         return {"password": password or "", "ua": ua, "params": self.params, "userInfo": info}
 
     def generate_new_ua(self):
@@ -11723,10 +11923,14 @@ def save_ssl_config(ssl_config):
     config = configparser.ConfigParser()
     
     try:
-        # 如果配置文件已存在，先读取现有内容
-        # 这样可以保留其他节的配置不被覆盖
+        # 读取完整的 config.ini 文件到 ConfigParser 对象
+        # 这样可以保留所有现有的节和配置项，而不仅仅是 [SSL] 节
         if os.path.exists(config_file):
             config.read(config_file, encoding='utf-8')
+        else:
+            # 如果配置文件不存在，使用默认配置初始化
+            logging.warning("config.ini 文件不存在，将创建新的配置文件")
+            config = _get_default_config()
         
         # 确保[SSL]节存在，如果不存在则创建
         if not config.has_section('SSL'):
@@ -11739,10 +11943,9 @@ def save_ssl_config(ssl_config):
         config.set('SSL', 'ssl_key_path', ssl_config.get('ssl_key_path', 'ssl/privkey.key'))
         config.set('SSL', 'https_only', str(ssl_config.get('https_only', False)).lower())
         
-        # 写入配置文件
-        # 使用'w'模式会覆盖现有文件，但由于我们之前已读取，所以不会丢失数据
-        with open(config_file, 'w', encoding='utf-8') as f:
-            config.write(f)
+        # 使用 _write_config_with_comments 函数写入配置文件
+        # 这个函数会保留所有注释和配置项，不会造成数据丢失
+        _write_config_with_comments(config, config_file)
         
         logging.info("SSL配置已成功保存到配置文件")
         return True
@@ -11944,6 +12147,15 @@ def start_web_server(args_param):
     启动Flask Web服务器主函数，集成SocketIO实时通信和Chrome浏览器自动化。
     """
     global chrome_pool, background_task_manager, web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock, session_activity, session_activity_lock, args
+    
+    # ========== 新增：记录服务器启动时间 ==========
+    # 使用全局变量记录服务器启动时间，用于计算运行时长（uptime）
+    # time.time() 返回当前时间的时间戳（自1970年1月1日以来的秒数）
+    global server_start_time
+    server_start_time = time.time()
+    # 记录启动时间到日志（使用人类可读的格式）
+    logging.info(f"服务器启动时间: {datetime.datetime.fromtimestamp(server_start_time).strftime('%Y-%m-%d %H:%M:%S')}")
+    # ========== 结束：服务器启动时间记录 ==========
 
     # Make args available globally for Flask routes
     # 将命令行参数存储为全局变量，供Flask路由函数访问
@@ -13505,11 +13717,34 @@ def start_web_server(args_param):
 
     @app.route('/auth/get_config', methods=['GET'])
     def auth_get_config():
-        """获取认证配置（用于前端显示）"""
+        """
+        获取认证配置（用于前端显示）
+        使用 _get_config_value 辅助函数安全地读取配置，避免 ValueError 崩溃
+        """
+        # 安全地读取 allow_guest_login 配置，使用 _get_config_value 辅助函数
+        # type_func 参数设置为 lambda 函数，用于处理布尔值转换
+        # 支持 'true', 'yes', '1', 'on' 等多种格式
+        allow_guest_login = _get_config_value(
+            auth_system.config, 
+            'Guest', 
+            'allow_guest_login', 
+            type_func=lambda x: str(x).lower() in ('true', 'yes', '1', 'on'),  # 布尔值转换逻辑
+            fallback=True  # 默认值为 True
+        )
+        
+        # 安全地读取 amap_js_key 配置
+        amap_js_key = _get_config_value(
+            auth_system.config, 
+            'Map', 
+            'amap_js_key', 
+            type_func=str,  # 字符串类型
+            fallback=''  # 默认值为空字符串
+        )
+        
         return jsonify({
             "success": True,
-            "allow_guest_login": auth_system.config.getboolean('Guest', 'allow_guest_login', fallback=True),
-            "amap_js_key": auth_system.config.get('Map', 'amap_js_key', fallback='')
+            "allow_guest_login": allow_guest_login,
+            "amap_js_key": amap_js_key
         })
 
     @app.route('/auth/check_uuid_type', methods=['POST'])
@@ -14360,6 +14595,245 @@ def start_web_server(args_param):
             "success": True,
             "all_accounts": all_users_accounts
         })
+
+    # ========== 新增：School Account 管理API（保存/添加） ==========
+    @app.route('/api/admin/school_account/save', methods=['POST'])
+    def api_admin_school_account_save():
+        """
+        保存或添加 School Account（PC端管理面板CRUD支持）。
+        
+        功能说明：
+        - 允许管理员或有权限的用户保存/更新学校账户信息
+        - 支持添加新账户和更新现有账户
+        - 数据包括：用户名、密码、UA（User-Agent）
+        
+        请求参数（JSON）：
+        - auth_username: 认证用户名（所属用户）
+        - school_username: 学校账户用户名
+        - password: 学校账户密码
+        - ua: User-Agent字符串（可选）
+        
+        权限要求：
+        - 管理员可以保存任何用户的账户
+        - 普通用户只能保存自己的账户
+        
+        返回值：
+        - success: 是否成功
+        - message: 提示信息
+        """
+        # ========== 1. 验证会话 ==========
+        # 从请求头获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 检查会话是否存在
+        if not session_id or session_id not in web_sessions:
+            # 会话不存在或已过期，返回401未授权
+            return jsonify({"success": False, "message": "未登录或会话无效"}), 401
+        
+        # 获取当前用户的API实例
+        api_instance = web_sessions[session_id]
+        
+        # 获取当前用户的权限信息
+        auth_group = getattr(api_instance, 'auth_group', 'guest')  # 用户组（guest/user/admin/super_admin）
+        current_auth_username = getattr(api_instance, 'auth_username', None)  # 当前登录的认证用户名
+        
+        # ========== 2. 解析请求数据 ==========
+        try:
+            # 从请求体获取JSON数据
+            data = request.get_json()
+            if not data:
+                # 如果没有提供JSON数据，返回400错误
+                return jsonify({"success": False, "message": "缺少请求数据"}), 400
+            
+            # 提取必需的字段并去除首尾空格
+            auth_username = data.get('auth_username', '').strip()  # 目标认证用户（账户所属）
+            school_username = data.get('school_username', '').strip()  # 学校账户用户名
+            password = data.get('password', '').strip()  # 学校账户密码
+            ua = data.get('ua', '').strip()  # User-Agent（可选）
+            
+            # 验证必填字段
+            if not auth_username or not school_username or not password:
+                # 如果任何必填字段为空，返回400错误
+                return jsonify({"success": False, "message": "缺少必填字段：auth_username, school_username, password"}), 400
+                
+        except Exception as e:
+            # 捕获JSON解析错误或其他异常
+            logging.error(f"解析school_account保存请求失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "请求数据格式错误"}), 400
+        
+        # ========== 3. 权限检查 ==========
+        # 检查当前用户是否有权限保存指定用户的账户
+        is_admin = auth_group in ['admin', 'super_admin']  # 是否是管理员
+        
+        # 权限规则：
+        # 1. 管理员可以保存任何用户的账户
+        # 2. 普通用户只能保存自己的账户（auth_username 必须等于 current_auth_username）
+        if not is_admin and auth_username != current_auth_username:
+            # 权限不足：普通用户试图保存其他用户的账户
+            logging.warning(f"用户 {current_auth_username} 试图保存 {auth_username} 的账户，权限不足")
+            return jsonify({"success": False, "message": "权限不足：只能保存自己的账户"}), 403
+        
+        # ========== 4. 加载现有账户数据 ==========
+        try:
+            # 调用 API 实例的方法加载指定用户的所有 school_accounts
+            # 返回格式：{school_username: {"password": "xxx", "ua": "xxx"}, ...}
+            accounts = api_instance._load_user_school_accounts(auth_username)
+            
+            # 如果 accounts 为 None（不应该发生，但作为防御性编程），初始化为空字典
+            if accounts is None:
+                accounts = {}
+                
+        except Exception as e:
+            # 加载失败，记录错误并返回500错误
+            logging.error(f"加载用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "加载账户数据失败"}), 500
+        
+        # ========== 5. 更新或添加账户 ==========
+        # 检查该 school_username 是否已存在
+        is_new_account = school_username not in accounts
+        
+        # 更新账户信息（如果已存在则覆盖，如果不存在则添加）
+        accounts[school_username] = {
+            "password": password,  # 保存密码
+            "ua": ua if ua else ""  # 保存UA，如果未提供则为空字符串
+        }
+        
+        # 记录操作日志
+        action = "添加" if is_new_account else "更新"
+        logging.info(f"{action} school_account: 认证用户={auth_username}, 学校账户={school_username}, 操作者={current_auth_username}")
+        
+        # ========== 6. 保存到文件 ==========
+        try:
+            # 调用 API 实例的方法将更新后的数据保存到文件
+            api_instance._save_user_school_accounts(auth_username, accounts)
+            
+            # 保存成功，返回成功响应
+            return jsonify({
+                "success": True, 
+                "message": f"账户 {school_username} {action}成功",
+                "is_new": is_new_account  # 告诉前端这是新账户还是更新
+            })
+            
+        except Exception as e:
+            # 保存失败，记录错误并返回500错误
+            logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "保存账户数据失败"}), 500
+    
+    # ========== 新增：School Account 管理API（删除） ==========
+    @app.route('/api/admin/school_account/delete', methods=['POST'])
+    def api_admin_school_account_delete():
+        """
+        删除 School Account（PC端管理面板CRUD支持）。
+        
+        功能说明：
+        - 允许管理员或有权限的用户删除学校账户
+        - 从指定认证用户的账户列表中移除指定的学校账户
+        
+        请求参数（JSON）：
+        - auth_username: 认证用户名（所属用户）
+        - school_username: 要删除的学校账户用户名
+        
+        权限要求：
+        - 管理员可以删除任何用户的账户
+        - 普通用户只能删除自己的账户
+        
+        返回值：
+        - success: 是否成功
+        - message: 提示信息
+        """
+        # ========== 1. 验证会话 ==========
+        # 从请求头获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 检查会话是否存在
+        if not session_id or session_id not in web_sessions:
+            # 会话不存在或已过期，返回401未授权
+            return jsonify({"success": False, "message": "未登录或会话无效"}), 401
+        
+        # 获取当前用户的API实例
+        api_instance = web_sessions[session_id]
+        
+        # 获取当前用户的权限信息
+        auth_group = getattr(api_instance, 'auth_group', 'guest')  # 用户组
+        current_auth_username = getattr(api_instance, 'auth_username', None)  # 当前登录用户
+        
+        # ========== 2. 解析请求数据 ==========
+        try:
+            # 从请求体获取JSON数据
+            data = request.get_json()
+            if not data:
+                # 如果没有提供JSON数据，返回400错误
+                return jsonify({"success": False, "message": "缺少请求数据"}), 400
+            
+            # 提取必需的字段并去除首尾空格
+            auth_username = data.get('auth_username', '').strip()  # 目标认证用户
+            school_username = data.get('school_username', '').strip()  # 要删除的学校账户
+            
+            # 验证必填字段
+            if not auth_username or not school_username:
+                # 如果任何必填字段为空，返回400错误
+                return jsonify({"success": False, "message": "缺少必填字段：auth_username, school_username"}), 400
+                
+        except Exception as e:
+            # 捕获JSON解析错误或其他异常
+            logging.error(f"解析school_account删除请求失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "请求数据格式错误"}), 400
+        
+        # ========== 3. 权限检查 ==========
+        # 检查当前用户是否有权限删除指定用户的账户
+        is_admin = auth_group in ['admin', 'super_admin']  # 是否是管理员
+        
+        # 权限规则：
+        # 1. 管理员可以删除任何用户的账户
+        # 2. 普通用户只能删除自己的账户（auth_username 必须等于 current_auth_username）
+        if not is_admin and auth_username != current_auth_username:
+            # 权限不足：普通用户试图删除其他用户的账户
+            logging.warning(f"用户 {current_auth_username} 试图删除 {auth_username} 的账户 {school_username}，权限不足")
+            return jsonify({"success": False, "message": "权限不足：只能删除自己的账户"}), 403
+        
+        # ========== 4. 加载现有账户数据 ==========
+        try:
+            # 调用 API 实例的方法加载指定用户的所有 school_accounts
+            accounts = api_instance._load_user_school_accounts(auth_username)
+            
+            # 如果 accounts 为 None，初始化为空字典
+            if accounts is None:
+                accounts = {}
+                
+        except Exception as e:
+            # 加载失败，记录错误并返回500错误
+            logging.error(f"加载用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "加载账户数据失败"}), 500
+        
+        # ========== 5. 删除账户 ==========
+        # 检查要删除的账户是否存在
+        if school_username not in accounts:
+            # 账户不存在，返回404错误
+            logging.warning(f"试图删除不存在的账户: 认证用户={auth_username}, 学校账户={school_username}")
+            return jsonify({"success": False, "message": f"账户 {school_username} 不存在"}), 404
+        
+        # 从字典中删除该账户
+        # 使用 pop() 方法安全地删除键值对
+        accounts.pop(school_username)
+        
+        # 记录操作日志
+        logging.info(f"删除 school_account: 认证用户={auth_username}, 学校账户={school_username}, 操作者={current_auth_username}")
+        
+        # ========== 6. 保存到文件 ==========
+        try:
+            # 调用 API 实例的方法将更新后的数据保存到文件
+            api_instance._save_user_school_accounts(auth_username, accounts)
+            
+            # 删除成功，返回成功响应
+            return jsonify({
+                "success": True, 
+                "message": f"账户 {school_username} 删除成功"
+            })
+            
+        except Exception as e:
+            # 保存失败，记录错误并返回500错误
+            logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "保存账户数据失败"}), 500
 
     @app.route('/logs/view', methods=['GET'])
     def view_logs():
@@ -17563,6 +18037,132 @@ def start_web_server(args_param):
             # --- 新增代码 结束 ---
         }
 
+    # ========== 新增路由：Favicon ==========
+    @app.route('/favicon.ico')
+    def favicon():
+        """
+        返回网站图标（Favicon）文件。
+        
+        功能说明：
+        - 当浏览器请求网站图标时，返回位于项目根目录的 favicon.ico 文件
+        - 使用 send_file 函数安全地发送文件到客户端
+        - 设置正确的 MIME 类型（image/vnd.microsoft.icon）以确保浏览器正确识别
+        
+        返回值：
+        - 成功：返回 favicon.ico 文件
+        - 失败：返回 404 错误（如果文件不存在）
+        """
+        try:
+            # 获取当前脚本所在的目录（项目根目录）
+            # __file__ 是当前 Python 文件的路径
+            # os.path.dirname() 获取其所在目录
+            root_dir = os.path.dirname(__file__)
+            
+            # 构建 favicon.ico 的完整路径
+            # os.path.join() 会根据操作系统自动处理路径分隔符（Windows用\，Linux用/）
+            favicon_path = os.path.join(root_dir, 'favicon.ico')
+            
+            # 检查文件是否存在
+            if not os.path.exists(favicon_path):
+                # 如果文件不存在，记录警告日志并返回404错误
+                logging.warning(f"Favicon文件不存在: {favicon_path}")
+                return jsonify({"success": False, "message": "Favicon文件未找到"}), 404
+            
+            # 使用 Flask 的 send_file 函数发送文件
+            # mimetype 参数指定文件的 MIME 类型，这样浏览器就知道如何处理这个文件
+            # image/vnd.microsoft.icon 是 .ico 文件的标准 MIME 类型
+            return send_file(favicon_path, mimetype='image/vnd.microsoft.icon')
+            
+        except Exception as e:
+            # 捕获所有可能的异常（如文件权限问题、路径错误等）
+            # 记录详细的错误日志，包括异常堆栈信息（exc_info=True）
+            logging.error(f"返回 favicon.ico 时发生错误: {e}", exc_info=True)
+            # 返回500服务器内部错误
+            return jsonify({"success": False, "message": "服务器内部错误"}), 500
+
+    # ========== 新增路由：应用退出API ==========
+    @app.route('/api/shutdown', methods=['POST'])
+    def api_shutdown():
+        """
+        应用退出API端点。
+        
+        功能说明：
+        - 响应PC端登录页的退出按钮点击事件
+        - 安全地关闭 Flask + SocketIO 服务器
+        - 执行必要的清理工作（如关闭数据库连接、保存状态等）
+        
+        安全考虑：
+        - 此API应该受到权限保护，避免被恶意调用
+        - 在生产环境中，建议添加身份验证或IP白名单
+        
+        返回值：
+        - JSON 响应，表示关闭操作已启动
+        """
+        try:
+            # 记录关闭请求的来源信息（IP地址和User-Agent）
+            client_ip = request.remote_addr  # 获取客户端IP地址
+            user_agent = request.headers.get('User-Agent', 'Unknown')  # 获取浏览器信息
+            
+            # 记录关键操作日志：谁在什么时候请求关闭服务器
+            logging.warning(f"[应用退出] 收到关闭请求 - IP: {client_ip}, User-Agent: {user_agent}")
+            
+            # 先返回成功响应给客户端，让客户端知道服务器收到了关闭请求
+            # 这样可以避免客户端等待超时
+            response = jsonify({
+                "success": True, 
+                "message": "服务器正在关闭..."
+            })
+            
+            # 定义一个延迟关闭的函数，在后台线程中执行
+            # 这样可以先返回响应，再执行关闭操作
+            def delayed_shutdown():
+                """
+                延迟关闭函数：在独立线程中执行关闭操作。
+                
+                为什么要延迟？
+                - 让 Flask 有时间完成当前请求的响应发送
+                - 避免客户端收到连接中断错误
+                """
+                # 等待1秒，让响应有足够时间发送给客户端
+                time.sleep(1)
+                
+                # 记录关闭操作开始
+                logging.info("[应用退出] 正在执行关闭操作...")
+                
+                try:
+                    # 方法1：尝试使用 SocketIO 的 stop() 方法优雅关闭
+                    # 这会正确关闭所有 WebSocket 连接和后台任务
+                    if socketio:
+                        logging.info("[应用退出] 调用 socketio.stop() 关闭服务器...")
+                        socketio.stop()
+                    else:
+                        # 方法2：如果 socketio 不可用，直接使用 sys.exit() 退出程序
+                        # exit code 0 表示正常退出（非错误）
+                        logging.info("[应用退出] 使用 sys.exit(0) 退出程序...")
+                        sys.exit(0)
+                        
+                except Exception as e:
+                    # 如果关闭过程中出现异常，记录错误并强制退出
+                    logging.error(f"[应用退出] 关闭过程中发生错误: {e}", exc_info=True)
+                    # 强制退出，exit code 1 表示异常退出
+                    sys.exit(1)
+            
+            # 在后台线程中启动延迟关闭函数
+            # daemon=True 表示这是一个守护线程，主程序退出时它会自动退出
+            shutdown_thread = threading.Thread(target=delayed_shutdown, daemon=True)
+            shutdown_thread.start()
+            
+            # 立即返回响应给客户端
+            return response
+            
+        except Exception as e:
+            # 捕获所有可能的异常，避免服务器崩溃
+            logging.error(f"[应用退出] 处理关闭请求时发生错误: {e}", exc_info=True)
+            return jsonify({
+                "success": False, 
+                "message": f"关闭失败: {str(e)}"
+            }), 500
+
     @app.route('/')
     def index():
         """首页：显示登录页面，等待用户认证后分配UUID"""
@@ -20291,20 +20891,115 @@ def start_web_server(args_param):
 
     @app.route('/health')
     def health():
-        """健康检查端点"""
-
-        # 修复：'contexts' 属性已移至 'thread_local' 以实现线程安全
+        """
+        健康检查端点（已增强）
+        
+        功能说明：
+        - 提供服务器的健康状态和运行统计信息
+        - 用于监控系统、负载均衡器或运维人员检查服务是否正常
+        
+        返回的信息包括：
+        1. status: 服务器状态（ok表示正常）
+        2. uptime_seconds: 服务器运行秒数（原始数值）
+        3. uptime_formatted: 服务器运行时间（人类可读格式，如"2天3小时15分钟"）
+        4. active_memory_sessions: 活跃的内存会话数
+        5. active_background_tasks: 活跃的后台任务数
+        6. current_thread_chrome_contexts: 当前线程的Chrome上下文数
+        7. response_time_ms: 请求响应延迟（毫秒）
+        """
+        
+        # ========== 记录请求开始时间（用于计算响应延迟） ==========
+        request_start_time = time.time()
+        
+        # ========== 计算服务器运行时间 ==========
+        # 获取当前时间戳
+        current_time = time.time()
+        
+        # 计算运行时长（秒）
+        # 如果 server_start_time 未定义（理论上不应该发生），则默认为0
+        uptime_seconds = current_time - server_start_time if 'server_start_time' in globals() else 0
+        
+        # 将运行时长转换为人类可读格式
+        # 例如："2天3小时15分钟30秒"
+        def format_uptime(seconds):
+            """
+            将秒数转换为人类可读的时间格式。
+            
+            参数:
+                seconds: 总秒数
+            
+            返回:
+                格式化的字符串，如 "2天3小时15分钟30秒"
+            """
+            # 计算天数：1天 = 86400秒
+            days = int(seconds // 86400)
+            seconds %= 86400  # 取余数，剩余不足一天的秒数
+            
+            # 计算小时数：1小时 = 3600秒
+            hours = int(seconds // 3600)
+            seconds %= 3600  # 取余数，剩余不足一小时的秒数
+            
+            # 计算分钟数：1分钟 = 60秒
+            minutes = int(seconds // 60)
+            seconds = int(seconds % 60)  # 剩余秒数
+            
+            # 构建格式化字符串
+            # 只显示非零的时间单位，避免冗余（如 "0天0小时5分钟"）
+            parts = []
+            if days > 0:
+                parts.append(f"{days}天")
+            if hours > 0:
+                parts.append(f"{hours}小时")
+            if minutes > 0:
+                parts.append(f"{minutes}分钟")
+            if seconds > 0 or len(parts) == 0:  # 如果所有单位都是0，至少显示"0秒"
+                parts.append(f"{seconds}秒")
+            
+            return "".join(parts)
+        
+        uptime_formatted = format_uptime(uptime_seconds)
+        
+        # ========== 获取活跃会话数 ==========
+        # 从全局变量 web_sessions 获取当前活跃的会话数
+        # 注意：原代码中减1可能是为了排除某个特殊会话（如管理员会话）
+        # 这里保持一致，减1
+        active_sessions = len(web_sessions) - 1 if web_sessions else 0
+        # 确保不出现负数
+        active_sessions = max(0, active_sessions)
+        
+        # ========== 获取后台任务数 ==========
+        # 从后台任务管理器获取当前活跃的任务数
+        active_tasks = 0
+        if background_task_manager:
+            # 使用线程锁保护，确保线程安全
+            with background_task_manager.lock:
+                # background_task_manager.tasks 是一个字典，存储所有任务
+                active_tasks = len(background_task_manager.tasks)
+        
+        # ========== 获取Chrome上下文数（线程安全） ==========
+        # Chrome上下文数表示当前有多少个浏览器实例在运行
         # 注意：这只显示当前工作线程的上下文数量，而不是全局总数
         contexts_count = 0
         if chrome_pool and hasattr(chrome_pool, 'thread_local'):
             # 使用 getattr 安全访问，如果 'contexts' 尚未在当前线程创建，则返回空字典 {}
             contexts_count = len(
                 getattr(chrome_pool.thread_local, 'contexts', {}))
-
+        
+        # ========== 计算响应延迟 ==========
+        # 记录请求处理完成的时间
+        request_end_time = time.time()
+        # 计算响应延迟（毫秒）
+        response_time_ms = round((request_end_time - request_start_time) * 1000, 2)
+        
+        # ========== 返回健康检查信息 ==========
         return jsonify({
-            "status": "ok",
-            "sessions": len(web_sessions)-1,
-            "chrome_contexts": contexts_count
+            "status": "ok",  # 服务器状态：正常
+            "uptime_seconds": int(uptime_seconds),  # 运行秒数（整数）
+            "uptime_formatted": uptime_formatted,  # 运行时间（格式化）
+            "active_memory_sessions": active_sessions,  # 活跃会话数
+            "active_background_tasks": active_tasks,  # 活跃后台任务数
+            "current_thread_chrome_contexts": contexts_count,  # 当前线程Chrome上下文数
+            "response_time_ms": response_time_ms  # 响应延迟（毫秒）
         })
 
     @socketio.on('connect')
