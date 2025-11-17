@@ -27019,6 +27019,24 @@ function run_code_not_need_sessionuuid(codeToRun) {
               attendanceDelayMax.value = pythonParams.attendance_delay_max || 300;
             }
             
+            // 【问题18修复】加载自动刷新间隔配置
+            // 从pythonParams获取auto_attendance_refresh_s参数，填充到输入框
+            const autoRefreshInterval = document.getElementById('mobile-param-auto_attendance_refresh_s');
+            if (autoRefreshInterval && typeof pythonParams !== 'undefined') {
+              // 获取刷新间隔参数，默认为60秒
+              autoRefreshInterval.value = pythonParams.auto_attendance_refresh_s || 60;
+              console.log('[移动端] 自动刷新间隔已加载:', autoRefreshInterval.value, '秒');
+            }
+            
+            // 【问题18修复】加载签到随机半径配置
+            // 从pythonParams获取attendance_user_radius_m参数，填充到输入框
+            const userRadius = document.getElementById('mobile-param-attendance_user_radius_m');
+            if (userRadius && typeof pythonParams !== 'undefined') {
+              // 获取随机半径参数，默认为0米（精确签到）
+              userRadius.value = pythonParams.attendance_user_radius_m || 0;
+              console.log('[移动端] 签到随机半径已加载:', userRadius.value, '米');
+            }
+            
             console.log('[移动端] 签到面板配置已自动加载');
           }, 50);
         }
