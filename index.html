@@ -2198,6 +2198,29 @@
         padding: 12px 20px; /* 减小上下内边距 */
       }
     }
+    
+    /* 【问题13、16、19、21修复】移动端全屏面板样式 */
+    /* 用于让特定面板占据全屏，移除边距、圆角和阴影 */
+    .mobile-mode .mobile-card-fullscreen {
+      /* 占据整个视口高度，减去底部导航栏高度（60px） */
+      height: calc(100vh - 60px);
+      /* 移除外边距，让面板紧贴边缘 */
+      margin: 0;
+      /* 移除圆角，使用直角边缘 */
+      border-radius: 0;
+      /* 移除边框 */
+      border: none;
+      /* 移除阴影效果 */
+      box-shadow: none;
+      /* 设置内边距为较小值，以便容纳更多内容 */
+      padding: 16px;
+      /* 设置为flex容器，方便子元素布局 */
+      display: flex;
+      /* 垂直方向排列 */
+      flex-direction: column;
+      /* 允许滚动 */
+      overflow-y: auto;
+    }
   </style>
 
 </head>
@@ -4224,7 +4247,8 @@
         <!-- ========================================
              【通知面板】- 显示系统通知和签到任务
              ======================================== -->
-        <div class="mobile-card hidden" id="mobile-notification-panel">
+        <!-- 【问题13、17修复】【通知面板】移动端通知中心 - 显示为全屏 -->
+        <div class="mobile-card mobile-card-fullscreen hidden" id="mobile-notification-panel">
           <!-- 面板头部：标题和未读角标 -->
           <div class="flex items-center justify-between mb-4 pb-3 border-b border-sky-100">
             <div class="flex items-center gap-2">
@@ -4284,7 +4308,8 @@
         <!-- ========================================
              【任务列表面板】- 显示跑步任务
              ======================================== -->
-        <div class="mobile-card hidden" id="mobile-task-panel">
+        <!-- 【问题16修复】【任务面板】- 显示为全屏 -->
+        <div class="mobile-card mobile-card-fullscreen hidden" id="mobile-task-panel">
           <!-- 面板头部 -->
           <div class="flex items-center justify-between mb-4 pb-3 border-b border-green-100">
             <div class="flex items-center gap-2">
@@ -4571,7 +4596,8 @@
              - 显示任务执行的实时日志信息
              - 支持自动滚动到最新日志
              ======================================== -->
-        <div class="mobile-card hidden" id="mobile-log-panel">
+        <!-- 【问题19修复】【日志面板】- 显示为全屏 -->
+        <div class="mobile-card mobile-card-fullscreen hidden" id="mobile-log-panel">
           <!-- 面板头部 - 标题和清空按钮 -->
           <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
             <div class="flex items-center gap-2">
@@ -4592,14 +4618,15 @@
             </button>
           </div>
 
-          <!-- 日志显示区域 - 使用只读textarea显示日志内容 -->
+          <!-- 【问题19修复】日志显示区域 - 使用flex-1自适应高度，占据剩余空间 -->
           <!-- 
             - readonly: 只读模式，用户无法编辑
             - resize-none: 禁止用户调整大小
             - leading-snug: 紧凑的行间距，显示更多内容
             - font-mono: 等宽字体，便于阅读代码和日志
+            - flex-1: 占据父容器剩余空间，自适应高度
           -->
-          <div class="h-64">
+          <div class="flex-1 overflow-hidden">
             <textarea id="mobile-log-text" readonly
               class="w-full h-full bg-white/80 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 resize-none focus:outline-none leading-snug font-mono"
               placeholder="日志信息将在此处显示..."></textarea>
@@ -4713,7 +4740,8 @@
         <!-- ========================================
              【参数设置面板】- 单账号参数配置
              ======================================== -->
-        <div class="mobile-card hidden" id="mobile-settings-panel">
+        <!-- 【问题21修复】【设置面板】- 显示为全屏 -->
+        <div class="mobile-card mobile-card-fullscreen hidden" id="mobile-settings-panel">
           <!-- 面板头部 - 标题和图标 -->
           <div class="flex items-center gap-2 mb-4 pb-3 border-b border-indigo-100">
             <!-- 设置图标 -->
@@ -5379,7 +5407,8 @@
         <!-- ========================================
              【全局参数面板】- 多账号全局参数配置
              ======================================== -->
-        <div class="mobile-card hidden" id="mobile-multi-settings-panel">
+        <!-- 【问题31修复】【多账号全局设置面板】- 显示为全屏 -->
+        <div class="mobile-card mobile-card-fullscreen hidden" id="mobile-multi-settings-panel">
           <!-- 面板头部 - 标题和图标 -->
           <div class="flex items-center gap-2 mb-4 pb-3 border-b border-teal-100">
             <!-- 全局设置图标 -->
@@ -5442,7 +5471,8 @@
         </div>
 
         <!-- 移动端-多账号-全局日志面板 -->
-        <div class="mobile-card hidden" id="mobile-multi-log-panel">
+        <!-- 【问题32修复】【多账号全局日志面板】- 显示为全屏 -->
+        <div class="mobile-card mobile-card-fullscreen hidden" id="mobile-multi-log-panel">
           <!-- 面板头部 - 标题和图标 -->
           <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
             <!-- 日志图标 -->
@@ -5453,22 +5483,23 @@
             <h3 class="text-xl font-bold text-slate-700">全局日志</h3>
           </div>
 
-          <!-- 日志显示区域 - 模拟控制台样式 -->
-          <div class="rounded-lg p-3 max-h-[75vh] overflow-y-auto">
+          <!-- 【问题32修复】日志显示区域 - 使用flex-1自适应高度 -->
+          <div class="flex-1 overflow-hidden rounded-lg p-3">
             <!-- 只读文本框用于显示多账号全局日志 -->
             <!-- 此日志框会实时同步显示来自后端的多账号运行日志 -->
-            <!-- 【问题2&3&21修复】日志文本框样式优化
+            <!-- 【问题2&3&21&32修复】日志文本框样式优化
                  修复前问题：
                  - 问题2: 使用黑底绿字(bg-transparent + text-green-400)，不符合设计要求
                  - 问题3: 高度太小(min-h-[50vh])，显示内容不足
                  - 问题21: 高度还是不够，需要进一步增加
+                 - 问题32: 改为flex布局，自适应全屏高度
                  修复方案：
                  - 改为普通白色背景 + 黑色文字 + 边框
-                 - 增加高度到75vh，提供更大的日志显示空间
-                 - 外层容器也增加到75vh以匹配
+                 - 使用flex-1和h-full自适应全屏高度
+                 - 外层容器也使用flex-1配合
             -->
             <textarea id="mobile-multi-log-text" readonly 
-              class="w-full bg-white text-slate-800 font-mono text-xs border border-slate-300 rounded-lg resize-none outline-none min-h-[75vh] p-3"
+              class="w-full h-full bg-white text-slate-800 font-mono text-xs border border-slate-300 rounded-lg resize-none outline-none p-3"
               placeholder="等待日志输出..."></textarea>
           </div>
 
