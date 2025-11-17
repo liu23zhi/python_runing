@@ -2090,7 +2090,7 @@ class AuthSystem:
             # ✓ 即使是明文，也使用secrets.compare_digest()防止时序攻击
             result = secrets.compare_digest(input_password, stored_password)
             logging.warning(
-                f"[密码验证] 明文密码验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (⚠️ 警告: 明文密码存储不安全，建议迁移到bcrypt)")
+                f"[密码验证] 明文密码验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'}")
             return result
 
     def _log_login_attempt(self, auth_username, success, ip_address='', user_agent='', reason=''):
