@@ -4333,10 +4333,11 @@
 
         <!-- ========================================
              【地图显示面板】- 显示任务路径
+             【问题7修复】改为全屏高度，添加复位视角按钮
              ======================================== -->
-        <div class="mobile-card p-0 overflow-hidden hidden" id="mobile-map-panel">
-          <!-- 地图容器 -->
-          <div id="mobile-map-container" class="w-full h-[300px] relative bg-slate-100">
+        <div class="mobile-card p-0 overflow-hidden hidden h-screen flex flex-col" id="mobile-map-panel">
+          <!-- 地图容器 - 【修复】使用flex-1自动填充剩余空间 -->
+          <div id="mobile-map-container" class="w-full flex-1 relative bg-slate-100" style="height: calc(100vh - 60px);">
             <div class="absolute inset-0 flex items-center justify-center text-slate-400">
               <div class="text-center">
                 <svg class="w-12 h-12 mx-auto mb-2 text-slate-300" fill="none" stroke="currentColor"
@@ -4347,9 +4348,21 @@
                 <p class="text-sm">地图加载中...</p>
               </div>
             </div>
+            
+            <!-- 【问题7修复】添加复位视角按钮，浮动在地图右上角 -->
+            <button id="mobile-map-reset-btn"
+                    class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10"
+                    onclick="resetMobileMapView()"
+                    title="复位视角">
+              <!-- 复位图标 -->
+              <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              </svg>
+            </button>
           </div>
-          <!-- 地图控制按钮 -->
-          <div class="flex gap-2 p-3 bg-slate-50">
+          <!-- 地图控制按钮 - 【修复】固定高度 -->
+          <div class="flex gap-2 p-3 bg-slate-50 flex-shrink-0">
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="mobileZoomIn()">
@@ -4364,6 +4377,12 @@
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="mobileFitView()">
               适应 ⊡
+            </button>
+            <!-- 【问题7修复】复位按钮 -->
+            <button
+              class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+              onclick="resetMobileMapView()">
+              复位 ⊙
             </button>
           </div>
         </div>
@@ -5028,8 +5047,8 @@
               <option value="">-- 请选择配置文件 --</option>
               <!-- 配置文件选项将由JavaScript动态填充 -->
             </select>
-            <!-- 添加按钮组 -->
-            <div class="grid grid-cols-2 gap-2">
+            <!-- 【问题19修复】添加按钮组 - 添加"手动添加"按钮 -->
+            <div class="grid grid-cols-3 gap-2">
               <button
                 class="py-2 px-3 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition flex items-center justify-center gap-1"
                 onclick="addMobileSelectedConfig()">
@@ -5045,6 +5064,15 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 添加全部
+              </button>
+              <!-- 【问题19修复】手动添加按钮 - 打开手动输入账号密码的模态框 -->
+              <button
+                class="py-2 px-3 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition flex items-center justify-center gap-1"
+                onclick="openManualAccountModal()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                手动添加
               </button>
             </div>
           </div>
@@ -5217,11 +5245,48 @@
                4. "仅执行未完成的任务"复选框默认选中
           -->
           <div class="mt-4 pt-3 border-t border-slate-100 space-y-3">
+            <!-- ========== 【问题16修复】随机启动延迟配置 ========== -->
+            <!-- 
+              修复说明：参照PC端，提供完整的随机延迟配置
+              - checkbox: 启用/禁用随机延迟
+              - 最小值input: 延迟的最小秒数
+              - 最大值input: 延迟的最大秒数
+            -->
+            
             <!-- 启用随机启动延迟复选框 - 默认启用 -->
-            <label class="flex items-center gap-2 cursor-pointer p-2 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
-              <input type="checkbox" id="mobile-multi-random-delay-check" checked class="w-4 h-4 accent-orange-600 rounded flex-shrink-0">
-              <span class="text-sm text-slate-700 font-semibold">启用随机启动延迟（0-300秒）</span>
-            </label>
+            <div class="p-3 bg-blue-50 rounded-lg space-y-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="mobile-multi-random-delay-check" checked class="w-4 h-4 accent-orange-600 rounded flex-shrink-0">
+                <span class="text-sm text-slate-700 font-semibold">启用随机启动延迟</span>
+              </label>
+              
+              <!-- 延迟范围设置 - 最小值和最大值输入框 -->
+              <div class="flex items-center gap-2 ml-6">
+                <label class="text-xs text-slate-600 whitespace-nowrap">延迟范围：</label>
+                <div class="flex items-center gap-1 flex-1">
+                  <!-- 最小延迟秒数输入框 -->
+                  <input type="number" 
+                         id="mobile-multi-random-delay-min" 
+                         class="input-field !py-1 !text-sm flex-1 min-w-0" 
+                         placeholder="最小" 
+                         value="0" 
+                         min="0" 
+                         max="300"
+                         style="width: 70px;">
+                  <span class="text-xs text-slate-500">~</span>
+                  <!-- 最大延迟秒数输入框 -->
+                  <input type="number" 
+                         id="mobile-multi-random-delay-max" 
+                         class="input-field !py-1 !text-sm flex-1 min-w-0" 
+                         placeholder="最大" 
+                         value="300" 
+                         min="0" 
+                         max="600"
+                         style="width: 70px;">
+                  <span class="text-xs text-slate-500">秒</span>
+                </div>
+              </div>
+            </div>
             
             <!-- 仅未完成复选框 - 默认启用，只启动未完成的任务 -->
             <label class="flex items-center gap-2 cursor-pointer p-2 bg-amber-50 rounded-lg hover:bg-amber-100 transition">
@@ -5233,10 +5298,11 @@
 
         <!-- ========================================
              【地图面板】- 多账号模式地图显示
+             【问题17修复】地图改为全屏高度(100vh)，添加复位视角按钮
              ======================================== -->
-        <div class="mobile-card p-0 overflow-hidden" id="mobile-multi-map-panel">
-          <!-- 地图容器 - 用于显示所有账号的跑步路线 -->
-          <div id="mobile-multi-map-container" class="w-full h-[300px] relative bg-slate-100">
+        <div class="mobile-card p-0 overflow-hidden h-screen flex flex-col" id="mobile-multi-map-panel">
+          <!-- 地图容器 - 【修复】改为flex-1自动填充剩余空间，实现全屏效果 -->
+          <div id="mobile-multi-map-container" class="w-full flex-1 relative bg-slate-100" style="height: calc(100vh - 60px);">
             <!-- 地图加载占位符 -->
             <div class="absolute inset-0 flex items-center justify-center text-slate-400">
               <div class="text-center">
@@ -5249,10 +5315,22 @@
                 <p class="text-sm">地图加载中...</p>
               </div>
             </div>
+            
+            <!-- 【问题17修复】添加复位视角按钮，浮动在地图右上角 -->
+            <button id="mobile-multi-map-reset-btn"
+                    class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10"
+                    onclick="resetMultiMapView()"
+                    title="复位视角">
+              <!-- 复位图标 -->
+              <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              </svg>
+            </button>
           </div>
 
-          <!-- 地图控制按钮区域 -->
-          <div class="flex gap-2 p-3 bg-slate-50">
+          <!-- 地图控制按钮区域 - 【修复】改为固定高度，不占用地图空间 -->
+          <div class="flex gap-2 p-3 bg-slate-50 flex-shrink-0">
             <!-- 放大按钮 -->
             <button
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
@@ -5270,6 +5348,12 @@
               class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
               onclick="mobileMultiFitView()">
               适应 ⊡
+            </button>
+            <!-- 【问题17修复】复位按钮 - 重置地图视角到默认位置 -->
+            <button
+              class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+              onclick="resetMultiMapView()">
+              复位 ⊙
             </button>
           </div>
         </div>
@@ -5352,19 +5436,21 @@
           </div>
 
           <!-- 日志显示区域 - 模拟控制台样式 -->
-          <div class="bg-slate-900 rounded-lg p-3 max-h-[60vh] overflow-y-auto">
+          <div class="bg-slate-900 rounded-lg p-3 max-h-[75vh] overflow-y-auto">
             <!-- 只读文本框用于显示多账号全局日志 -->
             <!-- 此日志框会实时同步显示来自后端的多账号运行日志 -->
-            <!-- 【问题2&3修复】日志文本框样式优化
+            <!-- 【问题2&3&21修复】日志文本框样式优化
                  修复前问题：
                  - 问题2: 使用黑底绿字(bg-transparent + text-green-400)，不符合设计要求
                  - 问题3: 高度太小(min-h-[50vh])，显示内容不足
+                 - 问题21: 高度还是不够，需要进一步增加
                  修复方案：
                  - 改为普通白色背景 + 黑色文字 + 边框
-                 - 增加高度到70vh，提供更大的日志显示空间
+                 - 增加高度到75vh，提供更大的日志显示空间
+                 - 外层容器也增加到75vh以匹配
             -->
             <textarea id="mobile-multi-log-text" readonly 
-              class="w-full bg-white text-slate-800 font-mono text-xs border border-slate-300 rounded-lg resize-none outline-none min-h-[70vh] p-3"
+              class="w-full bg-white text-slate-800 font-mono text-xs border border-slate-300 rounded-lg resize-none outline-none min-h-[75vh] p-3"
               placeholder="等待日志输出..."></textarea>
           </div>
 
@@ -5719,6 +5805,74 @@
         <!-- 底部关闭按钮 -->
         <div class="flex justify-end pt-2">
           <button class="mobile-primary-btn" onclick="toggleMobileMultiAdminPanel(false)">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 【问题19修复】移动端-手动输入账号密码模态框 -->
+    <!-- 此模态框用于多账号模式下手动输入账号和密码 -->
+    <!-- 功能：允许用户不通过配置文件，直接输入用户名和密码来添加账号 -->
+    <div id="mobile-manual-account-modal" class="fixed inset-0 hidden mobile-modal z-50"
+      onclick="closeManualAccountModal()">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto"
+        onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          <h3 class="text-xl font-bold text-teal-600 text-center">手动添加账号</h3>
+        </div>
+        
+        <!-- 表单内容 -->
+        <div class="space-y-4">
+          <!-- 用户名输入 -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">用户名</label>
+            <input type="text" 
+                   id="manual-account-username" 
+                   class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" 
+                   placeholder="请输入学校账号用户名" 
+                   autocomplete="username">
+          </div>
+          
+          <!-- 密码输入 -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">密码</label>
+            <input type="password" 
+                   id="manual-account-password" 
+                   class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" 
+                   placeholder="请输入密码" 
+                   autocomplete="current-password">
+          </div>
+          
+          <!-- 提示信息 -->
+          <div class="p-3 bg-teal-50 border border-teal-200 rounded-lg">
+            <p class="text-xs text-teal-700">
+              <strong>提示：</strong>手动添加的账号将使用默认配置。如需修改配置，请在账号列表中点击"参数设置"。
+            </p>
+          </div>
+        </div>
+        
+        <!-- 底部操作按钮 -->
+        <div class="flex gap-3 pt-2">
+          <button
+            class="flex-1 py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition"
+            onclick="closeManualAccountModal()">
+            取消
+          </button>
+          <button 
+            class="flex-1 py-2 px-4 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition"
+            onclick="confirmManualAccountAdd()">
+            添加
+          </button>
         </div>
       </div>
     </div>
@@ -6128,6 +6282,17 @@
           <span>签到</span>
         </a>
 
+        <!-- 5.5 【问题22修复】日志菜单项 - 切换到日志面板 -->
+        <!-- 修复说明：单账号模式侧栏之前缺少日志面板菜单项，现在添加 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-log-panel', 'single'); closeMobileSidebar(); return false;">
+          <!-- 日志图标：文档图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span>日志</span>
+        </a>
+
         <!-- 6. 【问题15&18修复】管理菜单项 - 切换到管理面板（改为面板而非模态框） -->
         <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-admin-panel', 'single'); closeMobileSidebar(); return false;">
           <!-- 管理图标：齿轮/设置图标 -->
@@ -6160,8 +6325,9 @@
           <span>我的资料</span>
         </a>
 
-        <!-- 9. 我的菜单项 - 打开用户详情模态框 -->
-        <a href="#" class="mobile-sidebar-item" onclick="toggleMobileUserDetails(true); closeMobileSidebar(); return false;">
+        <!-- 9. 【问题11修复】我的菜单项 - 打开个人资料面板（而非模态框） -->
+        <!-- 修复说明：之前点击"我的"会打开模态框toggleMobileUserDetails，现在改为切换到mobile-profile-panel面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-profile-panel', 'single'); closeMobileSidebar(); return false;">
           <!-- 用户详情图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6170,8 +6336,9 @@
           <span>我的</span>
         </a>
 
-        <!-- 9. 返回菜单项（危险操作）- 返回登录页 -->
-        <a href="#" class="mobile-sidebar-item danger" onclick="showMobileConfirm('退出登录', '确定要退出登录吗？', () => { mobileLogout(); closeMobileSidebar(); }); return false;">
+        <!-- 9. 【问题13修复】返回菜单项（危险操作）- 返回会话选择页 -->
+        <!-- 修复说明：点击返回后，需要向后端发送退出单账号模式的数据包，并刷新会话列表 -->
+        <a href="#" class="mobile-sidebar-item danger" onclick="showMobileConfirm('退出单账号模式', '确定要退出并返回会话选择吗？', async () => { await exitMobileSingleAccount(); closeMobileSidebar(); }); return false;">
           <!-- 返回图标：左箭头 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6260,8 +6427,9 @@
           <span>日志</span>
         </a>
 
-        <!-- 7. 返回菜单项（危险操作）- 返回登录页 -->
-        <a href="#" class="mobile-sidebar-item danger" onclick="showMobileConfirm('退出多账号模式', '确定要退出多账号模式吗？', () => { exitMobileMultiAccount(); closeMobileSidebar(); }); return false;">
+        <!-- 7. 【问题24修复】返回菜单项（危险操作）- 退出多账号模式并返回会话选择页 -->
+        <!-- 修复说明：点击返回后，需要向后端发送退出多账号模式的数据包（而非错误的进入单账号模式数据包），并刷新会话列表 -->
+        <a href="#" class="mobile-sidebar-item danger" onclick="showMobileConfirm('退出多账号模式', '确定要退出多账号模式并返回会话选择吗？', async () => { await exitMobileMultiAccountToSessions(); closeMobileSidebar(); }); return false;">
           <!-- 返回图标：左箭头 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -9249,18 +9417,21 @@ function run_code_not_need_sessionuuid(codeToRun) {
         });
       }
 
-      // === 12. 绑定移动端多账号模式按钮 ===
+      // === 12. 【问题23已修复】绑定移动端多账号模式按钮 ===
+      // 修复说明：点击mobile-multi-account-btn后，会向服务端发送进入多账号模式的数据包
       const mobileMultiAccountBtn = document.getElementById('mobile-multi-account-btn');
       if (mobileMultiAccountBtn) {
         mobileMultiAccountBtn.addEventListener('click', async function () {
           console.log('[移动端UI] 多账号模式按钮点击');
           
-          // 调用API进入多账号模式
+          // 【问题23修复关键】调用API进入多账号模式，向后端发送数据包
           const result = await callPythonAPI('enter_multi_account_mode');
           if (!result.success) {
             showModalAlert('进入多账号模式失败', '错误');
             return;
           }
+          
+          console.log('[移动端UI] 进入多账号模式成功');
           
           // 隐藏登录容器，显示多账号应用
           const mobileLoginContainer = document.getElementById('mobile-login-container');
@@ -25064,6 +25235,151 @@ function run_code_not_need_sessionuuid(codeToRun) {
     }
 
     /**
+     * 【问题13修复】退出移动端单账号模式，返回会话选择页
+     * 
+     * 功能说明：
+     * - 向后端发送exit_single_account_mode数据包，通知后端退出当前单账号会话
+     * - 隐藏单账号主应用界面（mobile-main-app）
+     * - 显示会话选择界面（mobile-login-container）
+     * - 刷新会话列表（mobile-sessions-list），显示最新的可用会话
+     * - 隐藏底部导航栏
+     * - 为用户提供视觉反馈，确认退出操作成功
+     */
+    async function exitMobileSingleAccount() {
+      try {
+        console.log('[移动端] 开始退出单账号模式...');
+        
+        // 1. 调用后端API，发送退出单账号模式的数据包
+        // 这会通知后端清理当前单账号会话的状态
+        const result = await callPythonAPI('exit_single_account_mode');
+        
+        // 2. 检查API调用是否成功
+        if (!result || !result.success) {
+          console.error('[移动端] 退出单账号模式失败:', result?.message || '未知错误');
+          showTempMessage('退出失败: ' + (result?.message || '未知错误'), 'error');
+          return;
+        }
+        
+        console.log('[移动端] 退出单账号模式成功，开始切换界面...');
+        
+        // 3. 隐藏单账号主应用界面
+        const mobileMainApp = document.getElementById('mobile-main-app');
+        if (mobileMainApp) {
+          mobileMainApp.classList.add('hidden');
+        }
+        
+        // 4. 显示会话选择界面（登录容器）
+        const loginContainer = document.getElementById('mobile-login-container');
+        if (loginContainer) {
+          loginContainer.classList.remove('hidden');
+        }
+        
+        // 5. 隐藏底部导航栏和菜单按钮
+        updateMobileNavVisibility(false);
+        
+        // 6. 刷新会话列表，显示最新的可用会话
+        // 延迟200ms确保界面已切换完成
+        setTimeout(async () => {
+          console.log('[移动端] 开始刷新会话列表...');
+          
+          // 调用刷新会话列表的函数
+          // 这个函数应该从后端获取最新的会话列表并更新UI
+          if (typeof refreshMobileSessions === 'function') {
+            await refreshMobileSessions();
+            console.log('[移动端] 会话列表刷新完成');
+          } else if (typeof refreshSessionList === 'function') {
+            // 备用方案：使用PC端的刷新函数
+            await refreshSessionList();
+            console.log('[移动端] 会话列表刷新完成（使用PC端函数）');
+          } else {
+            console.warn('[移动端] 未找到刷新会话列表的函数');
+          }
+        }, 200);
+        
+        // 7. 显示退出成功的提示消息
+        showTempMessage('已退出单账号模式', 'success');
+        console.log('[移动端] 退出单账号模式流程完成');
+        
+      } catch (error) {
+        // 捕获并处理任何错误
+        console.error('[移动端] 退出单账号模式时发生错误:', error);
+        showTempMessage('退出时发生错误: ' + error.message, 'error');
+      }
+    }
+
+    /**
+     * 【问题24修复】退出移动端多账号模式，返回会话选择页
+     * 
+     * 功能说明：
+     * - 向后端发送exit_multi_account_mode数据包（而非错误的enter_single_account_mode）
+     * - 隐藏多账号应用界面（mobile-multi-account-app）
+     * - 显示会话选择界面（mobile-login-container）
+     * - 刷新会话列表（mobile-sessions-list），显示最新的可用会话
+     * - 隐藏底部导航栏
+     * - 为用户提供视觉反馈，确认退出操作成功
+     */
+    async function exitMobileMultiAccountToSessions() {
+      try {
+        console.log('[移动端] 开始退出多账号模式...');
+        
+        // 1. 调用后端API，发送退出多账号模式的数据包
+        // 【修复关键】确保发送的是exit_multi_account_mode，而不是enter_single_account_mode
+        const result = await callPythonAPI('exit_multi_account_mode');
+        
+        // 2. 检查API调用是否成功
+        if (!result || !result.success) {
+          console.error('[移动端] 退出多账号模式失败:', result?.message || '未知错误');
+          showTempMessage('退出失败: ' + (result?.message || '未知错误'), 'error');
+          return;
+        }
+        
+        console.log('[移动端] 退出多账号模式成功，开始切换界面...');
+        
+        // 3. 隐藏多账号应用界面
+        const mobileMultiApp = document.getElementById('mobile-multi-account-app');
+        if (mobileMultiApp) {
+          mobileMultiApp.classList.add('hidden');
+        }
+        
+        // 4. 显示会话选择界面（登录容器）
+        const loginContainer = document.getElementById('mobile-login-container');
+        if (loginContainer) {
+          loginContainer.classList.remove('hidden');
+        }
+        
+        // 5. 隐藏底部导航栏和菜单按钮
+        updateMobileNavVisibility(false);
+        
+        // 6. 刷新会话列表，显示最新的可用会话
+        // 延迟200ms确保界面已切换完成
+        setTimeout(async () => {
+          console.log('[移动端] 开始刷新会话列表...');
+          
+          // 调用刷新会话列表的函数
+          if (typeof refreshMobileSessions === 'function') {
+            await refreshMobileSessions();
+            console.log('[移动端] 会话列表刷新完成');
+          } else if (typeof refreshSessionList === 'function') {
+            // 备用方案：使用PC端的刷新函数
+            await refreshSessionList();
+            console.log('[移动端] 会话列表刷新完成（使用PC端函数）');
+          } else {
+            console.warn('[移动端] 未找到刷新会话列表的函数');
+          }
+        }, 200);
+        
+        // 7. 显示退出成功的提示消息
+        showTempMessage('已退出多账号模式', 'success');
+        console.log('[移动端] 退出多账号模式流程完成');
+        
+      } catch (error) {
+        // 捕获并处理任何错误
+        console.error('[移动端] 退出多账号模式时发生错误:', error);
+        showTempMessage('退出时发生错误: ' + error.message, 'error');
+      }
+    }
+
+    /**
      * 移动端全选/取消全选账号
      */
     function mobileToggleSelectAllAccounts() {
@@ -25946,6 +26262,38 @@ function run_code_not_need_sessionuuid(codeToRun) {
           }, 100);
         }
         
+        // 【问题9修复】签到面板激活时自动加载默认配置值
+        // 当切换到签到面板时，自动从pythonParams加载签到相关的配置
+        if (panelId === 'mobile-attendance-panel') {
+          console.log('[移动端] 激活签到面板，开始加载配置...');
+          setTimeout(() => {
+            // 加载签到开关状态
+            const attendanceEnabled = document.getElementById('mobile-attendance-enabled');
+            if (attendanceEnabled && typeof pythonParams !== 'undefined') {
+              // 从pythonParams获取签到开关状态，默认为true
+              attendanceEnabled.checked = pythonParams.attendance_enabled !== false;
+            }
+            
+            // 加载签到时间配置
+            const attendanceTime = document.getElementById('mobile-attendance-time');
+            if (attendanceTime && typeof pythonParams !== 'undefined') {
+              // 从pythonParams获取签到时间，默认为"08:00"
+              attendanceTime.value = pythonParams.attendance_time || '08:00';
+            }
+            
+            // 加载签到随机延迟范围
+            const attendanceDelayMin = document.getElementById('mobile-attendance-delay-min');
+            const attendanceDelayMax = document.getElementById('mobile-attendance-delay-max');
+            if (attendanceDelayMin && attendanceDelayMax && typeof pythonParams !== 'undefined') {
+              // 从pythonParams获取延迟范围，默认为0-300秒
+              attendanceDelayMin.value = pythonParams.attendance_delay_min || 0;
+              attendanceDelayMax.value = pythonParams.attendance_delay_max || 300;
+            }
+            
+            console.log('[移动端] 签到面板配置已自动加载');
+          }, 50);
+        }
+        
         // 【问题15&18修复】管理面板激活时初始化
         // 当切换到管理面板时，自动初始化管理面板的标签页和内容
         if (panelId === 'mobile-admin-panel') {
@@ -26051,20 +26399,23 @@ function run_code_not_need_sessionuuid(codeToRun) {
     }
 
     /**
-     * 【问题19修复】更新移动端侧边栏菜单项的active状态
+     * 【问题12&14&15修复】更新移动端侧边栏菜单项的active状态
      * 
      * 功能说明：
      * - 当点击侧边栏菜单项切换面板时，更新菜单项的active样式
      * - 移除所有菜单项的active类，然后为当前激活的面板对应的菜单项添加active类
      * - 提供视觉反馈，让用户知道当前处于哪个面板
+     * - 支持单账号模式和多账号模式的侧边栏
      * 
      * @param {string} panelId - 当前激活的面板ID
      */
     function updateMobileSidebarActive(panelId) {
       // 定义面板ID与侧边栏菜单项文本的映射关系
       // 用于根据面板ID找到对应的侧边栏菜单项
+      // 【问题14&15修复】添加多账号模式面板的映射
       const panelToMenuText = {
-        'mobile-control-panel': '控制台',
+        // 单账号模式面板
+        'mobile-control-panel': '控制',
         'mobile-map-panel': '地图',
         'mobile-task-panel': '任务',
         'mobile-notification-panel': '通知',
@@ -26072,7 +26423,14 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-attendance-panel': '签到',
         'mobile-admin-panel': '管理',
         'mobile-settings-panel': '设置',
-        'mobile-profile-panel': '我的资料'
+        'mobile-profile-panel': '我的资料',
+        // 多账号模式面板
+        'mobile-multi-control-panel': '控制',
+        'mobile-multi-map-panel': '地图',
+        'mobile-multi-account-panel': '账号',
+        'mobile-multi-admin-panel': '管理',
+        'mobile-multi-settings-panel': '设置',
+        'mobile-multi-log-panel': '日志'
       };
       
       // 获取对应的菜单文本
@@ -26081,11 +26439,36 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // 如果找不到对应的菜单文本，直接返回（可能是模态框或其他面板）
       if (!targetMenuText) {
         console.log(`[侧边栏active] 面板 ${panelId} 没有对应的侧边栏菜单项`);
+        // 【问题12&14修复】即使找不到对应菜单项，也要清除所有active状态，避免"始终active"的问题
+        const sidebarItems = document.querySelectorAll('.mobile-sidebar-item');
+        sidebarItems.forEach(item => {
+          item.classList.remove('mobile-sidebar-active');
+          item.style.backgroundColor = '';
+          item.style.color = '';
+          item.style.fontWeight = '';
+        });
         return;
       }
       
-      // 获取所有侧边栏菜单项
-      const sidebarItems = document.querySelectorAll('.mobile-sidebar-item');
+      // 【问题15修复】获取所有可见的侧边栏菜单项
+      // 需要区分单账号和多账号模式的侧边栏
+      // 单账号模式使用#mobile-sidebar-single-account，多账号模式使用#mobile-sidebar-multi-account
+      let targetSidebar;
+      if (panelId.includes('multi')) {
+        // 多账号模式
+        targetSidebar = document.getElementById('mobile-sidebar-multi-account');
+      } else {
+        // 单账号模式
+        targetSidebar = document.getElementById('mobile-sidebar-single-account');
+      }
+      
+      if (!targetSidebar) {
+        console.warn(`[侧边栏active] 找不到对应的侧边栏容器`);
+        return;
+      }
+      
+      // 只在对应的侧边栏中查找菜单项，避免影响其他侧边栏
+      const sidebarItems = targetSidebar.querySelectorAll('.mobile-sidebar-item');
       
       // 遍历所有菜单项
       sidebarItems.forEach(item => {
@@ -26111,7 +26494,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         }
       });
       
-      console.log(`[侧边栏active] 已更新active状态: ${targetMenuText}`);
+      console.log(`[侧边栏active] 已更新active状态: ${targetMenuText} (面板: ${panelId})`);
     }
 
 
@@ -26180,6 +26563,39 @@ function run_code_not_need_sessionuuid(codeToRun) {
     }
 
     /**
+     * 【问题7修复】单账号模式：复位地图视角
+     * 
+     * 功能说明：
+     * - 将地图视角重置到默认位置（中心点和缩放级别）
+     * - 用于在用户迷失位置时快速回到初始视图
+     * - 如果地图上有标记点，则自动适应所有标记；否则重置到默认中心点
+     */
+    function resetMobileMapView() {
+      // 检查单账号地图实例是否存在
+      if (map) {
+        // 如果地图上有标记点，自动适应视图以显示所有标记
+        if (markers && markers.length > 0) {
+          // 调用自适应视图功能，padding设为[50,50,50,50]留出边距
+          map.setFitView(markers, false, [50, 50, 50, 50]);
+          console.log('[单账号地图] 复位视角：自动适应所有标记点');
+        } else {
+          // 如果没有标记点，则重置到默认中心点和缩放级别
+          // 默认中心点设为中国地理中心（约北京附近）
+          const defaultCenter = [116.397128, 39.916527]; // 北京天安门坐标
+          const defaultZoom = 11; // 城市级别的缩放
+          
+          // 设置地图中心点和缩放级别
+          map.setCenter(defaultCenter);
+          map.setZoom(defaultZoom);
+          console.log('[单账号地图] 复位视角：重置到默认位置');
+        }
+      } else {
+        // 地图实例不存在，输出警告日志
+        console.warn('[单账号地图] 无法复位视角：地图实例未初始化');
+      }
+    }
+
+    /**
      * 多账号模式：放大地图
      * 
      * 功能说明：
@@ -26218,6 +26634,42 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (allOverlays && allOverlays.length > 0) {
           multiAccountMap.setFitView(allOverlays, false, [50, 50, 50, 50]);
         }
+      }
+    }
+
+    /**
+     * 【问题17修复】多账号模式：复位地图视角
+     * 
+     * 功能说明：
+     * - 将地图视角重置到默认位置（中心点和缩放级别）
+     * - 用于在用户迷失位置时快速回到初始视图
+     * - 如果地图上有路线标记，则自动适应所有标记；否则重置到默认中心点
+     */
+    function resetMultiMapView() {
+      // 检查多账号地图实例是否存在
+      if (multiAccountMap) {
+        // 获取地图上的所有覆盖物（路线、标记点等）
+        const allOverlays = multiAccountMap.getAllOverlays();
+        
+        // 如果地图上有覆盖物，自动适应视图以显示所有内容
+        if (allOverlays && allOverlays.length > 0) {
+          // 调用自适应视图功能，padding设为[50,50,50,50]留出边距
+          multiAccountMap.setFitView(allOverlays, false, [50, 50, 50, 50]);
+          console.log('[多账号地图] 复位视角：自动适应所有路线');
+        } else {
+          // 如果没有覆盖物，则重置到默认中心点和缩放级别
+          // 默认中心点设为中国地理中心（约北京附近）
+          const defaultCenter = [116.397128, 39.916527]; // 北京天安门坐标
+          const defaultZoom = 11; // 城市级别的缩放
+          
+          // 设置地图中心点和缩放级别
+          multiAccountMap.setCenter(defaultCenter);
+          multiAccountMap.setZoom(defaultZoom);
+          console.log('[多账号地图] 复位视角：重置到默认位置');
+        }
+      } else {
+        // 地图实例不存在，输出警告日志
+        console.warn('[多账号地图] 无法复位视角：地图实例未初始化');
       }
     }
 
@@ -28646,6 +29098,148 @@ function run_code_not_need_sessionuuid(codeToRun) {
       } catch (error) {
         console.error('[移动端] 批量添加配置失败:', error);
         showTempMessage('批量添加配置失败', 'error');
+      }
+    }
+
+    /**
+     * 【问题19修复】打开手动输入账号模态框
+     * 
+     * 功能说明：
+     * - 显示手动输入账号密码的模态框
+     * - 清空上次输入的内容
+     * - 用于在没有配置文件时直接添加账号
+     */
+    function openManualAccountModal() {
+      // 获取模态框元素
+      const modal = document.getElementById('mobile-manual-account-modal');
+      if (!modal) {
+        console.error('[移动端] 找不到手动账号输入模态框');
+        return;
+      }
+      
+      // 清空输入框内容，准备新的输入
+      const usernameInput = document.getElementById('manual-account-username');
+      const passwordInput = document.getElementById('manual-account-password');
+      if (usernameInput) usernameInput.value = '';
+      if (passwordInput) passwordInput.value = '';
+      
+      // 显示模态框
+      modal.classList.remove('hidden');
+      modal.classList.add('show');
+      
+      // 聚焦到用户名输入框，方便用户直接输入
+      setTimeout(() => {
+        if (usernameInput) usernameInput.focus();
+      }, 100);
+      
+      console.log('[移动端] 已打开手动账号输入模态框');
+    }
+
+    /**
+     * 【问题19修复】关闭手动输入账号模态框
+     * 
+     * 功能说明：
+     * - 隐藏手动输入账号密码的模态框
+     * - 清空输入框内容
+     */
+    function closeManualAccountModal() {
+      // 获取模态框元素
+      const modal = document.getElementById('mobile-manual-account-modal');
+      if (!modal) {
+        return;
+      }
+      
+      // 隐藏模态框
+      modal.classList.add('hidden');
+      modal.classList.remove('show');
+      
+      // 清空输入框内容
+      const usernameInput = document.getElementById('manual-account-username');
+      const passwordInput = document.getElementById('manual-account-password');
+      if (usernameInput) usernameInput.value = '';
+      if (passwordInput) passwordInput.value = '';
+      
+      console.log('[移动端] 已关闭手动账号输入模态框');
+    }
+
+    /**
+     * 【问题19修复】确认手动添加账号
+     * 
+     * 功能说明：
+     * - 验证用户输入的用户名和密码
+     * - 调用后端API添加账号到多账号列表
+     * - 使用默认配置（PC端会自动应用默认配置）
+     * - 添加成功后关闭模态框并刷新账号列表
+     */
+    async function confirmManualAccountAdd() {
+      // 获取输入框内容
+      const usernameInput = document.getElementById('manual-account-username');
+      const passwordInput = document.getElementById('manual-account-password');
+      
+      if (!usernameInput || !passwordInput) {
+        showTempMessage('找不到输入框元素', 'error');
+        return;
+      }
+      
+      // 获取并验证用户名
+      const username = usernameInput.value.trim();
+      if (!username) {
+        showTempMessage('请输入用户名', 'error');
+        usernameInput.focus();
+        return;
+      }
+      
+      // 获取并验证密码
+      const password = passwordInput.value;
+      if (!password) {
+        showTempMessage('请输入密码', 'error');
+        passwordInput.focus();
+        return;
+      }
+      
+      try {
+        // 显示加载提示
+        showTempMessage('正在添加账号...', 'info');
+        
+        // 调用后端API添加账号
+        // 注意：这里调用multi_addFromManual函数（需要在PC端定义）
+        // 如果PC端没有该函数，我们可以直接调用multi_addAccount
+        const response = await fetch('/multi_account/add', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          body: JSON.stringify({
+            username: username,
+            password: password,
+            // 使用空对象作为params，后端会自动应用默认配置
+            params: {}
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // 添加成功
+          showTempMessage('账号添加成功', 'success');
+          
+          // 关闭模态框
+          closeManualAccountModal();
+          
+          // 刷新账号列表显示
+          await mobileRefreshMultiAccounts();
+          
+          console.log(`[移动端] 手动添加账号成功: ${username}`);
+        } else {
+          // 添加失败
+          showTempMessage(`添加失败: ${result.message || '未知错误'}`, 'error');
+          console.error('[移动端] 手动添加账号失败:', result);
+        }
+      } catch (error) {
+        // 网络错误或其他异常
+        console.error('[移动端] 手动添加账号异常:', error);
+        showTempMessage('添加账号时发生错误', 'error');
       }
     }
 
