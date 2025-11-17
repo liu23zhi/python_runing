@@ -10422,6 +10422,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         }
 
         // --- ⭐ Bug 修复：处理会话过期 (401) ---
+        // 【问题1修复】为移动端添加会话过期处理
         if (response.status === 401 && errorData && errorData.message && errorData.message.includes('会话已过期或无效')) {
           logMessage_Error('[API调用] ✗ 会话已过期或无效！');
           logMessage_Info('[系统] 您的会话已过期或无效，请重新登录。'); // 同时记录到界面日志
@@ -10433,13 +10434,30 @@ function run_code_not_need_sessionuuid(codeToRun) {
             refreshUserListInterval = null; // 清理句柄
           }
 
-          // 弹窗提示用户
-          showModalAlert('您的会话已过期或无效，请重新登录。', '会话失效');
-
-          // 延迟后跳转到登录页
-          setTimeout(() => {
-            window.location.href = '/'; // 跳转到根目录
-          }, 2500); // 给用户 2.5 秒时间看提示
+          // 【问题1修复】判断当前是移动端还是PC端，使用相应的提示方式
+          if (isMobileMode) {
+            // 移动端：使用移动端提示消息（会显示在移动端登录页面顶部）
+            showMobileMessage('您的会话已过期或无效，请重新登录', 'error');
+            
+            // 移动端：跳转到移动端登录页面（隐藏main-app，显示login-container）
+            const mobileMainApp = document.getElementById('mobile-main-app');
+            const mobileMultiApp = document.getElementById('mobile-multi-account-app');
+            const mobileLoginContainer = document.getElementById('mobile-login-container');
+            
+            if (mobileMainApp) mobileMainApp.classList.add('hidden');
+            if (mobileMultiApp) mobileMultiApp.classList.add('hidden');
+            if (mobileLoginContainer) mobileLoginContainer.classList.remove('hidden');
+            
+            logMessage_Info('[移动端] 已切换到登录页面');
+          } else {
+            // PC端：使用模态框提示
+            showModalAlert('您的会话已过期或无效，请重新登录。', '会话失效');
+            
+            // PC端：延迟后跳转到登录页
+            setTimeout(() => {
+              window.location.href = '/'; // 跳转到根目录
+            }, 2500); // 给用户 2.5 秒时间看提示
+          }
 
           // 抛出错误，中断当前 API 调用的后续处理
           throw new Error('会话已过期或无效');
@@ -10611,17 +10629,33 @@ function run_code_not_need_sessionuuid(codeToRun) {
             // showModalAlert(errorMsg, '登录失效');
             logMessage_Info(`[安全提示] ${errorMsg}`);
 
-
-            // 清除本地状态并返回登录页 - 等待用户确认
-            Swal.fire({
-              icon: 'warning',
-              title: '需要重新登录',
-              text: errorMsg,
-              confirmButtonText: '返回登录',
-              allowOutsideClick: false
-            }).then(() => {
-              window.location.href = '/';
-            });
+            // 【问题1修复】判断当前是移动端还是PC端，使用相应的提示方式
+            if (isMobileMode) {
+              // 移动端：使用移动端提示消息
+              showMobileMessage(errorMsg || '需要重新登录', 'error');
+              
+              // 移动端：跳转到移动端登录页面
+              const mobileMainApp = document.getElementById('mobile-main-app');
+              const mobileMultiApp = document.getElementById('mobile-multi-account-app');
+              const mobileLoginContainer = document.getElementById('mobile-login-container');
+              
+              if (mobileMainApp) mobileMainApp.classList.add('hidden');
+              if (mobileMultiApp) mobileMultiApp.classList.add('hidden');
+              if (mobileLoginContainer) mobileLoginContainer.classList.remove('hidden');
+              
+              logMessage_Info('[移动端] 已切换到登录页面（因need_login）');
+            } else {
+              // PC端：清除本地状态并返回登录页 - 等待用户确认
+              Swal.fire({
+                icon: 'warning',
+                title: '需要重新登录',
+                text: errorMsg,
+                confirmButtonText: '返回登录',
+                allowOutsideClick: false
+              }).then(() => {
+                window.location.href = '/';
+              });
+            }
           }
 
           // 停止可能的刷新定时器 (也适用于 token 过期等情况)
@@ -19977,6 +20011,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
         
         // 显示移动端单账号模式导航栏
         updateMobileNavVisibility(true, 'single');
+        
+        // 【问题9修复】默认激活控制面板，避免刷新后页面空白
+        switchMobilePanel('mobile-control-panel', 'single');
+        console.log('[单账号模式] 移动端：已默认激活 mobile-control-panel');
         
         // 确保桌面端应用隐藏
         $('main-app').classList.add('hidden');
