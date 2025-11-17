@@ -2930,6 +2930,17 @@ class AuthSystem:
                 logging.error(f"删除用户文件失败: {e}")
                 return {"success": False, "message": f"删除失败: {e}"}
 
+            # 删除用户对应的 school accounts 文件
+            # 这样可以确保用户的所有关联数据都被清理
+            try:
+                school_accounts_file = self._get_user_accounts_file(auth_username)
+                if os.path.exists(school_accounts_file):
+                    os.remove(school_accounts_file)
+                    logging.info(f"已删除用户 {auth_username} 的 school accounts 文件")
+            except Exception as e:
+                logging.error(f"删除用户 {auth_username} 的 school accounts 文件失败: {e}")
+                # 不中断流程，继续删除权限信息
+
             # 从权限组映射中移除
             if auth_username in self.permissions.get('user_groups', {}):
                 del self.permissions['user_groups'][auth_username]
@@ -20885,7 +20896,11 @@ def start_web_server(args_param):
         4. active_memory_sessions: 活跃的内存会话数
         5. active_background_tasks: 活跃的后台任务数
         6. current_thread_chrome_contexts: 当前线程的Chrome上下文数
+        7. response_time_ms: 请求响应延迟（毫秒）
         """
+        
+        # ========== 记录请求开始时间（用于计算响应延迟） ==========
+        request_start_time = time.time()
         
         # ========== 计算服务器运行时间 ==========
         # 获取当前时间戳
@@ -20961,6 +20976,12 @@ def start_web_server(args_param):
             contexts_count = len(
                 getattr(chrome_pool.thread_local, 'contexts', {}))
         
+        # ========== 计算响应延迟 ==========
+        # 记录请求处理完成的时间
+        request_end_time = time.time()
+        # 计算响应延迟（毫秒）
+        response_time_ms = round((request_end_time - request_start_time) * 1000, 2)
+        
         # ========== 返回健康检查信息 ==========
         return jsonify({
             "status": "ok",  # 服务器状态：正常
@@ -20968,7 +20989,8 @@ def start_web_server(args_param):
             "uptime_formatted": uptime_formatted,  # 运行时间（格式化）
             "active_memory_sessions": active_sessions,  # 活跃会话数
             "active_background_tasks": active_tasks,  # 活跃后台任务数
-            "current_thread_chrome_contexts": contexts_count  # 当前线程Chrome上下文数
+            "current_thread_chrome_contexts": contexts_count,  # 当前线程Chrome上下文数
+            "response_time_ms": response_time_ms  # 响应延迟（毫秒）
         })
 
     @socketio.on('connect')
