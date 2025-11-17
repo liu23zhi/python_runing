@@ -823,42 +823,43 @@ def setup_logging():
 
     logger.addHandler(file_handler)
 
-    # ========== 新增：错误日志文件处理器 ==========
-    # 创建专门用于记录ERROR和CRITICAL级别日志的处理器
-    # 这样可以将严重错误单独记录到一个文件中，方便快速定位问题
-    error_log_file = os.path.join(log_dir, 'zx-slm-tool-ERROR.log')
+    # ========== 新增：警告和错误日志文件处理器 ==========
+    # 创建专门用于记录WARNING、ERROR和CRITICAL级别日志的处理器
+    # 这样可以将警告和严重错误单独记录到一个文件中，方便快速定位问题
+    # 使用WARNING.log作为文件名，表示记录WARNING及以上级别的日志
+    warning_log_file = os.path.join(log_dir, 'zx-slm-tool-WARNING.log')
     
     # 使用与主日志相同的轮转配置（max_bytes）和归档逻辑
-    # 这确保了错误日志也会被自动轮转和归档，防止文件过大
-    error_file_handler = CustomLogHandler(
-        error_log_file,  # 错误日志文件路径
-        mode='a',  # 追加模式（append），保留历史错误日志
+    # 这确保了警告日志也会被自动轮转和归档，防止文件过大
+    warning_file_handler = CustomLogHandler(
+        warning_log_file,  # 警告日志文件路径
+        mode='a',  # 追加模式（append），保留历史警告日志
         encoding='utf-8',  # UTF-8编码，支持中文日志
         max_bytes=max_bytes  # 使用与主日志相同的大小限制
     )
     
-    # 设置日志级别为ERROR：只记录ERROR和CRITICAL级别的日志
-    # 这样可以过滤掉DEBUG、INFO、WARNING级别的日志
-    error_file_handler.setLevel(logging.ERROR)
+    # 设置日志级别为WARNING：记录WARNING、ERROR和CRITICAL级别的日志
+    # 这样可以过滤掉DEBUG和INFO级别的日志，只保留需要关注的警告和错误
+    warning_file_handler.setLevel(logging.WARNING)
     
-    # 为错误日志处理器应用"无颜色"格式化程序
+    # 为警告日志处理器应用"无颜色"格式化程序
     # 使用与主日志相同的格式，确保日志格式的一致性
-    error_no_color_formatter = NoColorFileFormatter(
+    warning_no_color_formatter = NoColorFileFormatter(
         log_format._fmt,  # 使用相同的日志格式字符串
         datefmt=log_format.datefmt  # 使用相同的日期格式
     )
-    error_file_handler.setFormatter(error_no_color_formatter)
+    warning_file_handler.setFormatter(warning_no_color_formatter)
     
-    # 将错误日志处理器添加到logger中
-    # 现在所有ERROR和CRITICAL日志会同时写入主日志和错误日志文件
-    logger.addHandler(error_file_handler)
-    # ========== 结束：错误日志文件处理器 ==========
+    # 将警告日志处理器添加到logger中
+    # 现在所有WARNING、ERROR和CRITICAL日志会同时写入主日志和警告日志文件
+    logger.addHandler(warning_file_handler)
+    # ========== 结束：警告和错误日志文件处理器 ==========
 
     # 记录日志系统启动
     logging.info("="*80)
     logging.info("日志系统初始化完成（启用自定义轮转）")
     logging.info(f"日志文件: {log_file}")
-    logging.info(f"错误日志文件: {error_log_file}")  # 添加错误日志文件信息
+    logging.info(f"警告日志文件: {warning_log_file}")  # 添加警告日志文件信息
     logging.info(f"日志级别: DEBUG (所有级别)")
     logging.info(f"日志轮转: 单文件最大{log_rotation_size_mb}MB")
     logging.info(
@@ -15029,6 +15030,128 @@ def start_web_server(args_param):
             return jsonify({
                 "success": True, 
                 "message": f"账户 {school_username} 删除成功"
+            })
+            
+        except Exception as e:
+            # 保存失败，记录错误并返回500错误
+            logging.error(f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "保存账户数据失败"}), 500
+
+    @app.route('/api/admin/school_account/update', methods=['POST'])
+    def api_admin_school_account_update():
+        """
+        更新 School Account（PC端管理面板CRUD支持）。
+        
+        功能说明：
+        - 允许管理员或有权限的用户更新学校账户的密码和UA
+        - 支持修改指定认证用户的学校账户信息
+        
+        请求参数（JSON）：
+        - auth_username: 认证用户名（所属用户）
+        - school_username: 学校账户用户名
+        - password: 新密码
+        - ua: 新User-Agent（可选）
+        
+        权限要求：
+        - 管理员可以更新任何用户的账户
+        - 普通用户只能更新自己的账户
+        
+        返回值：
+        - success: 是否成功
+        - message: 提示信息
+        """
+        # ========== 1. 验证会话 ==========
+        # 从请求头获取会话ID
+        session_id = request.headers.get('X-Session-ID', '')
+        
+        # 检查会话是否存在
+        if not session_id or session_id not in web_sessions:
+            # 会话不存在或已过期，返回401未授权
+            return jsonify({"success": False, "message": "未登录或会话无效"}), 401
+        
+        # 获取当前用户的API实例
+        api_instance = web_sessions[session_id]
+        
+        # 获取当前用户的权限信息
+        auth_group = getattr(api_instance, 'auth_group', 'guest')  # 用户组
+        current_auth_username = getattr(api_instance, 'auth_username', None)  # 当前登录用户
+        
+        # ========== 2. 解析请求数据 ==========
+        try:
+            # 从请求体获取JSON数据
+            data = request.get_json()
+            if not data:
+                # 如果没有提供JSON数据，返回400错误
+                return jsonify({"success": False, "message": "缺少请求数据"}), 400
+            
+            # 提取必需的字段并去除首尾空格
+            auth_username = data.get('auth_username', '').strip()  # 目标认证用户
+            school_username = data.get('school_username', '').strip()  # 学校账户用户名
+            password = data.get('password', '').strip()  # 新密码
+            ua = data.get('ua', '').strip()  # 新User-Agent（可选）
+            
+            # 验证必填字段
+            if not auth_username or not school_username or not password:
+                # 如果任何必填字段为空，返回400错误
+                return jsonify({"success": False, "message": "缺少必填字段：auth_username, school_username, password"}), 400
+                
+        except Exception as e:
+            # 捕获JSON解析错误或其他异常
+            logging.error(f"解析school_account更新请求失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "请求数据格式错误"}), 400
+        
+        # ========== 3. 权限检查 ==========
+        # 检查当前用户是否有权限更新指定用户的账户
+        is_admin = auth_group in ['admin', 'super_admin']  # 是否是管理员
+        
+        # 权限规则：
+        # 1. 管理员可以更新任何用户的账户
+        # 2. 普通用户只能更新自己的账户（auth_username 必须等于 current_auth_username）
+        if not is_admin and auth_username != current_auth_username:
+            # 权限不足：普通用户试图更新其他用户的账户
+            logging.warning(f"用户 {current_auth_username} 试图更新 {auth_username} 的账户 {school_username}，权限不足")
+            return jsonify({"success": False, "message": "权限不足：只能更新自己的账户"}), 403
+        
+        # ========== 4. 加载现有账户数据 ==========
+        try:
+            # 调用 API 实例的方法加载指定用户的所有 school_accounts
+            accounts = api_instance._load_user_school_accounts(auth_username)
+            
+            # 如果 accounts 为 None，初始化为空字典
+            if accounts is None:
+                accounts = {}
+                
+        except Exception as e:
+            # 加载失败，记录错误并返回500错误
+            logging.error(f"加载用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "加载账户数据失败"}), 500
+        
+        # ========== 5. 更新账户 ==========
+        # 检查要更新的账户是否存在
+        if school_username not in accounts:
+            # 账户不存在，返回404错误
+            logging.warning(f"试图更新不存在的账户: 认证用户={auth_username}, 学校账户={school_username}")
+            return jsonify({"success": False, "message": f"账户 {school_username} 不存在"}), 404
+        
+        # 更新账户信息
+        # 使用新格式（字典）存储密码和UA
+        accounts[school_username] = {
+            "password": password,
+            "ua": ua if ua else ""
+        }
+        
+        # 记录操作日志
+        logging.info(f"更新 school_account: 认证用户={auth_username}, 学校账户={school_username}, 操作者={current_auth_username}")
+        
+        # ========== 6. 保存到文件 ==========
+        try:
+            # 调用 API 实例的方法将更新后的数据保存到文件
+            api_instance._save_user_school_accounts(auth_username, accounts)
+            
+            # 更新成功，返回成功响应
+            return jsonify({
+                "success": True, 
+                "message": f"账户 {school_username} 更新成功"
             })
             
         except Exception as e:

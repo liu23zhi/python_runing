@@ -8638,6 +8638,82 @@
     </div>
   </div>
 
+  <!-- 管理学校账户模态框 -->
+  <div id="manage-school-accounts-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
+    <!-- 背景遮罩层，点击可关闭模态框 -->
+    <div class="absolute inset-0 bg-black/60" onclick="closeManageSchoolAccountsModal()"></div>
+    
+    <!-- 模态框主体 -->
+    <div class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative">
+      <!-- 标题栏 -->
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold text-sky-600">
+          管理学校账户: <span id="school-accounts-username" class="text-slate-700"></span>
+        </h3>
+        <button onclick="closeManageSchoolAccountsModal()" class="btn btn-ghost !py-1 !px-3">关闭</button>
+      </div>
+
+      <!-- 账户统计信息 -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+        <p class="text-sm text-blue-700">
+          <strong>账户总数:</strong> <span id="school-accounts-count" class="font-mono">0</span>
+        </p>
+        <p class="text-xs text-slate-600 mt-1">
+          💡 您可以查看、编辑或删除此用户的学校账户信息
+        </p>
+      </div>
+
+      <!-- 账户列表容器 -->
+      <div id="school-accounts-list" class="space-y-3 max-h-[50vh] overflow-y-auto">
+        <!-- 账户列表将由JavaScript动态填充 -->
+      </div>
+
+      <!-- 底部按钮区 -->
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeManageSchoolAccountsModal()" class="btn btn-ghost border border-slate-300">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 编辑学校账户模态框 -->
+  <div id="edit-school-account-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1055]">
+    <!-- 背景遮罩层，z-index更高以覆盖上一个模态框 -->
+    <div class="absolute inset-0 bg-black/60" onclick="closeEditSchoolAccountModal()"></div>
+    
+    <!-- 模态框主体 -->
+    <div class="panel rounded-2xl p-6 w-96 space-y-4 relative">
+      <h3 class="text-xl font-bold text-amber-600">编辑学校账户</h3>
+
+      <!-- 账户信息显示 -->
+      <div class="space-y-2">
+        <p class="text-sm text-slate-600">
+          认证用户: <span id="edit-auth-username" class="font-semibold text-slate-800"></span>
+        </p>
+        <p class="text-sm text-slate-600">
+          学校账户: <span id="edit-school-username" class="font-semibold text-slate-800"></span>
+        </p>
+      </div>
+
+      <!-- 编辑表单 -->
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">密码</label>
+          <input type="text" id="edit-school-password" class="input-field" placeholder="输入新密码">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">User-Agent（可选）</label>
+          <textarea id="edit-school-ua" class="input-field" rows="3" placeholder="输入User-Agent（可选）"></textarea>
+        </div>
+      </div>
+
+      <!-- 底部按钮 -->
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button onclick="closeEditSchoolAccountModal()" class="btn btn-ghost border border-slate-300">取消</button>
+        <button onclick="submitEditSchoolAccount()" class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 设置会话限制模态框 -->
   <div id="set-max-sessions-modal" class="fixed inset-0 flex items-center justify-center hidden z-[1054]">
     <div class="absolute inset-0 bg-black/60" onclick="hideModal('set-max-sessions-modal')"></div>
@@ -15226,71 +15302,297 @@ function run_code_not_need_sessionuuid(codeToRun) {
     }
 
     async function showUserSchoolAccounts(username) {
-      // 创建一个模态窗口显示指定用户的 school_accounts
+      // ========== 功能说明 ==========
+      // 打开学校账户管理模态框，显示指定用户的所有学校账户
+      // 支持查看、编辑和删除操作
+      // ========== 功能说明结束 ==========
+      
       try {
+        // ========== 1. 发起API请求，获取用户的学校账户列表 ==========
+        // 使用fetch发送GET请求到后端API
+        // encodeURIComponent确保用户名中的特殊字符被正确编码
         const response = await fetch(`/auth/admin/get_user_school_accounts?username=${encodeURIComponent(username)}`, {
           headers: {
-            'X-Session-ID': sessionUUID
+            'X-Session-ID': sessionUUID  // 在请求头中携带会话ID进行身份验证
           }
         });
         
+        // 解析响应的JSON数据
         const result = await response.json();
         
+        // ========== 2. 检查API响应是否成功 ==========
         if (!result.success) {
+          // 如果API返回失败，显示错误信息并退出
           showModalAlert(result.message || '加载失败', '错误');
           return;
         }
         
+        // ========== 3. 提取账户数据 ==========
+        // result.accounts 是一个对象，键为学校账户用户名，值为账户数据（密码+UA）
         const accounts = result.accounts || {};
+        // 计算账户总数，用于统计显示
         const accountCount = Object.keys(accounts).length;
         
-        let html = `
-          <div class="space-y-3">
-            <div class="text-sm text-slate-600 mb-3">
-              用户 <span class="font-semibold">${escapeHtml(username)}</span> 的学校账户 (共 ${accountCount} 个)
-            </div>
-        `;
+        // ========== 4. 更新模态框的用户名和统计信息 ==========
+        // 在模态框标题中显示当前管理的用户名
+        $('school-accounts-username').textContent = username;
+        // 显示账户总数
+        $('school-accounts-count').textContent = accountCount;
         
+        // ========== 5. 动态生成账户列表HTML ==========
+        const listContainer = $('school-accounts-list');
+        
+        // 如果用户没有任何学校账户
         if (accountCount === 0) {
-          html += '<p class="text-slate-400 text-center py-10">该用户暂无学校账户</p>';
+          // 显示一个友好的空状态提示
+          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">该用户暂无学校账户</p>';
         } else {
-          html += '<div class="space-y-2 max-h-[60vh] overflow-y-auto">';
+          // 用户有学校账户，需要逐个渲染
+          let html = '';
+          
+          // 遍历所有账户，为每个账户生成一个卡片
           for (const [schoolUsername, accountData] of Object.entries(accounts)) {
-            // 处理旧格式（字符串）和新格式（对象）
-            let password = '';
-            let ua = '';
+            // ========== 5.1. 兼容旧格式和新格式的账户数据 ==========
+            // 旧格式：accountData 是一个字符串（只有密码）
+            // 新格式：accountData 是一个对象 {password: "...", ua: "..."}
+            let password = '';  // 学校账户密码
+            let ua = '';  // User-Agent字符串（可选）
             
             if (typeof accountData === 'string') {
+              // 旧格式：直接使用字符串作为密码
               password = accountData;
             } else if (typeof accountData === 'object' && accountData !== null) {
+              // 新格式：从对象中提取password和ua字段
               password = accountData.password || '';
               ua = accountData.ua || '';
             }
             
+            // ========== 5.2. 为安全传递数据，使用JSON编码 ==========
+            // 将需要传递给事件处理函数的数据编码为JSON字符串
+            // 然后使用escapeHtml进行HTML转义，防止XSS攻击
+            // 在onclick中使用JSON.parse解码，避免单引号/双引号问题
+            const accountDataJson = JSON.stringify({
+              authUsername: username,
+              schoolUsername: schoolUsername,
+              password: password,
+              ua: ua
+            });
+            
+            // ========== 5.3. 生成账户卡片HTML ==========
+            // 每个账户卡片包含：学校账户名、密码、UA（如果有）、操作按钮
             html += `
-              <div class="bg-slate-50 p-3 rounded border border-slate-200 space-y-2">
-                <div class="font-medium text-slate-800">${escapeHtml(schoolUsername)}</div>
+              <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3">
+                <!-- 学校账户用户名 -->
+                <div class="flex items-center justify-between">
+                  <div class="font-semibold text-slate-800 text-lg">${escapeHtml(schoolUsername)}</div>
+                  <!-- 操作按钮组 -->
+                  <div class="flex gap-2">
+                    <!-- 编辑按钮：打开编辑模态框 -->
+                    <!-- 使用data属性存储JSON数据，点击时解析并调用函数 -->
+                    <button 
+                      class="btn btn-sm btn-primary !py-1 !px-3 !text-xs" 
+                      data-account='${escapeHtml(accountDataJson)}'
+                      onclick="(function(btn) { const data = JSON.parse(btn.getAttribute('data-account')); editSchoolAccount(data.authUsername, data.schoolUsername, data.password, data.ua); })(this)"
+                      title="编辑此账户">
+                      编辑
+                    </button>
+                    <!-- 删除按钮：确认后删除账户 -->
+                    <!-- 同样使用data属性存储数据 -->
+                    <button 
+                      class="btn btn-sm btn-danger !py-1 !px-3 !text-xs" 
+                      data-auth-username='${escapeHtml(username)}'
+                      data-school-username='${escapeHtml(schoolUsername)}'
+                      onclick="(function(btn) { deleteSchoolAccount(btn.getAttribute('data-auth-username'), btn.getAttribute('data-school-username')); })(this)"
+                      title="删除此账户">
+                      删除
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- 密码显示 -->
                 <div class="text-sm">
                   <span class="text-slate-500">密码:</span>
-                  <span class="font-mono text-slate-700 ml-2">${escapeHtml(password)}</span>
+                  <span class="font-mono text-slate-700 ml-2 select-all">${escapeHtml(password)}</span>
                 </div>
+                
+                <!-- User-Agent显示（如果存在） -->
                 ${ua ? `
                 <div class="text-sm">
-                  <span class="text-slate-500">UA:</span>
-                  <div class="font-mono text-xs text-slate-600 mt-1 p-2 bg-white rounded break-all">${escapeHtml(ua)}</div>
+                  <span class="text-slate-500">User-Agent:</span>
+                  <div class="font-mono text-xs text-slate-600 mt-1 p-2 bg-white rounded break-all select-all">${escapeHtml(ua)}</div>
                 </div>
                 ` : ''}
               </div>
             `;
           }
-          html += '</div>';
+          
+          // 将生成的HTML插入到列表容器中
+          listContainer.innerHTML = html;
         }
         
-        html += '</div>';
+        // ========== 6. 显示模态框 ==========
+        // 调用辅助函数显示学校账户管理模态框
+        showModal('manage-school-accounts-modal');
         
-        showModalAlert(html, `${escapeHtml(username)} 的学校账户`, 'info');
       } catch (error) {
+        // ========== 7. 错误处理 ==========
+        // 捕获所有可能的异常（网络错误、解析错误等）
+        console.error('showUserSchoolAccounts error:', error);
         showModalAlert('加载失败: ' + error.message, '错误');
+      }
+    }
+
+    // ========== 关闭学校账户管理模态框 ==========
+    function closeManageSchoolAccountsModal() {
+      // 隐藏主模态框
+      hideModal('manage-school-accounts-modal');
+    }
+
+    // ========== 编辑学校账户 ==========
+    function editSchoolAccount(authUsername, schoolUsername, password, ua) {
+      // ========== 功能说明 ==========
+      // 打开编辑模态框，填充现有数据，允许用户修改密码和UA
+      // ========== 功能说明结束 ==========
+      
+      // ========== 1. 填充模态框的显示字段 ==========
+      // 这些字段是只读的，用于显示当前编辑的是哪个账户
+      $('edit-auth-username').textContent = authUsername;  // 认证用户名
+      $('edit-school-username').textContent = schoolUsername;  // 学校账户用户名
+      
+      // ========== 2. 填充模态框的可编辑字段 ==========
+      // 这些字段可以被用户修改
+      $('edit-school-password').value = password;  // 当前密码
+      $('edit-school-ua').value = ua || '';  // 当前UA（如果没有则为空）
+      
+      // ========== 3. 显示编辑模态框 ==========
+      // z-index更高，会覆盖在学校账户列表模态框之上
+      showModal('edit-school-account-modal');
+    }
+
+    // ========== 关闭编辑学校账户模态框 ==========
+    function closeEditSchoolAccountModal() {
+      // 隐藏编辑模态框
+      hideModal('edit-school-account-modal');
+    }
+
+    // ========== 提交编辑学校账户 ==========
+    async function submitEditSchoolAccount() {
+      // ========== 功能说明 ==========
+      // 提交编辑后的学校账户信息到后端API
+      // 验证输入，发送请求，处理响应
+      // ========== 功能说明结束 ==========
+      
+      // ========== 1. 获取表单数据 ==========
+      // 从模态框中读取用户输入的数据
+      const authUsername = $('edit-auth-username').textContent;  // 认证用户名（只读）
+      const schoolUsername = $('edit-school-username').textContent;  // 学校账户名（只读）
+      const password = $('edit-school-password').value.trim();  // 新密码（去除首尾空格）
+      const ua = $('edit-school-ua').value.trim();  // 新UA（去除首尾空格）
+      
+      // ========== 2. 验证必填字段 ==========
+      if (!password) {
+        // 密码是必填的，如果为空则提示用户
+        showModalAlert('密码不能为空', '错误');
+        return;  // 停止提交
+      }
+      
+      try {
+        // ========== 3. 发送更新请求到后端API ==========
+        const response = await fetch('/api/admin/school_account/update', {
+          method: 'POST',  // 使用POST方法
+          headers: {
+            'Content-Type': 'application/json',  // 指定请求体为JSON格式
+            'X-Session-ID': sessionUUID  // 携带会话ID进行身份验证
+          },
+          body: JSON.stringify({
+            // 将表单数据序列化为JSON字符串
+            auth_username: authUsername,
+            school_username: schoolUsername,
+            password: password,
+            ua: ua
+          })
+        });
+        
+        // 解析响应的JSON数据
+        const result = await response.json();
+        
+        // ========== 4. 处理响应结果 ==========
+        if (result.success) {
+          // 更新成功
+          showModalAlert(result.message || '更新成功', '成功');
+          
+          // 关闭编辑模态框
+          closeEditSchoolAccountModal();
+          
+          // 重新加载学校账户列表，以显示最新数据
+          // 调用showUserSchoolAccounts会关闭并重新打开主模态框，实现刷新效果
+          await showUserSchoolAccounts(authUsername);
+        } else {
+          // 更新失败，显示错误信息
+          showModalAlert(result.message || '更新失败', '错误');
+        }
+        
+      } catch (error) {
+        // ========== 5. 错误处理 ==========
+        // 捕获网络错误或其他异常
+        console.error('submitEditSchoolAccount error:', error);
+        showModalAlert('更新失败: ' + error.message, '错误');
+      }
+    }
+
+    // ========== 删除学校账户 ==========
+    async function deleteSchoolAccount(authUsername, schoolUsername) {
+      // ========== 功能说明 ==========
+      // 删除指定的学校账户
+      // 需要用户确认后才会执行删除操作
+      // ========== 功能说明结束 ==========
+      
+      // ========== 1. 请求用户确认 ==========
+      // 使用自定义的确认对话框（支持异步）
+      const confirmed = await jsShowConfirm(
+        '确认删除', 
+        `确定要删除学校账户 <strong>${escapeHtml(schoolUsername)}</strong> 吗？此操作不可恢复。`
+      );
+      
+      // 如果用户点击取消，则退出
+      if (!confirmed) return;
+      
+      try {
+        // ========== 2. 发送删除请求到后端API ==========
+        const response = await fetch('/api/admin/school_account/delete', {
+          method: 'POST',  // 使用POST方法
+          headers: {
+            'Content-Type': 'application/json',  // 指定请求体为JSON格式
+            'X-Session-ID': sessionUUID  // 携带会话ID进行身份验证
+          },
+          body: JSON.stringify({
+            // 将要删除的账户信息序列化为JSON字符串
+            auth_username: authUsername,
+            school_username: schoolUsername
+          })
+        });
+        
+        // 解析响应的JSON数据
+        const result = await response.json();
+        
+        // ========== 3. 处理响应结果 ==========
+        if (result.success) {
+          // 删除成功
+          showModalAlert(result.message || '删除成功', '成功');
+          
+          // 重新加载学校账户列表，移除已删除的账户
+          // 调用showUserSchoolAccounts会关闭并重新打开主模态框，实现刷新效果
+          await showUserSchoolAccounts(authUsername);
+        } else {
+          // 删除失败，显示错误信息
+          showModalAlert(result.message || '删除失败', '错误');
+        }
+        
+      } catch (error) {
+        // ========== 4. 错误处理 ==========
+        // 捕获网络错误或其他异常
+        console.error('deleteSchoolAccount error:', error);
+        showModalAlert('删除失败: ' + error.message, '错误');
       }
     }
 
