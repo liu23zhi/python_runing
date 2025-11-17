@@ -19117,6 +19117,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
             // 显示移动端多账号模式导航栏
             updateMobileNavVisibility(true, 'multi');
             
+            // 【问题28修复】默认激活多账号控制面板
+            switchMobilePanel('mobile-multi-control-panel', 'multi');
+            console.log('[会话恢复] 移动端：已默认激活 mobile-multi-control-panel');
+            
             // 确保桌面端应用隐藏
             $('multi-account-app').classList.add('hidden');
             $('main-app').classList.add('hidden');
@@ -26785,13 +26789,14 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
 
     /**
-     * 【问题12修复】初始化移动端地图
+     * 【问题12&26修复】初始化移动端地图
      * 
      * 功能说明：
      * - 为移动端地图容器初始化高德地图实例
      * - 支持单账号模式的mobile-map-container
      * - 支持多账号模式的mobile-multi-map-container
      * - 在面板激活时自动调用此函数
+     * - 【问题26修复】使用深圳坐标作为默认中心点
      * 
      * @param {string} containerId - 地图容器的DOM元素ID
      * @param {boolean} isMultiAccount - 是否为多账号模式
@@ -26832,20 +26837,20 @@ function run_code_not_need_sessionuuid(codeToRun) {
         console.log(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
         
         try {
-          // 创建多账号地图实例
+          // 【问题26修复】创建多账号地图实例，使用深圳坐标作为中心点
           multiAccountMap = new AMapInstance.Map(containerId, {
-            zoom: 15,
-            center: [116.397428, 39.90923],
-            mapStyle: 'amap://styles/normal'
+            zoom: 15, // 缩放级别
+            center: [113.390342, 22.527403], // 默认中心点：深圳
+            mapStyle: 'amap://styles/normal' // 地图样式
           });
           
-          // 添加控制条
+          // 添加控制条（缩放、指南针等）
           const ctrlBar = new AMapInstance.ControlBar({
             position: { top: '10px', right: '10px' }
           });
           multiAccountMap.addControl(ctrlBar);
           
-          // 添加3D建筑图层
+          // 添加3D建筑图层（如果可用）
           try {
             const buildings = new AMapInstance.BuildingLayer();
             buildings.setMap(multiAccountMap);
@@ -26867,20 +26872,20 @@ function run_code_not_need_sessionuuid(codeToRun) {
         console.log(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
         
         try {
-          // 创建单账号地图实例
+          // 【问题26修复】创建单账号地图实例，使用深圳坐标作为中心点
           map = new AMapInstance.Map(containerId, {
-            zoom: 15,
-            center: [116.397428, 39.90923],
-            mapStyle: 'amap://styles/normal'
+            zoom: 15, // 缩放级别
+            center: [113.390342, 22.527403], // 默认中心点：深圳
+            mapStyle: 'amap://styles/normal' // 地图样式
           });
           
-          // 添加控制条
+          // 添加控制条（缩放、指南针等）
           const ctrlBar = new AMapInstance.ControlBar({
             position: { top: '10px', right: '10px' }
           });
           map.addControl(ctrlBar);
           
-          // 添加3D建筑图层
+          // 添加3D建筑图层（如果可用）
           try {
             const buildings = new AMapInstance.BuildingLayer();
             buildings.setMap(map);
