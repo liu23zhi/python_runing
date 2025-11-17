@@ -5746,101 +5746,20 @@
             <h3 class="text-xl font-bold text-sky-700">管理面板</h3>
           </div>
 
-          <!-- 【问题30修复】标签页导航 - 复用mobile-admin-panel的所有标签页 -->
-          <!-- 说明：与mobile-admin-panel保持完全一致，使用multi前缀的ID -->
-          <div id="mobile-multi-admin-tabs" class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 mb-4" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
-            
-            <!-- 【用户管理标签】- 管理系统用户，增删改查 -->
-            <button id="mobile-multi-admin-tab-users"
-              class="px-4 py-2 text-xs font-semibold text-sky-600 border-b-3 border-sky-600 whitespace-nowrap flex-shrink-0"
-              style="display:none;">
-              👥 用户
-            </button>
-
-            <!-- 【权限组管理标签】- 管理用户权限组 -->
-            <button id="mobile-multi-admin-tab-groups"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
-              style="display:none;">
-              👨‍👩‍👧‍👦 权限组
-            </button>
-
-            <!-- 【日志查看标签】- 查看系统运行日志 -->
-            <button id="mobile-multi-admin-tab-logs"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
-              style="display:none;">
-              📋 日志
-            </button>
-
-            <!-- 【系统状态标签】- 查看系统健康状态 -->
-            <button id="mobile-multi-admin-tab-health"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
-              style="display:none;">
-              📊 系统状态
-            </button>
-
-            <!-- 【个人信息标签】- 修改个人资料、密码、2FA、主题等 -->
-            <button id="mobile-multi-admin-tab-profile"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
-              👤 个人信息
-            </button>
-
-            <!-- 【会话管理标签】- 管理用户会话，强制下线 -->
-            <button id="mobile-multi-admin-tab-sessions"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
-              ⏱️ 会话
-            </button>
-
-            <!-- 【留言板标签】- 查看和管理用户留言 -->
-            <button id="mobile-multi-admin-tab-messages"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
-              💬 留言板
-            </button>
-
-            <!-- 【IP封禁标签】- 管理IP黑名单 -->
-            <button id="mobile-multi-admin-tab-ipban"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
-              style="display:none;">
-              🚫 IP封禁
-            </button>
-
-            <!-- 【短信配置标签】- 配置短信服务 -->
-            <button id="mobile-multi-admin-tab-sms"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
-              style="display:none;">
-              📱 短信
-            </button>
-
-            <!-- 【系统配置标签】- 修改系统参数 -->
-            <button id="mobile-multi-admin-tab-config"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
-              style="display:none;">
-              ⚙️ 配置
-            </button>
-
-            <!-- 【验证码历史标签】- 查看验证码历史记录 -->
-            <button id="mobile-multi-admin-tab-captcha"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0">
-              🔢 验证码
-            </button>
-
-            <!-- 【定时提醒标签】- 管理系统定时提醒 -->
-            <button id="mobile-multi-admin-tab-reminders"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
-              style="display:none;">
-              ⏰ 提醒
-            </button>
-
-            <!-- 【HTTPS设置标签】- 配置SSL证书 -->
-            <button id="mobile-multi-admin-tab-ssl"
-              class="px-4 py-2 text-xs font-semibold text-slate-400 border-b-3 border-transparent whitespace-nowrap flex-shrink-0"
-              style="display:none;">
-              🔒 HTTPS
-            </button>
+          <!-- 【问题7修复】标签页导航容器 - 将由JavaScript动态创建标签页按钮 -->
+          <!-- 修复说明：
+               1. 使用ID mobile-multi-admin-tabs-nav，与initMobileAdminPanel函数期望的ID一致
+               2. 注意：模态框版本也使用相同ID，但两者不会同时显示（面板和模态框互斥）
+               3. 删除所有硬编码的标签页按钮HTML，改为由JavaScript动态创建
+               4. 动态创建的好处：根据用户权限自动显示/隐藏标签页，避免硬编码style="display:none;"的问题
+          -->
+          <div id="mobile-multi-admin-tabs-nav-panel" class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 mb-4" style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
+            <!-- 标签页按钮将由initMobileAdminPanel()函数动态创建 -->
           </div>
 
-          <!-- 【问题30修复】管理面板内容区域 - 与mobile-admin-panel共享相同的内容显示逻辑 -->
-          <!-- 说明：内容通过JavaScript动态加载，引用PC端对应的面板HTML -->
-          <div id="mobile-multi-admin-content" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto">
+          <!-- 【问题7修复】管理面板内容区域 - 显示选中标签页的内容 -->
+          <!-- 修复说明：使用ID mobile-multi-admin-content-panel，区别于模态框的mobile-multi-admin-panel-content -->
+          <div id="mobile-multi-admin-content-panel" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto">
             <p class="text-slate-400 text-center py-10">请选择管理功能</p>
           </div>
         </div>
@@ -28015,6 +27934,23 @@ function run_code_not_need_sessionuuid(codeToRun) {
           }
         }
         
+        // 【问题7修复】多账号管理面板激活时初始化
+        // 功能说明：
+        // - 当切换到多账号管理面板时，自动调用initMobileAdminPanel函数初始化
+        // - 该函数会动态创建标签页按钮（根据用户权限显示/隐藏）
+        // - 避免了硬编码标签页按钮导致的display:none问题
+        // - 使用'mobile-multi-admin-panel'作为前缀，区别于模态框的'mobile-multi-admin'
+        if (panelId === 'mobile-multi-admin-panel') {
+          console.log('[移动端] 激活多账号管理面板，开始初始化...');
+          // 调用initMobileAdminPanel函数，传入'mobile-multi-admin-panel'前缀
+          // 函数内部会查找mobile-multi-admin-tabs-nav-panel容器和mobile-multi-admin-content-panel容器
+          if (typeof initMobileAdminPanel === 'function') {
+            initMobileAdminPanel('mobile-multi-admin-panel');
+          } else {
+            console.warn('[移动端] initMobileAdminPanel函数未定义');
+          }
+        }
+        
         // 滚动到页面顶部，确保面板从顶部显示
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
@@ -30478,17 +30414,23 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // 获取当前用户的权限组信息
       const userGroup = currentUserData?.group || 'user';
       
-      // 【问题15&18修复】根据前缀确定标签页导航容器和内容容器的ID
-      // 支持三种模式：
+      // 【问题15&18&7修复】根据前缀确定标签页导航容器和内容容器的ID
+      // 支持四种模式：
       // 1. 'mobile-admin' - 单账号模态框模式（原有）
       // 2. 'mobile-admin-panel' - 单账号面板模式（新增）
       // 3. 'mobile-multi-admin' - 多账号模态框模式
+      // 4. 'mobile-multi-admin-panel' - 多账号面板模式（问题7修复新增）
       let tabsNavId, contentId;
       
       if (prefix === 'mobile-multi-admin') {
-        // 多账号模式
+        // 多账号模态框模式
         tabsNavId = 'mobile-multi-admin-tabs-nav';
         contentId = 'mobile-multi-admin-panel-content';
+      } else if (prefix === 'mobile-multi-admin-panel') {
+        // 【问题7修复】多账号面板模式（新增）
+        // 使用不同的ID，避免与模态框版本冲突
+        tabsNavId = 'mobile-multi-admin-tabs-nav-panel';
+        contentId = 'mobile-multi-admin-content-panel';
       } else if (prefix === 'mobile-admin-panel') {
         // 单账号面板模式（新增）
         tabsNavId = 'mobile-admin-tabs-nav-panel';
@@ -30602,13 +30544,17 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 调用PC端的数据加载函数（如loadAdminUsers、loadAdminLogs等）
      */
     function switchMobileAdminTab(tabId, prefix) {
-      // 【问题10&20修复】根据前缀确定容器ID，支持三种模式
+      // 【问题10&20&7修复】根据前缀确定容器ID，支持四种模式
       let tabsNavId, contentId;
       
       if (prefix === 'mobile-multi-admin') {
         // 多账号模态框模式
         tabsNavId = 'mobile-multi-admin-tabs-nav';
         contentId = 'mobile-multi-admin-panel-content';
+      } else if (prefix === 'mobile-multi-admin-panel') {
+        // 【问题7修复】多账号面板模式（新增）
+        tabsNavId = 'mobile-multi-admin-tabs-nav-panel';
+        contentId = 'mobile-multi-admin-content-panel';
       } else if (prefix === 'mobile-admin-panel') {
         // 单账号面板模式（新增）
         tabsNavId = 'mobile-admin-tabs-nav-panel';
