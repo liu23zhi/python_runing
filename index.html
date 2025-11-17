@@ -4248,58 +4248,82 @@
              【通知面板】- 显示系统通知和签到任务
              ======================================== -->
         <!-- 【问题13、17修复】【通知面板】移动端通知中心 - 显示为全屏 -->
+        <!-- ========================================
+             【问题17修复】重构并美化mobile-notification-panel
+             - 优化通知列表的卡片式设计
+             - 改善未读/已读的视觉区分
+             - 优化时间戳显示格式
+             - 添加图标和徽章
+             ======================================== -->
         <div class="mobile-card mobile-card-fullscreen hidden" id="mobile-notification-panel">
-          <!-- 面板头部：标题和未读角标 -->
-          <div class="flex items-center justify-between mb-4 pb-3 border-b border-sky-100">
-            <div class="flex items-center gap-2">
-              <!-- 铃铛图标 -->
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor">
+          <!-- 【面板头部】标题、未读角标和刷新按钮 - 使用渐变色设计 -->
+          <div class="flex items-center justify-between mb-5 pb-4 border-b-2 border-sky-200">
+            <div class="flex items-center gap-3">
+              <!-- 铃铛图标 - 使用渐变色背景的圆形容器 -->
+              <div class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center shadow-lg relative">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <!-- 未读徽章 - 红色圆点，悬浮在图标右上角 -->
+                <span id="mobile-notification-badge"
+                  class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md animate-pulse">
+                  <!-- 未读数量将由JavaScript动态填充 -->
+                </span>
+              </div>
+              <h3 class="text-2xl font-bold text-sky-700 tracking-tight">通知中心</h3>
+            </div>
+
+            <!-- 刷新按钮 - 使用渐变色背景和阴影效果 -->
+            <button id="mobile-refresh-notifications-btn" 
+              class="p-2.5 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-lg transition-all duration-200 hover:from-sky-600 hover:to-sky-700 shadow-md hover:shadow-lg"
+              onclick="mobileRefreshNotifications()">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- 【通知列表区域】带滚动条和卡片式布局 -->
+          <!-- 注释：此区域显示所有通知，通过JavaScript动态填充 -->
+          <!-- 未读通知将使用不同的背景色（蓝色系）和边框进行视觉区分 -->
+          <!-- 已读通知使用灰色系背景，降低视觉权重 -->
+          <div id="mobile-all-notifications-list" class="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+            <!-- 初始空状态提示 - 使用图标和文字的组合 -->
+            <div class="text-center py-12">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-20 h-20 mx-auto text-slate-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              <h3 class="text-xl font-bold text-sky-700">通知中心</h3>
-            </div>
-
-            <!-- 未读角标 - 显示未读通知数量 -->
-            <div class="relative">
-              <span id="mobile-notification-badge"
-                class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                <!-- 未读数量将由JavaScript动态填充 -->
-              </span>
-              <!-- 刷新按钮 -->
-              <button id="mobile-refresh-notifications-btn" class="p-2 hover:bg-sky-50 rounded-lg transition-colors"
-                onclick="mobileRefreshNotifications()">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-sky-600" fill="none" viewBox="0 0 24 24"
-                  stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
+              <p class="text-slate-400 text-sm font-medium">暂无通知</p>
+              <p class="text-slate-300 text-xs mt-1">点击右上角刷新按钮获取最新通知</p>
             </div>
           </div>
 
-          <!-- ========================================
-               【通知列表显示区域】
-               - 只显示全部通知，移除了签到任务的独立标签页
-               - 优化：减少UI复杂度，统一在一个列表中展示
-               ======================================== -->
-          <div id="mobile-all-notifications-list" class="space-y-2 max-h-[40vh] overflow-y-auto">
-            <p class="text-slate-400 text-center py-8 text-sm">暂无通知</p>
-          </div>
-
-          <!-- 底部操作按钮 -->
-          <div class="flex gap-2 mt-4 pt-3 border-t border-slate-100">
-            <!-- 全部已读按钮 - 点击将所有通知标记为已读 -->
+          <!-- 【底部操作按钮组】使用渐变色和图标增强视觉效果 -->
+          <div class="flex gap-3 mt-5 pt-4 border-t-2 border-slate-100">
+            <!-- 一键已读按钮 - 使用天蓝色渐变 -->
             <button id="mobile-mark-all-read-modal-btn"
-              class="flex-1 py-2 px-4 bg-sky-50 text-sky-600 rounded-lg text-sm font-medium hover:bg-sky-100 transition"
+              class="flex-1 py-3 px-4 bg-gradient-to-r from-sky-500 to-sky-600 text-white rounded-xl text-sm font-bold hover:from-sky-600 hover:to-sky-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
               onclick="mobileMarkAllAsRead()">
+              <!-- 已读图标 - 双勾标记 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
               一键已读
             </button>
-            <!-- 查看更多按钮 - 展开查看更多通知 -->
+            <!-- 查看更多按钮 - 默认隐藏，需要时通过JavaScript显示 -->
             <button
-              class="flex-1 py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition" style="display:none;"
+              class="flex-1 py-3 px-4 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-xl text-sm font-bold hover:from-slate-200 hover:to-slate-300 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm" 
+              style="display:none;"
               onclick="expandMobileNotifications()">
+              <!-- 展开图标 - 向下箭头 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
               查看更多
             </button>
           </div>
@@ -4671,69 +4695,129 @@
         <!-- ========================================
              【签到面板】- 单账号签到功能
              ======================================== -->
+        <!-- ========================================
+             【问题14修复】重构并美化mobile-attendance-panel
+             - 使用卡片式设计分组显示内容
+             - 优化按钮样式和间距
+             - 添加图标提升视觉效果
+             - 保持拟态风格
+             ======================================== -->
         <div class="mobile-card hidden" id="mobile-attendance-panel">
-          <!-- 面板头部 - 标题和图标 -->
-          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-blue-100">
-            <!-- 签到图标 -->
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h3 class="text-xl font-bold text-blue-700">自动签到</h3>
-          </div>
-
-          <!-- 签到参数设置区域 - 包含开关、刷新间隔、随机半径 -->
-          <div class="space-y-3 mb-4 pb-4 border-b border-slate-100">
-            <!-- 开启自动签到开关 - 控制是否启用自动签到功能 -->
-            <label class="flex items-center gap-3 cursor-pointer p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
-              <input type="checkbox" id="mobile-param-auto_attendance_enabled" data-key="auto_attendance_enabled"
-                class="w-5 h-5 accent-blue-600 rounded cursor-pointer flex-shrink-0">
-              <div class="flex-1">
-                <span class="text-slate-700 font-semibold block">开启自动签到</span>
-                <span class="text-xs text-slate-500">后台自动刷新通知并尝试签到</span>
-              </div>
-            </label>
-
-            <!-- 刷新间隔设置 - 控制自动刷新通知的时间间隔 -->
-            <div class="flex items-center gap-3">
-              <label class="text-sm text-slate-700 font-semibold flex-shrink-0 w-24">刷新间隔</label>
-              <input type="number" step="30" id="mobile-param-auto_attendance_refresh_s"
-                data-key="auto_attendance_refresh_s"
-                class="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="秒" title="自动刷新通知的间隔时间（秒），建议不低于60">
-              <span class="text-xs text-slate-500 flex-shrink-0">秒</span>
-            </div>
-
-            <!-- 随机半径设置 - 控制签到时的位置随机偏移范围 -->
-            <div class="flex items-center gap-3">
-              <label class="text-sm text-slate-700 font-semibold flex-shrink-0 w-24">随机半径</label>
-              <input type="number" step="1" id="mobile-param-attendance_user_radius_m"
-                data-key="attendance_user_radius_m"
-                class="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="米" title="自动签到时，在服务器允许范围内的最大随机偏移半径。设为0为精确签到。">
-              <span class="text-xs text-slate-500 flex-shrink-0">米</span>
-            </div>
-          </div>
-
-          <!-- 签到任务列表区域 - 显示所有需要签到的任务 -->
-          <div class="flex justify-between items-center mb-3">
-            <h4 class="text-sm font-semibold text-slate-700">签到任务列表</h4>
-            <!-- 刷新按钮 - 点击后重新获取签到任务 -->
-            <button id="mobile-refresh-attendance-list-btn"
-              class="py-1 px-3 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition flex items-center gap-1"
-              onclick="refreshNotificationsUI(true, true)">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          <!-- 【面板头部】标题和图标 - 使用拟态风格的渐变色设计 -->
+          <div class="flex items-center gap-3 mb-5 pb-4 border-b-2 border-blue-200">
+            <!-- 签到图标 - 使用渐变色背景的圆形容器提升视觉层次 -->
+            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              刷新
-            </button>
+            </div>
+            <h3 class="text-2xl font-bold text-blue-700 tracking-tight">自动签到</h3>
           </div>
 
-          <!-- 签到列表容器 - 动态显示签到任务，初始显示提示信息 -->
-          <div id="mobile-attendance-list" class="max-h-[35vh] overflow-y-auto">
-            <p class="text-slate-400 text-center py-8 text-sm">点击"刷新"按钮查看签到任务</p>
+          <!-- 【参数设置卡片】使用白色卡片容器，带阴影和圆角 -->
+          <div class="bg-white rounded-xl shadow-md p-4 mb-5 border border-blue-100">
+            <!-- 卡片标题 - 使用图标增强视觉识别 -->
+            <div class="flex items-center gap-2 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <h4 class="text-base font-bold text-slate-800">参数配置</h4>
+            </div>
+
+            <!-- 参数列表 - 使用更好的间距和视觉分隔 -->
+            <div class="space-y-4">
+              <!-- 【自动签到开关】使用渐变色背景，增强视觉吸引力 -->
+              <label class="flex items-center gap-3 cursor-pointer p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl hover:from-blue-100 hover:to-blue-150 transition-all duration-200 shadow-sm">
+                <!-- 复选框 - 加大尺寸，使用主题色 -->
+                <input type="checkbox" id="mobile-param-auto_attendance_enabled" data-key="auto_attendance_enabled"
+                  class="w-6 h-6 accent-blue-600 rounded-md cursor-pointer flex-shrink-0 shadow-sm">
+                <div class="flex-1">
+                  <!-- 标签文字 - 使用图标emoji增加趣味性 -->
+                  <span class="text-slate-800 font-bold block text-base">🎯 开启自动签到</span>
+                  <span class="text-xs text-slate-600 mt-1 block">后台自动刷新通知并尝试签到</span>
+                </div>
+              </label>
+
+              <!-- 【刷新间隔设置】使用卡片布局和图标 -->
+              <div class="bg-slate-50 rounded-xl p-4 space-y-2">
+                <div class="flex items-center gap-2 mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <label class="text-sm text-slate-700 font-bold">⏰ 刷新间隔</label>
+                </div>
+                <div class="flex items-center gap-3">
+                  <!-- 输入框 - 增强样式，添加边框阴影 -->
+                  <input type="number" step="30" id="mobile-param-auto_attendance_refresh_s"
+                    data-key="auto_attendance_refresh_s"
+                    class="flex-1 px-4 py-3 bg-white border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm font-semibold text-slate-700"
+                    placeholder="60" title="自动刷新通知的间隔时间（秒），建议不低于60">
+                  <span class="text-sm text-slate-600 font-semibold flex-shrink-0 bg-white px-3 py-2 rounded-lg border border-slate-200">秒</span>
+                </div>
+              </div>
+
+              <!-- 【随机半径设置】使用卡片布局和图标 -->
+              <div class="bg-slate-50 rounded-xl p-4 space-y-2">
+                <div class="flex items-center gap-2 mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <label class="text-sm text-slate-700 font-bold">📍 随机半径</label>
+                </div>
+                <div class="flex items-center gap-3">
+                  <!-- 输入框 - 增强样式，添加边框阴影 -->
+                  <input type="number" step="1" id="mobile-param-attendance_user_radius_m"
+                    data-key="attendance_user_radius_m"
+                    class="flex-1 px-4 py-3 bg-white border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm font-semibold text-slate-700"
+                    placeholder="0" title="自动签到时，在服务器允许范围内的最大随机偏移半径。设为0为精确签到。">
+                  <span class="text-sm text-slate-600 font-semibold flex-shrink-0 bg-white px-3 py-2 rounded-lg border border-slate-200">米</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 【任务列表卡片】使用白色卡片容器，带阴影和圆角 -->
+          <div class="bg-white rounded-xl shadow-md p-4 border border-blue-100">
+            <!-- 列表标题栏 - 包含标题和刷新按钮 -->
+            <div class="flex justify-between items-center mb-4 pb-3 border-b-2 border-slate-100">
+              <div class="flex items-center gap-2">
+                <!-- 列表图标 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <h4 class="text-base font-bold text-slate-800">📋 签到任务</h4>
+              </div>
+              <!-- 刷新按钮 - 使用渐变色和图标，增强视觉效果 -->
+              <button id="mobile-refresh-attendance-list-btn"
+                class="py-2 px-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg text-sm font-bold hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center gap-2 shadow-md hover:shadow-lg"
+                onclick="refreshNotificationsUI(true, true)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                刷新
+              </button>
+            </div>
+
+            <!-- 【签到列表容器】动态显示签到任务，带滚动条 -->
+            <div id="mobile-attendance-list" class="max-h-[40vh] overflow-y-auto space-y-2">
+              <!-- 初始提示信息 - 使用灰色文字和居中布局 -->
+              <div class="text-center py-10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 mx-auto text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <p class="text-slate-400 text-sm font-medium">点击"刷新"按钮查看签到任务</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -5025,221 +5109,343 @@
           </button>
         </div>
 
-        <!-- 账号管理面板 -->
+        <!-- ========================================
+             【问题29修复】重构并美化mobile-multi-account-panel
+             - 优化账号列表的卡片式设计
+             - 改善账号状态显示（运行中/停止/错误）
+             - 添加批量操作按钮
+             - 优化操作按钮布局
+             ======================================== -->
         <div class="mobile-card" id="mobile-multi-account-panel">
-          <!-- 面板头部 -->
-          <div class="flex items-center justify-between mb-4 pb-3 border-b border-purple-100">
-            <div class="flex items-center gap-2">
-              <!-- 多账号图标 -->
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-purple-600" viewBox="0 0 24 24"
-                fill="currentColor">
-                <path
-                  d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-              </svg>
-              <h3 class="text-xl font-bold text-purple-700">账号管理</h3>
+          <!-- 【面板头部】标题、图标和账号数量统计 -->
+          <div class="flex items-center justify-between mb-5 pb-4 border-b-2 border-purple-200">
+            <div class="flex items-center gap-3">
+              <!-- 多账号图标 - 使用渐变色背景的圆形容器 -->
+              <div class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" viewBox="0 0 24 24"
+                  fill="currentColor">
+                  <path
+                    d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                </svg>
+              </div>
+              <h3 class="text-2xl font-bold text-purple-700 tracking-tight">账号管理</h3>
             </div>
-            <!-- 账号数量统计 -->
-            <div class="text-sm text-slate-600 bg-purple-50 px-3 py-1 rounded-full" id="mobile-multi-account-count">
+            <!-- 账号数量统计徽章 - 使用紫色渐变背景 -->
+            <div class="text-sm font-bold text-white bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-1.5 rounded-full shadow-md" id="mobile-multi-account-count">
               0 个账号
             </div>
           </div>
 
-          <!-- 配置文件选择器 - 用于选择要添加的账号配置 -->
-          <div class="mb-4 p-3 bg-slate-50 rounded-lg space-y-3">
-            <label class="block text-sm font-semibold text-slate-700">选择配置文件</label>
-            <!-- 下拉框：显示所有可用的用户配置文件 -->
-            <!-- 用户可以选择一个配置文件，然后点击"添加账号"按钮将其添加到多账号列表 -->
+          <!-- 【配置文件选择卡片】使用白色卡片容器 -->
+          <div class="bg-white rounded-xl shadow-md p-4 mb-5 border border-purple-100">
+            <!-- 卡片标题 -->
+            <div class="flex items-center gap-2 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+              <h4 class="text-base font-bold text-slate-800">➕ 添加账号</h4>
+            </div>
+
+            <!-- 配置文件下拉框 - 选择已保存的配置文件 -->
             <select id="multi-config-user-select" 
-              class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none">
+              class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all mb-3 shadow-sm">
               <option value="">-- 请选择配置文件 --</option>
               <!-- 配置文件选项将由JavaScript动态填充 -->
             </select>
-            <!-- 【问题19修复】添加按钮组 - 添加"手动添加"按钮 -->
+
+            <!-- 添加按钮组 - 三个按钮横向排列 -->
             <div class="grid grid-cols-3 gap-2">
+              <!-- 添加选中配置按钮 -->
               <button
-                class="py-2 px-3 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition flex items-center justify-center gap-1"
+                class="py-2.5 px-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg text-sm font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                 onclick="addMobileSelectedConfig()">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
                 添加选中
               </button>
+              <!-- 添加全部配置按钮 -->
               <button
-                class="py-2 px-3 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition flex items-center justify-center gap-1"
+                class="py-2.5 px-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg text-sm font-bold hover:from-purple-700 hover:to-purple-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
                 onclick="addMobileAllConfigs()">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 添加全部
               </button>
-              <!-- 【问题19修复】手动添加按钮 - 打开手动输入账号密码的模态框 -->
+              <!-- 手动添加按钮 -->
               <button
-                class="py-2 px-3 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition flex items-center justify-center gap-1" id="mobile_multi_account_manual_input_button"
+                class="py-2.5 px-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg text-sm font-bold hover:from-teal-600 hover:to-teal-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1" 
+                id="mobile_multi_account_manual_input_button"
                 onclick="openManualAccountModal()">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
                 手动添加
               </button>
             </div>
           </div>
 
-          <!-- 全选和批量操作 -->
-          <div class="flex items-center justify-between mb-4 p-3 bg-purple-50 rounded-lg">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" id="mobile-select-all-accounts" class="w-5 h-5 text-purple-600 rounded"
-                onchange="mobileToggleSelectAllAccounts()">
-              <span class="text-sm font-medium text-slate-700">全选</span>
-            </label>
-            <div class="flex gap-2">
-              <button
-                class="py-1 px-3 bg-green-500 text-white rounded-lg text-xs font-medium hover:bg-green-600 transition"
-                onclick="mobileStartSelectedAccounts()">
-                启动选中
-              </button>
-              <button class="py-1 px-3 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition"
-                onclick="mobileStopSelectedAccounts()">
-                停止选中
-              </button>
+          <!-- 【全选和批量操作卡片】使用紫色背景 -->
+          <div class="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 mb-5 border-2 border-purple-200 shadow-sm">
+            <div class="flex items-center justify-between">
+              <!-- 全选复选框 -->
+              <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" id="mobile-select-all-accounts" class="w-6 h-6 text-purple-600 rounded-md shadow-sm cursor-pointer"
+                  onchange="mobileToggleSelectAllAccounts()">
+                <span class="text-sm font-bold text-slate-800">✅ 全选账号</span>
+              </label>
+              <!-- 批量操作按钮组 -->
+              <div class="flex gap-2">
+                <!-- 启动选中按钮 -->
+                <button
+                  class="py-2 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-sm font-bold hover:from-green-600 hover:to-green-700 transition-all shadow-md hover:shadow-lg"
+                  onclick="mobileStartSelectedAccounts()">
+                  ▶️ 启动
+                </button>
+                <!-- 停止选中按钮 -->
+                <button 
+                  class="py-2 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg text-sm font-bold hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg"
+                  onclick="mobileStopSelectedAccounts()">
+                  ⏹️ 停止
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- 账号列表 -->
-          <div id="mobile-multi-account-list" class="space-y-2 max-h-[55vh] overflow-y-auto">
-            <p class="text-slate-400 text-center py-8 text-sm">暂无账号，请先添加</p>
+          <!-- 【账号列表容器】带滚动条，动态填充账号卡片 -->
+          <div id="mobile-multi-account-list" class="space-y-3 max-h-[50vh] overflow-y-auto pr-2 mb-5">
+            <!-- 初始空状态提示 -->
+            <div class="text-center py-12">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-20 h-20 mx-auto text-slate-300 mb-4" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+              </svg>
+              <p class="text-slate-400 text-sm font-medium">暂无账号，请先添加</p>
+              <p class="text-slate-300 text-xs mt-1">从上方选择配置文件或手动添加</p>
+            </div>
           </div>
 
-          <!-- 批量操作按钮组 -->
-          <div class="mt-4 pt-3 border-t border-slate-100 space-y-2">
-            <!-- 第一行：导入导出和刷新 -->
-            <!-- 【问题8修复】添加下载模板按钮 -->
-            <div class="grid grid-cols-4 gap-2">
-              <button
-                class="py-2 px-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition flex items-center justify-center gap-1"
-                onclick="importMobileAccountList()">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                </svg>
-                导入
-              </button>
-              <button
-                class="py-2 px-2 bg-green-50 text-green-600 rounded-lg text-xs font-medium hover:bg-green-100 transition flex items-center justify-center gap-1"
-                onclick="exportMobileAccountList()">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                导出
-              </button>
-              <button
-                class="py-2 px-2 bg-amber-50 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-100 transition flex items-center justify-center gap-1"
-                onclick="downloadMobileAccountTemplate()">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                模板
-              </button>
-              <button
-                class="py-2 px-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 transition flex items-center justify-center gap-1"
-                onclick="mobileRefreshSelectedAccounts()">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                刷新
-              </button>
+          <!-- 【批量操作按钮组卡片】使用白色卡片容器 -->
+          <div class="bg-white rounded-xl shadow-md p-4 border border-purple-100">
+            <!-- 卡片标题 -->
+            <div class="flex items-center gap-2 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              <h4 class="text-base font-bold text-slate-800">🔧 批量操作</h4>
             </div>
-            <!-- 第二行：删除操作 -->
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                class="py-2 px-3 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 transition flex items-center justify-center gap-1"
-                onclick="deleteMobileSelectedAccounts()">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                删除选中
-              </button>
-              <button
-                class="py-2 px-3 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition flex items-center justify-center gap-1"
-                onclick="deleteMobileAllAccounts()">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                删除全部
-              </button>
+
+            <!-- 操作按钮网格 -->
+            <div class="space-y-2">
+              <!-- 第一行：导入、导出、模板、刷新 -->
+              <div class="grid grid-cols-4 gap-2">
+                <!-- 导入按钮 -->
+                <button
+                  class="py-2.5 px-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition flex flex-col items-center justify-center gap-1 border-2 border-blue-200"
+                  onclick="importMobileAccountList()">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                  <span>导入</span>
+                </button>
+                <!-- 导出按钮 -->
+                <button
+                  class="py-2.5 px-2 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-100 transition flex flex-col items-center justify-center gap-1 border-2 border-green-200"
+                  onclick="exportMobileAccountList()">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <span>导出</span>
+                </button>
+                <!-- 下载模板按钮 -->
+                <button
+                  class="py-2.5 px-2 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold hover:bg-amber-100 transition flex flex-col items-center justify-center gap-1 border-2 border-amber-200"
+                  onclick="downloadMobileAccountTemplate()">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>模板</span>
+                </button>
+                <!-- 刷新按钮 -->
+                <button
+                  class="py-2.5 px-2 bg-slate-50 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition flex flex-col items-center justify-center gap-1 border-2 border-slate-200"
+                  onclick="mobileRefreshSelectedAccounts()">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>刷新</span>
+                </button>
+              </div>
+              <!-- 第二行：删除选中、删除全部 -->
+              <div class="grid grid-cols-2 gap-2">
+                <!-- 删除选中按钮 -->
+                <button
+                  class="py-3 px-4 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition flex items-center justify-center gap-2 border-2 border-red-200"
+                  onclick="deleteMobileSelectedAccounts()">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  删除选中
+                </button>
+                <!-- 删除全部按钮 -->
+                <button
+                  class="py-3 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg text-sm font-bold hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                  onclick="deleteMobileAllAccounts()">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  删除全部
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- 批量控制面板 -->
+        <!-- ========================================
+             【问题24修复】重构并美化mobile-multi-control-panel
+             - 优化控制按钮的布局和样式
+             - 改善状态显示
+             - 添加加载状态指示
+             - 统一按钮图标
+             ======================================== -->
         <div class="mobile-card" id="mobile-multi-control-panel">
-          <!-- 面板头部 -->
-          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-orange-100">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-orange-600" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            <h3 class="text-xl font-bold text-orange-700">批量控制</h3>
+          <!-- 【面板头部】标题和图标 - 使用渐变色设计 -->
+          <div class="flex items-center gap-3 mb-5 pb-4 border-b-2 border-orange-200">
+            <!-- 闪电图标 - 使用渐变色背景的圆形容器 -->
+            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-orange-700 tracking-tight">批量控制</h3>
           </div>
 
-          <!-- 全局状态 -->
-          <div class="mb-4 p-3 bg-slate-50 rounded-lg">
+          <!-- 【全局状态卡片】显示当前系统状态 -->
+          <div class="mb-5 p-4 bg-white rounded-xl shadow-md border border-orange-100">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-medium text-slate-600">全局状态</span>
+              <div class="flex items-center gap-2">
+                <!-- 状态图标 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-sm font-bold text-slate-700">🎯 全局状态</span>
+              </div>
+              <!-- 状态徽章 - 动态显示当前系统状态 -->
               <span id="mobile-multi-global-status"
-                class="text-xs font-semibold px-2 py-1 rounded-full bg-slate-200 text-slate-600">
+                class="text-sm font-bold px-4 py-1.5 rounded-full bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 shadow-sm">
                 就绪
               </span>
             </div>
           </div>
 
-          <!-- 批量操作按钮 -->
-          <!-- 【问题6修复-部分1】删除"删除选中"按钮，保留启动、停止、刷新三个按钮 -->
-          <div class="grid grid-cols-3 gap-3">
-            <button
-              class="py-3 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2"
-              onclick="mobileStartAllAccounts()">
-              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                  clip-rule="evenodd" />
-              </svg>
-              全部启动
-            </button>
-
-            <button
-              class="py-3 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2"
-              onclick="mobileStopAllAccounts()">
-              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
-                  clip-rule="evenodd" />
-              </svg>
-              全部停止
-            </button>
-
-            <button
-              class="py-3 px-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2"
-              onclick="mobileRefreshAllAccounts()">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <!-- 【批量操作按钮组】使用大按钮和明确的图标 -->
+          <div class="bg-white rounded-xl shadow-md p-4 mb-5 border border-orange-100">
+            <!-- 卡片标题 -->
+            <div class="flex items-center gap-2 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              全部刷新
-            </button>
+              <h4 class="text-base font-bold text-slate-800">快速操作</h4>
+            </div>
+
+            <!-- 三大操作按钮 - 启动、停止、刷新 -->
+            <div class="grid grid-cols-3 gap-3">
+              <!-- 【全部启动按钮】使用绿色渐变，播放图标 -->
+              <button
+                class="py-4 px-3 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 flex flex-col items-center justify-center gap-2"
+                onclick="mobileStartAllAccounts()">
+                <!-- 播放图标 - 圆形背景 -->
+                <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                      clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <span>▶️ 全部启动</span>
+              </button>
+
+              <!-- 【全部停止按钮】使用红色渐变，停止图标 -->
+              <button
+                class="py-4 px-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 flex flex-col items-center justify-center gap-2"
+                onclick="mobileStopAllAccounts()">
+                <!-- 停止图标 - 圆形背景 -->
+                <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
+                      clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <span>⏹️ 全部停止</span>
+              </button>
+
+              <!-- 【全部刷新按钮】使用蓝色渐变，刷新图标 -->
+              <button
+                class="py-4 px-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex flex-col items-center justify-center gap-2"
+                onclick="mobileRefreshAllAccounts()">
+                <!-- 刷新图标 - 圆形背景 -->
+                <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+                <span>🔄 全部刷新</span>
+              </button>
+            </div>
           </div>
 
-          <!-- 统计信息 -->
-          <div class="mt-4 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2">
-            <div class="text-center p-2 bg-green-50 rounded-lg">
-              <div id="mobile-multi-running-count" class="text-lg font-bold text-green-600">0</div>
-              <div class="text-xs text-slate-600">运行中</div>
+          <!-- 【统计信息卡片】显示账号运行状态统计 -->
+          <div class="bg-white rounded-xl shadow-md p-4 mb-5 border border-orange-100">
+            <!-- 卡片标题 -->
+            <div class="flex items-center gap-2 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <h4 class="text-base font-bold text-slate-800">📊 运行统计</h4>
             </div>
-            <div class="text-center p-2 bg-yellow-50 rounded-lg">
-              <div id="mobile-multi-paused-count" class="text-lg font-bold text-yellow-600">0</div>
-              <div class="text-xs text-slate-600">已暂停</div>
-            </div>
-            <div class="text-center p-2 bg-slate-100 rounded-lg">
-              <div id="mobile-multi-stopped-count" class="text-lg font-bold text-slate-600">0</div>
-              <div class="text-xs text-slate-600">已停止</div>
+
+            <!-- 统计数据展示 - 使用彩色卡片 -->
+            <div class="grid grid-cols-3 gap-3">
+              <!-- 运行中状态 - 绿色 -->
+              <div class="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm">
+                <div class="flex items-center justify-center mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div id="mobile-multi-running-count" class="text-2xl font-bold text-green-600 mb-1">0</div>
+                <div class="text-xs text-green-700 font-semibold">运行中</div>
+              </div>
+              <!-- 已暂停状态 - 黄色 -->
+              <div class="text-center p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm">
+                <div class="flex items-center justify-center mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div id="mobile-multi-paused-count" class="text-2xl font-bold text-yellow-600 mb-1">0</div>
+                <div class="text-xs text-yellow-700 font-semibold">已暂停</div>
+              </div>
+              <!-- 已停止状态 - 灰色 -->
+              <div class="text-center p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border-2 border-slate-200 shadow-sm">
+                <div class="flex items-center justify-center mb-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div id="mobile-multi-stopped-count" class="text-2xl font-bold text-slate-600 mb-1">0</div>
+                <div class="text-xs text-slate-700 font-semibold">已停止</div>
+              </div>
             </div>
           </div>
 
@@ -5671,6 +5877,108 @@
         <!-- 底部关闭按钮 -->
         <div class="flex justify-end pt-2 border-t border-slate-100">
           <button class="mobile-primary-btn" onclick="closeMobileTrackModal()">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================
+         【问题15修复】移动端地图选点签到模态框
+         - 在拟态框中显示高德地图
+         - 点击地图选择签到位置
+         - 提交选中坐标进行签到
+         ======================================== -->
+    <div id="mobile-map-attendance-modal" class="fixed inset-0 hidden mobile-modal z-50"
+      onclick="closeMobileMapAttendanceModal()">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+      
+      <!-- 模态框内容容器 - 使用拟态风格 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[90vh] flex flex-col shadow-2xl"
+        onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        
+        <!-- 模态框标题栏 -->
+        <div class="flex items-center justify-between pb-3 border-b-2 border-purple-200">
+          <div class="flex items-center gap-2">
+            <!-- 地图图标 -->
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-md">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-purple-700">📍 地图选点签到</h3>
+          </div>
+        </div>
+        
+        <!-- 提示信息卡片 -->
+        <div class="bg-purple-50 border-2 border-purple-200 rounded-xl p-3">
+          <div class="flex items-start gap-2">
+            <svg class="w-5 h-5 text-purple-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div class="flex-1">
+              <p class="text-sm font-bold text-purple-900 mb-1">操作提示</p>
+              <p class="text-xs text-purple-700">
+                ① 点击地图选择签到位置<br>
+                ② 红色标记为选中位置<br>
+                ③ 点击"确认签到"提交
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 当前选中坐标显示 -->
+        <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-bold text-slate-700">选中坐标：</span>
+            <span id="mobile-map-attendance-coords" class="text-sm font-mono text-slate-600 bg-white px-3 py-1 rounded-md border border-slate-200">
+              未选择
+            </span>
+          </div>
+        </div>
+
+        <!-- 高德地图容器 -->
+        <div class="flex-1 bg-slate-100 rounded-xl overflow-hidden border-2 border-slate-200 shadow-inner" style="min-height: 300px;">
+          <div id="mobile-map-attendance-container" class="w-full h-full relative">
+            <!-- 地图加载占位符 -->
+            <div class="absolute inset-0 flex items-center justify-center text-slate-400 bg-slate-50">
+              <div class="text-center">
+                <svg class="w-16 h-16 mx-auto mb-3 text-slate-300 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+                <p class="text-sm font-semibold">加载地图中...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部按钮组 -->
+        <div class="flex gap-3 pt-3 border-t-2 border-slate-100">
+          <!-- 取消按钮 -->
+          <button 
+            class="flex-1 py-3 px-4 bg-slate-100 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-200 transition-all border-2 border-slate-200"
+            onclick="closeMobileMapAttendanceModal()">
+            取消
+          </button>
+          <!-- 确认签到按钮 -->
+          <button 
+            id="mobile-map-attendance-confirm-btn"
+            class="flex-1 py-3 px-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl text-sm font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            onclick="confirmMobileMapAttendance()"
+            disabled>
+            <span class="flex items-center justify-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              确认签到
+            </span>
+          </button>
         </div>
       </div>
     </div>
@@ -25512,17 +25820,29 @@ function run_code_not_need_sessionuuid(codeToRun) {
             // 状态码 0: 待签到
             statusText = '待签到';
             statusClass = 'text-sky-600 font-bold';
-            // 如果坐标有效，显示签到和补签按钮
+            // 【问题15修复】如果坐标有效，显示签到、补签和地图选点按钮
             if (canSign) {
               buttonHtml = `
-                <div class="flex gap-2 mt-2">
-                  <button class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600 transition" 
-                    onclick="event.stopPropagation(); handleAttendance(event, '${n.id}', ${targetCoords})">
-                    随机签到
-                  </button>
-                  <button class="flex-1 py-2 px-4 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition" 
-                    onclick="event.stopPropagation(); handleMakeupAttendance(event, '${n.id}', ${targetCoords})">
-                    随机补签
+                <div class="space-y-2 mt-2">
+                  <!-- 第一行：随机签到和随机补签 -->
+                  <div class="flex gap-2">
+                    <button class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600 transition" 
+                      onclick="event.stopPropagation(); handleAttendance(event, '${n.id}', ${targetCoords})">
+                      随机签到
+                    </button>
+                    <button class="flex-1 py-2 px-4 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition" 
+                      onclick="event.stopPropagation(); handleMakeupAttendance(event, '${n.id}', ${targetCoords})">
+                      随机补签
+                    </button>
+                  </div>
+                  <!-- 第二行：地图选点签到按钮 -->
+                  <button class="w-full py-2 px-4 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg text-sm font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-md flex items-center justify-center gap-2" 
+                    onclick="event.stopPropagation(); openMobileMapAttendanceModal('${n.id}', ${targetCoords})">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    📍 地图选点签到
                   </button>
                 </div>
               `;
@@ -30924,6 +31244,282 @@ function run_code_not_need_sessionuuid(codeToRun) {
       if (mobileTrackMapInstance) {
         mobileTrackMapInstance.setFitView();
       }
+    }
+    
+    /**
+     * ========================================
+     * 【问题15修复】移动端地图选点签到功能
+     * - 打开地图选点模态框
+     * - 初始化高德地图并监听点击事件
+     * - 提交选中坐标进行签到
+     * ========================================
+     */
+    
+    // 全局变量：存储地图实例、标记、签到通知ID、目标坐标
+    let mobileMapAttendanceInstance = null;  // 高德地图实例
+    let mobileMapAttendanceMarker = null;    // 用户选中位置的标记
+    let mobileMapAttendanceNoticeId = null;  // 当前签到通知的ID
+    let mobileMapAttendanceTarget = null;    // 目标签到坐标 [lon, lat]
+    let mobileMapAttendanceSelected = null;  // 用户选中的坐标 [lon, lat]
+    
+    /**
+     * 打开地图选点签到模态框
+     * @param {string} noticeId - 签到通知ID
+     * @param {Array} targetCoords - 目标签到坐标 [经度, 纬度]
+     */
+    async function openMobileMapAttendanceModal(noticeId, targetCoords) {
+      console.log('[地图选点] 打开模态框', { noticeId, targetCoords });
+      
+      // 保存签到通知ID和目标坐标
+      mobileMapAttendanceNoticeId = noticeId;
+      mobileMapAttendanceTarget = targetCoords;
+      mobileMapAttendanceSelected = null;
+      
+      // 显示模态框
+      const modal = document.getElementById('mobile-map-attendance-modal');
+      if (!modal) {
+        console.error('[地图选点] 模态框元素不存在');
+        return;
+      }
+      modal.classList.remove('hidden');
+      
+      // 重置坐标显示和按钮状态
+      const coordsDisplay = document.getElementById('mobile-map-attendance-coords');
+      const confirmBtn = document.getElementById('mobile-map-attendance-confirm-btn');
+      if (coordsDisplay) coordsDisplay.textContent = '未选择';
+      if (confirmBtn) confirmBtn.disabled = true;
+      
+      // 初始化地图（延迟加载以确保模态框已显示）
+      setTimeout(() => {
+        initMobileMapAttendance(targetCoords);
+      }, 300);
+    }
+    
+    /**
+     * 初始化地图选点签到地图
+     * @param {Array} targetCoords - 目标签到坐标 [经度, 纬度]
+     */
+    async function initMobileMapAttendance(targetCoords) {
+      console.log('[地图选点] 初始化地图', targetCoords);
+      
+      // 如果地图实例已存在，先销毁
+      if (mobileMapAttendanceInstance) {
+        mobileMapAttendanceInstance.destroy();
+        mobileMapAttendanceInstance = null;
+      }
+      
+      // 确保AMap已加载
+      if (typeof AMap === 'undefined') {
+        console.error('[地图选点] 高德地图API未加载');
+        showTempMessage('地图加载失败，请刷新页面重试', 'error');
+        return;
+      }
+      
+      // 获取地图容器
+      const container = document.getElementById('mobile-map-attendance-container');
+      if (!container) {
+        console.error('[地图选点] 地图容器不存在');
+        return;
+      }
+      
+      // 清空容器内容
+      container.innerHTML = '';
+      
+      try {
+        // 创建地图实例，中心点为目标坐标
+        mobileMapAttendanceInstance = new AMap.Map('mobile-map-attendance-container', {
+          zoom: 17,  // 设置较大的缩放级别，便于精确选点
+          center: targetCoords,  // 中心点为目标签到位置
+          mapStyle: 'amap://styles/normal',  // 使用标准地图样式
+          showLabel: true,  // 显示地图标注
+          viewMode: '2D'  // 使用2D视图
+        });
+        
+        console.log('[地图选点] 地图实例创建成功');
+        
+        // 在目标位置添加蓝色标记（表示目标签到位置）
+        const targetMarker = new AMap.Marker({
+          position: targetCoords,
+          icon: new AMap.Icon({
+            size: new AMap.Size(32, 32),  // 图标大小
+            image: 'data:image/svg+xml;base64,' + btoa(`
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+                <circle cx="16" cy="16" r="14" fill="#3b82f6" stroke="white" stroke-width="3"/>
+                <text x="16" y="21" text-anchor="middle" fill="white" font-size="18" font-weight="bold">🎯</text>
+              </svg>
+            `),
+            imageSize: new AMap.Size(32, 32)
+          }),
+          title: '目标签到位置',
+          zIndex: 100
+        });
+        
+        // 将目标标记添加到地图
+        mobileMapAttendanceInstance.add(targetMarker);
+        
+        // 监听地图点击事件，用户点击选择签到位置
+        mobileMapAttendanceInstance.on('click', (e) => {
+          const lng = e.lnglat.getLng();
+          const lat = e.lnglat.getLat();
+          console.log('[地图选点] 用户点击位置', { lng, lat });
+          
+          // 保存用户选中的坐标
+          mobileMapAttendanceSelected = [lng, lat];
+          
+          // 更新坐标显示
+          const coordsDisplay = document.getElementById('mobile-map-attendance-coords');
+          if (coordsDisplay) {
+            coordsDisplay.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+          }
+          
+          // 启用确认按钮
+          const confirmBtn = document.getElementById('mobile-map-attendance-confirm-btn');
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+          }
+          
+          // 如果已有用户标记，先移除
+          if (mobileMapAttendanceMarker) {
+            mobileMapAttendanceInstance.remove(mobileMapAttendanceMarker);
+          }
+          
+          // 在选中位置添加红色标记
+          mobileMapAttendanceMarker = new AMap.Marker({
+            position: [lng, lat],
+            icon: new AMap.Icon({
+              size: new AMap.Size(40, 40),
+              image: 'data:image/svg+xml;base64,' + btoa(`
+                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+                  <circle cx="20" cy="20" r="18" fill="#ef4444" stroke="white" stroke-width="4"/>
+                  <text x="20" y="26" text-anchor="middle" fill="white" font-size="22" font-weight="bold">📍</text>
+                </svg>
+              `),
+              imageSize: new AMap.Size(40, 40)
+            }),
+            title: '选中的签到位置',
+            zIndex: 110
+          });
+          
+          // 将用户标记添加到地图
+          mobileMapAttendanceInstance.add(mobileMapAttendanceMarker);
+        });
+        
+        console.log('[地图选点] 地图初始化完成，等待用户选点');
+        
+      } catch (error) {
+        console.error('[地图选点] 地图初始化失败', error);
+        showTempMessage('地图初始化失败：' + error.message, 'error');
+      }
+    }
+    
+    /**
+     * 确认地图选点签到
+     * 提交用户选中的坐标进行签到
+     */
+    async function confirmMobileMapAttendance() {
+      console.log('[地图选点] 确认签到', {
+        noticeId: mobileMapAttendanceNoticeId,
+        selected: mobileMapAttendanceSelected
+      });
+      
+      // 检查是否已选择坐标
+      if (!mobileMapAttendanceSelected) {
+        showTempMessage('请先在地图上点击选择签到位置', 'warning');
+        return;
+      }
+      
+      // 禁用确认按钮，防止重复提交
+      const confirmBtn = document.getElementById('mobile-map-attendance-confirm-btn');
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<span class="animate-pulse">签到中...</span>';
+      }
+      
+      try {
+        // 调用签到API，传入通知ID和用户选中的坐标
+        const result = await callPythonAPI('sign_in', {
+          notice_id: mobileMapAttendanceNoticeId,
+          longitude: mobileMapAttendanceSelected[0],
+          latitude: mobileMapAttendanceSelected[1]
+        });
+        
+        console.log('[地图选点] 签到API返回', result);
+        
+        if (result.success) {
+          showTempMessage('✅ 签到成功！', 'success');
+          
+          // 关闭模态框
+          closeMobileMapAttendanceModal();
+          
+          // 刷新签到列表
+          setTimeout(() => {
+            refreshNotificationsUI(true, true);
+          }, 1000);
+        } else {
+          showTempMessage('❌ 签到失败：' + (result.message || '未知错误'), 'error');
+          
+          // 恢复按钮状态
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = `
+              <span class="flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                确认签到
+              </span>
+            `;
+          }
+        }
+      } catch (error) {
+        console.error('[地图选点] 签到失败', error);
+        showTempMessage('签到失败：' + error.message, 'error');
+        
+        // 恢复按钮状态
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.innerHTML = `
+            <span class="flex items-center justify-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              确认签到
+            </span>
+          `;
+        }
+      }
+    }
+    
+    /**
+     * 关闭地图选点签到模态框
+     * 清理地图实例和相关状态
+     */
+    function closeMobileMapAttendanceModal() {
+      console.log('[地图选点] 关闭模态框');
+      
+      // 隐藏模态框
+      const modal = document.getElementById('mobile-map-attendance-modal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+      
+      // 销毁地图实例和标记
+      if (mobileMapAttendanceMarker) {
+        if (mobileMapAttendanceInstance) {
+          mobileMapAttendanceInstance.remove(mobileMapAttendanceMarker);
+        }
+        mobileMapAttendanceMarker = null;
+      }
+      
+      if (mobileMapAttendanceInstance) {
+        mobileMapAttendanceInstance.destroy();
+        mobileMapAttendanceInstance = null;
+      }
+      
+      // 清除相关状态
+      mobileMapAttendanceNoticeId = null;
+      mobileMapAttendanceTarget = null;
+      mobileMapAttendanceSelected = null;
     }
     
     /**
