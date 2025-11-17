@@ -27785,15 +27785,20 @@ function run_code_not_need_sessionuuid(codeToRun) {
       ];
 
       // 第一步：隐藏所有单账号面板
-      // 遍历面板列表，为每个面板添加 'hidden' CSS类
-      // 'hidden' 类通常定义为 display: none，使元素不可见
+      // 遍历面板列表，为每个面板设置display样式为none
+      // 【修复说明】不再使用CSS类 'hidden'，而是直接设置 style.display
+      // 【原因分析】
+      // 1. 直接操作inline style优先级最高，避免与其他CSS规则冲突
+      // 2. 某些框架或CSS可能会覆盖hidden类的定义，导致面板仍然可见
+      // 3. 使用inline style使代码意图更明确，调试更容易
       singleModePanels.forEach(id => {
         // 通过ID获取面板的DOM元素
         const panel = document.getElementById(id);
         // 如果面板存在（防止因HTML结构变化导致的错误）
         if (panel) {
-          // 添加hidden类，隐藏面板
-          panel.classList.add('hidden');
+          // 直接设置display为'none'，隐藏面板
+          // 使用inline style而不是CSS类，确保面板一定会被隐藏
+          panel.style.display = 'none';
         }
       });
 
@@ -27802,8 +27807,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const targetPanel = document.getElementById(panelId);
       // 检查目标面板是否存在
       if (targetPanel) {
-        // 移除hidden类，显示面板
-        targetPanel.classList.remove('hidden');
+        // 将display设置为空字符串，让面板恢复其CSS定义的display值
+        // 【重要】不使用 display='block'，因为不同面板可能有不同的默认display值（block/flex等）
+        // 【说明】设置为空字符串会移除inline style，使元素恢复CSS样式表定义的display属性
+        targetPanel.style.display = '';
         
         // 第三步：执行面板激活时的初始化逻辑
         // 不同的面板在激活时需要执行不同的初始化操作
@@ -28006,20 +28013,37 @@ function run_code_not_need_sessionuuid(codeToRun) {
       ];
 
       // 选择要操作的面板列表
+      // 根据传入的mode参数，选择单账号模式或多账号模式的面板列表
       const panelList = mode === 'single' ? singleModePanels : multiModePanels;
 
       // 隐藏所有面板
+      // 【修复说明】不再使用CSS类 'hidden'，而是直接设置 style.display = 'none'
+      // 【原因分析】
+      // 1. inline style具有最高优先级，可以确保面板一定被隐藏，不会被其他CSS规则覆盖
+      // 2. 移动端环境复杂，某些浏览器或框架可能会修改CSS类的行为
+      // 3. 直接操作style属性使隐藏逻辑更加明确和可控
       panelList.forEach(id => {
+        // 通过ID获取面板的DOM元素
         const panel = document.getElementById(id);
+        // 检查面板是否存在（防止DOM结构变化导致的错误）
         if (panel) {
-          panel.classList.add('hidden');
+          // 直接设置display样式为'none'，强制隐藏面板
+          // 使用inline style替代CSS类，确保隐藏效果不会失效
+          panel.style.display = 'none';
         }
       });
 
       // 显示目标面板
+      // 获取用户指定要显示的目标面板的DOM元素
       const targetPanel = document.getElementById(panelId);
+      // 检查目标面板是否存在
       if (targetPanel) {
-        targetPanel.classList.remove('hidden');
+        // 将display设置为空字符串，让面板恢复其原始的display值
+        // 【重要】使用空字符串''而不是'block'的原因：
+        // 1. 不同面板可能使用不同的布局方式（block、flex、grid等）
+        // 2. 设置为空字符串会移除inline style，让面板恢复CSS样式表中定义的display属性
+        // 3. 这样可以保持与CSS定义的一致性，避免破坏原有的布局设计
+        targetPanel.style.display = '';
         
         // 【问题16修复】设置面板激活时自动加载配置
         // 当切换到设置面板时，自动调用updateParamInputs填充配置数值
