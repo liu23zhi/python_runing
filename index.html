@@ -4564,21 +4564,6 @@
             </div>
           </div>
 
-          <!-- ========== 打卡点列表 ========== -->
-          <!-- 显示当前任务的所有打卡点信息 -->
-          <div class="mt-4 pt-3 border-t border-slate-100">
-            <h4 class="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1">
-              <!-- 打卡点图标 -->
-              <svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
-              </svg>
-              打卡点
-            </h4>
-            <!-- 打卡点文本显示区域 - 可滚动 -->
-            <div id="mobile-target-points-text" class="max-h-32 overflow-y-auto p-2 bg-slate-50 rounded-lg text-xs text-slate-600 leading-relaxed">
-              <p class="text-slate-400 text-center py-4">开始任务后将显示打卡点</p>
-            </div>
-          </div>
 
         </div>
 
@@ -4620,6 +4605,41 @@
             <textarea id="mobile-log-text" readonly
               class="w-full h-full bg-white/80 border border-slate-200 rounded-lg p-3 text-xs text-slate-700 resize-none focus:outline-none leading-snug font-mono"
               placeholder="日志信息将在此处显示..."></textarea>
+          </div>
+        </div>
+
+        <!-- ========================================
+             【问题6修复】【打卡点面板】- 单账号打卡点列表显示
+             - 显示当前任务的所有打卡点信息
+             - 包括打卡点名称、坐标、序号等详细信息
+             - 从控制面板移动到独立侧边栏面板
+             ======================================== -->
+        <div class="mobile-card hidden" id="mobile-checkpoints-panel">
+          <!-- 面板头部 - 标题和图标 -->
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-red-100">
+            <!-- 打卡点图标：地图标记图标 -->
+            <svg class="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
+            </svg>
+            <h3 class="text-xl font-bold text-red-700">打卡点</h3>
+          </div>
+
+          <!-- 任务信息提示 -->
+          <div class="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <p class="text-xs text-blue-700 font-medium" id="mobile-checkpoints-task-info">
+              请先选择一个任务以查看打卡点
+            </p>
+          </div>
+
+          <!-- 打卡点列表容器 - 显示当前任务的所有打卡点 -->
+          <!-- 
+            - 打卡点数据从currentRunData.target_points获取
+            - 打卡点名称从currentRunData.target_point_names获取
+            - 显示打卡点序号、名称、坐标信息
+            - 高亮显示当前到达的打卡点
+          -->
+          <div id="mobile-checkpoints-list" class="space-y-2 max-h-[50vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-8 text-sm">开始任务后将显示打卡点</p>
           </div>
         </div>
 
@@ -6291,6 +6311,19 @@
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
           <span>日志</span>
+        </a>
+
+        <!-- 5.6 【问题6修复】打卡点菜单项 - 切换到打卡点面板 -->
+        <!-- 修复说明：将打卡点列表从控制面板移动到独立的侧边栏面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-checkpoints-panel', 'single'); closeMobileSidebar(); return false;">
+          <!-- 打卡点图标：地图标记图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+          </svg>
+          <span>打卡点</span>
         </a>
 
         <!-- 6. 【问题15&18修复】管理菜单项 - 切换到管理面板（改为面板而非模态框） -->
@@ -20453,6 +20486,129 @@ function run_code_not_need_sessionuuid(codeToRun) {
       });
     }
 
+    /**
+     * 【问题6修复】渲染移动端打卡点列表
+     * 
+     * 功能说明：
+     * - 从currentRunData中获取打卡点数据并渲染到移动端打卡点面板
+     * - 显示打卡点序号、名称、坐标信息
+     * - 高亮显示当前到达的打卡点（通过target_sequence判断）
+     * - 支持点击打卡点在地图上定位
+     * 
+     * 调用时机：
+     * - 选择任务时（selectTask函数中）
+     * - 更新跑步者位置时（updateRunnerPosition函数中）
+     * - 开始/停止任务时
+     */
+    function renderMobileCheckpointsList() {
+      // 获取移动端打卡点列表容器
+      const checkpointsListDiv = $('mobile-checkpoints-list');
+      // 获取任务信息提示元素
+      const taskInfoDiv = $('mobile-checkpoints-task-info');
+      
+      // 如果容器不存在（例如在PC端模式下），直接返回
+      if (!checkpointsListDiv) return;
+      
+      // 检查是否有选中的任务以及是否有打卡点数据
+      if (selectedTaskIndex === -1 || !currentRunData || !currentRunData.target_points || currentRunData.target_points.length === 0) {
+        // 没有选中任务或没有打卡点数据时，显示提示信息
+        checkpointsListDiv.innerHTML = '<p class="text-slate-400 text-center py-8 text-sm">请先选择一个有打卡点的任务</p>';
+        
+        // 更新任务信息提示
+        if (taskInfoDiv) {
+          if (selectedTaskIndex === -1) {
+            taskInfoDiv.textContent = '请先选择一个任务以查看打卡点';
+          } else {
+            taskInfoDiv.textContent = '当前任务没有打卡点';
+          }
+        }
+        return;
+      }
+      
+      // 更新任务信息提示，显示当前任务名称
+      if (taskInfoDiv) {
+        const taskName = currentTasks[selectedTaskIndex]?.run_name || '未知任务';
+        taskInfoDiv.textContent = `任务: ${taskName}`;
+      }
+      
+      // 清空容器内容，准备重新渲染
+      checkpointsListDiv.innerHTML = '';
+      
+      // 获取打卡点数据和名称数据
+      const targetPoints = currentRunData.target_points;  // 打卡点坐标数组 [[lon1, lat1], [lon2, lat2], ...]
+      const targetNames = (currentRunData.target_point_names || '').split('|');  // 打卡点名称，使用|分隔
+      const currentSequence = currentRunData.target_sequence || 1;  // 当前到达的打卡点序号（1-based）
+      
+      // 遍历所有打卡点，为每个打卡点创建一个卡片
+      targetPoints.forEach((point, index) => {
+        // 创建打卡点卡片容器
+        const item = document.createElement('div');
+        
+        // 打卡点序号（从1开始）
+        const seq = index + 1;
+        // 获取打卡点名称，如果没有自定义名称则使用默认名称
+        const name = targetNames[index] || `打卡点${seq}`;
+        // 获取打卡点坐标 [经度, 纬度]
+        const [lon, lat] = point;
+        
+        // 判断当前打卡点是否已到达
+        // currentSequence > seq 表示此打卡点已经被到达过
+        const isReached = currentSequence > seq;
+        // 判断当前打卡点是否为下一个目标打卡点
+        const isCurrent = currentSequence === seq;
+        
+        // 根据打卡点状态设置不同的样式
+        let statusClass = 'bg-white border-slate-200';  // 默认：未到达
+        let statusBadge = '<span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">未到达</span>';
+        
+        if (isReached) {
+          // 已到达的打卡点：绿色背景
+          statusClass = 'bg-green-50 border-green-200';
+          statusBadge = '<span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-600 flex items-center gap-1"><span>✓</span><span>已到达</span></span>';
+        } else if (isCurrent) {
+          // 当前目标打卡点：蓝色背景、高亮显示
+          statusClass = 'bg-blue-50 border-blue-400 ring-2 ring-blue-300';
+          statusBadge = '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 flex items-center gap-1"><span>🎯</span><span>目标</span></span>';
+        }
+        
+        // 设置卡片样式：圆角、边框、内边距、过渡效果
+        item.className = `${statusClass} rounded-lg p-3 border transition-all duration-200 cursor-pointer hover:shadow-md`;
+        
+        // 构建卡片HTML内容
+        item.innerHTML = `
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex items-center gap-2 flex-1">
+              <span class="text-lg font-bold ${isCurrent ? 'text-blue-600' : isReached ? 'text-green-600' : 'text-slate-400'}">
+                ${seq}
+              </span>
+              <div class="flex-1">
+                <p class="font-semibold text-slate-800 text-sm">${name}</p>
+                <p class="text-xs text-slate-500 mt-1">坐标: ${lat.toFixed(6)}, ${lon.toFixed(6)}</p>
+              </div>
+            </div>
+            ${statusBadge}
+          </div>
+        `;
+        
+        // 绑定点击事件：点击打卡点时，在地图上定位到该打卡点
+        item.addEventListener('click', () => {
+          // 如果地图已初始化，则移动地图中心到该打卡点
+          if (window.map) {
+            window.map.setCenter([lon, lat]);
+            window.map.setZoom(16);  // 设置合适的缩放级别
+            
+            // 显示提示信息
+            showTempMessage(`已定位到 ${name}`, 'success');
+          } else {
+            showTempMessage('地图未初始化', 'error');
+          }
+        });
+        
+        // 将打卡点卡片添加到列表容器中
+        checkpointsListDiv.appendChild(item);
+      });
+    }
+
 
     async function forceLoadTaskDataForPolling(taskIndex) {
       if (taskIndex < 0 || taskIndex >= currentTasks.length) return;
@@ -21894,6 +22050,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
         });
         centerTargetList(sequence);
       }
+      
+      // 【问题6修复】同步更新移动端打卡点列表
+      // 当Dashboard更新时，也更新移动端的打卡点面板
+      renderMobileCheckpointsList();
     }
     function centerTargetList(sequence) {
       const targetDiv = $('target-points-text');
@@ -24209,6 +24369,10 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // if (modal && !modal.classList.contains('hidden')) {
       //   refreshNotificationsUI();
       // }
+      
+      // 【问题8修复】同步更新移动端签到列表
+      // 将PC端的签到列表数据同步到移动端的mobile-attendance-list
+      syncMobileAttendanceList();
     }
 
     // --- 处理签到点击的函数 ---
@@ -24857,6 +25021,143 @@ function run_code_not_need_sessionuuid(codeToRun) {
           });
         }
       }
+    }
+
+    /**
+     * 【问题8修复】同步移动端签到列表
+     * 
+     * 功能说明：
+     * - 将window.currentNotifications中的签到通知数据同步到移动端签到面板的列表
+     * - 与PC端签到列表保持一致的数据和样式
+     * - 支持签到状态显示、签到按钮、补签按钮等交互
+     * 
+     * 调用时机：
+     * - onNotificationsUpdated函数中（后端自动刷新通知时）
+     * - mobileRefreshNotifications函数中（手动刷新通知时）
+     */
+    function syncMobileAttendanceList() {
+      // 获取移动端签到列表容器
+      const mobileAttList = document.getElementById('mobile-attendance-list');
+      
+      // 如果容器不存在（例如在PC端模式下），直接返回
+      if (!mobileAttList) return;
+      
+      // 获取当前通知数据
+      const notifications = window.currentNotifications || [];
+      
+      // 过滤出签到类型的通知
+      // 通过image字段或title字段判断是否为签到通知
+      const attendanceNotices = notifications.filter(n =>
+        n.image === 'attendance' || (n.title && n.title.includes('签到'))
+      );
+      
+      // 清空容器内容，准备重新渲染
+      mobileAttList.innerHTML = '';
+      
+      // 如果没有签到任务，显示空状态提示
+      if (attendanceNotices.length === 0) {
+        mobileAttList.innerHTML = '<p class="text-slate-400 text-center py-8 text-sm">暂无签到任务</p>';
+        return;
+      }
+      
+      // 遍历所有签到通知，为每个通知创建一个卡片
+      attendanceNotices.forEach(n => {
+        // 创建签到卡片容器
+        const item = document.createElement('div');
+        // 设置卡片样式：白色背景、圆角、边框、内边距
+        item.className = 'bg-white rounded-lg p-3 border border-slate-200 mb-2';
+        
+        // 初始化状态文本、样式类、按钮HTML
+        let statusText = '未知';
+        let statusClass = 'text-slate-500';
+        let buttonHtml = '';
+        
+        // 提取签到坐标信息，用于签到和补签功能
+        let targetCoords = 'null';
+        let canSign = false;  // 是否可以签到（坐标是否有效）
+        try {
+          // 从updateBy字段解析坐标 (格式: "lat,lon")
+          const coordsStr = (n.updateBy || "").trim();
+          const [lat, lon] = coordsStr.split(',').map(Number);
+          // 检查坐标是否为有效数字
+          if (!isNaN(lon) && !isNaN(lat)) {
+            targetCoords = `[${lon}, ${lat}]`;  // 转换为[经度, 纬度]格式
+            canSign = true;
+          }
+        } catch (e) {
+          // 坐标解析失败，保持canSign为false
+        }
+        
+        // 根据attendance_code判断签到状态
+        switch (n.attendance_code) {
+          case -1:
+            // 状态码 -1: 签到已过期
+            statusText = '已过期';
+            statusClass = 'text-red-600 font-semibold';
+            // 如果坐标有效，显示补签按钮
+            if (canSign) {
+              buttonHtml = `
+                <button class="w-full mt-2 py-2 px-4 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition" 
+                  onclick="event.stopPropagation(); handleMakeupAttendance(event, '${n.id}', ${targetCoords})">
+                  随机补签
+                </button>
+              `;
+            }
+            break;
+          case 1:
+            // 状态码 1: 已完成签到
+            statusText = '已签到';
+            statusClass = 'text-emerald-600 font-semibold';
+            // 已签到的任务不显示按钮
+            break;
+          case 0:
+            // 状态码 0: 待签到
+            statusText = '待签到';
+            statusClass = 'text-sky-600 font-bold';
+            // 如果坐标有效，显示签到和补签按钮
+            if (canSign) {
+              buttonHtml = `
+                <div class="flex gap-2 mt-2">
+                  <button class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm font-medium hover:bg-sky-600 transition" 
+                    onclick="event.stopPropagation(); handleAttendance(event, '${n.id}', ${targetCoords})">
+                    随机签到
+                  </button>
+                  <button class="flex-1 py-2 px-4 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition" 
+                    onclick="event.stopPropagation(); handleMakeupAttendance(event, '${n.id}', ${targetCoords})">
+                    随机补签
+                  </button>
+                </div>
+              `;
+            }
+            break;
+          default:
+            // 未知状态码
+            statusText = '状态未知';
+            statusClass = 'text-slate-400';
+        }
+        
+        // 如果attendance_status_text中包含"失败"，覆盖状态显示
+        if (n.attendance_status_text && n.attendance_status_text.includes('失败')) {
+          statusText = n.attendance_status_text;
+          statusClass = 'text-red-700 font-bold';
+        }
+        
+        // 构建卡片HTML内容
+        item.innerHTML = `
+          <div class="flex justify-between items-start mb-2">
+            <div class="flex-1">
+              <p class="text-sm font-semibold text-slate-800 mb-1">${n.title}</p>
+              <p class="text-xs text-slate-600">${n.content}</p>
+            </div>
+            <span class="text-xs ${statusClass} ml-2 flex-shrink-0">${statusText}</span>
+          </div>
+          <div class="text-xs text-slate-400">${n.createtime}</div>
+          ${buttonHtml}
+        `;
+        
+        // 将卡片添加到列表容器中
+        mobileAttList.appendChild(item);
+      });
     }
 
     /**
@@ -26180,6 +26481,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-task-panel',
         'mobile-notification-panel',
         'mobile-log-panel',            // 新增：日志面板
+        'mobile-checkpoints-panel',    // 【问题6修复】新增：打卡点面板
         'mobile-attendance-panel',
         'mobile-admin-panel',          // 【问题15&18修复】新增：管理面板
         'mobile-settings-panel',
@@ -26420,6 +26722,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-task-panel': '任务',
         'mobile-notification-panel': '通知',
         'mobile-log-panel': '日志',
+        'mobile-checkpoints-panel': '打卡点',  // 【问题6修复】添加打卡点面板标题映射
         'mobile-attendance-panel': '签到',
         'mobile-admin-panel': '管理',
         'mobile-settings-panel': '设置',
@@ -28884,7 +29187,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
     /**
      * 切换移动端管理面板的标签页
      * @param {string} tabId - 标签页ID（如'users', 'groups', 'logs'等）
-     * @param {string} prefix - 面板前缀（'mobile-admin'或'mobile-multi-admin'）
+     * @param {string} prefix - 面板前缀（'mobile-admin'、'mobile-admin-panel'或'mobile-multi-admin'）
      * 
      * 功能说明：
      * - 更新标签页按钮的激活状态（高亮当前标签页）
@@ -28892,16 +29195,29 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 调用PC端的数据加载函数（如loadAdminUsers、loadAdminLogs等）
      */
     function switchMobileAdminTab(tabId, prefix) {
-      // 根据前缀确定容器ID
-      const tabsNavId = prefix === 'mobile-multi-admin' ? 'mobile-multi-admin-tabs-nav' : 'mobile-admin-tabs-nav';
-      const contentId = prefix === 'mobile-multi-admin' ? 'mobile-multi-admin-panel-content' : 'mobile-admin-panel-content';
+      // 【问题10&20修复】根据前缀确定容器ID，支持三种模式
+      let tabsNavId, contentId;
+      
+      if (prefix === 'mobile-multi-admin') {
+        // 多账号模态框模式
+        tabsNavId = 'mobile-multi-admin-tabs-nav';
+        contentId = 'mobile-multi-admin-panel-content';
+      } else if (prefix === 'mobile-admin-panel') {
+        // 单账号面板模式（新增）
+        tabsNavId = 'mobile-admin-tabs-nav-panel';
+        contentId = 'mobile-admin-panel-content-panel';
+      } else {
+        // 单账号模态框模式（原有）
+        tabsNavId = 'mobile-admin-tabs-nav';
+        contentId = 'mobile-admin-panel-content';
+      }
       
       // 获取标签页导航容器和内容容器
       const tabsNav = document.getElementById(tabsNavId);
       const content = document.getElementById(contentId);
       
       if (!tabsNav || !content) {
-        console.error('[移动端管理面板] 找不到容器元素');
+        console.error(`[移动端管理面板] 找不到容器元素: tabsNavId=${tabsNavId}, contentId=${contentId}`);
         return;
       }
       
