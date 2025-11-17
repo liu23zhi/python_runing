@@ -5456,7 +5456,7 @@
           </div>
 
           <!-- 日志显示区域 - 模拟控制台样式 -->
-          <div class="bg-slate-900 rounded-lg p-3 max-h-[75vh] overflow-y-auto">
+          <div class="rounded-lg p-3 max-h-[75vh] overflow-y-auto">
             <!-- 只读文本框用于显示多账号全局日志 -->
             <!-- 此日志框会实时同步显示来自后端的多账号运行日志 -->
             <!-- 【问题2&3&21修复】日志文本框样式优化
@@ -11177,7 +11177,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
             imgElement.style.imageRendering = 'crisp-edges';  // 优化图片渲染，避免模糊
           }
           
-          console.log(`[验证码] ${formType}表单验证码加载成功，ID: ${result.captcha_id.substring(0, 8)}...`);
+          console.log(`[验证码] ${formType}表单验证码加载成功，ID: ${result.captcha_id}`);
           
           // ========================================
           // 【移动端同步】同时加载移动端验证码
