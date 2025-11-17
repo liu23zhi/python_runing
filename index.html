@@ -4985,6 +4985,37 @@
             </div>
           </div>
 
+          <!-- 配置文件选择器 - 用于选择要添加的账号配置 -->
+          <div class="mb-4 p-3 bg-slate-50 rounded-lg space-y-3">
+            <label class="block text-sm font-semibold text-slate-700">选择配置文件</label>
+            <!-- 下拉框：显示所有可用的用户配置文件 -->
+            <!-- 用户可以选择一个配置文件，然后点击"添加账号"按钮将其添加到多账号列表 -->
+            <select id="multi-config-user-select" 
+              class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none">
+              <option value="">-- 请选择配置文件 --</option>
+              <!-- 配置文件选项将由JavaScript动态填充 -->
+            </select>
+            <!-- 添加按钮组 -->
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                class="py-2 px-3 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 transition flex items-center justify-center gap-1"
+                onclick="addMobileSelectedConfig()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                添加选中
+              </button>
+              <button
+                class="py-2 px-3 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition flex items-center justify-center gap-1"
+                onclick="addMobileAllConfigs()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                添加全部
+              </button>
+            </div>
+          </div>
+
           <!-- 全选和批量操作 -->
           <div class="flex items-center justify-between mb-4 p-3 bg-purple-50 rounded-lg">
             <label class="flex items-center gap-2 cursor-pointer">
@@ -5010,25 +5041,54 @@
             <p class="text-slate-400 text-center py-8 text-sm">暂无账号，请先添加</p>
           </div>
 
-          <!-- 底部操作按钮 -->
-          <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
-            <button
-              class="py-2 px-4 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium hover:bg-purple-100 transition flex items-center justify-center gap-1"
-              onclick="mobileAddMultiAccount()">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
-              添加账号
-            </button>
-            <button
-              class="py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition flex items-center justify-center gap-1"
-              onclick="mobileRefreshMultiAccounts()">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              刷新列表
-            </button>
+          <!-- 批量操作按钮组 -->
+          <div class="mt-4 pt-3 border-t border-slate-100 space-y-2">
+            <!-- 第一行：导入导出和刷新 -->
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                class="py-2 px-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition flex items-center justify-center gap-1"
+                onclick="importMobileAccountList()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+                导入
+              </button>
+              <button
+                class="py-2 px-2 bg-green-50 text-green-600 rounded-lg text-xs font-medium hover:bg-green-100 transition flex items-center justify-center gap-1"
+                onclick="exportMobileAccountList()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                导出
+              </button>
+              <button
+                class="py-2 px-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 transition flex items-center justify-center gap-1"
+                onclick="mobileRefreshSelectedAccounts()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                刷新选中
+              </button>
+            </div>
+            <!-- 第二行：删除操作 -->
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                class="py-2 px-3 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100 transition flex items-center justify-center gap-1"
+                onclick="deleteMobileSelectedAccounts()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                删除选中
+              </button>
+              <button
+                class="py-2 px-3 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition flex items-center justify-center gap-1"
+                onclick="deleteMobileAllAccounts()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                删除全部
+              </button>
+            </div>
           </div>
         </div>
 
@@ -5198,6 +5258,60 @@
           <!-- 这些参数会应用于所有账号 -->
           <div id="mobile-multi-global-params-container" class="space-y-3 max-h-[60vh] overflow-y-auto">
             <!-- 全局参数将在此处动态加载 -->
+          </div>
+
+          <!-- 保存全局设置按钮 -->
+          <div class="pt-3 border-t border-teal-100">
+            <button class="w-full py-2.5 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition flex items-center justify-center gap-2"
+              onclick="saveMobileMultiGlobalSettings()">
+              <!-- 保存图标 -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              保存全局设置
+            </button>
+          </div>
+        </div>
+
+        <!-- 移动端-多账号-全局日志面板 -->
+        <div class="mobile-card hidden" id="mobile-multi-log-panel">
+          <!-- 面板头部 - 标题和图标 -->
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
+            <!-- 日志图标 -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 class="text-xl font-bold text-slate-700">全局日志</h3>
+          </div>
+
+          <!-- 日志显示区域 - 模拟控制台样式 -->
+          <div class="bg-slate-900 rounded-lg p-3 max-h-[60vh] overflow-y-auto">
+            <!-- 只读文本框用于显示多账号全局日志 -->
+            <!-- 此日志框会实时同步显示来自后端的多账号运行日志 -->
+            <textarea id="mobile-multi-log-text" readonly 
+              class="w-full bg-transparent text-green-400 font-mono text-xs border-none resize-none outline-none min-h-[50vh]"
+              placeholder="等待日志输出..."></textarea>
+          </div>
+
+          <!-- 底部操作按钮 -->
+          <div class="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+            <button class="flex-1 py-2 px-4 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition flex items-center justify-center gap-1"
+              onclick="clearMobileMultiLog()">
+              <!-- 清空图标 -->
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              清空日志
+            </button>
+            <button class="flex-1 py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition flex items-center justify-center gap-1"
+              onclick="scrollMobileMultiLogToBottom()">
+              <!-- 滚动到底部图标 -->
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+              滚到底部
+            </button>
           </div>
         </div>
 
@@ -5449,7 +5563,7 @@
           <h3 class="text-xl font-bold text-sky-600 text-center">管理面板</h3>
         </div>
         <!-- 管理面板标签页导航 - 横向滚动支持 -->
-        <div class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 -mx-2 px-2"
+        <div id="mobile-admin-tabs-nav" class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 -mx-2 px-2"
           style="scrollbar-width: none;">
           <!-- 标签页按钮将由JavaScript动态创建和管理 -->
         </div>
@@ -5488,6 +5602,49 @@
             class="py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition"
             onclick="closeMobileAccountParams()">取消</button>
           <button id="mobile-save-account-params-btn" class="mobile-primary-btn">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 移动端-多账号-管理面板模态框 -->
+    <!-- 此模态框用于多账号模式下访问管理功能 -->
+    <!-- 功能与单账号管理面板相同，确保在多账号环境下也能进行系统管理 -->
+    <div id="mobile-multi-admin-panel-modal" class="fixed inset-0 hidden mobile-modal z-50"
+      onclick="toggleMobileMultiAdminPanel(false)">
+      <!-- 半透明遮罩层 -->
+      <div class="absolute inset-0 bg-black/40"></div>
+      <!-- 模态框内容容器 -->
+      <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto"
+        onclick="event.stopPropagation()">
+        <!-- 顶部拖动指示器 -->
+        <div class="flex justify-center mb-2">
+          <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+        </div>
+        <!-- 模态框标题 -->
+        <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+          <!-- 管理图标 -->
+          <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+            </path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
+            </path>
+          </svg>
+          <h3 class="text-xl font-bold text-sky-600 text-center">管理面板</h3>
+        </div>
+        <!-- 管理面板标签页导航 - 横向滚动支持 -->
+        <!-- 标签页导航容器ID需要与单账号版本区分，使用multi前缀 -->
+        <div id="mobile-multi-admin-tabs-nav" class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 -mx-2 px-2"
+          style="scrollbar-width: none;">
+          <!-- 标签页按钮将由JavaScript动态创建和管理 -->
+        </div>
+        <!-- 管理面板内容区域 - 由JavaScript动态填充 -->
+        <div id="mobile-multi-admin-panel-content" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto">
+          <p class="text-slate-400 text-center py-10">加载中...</p>
+        </div>
+        <!-- 底部关闭按钮 -->
+        <div class="flex justify-end pt-2">
+          <button class="mobile-primary-btn" onclick="toggleMobileMultiAdminPanel(false)">关闭</button>
         </div>
       </div>
     </div>
@@ -6017,7 +6174,17 @@
           <span>设置</span>
         </a>
 
-        <!-- 6. 返回菜单项（危险操作）- 返回登录页 -->
+        <!-- 6. 日志菜单项 - 切换到全局日志面板 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-log-panel', 'multi'); closeMobileSidebar(); return false;">
+          <!-- 日志图标：文档图标 -->
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span>日志</span>
+        </a>
+
+        <!-- 7. 返回菜单项（危险操作）- 返回登录页 -->
         <a href="#" class="mobile-sidebar-item danger" onclick="showMobileConfirm('退出多账号模式', '确定要退出多账号模式吗？', () => { exitMobileMultiAccount(); closeMobileSidebar(); }); return false;">
           <!-- 返回图标：左箭头 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -24863,6 +25030,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
         if (show) {
           // 移除hidden类，显示模态框
           modal.classList.remove('hidden');
+          // 初始化管理面板（如果尚未初始化）
+          initMobileAdminPanel('mobile-admin');
         } else {
           // 添加hidden类，隐藏模态框
           modal.classList.add('hidden');
@@ -25216,7 +25385,8 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-multi-account-panel',
         'mobile-multi-map-panel',
         'mobile-multi-control-panel',
-        'mobile-multi-settings-panel'
+        'mobile-multi-settings-panel',
+        'mobile-multi-log-panel'       // 新增：全局日志面板
       ];
 
       // 选择要操作的面板列表
@@ -27405,6 +27575,722 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       console.log('[移动端] Phase 4b功能绑定完成');
     });
+
+    // ========================================
+    // 【移动端多账号全局设置面板初始化】- Phase 4d
+    // ========================================
+    document.addEventListener('DOMContentLoaded', function () {
+      console.log('[移动端] 开始初始化Phase 4d全局设置面板...');
+      
+      // 初始化移动端多账号全局参数容器
+      const mobileMultiGlobalParamsContainer = document.getElementById('mobile-multi-global-params-container');
+      if (mobileMultiGlobalParamsContainer && typeof createParamInputs === 'function') {
+        // 排除主题相关参数（主题设置不应该在多账号全局参数中）
+        const excludeGroups = ['主题设置'];
+        
+        // 创建参数输入框
+        // prefix: 'mobile-multi-param' - 用于生成唯一的元素ID，区别于单账号模式
+        // changeHandler: 参数变化时的处理函数（实时保存到后端）
+        createParamInputs(
+          mobileMultiGlobalParamsContainer,
+          'mobile-multi-param',
+          function(e) {
+            // 参数变化处理函数
+            const input = e.target;
+            const key = input.dataset.key;
+            let value;
+            
+            // 根据输入类型获取值
+            if (input.type === 'checkbox') {
+              value = input.checked;
+            } else if (input.type === 'number') {
+              value = parseFloat(input.value) || 0;
+            } else {
+              value = input.value;
+            }
+            
+            // 调用API保存参数到全局配置
+            if (typeof callPythonAPI === 'function') {
+              callPythonAPI('update_param', key, value);
+              console.log(`[移动端多账号] 全局参数已更新: ${key} = ${value}`);
+            }
+          },
+          excludeGroups
+        );
+        console.log('[移动端] 多账号全局参数面板已初始化');
+      }
+      
+      // 初始化配置文件选择器（从后端加载配置列表）
+      const configSelect = document.getElementById('multi-config-user-select');
+      if (configSelect) {
+        // 加载配置文件列表
+        // 这个函数应该在PC端已经定义，用于从后端获取可用的配置文件列表
+        if (typeof loadConfigList === 'function') {
+          loadConfigList();
+          console.log('[移动端] 配置文件选择器已初始化');
+        }
+      }
+      
+      console.log('[移动端] Phase 4d全局设置面板初始化完成');
+    });
+
+    // ==================== Phase 4d - 移动端最后剩余面板实现 ====================
+    
+    /**
+     * 【移动端管理面板】函数
+     * 功能：打开/关闭管理面板模态框，初始化管理面板标签页
+     */
+    
+    /**
+     * 切换移动端多账号管理面板的显示/隐藏状态
+     * @param {boolean} show - true表示显示，false表示隐藏
+     * 
+     * 功能说明：
+     * - 控制移动端多账号管理面板模态框的显示和隐藏
+     * - 当show为true时，打开模态框并初始化管理面板内容
+     * - 当show为false时，关闭模态框
+     */
+    function toggleMobileMultiAdminPanel(show) {
+      // 获取移动端多账号管理面板模态框元素
+      const modal = document.getElementById('mobile-multi-admin-panel-modal');
+      
+      // 检查模态框元素是否存在
+      if (modal) {
+        if (show) {
+          // 显示模态框：移除hidden类
+          modal.classList.remove('hidden');
+          // 初始化管理面板（如果尚未初始化）
+          initMobileAdminPanel('mobile-multi-admin');
+        } else {
+          // 隐藏模态框：添加hidden类
+          modal.classList.add('hidden');
+        }
+      }
+    }
+
+    /**
+     * 初始化移动端管理面板
+     * @param {string} prefix - 面板前缀，用于区分单账号('mobile-admin')和多账号('mobile-multi-admin')
+     * 
+     * 功能说明：
+     * - 根据用户权限动态创建管理面板的标签页
+     * - 管理员用户可以看到所有标签页（用户管理、权限组、日志等）
+     * - 普通用户只能看到部分标签页（个人信息、会话、留言板等）
+     * - 初始化时默认显示第一个标签页的内容
+     */
+    function initMobileAdminPanel(prefix) {
+      // 获取当前用户的权限组信息
+      const userGroup = currentUserData?.group || 'user';
+      
+      // 根据前缀确定标签页导航容器和内容容器的ID
+      const tabsNavId = prefix === 'mobile-multi-admin' ? 'mobile-multi-admin-tabs-nav' : 'mobile-admin-tabs-nav';
+      const contentId = prefix === 'mobile-multi-admin' ? 'mobile-multi-admin-panel-content' : 'mobile-admin-panel-content';
+      
+      // 获取标签页导航容器
+      const tabsNav = document.getElementById(tabsNavId);
+      if (!tabsNav) {
+        console.error(`[移动端管理面板] 找不到标签页导航容器: ${tabsNavId}`);
+        return;
+      }
+      
+      // 定义所有可能的标签页配置
+      // 每个标签页包含：id（标识）、label（显示名称）、icon（SVG图标）、permission（所需权限）
+      const allTabs = [
+        {
+          id: 'users',
+          label: '用户',
+          icon: '<svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>',
+          permission: 'admin'  // 仅管理员可见
+        },
+        {
+          id: 'groups',
+          label: '权限组',
+          icon: '<svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>',
+          permission: 'admin'  // 仅管理员可见
+        },
+        {
+          id: 'logs',
+          label: '日志',
+          icon: '<svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>',
+          permission: 'admin'  // 仅管理员可见
+        },
+        {
+          id: 'health',
+          label: '状态',
+          icon: '<svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>',
+          permission: 'all'    // 所有用户可见
+        },
+        {
+          id: 'profile',
+          label: '资料',
+          icon: '<svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>',
+          permission: 'all'    // 所有用户可见
+        },
+        {
+          id: 'sessions',
+          label: '会话',
+          icon: '<svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
+          permission: 'all'    // 所有用户可见
+        },
+        {
+          id: 'messages',
+          label: '留言',
+          icon: '<svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>',
+          permission: 'all'    // 所有用户可见
+        }
+      ];
+      
+      // 根据用户权限过滤标签页
+      // 管理员(admin/superadmin)可以看到所有标签页
+      // 普通用户(user)只能看到permission为'all'的标签页
+      const visibleTabs = allTabs.filter(tab => {
+        if (tab.permission === 'all') return true;
+        if (tab.permission === 'admin' && (userGroup === 'admin' || userGroup === 'superadmin')) return true;
+        return false;
+      });
+      
+      // 清空标签页导航容器（防止重复创建）
+      tabsNav.innerHTML = '';
+      
+      // 为每个可见的标签页创建按钮
+      visibleTabs.forEach((tab, index) => {
+        // 创建标签按钮元素
+        const button = document.createElement('button');
+        // 第一个标签页设置为激活状态（蓝色高亮）
+        const isActive = index === 0;
+        // 设置按钮的CSS类名，激活状态使用蓝色，非激活使用灰色
+        button.className = `px-4 py-2 font-semibold text-xs whitespace-nowrap rounded-lg transition ${
+          isActive 
+            ? 'text-sky-600 bg-sky-50 border-b-2 border-sky-600' 
+            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+        }`;
+        // 设置按钮的HTML内容（包含图标和标签文本）
+        button.innerHTML = `${tab.icon}${tab.label}`;
+        // 绑定点击事件：切换到对应的标签页内容
+        button.onclick = () => switchMobileAdminTab(tab.id, prefix);
+        // 将按钮添加到标签页导航容器
+        tabsNav.appendChild(button);
+      });
+      
+      // 默认显示第一个标签页的内容
+      if (visibleTabs.length > 0) {
+        switchMobileAdminTab(visibleTabs[0].id, prefix);
+      }
+    }
+
+    /**
+     * 切换移动端管理面板的标签页
+     * @param {string} tabId - 标签页ID（如'users', 'groups', 'logs'等）
+     * @param {string} prefix - 面板前缀（'mobile-admin'或'mobile-multi-admin'）
+     * 
+     * 功能说明：
+     * - 更新标签页按钮的激活状态（高亮当前标签页）
+     * - 根据tabId加载对应的内容到内容区域
+     * - 调用PC端的数据加载函数（如loadAdminUsers、loadAdminLogs等）
+     */
+    function switchMobileAdminTab(tabId, prefix) {
+      // 根据前缀确定容器ID
+      const tabsNavId = prefix === 'mobile-multi-admin' ? 'mobile-multi-admin-tabs-nav' : 'mobile-admin-tabs-nav';
+      const contentId = prefix === 'mobile-multi-admin' ? 'mobile-multi-admin-panel-content' : 'mobile-admin-panel-content';
+      
+      // 获取标签页导航容器和内容容器
+      const tabsNav = document.getElementById(tabsNavId);
+      const content = document.getElementById(contentId);
+      
+      if (!tabsNav || !content) {
+        console.error('[移动端管理面板] 找不到容器元素');
+        return;
+      }
+      
+      // 更新标签页按钮的激活状态
+      // 遍历所有标签按钮，更新样式
+      Array.from(tabsNav.children).forEach(button => {
+        // 获取按钮文本，用于判断是否是当前标签页
+        const buttonText = button.textContent.trim();
+        const tabMap = {
+          '用户': 'users',
+          '权限组': 'groups',
+          '日志': 'logs',
+          '状态': 'health',
+          '资料': 'profile',
+          '会话': 'sessions',
+          '留言': 'messages'
+        };
+        const buttonTabId = tabMap[buttonText];
+        
+        // 如果是当前标签页，设置为激活样式（蓝色高亮）
+        if (buttonTabId === tabId) {
+          button.className = 'px-4 py-2 font-semibold text-xs whitespace-nowrap rounded-lg transition text-sky-600 bg-sky-50 border-b-2 border-sky-600';
+        } else {
+          // 否则设置为非激活样式（灰色）
+          button.className = 'px-4 py-2 font-semibold text-xs whitespace-nowrap rounded-lg transition text-slate-400 hover:text-slate-600 hover:bg-slate-50';
+        }
+      });
+      
+      // 显示加载中提示
+      content.innerHTML = '<p class="text-slate-400 text-center py-10 text-sm">加载中...</p>';
+      
+      // 根据标签页ID调用对应的加载函数
+      // 这些加载函数会从后端API获取数据并渲染到页面
+      switch (tabId) {
+        case 'users':
+          // 加载用户列表
+          // 使用PC端的loadAdminUsers函数，该函数会将数据填充到#admin-users-list_modal
+          // 移动端需要将内容复制到移动端容器
+          loadAdminUsers();
+          // 延迟复制内容，确保PC端加载完成
+          setTimeout(() => copyAdminContentToMobile('users', contentId), 500);
+          break;
+        case 'groups':
+          // 加载权限组列表
+          loadAdminGroups();
+          setTimeout(() => copyAdminContentToMobile('groups', contentId), 500);
+          break;
+        case 'logs':
+          // 加载系统日志
+          loadAdminLogs(1);  // 加载第1页日志
+          setTimeout(() => copyAdminContentToMobile('logs', contentId), 500);
+          break;
+        case 'health':
+          // 加载系统健康状态
+          loadHealthStatus();
+          setTimeout(() => copyAdminContentToMobile('health', contentId), 500);
+          break;
+        case 'profile':
+          // 加载个人信息
+          loadPersonalInfo();
+          setTimeout(() => copyAdminContentToMobile('profile', contentId), 500);
+          break;
+        case 'sessions':
+          // 加载会话列表
+          loadAdminSessions();
+          setTimeout(() => copyAdminContentToMobile('sessions', contentId), 500);
+          break;
+        case 'messages':
+          // 加载留言板
+          loadMessages();
+          setTimeout(() => copyAdminContentToMobile('messages', contentId), 500);
+          break;
+        default:
+          content.innerHTML = '<p class="text-slate-400 text-center py-10 text-sm">未知的标签页</p>';
+      }
+    }
+
+    /**
+     * 将PC端管理面板的内容复制到移动端容器
+     * @param {string} tabType - 标签页类型（users/groups/logs等）
+     * @param {string} mobileContentId - 移动端内容容器的ID
+     * 
+     * 功能说明：
+     * - 从PC端的管理面板容器获取已加载的内容
+     * - 复制HTML内容到移动端容器
+     * - 适配移动端样式（缩小字体、调整间距等）
+     */
+    function copyAdminContentToMobile(tabType, mobileContentId) {
+      // 定义PC端容器ID映射
+      const pcContainerMap = {
+        'users': 'admin-users-panel_modal',
+        'groups': 'admin-groups-panel_modal',
+        'logs': 'admin-logs-panel_modal',
+        'health': 'admin-health-panel_modal',
+        'profile': 'admin-profile-panel_modal',
+        'sessions': 'admin-sessions-panel_modal',
+        'messages': 'admin-messages-panel_modal'
+      };
+      
+      // 获取PC端容器
+      const pcContainerId = pcContainerMap[tabType];
+      const pcContainer = document.getElementById(pcContainerId);
+      const mobileContainer = document.getElementById(mobileContentId);
+      
+      if (!pcContainer || !mobileContainer) {
+        console.error(`[移动端管理面板] 找不到容器: PC=${pcContainerId}, Mobile=${mobileContentId}`);
+        mobileContainer.innerHTML = '<p class="text-red-500 text-center py-10 text-sm">加载失败</p>';
+        return;
+      }
+      
+      // 克隆PC端内容到移动端
+      // 使用cloneNode(true)深度克隆，包含所有子元素和事件监听器
+      mobileContainer.innerHTML = pcContainer.innerHTML;
+      
+      // 移动端样式调整：缩小字体、调整间距
+      mobileContainer.querySelectorAll('button').forEach(btn => {
+        // 缩小按钮的内边距和字体
+        btn.classList.add('!text-xs', '!py-1', '!px-2');
+      });
+      mobileContainer.querySelectorAll('h4, h5').forEach(heading => {
+        // 缩小标题字体
+        heading.classList.add('!text-sm');
+      });
+    }
+
+    /**
+     * 【移动端多账号操作】增强函数
+     * 功能：账号列表的批量操作（导入、导出、刷新、删除等）
+     */
+    
+    /**
+     * 添加选中的配置文件到多账号列表
+     * 
+     * 功能说明：
+     * - 从配置文件选择器获取当前选中的配置
+     * - 调用PC端的多账号添加函数
+     * - 更新移动端账号列表显示
+     */
+    function addMobileSelectedConfig() {
+      // 获取配置文件选择器元素
+      const select = document.getElementById('multi-config-user-select');
+      if (!select || !select.value) {
+        showTempMessage('请先选择要添加的配置文件', 'error');
+        return;
+      }
+      
+      try {
+        // 调用PC端的添加函数（该函数会从select中读取选中的配置）
+        multi_addFromConfig();
+        showTempMessage('配置已添加', 'success');
+      } catch (error) {
+        console.error('[移动端] 添加配置失败:', error);
+        showTempMessage('添加配置失败', 'error');
+      }
+    }
+
+    /**
+     * 添加所有配置文件到多账号列表
+     * 
+     * 功能说明：
+     * - 遍历配置文件选择器中的所有选项
+     * - 逐个添加到多账号列表
+     * - 显示添加进度和结果
+     */
+    async function addMobileAllConfigs() {
+      // 获取配置文件选择器元素
+      const select = document.getElementById('multi-config-user-select');
+      if (!select) {
+        showTempMessage('找不到配置文件选择器', 'error');
+        return;
+      }
+      
+      // 获取所有配置选项（排除第一个空选项）
+      const options = Array.from(select.options).filter(opt => opt.value);
+      if (options.length === 0) {
+        showTempMessage('没有可添加的配置文件', 'error');
+        return;
+      }
+      
+      try {
+        showTempMessage(`正在添加 ${options.length} 个配置...`, 'info');
+        
+        // 逐个添加配置
+        for (const option of options) {
+          select.value = option.value;  // 设置当前选项
+          await multi_addFromConfig();  // 添加配置
+          // 短暂延迟，避免请求过快
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        showTempMessage(`已添加 ${options.length} 个配置`, 'success');
+        // 刷新账号列表显示
+        await mobileRefreshMultiAccounts();
+      } catch (error) {
+        console.error('[移动端] 批量添加配置失败:', error);
+        showTempMessage('批量添加配置失败', 'error');
+      }
+    }
+
+    /**
+     * 导入账号列表
+     * 
+     * 功能说明：
+     * - 调用PC端的导入功能
+     * - 从JSON文件导入账号配置
+     */
+    function importMobileAccountList() {
+      try {
+        // 调用PC端的导入函数
+        if (typeof importMultiAccountList === 'function') {
+          importMultiAccountList();
+        } else {
+          showTempMessage('导入功能未实现', 'error');
+        }
+      } catch (error) {
+        console.error('[移动端] 导入账号列表失败:', error);
+        showTempMessage('导入失败', 'error');
+      }
+    }
+
+    /**
+     * 导出账号列表
+     * 
+     * 功能说明：
+     * - 调用PC端的导出功能
+     * - 将当前账号列表导出为JSON文件
+     */
+    function exportMobileAccountList() {
+      try {
+        // 调用PC端的导出函数
+        if (typeof exportMultiAccountList === 'function') {
+          exportMultiAccountList();
+        } else {
+          showTempMessage('导出功能未实现', 'error');
+        }
+      } catch (error) {
+        console.error('[移动端] 导出账号列表失败:', error);
+        showTempMessage('导出失败', 'error');
+      }
+    }
+
+    /**
+     * 刷新选中的账号
+     * 
+     * 功能说明：
+     * - 获取所有选中的账号
+     * - 调用后端API刷新这些账号的状态
+     */
+    async function mobileRefreshSelectedAccounts() {
+      try {
+        // 获取所有选中的账号复选框
+        const selected = document.querySelectorAll('#mobile-multi-account-list input[type="checkbox"]:checked');
+        if (selected.length === 0) {
+          showTempMessage('请先选择要刷新的账号', 'error');
+          return;
+        }
+        
+        showTempMessage(`正在刷新 ${selected.length} 个账号...`, 'info');
+        // 调用PC端的刷新选中账号函数
+        if (typeof multi_refreshSelected === 'function') {
+          await multi_refreshSelected();
+          showTempMessage('已刷新选中账号', 'success');
+        } else {
+          showTempMessage('刷新功能未实现', 'error');
+        }
+      } catch (error) {
+        console.error('[移动端] 刷新选中账号失败:', error);
+        showTempMessage('刷新失败', 'error');
+      }
+    }
+
+    /**
+     * 删除选中的账号
+     * 
+     * 功能说明：
+     * - 获取所有选中的账号
+     * - 弹出确认对话框
+     * - 调用后端API删除这些账号
+     */
+    async function deleteMobileSelectedAccounts() {
+      try {
+        // 获取所有选中的账号复选框
+        const selected = document.querySelectorAll('#mobile-multi-account-list input[type="checkbox"]:checked');
+        if (selected.length === 0) {
+          showTempMessage('请先选择要删除的账号', 'error');
+          return;
+        }
+        
+        // 显示确认对话框
+        showMobileConfirm(
+          '确认删除',
+          `确定要删除选中的 ${selected.length} 个账号吗？`,
+          async () => {
+            try {
+              // 调用PC端的删除选中账号函数
+              if (typeof multi_removeSelected === 'function') {
+                await multi_removeSelected();
+                showTempMessage('已删除选中账号', 'success');
+                // 刷新账号列表
+                await mobileRefreshMultiAccounts();
+              } else {
+                showTempMessage('删除功能未实现', 'error');
+              }
+            } catch (error) {
+              console.error('[移动端] 删除选中账号失败:', error);
+              showTempMessage('删除失败', 'error');
+            }
+          }
+        );
+      } catch (error) {
+        console.error('[移动端] 删除选中账号失败:', error);
+        showTempMessage('删除失败', 'error');
+      }
+    }
+
+    /**
+     * 删除所有账号
+     * 
+     * 功能说明：
+     * - 弹出确认对话框
+     * - 调用后端API删除所有账号
+     * - 清空账号列表显示
+     */
+    async function deleteMobileAllAccounts() {
+      try {
+        // 显示确认对话框
+        showMobileConfirm(
+          '确认删除',
+          '确定要删除所有账号吗？此操作不可恢复！',
+          async () => {
+            try {
+              // 调用PC端的删除所有账号函数
+              if (typeof multi_clearAll === 'function') {
+                await multi_clearAll();
+                showTempMessage('已删除所有账号', 'success');
+                // 刷新账号列表
+                await mobileRefreshMultiAccounts();
+              } else {
+                showTempMessage('删除功能未实现', 'error');
+              }
+            } catch (error) {
+              console.error('[移动端] 删除所有账号失败:', error);
+              showTempMessage('删除失败', 'error');
+            }
+          }
+        );
+      } catch (error) {
+        console.error('[移动端] 删除所有账号失败:', error);
+        showTempMessage('删除失败', 'error');
+      }
+    }
+
+    /**
+     * 【移动端全局设置】函数
+     * 功能：保存全局参数设置
+     */
+    
+    /**
+     * 保存移动端多账号全局设置
+     * 
+     * 功能说明：
+     * - 从全局参数表单收集所有参数值
+     * - 调用后端API保存到配置文件
+     * - 显示保存结果
+     */
+    function saveMobileMultiGlobalSettings() {
+      try {
+        // 获取全局参数容器
+        const container = document.getElementById('mobile-multi-global-params-container');
+        if (!container) {
+          showTempMessage('找不到全局参数容器', 'error');
+          return;
+        }
+        
+        // 收集所有参数值
+        const params = {};
+        container.querySelectorAll('input, select, textarea').forEach(input => {
+          const key = input.dataset.key;
+          if (!key) return;
+          
+          // 根据输入类型获取值
+          if (input.type === 'checkbox') {
+            params[key] = input.checked;
+          } else if (input.type === 'number') {
+            params[key] = parseFloat(input.value) || 0;
+          } else {
+            params[key] = input.value;
+          }
+        });
+        
+        // 调用API保存参数
+        if (typeof callPythonAPI === 'function') {
+          Object.keys(params).forEach(key => {
+            callPythonAPI('update_param', key, params[key]);
+          });
+          showTempMessage('全局设置已保存', 'success');
+          console.log('[移动端] 全局参数已保存:', params);
+        } else {
+          showTempMessage('API不可用', 'error');
+        }
+      } catch (error) {
+        console.error('[移动端] 保存全局设置失败:', error);
+        showTempMessage('保存失败', 'error');
+      }
+    }
+
+    /**
+     * 【移动端全局日志】函数
+     * 功能：日志显示和操作
+     */
+    
+    /**
+     * 清空移动端多账号全局日志
+     * 
+     * 功能说明：
+     * - 清空移动端日志显示区域
+     * - 同时清空PC端的日志显示（如果存在）
+     */
+    function clearMobileMultiLog() {
+      try {
+        // 获取移动端日志文本框
+        const mobileLog = document.getElementById('mobile-multi-log-text');
+        if (mobileLog) {
+          mobileLog.value = '';
+        }
+        
+        // 同时清空PC端日志（保持同步）
+        const pcLog = document.getElementById('multi-log-text');
+        if (pcLog) {
+          pcLog.value = '';
+        }
+        
+        showTempMessage('日志已清空', 'success');
+      } catch (error) {
+        console.error('[移动端] 清空日志失败:', error);
+        showTempMessage('清空日志失败', 'error');
+      }
+    }
+
+    /**
+     * 滚动移动端多账号日志到底部
+     * 
+     * 功能说明：
+     * - 将日志文本框滚动到最底部
+     * - 用于快速查看最新的日志内容
+     */
+    function scrollMobileMultiLogToBottom() {
+      try {
+        // 获取移动端日志文本框
+        const mobileLog = document.getElementById('mobile-multi-log-text');
+        if (mobileLog) {
+          // 设置scrollTop为scrollHeight，即滚动到底部
+          mobileLog.scrollTop = mobileLog.scrollHeight;
+        }
+      } catch (error) {
+        console.error('[移动端] 滚动日志失败:', error);
+      }
+    }
+
+    /**
+     * 同步PC端日志到移动端
+     * 
+     * 功能说明：
+     * - 定期检查PC端日志是否有更新
+     * - 如果有更新，同步到移动端日志显示
+     * - 实现日志的实时同步
+     */
+    function syncMultiLogToMobile() {
+      try {
+        // 获取PC端和移动端的日志文本框
+        const pcLog = document.getElementById('multi-log-text');
+        const mobileLog = document.getElementById('mobile-multi-log-text');
+        
+        // 检查两个元素是否都存在
+        if (pcLog && mobileLog) {
+          // 如果PC端日志内容与移动端不同，进行同步
+          if (pcLog.value !== mobileLog.value) {
+            mobileLog.value = pcLog.value;
+            // 可选：自动滚动到底部显示最新日志
+            // mobileLog.scrollTop = mobileLog.scrollHeight;
+          }
+        }
+      } catch (error) {
+        console.error('[移动端] 同步日志失败:', error);
+      }
+    }
+
+    // 启动日志同步定时器（每1秒同步一次）
+    // 当移动端日志面板可见时，定期从PC端同步日志内容
+    setInterval(syncMultiLogToMobile, 1000);
+
+    console.log('[移动端] Phase 4d功能已加载完成');
 
     // ==================== Phase 4c - 移动端面板交互增强 ====================
     
