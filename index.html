@@ -4696,6 +4696,39 @@
           </div>
         </div>
 
+
+        <!-- ========================================
+             【问题15&18修复】【管理面板】- 单账号模式管理面板
+             - 将模态框改为面板形式
+             - 显示用户管理、密码管理、2FA设置等功能
+             - 与PC端管理面板功能对等
+             ======================================== -->
+        <div class="mobile-card hidden" id="mobile-admin-panel">
+          <!-- 面板头部 - 标题和图标 -->
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-sky-100">
+            <!-- 管理图标：齿轮图标 -->
+            <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+              </path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
+              </path>
+            </svg>
+            <h3 class="text-xl font-bold text-sky-600">管理面板</h3>
+          </div>
+
+          <!-- 标签页导航 - 横向滚动支持 -->
+          <div id="mobile-admin-tabs-nav-panel" class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 mb-4" style="scrollbar-width: none;">
+            <!-- 标签页按钮将由JavaScript动态创建和管理 -->
+          </div>
+
+          <!-- 管理面板内容区域 - 由JavaScript动态填充 -->
+          <div id="mobile-admin-panel-content-panel" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto">
+            <p class="text-slate-400 text-center py-10">加载中...</p>
+          </div>
+        </div>
+
+
         <!-- ========================================
              【我的资料面板】- 移动端个人信息管理
              - 100%复刻PC端 admin-profile-panel_modal 功能
@@ -5044,7 +5077,8 @@
           <!-- 批量操作按钮组 -->
           <div class="mt-4 pt-3 border-t border-slate-100 space-y-2">
             <!-- 第一行：导入导出和刷新 -->
-            <div class="grid grid-cols-3 gap-2">
+            <!-- 【问题8修复】添加下载模板按钮 -->
+            <div class="grid grid-cols-4 gap-2">
               <button
                 class="py-2 px-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100 transition flex items-center justify-center gap-1"
                 onclick="importMobileAccountList()">
@@ -5062,12 +5096,20 @@
                 导出
               </button>
               <button
+                class="py-2 px-2 bg-amber-50 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-100 transition flex items-center justify-center gap-1"
+                onclick="downloadMobileAccountTemplate()">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                模板
+              </button>
+              <button
                 class="py-2 px-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 transition flex items-center justify-center gap-1"
                 onclick="mobileRefreshSelectedAccounts()">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                刷新选中
+                刷新
               </button>
             </div>
             <!-- 第二行：删除操作 -->
@@ -5115,7 +5157,8 @@
           </div>
 
           <!-- 批量操作按钮 -->
-          <div class="grid grid-cols-2 gap-3">
+          <!-- 【问题6修复-部分1】删除"删除选中"按钮，保留启动、停止、刷新三个按钮 -->
+          <div class="grid grid-cols-3 gap-3">
             <button
               class="py-3 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2"
               onclick="mobileStartAllAccounts()">
@@ -5147,16 +5190,6 @@
               </svg>
               全部刷新
             </button>
-
-            <button
-              class="py-3 px-4 bg-gradient-to-r from-slate-400 to-slate-500 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2"
-              onclick="mobileRemoveSelectedAccounts()">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              删除选中
-            </button>
           </div>
 
           <!-- 统计信息 -->
@@ -5176,20 +5209,23 @@
           </div>
 
           <!-- ========== 批量执行选项 ========== -->
-          <!-- 多账号批量执行时的额外控制选项 -->
+          <!-- 【问题6修复-部分2】优化批量执行选项
+               修复内容：
+               1. 删除"mobile-multi-delay-input"输入框
+               2. 添加"启用随机启动延迟"复选框，默认选中
+               3. 随机延迟范围改为0-300秒（原来是0-60秒）
+               4. "仅执行未完成的任务"复选框默认选中
+          -->
           <div class="mt-4 pt-3 border-t border-slate-100 space-y-3">
-            <!-- 延迟设置 - 控制账号启动间隔，避免同时启动造成服务器压力 -->
-            <div class="flex items-center gap-3">
-              <label class="text-sm text-slate-700 font-semibold flex-shrink-0">启动延迟</label>
-              <input type="number" step="1" min="0" max="60" id="mobile-multi-delay-input"
-                class="flex-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
-                placeholder="秒" value="2" title="每个账号启动之间的延迟时间（秒）">
-              <span class="text-xs text-slate-500 flex-shrink-0">秒</span>
-            </div>
+            <!-- 启用随机启动延迟复选框 - 默认启用 -->
+            <label class="flex items-center gap-2 cursor-pointer p-2 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
+              <input type="checkbox" id="mobile-multi-random-delay-check" checked class="w-4 h-4 accent-orange-600 rounded flex-shrink-0">
+              <span class="text-sm text-slate-700 font-semibold">启用随机启动延迟（0-300秒）</span>
+            </label>
             
-            <!-- 仅未完成复选框 - 只启动未完成的任务 -->
+            <!-- 仅未完成复选框 - 默认启用，只启动未完成的任务 -->
             <label class="flex items-center gap-2 cursor-pointer p-2 bg-amber-50 rounded-lg hover:bg-amber-100 transition">
-              <input type="checkbox" id="mobile-multi-only-incomplete-check" class="w-4 h-4 accent-orange-600 rounded flex-shrink-0">
+              <input type="checkbox" id="mobile-multi-only-incomplete-check" checked class="w-4 h-4 accent-orange-600 rounded flex-shrink-0">
               <span class="text-sm text-slate-700 font-semibold">仅启动未完成任务</span>
             </label>
           </div>
@@ -5273,6 +5309,36 @@
           </div>
         </div>
 
+        <!-- ========================================
+             【问题4修复】管理面板 - 多账号模式管理面板
+             修复前问题：管理菜单项打开的是模态框
+             修复方案：创建一个真正的面板，对应PC端的管理面板功能
+             ======================================== -->
+        <div class="mobile-card hidden" id="mobile-multi-admin-panel">
+          <!-- 面板头部 - 标题和图标 -->
+          <div class="flex items-center gap-2 mb-4 pb-3 border-b border-sky-100">
+            <!-- 管理图标 -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-sky-600" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <h3 class="text-xl font-bold text-sky-700">管理面板</h3>
+          </div>
+
+          <!-- 管理面板标签页导航 -->
+          <div id="mobile-multi-admin-tabs" class="flex gap-2 mb-4 overflow-x-auto pb-2">
+            <!-- 标签页按钮将由JavaScript动态创建 -->
+          </div>
+
+          <!-- 管理面板内容区域 - 动态加载管理功能 -->
+          <div id="mobile-multi-admin-content" class="space-y-3 max-h-[60vh] overflow-y-auto">
+            <!-- 管理面板内容将由JavaScript动态填充 -->
+            <p class="text-slate-400 text-center py-8 text-sm">请选择管理功能标签页</p>
+          </div>
+        </div>
+
         <!-- 移动端-多账号-全局日志面板 -->
         <div class="mobile-card hidden" id="mobile-multi-log-panel">
           <!-- 面板头部 - 标题和图标 -->
@@ -5289,8 +5355,16 @@
           <div class="bg-slate-900 rounded-lg p-3 max-h-[60vh] overflow-y-auto">
             <!-- 只读文本框用于显示多账号全局日志 -->
             <!-- 此日志框会实时同步显示来自后端的多账号运行日志 -->
+            <!-- 【问题2&3修复】日志文本框样式优化
+                 修复前问题：
+                 - 问题2: 使用黑底绿字(bg-transparent + text-green-400)，不符合设计要求
+                 - 问题3: 高度太小(min-h-[50vh])，显示内容不足
+                 修复方案：
+                 - 改为普通白色背景 + 黑色文字 + 边框
+                 - 增加高度到70vh，提供更大的日志显示空间
+            -->
             <textarea id="mobile-multi-log-text" readonly 
-              class="w-full bg-transparent text-green-400 font-mono text-xs border-none resize-none outline-none min-h-[50vh]"
+              class="w-full bg-white text-slate-800 font-mono text-xs border border-slate-300 rounded-lg resize-none outline-none min-h-[70vh] p-3"
               placeholder="等待日志输出..."></textarea>
           </div>
 
@@ -6054,8 +6128,8 @@
           <span>签到</span>
         </a>
 
-        <!-- 6. 管理菜单项 - 打开管理面板模态框 -->
-        <a href="#" class="mobile-sidebar-item" onclick="toggleMobileAdminPanel(true); closeMobileSidebar(); return false;">
+        <!-- 6. 【问题15&18修复】管理菜单项 - 切换到管理面板（改为面板而非模态框） -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-admin-panel', 'single'); closeMobileSidebar(); return false;">
           <!-- 管理图标：齿轮/设置图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6076,7 +6150,8 @@
         </a>
 
         <!-- 8. 我的资料菜单项 - 切换到个人资料面板 -->
-        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-profile-panel', 'single'); closeMobileSidebar(); return false;">
+        <!-- 【问题17修复】隐藏"我的资料"菜单项，因为该功能已包含在管理面板里 -->
+        <a href="#" class="mobile-sidebar-item hidden" onclick="switchMobilePanel('mobile-profile-panel', 'single'); closeMobileSidebar(); return false;">
           <!-- 用户图标：用户头像图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -6153,8 +6228,9 @@
           <span>账号</span>
         </a>
 
-        <!-- 4. 管理菜单项 - 打开管理面板模态框 -->
-        <a href="#" class="mobile-sidebar-item" onclick="toggleMobileAdminPanel(true); closeMobileSidebar(); return false;">
+        <!-- 4. 管理菜单项 - 切换到管理面板 -->
+        <!-- 【问题4修复】修改管理菜单项，切换到管理面板而不是打开模态框 -->
+        <a href="#" class="mobile-sidebar-item" onclick="switchMobilePanel('mobile-multi-admin-panel', 'multi'); closeMobileSidebar(); return false;">
           <!-- 管理图标：齿轮/设置图标 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -8565,11 +8641,17 @@
           $('mobile-main-app').classList.remove('hidden');
           updateMobileNavVisibility(true, 'single');
           console.log('[UI切换] PC端main-app可见，显示移动端mobile-main-app');
+          // 【问题13修复】默认激活mobile-control-panel
+          switchMobilePanel('mobile-control-panel', 'single');
+          console.log('[UI切换] 已默认激活mobile-control-panel');
         } else if (desktopMultiAccountVisible) {
           // PC端显示multi-account-app，则移动端显示mobile-multi-account-app
           $('mobile-multi-account-app').classList.remove('hidden');
           updateMobileNavVisibility(true, 'multi');
           console.log('[UI切换] PC端multi-account-app可见，显示移动端mobile-multi-account-app');
+          // 默认激活多账号模式的控制面板
+          switchMobilePanel('mobile-multi-control-panel', 'multi');
+          console.log('[UI切换] 已默认激活mobile-multi-control-panel');
         } else if (desktopLoginVisible) {
           // PC端显示login-container，则移动端显示mobile-login-container
           $('mobile-login-container').classList.remove('hidden');
@@ -9105,6 +9187,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       }
 
       // === 9.6. 绑定移动端用户名输入框，实现与下拉框的联动 ===
+      // 【问题11修复】添加UA标签更新逻辑
       const mobileUsernameEntry = document.getElementById('mobile-username-entry');
       if (mobileUsernameEntry && mobileUserCombo) {
         mobileUsernameEntry.addEventListener('input', async function () {
@@ -9117,16 +9200,28 @@ function run_code_not_need_sessionuuid(codeToRun) {
           const mobilePasswordEntry = document.getElementById('mobile-password-entry');
           if (mobilePasswordEntry) mobilePasswordEntry.value = '';
 
-          // 如果用户存在，加载其密码
+          // 如果用户存在，加载其密码和UA
           if (exists && username) {
             try {
               const data = await callPythonAPI('on_user_selected', username);
-              if (data && data.password && mobilePasswordEntry) {
-                mobilePasswordEntry.value = data.password;
+              if (data) {
+                // 填充密码
+                if (data.password && mobilePasswordEntry) {
+                  mobilePasswordEntry.value = data.password;
+                }
+                // 【问题11修复关键】更新UA标签
+                if (data.ua) {
+                  syncUAToMobile(data.ua);
+                } else {
+                  syncUAToMobile('(新用户将在登录时自动生成)');
+                }
               }
             } catch (error) {
               console.error('[Mobile] 获取用户数据失败:', error);
             }
+          } else {
+            // 用户不存在或为空，清空UA标签
+            syncUAToMobile('(未加载)');
           }
         });
       }
@@ -9351,6 +9446,16 @@ function run_code_not_need_sessionuuid(codeToRun) {
     /**
      * 移动端用户下拉框change事件处理
      */
+    /**
+     * 【问题10修复】移动端用户下拉框变化处理函数
+     * 修复内容：当mobile-user-combo发生变化时，自动更新mobile-ua-label
+     * 
+     * 功能说明：
+     * - 当用户从下拉框选择用户时触发
+     * - 同步用户名到输入框
+     * - 加载用户密码
+     * - 加载并更新UA标签
+     */
     async function onMobileUserChange() {
       const mobileUserCombo = document.getElementById('mobile-user-combo');
       const mobileUsernameEntry = document.getElementById('mobile-username-entry');
@@ -9373,12 +9478,24 @@ function run_code_not_need_sessionuuid(codeToRun) {
       if (username) {
         try {
           const data = await callPythonAPI('on_user_selected', username);
-          if (data && data.password && mobilePasswordEntry) {
-            mobilePasswordEntry.value = data.password;
+          if (data) {
+            // 填充密码
+            if (data.password && mobilePasswordEntry) {
+              mobilePasswordEntry.value = data.password;
+            }
+            // 【问题10修复关键】更新UA标签
+            if (data.ua) {
+              syncUAToMobile(data.ua);
+            } else {
+              syncUAToMobile('(新用户将在登录时自动生成)');
+            }
           }
         } catch (error) {
           console.error('[Mobile] 获取用户数据失败:', error);
         }
+      } else {
+        // 清空UA标签
+        syncUAToMobile('(未加载)');
       }
     }
 
@@ -20046,7 +20163,125 @@ function run_code_not_need_sessionuuid(codeToRun) {
         item.addEventListener('click', () => selectTask(index));
         taskListDiv.appendChild(item);
       });
+      
+      // 【问题14修复】同步渲染移动端任务列表
+      // 在PC端任务列表渲染完成后，自动同步到移动端
+      renderMobileTaskList();
     }
+
+    /**
+     * 【问题14修复】渲染移动端任务列表
+     * 
+     * 功能说明：
+     * - 将currentTasks数组中的任务数据渲染到移动端任务列表容器
+     * - 与PC端renderTaskList功能对等，但使用移动端专属的样式和布局
+     * - 支持任务状态显示、点击选择等交互
+     * - 自动更新任务统计数量
+     */
+    function renderMobileTaskList() {
+      // 获取移动端任务列表容器元素
+      const mobileTaskListDiv = $('mobile-task-list');
+      
+      // 如果容器不存在（例如在PC端模式下），直接返回，不执行渲染
+      if (!mobileTaskListDiv) return;
+      
+      // 清空容器内容，准备重新渲染
+      mobileTaskListDiv.innerHTML = "";
+      
+      // 更新任务统计数量显示
+      const taskCountElem = $('mobile-task-count');
+      if (taskCountElem) {
+        // 显示当前任务总数
+        taskCountElem.textContent = `${currentTasks.length} 个任务`;
+      }
+      
+      // 如果没有任务，显示空状态提示
+      if (currentTasks.length === 0) {
+        mobileTaskListDiv.innerHTML = `<p class="text-slate-400 text-center py-8 text-sm">暂无任务</p>`;
+        return;
+      }
+      
+      // 遍历所有任务，为每个任务创建一个卡片元素
+      currentTasks.forEach((task, index) => {
+        // 创建任务卡片容器
+        const item = document.createElement('div');
+        
+        // 判断路径生成状态：已生成完整路径 > 草稿路径 > 无路径
+        const pathStatus = task.run_coords?.length > 0 ? '已生成' : (task.draft_coords?.length > 0 ? '草稿' : '无路径');
+        
+        // 初始化任务状态相关的变量：样式类、文本、图标
+        let statusClass = 'text-amber-600'; // 默认：未完成状态的黄色
+        let statusText = '未完成';
+        let statusIcon = '🕒'; // 时钟图标表示待处理
+        
+        // 判断任务是否已完成（使用宽松比较，兼容数字1或字符串"1"）
+        if (task.status == 1) {
+          statusClass = 'text-emerald-600'; // 已完成：绿色
+          statusText = '已完成';
+          statusIcon = '✅'; // 对勾图标
+        }
+        
+        // 判断任务是否已过期（优先级最高）
+        if (task.info_text === '已过期') {
+          statusClass = 'text-red-600'; // 已过期：红色
+          statusText = '已过期';
+          statusIcon = '⛔'; // 禁止图标
+        }
+        
+        // 判断任务是否为"未开始"状态（仅针对未完成的任务）
+        if (!(task.status == 1)) {
+          // 如果info_text以"开始于"开头，说明任务尚未到开始时间
+          if (typeof task.info_text === 'string' && task.info_text.startsWith('开始于')) {
+            statusClass = 'text-slate-600'; // 未开始：灰色
+            statusText = '未开始';
+            statusIcon = '⏳'; // 沙漏图标
+          }
+        }
+        
+        // 设置任务卡片的样式类
+        // 移动端卡片使用圆角、边框、点击效果、悬停效果
+        item.className = 'bg-white rounded-lg p-3 border border-slate-200 cursor-pointer transition-all duration-200 hover:shadow-md active:scale-98';
+        
+        // 构建任务卡片的HTML内容
+        item.innerHTML = `
+          <div class="flex items-center justify-between mb-2">
+            <p class="font-semibold text-slate-800 text-sm truncate flex-1">${task.run_name}</p>
+            <span class="text-xs px-2 py-0.5 rounded-full ${
+              pathStatus === '已生成' ? 'bg-green-100 text-green-600' : 
+              pathStatus === '草稿' ? 'bg-yellow-100 text-yellow-600' : 
+              'bg-slate-100 text-slate-500'
+            }">${pathStatus}</span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-medium ${statusClass} flex items-center gap-1">
+              <span>${statusIcon}</span>
+              <span>${statusText}</span>
+            </span>
+            <span class="text-slate-500">${task.info_text || ''}</span>
+          </div>
+        `;
+        
+        // 存储任务索引，用于点击时识别
+        item.dataset.index = index;
+        
+        // 如果任务已完成，降低卡片的不透明度，视觉上区分已完成任务
+        if (task.status === 1) {
+          item.classList.add('opacity-60');
+        }
+        
+        // 如果是当前选中的任务，添加选中状态的样式
+        if (index === selectedTaskIndex) {
+          item.classList.add('ring-2', 'ring-blue-400', 'bg-blue-50');
+        }
+        
+        // 绑定点击事件：点击任务卡片时选择该任务
+        item.addEventListener('click', () => selectTask(index));
+        
+        // 将任务卡片添加到移动端任务列表容器中
+        mobileTaskListDiv.appendChild(item);
+      });
+    }
+
 
     async function forceLoadTaskDataForPolling(taskIndex) {
       if (taskIndex < 0 || taskIndex >= currentTasks.length) return;
@@ -24910,6 +25145,13 @@ function run_code_not_need_sessionuuid(codeToRun) {
     /**
      * 移动端全部启动（多账号）
      */
+    /**
+     * 【问题6修复-部分3】移动端全部启动（多账号）
+     * 修复内容：使用新的复选框参数
+     * - mobile-multi-random-delay-check：启用随机启动延迟
+     * - mobile-multi-only-incomplete-check：仅启动未完成任务
+     * - 随机延迟范围固定为0-300秒
+     */
     async function mobileStartAllAccounts() {
       try {
         const count = parseInt($('multi-account-count')?.textContent || '0', 10);
@@ -24918,8 +25160,29 @@ function run_code_not_need_sessionuuid(codeToRun) {
           return;
         }
         
+        // 从移动端的复选框获取参数
+        const randomDelayCheck = document.getElementById('mobile-multi-random-delay-check');
+        const onlyIncompleteCheck = document.getElementById('mobile-multi-only-incomplete-check');
+        
+        // 是否启用随机延迟
+        const use_delay = randomDelayCheck ? randomDelayCheck.checked : true;
+        // 随机延迟范围固定为0-300秒
+        const min_delay = 0;
+        const max_delay = 300;
+        // 是否仅启动未完成任务
+        const run_only_incomplete = onlyIncompleteCheck ? onlyIncompleteCheck.checked : true;
+        
         showTempMessage(`正在启动全部 ${count} 个账号...`, 'info');
-        await multi_startAll();
+        
+        // 调用后端API启动所有账号
+        const result = await callPythonAPI('multi_start_all_accounts', min_delay, max_delay, use_delay, run_only_incomplete);
+        
+        // 检查API调用结果
+        if (!result || !result.success) {
+          showTempMessage(result?.message || '启动全部账号失败', 'error');
+          return;
+        }
+        
         showTempMessage('已发送全部启动指令', 'success');
       } catch (error) {
         console.error('[移动端] 启动全部账号失败:', error);
@@ -25368,6 +25631,231 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 类似Tab页切换，而不是滚动定位
      * - 更新底部导航栏的激活状态
      */
+    /**
+     * 【问题12修复】初始化移动端地图
+     * 
+     * 功能说明：
+     * - 为移动端地图容器初始化高德地图实例
+     * - 支持单账号模式的mobile-map-container
+     * - 支持多账号模式的mobile-multi-map-container
+     * - 在面板激活时自动调用此函数
+     * 
+     * @param {string} containerId - 地图容器的DOM元素ID
+     * @param {object} mapInstance - 用于存储地图实例的对象（map或multiAccountMap）
+     */
+    function initMobileMap(containerId, isMultiAccount = false) {
+      // 检查地图容器是否存在
+      const container = document.getElementById(containerId);
+      if (!container) {
+        console.warn(`[移动端地图] 容器 ${containerId} 不存在`);
+        return;
+      }
+      
+      // 检查高德地图API是否已加载
+      if (typeof AMapInstance === 'undefined') {
+        console.error('[移动端地图] 高德地图API未加载');
+        // 显示错误提示
+        container.innerHTML = `
+          <div class="absolute inset-0 flex items-center justify-center text-slate-400">
+            <div class="text-center">
+              <svg class="w-12 h-12 mx-auto mb-2 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p class="text-sm">地图加载失败</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+      
+      // 判断是多账号模式还是单账号模式
+      if (isMultiAccount) {
+        // 多账号模式：检查multiAccountMap是否已初始化
+        if (multiAccountMap) {
+          console.log('[移动端地图] 多账号地图已初始化，跳过');
+          return;
+        }
+        
+        console.log(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
+        
+        try {
+          // 创建多账号地图实例
+          multiAccountMap = new AMapInstance.Map(containerId, {
+            zoom: 15, // 缩放级别
+            center: [116.397428, 39.90923], // 默认中心点：北京
+            mapStyle: 'amap://styles/normal' // 地图样式
+          });
+          
+          // 添加控制条（缩放、指南针等）
+          const ctrlBar = new AMapInstance.ControlBar({
+            position: { top: '10px', right: '10px' }
+          });
+          multiAccountMap.addControl(ctrlBar);
+          
+          // 添加3D建筑图层（如果可用）
+          try {
+            const buildings = new AMapInstance.BuildingLayer();
+            buildings.setMap(multiAccountMap);
+          } catch (e) {
+            console.warn('[移动端地图] 3D建筑图层不可用:', e);
+          }
+          
+          console.log('[移动端地图] 多账号地图初始化成功');
+        } catch (error) {
+          console.error('[移动端地图] 多账号地图初始化失败:', error);
+        }
+      } else {
+        // 单账号模式：检查map是否已初始化
+        if (map) {
+          console.log('[移动端地图] 单账号地图已初始化，跳过');
+          return;
+        }
+        
+        console.log(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
+        
+        try {
+          // 创建单账号地图实例
+          map = new AMapInstance.Map(containerId, {
+            zoom: 15,
+            center: [116.397428, 39.90923],
+            mapStyle: 'amap://styles/normal'
+          });
+          
+          // 添加控制条
+          const ctrlBar = new AMapInstance.ControlBar({
+            position: { top: '10px', right: '10px' }
+          });
+          map.addControl(ctrlBar);
+          
+          // 添加3D建筑图层
+          try {
+            const buildings = new AMapInstance.BuildingLayer();
+            buildings.setMap(map);
+          } catch (e) {
+            console.warn('[移动端地图] 3D建筑图层不可用:', e);
+          }
+          
+          console.log('[移动端地图] 单账号地图初始化成功');
+        } catch (error) {
+          console.error('[移动端地图] 单账号地图初始化失败:', error);
+        }
+      }
+    }
+
+
+
+    /**
+     * 【问题12修复】初始化移动端地图
+     * 
+     * 功能说明：
+     * - 为移动端地图容器初始化高德地图实例
+     * - 支持单账号模式的mobile-map-container
+     * - 支持多账号模式的mobile-multi-map-container
+     * - 在面板激活时自动调用此函数
+     * 
+     * @param {string} containerId - 地图容器的DOM元素ID
+     * @param {boolean} isMultiAccount - 是否为多账号模式
+     */
+    function initMobileMap(containerId, isMultiAccount = false) {
+      // 检查地图容器是否存在
+      const container = document.getElementById(containerId);
+      if (!container) {
+        console.warn(`[移动端地图] 容器 ${containerId} 不存在`);
+        return;
+      }
+      
+      // 检查高德地图API是否已加载
+      if (typeof AMapInstance === 'undefined') {
+        console.error('[移动端地图] 高德地图API未加载');
+        container.innerHTML = `
+          <div class="absolute inset-0 flex items-center justify-center text-slate-400">
+            <div class="text-center">
+              <svg class="w-12 h-12 mx-auto mb-2 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p class="text-sm">地图加载失败</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+      
+      // 判断是多账号模式还是单账号模式
+      if (isMultiAccount) {
+        // 多账号模式：检查multiAccountMap是否已初始化
+        if (multiAccountMap) {
+          console.log('[移动端地图] 多账号地图已初始化，跳过');
+          return;
+        }
+        
+        console.log(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
+        
+        try {
+          // 创建多账号地图实例
+          multiAccountMap = new AMapInstance.Map(containerId, {
+            zoom: 15,
+            center: [116.397428, 39.90923],
+            mapStyle: 'amap://styles/normal'
+          });
+          
+          // 添加控制条
+          const ctrlBar = new AMapInstance.ControlBar({
+            position: { top: '10px', right: '10px' }
+          });
+          multiAccountMap.addControl(ctrlBar);
+          
+          // 添加3D建筑图层
+          try {
+            const buildings = new AMapInstance.BuildingLayer();
+            buildings.setMap(multiAccountMap);
+          } catch (e) {
+            console.warn('[移动端地图] 3D建筑图层不可用:', e);
+          }
+          
+          console.log('[移动端地图] 多账号地图初始化成功');
+        } catch (error) {
+          console.error('[移动端地图] 多账号地图初始化失败:', error);
+        }
+      } else {
+        // 单账号模式：检查map是否已初始化
+        if (map) {
+          console.log('[移动端地图] 单账号地图已初始化，跳过');
+          return;
+        }
+        
+        console.log(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
+        
+        try {
+          // 创建单账号地图实例
+          map = new AMapInstance.Map(containerId, {
+            zoom: 15,
+            center: [116.397428, 39.90923],
+            mapStyle: 'amap://styles/normal'
+          });
+          
+          // 添加控制条
+          const ctrlBar = new AMapInstance.ControlBar({
+            position: { top: '10px', right: '10px' }
+          });
+          map.addControl(ctrlBar);
+          
+          // 添加3D建筑图层
+          try {
+            const buildings = new AMapInstance.BuildingLayer();
+            buildings.setMap(map);
+          } catch (e) {
+            console.warn('[移动端地图] 3D建筑图层不可用:', e);
+          }
+          
+          console.log('[移动端地图] 单账号地图初始化成功');
+        } catch (error) {
+          console.error('[移动端地图] 单账号地图初始化失败:', error);
+        }
+      }
+    }
+
     function switchMobilePanel(panelId, mode = 'single') {
       // 根据模式定义面板列表
       const singleModePanels = [
@@ -25377,6 +25865,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-notification-panel',
         'mobile-log-panel',            // 新增：日志面板
         'mobile-attendance-panel',
+        'mobile-admin-panel',          // 【问题15&18修复】新增：管理面板
         'mobile-settings-panel',
         'mobile-profile-panel'         // 新增：我的资料面板
       ];
@@ -25385,6 +25874,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
         'mobile-multi-account-panel',
         'mobile-multi-map-panel',
         'mobile-multi-control-panel',
+        'mobile-multi-admin-panel',    // 【问题4修复】添加管理面板
         'mobile-multi-settings-panel',
         'mobile-multi-log-panel'       // 新增：全局日志面板
       ];
@@ -25404,6 +25894,71 @@ function run_code_not_need_sessionuuid(codeToRun) {
       const targetPanel = document.getElementById(panelId);
       if (targetPanel) {
         targetPanel.classList.remove('hidden');
+        
+        // 【问题16修复】设置面板激活时自动加载配置
+        // 当切换到设置面板时，自动调用updateParamInputs填充配置数值
+        if (panelId === 'mobile-settings-panel') {
+          console.log('[移动端] 激活设置面板，开始加载配置...');
+          const mobileParamsContainer = document.getElementById('mobile-params-container');
+          // 检查容器是否存在，且pythonParams全局变量已定义
+          if (mobileParamsContainer && typeof pythonParams !== 'undefined' && typeof updateParamInputs === 'function') {
+            // 调用updateParamInputs函数，将pythonParams的配置数值填充到输入框
+            updateParamInputs(mobileParamsContainer, 'mobile-param', pythonParams);
+            console.log('[移动端] 设置面板配置已自动加载');
+          } else {
+            console.warn('[移动端] 无法加载配置：容器或函数未定义');
+          }
+        }
+        
+        // 【问题16修复】多账号全局设置面板激活时自动加载配置
+        if (panelId === 'mobile-multi-settings-panel') {
+          console.log('[移动端] 激活多账号全局设置面板，开始加载配置...');
+          const mobileMultiParamsContainer = document.getElementById('mobile-multi-global-params-container');
+          if (mobileMultiParamsContainer && typeof pythonParams !== 'undefined' && typeof updateParamInputs === 'function') {
+            updateParamInputs(mobileMultiParamsContainer, 'mobile-multi-param', pythonParams);
+            console.log('[移动端] 多账号全局设置面板配置已自动加载');
+          }
+        }
+        
+        // 【问题12修复】地图面板激活时初始化地图
+        // 当切换到地图面板时，自动初始化高德地图实例
+        if (panelId === 'mobile-map-panel') {
+          console.log('[移动端] 激活地图面板，初始化地图...');
+          // 延迟100ms确保DOM已渲染
+          setTimeout(() => {
+            initMobileMap('mobile-map-container', false);
+            // 如果已有任务数据，重新绘制地图
+            if (currentRunData && typeof drawOnMap === 'function') {
+              drawOnMap();
+            }
+          }, 100);
+        }
+        
+        // 【问题12修复】多账号地图面板激活时初始化地图
+        if (panelId === 'mobile-multi-map-panel') {
+          console.log('[移动端] 激活多账号地图面板，初始化地图...');
+          setTimeout(() => {
+            initMobileMap('mobile-multi-map-container', true);
+            // 刷新多账号地图标记
+            if (typeof refreshMultiAccountMarkers === 'function') {
+              refreshMultiAccountMarkers();
+            }
+          }, 100);
+        }
+        
+        // 【问题15&18修复】管理面板激活时初始化
+        // 当切换到管理面板时，自动初始化管理面板的标签页和内容
+        if (panelId === 'mobile-admin-panel') {
+          console.log('[移动端] 激活管理面板，开始初始化...');
+          // 调用initMobileAdminPanel函数初始化管理面板
+          // 使用'mobile-admin-panel'作为前缀，区别于模态框的'mobile-admin'
+          if (typeof initMobileAdminPanel === 'function') {
+            initMobileAdminPanel('mobile-admin-panel');
+          } else {
+            console.warn('[移动端] initMobileAdminPanel函数未定义');
+          }
+        }
+        
         // 滚动到页面顶部，确保面板从顶部显示
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
@@ -25412,6 +25967,9 @@ function run_code_not_need_sessionuuid(codeToRun) {
 
       // 更新导航栏激活状态
       updateMobileNavActiveState(panelId);
+      
+      // 【问题19修复】同时更新侧边栏菜单项的active状态
+      updateMobileSidebarActive(panelId);
     }
 
     /**
@@ -25491,6 +26049,71 @@ function run_code_not_need_sessionuuid(codeToRun) {
         }
       });
     }
+
+    /**
+     * 【问题19修复】更新移动端侧边栏菜单项的active状态
+     * 
+     * 功能说明：
+     * - 当点击侧边栏菜单项切换面板时，更新菜单项的active样式
+     * - 移除所有菜单项的active类，然后为当前激活的面板对应的菜单项添加active类
+     * - 提供视觉反馈，让用户知道当前处于哪个面板
+     * 
+     * @param {string} panelId - 当前激活的面板ID
+     */
+    function updateMobileSidebarActive(panelId) {
+      // 定义面板ID与侧边栏菜单项文本的映射关系
+      // 用于根据面板ID找到对应的侧边栏菜单项
+      const panelToMenuText = {
+        'mobile-control-panel': '控制台',
+        'mobile-map-panel': '地图',
+        'mobile-task-panel': '任务',
+        'mobile-notification-panel': '通知',
+        'mobile-log-panel': '日志',
+        'mobile-attendance-panel': '签到',
+        'mobile-admin-panel': '管理',
+        'mobile-settings-panel': '设置',
+        'mobile-profile-panel': '我的资料'
+      };
+      
+      // 获取对应的菜单文本
+      const targetMenuText = panelToMenuText[panelId];
+      
+      // 如果找不到对应的菜单文本，直接返回（可能是模态框或其他面板）
+      if (!targetMenuText) {
+        console.log(`[侧边栏active] 面板 ${panelId} 没有对应的侧边栏菜单项`);
+        return;
+      }
+      
+      // 获取所有侧边栏菜单项
+      const sidebarItems = document.querySelectorAll('.mobile-sidebar-item');
+      
+      // 遍历所有菜单项
+      sidebarItems.forEach(item => {
+        // 获取菜单项的文本内容（<span>标签内的文本）
+        const span = item.querySelector('span');
+        if (span) {
+          const menuText = span.textContent.trim();
+          
+          // 如果是目标菜单项，添加active类和视觉效果
+          if (menuText === targetMenuText) {
+            item.classList.add('mobile-sidebar-active');
+            // 添加背景色和文字颜色变化
+            item.style.backgroundColor = 'rgba(59, 130, 246, 0.1)'; // 淡蓝色背景
+            item.style.color = '#3b82f6'; // 蓝色文字
+            item.style.fontWeight = '600'; // 加粗
+          } else {
+            // 其他菜单项移除active类和样式
+            item.classList.remove('mobile-sidebar-active');
+            item.style.backgroundColor = '';
+            item.style.color = '';
+            item.style.fontWeight = '';
+          }
+        }
+      });
+      
+      console.log(`[侧边栏active] 已更新active状态: ${targetMenuText}`);
+    }
+
 
     /**
      * 打开移动端账号参数设置模态框
@@ -25657,6 +26280,14 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * 
      * @param {string} formType - 表单类型 ('login' 或 'register')
      */
+    /**
+     * 【问题1修复】加载移动端验证码 - 复用PC端的验证码HTML和ID
+     * @param {string} formType - 表单类型 ('login' 或 'register')
+     * @description 
+     * 修复前问题：移动端重复调用API生成新的验证码，导致移动端和PC端验证码ID不对应
+     * 修复方案：不再调用API，而是直接复用PC端已经加载的验证码HTML和captcha_id
+     * 这样确保PC端和移动端使用同一个验证码图片和ID
+     */
     async function loadMobileCaptcha(formType) {
       // 根据表单类型确定移动端验证码显示区域的ID
       // 'login' -> 'mobile-login-captcha-display'
@@ -25669,59 +26300,43 @@ function run_code_not_need_sessionuuid(codeToRun) {
         return;
       }
       
-      // 显示加载状态提示
-      displayElement.innerHTML = '<span class="text-slate-400 text-xs">加载中...</span>';
+      // 【修复关键】从PC端获取已经加载的验证码HTML，而不是重新请求API
+      // PC端的验证码显示元素ID：'auth-login-captcha-display' 或 'auth-register-captcha-display'
+      const pcDisplayId = formType === 'login' ? 'auth-login-captcha-display' : 'auth-register-captcha-display';
+      const pcDisplayElement = document.getElementById(pcDisplayId);
       
-      try {
-        // 调用后端API获取验证码
-        // 使用全局的sessionUUID作为会话标识
-        const response = await fetch('/api/captcha/get', {
-          method: 'GET',
-          headers: {
-            'X-Session-ID': sessionUUID
-          }
-        });
-        
-        const result = await response.json();
-        
-        // 检查API返回结果
-        if (result.success && result.html && result.captcha_id) {
-          // 存储验证码ID到全局captchaIds对象
-          // 注意：为了与PC端保持一致，移动端使用相同的formType作为key
-          // 例如：captchaIds['login'] 或 captchaIds['register']
-          if (typeof captchaIds !== 'undefined') {
-            captchaIds[formType] = result.captcha_id;
-          }
-          
-          // 将验证码HTML（包含img标签）插入到显示区域
-          displayElement.innerHTML = result.html;
-          
-          // 为验证码图片添加响应式样式，确保在移动端正确显示
-          const imgElement = displayElement.querySelector('img');
-          if (imgElement) {
-            // 设置图片样式：
-            // - max-width/max-height: 限制图片最大尺寸
-            // - width/height: auto 保持原始宽高比
-            // - object-fit: contain 确保图片完整显示不裁剪
-            // - imageRendering: crisp-edges 优化图片渲染，避免模糊
-            imgElement.style.maxWidth = '100%';
-            imgElement.style.maxHeight = '100%';
-            imgElement.style.width = 'auto';
-            imgElement.style.height = 'auto';
-            imgElement.style.objectFit = 'contain';
-            imgElement.style.imageRendering = 'crisp-edges';
-          }
-          
-          console.log(`[移动端验证码] ${formType}表单验证码加载成功，ID: ${result.captcha_id.substring(0, 8)}...`);
-        } else {
-          // 加载失败，显示错误提示
-          displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
-          console.error(`[移动端验证码] 加载失败: ${result.message || '未知错误'}`);
-        }
-      } catch (error) {
-        // 网络错误或其他异常
-        displayElement.innerHTML = '<span class="text-red-500 text-xs">网络错误</span>';
-        console.error(`[移动端验证码] 加载异常:`, error);
+      if (!pcDisplayElement || !pcDisplayElement.innerHTML) {
+        // 如果PC端验证码还未加载，显示加载提示
+        displayElement.innerHTML = '<span class="text-slate-400 text-xs">等待加载...</span>';
+        console.log(`[移动端验证码] PC端验证码尚未加载: ${pcDisplayId}`);
+        return;
+      }
+      
+      // 【修复关键】直接复制PC端的验证码HTML（包含img标签和验证码图片）
+      // 这样移动端和PC端显示的是同一张验证码图片
+      displayElement.innerHTML = pcDisplayElement.innerHTML;
+      
+      // 为移动端验证码图片添加响应式样式，确保在移动端正确显示
+      const imgElement = displayElement.querySelector('img');
+      if (imgElement) {
+        // 设置图片样式：
+        // - max-width/max-height: 限制图片最大尺寸，适配移动端屏幕
+        // - width/height: auto 保持原始宽高比
+        // - object-fit: contain 确保图片完整显示不裁剪
+        // - imageRendering: crisp-edges 优化图片渲染，避免模糊
+        imgElement.style.maxWidth = '100%';
+        imgElement.style.maxHeight = '100%';
+        imgElement.style.width = 'auto';
+        imgElement.style.height = 'auto';
+        imgElement.style.objectFit = 'contain';
+        imgElement.style.imageRendering = 'crisp-edges';
+      }
+      
+      // 验证captchaIds是否已存储（应该在PC端loadCaptcha时已经存储）
+      if (typeof captchaIds !== 'undefined' && captchaIds[formType]) {
+        console.log(`[移动端验证码] ${formType}表单验证码同步成功，复用ID: ${captchaIds[formType].substring(0, 8)}...`);
+      } else {
+        console.warn(`[移动端验证码] 警告：captchaIds[${formType}]未找到，可能导致验证失败`);
       }
     }
 
@@ -27583,6 +28198,7 @@ function run_code_not_need_sessionuuid(codeToRun) {
       console.log('[移动端] 开始初始化Phase 4d全局设置面板...');
       
       // 初始化移动端多账号全局参数容器
+      // 【问题5修复】初始化多账号全局参数面板并自动加载配置数值
       const mobileMultiGlobalParamsContainer = document.getElementById('mobile-multi-global-params-container');
       if (mobileMultiGlobalParamsContainer && typeof createParamInputs === 'function') {
         // 排除主题相关参数（主题设置不应该在多账号全局参数中）
@@ -27617,17 +28233,35 @@ function run_code_not_need_sessionuuid(codeToRun) {
           },
           excludeGroups
         );
+        
+        // 【问题5修复关键】创建输入框后，立即从pythonParams全局变量填充数值
+        // pythonParams是从后端get_initial_data返回的全局配置参数
+        if (typeof pythonParams !== 'undefined' && typeof updateParamInputs === 'function') {
+          updateParamInputs(mobileMultiGlobalParamsContainer, 'mobile-multi-param', pythonParams);
+          console.log('[移动端] 多账号全局参数已自动填充配置数值');
+        } else {
+          console.warn('[移动端] pythonParams或updateParamInputs未定义，无法自动填充配置');
+        }
+        
         console.log('[移动端] 多账号全局参数面板已初始化');
       }
       
-      // 初始化配置文件选择器（从后端加载配置列表）
+      // 【问题7修复】初始化配置文件选择器（从后端加载配置列表）
       const configSelect = document.getElementById('multi-config-user-select');
       if (configSelect) {
-        // 加载配置文件列表
-        // 这个函数应该在PC端已经定义，用于从后端获取可用的配置文件列表
-        if (typeof loadConfigList === 'function') {
-          loadConfigList();
-          console.log('[移动端] 配置文件选择器已初始化');
+        // 在focus和click事件时刷新用户列表
+        // 这样用户打开下拉框时会自动从get_initial_data填充账号信息
+        if (!configSelect._refreshBound) {
+          configSelect.addEventListener('focus', refreshUserList);
+          configSelect.addEventListener('click', refreshUserList);
+          configSelect._refreshBound = true; // 标记已绑定，避免重复绑定
+          console.log('[移动端] 配置文件选择器已绑定自动刷新事件');
+        }
+        
+        // 立即执行一次刷新，确保页面加载时就有数据
+        if (typeof refreshUserList === 'function') {
+          refreshUserList();
+          console.log('[移动端] 配置文件选择器已执行初始刷新');
         }
       }
       
@@ -27682,9 +28316,26 @@ function run_code_not_need_sessionuuid(codeToRun) {
       // 获取当前用户的权限组信息
       const userGroup = currentUserData?.group || 'user';
       
-      // 根据前缀确定标签页导航容器和内容容器的ID
-      const tabsNavId = prefix === 'mobile-multi-admin' ? 'mobile-multi-admin-tabs-nav' : 'mobile-admin-tabs-nav';
-      const contentId = prefix === 'mobile-multi-admin' ? 'mobile-multi-admin-panel-content' : 'mobile-admin-panel-content';
+      // 【问题15&18修复】根据前缀确定标签页导航容器和内容容器的ID
+      // 支持三种模式：
+      // 1. 'mobile-admin' - 单账号模态框模式（原有）
+      // 2. 'mobile-admin-panel' - 单账号面板模式（新增）
+      // 3. 'mobile-multi-admin' - 多账号模态框模式
+      let tabsNavId, contentId;
+      
+      if (prefix === 'mobile-multi-admin') {
+        // 多账号模式
+        tabsNavId = 'mobile-multi-admin-tabs-nav';
+        contentId = 'mobile-multi-admin-panel-content';
+      } else if (prefix === 'mobile-admin-panel') {
+        // 单账号面板模式（新增）
+        tabsNavId = 'mobile-admin-tabs-nav-panel';
+        contentId = 'mobile-admin-panel-content-panel';
+      } else {
+        // 单账号模态框模式（原有）
+        tabsNavId = 'mobile-admin-tabs-nav';
+        contentId = 'mobile-admin-panel-content';
+      }
       
       // 获取标签页导航容器
       const tabsNav = document.getElementById(tabsNavId);
@@ -28005,17 +28656,53 @@ function run_code_not_need_sessionuuid(codeToRun) {
      * - 调用PC端的导入功能
      * - 从JSON文件导入账号配置
      */
+    /**
+     * 【问题9修复】导入账号列表
+     * 修复前问题：importMobileAccountList()按钮无效
+     * 修复方案：调用PC端的importMultiAccountList函数
+     * 
+     * 功能说明：
+     * - 调用PC端的导入功能
+     * - 从JSON文件导入账号列表
+     */
     function importMobileAccountList() {
       try {
         // 调用PC端的导入函数
         if (typeof importMultiAccountList === 'function') {
           importMultiAccountList();
+          // 导入成功后显示提示
+          // 注意：不在此处显示成功消息，因为PC端函数内部会处理
         } else {
           showTempMessage('导入功能未实现', 'error');
+          console.error('[移动端] importMultiAccountList函数未定义');
         }
       } catch (error) {
         console.error('[移动端] 导入账号列表失败:', error);
-        showTempMessage('导入失败', 'error');
+        showTempMessage('导入失败: ' + error.message, 'error');
+      }
+    }
+
+    /**
+     * 【问题8修复】下载账号列表导入模板
+     * 
+     * 功能说明：
+     * - 调用PC端的multi_downloadTemplate函数
+     * - 下载账号列表导入模板文件
+     * - 用户可以使用模板文件批量导入账号
+     */
+    async function downloadMobileAccountTemplate() {
+      try {
+        // 调用PC端的下载模板函数
+        if (typeof multi_downloadTemplate === 'function') {
+          await multi_downloadTemplate();
+          showTempMessage('模板下载成功', 'success');
+        } else {
+          showTempMessage('下载模板功能未实现', 'error');
+          console.error('[移动端] multi_downloadTemplate函数未定义');
+        }
+      } catch (error) {
+        console.error('[移动端] 下载模板失败:', error);
+        showTempMessage('下载模板失败: ' + error.message, 'error');
       }
     }
 
