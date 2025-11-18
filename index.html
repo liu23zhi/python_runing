@@ -28639,13 +28639,13 @@
       // 检查地图容器是否存在
       const container = document.getElementById(containerId);
       if (!container) {
-        console.warn(`[移动端地图] 容器 ${containerId} 不存在`);
+        logMessage_Warning(`[移动端地图] 容器 ${containerId} 不存在`);
         return;
       }
 
       // 检查高德地图API是否已加载
       if (typeof AMapInstance === 'undefined') {
-        console.error('[移动端地图] 高德地图API未加载');
+        logMessage_Error('[移动端地图] 高德地图API未加载');
         container.innerHTML = `
           <div class="absolute inset-0 flex items-center justify-center text-slate-400">
             <div class="text-center">
@@ -28664,11 +28664,11 @@
       if (isMultiAccount) {
         // 多账号模式：检查multiAccountMap是否已初始化
         // if (multiAccountMap) {
-        //   console.log('[移动端地图] 多账号地图已初始化，跳过');
+        //   logMessage_Info('[移动端地图] 多账号地图已初始化，跳过');
         //   return;
         // }
 
-        console.log(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
+        logMessage_Info(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
 
         try {
           // 【问题26修复】创建多账号地图实例，使用深圳坐标作为中心点
@@ -28689,24 +28689,31 @@
             const buildings = new AMapInstance.BuildingLayer();
             buildings.setMap(multiAccountMap);
           } catch (e) {
-            console.warn('[移动端地图] 3D建筑图层不可用:', e);
+            logMessage_Warning('[移动端地图] 3D建筑图层不可用:', e);
           }
 
-          console.log('[移动端地图] 多账号地图初始化成功');
+          logMessage_Info('[移动端地图] 多账号地图初始化成功');
         } catch (error) {
-          console.error('[移动端地图] 多账号地图初始化失败:', error);
+          logMessage_Error('[移动端地图] 多账号地图初始化失败:', error);
         }
       } else {
         // 单账号模式：检查map是否已初始化
         // if (map) {
-        //   console.log('[移动端地图] 单账号地图已初始化，跳过');
+        //   logMessage_Info('[移动端地图] 单账号地图已初始化，跳过');
         //   return;
         // }
 
-        console.log(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
+        logMessage_Info(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
 
         try {
           // 【问题26修复】创建单账号地图实例，使用深圳坐标作为中心点
+          // 重要：在创建新地图实例前，清除旧的runnerMarker引用
+          // 这样ensureRunnerMarker()可以为新地图实例创建新的marker
+          if (runnerMarker) {
+            runnerMarker = null;
+            logMessage_Info('[移动端地图] 已清除旧的runner marker，准备为新地图创建');
+          }
+          
           map = new AMapInstance.Map(containerId, {
             zoom: 15, // 缩放级别
             center: [113.390342, 22.527403], // 默认中心点：深圳
@@ -28724,12 +28731,12 @@
             const buildings = new AMapInstance.BuildingLayer();
             buildings.setMap(map);
           } catch (e) {
-            console.warn('[移动端地图] 3D建筑图层不可用:', e);
+            logMessage_Warning('[移动端地图] 3D建筑图层不可用:', e);
           }
 
-          console.log('[移动端地图] 单账号地图初始化成功');
+          logMessage_Info('[移动端地图] 单账号地图初始化成功');
         } catch (error) {
-          console.error('[移动端地图] 单账号地图初始化失败:', error);
+          logMessage_Error('[移动端地图] 单账号地图初始化失败:', error);
         }
       }
     }
