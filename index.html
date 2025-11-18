@@ -9752,12 +9752,25 @@
           }, 500);
         } else if (desktopMultiAccountVisible) {
           // PC端显示multi-account-app，则移动端显示mobile-multi-account-app
+          // 【问题1修复】先显示加载遮罩，防止UI未完全加载时的误操作
+          const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+          if (mobileLoadingOverlay) {
+            mobileLoadingOverlay.classList.remove('hidden');
+          }
+          
           $('mobile-multi-account-app').classList.remove('hidden');
           updateMobileNavVisibility(true, 'multi');
           console.log('[UI切换] PC端multi-account-app可见，显示移动端mobile-multi-account-app');
           // 默认激活多账号模式的控制面板
           switchMobilePanel('mobile-multi-control-panel', 'multi');
           console.log('[UI切换] 已默认激活mobile-multi-control-panel');
+          
+          // 【问题1修复】延迟隐藏加载遮罩，确保UI完全渲染
+          setTimeout(() => {
+            if (mobileLoadingOverlay) {
+              mobileLoadingOverlay.classList.add('hidden');
+            }
+          }, 500);
         } else if (desktopLoginVisible) {
           // PC端显示login-container，则移动端显示mobile-login-container
           $('mobile-login-container').classList.remove('hidden');
@@ -29411,6 +29424,20 @@
 
         if(panelId === 'mobile-multi-control-panel') {
           logMessage_Info('[移动端多账号] 激活多账号控制面板');
+          
+          // 【问题4修复】在激活多账号控制面板时，确保用户选择框已更新为最新的用户列表
+          // 调用refreshUserList函数（在21740行定义），该函数会同时更新PC端和移动端的用户选择框
+          // 使用异步调用，不阻塞面板切换
+          if (typeof refreshUserList === 'function') {
+            refreshUserList().then(() => {
+              console.log('[移动端多账号] multi-config-user-select 用户列表已刷新');
+            }).catch(error => {
+              console.error('[移动端多账号] 刷新用户列表失败:', error);
+            });
+          } else {
+            console.warn('[移动端多账号] refreshUserList 函数未定义，无法刷新用户列表');
+          }
+          
           if (!window.mobile_multi_map_panel_initialize_mark) {
             switchMobileMulitPanel('mobile-multi-map-panel');
             logMessage_Info('[移动端多账号] 首次激活多账号控制面板，初始化地图...');
@@ -32753,15 +32780,10 @@
         // 显示加载提示
         showTempMessage('正在添加账号...', 'info');
 
-        // 调用后端API添加账号
-        // 注意：这里调用multi_addFromManual函数（需要在PC端定义）
-        // 如果PC端没有该函数，我们可以直接调用multi_addAccount
-        const result = await callPythonAPI('multi_account_add', {
-          username: username,
-          password: password,
-          // 使用空对象作为params，后端会自动应用默认配置
-          params: {}
-        });
+        // 【问题5修复】调用后端API添加账号
+        // 修正API方法名：应该是 multi_add_account 而不是 multi_account_add
+        // 参考PC端的正确调用方式（第23172行）
+        const result = await callPythonAPI('multi_add_account', username, password);
 
         if (result.success) {
           // 添加成功
@@ -33289,30 +33311,53 @@
         }
 
         const data = await response.json();
+        
+        // 【问题2修复】添加调试日志，输出API返回的完整数据，便于排查数据填充问题
+        console.log('[移动端路径详情] API返回的数据:', data);
+        console.log('[移动端路径详情] 距离:', data.distance, '时长:', data.duration, '配速:', data.pace, '时间戳:', data.timestamp);
 
         // 更新路径信息显示
         const timeEl = document.getElementById('mobile-track-time');
         const distEl = document.getElementById('mobile-track-distance');
         const durEl = document.getElementById('mobile-track-duration');
         const paceEl = document.getElementById('mobile-track-pace');
+        
+        // 【问题2修复】添加DOM元素检查日志，确认元素是否存在
+        console.log('[移动端路径详情] DOM元素检查 - timeEl:', !!timeEl, 'distEl:', !!distEl, 'durEl:', !!durEl, 'paceEl:', !!paceEl);
 
         if (timeEl && data.timestamp) {
           const date = new Date(data.timestamp);
           timeEl.textContent = date.toLocaleString('zh-CN');
+          console.log('[移动端路径详情] 已更新时间显示:', timeEl.textContent);
+        } else {
+          // 【问题2修复】添加错误提示，说明为何没有更新时间
+          console.warn('[移动端路径详情] 未更新时间 - timeEl存在:', !!timeEl, 'data.timestamp存在:', !!data.timestamp);
         }
 
         if (distEl && data.distance) {
           distEl.textContent = `${(data.distance / 1000).toFixed(2)} km`;
+          console.log('[移动端路径详情] 已更新距离显示:', distEl.textContent);
+        } else {
+          // 【问题2修复】添加错误提示，说明为何没有更新距离
+          console.warn('[移动端路径详情] 未更新距离 - distEl存在:', !!distEl, 'data.distance存在:', !!data.distance, '距离值:', data.distance);
         }
 
         if (durEl && data.duration) {
           const min = Math.floor(data.duration / 60);
           const sec = data.duration % 60;
           durEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+          console.log('[移动端路径详情] 已更新时长显示:', durEl.textContent);
+        } else {
+          // 【问题2修复】添加错误提示，说明为何没有更新时长
+          console.warn('[移动端路径详情] 未更新时长 - durEl存在:', !!durEl, 'data.duration存在:', !!data.duration, '时长值:', data.duration);
         }
 
         if (paceEl && data.pace) {
           paceEl.textContent = data.pace;
+          console.log('[移动端路径详情] 已更新配速显示:', paceEl.textContent);
+        } else {
+          // 【问题2修复】添加错误提示，说明为何没有更新配速
+          console.warn('[移动端路径详情] 未更新配速 - paceEl存在:', !!paceEl, 'data.pace存在:', !!data.pace, '配速值:', data.pace);
         }
 
         // 在地图上绘制路径
@@ -33358,19 +33403,53 @@
             mobileTrackMarkers.push(endMarker);
           }
 
-          // 添加打卡点标记
+          // 【问题3修复】添加打卡点标记，并增加详细的调试日志和错误处理
           if (data.checkpoints && data.checkpoints.length > 0) {
+            // 输出打卡点数据，便于调试
+            console.log('[移动端路径详情] 开始添加打卡点标记，总数:', data.checkpoints.length);
+            console.log('[移动端路径详情] 打卡点原始数据:', data.checkpoints);
+            
             data.checkpoints.forEach((cp, idx) => {
-              const marker = new AMapInstance.Marker({
-                position: new AMapInstance.LngLat(cp[0], cp[1]),
-                icon: new AMapInstance.Icon({
-                  image: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#f59e0b" width="28" height="28"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><text x="12" y="12" text-anchor="middle" fill="white" font-size="8" font-weight="bold">${idx + 1}</text></svg>`),
-                  size: new AMapInstance.Size(28, 28)
-                }),
-                map: mobileTrackMapInstance
-              });
-              mobileTrackMarkers.push(marker);
+              try {
+                // 【问题3修复】检查打卡点数据格式是否正确
+                if (!Array.isArray(cp) || cp.length < 2) {
+                  console.error(`[移动端路径详情] 打卡点 ${idx + 1} 格式错误，应为 [经度, 纬度] 数组，实际为:`, cp);
+                  return; // 跳过格式错误的打卡点
+                }
+                
+                // 【问题3修复】检查经纬度值是否有效（中国境内大致范围：经度73-135，纬度18-54）
+                const lon = parseFloat(cp[0]);
+                const lat = parseFloat(cp[1]);
+                if (isNaN(lon) || isNaN(lat)) {
+                  console.error(`[移动端路径详情] 打卡点 ${idx + 1} 坐标值无效:`, cp);
+                  return;
+                }
+                if (lon < 73 || lon > 135 || lat < 18 || lat > 54) {
+                  console.warn(`[移动端路径详情] 打卡点 ${idx + 1} 坐标超出中国境内范围: 经度=${lon}, 纬度=${lat}`);
+                  // 不return，继续尝试添加，可能是特殊情况
+                }
+                
+                // 创建打卡点标记
+                const marker = new AMapInstance.Marker({
+                  position: new AMapInstance.LngLat(lon, lat),
+                  icon: new AMapInstance.Icon({
+                    image: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#f59e0b" width="28" height="28"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><text x="12" y="12" text-anchor="middle" fill="white" font-size="8" font-weight="bold">${idx + 1}</text></svg>`),
+                    size: new AMapInstance.Size(28, 28)
+                  }),
+                  map: mobileTrackMapInstance
+                });
+                mobileTrackMarkers.push(marker);
+                console.log(`[移动端路径详情] 打卡点 ${idx + 1} 已添加: 经度=${lon}, 纬度=${lat}`);
+              } catch (error) {
+                // 【问题3修复】捕获单个打卡点添加失败的错误，不影响其他打卡点
+                console.error(`[移动端路径详情] 添加打卡点 ${idx + 1} 失败:`, error, '打卡点数据:', cp);
+              }
             });
+            
+            console.log('[移动端路径详情] 打卡点标记添加完成，成功添加数量:', mobileTrackMarkers.length - 2); // 减去起点和终点
+          } else {
+            // 【问题3修复】输出未添加打卡点的原因
+            console.log('[移动端路径详情] 没有打卡点数据 - checkpoints存在:', !!data.checkpoints, '数量:', data.checkpoints ? data.checkpoints.length : 0);
           }
 
           // 自适应地图视野
