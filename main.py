@@ -302,8 +302,9 @@ def check_and_import_dependencies():
     global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g, send_file
     global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
     global cssutils, playwright_available
-
-    global cryptography
+    
+    # 【关键修复】声明 socketio 为全局变量
+    global cryptography, socketio
 
     # 将所有变量预设为 None，以防导入成功但未完全解包
     Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g = (None,) * 9
@@ -311,6 +312,9 @@ def check_and_import_dependencies():
     playwright_available = False
 
     cryptography = None
+    
+    # 【关键修复】初始化全局 socketio 变量，防止 Api 类引用时出现 NameError
+    socketio = None
 
     # (显示名称, 导入代码, pip包名)
     dependencies = [
@@ -6284,7 +6288,10 @@ class Api:
         stop_flag = client.app.stop_event if hasattr(
             client.app, 'stop_event') else self.stop_run_flag
 
-        # 获取当前会话ID（用于Web模式的自动保存）
+        # 获取全局 socketio 对象 (假设它是全局导入的，如果没有则尝试从 globals 获取)
+        sio = globals().get('socketio') if 'socketio' not in globals() else socketio
+
+        # 1. 获取初始 Session ID
         session_id = getattr(self, '_web_session_id', None)
         last_auto_save_time = time.time()
 
@@ -6300,6 +6307,8 @@ class Api:
             submission_successful = True
 
             point_index = 0  # 修复Issue 1: 追踪当前处理的点索引
+            
+            # --- 循环开始 ---
             for i in range(0, len(run_data.run_coords), 40):
                 if stop_flag.is_set():
                     log_func("任务已中止。")
@@ -6310,8 +6319,7 @@ class Api:
 
                 for lon, lat, dur_ms in chunk:
                     if stop_flag.wait(timeout=dur_ms / 1000.0):
-                        logging.debug(
-                            "等待下一个坐标点时被停止信号中断")
+                        logging.debug("等待下一个坐标点时被停止信号中断")
                         break
 
                     run_data.distance_covered_m += self._calculate_distance_m(
@@ -6321,117 +6329,188 @@ class Api:
                     run_data.current_point_index = point_index  # 修复Issue 1: 保存到run_data
                     self.check_target_reached_during_run(run_data, lon, lat)
 
-                    # 关键增强：每30秒自动保存会话状态（在Web模式下）
-                    if session_id and (time.time() - last_auto_save_time >= 30):
+                    # --- 自动保存逻辑 ---
+                    # 重新检查 session_id，以防上下文丢失（优先使用 client.app 中的）
+                    current_session_id = session_id
+                    if not current_session_id and hasattr(client, 'app'):
+                         current_session_id = getattr(client.app, '_web_session_id', None)
+
+                    if current_session_id and (time.time() - last_auto_save_time >= 30):
                         try:
-                            with web_sessions_lock:
-                                if session_id in web_sessions:
-                                    save_session_state(
-                                        session_id, web_sessions[session_id])
-                                    logging.debug(
-                                        f"任务执行中自动保存会话状态 (进度: {point_index}/{len(run_data.run_coords)})")
-                            last_auto_save_time = time.time()
+                            # 确保 web_sessions_lock 和 web_sessions 在作用域内可用
+                            # 如果是全局变量，这里没问题
+                            if 'web_sessions_lock' in globals() and 'web_sessions' in globals():
+                                with web_sessions_lock:
+                                    if current_session_id in web_sessions:
+                                        save_session_state(
+                                            current_session_id, web_sessions[current_session_id])
+                                        logging.debug(
+                                            f"任务执行中自动保存会话状态 (进度: {point_index}/{len(run_data.run_coords)})")
+                                last_auto_save_time = time.time()
                         except Exception as e:
                             logging.error(f"任务执行中自动保存会话失败: {e}")
 
-                    # 修正：使用 SocketIO 发送 runner_position_update 事件
-                    session_id = getattr(self, '_web_session_id', None)
-                    if socketio and session_id and self.current_run_idx == task_index:
-                        center_now = False
-                        if not self._first_center_done:
-                            center_now = True
-                            self._first_center_done = True
-                        try:
-                            socketio.emit('runner_position_update', {
-                                'lon': lon, 'lat': lat, 'distance': run_data.distance_covered_m,
-                                'target_sequence': run_data.target_sequence, 'duration': dur_ms,
-                                'center_now': center_now,
-                                'task_index': task_index  # <-- 新增：将当前任务索引发送给前端
-                            }, room=session_id)
-                        except Exception as e:
-                            logging.error(
-                                f"SocketIO发送'runner_position_update'位置更新事件失败: {e}")
+                    # --- SocketIO 发送位置更新逻辑 ---
+                    debug_sio_status = "存在" if sio else "缺失(None)"
+                    debug_emit_cond = (self.current_run_idx == task_index)
+                    
+                    logging.debug(
+                        f"SocketIO状态检查 -> "
+                        f"SIO对象: {debug_sio_status}, "
+                        f"SessionID: {current_session_id}, "
+                        f"任务匹配: {self.current_run_idx}=={task_index} ({debug_emit_cond})"
+                    )
+                    # 只有当 SocketIO 实例存在、会话ID存在且符合发送条件时才执行
+                    if sio and current_session_id:
+                         # 检查是否需要发送更新
+                        #  should_emit = (self.current_run_idx == task_index)
+                        should_emit = True
+                         
+                        # if should_emit:
+                        #     center_now = False
+                        #     # 如果是第一次更新位置，强制前端地图居中
+                        #     if not self._first_center_done:
+                        #         center_now = True
+                        #         self._first_center_done = True
+                            
+                            # [重要修正] try...except 必须包含在 if should_emit 内部
+                            # 否则 center_now 可能会在未定义的情况下被引用，且逻辑上不应发送数据
+                            # try:
+                                # # 构造数据
+                                # message_data_dict = {
+                                #     'lon': float(lon),
+                                #     'lat': float(lat),
+                                #     'distance': float(run_data.distance_covered_m),
+                                #     'target_sequence': run_data.target_sequence,
+                                #     'duration': int(dur_ms),
+                                #     'center_now': center_now,
+                                #     'task_index': task_index
+                                # }
+                                
+                                
+                                # # 1. 准备两种数据格式
+                                # # 格式A: JSON 字符串 (兼容 legacy 前端代码，如使用 JSON.parse)
+                                # json_payload_str = json.dumps(message_data_dict, ensure_ascii=False)
+                                # # 格式B: 原始字典 (标准用法)
+                                # payload_dict = message_data_dict
 
+                                # # 2. 检查房间成员 (保留日志用于确认连接)
+                                # try:
+                                #     room_participants = sio.server.manager.rooms.get('/', {}).get(current_session_id, set())
+                                #     client_count = len(room_participants)
+                                #     if client_count > 0:
+                                #         logging.info(f"[SocketIO] ✅ 发送数据 -> 房间: {current_session_id} (在线: {client_count})")
+                                #     else:
+                                #         logging.warning(f"[SocketIO] ⚠️ 房间 {current_session_id} 为空，消息无人接收！")
+                                # except Exception:
+                                #     pass
+
+                                # 3. 【核心修复】尝试多种发送方式以匹配前端
+                                # 尝试 1: 发送 JSON 字符串 (极有可能是前端需要的格式)
+                                # sio.emit('runner_position_update', json_payload_str, room=current_session_id, namespace='/')
+                                
+                                # 尝试 2: 发送 字典对象 (作为备用，防止前端不解析JSON)
+                                # 注意：这可能会导致前端收到两次事件，但在调试阶段这能确保至少一次成功
+                                # sio.emit('runner_position_update', payload_dict, room=current_session_id, namespace='/')
+                                
+                                # 尝试 3: 同时发送到 'multi_position_update' (防止前端复用了多账号的监听器)
+                                # 多账号监听器通常接收对象，所以这里发字典
+                                # sio.emit('multi_position_update', payload_dict, room=current_session_id, namespace='/')
+
+                                # 4. 强制刷新
+                                # sio.sleep(0)
+
+                                # logging.debug(f"已通过多种格式发送位置更新: 任务{task_index}, 距离{run_data.distance_covered_m:.2f}")
+
+                                # --- 发送逻辑修正 ---
+                                # 1. 只发送一次
+                                # 2. 传递字典对象，让 sio 自动处理 JSON 序列化
+                                # 3. 增加 sio.sleep(0) 确保 eventlet 协程有机会将数据刷新到网络
+                                
+                                # sio.emit('runner_position_update', message_data_dict, room=current_session_id)
+                                # sio.sleep(0)  # 【关键】强制交出控制权，触发消息立即发送
+
+                                # logging.debug(f"已发送位置更新: 任务{task_index}, 距离{run_data.distance_covered_m:.2f}")
+                                
+                            # except Exception as e:
+                            #     logging.error(f"SocketIO发送'runner_position_update'位置更新事件失败: {e}")
+
+                # 内层 for 循环结束
+                
                 if stop_flag.is_set():
                     break
 
                 is_final_chunk = (i + 40 >= len(run_data.run_coords))
-                # 尝试提交，失败时最多重试 3 次再放弃
+                
+                # --- 提交数据逻辑 ---
                 max_attempts = 3
                 attempt = 1
                 chunk_submitted = False
                 while attempt <= max_attempts:
-                    # # 修复 1：在每次尝试提交前检查停止标志
-                    # if stop_flag.is_set():
-                    #     submission_successful = False
-                    #     log_func("检测到停止信号，已取消数据提交")
-                    #     break # 退出 (while) 循环
-
                     if self._submit_chunk(run_data, chunk, start_time_ms, is_final_chunk, i, client, user_data):
                         chunk_submitted = True
                         break
-                    # 提交失败
+                    
+                    # 提交失败处理
                     submission_successful = False
                     if self.is_offline_mode:
-                        logging.error(
-                            f"[离线测试模式] 模拟提交失败（不应该发生），尝试 {attempt}/{max_attempts}")
-                        # 离线模式下不做额外等待
+                        logging.error(f"[离线测试模式] 模拟提交失败，尝试 {attempt}/{max_attempts}")
                     else:
                         logging.warning(f"数据提交失败，重试 {attempt}/{max_attempts}")
-                        # 短暂等待后重试
-                        # 修复 2：使用 stop_flag.wait() 替代 time.sleep()，以便立即响应停止
+                        # 使用 stop_flag.wait 替代 sleep 以便快速响应停止
                         if stop_flag.wait(timeout=1.0):
                             submission_successful = False
                             log_func("检测到停止信号，已取消重试")
-                            break  # 退出 (while) 循环
+                            break 
                     attempt += 1
 
                 if not chunk_submitted:
                     logging.error(f"数据提交在 {max_attempts} 次尝试后仍然失败，任务中止")
                     break
 
+            # --- 外层循环结束，处理完成逻辑 ---
+            
             if not stop_flag.is_set() and submission_successful:
                 log_func("任务执行完毕，等待确认...")
                 logging.info("任务运行执行完毕，等待最终确认")
                 time.sleep(3)
                 self._finalize_run(run_data, task_index, client)
 
-                # 关键增强：任务完成后立即保存会话状态
+                # 任务完成后立即保存会话状态
                 if session_id:
                     try:
-                        with web_sessions_lock:
-                            if session_id in web_sessions:
-                                save_session_state(
-                                    session_id, web_sessions[session_id], force_save=True)
-                                logging.info(f"任务完成，已保存会话状态")
+                        if 'web_sessions_lock' in globals() and 'web_sessions' in globals():
+                            with web_sessions_lock:
+                                if session_id in web_sessions:
+                                    save_session_state(
+                                        session_id, web_sessions[session_id], force_save=True)
+                                    logging.info(f"任务完成，已保存会话状态")
                     except Exception as e:
                         logging.error(f"任务完成后保存会话失败: {e}")
 
         finally:
-            # 修复Issue: 只有在停止标志已设置（用户手动停止）或出现错误时才设置停止标志
-            # 正常完成时不应该设置停止标志，避免中断后续操作
+            # --- 清理和停止逻辑 ---
+            # 如果不是批量运行模式（is_all=False），或者出现异常，确保设置停止标志
             if not is_all:
-                # 仅在任务被手动停止或失败时才标记停止
-                # 正常完成的情况下，stop_flag.is_set()应该为False
                 if not submission_successful or stop_flag.is_set():
                     self.stop_run_flag.set()
                     logging.info(f"任务停止或失败，设置停止标志")
                 else:
-                    # 正常完成，设置停止标志以允许新任务开始
                     self.stop_run_flag.set()
                     logging.info(f"任务正常完成，重置停止标志")
-                # 修正：使用 SocketIO 发送 run_stopped 事件
+                
+                # 发送停止事件
                 session_id = getattr(self, '_web_session_id', None)
-                if socketio and session_id:
+                if sio and session_id:
                     try:
-                        socketio.emit('run_stopped', {}, room=session_id)
+                        sio.emit('run_stopped', {}, room=session_id)
                     except Exception as e:
                         logging.error(f"SocketIO发送'run_stopped'运行停止事件失败: {e}")
+            
             if finished_event:
                 finished_event.set()
             logging.info(
                 f"Submission thread finished for task: {run_data.run_name}")
-
     def _get_path_for_distance(self, path, cumulative_distances, target_dist):
         """如果路径总长不足，则通过来回走的方式凑足目标距离"""
         total_len = cumulative_distances[-1]
@@ -10925,6 +11004,10 @@ def load_all_sessions(args):
                 api_instance = Api(args)
                 api_instance._session_created_at = state.get(
                     'created_at', time.time())
+                
+                # 【关键修复】恢复会话ID，否则socketio推送无法找到房间
+                api_instance._web_session_id = session_id 
+
                 # restore_session_to_api_instance 现在包含恢复 login_success 等所有状态
                 restore_session_to_api_instance(api_instance, state)
 
@@ -19326,6 +19409,10 @@ def start_web_server(args_param):
                     api_instance = Api(args)
                     api_instance._session_created_at = state.get(
                         'created_at', time.time())
+                    
+                    # 【关键修复】恢复会话ID，确保后续任务可以推送消息
+                    api_instance._web_session_id = session_id
+                    
                     api_instance.login_success = True
                     api_instance.user_info = state.get('user_info')
                     restore_session_to_api_instance(api_instance, state)
@@ -19481,7 +19568,7 @@ def start_web_server(args_param):
                 # 记录当前时间为会话最后活跃时间
                 # (已提取到 update_session_activity 函数)
                 update_session_activity(session_id)
-                logging.debug(f"会话 {session_id[:8]}... 调用 get_initial_data，更新活跃时间戳")
+                logging.debug(f"会话 {session_id} 调用 get_initial_data，更新活跃时间戳")
 
             if hasattr(api_instance, method):
                 func = getattr(api_instance, method)
@@ -21399,19 +21486,32 @@ def start_web_server(args_param):
             session_id = session.get('session_id')
 
         # 更可靠的方式: 让前端在连接后立即发送一个带有 session_id 的 'join' 事件
-        logging.info(f"WebSocket client connected: {request.sid}")
+        logging.info(f"WebSocket 客户端连接: {request.sid}")
         # 注意：此时还不知道是哪个 session_id，等待前端发送 'join' 事件
 
     @socketio.on('join')
     def handle_join(data):
+        # 【修复】增强健壮性：处理 data 可能为字符串的情况
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except Exception as e:
+                logging.warning(f"WebSocket 'join' 事件数据解析失败: {e}, 原始数据: {data}")
+                return
+
+        # 确保 data 是字典类型
+        if not isinstance(data, dict):
+            logging.warning(f"WebSocket 'join' 接收到无效数据类型: {type(data)}")
+            return
+
         session_id = data.get('session_id')
         if session_id:
             # 将当前 WebSocket 连接加入以 session_id 命名的房间
             join_room(session_id)
             logging.info(
-                f"WebSocket 客户端 {request.sid} 成功加入 {session_id}...")
+                f"WebSocket 客户端 {request.sid} 成功加入 {session_id}")
             # 可以选择性地在这里发送一条欢迎消息
-            # emit('log_message', {'msg': 'WebSocket connected successfully.'}, room=session_id)
+            emit('log_message', {'msg': 'WebSocket 连接成功！'}, room=session_id)
         else:
             logging.warning(
                 f"WebSocket 客户端 {request.sid} 加入房间失败：缺少 session_id。")
@@ -21774,7 +21874,7 @@ def start_web_server(args_param):
             print(f"  仅HTTPS模式: 已启用 ⚠")
     else:
         print(f"  SSL/HTTPS: 未启用（使用HTTP）")
-    print(f"  首次访问将自动分配2048位UUID并重定向")
+    # print(f"  首次访问将自动分配2048位UUID并重定向")
     print(f"  会话持久化已启用（服务器重启后保留登录状态）")
     print(f"  JS计算在服务器端Chrome中执行，提升安全性")
     print(f"  会话监控已启用（5分钟不活跃自动清理）")

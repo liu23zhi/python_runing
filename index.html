@@ -4323,6 +4323,17 @@
            - 包含任务列表、地图、控制面板
            - 登录成功后显示
            ======================================== -->
+      
+      <!-- 【修复】移动端加载遮罩 - 在UI完全加载前显示，防止误操作 -->
+      <div id="mobile-loading-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/90 backdrop-blur-sm hidden">
+        <div class="flex flex-col items-center gap-4">
+          <!-- 加载动画 -->
+          <div class="w-16 h-16 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin"></div>
+          <!-- 加载文字 -->
+          <p class="text-slate-600 text-sm font-medium">加载中，请稍候...</p>
+        </div>
+      </div>
+      
       <div id="mobile-main-app" class="space-y-4 hidden">
 
         <!-- ========================================
@@ -5162,8 +5173,237 @@
             style="scrollbar-width: none; -webkit-overflow-scrolling: touch;">
           </div>
 
-          <div id="mobile-admin-panel-content-panel" class="text-sm space-y-2 flex-1 overflow-y-auto min-h-0 pr-1">
-            <p class="text-slate-400 text-center py-10">请选择管理功能</p>
+          <div id="mobile-admin-panel-content-panel" class="text-sm flex-1 overflow-y-auto min-h-0 pr-1">
+
+            <!-- 用户管理面板 -->
+            <div id="mobile-admin-users-panel-panel" class="space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">用户列表</h4>
+                <div class="flex gap-2">
+                  <button id="mobile-admin-create-user-panel" class="btn btn-primary !py-1 !px-2 text-xs">新增</button>
+                  <button id="mobile-admin-refresh-users-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+                </div>
+              </div>
+              <div id="mobile-admin-users-list-panel" class="space-y-2 max-h-[50vh] overflow-y-auto">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
+            <!-- 权限组管理面板 -->
+            <div id="mobile-admin-groups-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">权限组列表</h4>
+                <div class="flex gap-2">
+                  <button id="mobile-admin-create-group-panel" class="btn btn-primary !py-1 !px-2 text-xs">新增</button>
+                  <button id="mobile-admin-refresh-groups-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+                </div>
+              </div>
+              <div id="mobile-admin-groups-list-panel" class="space-y-2 max-h-[50vh] overflow-y-auto">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
+            <!-- 日志查看面板 -->
+            <div id="mobile-admin-logs-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">系统日志</h4>
+                <div class="flex gap-2">
+                  <select id="mobile-log-limit-select-panel" class="text-xs border border-slate-300 rounded px-2 py-1">
+                    <option value="100">100行</option>
+                    <option value="200">200行</option>
+                    <option value="500">500行</option>
+                  </select>
+                  <button id="mobile-admin-refresh-logs-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+                </div>
+              </div>
+              <div class="bg-slate-900 text-green-400 rounded-lg p-3 font-mono text-xs overflow-auto max-h-[45vh]">
+                <pre id="mobile-admin-logs-content-panel" class="whitespace-pre-wrap">加载中...</pre>
+              </div>
+              <div id="mobile-admin-logs-pagination-panel"
+                class="flex justify-between items-center text-xs text-slate-600 pt-2 border-t border-slate-200">
+                <button id="mobile-log-prev-page-panel" class="btn btn-ghost !py-1 !px-2 text-xs">上一页</button>
+                <div class="flex items-center gap-2">
+                  <select id="mobile-log-page-select-panel" class="text-xs border border-slate-300 rounded px-2 py-1">
+                    <option value="1">第 1 / 1 页</option>
+                  </select>
+                  <span id="mobile-log-page-total-panel" class="text-xs text-slate-500">(共 0 行)</span>
+                </div>
+                <button id="mobile-log-next-page-panel" class="btn btn-ghost !py-1 !px-2 text-xs">下一页</button>
+              </div>
+            </div>
+
+            <!-- 系统状态面板 -->
+            <div id="mobile-admin-health-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">系统状态</h4>
+                <div class="flex items-center gap-2">
+                  <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" id="mobile-health-auto-refresh-toggle-panel"
+                      class="w-3 h-3 accent-sky-600 rounded" checked>
+                    <span class="text-xs text-slate-600">自动刷新
+                      <span id="mobile-health-countdown-display-panel" class="font-semibold text-sky-600"></span>
+                    </span>
+                  </label>
+                  <button id="mobile-admin-refresh-health-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+                </div>
+              </div>
+              <div id="mobile-admin-health-content-panel" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
+            <!-- 个人信息面板 -->
+            <div id="mobile-admin-profile-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">个人信息</h4>
+                <button id="mobile-admin-refresh-profile-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+              </div>
+              <div id="mobile-admin-profile-content-panel" class="space-y-3 text-slate-800">
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+                  <h5 class="font-semibold text-slate-700 text-xs">头像</h5>
+                  <div class="flex items-center gap-3">
+                    <img id="mobile-profile-avatar-display-panel" src="" alt="用户头像"
+                      class="w-16 h-16 rounded-full border-2 border-slate-200"
+                      onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+                    <div class="flex-1">
+                      <input type="file" id="mobile-profile-avatar-file-panel" accept="image/*" class="hidden">
+                      <button class="btn btn-ghost border border-slate-300 !py-1 !px-2 text-xs"
+                        onclick="document.getElementById('mobile-profile-avatar-file-panel').click();">选择图片</button>
+                    </div>
+                  </div>
+                </div>
+                <div id="mobile-profile-details-panel" class="space-y-2"></div>
+              </div>
+            </div>
+
+            <!-- 会话管理面板 -->
+            <div id="mobile-admin-sessions-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">会话列表</h4>
+                <div class="flex items-center gap-2">
+                  <label id="mobile-god-mode-toggle-panel" class="flex items-center gap-1 cursor-pointer"
+                    style="display:none;">
+                    <input type="checkbox" id="mobile-god-mode-checkbox-panel" class="w-3 h-3 accent-red-600 rounded">
+                    <span class="text-xs font-semibold text-red-600">上帝模式</span>
+                  </label>
+                  <div id="mobile-admin-session-count-display-panel" class="text-xs text-slate-600"></div>
+                  <button id="mobile-admin-refresh-sessions-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+                </div>
+              </div>
+              <div id="mobile-admin-sessions-list-panel" class="space-y-2 max-h-[50vh] overflow-y-auto">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
+            <!-- 留言板面板 -->
+            <div id="mobile-admin-messages-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">留言板</h4>
+                <button id="mobile-admin-refresh-messages-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+              </div>
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+                <h5 class="font-semibold text-slate-700 text-xs">发表留言</h5>
+                <div id="mobile-message-guest-fields-panel" class="space-y-2 hidden">
+                  <input type="text" id="mobile-message-nickname-panel" class="input-field text-xs" placeholder="昵称"
+                    maxlength="50">
+                  <input type="email" id="mobile-message-email-panel" class="input-field text-xs" placeholder="邮箱">
+                </div>
+                <textarea id="mobile-message-content-panel" class="input-field text-xs" rows="3"
+                  placeholder="留言内容（最多1000字）" maxlength="1000"></textarea>
+                <div class="text-xs text-slate-500 text-right">
+                  <span id="mobile-message-char-count-panel">0</span> / 1000
+                </div>
+                <button id="mobile-post-message-btn-panel" class="btn btn-primary w-full !py-1 text-xs">发表</button>
+              </div>
+              <div id="mobile-admin-messages-list-panel" class="space-y-2 max-h-[40vh] overflow-y-auto">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
+            <!-- IP封禁面板 -->
+            <div id="mobile-admin-ipban-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">IP封禁</h4>
+                <button id="mobile-admin-refresh-ipban-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+              </div>
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <h5 class="font-semibold text-slate-700 text-xs mb-2">现有规则</h5>
+                <div id="mobile-ip-ban-list-panel" class="space-y-2 max-h-[30vh] overflow-y-auto">
+                  <p class="text-slate-400 text-center py-6 text-xs">加载中...</p>
+                </div>
+              </div>
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h5 class="font-semibold text-blue-900 text-xs mb-2">添加规则</h5>
+                <div class="space-y-2">
+                  <select id="mobile-ban-type-panel" class="select-field text-xs">
+                    <option value="ip">单个IP</option>
+                    <option value="range">IP范围</option>
+                  </select>
+                  <input type="text" id="mobile-ban-target-panel" class="input-field text-xs" placeholder="IP地址">
+                  <select id="mobile-ban-scope-panel" class="select-field text-xs">
+                    <option value="all">封禁所有功能</option>
+                    <option value="messages_only">仅封禁留言板</option>
+                  </select>
+                  <button id="mobile-add-ipban-btn-panel" class="btn btn-primary w-full !py-1 text-xs">添加</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 短信配置面板 -->
+            <div id="mobile-admin-sms-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">短信配置</h4>
+                <button id="mobile-admin-refresh-sms-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+              </div>
+              <div id="mobile-admin-sms-content-panel" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
+            <!-- 系统配置面板 -->
+            <div id="mobile-admin-config-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">系统配置</h4>
+                <button id="mobile-admin-refresh-config-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+              </div>
+              <div id="mobile-admin-config-content-panel" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
+            <!-- 验证码历史面板 -->
+            <div id="mobile-admin-captcha-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">验证码历史</h4>
+                <button id="mobile-admin-refresh-captcha-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+              </div>
+              <div id="mobile-admin-captcha-list-panel" class="space-y-2 max-h-[50vh] overflow-y-auto">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
+            <!-- 定时提醒面板 -->
+            <div id="mobile-admin-reminders-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">定时提醒</h4>
+                <button id="mobile-admin-refresh-reminders-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+              </div>
+              <div id="mobile-admin-reminders-content-panel" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
+            <!-- HTTPS设置面板 -->
+            <div id="mobile-admin-ssl-panel-panel" class="hidden space-y-3">
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">HTTPS设置</h4>
+                <button id="mobile-admin-refresh-ssl-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+              </div>
+              <div id="mobile-admin-ssl-content-panel" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -6060,7 +6300,7 @@
         </div>
 
         <!-- 路径信息摘要 -->
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-3 gap-2" id="mobile-track-summary">
           <!-- 距离 -->
           <div class="p-2 bg-blue-50 rounded-lg text-center">
             <p class="text-xs text-slate-500 mb-1">距离</p>
@@ -9491,12 +9731,25 @@
         // 【需求2修复】根据PC端当前显示的容器，显示对应的移动端容器
         if (desktopMainAppVisible) {
           // PC端显示main-app，则移动端显示mobile-main-app
+          // 【修复】先显示加载遮罩
+          const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+          if (mobileLoadingOverlay) {
+            mobileLoadingOverlay.classList.remove('hidden');
+          }
+          
           $('mobile-main-app').classList.remove('hidden');
           updateMobileNavVisibility(true, 'single');
           console.log('[UI切换] PC端main-app可见，显示移动端mobile-main-app');
           // 【问题13修复】默认激活mobile-control-panel
           switchMobileSinglePanel('mobile-control-panel');
           console.log('[UI切换] 已默认激活mobile-control-panel');
+          
+          // 【修复】延迟隐藏加载遮罩
+          setTimeout(() => {
+            if (mobileLoadingOverlay) {
+              mobileLoadingOverlay.classList.add('hidden');
+            }
+          }, 500);
         } else if (desktopMultiAccountVisible) {
           // PC端显示multi-account-app，则移动端显示mobile-multi-account-app
           $('mobile-multi-account-app').classList.remove('hidden');
@@ -10084,10 +10337,21 @@
               return;
             }
 
+            // 【修复】添加UI反馈：禁用按钮并显示加载状态
+            mobileSingleLoginBtn.disabled = true;
+            const originalText = mobileSingleLoginBtn.textContent;
+            mobileSingleLoginBtn.textContent = '登录中...';
+            
+            // 【修复】显示移动端加载遮罩
+            const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+            if (mobileLoadingOverlay) {
+              mobileLoadingOverlay.classList.remove('hidden');
+            }
+
             document.getElementById('username-entry').value = username;
             document.getElementById('password-entry').value = password;
 
-            console.log('[移动端UI] 触发单账号（学校）登录...');
+            logMessage_Info('[移动端UI] 触发单账号（学校）登录...');
 
             // 调用桌面端的 onLogin 函数
             await onLogin();
@@ -10108,9 +10372,17 @@
               const mobileMainApp = document.getElementById('mobile-main-app');
               if (mobileMainApp) {
                 mobileMainApp.classList.remove('hidden');
-                console.log('[移动端UI] 已显示 mobile-main-app');
+                logMessage_Info('[移动端UI] 已显示 mobile-main-app');
                 // 初始化面板显示：默认显示控制面板
                 switchMobileSinglePanel('mobile-control-panel');
+                
+                // 【修复】延迟隐藏加载遮罩，确保UI完全加载
+                setTimeout(() => {
+                  const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+                  if (mobileLoadingOverlay) {
+                    mobileLoadingOverlay.classList.add('hidden');
+                  }
+                }, 500);
               }
 
               // 显示底部导航和菜单按钮 - 单账号模式
@@ -10122,8 +10394,15 @@
               }
             }
           } catch (e) {
-            console.error("代理[学校登录]失败:", e);
+            logMessage_Error("代理[学校登录]失败:", e);
             showMobileMessage('学校登录时发生内部错误', 'error');
+            // 【修复】恢复按钮状态并隐藏加载遮罩
+            mobileSingleLoginBtn.disabled = false;
+            mobileSingleLoginBtn.textContent = originalText;
+            const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+            if (mobileLoadingOverlay) {
+              mobileLoadingOverlay.classList.add('hidden');
+            }
           }
         });
       }
@@ -10242,6 +10521,9 @@
           console.error('[Mobile UI] 移动端用户下拉框后台加载失败:', e);
         });
       });
+
+
+
 
 
       console.log('[移动端UI] 移动端UI初始化完成');
@@ -12077,13 +12359,19 @@
 
       if (modal) {
         modal.classList.remove('hidden');
+        // 确保modal在移动端也能正确显示
+        modal.style.display = 'flex';
         input.value = '';  // 清空输入框
         loadCaptchaModal();  // 加载验证码
 
         // 自动聚焦到输入框
         setTimeout(() => {
-          input.focus();
+          if (input) {
+            input.focus();
+          }
         }, 300);
+      } else {
+        logMessage_Error('[验证码模态窗] 找不到captcha-verification-modal元素');
       }
     }
 
@@ -19435,6 +19723,87 @@
       return { valid: true };
     }
 
+    // --- 会话有效性检查 ---
+    let sessionValidityCheckInterval = null;
+
+    /**
+     * 定期检查会话是否有效
+     * 通过调用 /auth/check_uuid_type 接口检查UUID是否仍然存在
+     * 如果返回 uuid_type 为 "unknown"，说明会话不存在，需要提示用户重新登录
+     */
+    async function checkSessionValidity() {
+      if (!sessionUUID) {
+        logMessage_Info('[会话检查] 无UUID，跳过检查');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/check_uuid_type', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ uuid: sessionUUID })
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.uuid_type === 'unknown') {
+          // UUID不存在，会话已失效
+          logMessage_Warning('[会话检查] 会话不存在，UUID类型为unknown');
+
+          // 停止定期检查
+          if (sessionValidityCheckInterval) {
+            clearInterval(sessionValidityCheckInterval);
+            sessionValidityCheckInterval = null;
+          }
+
+          // 弹窗提示用户
+          Swal.fire({
+            title: '会话已失效',
+            text: 'UUID不存在 (文件未找到)\n您的会话已过期或不存在，请重新登录',
+            icon: 'warning',
+            confirmButtonText: '确定',
+            allowOutsideClick: false,
+            allowEscapeKey: false
+          }).then(() => {
+            // 用户确认后跳转到登录页面
+            logMessage_Info('[会话检查] 用户确认会话失效，跳转到登录页面');
+            window.location.href = '/';
+          });
+        } else if (!result.success) {
+          // API调用失败，但不一定是会话问题
+          logMessage_Warning('[会话检查] 检查失败:', result.message);
+        } else {
+          // 会话有效
+          logMessage_Info('[会话检查] 会话有效，UUID类型:', result.uuid_type);
+        }
+      } catch (error) {
+        // 网络错误或其他异常，不应该中断用户操作
+        logMessage_Error('[会话检查] 检查请求失败:', error);
+      }
+    }
+
+    /**
+     * 启动会话有效性定期检查
+     * 默认每5分钟检查一次
+     */
+    function startSessionValidityCheck() {
+      // 避免重复启动
+      if (sessionValidityCheckInterval) {
+        logMessage_Info('[会话检查] 定期检查已在运行');
+        return;
+      }
+
+      logMessage_Info('[会话检查] 启动定期检查，间隔5分钟');
+
+      // 立即执行一次检查
+      checkSessionValidity();
+
+      // 设置定期检查，每5分钟一次
+      sessionValidityCheckInterval = setInterval(checkSessionValidity, 5 * 60 * 1000);
+    }
+
     // --- 初始化 ---
     async function initializeApp() {
       try {
@@ -19802,6 +20171,19 @@
           option.value = option.textContent = user;
           userCombo.appendChild(option);
         });
+        
+        // 【修复】同时更新多账号模式的用户选择框
+        const multiConfigUserSelect = $('multi-config-user-select');
+        if (multiConfigUserSelect) {
+          multiConfigUserSelect.innerHTML = '<option value="">(新用户/手动输入)</option>';
+          initialData.users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = option.textContent = user;
+            option.title = user; // 长文本 tooltip
+            multiConfigUserSelect.appendChild(option);
+          });
+          logMessage_Info(`[初始化] multi-config-user-select 已更新，用户数: ${initialData.users.length}`);
+        }
 
         createParamInputs($('params-container'), 'param', onParamChange);
         if (initialData.lastUser) userCombo.value = initialData.lastUser;
@@ -20298,27 +20680,96 @@
 
         // 将定时刷新移动到 API 就绪后再启动
         // setInterval(refreshUserList, 5000);
+
+        // 启动会话有效性定期检查（仅在有UUID的情况下）
+        if (sessionUUID) {
+          startSessionValidityCheck();
+        }
+
+        // 【修复】移动端页面刷新后恢复任务执行状态
+        if (isMobileMode) {
+          setTimeout(() => restoreMobileTaskState(), 1000);
+        }
       } catch (err) {
         hideModal('loading-overlay');
         showModalAlert('服务器无法连接，请检查网络或稍后重试。', '网络错误');
         IS_OFFLINE = true;
       }
     }
+
+    /**
+     * 【修复】恢复移动端任务执行状态
+     * 在页面刷新后，检查后端任务状态并恢复UI状态
+     */
+    async function restoreMobileTaskState() {
+      try {
+        logMessage_Info('[移动端状态恢复] 开始检查后端任务状态...');
+
+        const statusRes = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+
+        if (statusRes.success && statusRes.task_status) {
+          const status = statusRes.task_status;
+
+          // 如果后端有正在运行的任务
+          if (status.status === 'running' || status.status === 'paused') {
+            logMessage_Info('[移动端状态恢复] 检测到后端任务正在执行，恢复状态...');
+
+            // 恢复任务索引
+            if (status.task_indices && status.current_task_index !== undefined) {
+              const task_list = status.task_indices;
+              const current_list_index = status.current_task_index;
+              if (task_list.length > current_list_index) {
+                const global_task_index = task_list[current_list_index];
+                selectedTaskIndex = global_task_index;
+                logMessage_Info(`[移动端状态恢复] 恢复任务索引: ${selectedTaskIndex}`);
+
+                // 加载任务数据
+                if (currentTasks && currentTasks[selectedTaskIndex]) {
+                  await selectTask(selectedTaskIndex, false);
+                }
+              }
+            }
+
+            // 恢复移动端UI状态
+            if (status.status === 'running') {
+              mobileTaskRunning = true;
+              mobileTaskPaused = false;
+              updateMobileTaskUI('运行中', '任务执行中...');
+              logMessage_Info('[移动端状态恢复] UI状态设置为运行中');
+            } else if (status.status === 'paused') {
+              mobileTaskRunning = true;
+              mobileTaskPaused = true;
+              updateMobileTaskUI('已暂停', '任务已暂停');
+              logMessage_Info('[移动端状态恢复] UI状态设置为已暂停');
+            }
+
+            // 启动轮询
+            startBackgroundTaskPolling();
+            logMessage_Info('[移动端状态恢复] 已启动后台任务轮询');
+          } else {
+            logMessage_Info('[移动端状态恢复] 后端无正在执行的任务');
+          }
+        }
+      } catch (error) {
+        logMessage_Error('[移动端状态恢复] 恢复状态失败:', error);
+      }
+    }
+
     let socket = null; // 全局 socket 变量
 
     // 在 initializeApp 成功获取到 sessionUUID 后或者认证成功后调用此函数
     function connectWebSocket() {
       if (socket && socket.connected) {
-        logMessage_Info("WebSocket already connected.");
+        logMessage_Info("WebSocket 已连接.");
         return;
       }
 
       if (!sessionUUID) {
-        logMessage_Warning("Cannot connect WebSocket: sessionUUID is missing.");
+        logMessage_Warning("无法连接 WebSocket：缺少 sessionUUID。");
         return;
       }
 
-      logMessage_Info("Attempting to connect WebSocket...");
+      logMessage_Info("尝试连接 WebSocket...");
       // 连接到服务器，注意路径可能需要根据实际部署调整
       socket = io({
         // 如果部署在非根路径，可能需要指定 path
@@ -20333,7 +20784,7 @@
       socket.connect();
 
       socket.on('connect', () => {
-        logMessage_Info('WebSocket connected successfully. SID:', socket.id);
+        logMessage_Info('WebSocket 连接成功。SID:', socket.id);
         // 连接成功后，立即发送 'join' 事件，告知服务器 session_id
         socket.emit('join', { session_id: sessionUUID });
         // (可选) 在日志窗口显示连接成功
@@ -20341,7 +20792,7 @@
       });
 
       socket.on('disconnect', (reason) => {
-        logMessage_Warning('WebSocket disconnected:', reason);
+        logMessage_Warning('WebSocket 连接已断开:', reason);
         logMessage_Info("[System] WebSocket 连接已断开，尝试重连...");
         // Socket.IO库会自动尝试重新建立WebSocket连接
       });
@@ -20349,7 +20800,7 @@
       socket.on('connect_error', (error) => {
         // 只在非网络错误状态时记录错误，避免生成大量错误日志
         if (!isInNetworkErrorState) {
-          logMessage_Error('WebSocket connection error:', error);
+          logMessage_Error('WebSocket 连接错误:', error);
           logMessage_Info("[System-Error] WebSocket 连接失败");
         }
       });
@@ -20369,7 +20820,7 @@
       // 监听多账号卡片内容更新
       socket.on('multi_status_update', (data) => {
         if (data && data.username && data.data) {
-          // logMessage_Debug(`[Socket] 收到 ${data.username} 状态更新`);
+          logMessage_Debug(`[Socket] 收到 ${data.username} 状态更新`);
           multi_updateAccountStatus(data.username, data.data);
         }
       });
@@ -20385,7 +20836,7 @@
       // 监听多账号全局按钮状态更新
       socket.on('multi_global_buttons_update', (data) => {
         if (data) {
-          // logMessage_Debug(`[Socket] 收到全局按钮状态更新`);
+          logMessage_Debug(`[Socket] 收到全局按钮状态更新`);
           updateMultiGlobalButtons(data.start_disabled, data.stop_disabled);
           // 单独处理退出按钮
           const exitBtn = document.getElementById("exit-multi-mode-btn");
@@ -20403,7 +20854,8 @@
       });
 
       // 监听单账号当前位置位置更新
-      socket.on('runner_position_update', (data) => {
+      socket.on('runner_position_update_new', (data) => {
+        logMessage_Debug('[Socket] 收到 runner_position_update 事件');
         if (data) {
           // 检查后端发来的任务索引 (data.task_index)
           if (data.task_index !== undefined && data.task_index !== selectedTaskIndex) {
@@ -20414,11 +20866,14 @@
             // 2. 重新渲染任务列表以高亮显示当前任务 
             renderTaskList();
 
-            return;
+            // 【修正】移除 return，确保即使切换了任务，当前数据包的位置信息也能被处理
+            // 否则会导致初始 center_now=True 的数据包被丢弃，地图不跟随
+            // return; 
           }
 
-          // 只有当 task_index 匹配时，才更新位置
+          // 更新位置
           updateRunnerPosition(data.lon, data.lat, data.distance, data.target_sequence, data.duration, data.center_now);
+          logMessage_Debug(`[Socket] 收到当前位置更新: lon=${data.lon}, lat=${data.lat}`);
         }
       });
 
@@ -23412,6 +23867,53 @@
         centerTargetList(sequence);
       }
 
+      // 【移动端同步更新】更新移动端实时数据显示
+      // 同步更新移动端的 mobile-run-stats-block, mobile-live-stats-grid 等元素
+      const mobileRunStatsLabel = document.getElementById('mobile-run-stats-label');
+      if (mobileRunStatsLabel) {
+        if (isDrawingNow && draftTotalDist > 0) {
+          const drawKm = (draftTotalDist / 1000).toFixed(2);
+          const avgSpeed = pythonParams.speed_mps || 1.5;
+          const estMin = avgSpeed > 0 ? (draftTotalDist / avgSpeed) / 60 : 0;
+          mobileRunStatsLabel.textContent = `${drawKm} km / ~${estMin.toFixed(1)} min`;
+        } else {
+          const dist = ((currentRunData.total_run_distance_m || 0) / 1000).toFixed(2);
+          const timeMin = Math.floor((currentRunData.total_run_time_s || 0) / 60);
+          const timeSec = Math.floor((currentRunData.total_run_time_s || 0) % 60);
+          mobileRunStatsLabel.textContent = `${dist} km / ${String(timeMin).padStart(2, '0')}:${String(timeSec).padStart(2, '0')}`;
+        }
+      }
+
+      // 更新移动端实时数据网格
+      const mobileLiveDistLabel = document.getElementById('mobile-live-dist-label');
+      const mobileLiveTimeLabel = document.getElementById('mobile-live-time-label');
+      const mobileTotalDistLabel = document.getElementById('mobile-total-dist-label');
+      const mobileTotalTimeLabel = document.getElementById('mobile-total-time-label');
+      const mobileCurrentLocationLabel = document.getElementById('mobile-current-location-label');
+
+      if (mobileLiveDistLabel) {
+        mobileLiveDistLabel.textContent = `${liveKm} km`;
+      }
+      if (mobileLiveTimeLabel) {
+        mobileLiveTimeLabel.textContent = `${mm}:${ss}`;
+      }
+      if (mobileTotalDistLabel) {
+        mobileTotalDistLabel.textContent = `${totalDistKm} km`;
+      }
+      if (mobileTotalTimeLabel) {
+        const totalTimeMin = Math.floor((currentRunData.total_run_time_s || 0) / 60);
+        const totalTimeSec = Math.floor((currentRunData.total_run_time_s || 0) % 60);
+        mobileTotalTimeLabel.textContent = `${String(totalTimeMin).padStart(2, '0')}:${String(totalTimeSec).padStart(2, '0')}`;
+      }
+      if (mobileCurrentLocationLabel && currentRunData) {
+        // 从当前位置标签获取坐标信息
+        const currentLocationLabel = document.getElementById('current-location-label');
+        if (currentLocationLabel) {
+          const coordsText = currentLocationLabel.textContent.replace('当前位置GPS坐标: ', '');
+          mobileCurrentLocationLabel.textContent = `当前位置: ${coordsText}`;
+        }
+      }
+
       // 【问题6修复】同步更新移动端打卡点列表
       // 当Dashboard更新时，也更新移动端的打卡点面板
       renderMobileCheckpointsList();
@@ -24085,18 +24587,19 @@
 
           drawMarkers();
 
-          // // 如果有实时位置数据，则在地图上更新显示
-          // if (status.current_position) {
-          //   const pos = status.current_position;
-          //   updateRunnerPosition(
-          //     pos.lon,
-          //     pos.lat,
-          //     pos.distance || 0,
-          //     pos.target_sequence || 0,
-          //     0, // duration not needed for display
-          //     false // don't auto-center
-          //   );
-          // }
+          // 【修复】恢复通过轮询获取实时位置数据的逻辑
+          // 当WebSocket推送不可用时，这确保了地图上的跑步者位置能正常更新
+          if (status.current_position) {
+            const pos = status.current_position;
+            updateRunnerPosition(
+              pos.lon,
+              pos.lat,
+              pos.distance || 0,
+              pos.target_sequence || 0,
+              0, // duration not needed for display in polling mode
+              false // don't auto-center every time to prevent jitter
+            );
+          }
 
           // 检查这是否是旧数据（任务在我们开始轮询前就已启动）
           const taskStartTime = (status.start_time || 0) * 1000; // 转换为毫秒
@@ -24316,6 +24819,12 @@
       runAccumulatedMs += (duration || 0);
       currentRunData.distance_covered_m = distance || 0;
       $('current-location-label').textContent = `当前位置GPS坐标: ${(+lon).toFixed(4)}, ${(+lat).toFixed(4)}`;
+
+      // 【修复】同步更新移动端当前位置标签
+      const mobileCurrentLocationLabel = document.getElementById('mobile-current-location-label');
+      if (mobileCurrentLocationLabel) {
+        mobileCurrentLocationLabel.textContent = `当前位置: ${(+lon).toFixed(4)}, ${(+lat).toFixed(4)}`;
+      }
 
       // Python后端使用0-based索引 (targetSequence)，而JS UI使用1-based索引。
       // 在这里进行转换：(0-based index) + 1 = (1-based index)
@@ -24560,13 +25069,16 @@
       }
       const result = await callPythonAPI('get_historical_track', trid);
       if (result.success) {
+        logMessage_Info(`[历史轨迹] API返回数据 - coords长度: ${result.coords?.length || 0}, target_points长度: ${result.target_points?.length || 0}`);
 
         // === 移动端适配：在拟态模态框中显示地图 ===
         if (isMobileMode) {
           const modal = $('mobile-track-modal');
           if (modal) {
-            // 1. 显示模态框
+            // 1. 显示模态框（确保显示样式正确）
+            $('mobile-track-modal').classList.add('show');
             modal.classList.remove('hidden');
+            modal.style.display = 'flex';  // 确保模态框以flex布局显示
 
             // 2. 初始化移动端轨迹地图
             await initMobileTrackMap();
@@ -24606,22 +25118,70 @@
               });
               mobileTrackMarkers.push(endMarker);
 
-              // 8. 计算距离并更新UI (后端此接口未直接返回统计数据)
+              // 8. 填充移动端轨迹摘要信息
+              // 计算距离
               let totalDist = 0;
               if (AMapInstance.GeometryUtil) {
                 totalDist = AMapInstance.GeometryUtil.distanceOfLine(path);
               }
-
+              
+              // 从result获取统计数据（如果有的话）
+              const distance = result.distance || (totalDist / 1000);
+              const duration = result.duration || result.used_time || '--:--';
+              const checkpoints = result.checkpoints || result.target_points?.length || 0;
+              
+              // 更新摘要中的各个元素
               const distEl = $('mobile-track-distance');
-              const timeEl = $('mobile-track-time');
               const durEl = $('mobile-track-duration');
+              const paceEl = $('mobile-track-pace');
+              
+              if (distEl) {
+                distEl.textContent = `${typeof distance === 'number' ? distance.toFixed(2) : distance} km`;
+              }
+              if (durEl) {
+                durEl.textContent = duration;
+              }
+              if (paceEl && typeof distance === 'number' && duration !== '--:--') {
+                // 尝试计算配速（如果有时长数据）
+                // 配速格式：分钟/公里
+                const durationMatch = duration.match(/(\d+):(\d+)/);
+                if (durationMatch) {
+                  const totalMinutes = parseInt(durationMatch[1]) + parseInt(durationMatch[2]) / 60;
+                  const pace = distance > 0 ? totalMinutes / distance : 0;
+                  const paceMin = Math.floor(pace);
+                  const paceSec = Math.round((pace - paceMin) * 60);
+                  paceEl.textContent = `${paceMin}:${paceSec.toString().padStart(2, '0')}/km`;
+                } else {
+                  paceEl.textContent = '--:--';
+                }
+              }
+              
+              logMessage_Info(`[历史轨迹] 摘要信息已更新 - 距离: ${distance} km, 时长: ${duration}, 打卡点: ${checkpoints}`);
 
-              if (distEl) distEl.textContent = (totalDist / 1000).toFixed(2) + ' km';
-              // 由于 get_historical_track 接口只返回坐标点，暂无时间数据，显示通用文本或保持原样
-              if (timeEl) timeEl.textContent = "历史轨迹回放";
-              if (durEl) durEl.textContent = "--:--";
+              // 9. 绘制打卡点标记（如果有的话）
+              logMessage_Info(`[历史轨迹] 检查打卡点数据 - target_points存在: ${!!result.target_points}, 长度: ${result.target_points?.length || 0}`);
+              if (result.target_points && result.target_points.length > 0) {
+                const targetNames = result.target_point_names ? result.target_point_names.split('|') : [];
+                result.target_points.forEach((point, index) => {
+                  const pointName = targetNames[index] || `点 ${index + 1}`;
+                  const checkpointMarker = new AMapInstance.Marker({
+                    position: new AMapInstance.LngLat(point[0], point[1]),
+                    content: `<div class="flex flex-col items-center">
+                      <div class="text-xs font-bold whitespace-nowrap px-2 py-1 rounded-full shadow-lg bg-emerald-600 text-white">
+                        ${pointName}
+                      </div>
+                      <div class="w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-emerald-600"></div>
+                    </div>`,
+                    anchor: 'bottom-center',
+                    zIndex: 100,
+                    map: mobileTrackMapInstance
+                  });
+                  mobileTrackMarkers.push(checkpointMarker);
+                });
+                logMessage_Info(`[历史轨迹] 已绘制 ${result.target_points.length} 个打卡点`);
+              }
 
-              // 9. 调整视野
+              // 10. 调整视野
               mobileTrackMapInstance.setFitView();
             }
           }
@@ -24647,6 +25207,14 @@
       if (fill) fill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
       if (label) label.textContent = `进度 · ${pct}%`;
       if (extraEl) extraEl.textContent = extra || text || '';
+
+      // 【移动端同步更新】更新移动端进度条
+      const mobileFill = document.getElementById('mobile-single-progress-fill');
+      const mobileLabel = document.getElementById('mobile-single-progress-text');
+      const mobileExtraEl = document.getElementById('mobile-single-progress-extra');
+      if (mobileFill) mobileFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      if (mobileLabel) mobileLabel.textContent = `进度 · ${pct}%`;
+      if (mobileExtraEl) mobileExtraEl.textContent = extra || text || '';
     }
 
 
@@ -24735,6 +25303,106 @@
       return result || '未知';
     }
 
+    // ========================================
+    // 【全局Console拦截】确保第三方JS日志也回传到后端
+    // ========================================
+    (function () {
+      // 保存原始console方法的引用
+      const originalConsole = {
+        log: console.log.bind(console),
+        info: console.info.bind(console),
+        warn: console.warn.bind(console),
+        error: console.error.bind(console),
+        debug: console.debug.bind(console)
+      };
+
+      // 用于防止递归调用
+      let isIntercepting = false;
+
+      /**
+       * 拦截console调用并发送到后端
+       * @param {string} level - 日志级别
+       * @param {Array} args - 日志参数
+       * @param {Function} originalFn - 原始console方法
+       */
+      function interceptConsole(level, args, originalFn) {
+        // 调用原始console方法，确保日志仍然在浏览器控制台显示
+        originalFn.apply(console, args);
+
+        // 防止递归调用
+        if (isIntercepting) return;
+
+        try {
+          isIntercepting = true;
+
+          // 将参数转换为字符串
+          const message = args.map(arg => {
+            if (typeof arg === 'string') return arg;
+            if (arg instanceof Error) return `${arg.name}: ${arg.message}\n${arg.stack}`;
+            try {
+              return JSON.stringify(arg);
+            } catch (e) {
+              return String(arg);
+            }
+          }).join(' ');
+
+          // 检查是否已经是我们的日志（避免重复发送）
+          if (message.includes('[前端日志]')) {
+            return;
+          }
+
+          // 发送到后端（仅在非网络错误状态时）
+          if (!isInNetworkErrorState && sessionUUID) {
+            const now = new Date();
+            const timestamp = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+            fetch('/api/log_frontend', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionUUID || null
+              },
+              credentials: 'include',
+              body: JSON.stringify({
+                level: level.toUpperCase(),
+                message: message,
+                timestamp: timestamp,
+                source: '第三方JS'
+              })
+            }).catch(() => {
+              // 静默失败，避免影响主功能
+            });
+          }
+        } finally {
+          isIntercepting = false;
+        }
+      }
+
+      // 重写console方法
+      console.log = function (...args) {
+        interceptConsole('info', args, originalConsole.log);
+      };
+
+      console.info = function (...args) {
+        interceptConsole('info', args, originalConsole.info);
+      };
+
+      console.warn = function (...args) {
+        interceptConsole('warning', args, originalConsole.warn);
+      };
+
+      console.error = function (...args) {
+        interceptConsole('error', args, originalConsole.error);
+      };
+
+      console.debug = function (...args) {
+        interceptConsole('debug', args, originalConsole.debug);
+      };
+
+      // 保存原始方法的引用，以便内部代码可以直接调用（如果需要）
+      console._original = originalConsole;
+    })();
+
     // 日志记录函数，支持不同级别日志
     // level 可选值：'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
     function logMessage(msg, level = 'INFO', source = null) {
@@ -24766,21 +25434,46 @@
 
       if (level === 'DEBUG') {
         level_new = 'DEBUG';
-        console.debug(new_message);
+        // 使用原始console方法，避免触发拦截器
+        if (console._original) {
+          console._original.debug(new_message);
+        } else {
+          console.debug(new_message);
+        }
       } else if (level === 'INFO') {
         level_new = 'INFO';
-        console.info(new_message);
+        if (console._original) {
+          console._original.info(new_message);
+        } else {
+          console.info(new_message);
+        }
       } else if (level === 'ERROR') {
         level_new = 'ERROR';
-        console.error(new_message);
+        if (console._original) {
+          console._original.error(new_message);
+        } else {
+          console.error(new_message);
+        }
       } else if (level === 'WARNING') {
         level_new = 'WARNING';
-        console.warn(new_message);
+        if (console._original) {
+          console._original.warn(new_message);
+        } else {
+          console.warn(new_message);
+        }
       } else if (level === 'CRITICAL') {
         level_new = 'CRITICAL';
-        console.error(new_message);
+        if (console._original) {
+          console._original.error(new_message);
+        } else {
+          console.error(new_message);
+        }
       } else {
-        console.log(new_message);
+        if (console._original) {
+          console._original.log(new_message);
+        } else {
+          console.log(new_message);
+        }
       }
 
 
@@ -25349,12 +26042,13 @@
         }
 
         if (!cachedDisplayed && content) {
-          content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载前5条通知...</p>';
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载通知...</p>';
         }
 
         // 【优化】步骤2：渐进式分段加载最新通知
+        // 【修复】首次登录使用5条缓存，之后请求5000条
         let currentOffset = 0;
-        const batchSize = 5;
+        const batchSize = cachedDisplayed ? 5000 : 5;  // 如果已显示缓存（首次登录），则只请求5条；否则请求5000条
         let hasMore = true;
         let firstLoad = true;
         let finalResult = null; // 修正：用于存储第一个批次的结果（包含正确的角标数）
@@ -26278,7 +26972,9 @@
     // ==================== 移动端UI交互函数 ====================
     // 本节包含所有移动端专用UI组件的JavaScript交互逻辑
     // 包括：通知面板、任务面板、地图面板、控制面板、多账号管理等
-
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
     /**
      * 切换移动端通知标签页（全部/签到）
      * @param {string} tabName - 标签名称：'all'（全部通知）或'attendance'（签到任务）
@@ -26790,9 +27486,9 @@
      */
     async function mobileStartTask() {
       try {
-        // 检查是否有选中的任务
-        if (selectedTaskIndex < 0) {
-          showTempMessage('请先选择任务', 'error');
+        // 【修复】检查是否有选中的任务，使用模态窗提示
+        if (selectedTaskIndex < 0 || selectedTaskIndex === -1) {
+          showModalAlert('请先选择一个任务再开始执行', '未选择任务');
           return;
         }
 
@@ -28145,13 +28841,13 @@
       // 检查地图容器是否存在
       const container = document.getElementById(containerId);
       if (!container) {
-        console.warn(`[移动端地图] 容器 ${containerId} 不存在`);
+        logMessage_Warning(`[移动端地图] 容器 ${containerId} 不存在`);
         return;
       }
 
       // 检查高德地图API是否已加载
       if (typeof AMapInstance === 'undefined') {
-        console.error('[移动端地图] 高德地图API未加载');
+        logMessage_Error('[移动端地图] 高德地图API未加载');
         container.innerHTML = `
           <div class="absolute inset-0 flex items-center justify-center text-slate-400">
             <div class="text-center">
@@ -28170,11 +28866,11 @@
       if (isMultiAccount) {
         // 多账号模式：检查multiAccountMap是否已初始化
         // if (multiAccountMap) {
-        //   console.log('[移动端地图] 多账号地图已初始化，跳过');
+        //   logMessage_Info('[移动端地图] 多账号地图已初始化，跳过');
         //   return;
         // }
 
-        console.log(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
+        logMessage_Info(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
 
         try {
           // 【问题26修复】创建多账号地图实例，使用深圳坐标作为中心点
@@ -28195,24 +28891,31 @@
             const buildings = new AMapInstance.BuildingLayer();
             buildings.setMap(multiAccountMap);
           } catch (e) {
-            console.warn('[移动端地图] 3D建筑图层不可用:', e);
+            logMessage_Warning('[移动端地图] 3D建筑图层不可用:', e);
           }
 
-          console.log('[移动端地图] 多账号地图初始化成功');
+          logMessage_Info('[移动端地图] 多账号地图初始化成功');
         } catch (error) {
-          console.error('[移动端地图] 多账号地图初始化失败:', error);
+          logMessage_Error('[移动端地图] 多账号地图初始化失败:', error);
         }
       } else {
         // 单账号模式：检查map是否已初始化
         // if (map) {
-        //   console.log('[移动端地图] 单账号地图已初始化，跳过');
+        //   logMessage_Info('[移动端地图] 单账号地图已初始化，跳过');
         //   return;
         // }
 
-        console.log(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
+        logMessage_Info(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
 
         try {
           // 【问题26修复】创建单账号地图实例，使用深圳坐标作为中心点
+          // 重要：在创建新地图实例前，清除旧的runnerMarker引用
+          // 这样ensureRunnerMarker()可以为新地图实例创建新的marker
+          if (runnerMarker) {
+            runnerMarker = null;
+            logMessage_Info('[移动端地图] 已清除旧的runner marker，准备为新地图创建');
+          }
+
           map = new AMapInstance.Map(containerId, {
             zoom: 15, // 缩放级别
             center: [113.390342, 22.527403], // 默认中心点：深圳
@@ -28230,12 +28933,12 @@
             const buildings = new AMapInstance.BuildingLayer();
             buildings.setMap(map);
           } catch (e) {
-            console.warn('[移动端地图] 3D建筑图层不可用:', e);
+            logMessage_Warning('[移动端地图] 3D建筑图层不可用:', e);
           }
 
-          console.log('[移动端地图] 单账号地图初始化成功');
+          logMessage_Info('[移动端地图] 单账号地图初始化成功');
         } catch (error) {
-          console.error('[移动端地图] 单账号地图初始化失败:', error);
+          logMessage_Error('[移动端地图] 单账号地图初始化失败:', error);
         }
       }
     }
@@ -28380,12 +29083,31 @@
         // 第三步：执行面板激活时的初始化逻辑
         // 不同的面板在激活时需要执行不同的初始化操作
         // 例如：加载配置、初始化地图、刷新数据等
+        if (panelId === 'mobile-control-panel') {
+          // 控制面板激活时的逻辑（如果有）
+          logMessage_Info('[移动端单账号] 激活控制面板');
+          if (!window.mobile_map_panel_initialize_mark) {
+            switchMobileSinglePanel('mobile-map-panel');
+            logMessage_Info('[移动端单账号] 首次激活控制面板，初始化地图...');
+            setTimeout(function() {
+
+            // 设置标记为 true
+            window.mobile_map_panel_initialize_mark = true;
+
+            initMobileMap('mobile-map-container', false);
+            }, 200);
+            setTimeout(function() {
+            switchMobileSinglePanel('mobile-control-panel');
+            }, 400);
+            logMessage_Info('[移动端单账号] 地图初始化完成，返回控制面板');
+          }
+        }
 
         // 【设置面板】激活时自动加载配置
         // 当用户切换到设置面板时，自动从 pythonParams 加载当前配置并填充到输入框
         // 这样用户看到的就是当前生效的配置值，而不是空白表单
         if (panelId === 'mobile-settings-panel') {
-          console.log('[移动端单账号] 激活设置面板，开始加载配置...');
+          logMessage_Info('[移动端单账号] 激活设置面板，开始加载配置...');
           // 获取设置面板中的参数容器元素
           const mobileParamsContainer = document.getElementById('mobile-params-container');
           // 检查容器存在、pythonParams全局变量已定义、updateParamInputs函数可用
@@ -28396,10 +29118,18 @@
             // - 'mobile-param': 输入框ID的前缀，用于定位正确的输入框
             // - pythonParams: 包含当前配置值的全局对象
             updateParamInputs(mobileParamsContainer, 'mobile-param', pythonParams);
-            console.log('[移动端单账号] 设置面板配置已自动加载');
+            logMessage_Info('[移动端单账号] 设置面板配置已自动加载');
           } else {
             // 如果依赖项不满足，输出警告信息，帮助调试
-            console.warn('[移动端单账号] 无法加载配置：容器或函数未定义');
+            logMessage_Warning('[移动端单账号] 无法加载配置：容器或函数未定义');
+          }
+
+          // 调用 refreshMobileSettings 函数刷新设置
+          if (typeof refreshMobileSettings === 'function') {
+            refreshMobileSettings();
+            logMessage_Info('[移动端单账号] 设置面板已自动刷新');
+          } else {
+            logMessage_Warning('[移动端单账号] refreshMobileSettings函数未定义');
           }
         }
 
@@ -28407,29 +29137,50 @@
         // 当用户切换到地图面板时，自动初始化高德地图实例
         // 原因：地图需要在DOM元素可见后才能正确初始化和渲染
         if (panelId === 'mobile-map-panel') {
-          console.log('[移动端单账号] 激活地图面板，初始化地图...');
+          logMessage_Info('[移动端单账号] 激活地图面板，初始化地图...');
           // 延迟100ms执行，确保DOM已完全渲染
           // 如果立即执行，地图容器可能还没有完成显示动画，导致地图尺寸计算错误
-          setTimeout(() => {
-            // 调用 initMobileMap 函数初始化地图
-            // 参数说明：
-            // - 'mobile-map-container': 地图容器的DOM元素ID
-            // - false: 表示这是单账号模式的地图（非多账号）
-            initMobileMap('mobile-map-container', false);
-            // 如果已有任务数据，重新在地图上绘制路径和标记
-            // currentRunData 存储当前任务的运行数据
-            // drawOnMap 函数负责将任务路径绘制到地图上
-            if (currentRunData && typeof drawOnMap === 'function') {
+          // setTimeout(() => {
+          // 调用 initMobileMap 函数初始化地图
+          // 参数说明：
+          // - 'mobile-map-container': 地图容器的DOM元素ID
+          // - false: 表示这是单账号模式的地图（非多账号）
+
+
+
+
+          // 延迟额外200ms以确保地图完全初始化后再绘制
+          // setTimeout(() => {
+          // 如果已有任务数据，重新在地图上绘制路径和标记
+          // currentRunData 存储当前任务的运行数据
+          // drawOnMap 函数负责将任务路径绘制到地图上
+          if (currentRunData && currentRunData.run_coords && currentRunData.run_coords.length > 0) {
+            logMessage_Info('[移动端单账号] 开始绘制任务路径和打卡点...');
+            if (typeof drawOnMap === 'function') {
               drawOnMap();
+              drawOnMap(); // 调用两次以确保绘制完整
+              logMessage_Info('[移动端单账号] 任务路径和打卡点已绘制');
+              ensureRunnerMarker();
             }
-          }, 100); // 延迟100毫秒
+          } else {
+            logMessage_Info('[移动端单账号] 无任务数据，跳过绘制');
+          }
+
+          // // 确保runner marker被添加到地图上并且可见
+          // // 这样用户可以看到当前位置（不仅是路径和打卡点）
+          // if (typeof ensureRunnerMarker === 'function') {
+          //   ensureRunnerMarker();
+          //   logMessage_Info('[移动端单账号] Runner marker已确保显示');
+          // }
+          // }, 200);
+          // }, 100); // 延迟100毫秒
         }
 
         // 【签到面板】激活时自动加载默认配置值
         // 当用户切换到签到面板时，自动从 pythonParams 加载签到相关的配置
         // 原因：签到面板包含多个配置项（开关、时间、延迟范围等），需要显示当前的配置状态
         if (panelId === 'mobile-attendance-panel') {
-          console.log('[移动端单账号] 激活签到面板，开始加载配置...');
+          logMessage_Info('[移动端单账号] 激活签到面板，开始加载配置...');
           // 延迟50ms执行，确保DOM已渲染
           setTimeout(() => {
             // 加载签到开关状态
@@ -28467,7 +29218,7 @@
             if (autoRefreshInterval && typeof pythonParams !== 'undefined') {
               // 获取刷新间隔参数，默认为60秒
               autoRefreshInterval.value = pythonParams.auto_attendance_refresh_s || 60;
-              console.log('[移动端单账号] 自动刷新间隔已加载:', autoRefreshInterval.value, '秒');
+              logMessage_Info('[移动端单账号] 自动刷新间隔已加载:', autoRefreshInterval.value, '秒');
             }
 
             // 加载签到随机半径配置
@@ -28476,10 +29227,10 @@
             if (userRadius && typeof pythonParams !== 'undefined') {
               // 获取随机半径参数，默认为0米（精确签到，不偏移）
               userRadius.value = pythonParams.attendance_user_radius_m || 0;
-              console.log('[移动端单账号] 签到随机半径已加载:', userRadius.value, '米');
+              logMessage_Info('[移动端单账号] 签到随机半径已加载:', userRadius.value, '米');
             }
 
-            console.log('[移动端单账号] 签到面板配置已自动加载');
+            logMessage_Info('[移动端单账号] 签到面板配置已自动加载');
 
             refreshNotificationsUI(true, true);
           }, 50); // 延迟50毫秒
@@ -28489,17 +29240,17 @@
         // 当用户切换到任务详情面板时，自动调用 loadMobileTaskDetails 加载当前任务的详细信息
         // 原因：任务详情面板需要显示特定任务的完整信息，激活时需要加载最新数据
         if (panelId === 'mobile-task-details-panel') {
-          console.log('[移动端单账号] 激活任务详情面板，开始加载任务详情...');
+          logMessage_Info('[移动端单账号] 激活任务详情面板，开始加载任务详情...');
           // 延迟50ms确保DOM已渲染
           setTimeout(() => {
             // 检查 loadMobileTaskDetails 函数是否存在
             if (typeof loadMobileTaskDetails === 'function') {
               // 调用函数加载任务详情
               loadMobileTaskDetails();
-              console.log('[移动端单账号] 任务详情已自动加载');
+              logMessage_Info('[移动端单账号] 任务详情已自动加载');
             } else {
               // 如果函数不存在，输出警告
-              console.warn('[移动端单账号] loadMobileTaskDetails函数未定义');
+              logMessage_Warning('[移动端单账号] loadMobileTaskDetails函数未定义');
             }
           }, 50);
         }
@@ -28508,17 +29259,17 @@
         // 当用户切换到用户详情面板（我的资料）时，自动加载用户的详细信息
         // 原因：用户资料面板需要显示当前用户的信息，激活时需要加载最新数据
         if (panelId === 'mobile-profile-panel') {
-          console.log('[移动端单账号] 激活用户详情面板，开始加载用户详情...');
+          logMessage_Info('[移动端单账号] 激活用户详情面板，开始加载用户详情...');
           // 延迟50ms确保DOM已渲染
           setTimeout(() => {
             // 检查 loadMobileUserDetails 函数是否存在
             if (typeof loadMobileUserDetails === 'function') {
               // 调用函数加载用户详情
               loadMobileUserDetails();
-              console.log('[移动端单账号] 用户详情已自动加载');
+              logMessage_Info('[移动端单账号] 用户详情已自动加载');
             } else {
               // 如果函数不存在，输出警告
-              console.warn('[移动端单账号] loadMobileUserDetails函数未定义');
+              logMessage_Warning('[移动端单账号] loadMobileUserDetails函数未定义');
             }
           }, 50);
         }
@@ -28527,28 +29278,54 @@
         // 当用户切换到管理面板时，自动初始化管理面板的标签页和内容
         // 原因：管理面板包含多个标签页（用户管理、角色管理等），需要根据用户权限动态创建
         if (panelId === 'mobile-admin-panel') {
-          console.log('[移动端单账号] 激活管理面板，开始初始化...');
+          logMessage_Info('[移动端单账号] 激活管理面板，开始初始化...');
           // 调用 initMobileAdminPanel 函数初始化管理面板
           // 参数 'mobile-admin-panel' 是前缀，用于区分单账号和多账号的管理面板
           if (typeof initMobileAdminPanel === 'function') {
             initMobileAdminPanel('mobile-admin-panel');
           } else {
-            console.warn('[移动端单账号] initMobileAdminPanel函数未定义');
+            logMessage_Warning('[移动端单账号] initMobileAdminPanel函数未定义');
           }
         }
 
         // 【通知面板】激活时自动刷新
         if (panelId === 'mobile-notification-panel') {
-          console.log('[移动端单账号] 激活通知面板，自动刷新...');
+          logMessage_Info('[移动端单账号] 激活通知面板，自动刷新...');
           setTimeout(() => {
             mobileRefreshNotifications();
           }, 50);
         }
 
         if (panelId === 'mobile-task-history-panel') {
-          console.log('[移动端单账号] 激活历史记录面板...');
+          logMessage_Info('[移动端单账号] 激活历史记录面板...');
           setTimeout(() => {
             loadMobileTaskHistoryPanel();
+          }, 50);
+        }
+
+        // 【任务列表面板】激活时自动刷新任务列表
+        if (panelId === 'mobile-task-panel') {
+          logMessage_Info('[移动端单账号] 激活任务列表面板，自动刷新任务...');
+          setTimeout(() => {
+            if (typeof mobileRefreshTasks === 'function') {
+              mobileRefreshTasks();
+              logMessage_Info('[移动端单账号] 任务列表已自动刷新');
+            } else {
+              logMessage_Warning('[移动端单账号] mobileRefreshTasks函数未定义');
+            }
+          }, 50);
+        }
+
+        // 【打卡点面板】激活时自动渲染打卡点列表
+        if (panelId === 'mobile-checkpoints-panel') {
+          logMessage_Info('[移动端单账号] 激活打卡点面板，自动渲染打卡点列表...');
+          setTimeout(() => {
+            if (typeof renderMobileCheckpointsList === 'function') {
+              renderMobileCheckpointsList();
+              logMessage_Info('[移动端单账号] 打卡点列表已自动渲染');
+            } else {
+              logMessage_Warning('[移动端单账号] renderMobileCheckpointsList函数未定义');
+            }
           }, 50);
         }
 
@@ -28559,7 +29336,7 @@
       } else {
         // 如果找不到目标面板，输出警告信息
         // 这可能是因为传入了错误的panelId，或者HTML结构发生了变化
-        console.warn(`[移动端单账号] 找不到ID为 ${panelId} 的面板`);
+        logMessage_Warning(`[移动端单账号] 找不到ID为 ${panelId} 的面板`);
       }
 
       // 第五步：更新导航栏和侧边栏的激活状态
@@ -28569,7 +29346,12 @@
       updateMobileSidebarActive(panelId);     // 更新侧边栏菜单的激活状态
     }
 
-    function switchMobilePanel(panelId, mode = 'single') {
+    /**
+     * 【移动端多账号面板切换】专用函数
+     * 重命名自 switchMobilePanel，现在仅用于多账号模式
+     * 单账号模式使用 switchMobileSinglePanel
+     */
+    function switchMobileMulitPanel(panelId, mode = 'multi') {
       // 根据模式定义面板列表
       const singleModePanels = [
         'mobile-control-panel',
@@ -28627,6 +29409,25 @@
         // 3. 这样可以保持与CSS定义的一致性，避免破坏原有的布局设计
         targetPanel.style.display = '';
 
+        if(panelId === 'mobile-multi-control-panel') {
+          logMessage_Info('[移动端多账号] 激活多账号控制面板');
+          if (!window.mobile_multi_map_panel_initialize_mark) {
+            switchMobileMulitPanel('mobile-multi-map-panel');
+            logMessage_Info('[移动端多账号] 首次激活多账号控制面板，初始化地图...');
+            setTimeout(function() {
+
+            // 设置标记为 true
+            window.mobile_multi_map_panel_initialize_mark = true;
+
+            initMobileMap('mobile-multi-map-container', true);
+            }, 200);
+            setTimeout(function() {
+            switchMobileMulitPanel('mobile-multi-control-panel');
+            }, 400);
+            logMessage_Info('[移动端多账号] 多账号地图初始化完成，返回控制面板');
+          }
+        }
+
         // 【问题16修复】设置面板激活时自动加载配置
         // 当切换到设置面板时，自动调用updateParamInputs填充配置数值
         if (panelId === 'mobile-settings-panel') {
@@ -28652,111 +29453,114 @@
           }
         }
 
-        // 【问题12修复】地图面板激活时初始化地图
-        // 当切换到地图面板时，自动初始化高德地图实例
-        if (panelId === 'mobile-map-panel') {
-          console.log('[移动端] 激活地图面板，初始化地图...');
-          // 延迟100ms确保DOM已渲染
-          setTimeout(() => {
-            initMobileMap('mobile-map-container', false);
-            // 如果已有任务数据，重新绘制地图
-            if (currentRunData && typeof drawOnMap === 'function') {
-              drawOnMap();
-            }
-          }, 100);
-        }
+        // // 【问题12修复】地图面板激活时初始化地图
+        // // 当切换到地图面板时，自动初始化高德地图实例
+        // if (panelId === 'mobile-map-panel') {
+        //   console.log('[移动端] 激活地图面板，初始化地图...');
+        //   // 延迟100ms确保DOM已渲染
+        //   setTimeout(() => {
+        //     initMobileMap('mobile-map-container', false);
+        //     // 如果已有任务数据，重新绘制地图
+        //     if (currentRunData && typeof drawOnMap === 'function') {
+        //       drawOnMap();
+        //     }
+        //   }, 100);
+        // }
 
         // 【问题12修复】多账号地图面板激活时初始化地图
         if (panelId === 'mobile-multi-map-panel') {
           console.log('[移动端] 激活多账号地图面板，初始化地图...');
           setTimeout(() => {
-            initMobileMap('mobile-multi-map-container', true);
-            // 刷新多账号地图标记
-            if (typeof refreshMultiAccountMarkers === 'function') {
-              refreshMultiAccountMarkers();
-            }
+            // initMobileMap('mobile-multi-map-container', true);
+            // 刷新多账号地图标记（注释掉不存在的函数调用）
+            // 多账号地图的marker会在接收到position_update事件时自动更新
+            // if (typeof refreshMultiAccountMarkers === 'function') {
+            //   refreshMultiAccountMarkers();
+            // } else {
+            //   logMessage_Warning('[移动端] refreshMultiAccountMarkers函数未定义');
+            // }
           }, 100);
         }
 
-        // 【问题9修复】签到面板激活时自动加载默认配置值
-        // 当切换到签到面板时，自动从pythonParams加载签到相关的配置
-        if (panelId === 'mobile-attendance-panel') {
-          console.log('[移动端] 激活签到面板，开始加载配置...');
-          setTimeout(() => {
-            // 加载签到开关状态
-            const attendanceEnabled = document.getElementById('mobile-attendance-enabled');
-            if (attendanceEnabled && typeof pythonParams !== 'undefined') {
-              // 从pythonParams获取签到开关状态，默认为true
-              attendanceEnabled.checked = pythonParams.attendance_enabled !== false;
-            }
+        // // 【问题9修复】签到面板激活时自动加载默认配置值
+        // // 当切换到签到面板时，自动从pythonParams加载签到相关的配置
+        // if (panelId === 'mobile-attendance-panel') {
+        //   console.log('[移动端] 激活签到面板，开始加载配置...');
+        //   setTimeout(() => {
+        //     // 加载签到开关状态
+        //     const attendanceEnabled = document.getElementById('mobile-attendance-enabled');
+        //     if (attendanceEnabled && typeof pythonParams !== 'undefined') {
+        //       // 从pythonParams获取签到开关状态，默认为true
+        //       attendanceEnabled.checked = pythonParams.attendance_enabled !== false;
+        //     }
 
-            // 加载签到时间配置
-            const attendanceTime = document.getElementById('mobile-attendance-time');
-            if (attendanceTime && typeof pythonParams !== 'undefined') {
-              // 从pythonParams获取签到时间，默认为"08:00"
-              attendanceTime.value = pythonParams.attendance_time || '08:00';
-            }
+        //     // 加载签到时间配置
+        //     const attendanceTime = document.getElementById('mobile-attendance-time');
+        //     if (attendanceTime && typeof pythonParams !== 'undefined') {
+        //       // 从pythonParams获取签到时间，默认为"08:00"
+        //       attendanceTime.value = pythonParams.attendance_time || '08:00';
+        //     }
 
-            // 加载签到随机延迟范围
-            const attendanceDelayMin = document.getElementById('mobile-attendance-delay-min');
-            const attendanceDelayMax = document.getElementById('mobile-attendance-delay-max');
-            if (attendanceDelayMin && attendanceDelayMax && typeof pythonParams !== 'undefined') {
-              // 从pythonParams获取延迟范围，默认为0-300秒
-              attendanceDelayMin.value = pythonParams.attendance_delay_min || 0;
-              attendanceDelayMax.value = pythonParams.attendance_delay_max || 300;
-            }
+        //     // 加载签到随机延迟范围
+        //     const attendanceDelayMin = document.getElementById('mobile-attendance-delay-min');
+        //     const attendanceDelayMax = document.getElementById('mobile-attendance-delay-max');
+        //     if (attendanceDelayMin && attendanceDelayMax && typeof pythonParams !== 'undefined') {
+        //       // 从pythonParams获取延迟范围，默认为0-300秒
+        //       attendanceDelayMin.value = pythonParams.attendance_delay_min || 0;
+        //       attendanceDelayMax.value = pythonParams.attendance_delay_max || 300;
+        //     }
 
-            // 【问题18修复】加载自动刷新间隔配置
-            // 从pythonParams获取auto_attendance_refresh_s参数，填充到输入框
-            const autoRefreshInterval = document.getElementById('mobile-param-auto_attendance_refresh_s');
-            if (autoRefreshInterval && typeof pythonParams !== 'undefined') {
-              // 获取刷新间隔参数，默认为60秒
-              autoRefreshInterval.value = pythonParams.auto_attendance_refresh_s || 60;
-              console.log('[移动端] 自动刷新间隔已加载:', autoRefreshInterval.value, '秒');
-            }
+        //     // 【问题18修复】加载自动刷新间隔配置
+        //     // 从pythonParams获取auto_attendance_refresh_s参数，填充到输入框
+        //     const autoRefreshInterval = document.getElementById('mobile-param-auto_attendance_refresh_s');
+        //     if (autoRefreshInterval && typeof pythonParams !== 'undefined') {
+        //       // 获取刷新间隔参数，默认为60秒
+        //       autoRefreshInterval.value = pythonParams.auto_attendance_refresh_s || 60;
+        //       console.log('[移动端] 自动刷新间隔已加载:', autoRefreshInterval.value, '秒');
+        //     }
 
-            // 【问题18修复】加载签到随机半径配置
-            // 从pythonParams获取attendance_user_radius_m参数，填充到输入框
-            const userRadius = document.getElementById('mobile-param-attendance_user_radius_m');
-            if (userRadius && typeof pythonParams !== 'undefined') {
-              // 获取随机半径参数，默认为0米（精确签到）
-              userRadius.value = pythonParams.attendance_user_radius_m || 0;
-              console.log('[移动端] 签到随机半径已加载:', userRadius.value, '米');
-            }
+        //     // 【问题18修复】加载签到随机半径配置
+        //     // 从pythonParams获取attendance_user_radius_m参数，填充到输入框
+        //     const userRadius = document.getElementById('mobile-param-attendance_user_radius_m');
+        //     if (userRadius && typeof pythonParams !== 'undefined') {
+        //       // 获取随机半径参数，默认为0米（精确签到）
+        //       userRadius.value = pythonParams.attendance_user_radius_m || 0;
+        //       console.log('[移动端] 签到随机半径已加载:', userRadius.value, '米');
+        //     }
 
-            console.log('[移动端] 签到面板配置已自动加载');
-          }, 50);
-        }
+        //     console.log('[移动端] 签到面板配置已自动加载');
+        //   }, 50);
+        // }
 
-        // 【问题11修复】任务详情面板激活时自动加载任务详情
-        // 当切换到任务详情面板时，自动调用loadMobileTaskDetails加载当前任务的详细信息
-        if (panelId === 'mobile-task-details-panel') {
-          console.log('[移动端] 激活任务详情面板，开始加载任务详情...');
-          // 延迟50ms确保DOM已渲染
-          setTimeout(() => {
-            if (typeof loadMobileTaskDetails === 'function') {
-              loadMobileTaskDetails();
-              console.log('[移动端] 任务详情已自动加载');
-            } else {
-              console.warn('[移动端] loadMobileTaskDetails函数未定义');
-            }
-          }, 50);
-        }
+        // // 【问题11修复】任务详情面板激活时自动加载任务详情
+        // // 当切换到任务详情面板时，自动调用loadMobileTaskDetails加载当前任务的详细信息
+        // if (panelId === 'mobile-task-details-panel') {
+        //   console.log('[移动端] 激活任务详情面板，开始加载任务详情...');
+        //   // 延迟50ms确保DOM已渲染
+        //   setTimeout(() => {
+        //     if (typeof loadMobileTaskDetails === 'function') {
+        //       loadMobileTaskDetails();
+        //       console.log('[移动端] 任务详情已自动加载');
+        //     } else {
+        //       console.warn('[移动端] loadMobileTaskDetails函数未定义');
+        //     }
+        //   }, 50);
+        // }
 
-        // 【问题22修复】用户详情面板激活时自动加载用户详情
-        // 当切换到用户详情面板时，自动调用loadMobileUserDetails加载当前用户的详细信息
-        if (panelId === 'mobile-profile-panel') {
-          console.log('[移动端] 激活用户详情面板，开始加载用户详情...');
-          // 延迟50ms确保DOM已渲染
-          setTimeout(() => {
-            if (typeof loadMobileUserDetails === 'function') {
-              loadMobileUserDetails();
-              console.log('[移动端] 用户详情已自动加载');
-            } else {
-              console.warn('[移动端] loadMobileUserDetails函数未定义');
-            }
-          }, 50);
-        }
+        // // 【问题22修复】用户详情面板激活时自动加载用户详情
+        // // 当切换到用户详情面板时，自动调用loadMobileUserDetails加载当前用户的详细信息
+        // if (panelId === 'mobile-profile-panel') {
+        //   console.log('[移动端] 激活用户详情面板，开始加载用户详情...');
+        //   // 延迟50ms确保DOM已渲染
+        //   setTimeout(() => {
+        //     if (typeof loadMobileUserDetails === 'function') {
+        //       loadMobileUserDetails();
+        //       console.log('[移动端] 用户详情已自动加载');
+        //     } else {
+        //       console.warn('[移动端] loadMobileUserDetails函数未定义');
+        //     }
+        //   }, 50);
+        // }
 
         // 【问题15&18修复】管理面板激活时初始化
         // 当切换到管理面板时，自动初始化管理面板的标签页和内容
@@ -28799,6 +29603,14 @@
 
       // 【问题19修复】同时更新侧边栏菜单项的active状态
       updateMobileSidebarActive(panelId);
+    }
+
+    /**
+     * 【兼容性包装】向后兼容旧的 switchMobilePanel 函数名
+     * 现在仅用于多账号模式，内部调用 switchMobileMulitPanel
+     */
+    function switchMobilePanel(panelId, mode = 'multi') {
+      return switchMobileMulitPanel(panelId, mode);
     }
 
     /**
@@ -31390,8 +32202,8 @@
         const isActive = index === 0;
         // 设置按钮的CSS类名，激活状态使用蓝色，非激活使用灰色
         button.className = `px-4 py-2 font-semibold text-xs whitespace-nowrap rounded-lg transition ${isActive
-            ? 'text-sky-600 bg-sky-50 border-b-2 border-sky-600'
-            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+          ? 'text-sky-600 bg-sky-50 border-b-2 border-sky-600'
+          : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
           }`;
         // 设置按钮的HTML内容（包含图标和标签文本）
         button.innerHTML = `${tab.icon}${tab.label}`;
@@ -31479,7 +32291,103 @@
         }
       });
 
-      // 显示加载中提示
+      // 【修复】针对 mobile-admin-panel 模式，使用直接显示/隐藏面板的方式
+      if (prefix === 'mobile-admin-panel') {
+        // 隐藏所有面板
+        const allPanels = [
+          'mobile-admin-users-panel-panel',
+          'mobile-admin-groups-panel-panel',
+          'mobile-admin-logs-panel-panel',
+          'mobile-admin-health-panel-panel',
+          'mobile-admin-profile-panel-panel',
+          'mobile-admin-sessions-panel-panel',
+          'mobile-admin-messages-panel-panel',
+          'mobile-admin-ipban-panel-panel',
+          'mobile-admin-sms-panel-panel',
+          'mobile-admin-config-panel-panel',
+          'mobile-admin-captcha-panel-panel',
+          'mobile-admin-reminders-panel-panel',
+          'mobile-admin-ssl-panel-panel'
+        ];
+
+        allPanels.forEach(panelId => {
+          const panel = document.getElementById(panelId);
+          if (panel) panel.classList.add('hidden');
+        });
+
+        // 显示目标面板
+        const targetPanelId = `mobile-admin-${tabId}-panel-panel`;
+        const targetPanel = document.getElementById(targetPanelId);
+        if (targetPanel) {
+          targetPanel.classList.remove('hidden');
+        } else {
+          console.warn(`[移动端管理面板] 找不到目标面板: ${targetPanelId}`);
+        }
+
+        // 加载对应内容
+        switch (tabId) {
+          case 'users':
+            loadAdminUsers();
+            setTimeout(() => copyAdminContentToPanelVersion('users'), 500);
+            break;
+          case 'groups':
+            loadAdminGroups();
+            setTimeout(() => copyAdminContentToPanelVersion('groups'), 500);
+            break;
+          case 'logs':
+            loadAdminLogs(1);
+            setTimeout(() => copyAdminContentToPanelVersion('logs'), 500);
+            break;
+          case 'health':
+            loadHealthStatus();
+            setTimeout(() => copyAdminContentToPanelVersion('health'), 500);
+            break;
+          case 'profile':
+            loadPersonalInfo();
+            setTimeout(() => copyAdminContentToPanelVersion('profile'), 500);
+            break;
+          case 'sessions':
+            loadAdminSessions();
+            setTimeout(() => copyAdminContentToPanelVersion('sessions'), 500);
+            break;
+          case 'messages':
+            loadMessages();
+            setTimeout(() => copyAdminContentToPanelVersion('messages'), 600);
+            break;
+          case 'ipban':
+            loadIPBans();
+            setTimeout(() => copyAdminContentToPanelVersion('ipban'), 500);
+            break;
+          case 'sms':
+            loadSMSConfig();
+            setTimeout(() => copyAdminContentToPanelVersion('sms'), 500);
+            break;
+          case 'config':
+            loadSystemConfig();
+            setTimeout(() => copyAdminContentToPanelVersion('config'), 500);
+            break;
+          case 'captcha':
+            const dateInput = $('captcha-history-date');
+            if (dateInput && !dateInput.value) {
+              const today = new Date().toISOString().split('T')[0];
+              dateInput.value = today;
+            }
+            loadCaptchaHistory();
+            setTimeout(() => copyAdminContentToPanelVersion('captcha'), 500);
+            break;
+          case 'reminders':
+            loadReminders();
+            setTimeout(() => copyAdminContentToPanelVersion('reminders'), 500);
+            break;
+          case 'ssl':
+            loadSSLInfo();
+            setTimeout(() => copyAdminContentToPanelVersion('ssl'), 500);
+            break;
+        }
+        return;
+      }
+
+      // 显示加载中提示（仅用于其他模式）
       content.innerHTML = '<p class="text-slate-400 text-center py-10 text-sm">加载中...</p>';
 
       // 根据标签页ID调用对应的加载函数
@@ -31608,6 +32516,66 @@
       mobileContainer.querySelectorAll('h4, h5').forEach(heading => {
         // 缩小标题字体
         heading.classList.add('!text-sm');
+      });
+    }
+
+    /**
+     * 将PC端管理面板的内容复制到移动端面板版本的对应子面板
+     * @param {string} tabType - 标签页类型（users/groups/logs等）
+     * 
+     * 功能说明：
+     * - 从PC端的管理面板容器获取已加载的内容
+     * - 复制到mobile-admin-panel内的对应子面板
+     * - 适配移动端样式（缩小字体、调整间距等）
+     */
+    function copyAdminContentToPanelVersion(tabType) {
+      // 定义PC端容器ID到移动端面板子容器的映射
+      const pcToMobileMap = {
+        'users': { pc: 'admin-users-list_modal', mobile: 'mobile-admin-users-list-panel' },
+        'groups': { pc: 'admin-groups-list_modal', mobile: 'mobile-admin-groups-list-panel' },
+        'logs': { pc: 'admin-logs-content_modal', mobile: 'mobile-admin-logs-content-panel' },
+        'health': { pc: 'admin-health-content_modal', mobile: 'mobile-admin-health-content-panel' },
+        'profile': { pc: 'admin-profile-content_modal', mobile: 'mobile-admin-profile-content-panel' },
+        'sessions': { pc: 'admin-sessions-list_modal', mobile: 'mobile-admin-sessions-list-panel' },
+        'messages': { pc: 'admin-messages-list_modal', mobile: 'mobile-admin-messages-list-panel' },
+        'ipban': { pc: 'ip-ban-list', mobile: 'mobile-ip-ban-list-panel' },
+        'sms': { pc: 'admin-sms-config-modal', mobile: 'mobile-admin-sms-content-panel' },
+        'config': { pc: 'admin-config-panel_modal', mobile: 'mobile-admin-config-content-panel' },
+        'captcha': { pc: 'admin-captcha-list_modal', mobile: 'mobile-admin-captcha-list-panel' },
+        'reminders': { pc: 'admin-reminders-panel_modal', mobile: 'mobile-admin-reminders-content-panel' },
+        'ssl': { pc: 'admin-ssl-panel_modal', mobile: 'mobile-admin-ssl-content-panel' }
+      };
+
+      const mapping = pcToMobileMap[tabType];
+      if (!mapping) {
+        logMessage_Error(`[移动端管理面板] 未定义的标签页类型: ${tabType}`);
+        return;
+      }
+
+      // 获取PC端和移动端容器
+      const pcContainer = document.getElementById(mapping.pc);
+      const mobileContainer = document.getElementById(mapping.mobile);
+
+      if (!pcContainer || !mobileContainer) {
+        logMessage_Error(`[移动端管理面板] 找不到容器: PC=${mapping.pc}, Mobile=${mapping.mobile}`);
+        if (mobileContainer) {
+          mobileContainer.innerHTML = '<p class="text-red-500 text-center py-10 text-xs">加载失败</p>';
+        }
+        return;
+      }
+
+      // 克隆PC端内容到移动端
+      mobileContainer.innerHTML = pcContainer.innerHTML;
+
+      // 移动端样式调整：缩小字体、调整间距
+      mobileContainer.querySelectorAll('button').forEach(btn => {
+        btn.classList.add('!text-xs', '!py-1', '!px-2');
+      });
+      mobileContainer.querySelectorAll('h4, h5').forEach(heading => {
+        heading.classList.add('!text-xs');
+      });
+      mobileContainer.querySelectorAll('input, select, textarea').forEach(input => {
+        input.classList.add('!text-xs');
       });
     }
 
@@ -31788,21 +32756,12 @@
         // 调用后端API添加账号
         // 注意：这里调用multi_addFromManual函数（需要在PC端定义）
         // 如果PC端没有该函数，我们可以直接调用multi_addAccount
-        const response = await fetch('/multi_account/add', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Session-ID': sessionUUID
-          },
-          body: JSON.stringify({
-            username: username,
-            password: password,
-            // 使用空对象作为params，后端会自动应用默认配置
-            params: {}
-          })
+        const result = await callPythonAPI('multi_account_add', {
+          username: username,
+          password: password,
+          // 使用空对象作为params，后端会自动应用默认配置
+          params: {}
         });
-
-        const result = await response.json();
 
         if (result.success) {
           // 添加成功
@@ -32309,6 +33268,11 @@
 
       // 显示模态框
       modal.classList.remove('hidden');
+      // 【修复】添加 show 类，触发 CSS transform: translateY(0) 动画，使面板从底部滑入屏幕
+      // 使用 setTimeout 确保浏览器先渲染 display 变化，再执行 CSS transition
+      setTimeout(() => {
+        modal.classList.add('show');
+      }, 10);
 
       // 初始化地图
       await initMobileTrackMap();
@@ -32466,7 +33430,11 @@
     function closeMobileTrackModal() {
       const modal = document.getElementById('mobile-track-modal');
       if (modal) {
-        modal.classList.add('hidden');
+        // 【修复】先移除 show 类触发滑出动画，延迟后再隐藏元素
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300); // 300ms 对应 CSS 中的 transition 时间
       }
 
       // 清除地图内容
