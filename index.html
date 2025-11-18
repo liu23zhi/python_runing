@@ -7180,7 +7180,7 @@
         <!-- 9. 【问题13修复】返回菜单项（危险操作）- 返回会话选择页 -->
         <!-- 修复说明：点击返回后，需要向后端发送退出单账号模式的数据包，并刷新会话列表 -->
         <a href="#" class="mobile-sidebar-item danger"
-          onclick="showMobileConfirm('退出单账号模式', '确定要退出并返回会话选择吗？', async () => { await exitMobileSingleAccount(); closeMobileSidebar(); }); return false;">
+          onclick="closeMobileSidebar();showMobileConfirm('退出单账号模式', '确定要退出并返回会话选择吗？', async () => { await exitMobileSingleAccount(); closeMobileSidebar(); }); return false;">
           <!-- 返回图标：左箭头 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -7281,7 +7281,7 @@
         <!-- 7. 【问题24修复】返回菜单项（危险操作）- 退出多账号模式并返回会话选择页 -->
         <!-- 修复说明：点击返回后，需要向后端发送退出多账号模式的数据包（而非错误的进入单账号模式数据包），并刷新会话列表 -->
         <a href="#" class="mobile-sidebar-item danger"
-          onclick="showMobileConfirm('退出多账号模式', '确定要退出多账号模式并返回会话选择吗？', async () => { await exitMobileMultiAccountToSessions(); closeMobileSidebar(); }); return false;">
+          onclick="closeMobileSidebar(); showMobileConfirm('退出多账号模式', '确定要退出多账号模式并返回会话选择吗？', async () => { await exitMobileMultiAccountToSessions(); closeMobileSidebar(); }); return false;">
           <!-- 返回图标：左箭头 -->
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
