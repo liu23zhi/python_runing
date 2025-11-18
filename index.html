@@ -20620,12 +20620,76 @@
         if (sessionUUID) {
           startSessionValidityCheck();
         }
+        
+        // 【修复】移动端页面刷新后恢复任务执行状态
+        if (isMobileMode) {
+          setTimeout(() => restoreMobileTaskState(), 1000);
+        }
       } catch (err) {
         hideModal('loading-overlay');
         showModalAlert('服务器无法连接，请检查网络或稍后重试。', '网络错误');
         IS_OFFLINE = true;
       }
     }
+    
+    /**
+     * 【修复】恢复移动端任务执行状态
+     * 在页面刷新后，检查后端任务状态并恢复UI状态
+     */
+    async function restoreMobileTaskState() {
+      try {
+        logMessage_Info('[移动端状态恢复] 开始检查后端任务状态...');
+        
+        const statusRes = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+        
+        if (statusRes.success && statusRes.task_status) {
+          const status = statusRes.task_status;
+          
+          // 如果后端有正在运行的任务
+          if (status.status === 'running' || status.status === 'paused') {
+            logMessage_Info('[移动端状态恢复] 检测到后端任务正在执行，恢复状态...');
+            
+            // 恢复任务索引
+            if (status.task_indices && status.current_task_index !== undefined) {
+              const task_list = status.task_indices;
+              const current_list_index = status.current_task_index;
+              if (task_list.length > current_list_index) {
+                const global_task_index = task_list[current_list_index];
+                selectedTaskIndex = global_task_index;
+                logMessage_Info(`[移动端状态恢复] 恢复任务索引: ${selectedTaskIndex}`);
+                
+                // 加载任务数据
+                if (currentTasks && currentTasks[selectedTaskIndex]) {
+                  await selectTask(selectedTaskIndex, false);
+                }
+              }
+            }
+            
+            // 恢复移动端UI状态
+            if (status.status === 'running') {
+              mobileTaskRunning = true;
+              mobileTaskPaused = false;
+              updateMobileTaskUI('运行中', '任务执行中...');
+              logMessage_Info('[移动端状态恢复] UI状态设置为运行中');
+            } else if (status.status === 'paused') {
+              mobileTaskRunning = true;
+              mobileTaskPaused = true;
+              updateMobileTaskUI('已暂停', '任务已暂停');
+              logMessage_Info('[移动端状态恢复] UI状态设置为已暂停');
+            }
+            
+            // 启动轮询
+            startBackgroundTaskPolling();
+            logMessage_Info('[移动端状态恢复] 已启动后台任务轮询');
+          } else {
+            logMessage_Info('[移动端状态恢复] 后端无正在执行的任务');
+          }
+        }
+      } catch (error) {
+        logMessage_Error('[移动端状态恢复] 恢复状态失败:', error);
+      }
+    }
+    
     let socket = null; // 全局 socket 变量
 
     // 在 initializeApp 成功获取到 sessionUUID 后或者认证成功后调用此函数
@@ -24945,8 +25009,9 @@
         if (isMobileMode) {
           const modal = $('mobile-track-modal');
           if (modal) {
-            // 1. 显示模态框
+            // 1. 显示模态框（确保显示样式正确）
             modal.classList.remove('hidden');
+            modal.style.display = 'flex';  // 确保模态框以flex布局显示
 
             // 2. 初始化移动端轨迹地图
             await initMobileTrackMap();
@@ -28945,18 +29010,29 @@
             // - 'mobile-map-container': 地图容器的DOM元素ID
             // - false: 表示这是单账号模式的地图（非多账号）
             initMobileMap('mobile-map-container', false);
-            // 如果已有任务数据，重新在地图上绘制路径和标记
-            // currentRunData 存储当前任务的运行数据
-            // drawOnMap 函数负责将任务路径绘制到地图上
-            if (currentRunData && typeof drawOnMap === 'function') {
-              drawOnMap();
-            }
-            // 确保runner marker被添加到地图上并且可见
-            // 这样用户可以看到当前位置（不仅是路径和打卡点）
-            if (typeof ensureRunnerMarker === 'function') {
-              ensureRunnerMarker();
-              logMessage_Info('[移动端单账号] Runner marker已确保显示');
-            }
+            
+            // 延迟额外200ms以确保地图完全初始化后再绘制
+            setTimeout(() => {
+              // 如果已有任务数据，重新在地图上绘制路径和标记
+              // currentRunData 存储当前任务的运行数据
+              // drawOnMap 函数负责将任务路径绘制到地图上
+              if (currentRunData && currentRunData.run_coords && currentRunData.run_coords.length > 0) {
+                logMessage_Info('[移动端单账号] 开始绘制任务路径和打卡点...');
+                if (typeof drawOnMap === 'function') {
+                  drawOnMap();
+                  logMessage_Info('[移动端单账号] 任务路径和打卡点已绘制');
+                }
+              } else {
+                logMessage_Info('[移动端单账号] 无任务数据，跳过绘制');
+              }
+              
+              // 确保runner marker被添加到地图上并且可见
+              // 这样用户可以看到当前位置（不仅是路径和打卡点）
+              if (typeof ensureRunnerMarker === 'function') {
+                ensureRunnerMarker();
+                logMessage_Info('[移动端单账号] Runner marker已确保显示');
+              }
+            }, 200);
           }, 100); // 延迟100毫秒
         }
 
