@@ -20725,7 +20725,7 @@
       });
 
       // 监听单账号当前位置位置更新
-      socket.on('runner_position_update', (data) => {
+      socket.on('runner_position_update_new', (data) => {
         logMessage_Debug('[Socket] 收到 runner_position_update 事件');
         if (data) {
           // 检查后端发来的任务索引 (data.task_index)
@@ -24458,18 +24458,19 @@
 
           drawMarkers();
 
-          // // 如果有实时位置数据，则在地图上更新显示
-          // if (status.current_position) {
-          //   const pos = status.current_position;
-          //   updateRunnerPosition(
-          //     pos.lon,
-          //     pos.lat,
-          //     pos.distance || 0,
-          //     pos.target_sequence || 0,
-          //     0, // duration not needed for display
-          //     false // don't auto-center
-          //   );
-          // }
+          // 【修复】恢复通过轮询获取实时位置数据的逻辑
+          // 当WebSocket推送不可用时，这确保了地图上的跑步者位置能正常更新
+          if (status.current_position) {
+            const pos = status.current_position;
+            updateRunnerPosition(
+              pos.lon,
+              pos.lat,
+              pos.distance || 0,
+              pos.target_sequence || 0,
+              0, // duration not needed for display in polling mode
+              false // don't auto-center every time to prevent jitter
+            );
+          }
 
           // 检查这是否是旧数据（任务在我们开始轮询前就已启动）
           const taskStartTime = (status.start_time || 0) * 1000; // 转换为毫秒
