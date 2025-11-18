@@ -4323,6 +4323,17 @@
            - 包含任务列表、地图、控制面板
            - 登录成功后显示
            ======================================== -->
+      
+      <!-- 【修复】移动端加载遮罩 - 在UI完全加载前显示，防止误操作 -->
+      <div id="mobile-loading-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/90 backdrop-blur-sm hidden">
+        <div class="flex flex-col items-center gap-4">
+          <!-- 加载动画 -->
+          <div class="w-16 h-16 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin"></div>
+          <!-- 加载文字 -->
+          <p class="text-slate-600 text-sm font-medium">加载中，请稍候...</p>
+        </div>
+      </div>
+      
       <div id="mobile-main-app" class="space-y-4 hidden">
 
         <!-- ========================================
@@ -9720,12 +9731,25 @@
         // 【需求2修复】根据PC端当前显示的容器，显示对应的移动端容器
         if (desktopMainAppVisible) {
           // PC端显示main-app，则移动端显示mobile-main-app
+          // 【修复】先显示加载遮罩
+          const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+          if (mobileLoadingOverlay) {
+            mobileLoadingOverlay.classList.remove('hidden');
+          }
+          
           $('mobile-main-app').classList.remove('hidden');
           updateMobileNavVisibility(true, 'single');
           console.log('[UI切换] PC端main-app可见，显示移动端mobile-main-app');
           // 【问题13修复】默认激活mobile-control-panel
           switchMobileSinglePanel('mobile-control-panel');
           console.log('[UI切换] 已默认激活mobile-control-panel');
+          
+          // 【修复】延迟隐藏加载遮罩
+          setTimeout(() => {
+            if (mobileLoadingOverlay) {
+              mobileLoadingOverlay.classList.add('hidden');
+            }
+          }, 500);
         } else if (desktopMultiAccountVisible) {
           // PC端显示multi-account-app，则移动端显示mobile-multi-account-app
           $('mobile-multi-account-app').classList.remove('hidden');
@@ -10317,6 +10341,12 @@
             mobileSingleLoginBtn.disabled = true;
             const originalText = mobileSingleLoginBtn.textContent;
             mobileSingleLoginBtn.textContent = '登录中...';
+            
+            // 【修复】显示移动端加载遮罩
+            const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+            if (mobileLoadingOverlay) {
+              mobileLoadingOverlay.classList.remove('hidden');
+            }
 
             document.getElementById('username-entry').value = username;
             document.getElementById('password-entry').value = password;
@@ -10342,9 +10372,17 @@
               const mobileMainApp = document.getElementById('mobile-main-app');
               if (mobileMainApp) {
                 mobileMainApp.classList.remove('hidden');
-                console.log('[移动端UI] 已显示 mobile-main-app');
+                logMessage_Info('[移动端UI] 已显示 mobile-main-app');
                 // 初始化面板显示：默认显示控制面板
                 switchMobileSinglePanel('mobile-control-panel');
+                
+                // 【修复】延迟隐藏加载遮罩，确保UI完全加载
+                setTimeout(() => {
+                  const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+                  if (mobileLoadingOverlay) {
+                    mobileLoadingOverlay.classList.add('hidden');
+                  }
+                }, 500);
               }
 
               // 显示底部导航和菜单按钮 - 单账号模式
@@ -10358,9 +10396,13 @@
           } catch (e) {
             logMessage_Error("代理[学校登录]失败:", e);
             showMobileMessage('学校登录时发生内部错误', 'error');
-            // 【修复】恢复按钮状态
+            // 【修复】恢复按钮状态并隐藏加载遮罩
             mobileSingleLoginBtn.disabled = false;
             mobileSingleLoginBtn.textContent = originalText;
+            const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+            if (mobileLoadingOverlay) {
+              mobileLoadingOverlay.classList.add('hidden');
+            }
           }
         });
       }
@@ -25062,22 +25104,60 @@
               });
               mobileTrackMarkers.push(endMarker);
 
-              // 8. 计算距离并更新UI (后端此接口未直接返回统计数据)
-              let totalDist = 0;
-              if (AMapInstance.GeometryUtil) {
-                totalDist = AMapInstance.GeometryUtil.distanceOfLine(path);
+              // 8. 填充移动端轨迹摘要信息
+              const summaryEl = $('mobile-track-summary');
+              if (summaryEl && result) {
+                // 计算距离
+                let totalDist = 0;
+                if (AMapInstance.GeometryUtil) {
+                  totalDist = AMapInstance.GeometryUtil.distanceOfLine(path);
+                }
+                
+                // 从result获取统计数据（如果有的话）
+                const distance = result.distance || (totalDist / 1000).toFixed(2);
+                const duration = result.duration || result.used_time || '--:--';
+                const checkpoints = result.checkpoints || result.target_points?.length || 0;
+                
+                // 更新摘要HTML
+                summaryEl.innerHTML = `
+                  <div class="text-center">
+                    <div class="text-xs text-slate-500 mb-1">总距离</div>
+                    <div class="text-sm font-bold text-emerald-600" id="mobile-track-distance">${typeof distance === 'number' ? distance.toFixed(2) : distance} km</div>
+                  </div>
+                  <div class="text-center">
+                    <div class="text-xs text-slate-500 mb-1">总时长</div>
+                    <div class="text-sm font-bold text-sky-600" id="mobile-track-duration">${duration}</div>
+                  </div>
+                  <div class="text-center">
+                    <div class="text-xs text-slate-500 mb-1">打卡点数</div>
+                    <div class="text-sm font-bold text-purple-600">${checkpoints}</div>
+                  </div>
+                `;
               }
 
-              const distEl = $('mobile-track-distance');
-              const timeEl = $('mobile-track-time');
-              const durEl = $('mobile-track-duration');
+              // 9. 绘制打卡点标记（如果有的话）
+              if (result.target_points && result.target_points.length > 0) {
+                const targetNames = result.target_point_names ? result.target_point_names.split('|') : [];
+                result.target_points.forEach((point, index) => {
+                  const pointName = targetNames[index] || `点 ${index + 1}`;
+                  const checkpointMarker = new AMapInstance.Marker({
+                    position: new AMapInstance.LngLat(point[0], point[1]),
+                    content: `<div class="flex flex-col items-center">
+                      <div class="text-xs font-bold whitespace-nowrap px-2 py-1 rounded-full shadow-lg bg-emerald-600 text-white">
+                        ${pointName}
+                      </div>
+                      <div class="w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-emerald-600"></div>
+                    </div>`,
+                    anchor: 'bottom-center',
+                    zIndex: 100,
+                    map: mobileTrackMapInstance
+                  });
+                  mobileTrackMarkers.push(checkpointMarker);
+                });
+                logMessage_Info(`[历史轨迹] 已绘制 ${result.target_points.length} 个打卡点`);
+              }
 
-              if (distEl) distEl.textContent = (totalDist / 1000).toFixed(2) + ' km';
-              // 由于 get_historical_track 接口只返回坐标点，暂无时间数据，显示通用文本或保持原样
-              if (timeEl) timeEl.textContent = "历史轨迹回放";
-              if (durEl) durEl.textContent = "--:--";
-
-              // 9. 调整视野
+              // 10. 调整视野
               mobileTrackMapInstance.setFitView();
             }
           }
@@ -29368,12 +29448,13 @@
           console.log('[移动端] 激活多账号地图面板，初始化地图...');
           setTimeout(() => {
             // initMobileMap('mobile-multi-map-container', true);
-            // 刷新多账号地图标记
-            if (typeof refreshMultiAccountMarkers === 'function') {
-              refreshMultiAccountMarkers();
-            } else {
-              console.warn('[移动端] refreshMultiAccountMarkers函数未定义');
-            }
+            // 刷新多账号地图标记（注释掉不存在的函数调用）
+            // 多账号地图的marker会在接收到position_update事件时自动更新
+            // if (typeof refreshMultiAccountMarkers === 'function') {
+            //   refreshMultiAccountMarkers();
+            // } else {
+            //   logMessage_Warning('[移动端] refreshMultiAccountMarkers函数未定义');
+            // }
           }, 100);
         }
 
