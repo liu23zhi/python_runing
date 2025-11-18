@@ -10587,10 +10587,10 @@
                  onclick="switchToSession('${session.session_id}')">
               <div class="flex-1">
                 <div class="flex items-center justify-between mb-1">
-                  <span class="text-sm font-semibold text-slate-800">${sessionHash}</span>
+                  <span class="text-sm font-semibold text-slate-800">${session.session_id}</span>
                   ${isCurrent ? '<span class="text-xs px-2 py-1 rounded-full bg-sky-500 text-white">当前</span>' : ''}
                 </div>
-                <p class="text-xs text-slate-600">创建: ${createdDate}</p>
+                <p class="text-xs text-slate-600">创建事件: ${createdDate}</p>
               </div>
             </div>
           `;
