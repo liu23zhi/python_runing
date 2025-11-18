@@ -12077,13 +12077,19 @@
 
       if (modal) {
         modal.classList.remove('hidden');
+        // 确保modal在移动端也能正确显示
+        modal.style.display = 'flex';
         input.value = '';  // 清空输入框
         loadCaptchaModal();  // 加载验证码
 
         // 自动聚焦到输入框
         setTimeout(() => {
-          input.focus();
+          if (input) {
+            input.focus();
+          }
         }, 300);
+      } else {
+        console.error('[验证码模态窗] 找不到captcha-verification-modal元素');
       }
     }
 
@@ -19435,6 +19441,87 @@
       return { valid: true };
     }
 
+    // --- 会话有效性检查 ---
+    let sessionValidityCheckInterval = null;
+
+    /**
+     * 定期检查会话是否有效
+     * 通过调用 /auth/check_uuid_type 接口检查UUID是否仍然存在
+     * 如果返回 uuid_type 为 "unknown"，说明会话不存在，需要提示用户重新登录
+     */
+    async function checkSessionValidity() {
+      if (!sessionUUID) {
+        console.log('[会话检查] 无UUID，跳过检查');
+        return;
+      }
+
+      try {
+        const response = await fetch('/auth/check_uuid_type', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ uuid: sessionUUID })
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.uuid_type === 'unknown') {
+          // UUID不存在，会话已失效
+          console.warn('[会话检查] 会话不存在，UUID类型为unknown');
+          
+          // 停止定期检查
+          if (sessionValidityCheckInterval) {
+            clearInterval(sessionValidityCheckInterval);
+            sessionValidityCheckInterval = null;
+          }
+
+          // 弹窗提示用户
+          Swal.fire({
+            title: '会话已失效',
+            text: 'UUID不存在 (文件未找到)\n您的会话已过期或不存在，请重新登录',
+            icon: 'warning',
+            confirmButtonText: '确定',
+            allowOutsideClick: false,
+            allowEscapeKey: false
+          }).then(() => {
+            // 用户确认后跳转到登录页面
+            console.log('[会话检查] 用户确认会话失效，跳转到登录页面');
+            window.location.href = '/';
+          });
+        } else if (!result.success) {
+          // API调用失败，但不一定是会话问题
+          console.warn('[会话检查] 检查失败:', result.message);
+        } else {
+          // 会话有效
+          console.log('[会话检查] 会话有效，UUID类型:', result.uuid_type);
+        }
+      } catch (error) {
+        // 网络错误或其他异常，不应该中断用户操作
+        console.error('[会话检查] 检查请求失败:', error);
+      }
+    }
+
+    /**
+     * 启动会话有效性定期检查
+     * 默认每5分钟检查一次
+     */
+    function startSessionValidityCheck() {
+      // 避免重复启动
+      if (sessionValidityCheckInterval) {
+        console.log('[会话检查] 定期检查已在运行');
+        return;
+      }
+
+      console.log('[会话检查] 启动定期检查，间隔5分钟');
+      
+      // 立即执行一次检查
+      checkSessionValidity();
+      
+      // 设置定期检查，每5分钟一次
+      sessionValidityCheckInterval = setInterval(checkSessionValidity, 5 * 60 * 1000);
+    }
+
     // --- 初始化 ---
     async function initializeApp() {
       try {
@@ -20298,6 +20385,11 @@
 
         // 将定时刷新移动到 API 就绪后再启动
         // setInterval(refreshUserList, 5000);
+        
+        // 启动会话有效性定期检查（仅在有UUID的情况下）
+        if (sessionUUID) {
+          startSessionValidityCheck();
+        }
       } catch (err) {
         hideModal('loading-overlay');
         showModalAlert('服务器无法连接，请检查网络或稍后重试。', '网络错误');
@@ -23412,6 +23504,53 @@
         centerTargetList(sequence);
       }
 
+      // 【移动端同步更新】更新移动端实时数据显示
+      // 同步更新移动端的 mobile-run-stats-block, mobile-live-stats-grid 等元素
+      const mobileRunStatsLabel = document.getElementById('mobile-run-stats-label');
+      if (mobileRunStatsLabel) {
+        if (isDrawingNow && draftTotalDist > 0) {
+          const drawKm = (draftTotalDist / 1000).toFixed(2);
+          const avgSpeed = pythonParams.speed_mps || 1.5;
+          const estMin = avgSpeed > 0 ? (draftTotalDist / avgSpeed) / 60 : 0;
+          mobileRunStatsLabel.textContent = `${drawKm} km / ~${estMin.toFixed(1)} min`;
+        } else {
+          const dist = ((currentRunData.total_run_distance_m || 0) / 1000).toFixed(2);
+          const timeMin = Math.floor((currentRunData.total_run_time_s || 0) / 60);
+          const timeSec = Math.floor((currentRunData.total_run_time_s || 0) % 60);
+          mobileRunStatsLabel.textContent = `${dist} km / ${String(timeMin).padStart(2, '0')}:${String(timeSec).padStart(2, '0')}`;
+        }
+      }
+
+      // 更新移动端实时数据网格
+      const mobileLiveDistLabel = document.getElementById('mobile-live-dist-label');
+      const mobileLiveTimeLabel = document.getElementById('mobile-live-time-label');
+      const mobileTotalDistLabel = document.getElementById('mobile-total-dist-label');
+      const mobileTotalTimeLabel = document.getElementById('mobile-total-time-label');
+      const mobileCurrentLocationLabel = document.getElementById('mobile-current-location-label');
+      
+      if (mobileLiveDistLabel) {
+        mobileLiveDistLabel.textContent = `${liveKm} km`;
+      }
+      if (mobileLiveTimeLabel) {
+        mobileLiveTimeLabel.textContent = `${mm}:${ss}`;
+      }
+      if (mobileTotalDistLabel) {
+        mobileTotalDistLabel.textContent = `${totalDistKm} km`;
+      }
+      if (mobileTotalTimeLabel) {
+        const totalTimeMin = Math.floor((currentRunData.total_run_time_s || 0) / 60);
+        const totalTimeSec = Math.floor((currentRunData.total_run_time_s || 0) % 60);
+        mobileTotalTimeLabel.textContent = `${String(totalTimeMin).padStart(2, '0')}:${String(totalTimeSec).padStart(2, '0')}`;
+      }
+      if (mobileCurrentLocationLabel && currentRunData) {
+        // 从当前位置标签获取坐标信息
+        const currentLocationLabel = document.getElementById('current-location-label');
+        if (currentLocationLabel) {
+          const coordsText = currentLocationLabel.textContent.replace('当前位置GPS坐标: ', '');
+          mobileCurrentLocationLabel.textContent = `当前位置: ${coordsText}`;
+        }
+      }
+
       // 【问题6修复】同步更新移动端打卡点列表
       // 当Dashboard更新时，也更新移动端的打卡点面板
       renderMobileCheckpointsList();
@@ -24647,6 +24786,14 @@
       if (fill) fill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
       if (label) label.textContent = `进度 · ${pct}%`;
       if (extraEl) extraEl.textContent = extra || text || '';
+      
+      // 【移动端同步更新】更新移动端进度条
+      const mobileFill = document.getElementById('mobile-single-progress-fill');
+      const mobileLabel = document.getElementById('mobile-single-progress-text');
+      const mobileExtraEl = document.getElementById('mobile-single-progress-extra');
+      if (mobileFill) mobileFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      if (mobileLabel) mobileLabel.textContent = `进度 · ${pct}%`;
+      if (mobileExtraEl) mobileExtraEl.textContent = extra || text || '';
     }
 
 
@@ -28401,6 +28548,14 @@
             // 如果依赖项不满足，输出警告信息，帮助调试
             console.warn('[移动端单账号] 无法加载配置：容器或函数未定义');
           }
+          
+          // 调用 refreshMobileSettings 函数刷新设置
+          if (typeof refreshMobileSettings === 'function') {
+            refreshMobileSettings();
+            console.log('[移动端单账号] 设置面板已自动刷新');
+          } else {
+            console.warn('[移动端单账号] refreshMobileSettings函数未定义');
+          }
         }
 
         // 【地图面板】激活时初始化地图
@@ -28421,6 +28576,12 @@
             // drawOnMap 函数负责将任务路径绘制到地图上
             if (currentRunData && typeof drawOnMap === 'function') {
               drawOnMap();
+            }
+            // 确保runner marker被添加到地图上并且可见
+            // 这样用户可以看到当前位置（不仅是路径和打卡点）
+            if (typeof ensureRunnerMarker === 'function') {
+              ensureRunnerMarker();
+              console.log('[移动端单账号] Runner marker已确保显示');
             }
           }, 100); // 延迟100毫秒
         }
@@ -28549,6 +28710,32 @@
           console.log('[移动端单账号] 激活历史记录面板...');
           setTimeout(() => {
             loadMobileTaskHistoryPanel();
+          }, 50);
+        }
+
+        // 【任务列表面板】激活时自动刷新任务列表
+        if (panelId === 'mobile-task-panel') {
+          console.log('[移动端单账号] 激活任务列表面板，自动刷新任务...');
+          setTimeout(() => {
+            if (typeof mobileRefreshTasks === 'function') {
+              mobileRefreshTasks();
+              console.log('[移动端单账号] 任务列表已自动刷新');
+            } else {
+              console.warn('[移动端单账号] mobileRefreshTasks函数未定义');
+            }
+          }, 50);
+        }
+
+        // 【打卡点面板】激活时自动渲染打卡点列表
+        if (panelId === 'mobile-checkpoints-panel') {
+          console.log('[移动端单账号] 激活打卡点面板，自动渲染打卡点列表...');
+          setTimeout(() => {
+            if (typeof renderMobileCheckpointsList === 'function') {
+              renderMobileCheckpointsList();
+              console.log('[移动端单账号] 打卡点列表已自动渲染');
+            } else {
+              console.warn('[移动端单账号] renderMobileCheckpointsList函数未定义');
+            }
           }, 50);
         }
 
