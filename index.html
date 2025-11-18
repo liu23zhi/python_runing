@@ -10306,10 +10306,15 @@
               return;
             }
 
+            // 【修复】添加UI反馈：禁用按钮并显示加载状态
+            mobileSingleLoginBtn.disabled = true;
+            const originalText = mobileSingleLoginBtn.textContent;
+            mobileSingleLoginBtn.textContent = '登录中...';
+
             document.getElementById('username-entry').value = username;
             document.getElementById('password-entry').value = password;
 
-            console.log('[移动端UI] 触发单账号（学校）登录...');
+            logMessage_Info('[移动端UI] 触发单账号（学校）登录...');
 
             // 调用桌面端的 onLogin 函数
             await onLogin();
@@ -10344,8 +10349,11 @@
               }
             }
           } catch (e) {
-            console.error("代理[学校登录]失败:", e);
+            logMessage_Error("代理[学校登录]失败:", e);
             showMobileMessage('学校登录时发生内部错误', 'error');
+            // 【修复】恢复按钮状态
+            mobileSingleLoginBtn.disabled = false;
+            mobileSingleLoginBtn.textContent = originalText;
           }
         });
       }
@@ -24677,6 +24685,12 @@
       runAccumulatedMs += (duration || 0);
       currentRunData.distance_covered_m = distance || 0;
       $('current-location-label').textContent = `当前位置GPS坐标: ${(+lon).toFixed(4)}, ${(+lat).toFixed(4)}`;
+      
+      // 【修复】同步更新移动端当前位置标签
+      const mobileCurrentLocationLabel = document.getElementById('mobile-current-location-label');
+      if (mobileCurrentLocationLabel) {
+        mobileCurrentLocationLabel.textContent = `当前位置: ${(+lon).toFixed(4)}, ${(+lat).toFixed(4)}`;
+      }
 
       // Python后端使用0-based索引 (targetSequence)，而JS UI使用1-based索引。
       // 在这里进行转换：(0-based index) + 1 = (1-based index)
@@ -25843,12 +25857,13 @@
         }
 
         if (!cachedDisplayed && content) {
-          content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载前5条通知...</p>';
+          content.innerHTML = '<p class="text-slate-400 text-center py-10">正在加载通知...</p>';
         }
 
         // 【优化】步骤2：渐进式分段加载最新通知
+        // 【修复】首次登录使用5条缓存，之后请求5000条
         let currentOffset = 0;
-        const batchSize = 5;
+        const batchSize = cachedDisplayed ? 5000 : 5;  // 如果已显示缓存（首次登录），则只请求5条；否则请求5000条
         let hasMore = true;
         let firstLoad = true;
         let finalResult = null; // 修正：用于存储第一个批次的结果（包含正确的角标数）
@@ -27284,9 +27299,9 @@
      */
     async function mobileStartTask() {
       try {
-        // 检查是否有选中的任务
-        if (selectedTaskIndex < 0) {
-          showTempMessage('请先选择任务', 'error');
+        // 【修复】检查是否有选中的任务，使用模态窗提示
+        if (selectedTaskIndex < 0 || selectedTaskIndex === -1) {
+          showModalAlert('请先选择一个任务再开始执行', '未选择任务');
           return;
         }
 
@@ -29110,7 +29125,12 @@
       updateMobileSidebarActive(panelId);     // 更新侧边栏菜单的激活状态
     }
 
-    function switchMobilePanel(panelId, mode = 'single') {
+    /**
+     * 【移动端多账号面板切换】专用函数
+     * 重命名自 switchMobilePanel，现在仅用于多账号模式
+     * 单账号模式使用 switchMobileSinglePanel
+     */
+    function switchMobileMulitPanel(panelId, mode = 'multi') {
       // 根据模式定义面板列表
       const singleModePanels = [
         'mobile-control-panel',
@@ -29340,6 +29360,14 @@
 
       // 【问题19修复】同时更新侧边栏菜单项的active状态
       updateMobileSidebarActive(panelId);
+    }
+
+    /**
+     * 【兼容性包装】向后兼容旧的 switchMobilePanel 函数名
+     * 现在仅用于多账号模式，内部调用 switchMobileMulitPanel
+     */
+    function switchMobilePanel(panelId, mode = 'multi') {
+      return switchMobileMulitPanel(panelId, mode);
     }
 
     /**
