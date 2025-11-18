@@ -2,6 +2,33 @@
 <html lang="zh-CN">
 
 <head>
+  <script>
+// var cdnErrorCount = 0;
+// var cdnErrorTimer = null;
+// var appInitialized = false;
+
+    function handleCdnError(resourceName) {
+      resourceName = resourceName || '未指定';
+      cdnErrorCount++;
+      console.warn('CDN资源[' + resourceName + ']加载失败 (' + cdnErrorCount + '/3)');
+
+      if (cdnErrorTimer) {
+        clearTimeout(cdnErrorTimer);
+      }
+
+      cdnErrorTimer = setTimeout(function() {
+        if (!appInitialized && cdnErrorCount > 0) {
+          var errorOverlay = document.getElementById('cdn-error-overlay');
+          if (errorOverlay) {
+            // 强制显示错误遮罩层
+            errorOverlay.style.display = 'flex';
+            errorOverlay.classList.remove('hidden');
+            console.error('应用初始化超时，CDN资源加载失败，已显示错误提示。');
+          }
+        }
+      }, 3000);
+    }
+  </script>
 
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js" onerror="handleCdnError('Socket.IO')"></script>
   <meta charset="UTF-8">
@@ -22,14 +49,20 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
   <script>
-    // 配置TailwindCSS
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { 'sans': ['Noto Sans SC', 'system-ui', 'sans-serif'], 'display': ['Zilla Slab', 'serif'] },
-          colors: { 'base': '#7dd3fc' }
+    // 配置TailwindCSS (添加检查，防止CDN加载失败导致报错)
+    if (typeof tailwind !== 'undefined') {
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { 'sans': ['Noto Sans SC', 'system-ui', 'sans-serif'], 'display': ['Zilla Slab', 'serif'] },
+            colors: { 'base': '#7dd3fc' }
+          }
         }
       }
+    } else {
+      console.error("Tailwind CSS 未加载，跳过配置。");
+      // 可以在这里手动调用 handleCdnError，确保错误被记录
+      if (typeof handleCdnError === 'function') handleCdnError('TailwindCSS');
     }
   </script>
   <style>
@@ -23441,106 +23474,129 @@
       }
     }
 
-    function renderMultiAccountList(accounts) {
-      const listDiv = $('multi-account-list');
-      listDiv.innerHTML = '';
-      $('multi-account-count').textContent = accounts.length;
-      if (accounts.length === 0) {
-        listDiv.innerHTML = '<p class="text-slate-400 text-center py-10">请先添加或导入账号</p>';
-        return;
-      }
+function renderMultiAccountList(accounts) {
+        // 定义渲染逻辑的通用函数
+        const renderToContainer = (containerId, isMobile) => {
+            const listDiv = document.getElementById(containerId);
+            if (!listDiv) return;
 
-      accounts.forEach(acc => {
-        const s = acc.summary;
-        const item = document.createElement('div');
-        item.id = `multi-acc-${acc.username}`;
-        item.dataset.username = acc.username;
-        item.className = 'p-3 rounded-xl border border-slate-200 bg-white/80 mb-2 text-sm';
-        item.innerHTML = `
-            <div class="flex justify-between items-start">
-                <div class="font-bold text-slate-800 flex items-start gap-2 truncate min-w-0">
-                    <input type="checkbox" class="account-checkbox w-4 h-4 accent-sky-600 rounded flex-shrink-0 mt-1">
-                    <div class="truncate">
-                        <span class="account-name truncate">${acc.name}</span>
-                        <span class="text-xs text-slate-500 font-normal block">(${acc.username})</span>
-                        ${acc.tag ? `<span class="text-xs text-purple-600 font-medium block">🏷️ ${acc.tag}</span>` : ''}
+            listDiv.innerHTML = '';
+
+            // 更新对应的计数器
+            const countId = isMobile ? 'mobile-multi-account-count' : 'multi-account-count';
+            const countEl = document.getElementById(countId);
+            if (countEl) countEl.textContent = isMobile ? `${accounts.length} 个账号` : accounts.length;
+
+            if (accounts.length === 0) {
+                listDiv.innerHTML = '<p class="text-slate-400 text-center py-10">请先添加或导入账号</p>';
+                return;
+            }
+
+            accounts.forEach(acc => {
+                const s = acc.summary;
+                const item = document.createElement('div');
+                // 使用不同的ID前缀防止ID冲突
+                const prefix = isMobile ? 'mobile-multi-acc-' : 'multi-acc-';
+                item.id = `${prefix}${acc.username}`;
+                item.dataset.username = acc.username;
+                item.className = 'p-3 rounded-xl border border-slate-200 bg-white/80 mb-2 text-sm';
+                
+                // 移动端和桌面端共用相同的卡片结构
+                item.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="font-bold text-slate-800 flex items-start gap-2 truncate min-w-0">
+                            <input type="checkbox" class="account-checkbox w-4 h-4 accent-sky-600 rounded flex-shrink-0 mt-1">
+                            <div class="truncate">
+                                <span class="account-name truncate">${acc.name}</span>
+                                <span class="text-xs text-slate-500 font-normal block">(${acc.username})</span>
+                                ${acc.tag ? `<span class="text-xs text-purple-600 font-medium block">🏷️ ${acc.tag}</span>` : ''}
+                            </div>
+                        </div>
+                        <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap">${acc.status_text}</span>
                     </div>
-                </div>
-                <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap" id="MultiAccount_status_text">${acc.status_text}</span>
-            </div>
 
+                    <div class="grid grid-cols-5 gap-2 text-center text-xs mt-2 pt-2 border-t text-slate-600">
+                        <div>总数: <span class="summary-total font-bold">${s.total}</span></div>
+                        <div>完成: <span class="summary-completed font-bold text-emerald-600">${s.completed}</span></div>
+                        <div>未开始: <span class="summary-notstarted font-bold text-slate-600">${s.not_started}</span></div>
+                        <div>可跑: <span class="summary-executable font-bold text-amber-600">${s.executable}</span></div>
+                        <div>过期: <span class="summary-expired font-bold text-red-600">${s.expired}</span></div>
+                    </div>
 
-            <div class="grid grid-cols-5 gap-2 text-center text-xs mt-2 pt-2 border-t text-slate-600">
-                <div>总数: <span class="summary-total font-bold">${s.total}</span></div>
-                <div>完成: <span class="summary-completed font-bold text-emerald-600">${s.completed}</span></div>
-                <div>未开始: <span class="summary-notstarted font-bold text-slate-600">${s.not_started}</span></div>
-                <div>可跑: <span class="summary-executable font-bold text-amber-600">${s.executable}</span></div>
-                <div>过期: <span class="summary-expired font-bold text-red-600">${s.expired}</span></div>
-            </div>
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs mt-2 pt-2 border-t border-slate-100 text-slate-600">
+                        <div title="待签到任务">待签: <span class="summary-att-pending font-bold text-sky-600">${s.att_pending || 0}</span></div>
+                        <div title="已签到任务">已签: <span class="summary-att-completed font-bold text-emerald-600">${s.att_completed || 0}</span></div>
+                        <div title="已过期签到">过期: <span class="summary-att-expired font-bold text-red-600">${s.att_expired || 0}</span></div>
+                    </div>
 
-            <div class="grid grid-cols-3 gap-2 text-center text-xs mt-2 pt-2 border-t border-slate-100 text-slate-600">
-                <div title="待签到任务">待签: <span class="summary-att-pending font-bold text-sky-600">${s.att_pending || 0}</span></div>
-                <div title="已签到任务">已签: <span class="summary-att-completed font-bold text-emerald-600">${s.att_completed || 0}</span></div>
-                <div title="已过期签到">过期: <span class="summary-att-expired font-bold text-red-600">${s.att_expired || 0}</span></div>
-            </div>
+                    <div class="flex justify-end items-center gap-2 mt-2 pt-2 border-t">
+                        <button class="btn-account-refresh btn btn-ghost !py-1 !px-3 !text-xs" data-username="${acc.username}">刷新</button>
+                        <button class="btn-account-start btn btn-success !py-1 !px-3 !text-xs" data-username="${acc.username}">开始</button>
+                        <button class="btn-account-stop btn btn-warning !py-1 !px-3 !text-xs" data-username="${acc.username}">停止</button>
+                        <button class="btn-account-params btn btn-ghost !py-1 !px-3 !text-xs" data-username="${acc.username}" style="display:none">设置</button>
+                    </div>
+                    <div class="mt-2">
+                        <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div class="progress-fill h-2 bg-sky-500" style="width:0%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs mt-1">
+                            <span class="progress-text text-slate-600">未开始</span>
+                            <span class="progress-extra text-slate-400"></span>
+                        </div>
+                    </div>
+                `;
+                listDiv.appendChild(item);
+            });
 
-            <div class="flex justify-end items-center gap-2 mt-2 pt-2 border-t">
-                <button class="btn-account-refresh btn btn-ghost !py-1 !px-3 !text-xs" data-username="${acc.username}">刷新</button>
-                <button class="btn-account-start btn btn-success !py-1 !px-3 !text-xs" data-username="${acc.username}">开始</button>
-                <button class="btn-account-stop btn btn-warning !py-1 !px-3 !text-xs" data-username="${acc.username}">停止</button>
-                <button class="btn-account-params btn btn-ghost !py-1 !px-3 !text-xs" data-username="${acc.username}">设置</button>
-            </div>
-            <!-- 进度条块 -->
-            <div class="mt-2">
-                <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div class="progress-fill h-2 bg-sky-500" style="width:0%"></div>
-                </div>
-                <div class="flex justify-between text-xs mt-1">
-                    <span class="progress-text text-slate-600">未开始</span>
-                    <span class="progress-extra text-slate-400"></span>
-                </div>
-            </div>
-            `;
-        listDiv.appendChild(item);
-      });
-      // 为新创建的DOM元素重新绑定事件监听器
+            // 为当前容器内的按钮绑定事件
+            listDiv.querySelectorAll('.btn-account-start').forEach(b => b.onclick = (e) => {
+                // 获取对应的 "仅执行未完成" 复选框状态
+                const checkboxId = isMobile ? 'mobile-multi-run-only-incomplete-check' : 'multi-run-only-incomplete-check';
+                const runOnly = document.getElementById(checkboxId)?.checked ?? true;
+                callPythonAPI('multi_start_single_account', e.target.dataset.username, runOnly);
+            });
 
-      document.querySelectorAll('.btn-account-start').forEach(b => b.onclick = (e) => {
-        const runOnly = document.getElementById('multi-run-only-incomplete-check')?.checked ?? true;
-        callPythonAPI('multi_start_single_account', e.target.dataset.username, runOnly);
-      });
-      document.getElementById('multi-run-only-incomplete-check').addEventListener('change', async (e) => {
-        // 先告诉后端当前的开关状态
-        await callPythonAPI('set_multi_run_only_incomplete', e.target.checked);
-        // 再触发一次“刷新全部”，让摘要与按钮立刻一致
-        await callPythonAPI('multi_refresh_all_statuses');
-      });
+            listDiv.querySelectorAll('.btn-account-stop').forEach(b => b.onclick = (e) => 
+                callPythonAPI('multi_stop_single_account', e.target.dataset.username)
+            );
 
+            listDiv.querySelectorAll('.btn-account-refresh').forEach(b => {
+                b.onclick = async (e) => {
+                    const u = e.currentTarget.dataset.username;
+                    // 立即反馈
+                    const itemPrefix = isMobile ? 'mobile-multi-acc-' : 'multi-acc-';
+                    const item = document.getElementById(`${itemPrefix}${u}`);
+                    if (item) {
+                        const statusEl = item.querySelector('.status-text');
+                        if (statusEl) statusEl.textContent = '刷新中...';
+                    }
+                    const result = await callPythonAPI('multi_refresh_single_status', u);
+                    if (!result || !result.success) {
+                        showModalAlert(result?.message || '刷新失败');
+                    }
+                };
+            });
 
-
-      document.querySelectorAll('.btn-account-stop').forEach(b => b.onclick = (e) => callPythonAPI('multi_stop_single_account', e.target.dataset.username));
-      document.querySelectorAll('.btn-account-params').forEach(b => b.onclick = (e) => openAccountParamsModal(e.target.dataset.username));
-      updateSelectAllCheckboxState();
-      // const startAllBtn = $('multi-start-all-btn');
-      // const stopAllBtn = $('multi-stop-all-btn');
-      // if (startAllBtn) startAllBtn.disabled = false;
-      // if (stopAllBtn) stopAllBtn.disabled = true;
-      document.querySelectorAll('.btn-account-refresh').forEach(b => {
-        b.onclick = async (e) => {
-          const u = e.currentTarget.dataset.username;
-          // 立刻做轻量UI反馈（可选）
-          const item = document.getElementById(`multi-acc-${u}`);
-          if (item) {
-            const statusEl = item.querySelector('.status-text');
-            if (statusEl) statusEl.textContent = '刷新中...';
-          }
-          const result = await callPythonAPI('multi_refresh_single_status', u);
-          if (!result || !result.success) {
-            showModalAlert(result?.message || '刷新失败');
-          }
+            listDiv.querySelectorAll('.btn-account-params').forEach(b => {
+                b.onclick = (e) => {
+                    if (isMobile) {
+                        openMobileAccountParams(e.target.dataset.username);
+                    } else {
+                        openAccountParamsModal(e.target.dataset.username);
+                    }
+                }
+            });
         };
-      });
 
+        // 1. 渲染桌面端列表
+        renderToContainer('multi-account-list', false);
+
+        // 2. 渲染移动端列表
+        renderToContainer('mobile-multi-account-list', true);
+
+        // 更新全选框状态
+        if (typeof updateSelectAllCheckboxState === 'function') updateSelectAllCheckboxState();
+        if (typeof updateMobileSelectAllCheckboxState === 'function') updateMobileSelectAllCheckboxState();
     }
 
     // --- 新的JS函数 ---
@@ -23678,95 +23734,109 @@
       process_path_queue();
     }
 
-
-    function multi_updateAccountStatus(username, data) {
-      const item = $(`multi-acc-${username}`);
-      if (!item) return;
-
-      // 1. 文案与摘要的常规更新
-      if (data.status_text) {
-        item.querySelector('.status-text').textContent = data.status_text;
-      }
-      if (data.name) {
-        item.querySelector('.account-name').textContent = data.name;
-      }
-
-
-      if (data.summary) {
-        const s = data.summary;
-        item.querySelector('.summary-total').textContent = s.total;
-        item.querySelector('.summary-completed').textContent = s.completed;
-        const ns = item.querySelector('.summary-notstarted');
-        if (ns) ns.textContent = (s.not_started ?? 0);
-        item.querySelector('.summary-executable').textContent = s.executable;
-        item.querySelector('.summary-expired').textContent = s.expired;
-
-        // 更新签到统计
-        const att_pending = item.querySelector('.summary-att-pending');
-        const att_completed = item.querySelector('.summary-att-completed');
-        const att_expired = item.querySelector('.summary-att-expired');
-        if (att_pending) att_pending.textContent = s.att_pending || 0;
-        if (att_completed) att_completed.textContent = s.att_completed || 0;
-        if (att_expired) att_expired.textContent = s.att_expired || 0;
-
-
-      }
-
-
-
-
-
-
-      // 2. 进度条与附加文本的更新
-      if (typeof data.progress_pct === 'number') {
-        const fill = item.querySelector('.progress-fill');
-        if (fill) fill.style.width = `${Math.max(0, Math.min(100, data.progress_pct))}%`;
-      }
-      if (typeof data.progress_text === 'string') {
-        const label = item.querySelector('.progress-text');
-        if (label) label.textContent = data.progress_text;
-      }
-      if (typeof data.progress_extra === 'string') {
-        const extra = item.querySelector('.progress-extra');
-        if (extra) extra.textContent = data.progress_extra;
-      }
-
-      // 3. 状态驱动的标记清理逻辑（核心修复）
-      // 取最新状态文本（data.status_text 若未提供则读取当前DOM）
-      const currentStatus =
-        (typeof data.status_text === 'string' && data.status_text.trim())
-          ? data.status_text.trim()
-          : (item.querySelector('.status-text')?.textContent?.trim() || '');
-
-      // 定义“非运行态”集合：到达这些状态后不再应保留地图标记
-      const NON_RUNNING_STATUSES = new Set([
-        '任务已完成',
-        '全部完成',
-        '无任务可执行',
-        '无可执行任务',  // 任务25: no_tasks_run状态（所有任务因无打卡点跳过）
-        '已停止',
-        '已中止',
-        '待命'
-      ]);
-
-      // 若进入非运行状态，则移除该账号的地图标记
-      if (NON_RUNNING_STATUSES.has(currentStatus)) {
-        multi_removeRunnerMarker(username);
-        return; // 已清理，无需进一步判断
-      }
-
-      // 摘要也可辅助判断：当 s.executable == 0 且状态文本不是明显运行态，也清理一次（保险）
-      const s = data.summary;
-      if (s && typeof s.executable === 'number' && s.executable <= 0) {
-        // 如果没有可执行任务且不是“登录中/分析任务/运行中/等待中”，则移除
-        const maybeRunning = ['登录中...', '分析任务', '运行', '等待', '排队登录...', '延迟'];
-        const isLikelyRunning = maybeRunning.some(k => currentStatus.includes(k));
-        if (!isLikelyRunning) {
-          multi_removeRunnerMarker(username);
+    function updateMobileSelectAllCheckboxState() {
+        const container = document.getElementById('mobile-multi-account-list');
+        if (!container) return;
+        
+        const allCheckboxes = container.querySelectorAll('.account-checkbox');
+        const checkedCount = container.querySelectorAll('.account-checkbox:checked').length;
+        const selectAllCheckbox = document.getElementById('mobile-select-all-accounts');
+        
+        if (selectAllCheckbox) {
+            if (allCheckboxes.length > 0) {
+                selectAllCheckbox.checked = checkedCount === allCheckboxes.length;
+                selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < allCheckboxes.length;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            }
         }
-      }
+    }
+    
+    // 绑定移动端列表的 change 事件以更新全选框
+    const mobileListDiv = document.getElementById('mobile-multi-account-list');
+    if (mobileListDiv) {
+        mobileListDiv.addEventListener('change', (event) => { 
+            if (event.target.classList.contains('account-checkbox')) { 
+                updateMobileSelectAllCheckboxState(); 
+            } 
+        });
     }
 
+    function multi_updateAccountStatus(username, data) {
+        // 尝试获取桌面端和移动端的卡片元素
+        const ids = [`multi-acc-${username}`, `mobile-multi-acc-${username}`];
+
+        ids.forEach(id => {
+            const item = document.getElementById(id);
+            if (!item) return;
+
+            // 1. 文案与摘要的常规更新
+            if (data.status_text) {
+                const statusEl = item.querySelector('.status-text');
+                if (statusEl) statusEl.textContent = data.status_text;
+            }
+            if (data.name) {
+                const nameEl = item.querySelector('.account-name');
+                if (nameEl) nameEl.textContent = data.name;
+            }
+
+            if (data.summary) {
+                const s = data.summary;
+                const setVal = (sel, val) => { 
+                    const el = item.querySelector(sel); 
+                    if (el) el.textContent = val; 
+                };
+                
+                setVal('.summary-total', s.total);
+                setVal('.summary-completed', s.completed);
+                setVal('.summary-notstarted', s.not_started ?? 0);
+                setVal('.summary-executable', s.executable);
+                setVal('.summary-expired', s.expired);
+
+                setVal('.summary-att-pending', s.att_pending || 0);
+                setVal('.summary-att-completed', s.att_completed || 0);
+                setVal('.summary-att-expired', s.att_expired || 0);
+            }
+
+            // 2. 进度条与附加文本的更新
+            if (typeof data.progress_pct === 'number') {
+                const fill = item.querySelector('.progress-fill');
+                if (fill) fill.style.width = `${Math.max(0, Math.min(100, data.progress_pct))}%`;
+            }
+            if (typeof data.progress_text === 'string') {
+                const label = item.querySelector('.progress-text');
+                if (label) label.textContent = data.progress_text;
+            }
+            if (typeof data.progress_extra === 'string') {
+                const extra = item.querySelector('.progress-extra');
+                if (extra) extra.textContent = data.progress_extra;
+            }
+        });
+
+        // 3. 状态驱动的标记清理逻辑 (使用最新状态判断)
+        const currentStatus = (typeof data.status_text === 'string' && data.status_text.trim()) 
+            ? data.status_text.trim() 
+            : ''; // 若未提供状态文本，这里简化处理不清理，或者从 DOM 读
+
+        const NON_RUNNING_STATUSES = new Set([
+            '任务已完成', '全部完成', '无任务可执行', '无可执行任务', '已停止', '已中止', '待命'
+        ]);
+
+        if (NON_RUNNING_STATUSES.has(currentStatus)) {
+            if (typeof multi_removeRunnerMarker === 'function') multi_removeRunnerMarker(username);
+            return;
+        }
+
+        const s = data.summary;
+        if (s && typeof s.executable === 'number' && s.executable <= 0) {
+            const maybeRunning = ['登录中...', '分析任务', '运行', '等待', '排队登录...', '延迟'];
+            const isLikelyRunning = maybeRunning.some(k => currentStatus.includes(k));
+            if (!isLikelyRunning) {
+                if (typeof multi_removeRunnerMarker === 'function') multi_removeRunnerMarker(username);
+            }
+        }
+    }
 
     function multi_updateRunnerPosition(username, lon, lat, name) {
       if (!multiAccountMap) return;
@@ -29802,18 +29872,61 @@
      * - 用于配置批量账号的运行参数
      * - 显示账号参数设置模态框
      */
-    function openMobileAccountParams() {
-      // 获取账号参数设置模态框元素
-      const modal = document.getElementById('mobile-account-params-modal');
+    async function openMobileAccountParams(username) {
+        if (!username) return;
 
-      // 检查元素是否存在
-      if (modal) {
-        // 移除hidden类，显示模态框
+        // 获取模态框元素
+        const modal = document.getElementById('mobile-account-params-modal');
+        const titleEl = document.getElementById('mobile-account-params-title');
+        const container = document.getElementById('mobile-account-params-container');
+        const saveBtn = document.getElementById('mobile-save-account-params-btn');
+
+        if (!modal || !container) return;
+
+        // 显示加载状态
+        container.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
         modal.classList.remove('hidden');
-      } else {
-        // 如果模态框不存在，显示提示信息
-        showTempMessage('参数设置功能开发中...', 'info');
-      }
+
+        if (titleEl) titleEl.textContent = `[${username}] 参数设置`;
+
+        try {
+            // 获取参数
+            const result = await callPythonAPI('multi_get_account_params', username);
+            if (!result.success) {
+                showModalAlert(result.message);
+                modal.classList.add('hidden');
+                return;
+            }
+
+            // 生成表单
+            // 复用 createParamInputs 函数 (prefix='mobile-acc-param')
+            // 排除 '主题与外观' 组
+            createParamInputs(container, 'mobile-acc-param', () => {}, ['主题与外观']);
+            updateParamInputs(container, 'mobile-acc-param', result.params);
+
+            // 绑定保存按钮
+            if (saveBtn) {
+                saveBtn.onclick = async () => {
+                    showTempMessage('正在保存...', 'info');
+                    const inputs = container.querySelectorAll('input, select');
+                    try {
+                        for (const input of inputs) {
+                            const key = input.dataset.key;
+                            if (!key) continue;
+                            const value = input.type === 'checkbox' ? input.checked : input.value;
+                            await callPythonAPI('multi_update_account_param', username, key, value);
+                        }
+                        showTempMessage('设置已保存', 'success');
+                        closeMobileAccountParams();
+                    } catch (e) {
+                        showTempMessage('保存失败: ' + e.message, 'error');
+                    }
+                };
+            }
+
+        } catch (e) {
+            container.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+        }
     }
 
     // ==================== 移动端地图控制函数 ====================
@@ -30295,8 +30408,14 @@
       // 头像预览
       const avatarInput = document.getElementById('auth-reg-avatar');
       if (avatarInput) {
-        // 调用 previewAvatarForRegistration 来打开裁剪模态框
-        avatarInput.addEventListener('change', previewAvatarForRegistration);
+        // [已修复] 使用匿名函数包裹，防止函数未定义错误
+        avatarInput.addEventListener('change', function(e) {
+            if (typeof previewAvatarForRegistration === 'function') {
+                previewAvatarForRegistration(e);
+            } else {
+                console.error("previewAvatarForRegistration 函数尚未加载");
+            }
+        });
       }
 
       // 发送注册验证码 - 使用验证码模态窗
@@ -31323,6 +31442,14 @@
      * 从后端API获取当前时间需要显示的提醒，并使用SweetAlert2显示
      */
     async function checkAndShowReminders() {
+      // [已修复] 如果没有 sessionUUID，直接返回，不执行检查
+      if (!sessionUUID) {
+          sessionUUID=getUUIDFromURL() ;
+          if (!sessionUUID) {
+            logMessage_Error("跳过提醒检查: sessionUUID 未定义");
+            return;}
+      }
+
       try {
         // 调用后端API检查当前时间的提醒
         const response = await fetch('/api/reminders/check', {
@@ -32755,8 +32882,7 @@
 
         // 调用后端API添加账号
         // 注意：这里调用multi_addFromManual函数（需要在PC端定义）
-        // 如果PC端没有该函数，我们可以直接调用multi_addAccount
-        const result = await callPythonAPI('multi_account_add', {
+        const result = await callPythonAPI('multi_add_account', {
           username: username,
           password: password,
           // 使用空对象作为params，后端会自动应用默认配置
@@ -33391,6 +33517,7 @@
 
       // 确保高德地图API已加载
       if (!AMapInstance) {
+
         console.error('高德地图API未加载');
         return;
       }

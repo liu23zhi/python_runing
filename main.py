@@ -4506,6 +4506,8 @@ class Api:
         # --- 2. 处理主 config.ini 文件 ---
         main_cfg = configparser.RawConfigParser()
         main_cfg.optionxform = str  # 保持键的大小写
+        
+        # 先尝试读取现有文件，以获取其中的 amap_js_key
         if os.path.exists(self.config_path):
             try:
                 main_cfg.read(self.config_path, encoding='utf-8')
@@ -4517,12 +4519,27 @@ class Api:
             main_cfg.add_section('Config')
         main_cfg.set('Config', 'LastUser', username)
 
-        # 确保 [Map] 分区存在并更新 amap_js_key（新版）
+        # 确保 [Map] 分区存在
         if not main_cfg.has_section('Map'):
             main_cfg.add_section('Map')
-        # 从内存中的全局参数获取最新的 Key
-        amap_key_in_memory = self.global_params.get('amap_js_key', '')
-        main_cfg.set('Map', 'amap_js_key', amap_key_in_memory)
+            
+        # 【修复】智能更新 amap_js_key，防止空值覆盖
+        # 1. 获取内存中的值
+        amap_key_in_memory = self.global_params.get('amap_js_key', '').strip()
+        # 2. 获取文件中的现有值
+        amap_key_in_file = main_cfg.get('Map', 'amap_js_key', fallback='').strip()
+        
+        if amap_key_in_memory:
+            # 如果内存中有值（例如用户刚在前端设置了），则更新到文件
+            main_cfg.set('Map', 'amap_js_key', amap_key_in_memory)
+        elif amap_key_in_file:
+            # 如果内存为空但文件里有值，则保留文件里的值（不要覆盖为空）
+            # 同时反向同步到内存，防止后续逻辑读取到空值
+            self.global_params['amap_js_key'] = amap_key_in_file
+            # main_cfg.set 保持不变即可
+        else:
+            # 两个都为空，确保键存在
+            main_cfg.set('Map', 'amap_js_key', '')
 
         # 安全写入主 config.ini 文件
         try:
@@ -7439,17 +7456,24 @@ class Api:
         final_status['accounts_missing_password'] = accounts_missing_password
         return final_status
 
-    def multi_add_account(self, username, password, tag=None):
+    def multi_add_account(self, username, password, tag=None, params=None):
         """模式二：手动或选择性添加账号
         
         Args:
             username: 账号用户名
             password: 账号密码
             tag: 账号标记（备注/标签），可选
+            params: 额外的参数配置（可选，防止前端传参报错）
         """
         if username in self.accounts:
             # 如果账号已存在，智能处理密码更新或从文件刷新
             acc = self.accounts[username]
+
+            # [新增] 如果传入了params，尝试更新参数
+            if params and isinstance(params, dict):
+                for k, v in params.items():
+                    if k in acc.params:
+                        acc.params[k] = v
 
             # 场景1: 提供了新的、非空的密码 (来自导入或手动输入)。
             # 则更新内存和文件中的密码。
@@ -7491,7 +7515,7 @@ class Api:
                 logging.error(f"更新账号后触发刷新失败: {traceback.format_exc()}")
             # 刷新全局按钮状态并返回最新账号状态列表
             self._update_multi_global_buttons()
-            return self.multi_get_all_accounts_status()
+            return self.multi_get_all_accounts_status([{"success": True}])
 
         # 创建账号会话（注意：若稍后判定密码为空，将撤销）
         # 加载已保存的标记（如果有）
@@ -7585,8 +7609,8 @@ class Api:
         if hasattr(self, '_web_session_id') and self._web_session_id:
             save_session_state(self._web_session_id, self, force_save=True)
         
-        return self.multi_get_all_accounts_status()
-
+        return self.multi_get_all_accounts_status([{"success": True}])
+    
     def multi_remove_account(self, username):
         """移除一个账号"""
         if username in self.accounts:
@@ -7707,7 +7731,8 @@ class Api:
                         self._save_config(acc.username)
 
                 # 更新名字（允许）
-                self._update_account_status_js(acc, name=acc.user_data.name)
+                # 【修正】同时更新状态文本为“获取数据...”，避免一直显示“正在登录”
+                self._update_account_status_js(acc, name=acc.user_data.name, status_text="获取数据...")
 
             # 2) 拉取任务并汇总
             self._multi_fetch_and_summarize_tasks(acc)
@@ -7798,19 +7823,35 @@ class Api:
             save_session_state(self._web_session_id, self, force_save=True)
         return self.multi_get_all_accounts_status()
 
-    def multi_get_all_accounts_status(self):
+    def multi_get_all_accounts_status(self, addition=None):
         """获取所有账号的当前状态，用于刷新前端UI"""
         status_list = []
+        # 1. 遍历生成账号列表
         for acc in self.accounts.values():
             status_list.append({
                 "username": acc.username,
                 "name": acc.user_data.name or "---",
                 "status_text": acc.status_text,
                 "summary": acc.summary,
-                "tag": acc.tag,  # 添加标记字段
+                "tag": acc.tag, 
             })
-        return {"accounts": status_list}
+        
+        # 2. 构建基础返回对象
+        response = {"accounts": status_list}
 
+        # 3. 处理传入的补全内容 (addition)
+        # 你的调用方式是: self.multi_get_all_accounts_status([{"success": True}])
+        if addition:
+            if isinstance(addition, list):
+                # 如果传入的是列表，遍历并将字典项更新到 response 中
+                for item in addition:
+                    if isinstance(item, dict):
+                        response.update(item)
+            elif isinstance(addition, dict):
+                # 如果直接传入的是字典，直接更新
+                response.update(addition)
+
+        return response
     def multi_download_import_template(self):
         """下载导入模板（账号、密码、标记），支持 Web模式直接返回文件内容"""
         try:
@@ -8508,6 +8549,10 @@ class Api:
             # 二次检查停止（同样按参数决定是否尊重全局停止）
             if acc.stop_event.is_set() or (respect_global_stop and self.multi_run_stop_flag.is_set()):
                 return None
+            
+            # 【修正】获取锁后，立即更新状态为“正在登录”，防止一直显示排队
+            self._update_account_status_js(acc, status_text="正在登录...")
+            
             # 执行实际登录请求
             return acc.api_client.login(acc.username, acc.password)
         finally:
