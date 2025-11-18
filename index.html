@@ -12311,7 +12311,7 @@
           }
         }, 300);
       } else {
-        console.error('[验证码模态窗] 找不到captcha-verification-modal元素');
+        logMessage_Error('[验证码模态窗] 找不到captcha-verification-modal元素');
       }
     }
 
@@ -19673,7 +19673,7 @@
      */
     async function checkSessionValidity() {
       if (!sessionUUID) {
-        console.log('[会话检查] 无UUID，跳过检查');
+        logMessage_Info('[会话检查] 无UUID，跳过检查');
         return;
       }
 
@@ -19690,7 +19690,7 @@
 
         if (result.success && result.uuid_type === 'unknown') {
           // UUID不存在，会话已失效
-          console.warn('[会话检查] 会话不存在，UUID类型为unknown');
+          logMessage_Warning('[会话检查] 会话不存在，UUID类型为unknown');
           
           // 停止定期检查
           if (sessionValidityCheckInterval) {
@@ -19708,19 +19708,19 @@
             allowEscapeKey: false
           }).then(() => {
             // 用户确认后跳转到登录页面
-            console.log('[会话检查] 用户确认会话失效，跳转到登录页面');
+            logMessage_Info('[会话检查] 用户确认会话失效，跳转到登录页面');
             window.location.href = '/';
           });
         } else if (!result.success) {
           // API调用失败，但不一定是会话问题
-          console.warn('[会话检查] 检查失败:', result.message);
+          logMessage_Warning('[会话检查] 检查失败:', result.message);
         } else {
           // 会话有效
-          console.log('[会话检查] 会话有效，UUID类型:', result.uuid_type);
+          logMessage_Info('[会话检查] 会话有效，UUID类型:', result.uuid_type);
         }
       } catch (error) {
         // 网络错误或其他异常，不应该中断用户操作
-        console.error('[会话检查] 检查请求失败:', error);
+        logMessage_Error('[会话检查] 检查请求失败:', error);
       }
     }
 
@@ -19731,11 +19731,11 @@
     function startSessionValidityCheck() {
       // 避免重复启动
       if (sessionValidityCheckInterval) {
-        console.log('[会话检查] 定期检查已在运行');
+        logMessage_Info('[会话检查] 定期检查已在运行');
         return;
       }
 
-      console.log('[会话检查] 启动定期检查，间隔5分钟');
+      logMessage_Info('[会话检查] 启动定期检查，间隔5分钟');
       
       // 立即执行一次检查
       checkSessionValidity();
@@ -28754,7 +28754,7 @@
         // 当用户切换到设置面板时，自动从 pythonParams 加载当前配置并填充到输入框
         // 这样用户看到的就是当前生效的配置值，而不是空白表单
         if (panelId === 'mobile-settings-panel') {
-          console.log('[移动端单账号] 激活设置面板，开始加载配置...');
+          logMessage_Info('[移动端单账号] 激活设置面板，开始加载配置...');
           // 获取设置面板中的参数容器元素
           const mobileParamsContainer = document.getElementById('mobile-params-container');
           // 检查容器存在、pythonParams全局变量已定义、updateParamInputs函数可用
@@ -28765,18 +28765,18 @@
             // - 'mobile-param': 输入框ID的前缀，用于定位正确的输入框
             // - pythonParams: 包含当前配置值的全局对象
             updateParamInputs(mobileParamsContainer, 'mobile-param', pythonParams);
-            console.log('[移动端单账号] 设置面板配置已自动加载');
+            logMessage_Info('[移动端单账号] 设置面板配置已自动加载');
           } else {
             // 如果依赖项不满足，输出警告信息，帮助调试
-            console.warn('[移动端单账号] 无法加载配置：容器或函数未定义');
+            logMessage_Warning('[移动端单账号] 无法加载配置：容器或函数未定义');
           }
           
           // 调用 refreshMobileSettings 函数刷新设置
           if (typeof refreshMobileSettings === 'function') {
             refreshMobileSettings();
-            console.log('[移动端单账号] 设置面板已自动刷新');
+            logMessage_Info('[移动端单账号] 设置面板已自动刷新');
           } else {
-            console.warn('[移动端单账号] refreshMobileSettings函数未定义');
+            logMessage_Warning('[移动端单账号] refreshMobileSettings函数未定义');
           }
         }
 
@@ -28784,7 +28784,7 @@
         // 当用户切换到地图面板时，自动初始化高德地图实例
         // 原因：地图需要在DOM元素可见后才能正确初始化和渲染
         if (panelId === 'mobile-map-panel') {
-          console.log('[移动端单账号] 激活地图面板，初始化地图...');
+          logMessage_Info('[移动端单账号] 激活地图面板，初始化地图...');
           // 延迟100ms执行，确保DOM已完全渲染
           // 如果立即执行，地图容器可能还没有完成显示动画，导致地图尺寸计算错误
           setTimeout(() => {
@@ -28803,7 +28803,7 @@
             // 这样用户可以看到当前位置（不仅是路径和打卡点）
             if (typeof ensureRunnerMarker === 'function') {
               ensureRunnerMarker();
-              console.log('[移动端单账号] Runner marker已确保显示');
+              logMessage_Info('[移动端单账号] Runner marker已确保显示');
             }
           }, 100); // 延迟100毫秒
         }
@@ -28812,7 +28812,7 @@
         // 当用户切换到签到面板时，自动从 pythonParams 加载签到相关的配置
         // 原因：签到面板包含多个配置项（开关、时间、延迟范围等），需要显示当前的配置状态
         if (panelId === 'mobile-attendance-panel') {
-          console.log('[移动端单账号] 激活签到面板，开始加载配置...');
+          logMessage_Info('[移动端单账号] 激活签到面板，开始加载配置...');
           // 延迟50ms执行，确保DOM已渲染
           setTimeout(() => {
             // 加载签到开关状态
@@ -28850,7 +28850,7 @@
             if (autoRefreshInterval && typeof pythonParams !== 'undefined') {
               // 获取刷新间隔参数，默认为60秒
               autoRefreshInterval.value = pythonParams.auto_attendance_refresh_s || 60;
-              console.log('[移动端单账号] 自动刷新间隔已加载:', autoRefreshInterval.value, '秒');
+              logMessage_Info('[移动端单账号] 自动刷新间隔已加载:', autoRefreshInterval.value, '秒');
             }
 
             // 加载签到随机半径配置
@@ -28859,10 +28859,10 @@
             if (userRadius && typeof pythonParams !== 'undefined') {
               // 获取随机半径参数，默认为0米（精确签到，不偏移）
               userRadius.value = pythonParams.attendance_user_radius_m || 0;
-              console.log('[移动端单账号] 签到随机半径已加载:', userRadius.value, '米');
+              logMessage_Info('[移动端单账号] 签到随机半径已加载:', userRadius.value, '米');
             }
 
-            console.log('[移动端单账号] 签到面板配置已自动加载');
+            logMessage_Info('[移动端单账号] 签到面板配置已自动加载');
 
             refreshNotificationsUI(true, true);
           }, 50); // 延迟50毫秒
@@ -28872,17 +28872,17 @@
         // 当用户切换到任务详情面板时，自动调用 loadMobileTaskDetails 加载当前任务的详细信息
         // 原因：任务详情面板需要显示特定任务的完整信息，激活时需要加载最新数据
         if (panelId === 'mobile-task-details-panel') {
-          console.log('[移动端单账号] 激活任务详情面板，开始加载任务详情...');
+          logMessage_Info('[移动端单账号] 激活任务详情面板，开始加载任务详情...');
           // 延迟50ms确保DOM已渲染
           setTimeout(() => {
             // 检查 loadMobileTaskDetails 函数是否存在
             if (typeof loadMobileTaskDetails === 'function') {
               // 调用函数加载任务详情
               loadMobileTaskDetails();
-              console.log('[移动端单账号] 任务详情已自动加载');
+              logMessage_Info('[移动端单账号] 任务详情已自动加载');
             } else {
               // 如果函数不存在，输出警告
-              console.warn('[移动端单账号] loadMobileTaskDetails函数未定义');
+              logMessage_Warning('[移动端单账号] loadMobileTaskDetails函数未定义');
             }
           }, 50);
         }
@@ -28891,17 +28891,17 @@
         // 当用户切换到用户详情面板（我的资料）时，自动加载用户的详细信息
         // 原因：用户资料面板需要显示当前用户的信息，激活时需要加载最新数据
         if (panelId === 'mobile-profile-panel') {
-          console.log('[移动端单账号] 激活用户详情面板，开始加载用户详情...');
+          logMessage_Info('[移动端单账号] 激活用户详情面板，开始加载用户详情...');
           // 延迟50ms确保DOM已渲染
           setTimeout(() => {
             // 检查 loadMobileUserDetails 函数是否存在
             if (typeof loadMobileUserDetails === 'function') {
               // 调用函数加载用户详情
               loadMobileUserDetails();
-              console.log('[移动端单账号] 用户详情已自动加载');
+              logMessage_Info('[移动端单账号] 用户详情已自动加载');
             } else {
               // 如果函数不存在，输出警告
-              console.warn('[移动端单账号] loadMobileUserDetails函数未定义');
+              logMessage_Warning('[移动端单账号] loadMobileUserDetails函数未定义');
             }
           }, 50);
         }
@@ -28910,26 +28910,26 @@
         // 当用户切换到管理面板时，自动初始化管理面板的标签页和内容
         // 原因：管理面板包含多个标签页（用户管理、角色管理等），需要根据用户权限动态创建
         if (panelId === 'mobile-admin-panel') {
-          console.log('[移动端单账号] 激活管理面板，开始初始化...');
+          logMessage_Info('[移动端单账号] 激活管理面板，开始初始化...');
           // 调用 initMobileAdminPanel 函数初始化管理面板
           // 参数 'mobile-admin-panel' 是前缀，用于区分单账号和多账号的管理面板
           if (typeof initMobileAdminPanel === 'function') {
             initMobileAdminPanel('mobile-admin-panel');
           } else {
-            console.warn('[移动端单账号] initMobileAdminPanel函数未定义');
+            logMessage_Warning('[移动端单账号] initMobileAdminPanel函数未定义');
           }
         }
 
         // 【通知面板】激活时自动刷新
         if (panelId === 'mobile-notification-panel') {
-          console.log('[移动端单账号] 激活通知面板，自动刷新...');
+          logMessage_Info('[移动端单账号] 激活通知面板，自动刷新...');
           setTimeout(() => {
             mobileRefreshNotifications();
           }, 50);
         }
 
         if (panelId === 'mobile-task-history-panel') {
-          console.log('[移动端单账号] 激活历史记录面板...');
+          logMessage_Info('[移动端单账号] 激活历史记录面板...');
           setTimeout(() => {
             loadMobileTaskHistoryPanel();
           }, 50);
@@ -28937,26 +28937,26 @@
 
         // 【任务列表面板】激活时自动刷新任务列表
         if (panelId === 'mobile-task-panel') {
-          console.log('[移动端单账号] 激活任务列表面板，自动刷新任务...');
+          logMessage_Info('[移动端单账号] 激活任务列表面板，自动刷新任务...');
           setTimeout(() => {
             if (typeof mobileRefreshTasks === 'function') {
               mobileRefreshTasks();
-              console.log('[移动端单账号] 任务列表已自动刷新');
+              logMessage_Info('[移动端单账号] 任务列表已自动刷新');
             } else {
-              console.warn('[移动端单账号] mobileRefreshTasks函数未定义');
+              logMessage_Warning('[移动端单账号] mobileRefreshTasks函数未定义');
             }
           }, 50);
         }
 
         // 【打卡点面板】激活时自动渲染打卡点列表
         if (panelId === 'mobile-checkpoints-panel') {
-          console.log('[移动端单账号] 激活打卡点面板，自动渲染打卡点列表...');
+          logMessage_Info('[移动端单账号] 激活打卡点面板，自动渲染打卡点列表...');
           setTimeout(() => {
             if (typeof renderMobileCheckpointsList === 'function') {
               renderMobileCheckpointsList();
-              console.log('[移动端单账号] 打卡点列表已自动渲染');
+              logMessage_Info('[移动端单账号] 打卡点列表已自动渲染');
             } else {
-              console.warn('[移动端单账号] renderMobileCheckpointsList函数未定义');
+              logMessage_Warning('[移动端单账号] renderMobileCheckpointsList函数未定义');
             }
           }, 50);
         }
@@ -28968,7 +28968,7 @@
       } else {
         // 如果找不到目标面板，输出警告信息
         // 这可能是因为传入了错误的panelId，或者HTML结构发生了变化
-        console.warn(`[移动端单账号] 找不到ID为 ${panelId} 的面板`);
+        logMessage_Warning(`[移动端单账号] 找不到ID为 ${panelId} 的面板`);
       }
 
       // 第五步：更新导航栏和侧边栏的激活状态
@@ -32145,7 +32145,7 @@
 
       const mapping = pcToMobileMap[tabType];
       if (!mapping) {
-        console.error(`[移动端管理面板] 未定义的标签页类型: ${tabType}`);
+        logMessage_Error(`[移动端管理面板] 未定义的标签页类型: ${tabType}`);
         return;
       }
 
@@ -32154,7 +32154,7 @@
       const mobileContainer = document.getElementById(mapping.mobile);
 
       if (!pcContainer || !mobileContainer) {
-        console.error(`[移动端管理面板] 找不到容器: PC=${mapping.pc}, Mobile=${mapping.mobile}`);
+        logMessage_Error(`[移动端管理面板] 找不到容器: PC=${mapping.pc}, Mobile=${mapping.mobile}`);
         if (mobileContainer) {
           mobileContainer.innerHTML = '<p class="text-red-500 text-center py-10 text-xs">加载失败</p>';
         }
