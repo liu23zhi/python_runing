@@ -9716,29 +9716,86 @@
 
     function ensureRunnerMarker() {
       if (runnerMarker) return;
-      const content = '<div class="w-5 h-5 rounded-full border-2 border-white shadow-lg" style="background:linear-gradient(135deg,var(--base-color-300),var(--base-color-600));"></div>';
-      runnerMarker = new AMapInstance.Marker({ position: map.getCenter(), content, anchor: 'center', zIndex: 200 });
-      map.add(runnerMarker);
+      // 增加安全检查
+      if (typeof AMapInstance === 'undefined' || !AMapInstance || typeof map === 'undefined' || !map) {
+          return;
+      }
+      try {
+        const content = '<div class="w-5 h-5 rounded-full border-2 border-white shadow-lg" style="background:linear-gradient(135deg,var(--base-color-300),var(--base-color-600));"></div>';
+        // 使用当前地图中心作为初始位置，如果获取失败则使用默认位置
+        let initialPos;
+        try {
+            initialPos = map.getCenter();
+        } catch(e) {
+            initialPos = [113.390342, 22.527403];
+        }
+        
+        runnerMarker = new AMapInstance.Marker({ 
+            position: initialPos, 
+            content: content, 
+            anchor: 'center', 
+            zIndex: 200 
+        });
+        map.add(runnerMarker);
+      } catch (e) {
+          console.warn("[UI] 创建跑步者标记失败:", e);
+      }
     }
     function updateRunnerPosition(lon, lat, distance, targetSequence, duration, centerNow = false) {
-      ensureRunnerMarker();
-      const pos = new AMapInstance.LngLat(lon, lat);
-      runnerMarker.setPosition(pos);
-      if (map && centerNow) map.setCenter(pos);
+      // 1. 更新数据变量
       runAccumulatedMs += (duration || 0);
-      currentRunData.distance_covered_m = distance || 0;
-      $('current-location-label').textContent = `当前位置GPS坐标: ${(+lon).toFixed(4)}, ${(+lat).toFixed(4)}`;
-      if (currentRunData.target_sequence !== targetSequence) { currentRunData.target_sequence = targetSequence; drawMarkers(); }
-      updateDashboard();
-      // 每个GPS点到达后推进进度
-      if (Array.isArray(currentRunData.run_coords) && currentRunData.run_coords.length > 0) {
-        // 防重复：限制不超过总点数
-        singleTotalPoints = currentRunData.run_coords.length;
-        singleProcessedPoints = Math.min(singleProcessedPoints + 1, singleTotalPoints);
-        const pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
-        updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
+      if (currentRunData) {
+        currentRunData.distance_covered_m = distance || 0;
+        // Python后端使用0-based索引，前端UI使用1-based索引
+        const jsTargetSequence = (targetSequence || 0) + 1;
+        if (currentRunData.target_sequence !== jsTargetSequence) {
+          currentRunData.target_sequence = jsTargetSequence;
+          // 只有当地图可用时才重绘标记，否则稍后处理
+          if (typeof drawMarkers === 'function' && typeof map !== 'undefined' && map) {
+            drawMarkers();
+          }
+        }
       }
 
+      // 2. 更新文本UI（无需地图实例）
+      const locLabel = $('current-location-label');
+      if (locLabel) locLabel.textContent = `当前位置GPS坐标: ${(+lon).toFixed(4)}, ${(+lat).toFixed(4)}`;
+      
+      const mobileLocLabel = document.getElementById('mobile-current-location-label');
+      if (mobileLocLabel) mobileLocLabel.textContent = `当前位置: ${(+lon).toFixed(4)}, ${(+lat).toFixed(4)}`;
+
+      // 更新仪表盘数据
+      if (typeof updateDashboard === 'function') updateDashboard();
+      
+      // 更新单任务进度条
+      if (typeof updateSingleProgress === 'function' && typeof singleTotalPoints !== 'undefined') {
+        // 简单的进度估算，更精确的计算在 pollBackgroundTaskStatus 中
+        // 这里仅做平滑动画补充
+        if (singleTotalPoints > 0) {
+           singleProcessedPoints = Math.min(singleProcessedPoints + 1, singleTotalPoints);
+           const pct = Math.floor((singleProcessedPoints * 100) / Math.max(1, singleTotalPoints));
+           updateSingleProgress(pct, `${singleProcessedPoints} / ${singleTotalPoints} 点`);
+        }
+      }
+
+      // 3. 更新地图标记（仅当地图已加载时）
+      if (typeof AMapInstance !== 'undefined' && AMapInstance && typeof map !== 'undefined' && map) {
+        try {
+          ensureRunnerMarker();
+          if (runnerMarker) {
+            const pos = new AMapInstance.LngLat(lon, lat);
+            runnerMarker.setPosition(pos);
+            if (centerNow) {
+               map.setCenter(pos);
+            } else {
+               // 可选：如果跑步者跑出视野，自动跟随
+               // if (!map.getBounds().contains(pos)) map.setCenter(pos);
+            }
+          }
+        } catch (e) {
+          console.warn("[UI] 更新地图标记失败（可能地图正在销毁或未就绪）:", e);
+        }
+      }
     }
     function onTaskCompleted(taskIndex) { if (currentTasks[taskIndex]) { currentTasks[taskIndex].status = 1; renderTaskList(); } }
 

@@ -302,8 +302,9 @@ def check_and_import_dependencies():
     global Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g, send_file
     global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
     global cssutils, playwright_available
-
-    global cryptography
+    
+    # 【关键修复】声明 socketio 为全局变量
+    global cryptography, socketio
 
     # 将所有变量预设为 None，以防导入成功但未完全解包
     Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g = (None,) * 9
@@ -311,6 +312,9 @@ def check_and_import_dependencies():
     playwright_available = False
 
     cryptography = None
+    
+    # 【关键修复】初始化全局 socketio 变量，防止 Api 类引用时出现 NameError
+    socketio = None
 
     # (显示名称, 导入代码, pip包名)
     dependencies = [
@@ -6335,22 +6339,48 @@ class Api:
                             logging.error(f"任务执行中自动保存会话失败: {e}")
 
                     # 修正：使用 SocketIO 发送 runner_position_update 事件
+                    # 优先使用传入的 client.app 中的 session_id，如果不存在则尝试从 self 获取
+                    # 这解决了在多账号或后台任务管理器中上下文丢失的问题
                     session_id = getattr(self, '_web_session_id', None)
-                    if socketio and session_id and self.current_run_idx == task_index:
-                        center_now = False
-                        if not self._first_center_done:
-                            center_now = True
-                            self._first_center_done = True
-                        try:
-                            socketio.emit('runner_position_update', {
-                                'lon': lon, 'lat': lat, 'distance': run_data.distance_covered_m,
-                                'target_sequence': run_data.target_sequence, 'duration': dur_ms,
-                                'center_now': center_now,
-                                'task_index': task_index  # <-- 新增：将当前任务索引发送给前端
-                            }, room=session_id)
-                        except Exception as e:
-                            logging.error(
-                                f"SocketIO发送'runner_position_update'位置更新事件失败: {e}")
+                    if not session_id and hasattr(client, 'app'):
+                         session_id = getattr(client.app, '_web_session_id', None)
+
+                    # 安全获取全局 socketio 对象，防止 NameError
+                    # sio = globals().get('socketio')
+
+                    # 只有当 SocketIO 实例存在、会话ID存在且当前运行的任务与前端选择的任务一致时才发送
+                    # 注意：在多账号模式下，self.current_run_idx 可能会被其他线程修改，
+                    # 但对于单账号前台显示，我们需要确保只显示当前选中的任务
+                    if socketio and session_id:
+                         # 检查是否需要发送更新：
+                         # 1. 任务索引匹配（前端选中了正在运行的任务）
+                         # 2. 或者在单账号模式下，通常只运行一个任务，可以放宽检查
+                         should_emit = (self.current_run_idx == task_index)
+                         logging.debug(
+                             f"准备发送位置更新: should_emit={should_emit}, current_run_idx={self.current_run_idx}, task_index={task_index}")   
+                         
+                         if should_emit:
+                            center_now = False
+                            # 如果是第一次更新位置，强制前端地图居中
+                            if not self._first_center_done:
+                                center_now = True
+                                self._first_center_done = True
+                            
+                            try:
+                                socketio.emit('runner_position_update', {
+                                    'lon': lon, 
+                                    'lat': lat, 
+                                    'distance': run_data.distance_covered_m,
+                                    'target_sequence': run_data.target_sequence, 
+                                    'duration': dur_ms,
+                                    'center_now': center_now,
+                                    'task_index': task_index
+                                }, room=session_id)
+                                logging.debug(
+                                    f"已发送位置更新: lon={lon}, lat={lat}, distance={run_data.distance_covered_m}, target_sequence={run_data.target_sequence}, duration={dur_ms}, center_now={center_now}, task_index={task_index}")   
+                            except Exception as e:
+                                logging.error(f"SocketIO发送'runner_position_update'位置更新事件失败: {e}")
+                    # End if sio and session_id
 
                 if stop_flag.is_set():
                     break
@@ -10925,6 +10955,10 @@ def load_all_sessions(args):
                 api_instance = Api(args)
                 api_instance._session_created_at = state.get(
                     'created_at', time.time())
+                
+                # 【关键修复】恢复会话ID，否则socketio推送无法找到房间
+                api_instance._web_session_id = session_id 
+
                 # restore_session_to_api_instance 现在包含恢复 login_success 等所有状态
                 restore_session_to_api_instance(api_instance, state)
 
@@ -19326,6 +19360,10 @@ def start_web_server(args_param):
                     api_instance = Api(args)
                     api_instance._session_created_at = state.get(
                         'created_at', time.time())
+                    
+                    # 【关键修复】恢复会话ID，确保后续任务可以推送消息
+                    api_instance._web_session_id = session_id
+                    
                     api_instance.login_success = True
                     api_instance.user_info = state.get('user_info')
                     restore_session_to_api_instance(api_instance, state)
@@ -19481,7 +19519,7 @@ def start_web_server(args_param):
                 # 记录当前时间为会话最后活跃时间
                 # (已提取到 update_session_activity 函数)
                 update_session_activity(session_id)
-                logging.debug(f"会话 {session_id[:8]}... 调用 get_initial_data，更新活跃时间戳")
+                logging.debug(f"会话 {session_id} 调用 get_initial_data，更新活跃时间戳")
 
             if hasattr(api_instance, method):
                 func = getattr(api_instance, method)
@@ -21399,19 +21437,32 @@ def start_web_server(args_param):
             session_id = session.get('session_id')
 
         # 更可靠的方式: 让前端在连接后立即发送一个带有 session_id 的 'join' 事件
-        logging.info(f"WebSocket client connected: {request.sid}")
+        logging.info(f"WebSocket 客户端连接: {request.sid}")
         # 注意：此时还不知道是哪个 session_id，等待前端发送 'join' 事件
 
     @socketio.on('join')
     def handle_join(data):
+        # 【修复】增强健壮性：处理 data 可能为字符串的情况
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except Exception as e:
+                logging.warning(f"WebSocket 'join' 事件数据解析失败: {e}, 原始数据: {data}")
+                return
+
+        # 确保 data 是字典类型
+        if not isinstance(data, dict):
+            logging.warning(f"WebSocket 'join' 接收到无效数据类型: {type(data)}")
+            return
+
         session_id = data.get('session_id')
         if session_id:
             # 将当前 WebSocket 连接加入以 session_id 命名的房间
             join_room(session_id)
             logging.info(
-                f"WebSocket 客户端 {request.sid} 成功加入 {session_id}...")
+                f"WebSocket 客户端 {request.sid} 成功加入 {session_id}")
             # 可以选择性地在这里发送一条欢迎消息
-            # emit('log_message', {'msg': 'WebSocket connected successfully.'}, room=session_id)
+            emit('log_message', {'msg': 'WebSocket 连接成功！'}, room=session_id)
         else:
             logging.warning(
                 f"WebSocket 客户端 {request.sid} 加入房间失败：缺少 session_id。")
@@ -21774,7 +21825,7 @@ def start_web_server(args_param):
             print(f"  仅HTTPS模式: 已启用 ⚠")
     else:
         print(f"  SSL/HTTPS: 未启用（使用HTTP）")
-    print(f"  首次访问将自动分配2048位UUID并重定向")
+    # print(f"  首次访问将自动分配2048位UUID并重定向")
     print(f"  会话持久化已启用（服务器重启后保留登录状态）")
     print(f"  JS计算在服务器端Chrome中执行，提升安全性")
     print(f"  会话监控已启用（5分钟不活跃自动清理）")

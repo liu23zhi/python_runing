@@ -20631,16 +20631,16 @@
     // 在 initializeApp 成功获取到 sessionUUID 后或者认证成功后调用此函数
     function connectWebSocket() {
       if (socket && socket.connected) {
-        logMessage_Info("WebSocket already connected.");
+        logMessage_Info("WebSocket 已连接.");
         return;
       }
 
       if (!sessionUUID) {
-        logMessage_Warning("Cannot connect WebSocket: sessionUUID is missing.");
+        logMessage_Warning("无法连接 WebSocket：缺少 sessionUUID。");
         return;
       }
 
-      logMessage_Info("Attempting to connect WebSocket...");
+      logMessage_Info("尝试连接 WebSocket...");
       // 连接到服务器，注意路径可能需要根据实际部署调整
       socket = io({
         // 如果部署在非根路径，可能需要指定 path
@@ -20655,7 +20655,7 @@
       socket.connect();
 
       socket.on('connect', () => {
-        logMessage_Info('WebSocket connected successfully. SID:', socket.id);
+        logMessage_Info('WebSocket 连接成功。SID:', socket.id);
         // 连接成功后，立即发送 'join' 事件，告知服务器 session_id
         socket.emit('join', { session_id: sessionUUID });
         // (可选) 在日志窗口显示连接成功
@@ -20663,7 +20663,7 @@
       });
 
       socket.on('disconnect', (reason) => {
-        logMessage_Warning('WebSocket disconnected:', reason);
+        logMessage_Warning('WebSocket 连接已断开:', reason);
         logMessage_Info("[System] WebSocket 连接已断开，尝试重连...");
         // Socket.IO库会自动尝试重新建立WebSocket连接
       });
@@ -20671,7 +20671,7 @@
       socket.on('connect_error', (error) => {
         // 只在非网络错误状态时记录错误，避免生成大量错误日志
         if (!isInNetworkErrorState) {
-          logMessage_Error('WebSocket connection error:', error);
+          logMessage_Error('WebSocket 连接错误:', error);
           logMessage_Info("[System-Error] WebSocket 连接失败");
         }
       });
@@ -20691,7 +20691,7 @@
       // 监听多账号卡片内容更新
       socket.on('multi_status_update', (data) => {
         if (data && data.username && data.data) {
-          // logMessage_Debug(`[Socket] 收到 ${data.username} 状态更新`);
+          logMessage_Debug(`[Socket] 收到 ${data.username} 状态更新`);
           multi_updateAccountStatus(data.username, data.data);
         }
       });
@@ -20707,7 +20707,7 @@
       // 监听多账号全局按钮状态更新
       socket.on('multi_global_buttons_update', (data) => {
         if (data) {
-          // logMessage_Debug(`[Socket] 收到全局按钮状态更新`);
+          logMessage_Debug(`[Socket] 收到全局按钮状态更新`);
           updateMultiGlobalButtons(data.start_disabled, data.stop_disabled);
           // 单独处理退出按钮
           const exitBtn = document.getElementById("exit-multi-mode-btn");
@@ -20726,6 +20726,7 @@
 
       // 监听单账号当前位置位置更新
       socket.on('runner_position_update', (data) => {
+        logMessage_Debug('[Socket] 收到 runner_position_update 事件');
         if (data) {
           // 检查后端发来的任务索引 (data.task_index)
           if (data.task_index !== undefined && data.task_index !== selectedTaskIndex) {
@@ -20736,11 +20737,14 @@
             // 2. 重新渲染任务列表以高亮显示当前任务 
             renderTaskList();
 
-            return;
+            // 【修正】移除 return，确保即使切换了任务，当前数据包的位置信息也能被处理
+            // 否则会导致初始 center_now=True 的数据包被丢弃，地图不跟随
+            // return; 
           }
 
-          // 只有当 task_index 匹配时，才更新位置
+          // 更新位置
           updateRunnerPosition(data.lon, data.lat, data.distance, data.target_sequence, data.duration, data.center_now);
+          logMessage_Debug(`[Socket] 收到当前位置更新: lon=${data.lon}, lat=${data.lat}`);
         }
       });
 
