@@ -25104,6 +25104,106 @@
       return result || '未知';
     }
 
+    // ========================================
+    // 【全局Console拦截】确保第三方JS日志也回传到后端
+    // ========================================
+    (function() {
+      // 保存原始console方法的引用
+      const originalConsole = {
+        log: console.log.bind(console),
+        info: console.info.bind(console),
+        warn: console.warn.bind(console),
+        error: console.error.bind(console),
+        debug: console.debug.bind(console)
+      };
+
+      // 用于防止递归调用
+      let isIntercepting = false;
+
+      /**
+       * 拦截console调用并发送到后端
+       * @param {string} level - 日志级别
+       * @param {Array} args - 日志参数
+       * @param {Function} originalFn - 原始console方法
+       */
+      function interceptConsole(level, args, originalFn) {
+        // 调用原始console方法，确保日志仍然在浏览器控制台显示
+        originalFn.apply(console, args);
+
+        // 防止递归调用
+        if (isIntercepting) return;
+        
+        try {
+          isIntercepting = true;
+
+          // 将参数转换为字符串
+          const message = args.map(arg => {
+            if (typeof arg === 'string') return arg;
+            if (arg instanceof Error) return `${arg.name}: ${arg.message}\n${arg.stack}`;
+            try {
+              return JSON.stringify(arg);
+            } catch (e) {
+              return String(arg);
+            }
+          }).join(' ');
+
+          // 检查是否已经是我们的日志（避免重复发送）
+          if (message.includes('[前端日志]')) {
+            return;
+          }
+
+          // 发送到后端（仅在非网络错误状态时）
+          if (!isInNetworkErrorState && sessionUUID) {
+            const now = new Date();
+            const timestamp = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+            
+            fetch('/api/log_frontend', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-ID': sessionUUID || null
+              },
+              credentials: 'include',
+              body: JSON.stringify({
+                level: level.toUpperCase(),
+                message: message,
+                timestamp: timestamp,
+                source: '第三方JS'
+              })
+            }).catch(() => {
+              // 静默失败，避免影响主功能
+            });
+          }
+        } finally {
+          isIntercepting = false;
+        }
+      }
+
+      // 重写console方法
+      console.log = function(...args) {
+        interceptConsole('info', args, originalConsole.log);
+      };
+
+      console.info = function(...args) {
+        interceptConsole('info', args, originalConsole.info);
+      };
+
+      console.warn = function(...args) {
+        interceptConsole('warning', args, originalConsole.warn);
+      };
+
+      console.error = function(...args) {
+        interceptConsole('error', args, originalConsole.error);
+      };
+
+      console.debug = function(...args) {
+        interceptConsole('debug', args, originalConsole.debug);
+      };
+
+      // 保存原始方法的引用，以便内部代码可以直接调用（如果需要）
+      console._original = originalConsole;
+    })();
+
     // 日志记录函数，支持不同级别日志
     // level 可选值：'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
     function logMessage(msg, level = 'INFO', source = null) {
@@ -25135,21 +25235,46 @@
 
       if (level === 'DEBUG') {
         level_new = 'DEBUG';
-        console.debug(new_message);
+        // 使用原始console方法，避免触发拦截器
+        if (console._original) {
+          console._original.debug(new_message);
+        } else {
+          console.debug(new_message);
+        }
       } else if (level === 'INFO') {
         level_new = 'INFO';
-        console.info(new_message);
+        if (console._original) {
+          console._original.info(new_message);
+        } else {
+          console.info(new_message);
+        }
       } else if (level === 'ERROR') {
         level_new = 'ERROR';
-        console.error(new_message);
+        if (console._original) {
+          console._original.error(new_message);
+        } else {
+          console.error(new_message);
+        }
       } else if (level === 'WARNING') {
         level_new = 'WARNING';
-        console.warn(new_message);
+        if (console._original) {
+          console._original.warn(new_message);
+        } else {
+          console.warn(new_message);
+        }
       } else if (level === 'CRITICAL') {
         level_new = 'CRITICAL';
-        console.error(new_message);
+        if (console._original) {
+          console._original.error(new_message);
+        } else {
+          console.error(new_message);
+        }
       } else {
-        console.log(new_message);
+        if (console._original) {
+          console._original.log(new_message);
+        } else {
+          console.log(new_message);
+        }
       }
 
 
