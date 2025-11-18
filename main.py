@@ -855,11 +855,44 @@ def setup_logging():
     logger.addHandler(warning_file_handler)
     # ========== 结束：警告和错误日志文件处理器 ==========
 
+    # ========== 新增：错误日志文件处理器 ==========
+    # 创建专门用于记录ERROR和CRITICAL级别日志的处理器
+    # 这样可以将严重错误单独记录到一个文件中，方便快速定位关键问题
+    # 使用ERROR.log作为文件名，只记录ERROR及以上级别的日志
+    error_log_file = os.path.join(log_dir, 'zx-slm-tool-ERROR.log')
+    
+    # 使用与主日志相同的轮转配置（max_bytes）和归档逻辑
+    # 这确保了错误日志也会被自动轮转和归档，防止文件过大
+    error_file_handler = CustomLogHandler(
+        error_log_file,  # 错误日志文件路径
+        mode='a',  # 追加模式（append），保留历史错误日志
+        encoding='utf-8',  # UTF-8编码，支持中文日志
+        max_bytes=max_bytes  # 使用与主日志相同的大小限制
+    )
+    
+    # 设置日志级别为ERROR：只记录ERROR和CRITICAL级别的日志
+    # 这样可以过滤掉DEBUG、INFO和WARNING级别的日志，只保留最严重的错误
+    error_file_handler.setLevel(logging.ERROR)
+    
+    # 为错误日志处理器应用"无颜色"格式化程序
+    # 使用与主日志相同的格式，确保日志格式的一致性
+    error_no_color_formatter = NoColorFileFormatter(
+        log_format._fmt,  # 使用相同的日志格式字符串
+        datefmt=log_format.datefmt  # 使用相同的日期格式
+    )
+    error_file_handler.setFormatter(error_no_color_formatter)
+    
+    # 将错误日志处理器添加到logger中
+    # 现在所有ERROR和CRITICAL日志会同时写入主日志、警告日志和错误日志文件
+    logger.addHandler(error_file_handler)
+    # ========== 结束：错误日志文件处理器 ==========
+
     # 记录日志系统启动
     logging.info("="*80)
     logging.info("日志系统初始化完成（启用自定义轮转）")
     logging.info(f"日志文件: {log_file}")
     logging.info(f"警告日志文件: {warning_log_file}")  # 添加警告日志文件信息
+    logging.info(f"错误日志文件: {error_log_file}")  # 添加错误日志文件信息
     logging.info(f"日志级别: DEBUG (所有级别)")
     logging.info(f"日志轮转: 单文件最大{log_rotation_size_mb}MB")
     logging.info(
@@ -1450,6 +1483,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言（游客需填写邮箱和昵称）
                     "delete_own_messages": False,  # 删除自己的留言（游客不能删除）
                     "delete_any_messages": False,  # 删除任何人的留言（游客不能）
+                    "exit_single_account_mode": True, # 退出单账号模式
                 }
             },
             "user": {
@@ -1501,6 +1535,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": False,  # 删除任何人的留言（仅管理员）
+                    "execute_single_account": True, # 退出单账号模式
                 }
             },
             "admin": {
@@ -1562,7 +1597,8 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
-                    "view_captcha_history": True
+                    "view_captcha_history": True,
+                    "execute_single_account": True # 退出单账号模式
                 }
             },
             "super_admin": {
@@ -1630,6 +1666,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
+                    "execute_single_account": True, # 退出单账号模式
                 }
             }
         },
@@ -2053,7 +2090,7 @@ class AuthSystem:
             # ✓ 即使是明文，也使用secrets.compare_digest()防止时序攻击
             result = secrets.compare_digest(input_password, stored_password)
             logging.warning(
-                f"[密码验证] 明文密码验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'} (⚠️ 警告: 明文密码存储不安全，建议迁移到bcrypt)")
+                f"[密码验证] 明文密码验证完成 --> 验证结果: {'✓ 成功' if result else '✗ 失败'}")
             return result
 
     def _log_login_attempt(self, auth_username, success, ip_address='', user_agent='', reason=''):
@@ -7252,10 +7289,42 @@ class Api:
         return mode_info
 
     def multi_get_all_config_users(self):
-        """获取所有存在配置文件的用户列表，用于前端便捷添加"""
-        users = sorted([os.path.splitext(f)[0]
-                       for f in os.listdir(self.user_dir) if f.endswith(".ini")])
-        return {"users": users}
+        """
+        获取所有存在配置文件的用户列表，用于前端便捷添加
+        
+        功能增强：根据当前认证用户的权限过滤返回结果
+        - 如果用户有school_accounts权限，则可以看到该认证用户名下管理的所有学校账号
+        - 如果没有特定权限，则只返回空列表
+        - 这确保了用户只能访问自己有权限的配置数据
+        
+        返回:
+            dict: {"users": [用户名列表]}
+        """
+        # 获取所有存在.ini配置文件的用户名列表
+        all_users = sorted([os.path.splitext(f)[0]
+                           for f in os.listdir(self.user_dir) if f.endswith(".ini")])
+        
+        # 权限过滤：根据当前认证用户的school_accounts权限过滤
+        # 只返回当前认证用户有权限访问的账号
+        filtered_users = []
+        
+        if hasattr(self, 'auth_username') and self.auth_username:
+            # 加载当前认证用户管理的school_accounts
+            # _load_user_school_accounts返回格式：{school_username: {"password": "xxx", "ua": "xxx"}, ...}
+            school_accounts = self._load_user_school_accounts(self.auth_username)
+            
+            # 只返回在school_accounts中存在的用户
+            # 这确保了用户只能看到自己有权限访问的学校账号配置
+            for username in all_users:
+                if username in school_accounts:
+                    filtered_users.append(username)
+            
+            logging.debug(f"用户 {self.auth_username} 可访问的配置用户: {len(filtered_users)}/{len(all_users)}")
+        else:
+            # 如果没有认证用户信息，返回空列表（安全起见）
+            logging.warning("multi_get_all_config_users: 没有认证用户信息，返回空列表")
+        
+        return {"users": filtered_users}
 
     def multi_load_accounts_from_config(self):
         """模式一：从所有.ini配置文件加载账号"""
@@ -10861,7 +10930,7 @@ def load_all_sessions(args):
 
                 # --- 如果成功恢复 ---
                 logging.info(
-                    f"成功恢复会话: {session_id[:8]}... (用户: {api_instance.auth_username if hasattr(api_instance, 'auth_username') else 'Unknown'}, 文件: {filename})")
+                    f"成功恢复会话: {session_id}... (用户: {api_instance.auth_username if hasattr(api_instance, 'auth_username') else 'Unknown'}, 文件: {filename})")
                 web_sessions[session_id] = api_instance  # 加入内存
                 session_activity[session_id] = last_accessed  # 恢复活动时间
                 successful_sessions[session_id] = session_hash  # 记录成功加载的会话及其哈希
@@ -10930,7 +10999,7 @@ class BackgroundTaskManager:
         try:
             with open(task_file, 'w', encoding='utf-8') as f:
                 json.dump(task_state, f, indent=2, ensure_ascii=False)
-            logging.debug(f"后台任务状态已保存，会话ID前缀: {session_id[:8]}")
+            logging.debug(f"后台任务状态已保存，会话ID: {session_id}")
         except Exception as e:
             logging.error(f"保存后台任务状态失败: {e}")
 
@@ -10942,7 +11011,7 @@ class BackgroundTaskManager:
         try:
             with open(task_file, 'r', encoding='utf-8') as f:
                 task_state = json.load(f)
-            logging.debug(f"后台任务状态已加载，会话ID前缀: {session_id[:8]}")
+            logging.debug(f"后台任务状态已加载，会话ID: {session_id}")
             return task_state
         except Exception as e:
             logging.error(f"加载后台任务状态失败: {e}")
@@ -12513,7 +12582,7 @@ def start_web_server(args_param):
                 return False, jsonify({"success": False, "message": f"权限不足：需要 {required_permission} 权限"}), 403
         
         # 验证通过，返回成功和用户信息
-        return True, user_info
+        return True, user_info, 200
 
 
     @app.route('/auth/register', methods=['POST'])
@@ -13612,18 +13681,6 @@ def start_web_server(args_param):
         响应格式：
         成功：{"success": true, "groups": {权限组配置}}
         失败：{"success": false, "message": "错误信息"}
-
-        权限组结构示例：
-        {
-            "admin": ["manage_users", "manage_permissions", ...],
-            "user": ["view_data", "edit_own_data"],
-            "guest": ["view_public_data"]
-        }
-
-        使用场景：
-        - 权限配置界面数据源
-        - 显示可用的权限组列表
-        - 权限分配参考
         """
         # 从请求头提取会话ID
         session_id = request.headers.get('X-Session-ID', '')
@@ -13648,14 +13705,9 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": "权限不足"})
 
         # 获取并返回权限组配置
-        groups = auth_system.list_permission_groups()
-        return jsonify({"success": True, "groups": groups})
-        if not auth_system.check_permission(api_instance.auth_username, 'manage_permissions'):
-            return jsonify({"success": False, "message": "权限不足"})
-
+        # 修正：使用 AuthSystem 中已定义的 get_all_groups() 方法
         groups = auth_system.get_all_groups()
         return jsonify({"success": True, "groups": groups})
-
     @app.route('/auth/admin/create_group', methods=['POST'])
     def auth_admin_create_group():
         """问题7修复：超级管理员：创建权限组（验证必填字段）"""
@@ -19315,6 +19367,12 @@ def start_web_server(args_param):
                 'enter_multi_account_mode': 'execute_multi_account',  # 进入多账号模式
                 'exit_multi_account_mode': 'execute_multi_account',  # 退出多账号模式
                 
+                # ===== 单账号管理相关权限 =====
+                # 单账号模式切换 - 用于移动端在单账号和会话选择之间切换
+                # 注意：进入和退出单账号模式不需要权限验证，允许用户自由切换
+                # 'enter_single_account_mode': 'execute_single_account',  # 已删除：进入单账号模式不需要授权
+                # 'exit_single_account_mode': 'execute_single_account',  # 已删除：退出单账号模式不需要授权
+                
                 # 多账号的账户管理
                 'multi_add_account': 'execute_multi_account',  # 添加多账号
                 'multi_remove_account': 'execute_multi_account',  # 删除单个多账号
@@ -19382,6 +19440,9 @@ def start_web_server(args_param):
                 'update_param': 'modify_params',  # 更新参数
                 'generate_new_ua': 'modify_params',  # 生成新的User-Agent
                 'save_amap_key': 'modify_params',  # 保存高德地图API密钥
+                
+                # # ===== 参数查看权限 =====
+                # 'get_params': 'view_params',  # 获取当前参数配置（用于前端读取配置）
                 
                 # ===== 地图查看权限 =====
                 'get_map_data': 'view_map',  # 获取地图数据
@@ -21348,17 +21409,16 @@ def start_web_server(args_param):
             # 将当前 WebSocket 连接加入以 session_id 命名的房间
             join_room(session_id)
             logging.info(
-                f"WebSocket client {request.sid} joined room: {session_id[:8]}...")
+                f"WebSocket 客户端 {request.sid} 成功加入 {session_id}...")
             # 可以选择性地在这里发送一条欢迎消息
             # emit('log_message', {'msg': 'WebSocket connected successfully.'}, room=session_id)
         else:
             logging.warning(
-                f"WebSocket client {request.sid} failed to join room: session_id missing.")
+                f"WebSocket 客户端 {request.sid} 加入房间失败：缺少 session_id。")
 
     @socketio.on('disconnect')
     def handle_disconnect():
-        logging.info(f"WebSocket client disconnected: {request.sid}")
-
+        logging.info(f"WebSocket 客户端断开连接: {request.sid}")
     # 辅助函数，用于向指定会话推送验证码列表更新
     def _emit_verification_codes_update(session_id):
         """辅助函数：向指定会话推送验证码列表更新事件"""
