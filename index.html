@@ -20171,6 +20171,19 @@
           option.value = option.textContent = user;
           userCombo.appendChild(option);
         });
+        
+        // 【修复】同时更新多账号模式的用户选择框
+        const multiConfigUserSelect = $('multi-config-user-select');
+        if (multiConfigUserSelect) {
+          multiConfigUserSelect.innerHTML = '<option value="">(新用户/手动输入)</option>';
+          initialData.users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = option.textContent = user;
+            option.title = user; // 长文本 tooltip
+            multiConfigUserSelect.appendChild(option);
+          });
+          logMessage_Info(`[初始化] multi-config-user-select 已更新，用户数: ${initialData.users.length}`);
+        }
 
         createParamInputs($('params-container'), 'param', onParamChange);
         if (initialData.lastUser) userCombo.value = initialData.lastUser;
@@ -25056,6 +25069,7 @@
       }
       const result = await callPythonAPI('get_historical_track', trid);
       if (result.success) {
+        logMessage_Info(`[历史轨迹] API返回数据 - coords长度: ${result.coords?.length || 0}, target_points长度: ${result.target_points?.length || 0}`);
 
         // === 移动端适配：在拟态模态框中显示地图 ===
         if (isMobileMode) {
@@ -25105,37 +25119,47 @@
               mobileTrackMarkers.push(endMarker);
 
               // 8. 填充移动端轨迹摘要信息
-              const summaryEl = $('mobile-track-summary');
-              if (summaryEl && result) {
-                // 计算距离
-                let totalDist = 0;
-                if (AMapInstance.GeometryUtil) {
-                  totalDist = AMapInstance.GeometryUtil.distanceOfLine(path);
-                }
-                
-                // 从result获取统计数据（如果有的话）
-                const distance = result.distance || (totalDist / 1000).toFixed(2);
-                const duration = result.duration || result.used_time || '--:--';
-                const checkpoints = result.checkpoints || result.target_points?.length || 0;
-                
-                // 更新摘要HTML
-                summaryEl.innerHTML = `
-                  <div class="text-center">
-                    <div class="text-xs text-slate-500 mb-1">总距离</div>
-                    <div class="text-sm font-bold text-emerald-600" id="mobile-track-distance">${typeof distance === 'number' ? distance.toFixed(2) : distance} km</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="text-xs text-slate-500 mb-1">总时长</div>
-                    <div class="text-sm font-bold text-sky-600" id="mobile-track-duration">${duration}</div>
-                  </div>
-                  <div class="text-center">
-                    <div class="text-xs text-slate-500 mb-1">打卡点数</div>
-                    <div class="text-sm font-bold text-purple-600">${checkpoints}</div>
-                  </div>
-                `;
+              // 计算距离
+              let totalDist = 0;
+              if (AMapInstance.GeometryUtil) {
+                totalDist = AMapInstance.GeometryUtil.distanceOfLine(path);
               }
+              
+              // 从result获取统计数据（如果有的话）
+              const distance = result.distance || (totalDist / 1000);
+              const duration = result.duration || result.used_time || '--:--';
+              const checkpoints = result.checkpoints || result.target_points?.length || 0;
+              
+              // 更新摘要中的各个元素
+              const distEl = $('mobile-track-distance');
+              const durEl = $('mobile-track-duration');
+              const paceEl = $('mobile-track-pace');
+              
+              if (distEl) {
+                distEl.textContent = `${typeof distance === 'number' ? distance.toFixed(2) : distance} km`;
+              }
+              if (durEl) {
+                durEl.textContent = duration;
+              }
+              if (paceEl && typeof distance === 'number' && duration !== '--:--') {
+                // 尝试计算配速（如果有时长数据）
+                // 配速格式：分钟/公里
+                const durationMatch = duration.match(/(\d+):(\d+)/);
+                if (durationMatch) {
+                  const totalMinutes = parseInt(durationMatch[1]) + parseInt(durationMatch[2]) / 60;
+                  const pace = distance > 0 ? totalMinutes / distance : 0;
+                  const paceMin = Math.floor(pace);
+                  const paceSec = Math.round((pace - paceMin) * 60);
+                  paceEl.textContent = `${paceMin}:${paceSec.toString().padStart(2, '0')}/km`;
+                } else {
+                  paceEl.textContent = '--:--';
+                }
+              }
+              
+              logMessage_Info(`[历史轨迹] 摘要信息已更新 - 距离: ${distance} km, 时长: ${duration}, 打卡点: ${checkpoints}`);
 
               // 9. 绘制打卡点标记（如果有的话）
+              logMessage_Info(`[历史轨迹] 检查打卡点数据 - target_points存在: ${!!result.target_points}, 长度: ${result.target_points?.length || 0}`);
               if (result.target_points && result.target_points.length > 0) {
                 const targetNames = result.target_point_names ? result.target_point_names.split('|') : [];
                 result.target_points.forEach((point, index) => {
@@ -32732,21 +32756,12 @@
         // 调用后端API添加账号
         // 注意：这里调用multi_addFromManual函数（需要在PC端定义）
         // 如果PC端没有该函数，我们可以直接调用multi_addAccount
-        const response = await fetch('/multi_account/add', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Session-ID': sessionUUID
-          },
-          body: JSON.stringify({
-            username: username,
-            password: password,
-            // 使用空对象作为params，后端会自动应用默认配置
-            params: {}
-          })
+        const result = await callPythonAPI('multi_account_add', {
+          username: username,
+          password: password,
+          // 使用空对象作为params，后端会自动应用默认配置
+          params: {}
         });
-
-        const result = await response.json();
 
         if (result.success) {
           // 添加成功
