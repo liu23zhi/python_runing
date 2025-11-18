@@ -4324,9 +4324,8 @@
            - 登录成功后显示
            ======================================== -->
       
-      <!-- 【问题1修复】移动端加载遮罩 - 默认显示状态，在页面加载完成后隐藏 -->
-      <!-- 移除 hidden 类，让加载遮罩在页面一开始就显示，防止用户在UI未完全初始化前进行误操作 -->
-      <div id="mobile-loading-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/90 backdrop-blur-sm">
+      <!-- 【修复】移动端加载遮罩 - 在UI完全加载前显示，防止误操作 -->
+      <div id="mobile-loading-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/90 backdrop-blur-sm hidden">
         <div class="flex flex-col items-center gap-4">
           <!-- 加载动画 -->
           <div class="w-16 h-16 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin"></div>
@@ -10676,9 +10675,6 @@
           });
         }
 
-        // 【问题4修复】调用统一函数更新多账号配置用户选择框
-        updateMultiConfigUserSelect(initialData.users);
-
         // 设置上次选择的用户
         if (initialData.lastUser) {
           mobileUserCombo.value = initialData.lastUser;
@@ -12056,10 +12052,6 @@
       try {
         const result = await callPythonAPI('get_initial_data');
         if (result && result.is_authenticated) {
-          // 【问题4修复】调用统一函数更新多账号配置用户选择框
-          if (result.users) {
-            updateMultiConfigUserSelect(result.users);
-          }
           return true;
         }
       } catch (e) {
@@ -19825,42 +19817,6 @@
       sessionValidityCheckInterval = setInterval(checkSessionValidity, 5 * 60 * 1000);
     }
 
-    /**
-     * 【问题4修复】统一更新多账号配置用户选择框
-     * 功能：在get_initial_data调用后，更新多账号模式下的用户选择框
-     * 
-     * @param {Array} users - 用户名列表
-     */
-    function updateMultiConfigUserSelect(users) {
-      // 获取多账号配置用户选择框元素
-      const multiConfigUserSelect = document.getElementById('multi-config-user-select');
-      
-      // 检查元素是否存在，如果不存在则直接返回
-      if (!multiConfigUserSelect) {
-        console.warn('[问题4修复] multi-config-user-select 元素不存在，跳过更新');
-        return;
-      }
-      
-      // 清空现有选项并添加默认选项
-      multiConfigUserSelect.innerHTML = '<option value="">(新用户/手动输入)</option>';
-      
-      // 如果用户列表有效且非空，逐个添加用户选项
-      if (users && Array.isArray(users) && users.length > 0) {
-        users.forEach(user => {
-          // 为每个用户创建一个option元素
-          const option = document.createElement('option');
-          option.value = user; // 设置选项的值
-          option.textContent = user; // 设置选项的显示文本
-          option.title = user; // 设置tooltip，便于查看长文本
-          multiConfigUserSelect.appendChild(option); // 添加到选择框
-        });
-        
-        console.log(`[问题4修复] multi-config-user-select 已更新，用户数: ${users.length}`);
-      } else {
-        console.log('[问题4修复] 用户列表为空，仅保留默认选项');
-      }
-    }
-
     // --- 初始化 ---
     async function initializeApp() {
       try {
@@ -19872,18 +19828,8 @@
 
         // 隐藏加载覆盖层的通用函数
         function hideLoadingOverlays() {
-          // 隐藏PC端加载遮罩
           $('loading-overlay').classList.add('hidden');
-          // 隐藏CDN错误遮罩
           $('cdn-error-overlay').classList.add('hidden');
-          
-          // 【问题1修复】隐藏移动端加载遮罩
-          // 在页面初始化完成后，隐藏移动端的加载遮罩，允许用户进行操作
-          const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
-          if (mobileLoadingOverlay) {
-            mobileLoadingOverlay.classList.add('hidden');
-            console.log('[问题1修复] 已隐藏移动端加载遮罩');
-          }
         }
 
         // 显示用户友好的错误提示
@@ -20239,8 +20185,18 @@
           userCombo.appendChild(option);
         });
         
-        // 【问题4修复】使用统一函数更新多账号模式的用户选择框
-        updateMultiConfigUserSelect(initialData.users);
+        // 【修复】同时更新多账号模式的用户选择框
+        const multiConfigUserSelect = $('multi-config-user-select');
+        if (multiConfigUserSelect) {
+          multiConfigUserSelect.innerHTML = '<option value="">(新用户/手动输入)</option>';
+          initialData.users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = option.textContent = user;
+            option.title = user; // 长文本 tooltip
+            multiConfigUserSelect.appendChild(option);
+          });
+          logMessage_Info(`[初始化] multi-config-user-select 已更新，用户数: ${initialData.users.length}`);
+        }
 
         createParamInputs($('params-container'), 'param', onParamChange);
         if (initialData.lastUser) userCombo.value = initialData.lastUser;
@@ -21799,6 +21755,7 @@
         const users = Array.isArray(initialData?.users) ? initialData.users : [];
 
         const select = document.getElementById("user-combo");                // 登录页选择框
+        const multiSelect = document.getElementById("multi-config-user-select"); // 多账号模式选择框
 
         function updateSelect(selectElem, users) {
           if (!selectElem) return;
@@ -21835,9 +21792,7 @@
         }
 
         updateSelect(select, users);
-        
-        // 【问题4修复】使用统一函数更新多账号配置用户选择框
-        updateMultiConfigUserSelect(users);
+        updateSelect(multiSelect, users);
       } catch (err) {
         logMessage_Error("刷新用户列表失败", err);
       }
@@ -22998,12 +22953,6 @@
         showModalAlert(`检测到 ${result.accounts_missing_password.length} 个账号缺少密码。\n请先为以下账号补全密码： ${missingAccount.username}`, '提示');
         openMultiAddUserModalForPassword(missingAccount.username, missingAccount.tag);
       }
-      
-      // 【问题5修复】如果是移动端模式，刷新移动端账号列表
-      if (result && result.accounts && isMobileMode && typeof mobileRefreshMultiAccounts === 'function') {
-        await mobileRefreshMultiAccounts();
-        console.log('[问题5修复] multi_loadAllFromConfig: 已刷新移动端账号列表');
-      }
     }
 
     function openNewUserModal() {
@@ -23244,12 +23193,6 @@
       else if (result && result.accounts) {
         // 成功添加账号，刷新多账号列表显示
         renderMultiAccountList(result.accounts);
-        
-        // 【问题5修复】如果是移动端模式，刷新移动端账号列表
-        if (isMobileMode && typeof mobileRefreshMultiAccounts === 'function') {
-          await mobileRefreshMultiAccounts();
-          console.log('[问题5修复] multi_addFromConfig: 已刷新移动端账号列表');
-        }
       }
     }
 
@@ -23290,12 +23233,6 @@
           showModalAlert('账号添加成功', '成功');
           closeMultiAddUserModal(); // 成功后关闭 (这个函数现在会自动清理只读状态)
           renderMultiAccountList(result.accounts); // 刷新列表
-          
-          // 【问题5修复】如果是移动端模式，刷新移动端账号列表
-          if (isMobileMode && typeof mobileRefreshMultiAccounts === 'function') {
-            await mobileRefreshMultiAccounts();
-            console.log('[问题5修复] submitMultiAddUser: 已刷新移动端账号列表');
-          }
         } else {
           // 显示后端返回的错误
           showModalAlert(result?.message || '添加失败');
@@ -23614,12 +23551,6 @@
           if (!result || !result.success) {
             showModalAlert(result?.message || '刷新失败');
           }
-          
-          // 【问题5修复】如果是移动端模式，刷新移动端账号列表
-          if (isMobileMode && typeof mobileRefreshMultiAccounts === 'function') {
-            await mobileRefreshMultiAccounts();
-            console.log('[问题5修复] btn-account-refresh: 已刷新移动端账号列表');
-          }
         };
       });
 
@@ -23732,24 +23663,10 @@
           logMessage_Error(`刷新账号 ${u} 失败`, e);
         }
       }
-      
-      // 【问题5修复】如果是移动端模式，刷新移动端账号列表
-      if (isMobileMode && typeof mobileRefreshMultiAccounts === 'function') {
-        await mobileRefreshMultiAccounts();
-        console.log('[问题5修复] multi_refreshSelected: 已刷新移动端账号列表');
-      }
     }
 
 
-    async function multi_refreshAll() { 
-      await callPythonAPI('multi_refresh_all_statuses'); 
-      
-      // 【问题5修复】如果是移动端模式，刷新移动端账号列表
-      if (isMobileMode && typeof mobileRefreshMultiAccounts === 'function') {
-        await mobileRefreshMultiAccounts();
-        console.log('[问题5修复] multi_refreshAll: 已刷新移动端账号列表');
-      }
-    }
+    async function multi_refreshAll() { await callPythonAPI('multi_refresh_all_statuses'); }
 
     async function process_path_queue() {
       if (is_planning_path || path_planning_queue.length === 0) return;
@@ -32863,18 +32780,13 @@
         // 显示加载提示
         showTempMessage('正在添加账号...', 'info');
 
-        // 【问题6修复前注释】调用后端API添加账号
+        // 【问题5修复】调用后端API添加账号
         // 修正API方法名：应该是 multi_add_account 而不是 multi_account_add
         // 参考PC端的正确调用方式（第23172行）
         const result = await callPythonAPI('multi_add_account', username, password);
 
-        // 【问题6修复】不仅检查result.success，还要检查result.accounts
-        // 问题分析：API返回的success可能为false，但实际上账号已添加成功（从socket消息可以看出）
-        // 只要result.accounts存在且有数据，就认为添加成功
-        const hasAccounts = result.accounts && Array.isArray(result.accounts) && result.accounts.length > 0;
-        
-        if (result.success || hasAccounts) {
-          // 添加成功：要么success为true，要么accounts有数据
+        if (result.success) {
+          // 添加成功
           showTempMessage('账号添加成功', 'success');
 
           // 关闭模态框
@@ -32883,11 +32795,11 @@
           // 刷新账号列表显示
           await mobileRefreshMultiAccounts();
 
-          console.log(`[问题6修复] 手动添加账号成功: ${username}, success=${result.success}, accounts数量=${result.accounts ? result.accounts.length : 0}`);
+          console.log(`[移动端] 手动添加账号成功: ${username}`);
         } else {
-          // 添加失败：success为false且没有accounts数据
+          // 添加失败
           showTempMessage(`添加失败: ${result.message || '未知错误'}`, 'error');
-          console.error('[问题6修复] 手动添加账号失败:', result);
+          console.error('[移动端] 手动添加账号失败:', result);
         }
       } catch (error) {
         // 网络错误或其他异常
@@ -33309,10 +33221,9 @@
             const statusText = statusTexts[record.status] || record.status;
 
             // 生成历史记录项HTML
-            // 【问题2修复】修改onclick事件，传递距离、时长和时间戳参数给openMobileTrackModal
             html += `
               <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-100 transition"
-                onclick="openMobileTrackModal('${record.id}', '${record.task_id}', ${record.distance}, ${record.duration}, '${record.timestamp}')">
+                onclick="openMobileTrackModal('${record.id}', '${record.task_id}')">
                 <div class="flex items-center justify-between mb-2">
                   <span class="text-xs text-slate-600">${timeStr}</span>
                   <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-${statusColor}-100 text-${statusColor}-700">${statusText}</span>
@@ -33368,18 +33279,11 @@
     let mobileTrackMarkers = [];
 
     /**
-     * 【问题2&3修复】打开移动端路径显示模态框
-     * 修改说明：
-     * - 问题2：时长和距离从历史记录点击时传入，配速通过计算得出
-     * - 问题3：打卡点从get_task_details获取，不再依赖get_historical_track
-     * 
+     * 打开移动端路径显示模态框
      * @param {string} recordId - 历史记录ID
      * @param {string} taskId - 任务ID
-     * @param {number} distance - 跑步距离（米），从历史记录传入
-     * @param {number} duration - 跑步时长（秒），从历史记录传入
-     * @param {string} timestamp - 记录时间戳，从历史记录传入
      */
-    async function openMobileTrackModal(recordId, taskId, distance, duration, timestamp) {
+    async function openMobileTrackModal(recordId, taskId) {
       // 获取模态框元素
       const modal = document.getElementById('mobile-track-modal');
       if (!modal) return;
@@ -33396,48 +33300,7 @@
       await initMobileTrackMap();
 
       try {
-        // 【问题2修复】使用传入的距离、时长和时间戳填充摘要信息
-        // 更新路径信息显示
-        const timeEl = document.getElementById('mobile-track-time');
-        const distEl = document.getElementById('mobile-track-distance');
-        const durEl = document.getElementById('mobile-track-duration');
-        const paceEl = document.getElementById('mobile-track-pace');
-        
-        // 【问题2修复】填充时间信息
-        if (timeEl && timestamp) {
-          const date = new Date(timestamp);
-          timeEl.textContent = date.toLocaleString('zh-CN');
-          console.log('[问题2修复] 已更新时间显示:', timeEl.textContent);
-        }
-
-        // 【问题2修复】填充距离信息（米转换为公里）
-        if (distEl && distance) {
-          distEl.textContent = `${(distance / 1000).toFixed(2)} km`;
-          console.log('[问题2修复] 已更新距离显示:', distEl.textContent);
-        }
-
-        // 【问题2修复】填充时长信息（秒转换为分:秒格式）
-        if (durEl && duration) {
-          const min = Math.floor(duration / 60);
-          const sec = duration % 60;
-          durEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-          console.log('[问题2修复] 已更新时长显示:', durEl.textContent);
-        }
-
-        // 【问题2修复】计算并填充配速信息
-        // 配速 = 时长(分钟) / 距离(公里)
-        // 例如：跑了5公里用了30分钟，配速 = 30/5 = 6分钟/公里，显示为"6'00\"/km"
-        if (paceEl && distance && duration) {
-          const distanceKm = distance / 1000; // 距离转换为公里
-          const durationMin = duration / 60; // 时长转换为分钟
-          const paceMinPerKm = durationMin / distanceKm; // 配速：分钟/公里
-          const paceMinutes = Math.floor(paceMinPerKm); // 配速的分钟部分
-          const paceSeconds = Math.round((paceMinPerKm - paceMinutes) * 60); // 配速的秒部分
-          paceEl.textContent = `${paceMinutes}'${String(paceSeconds).padStart(2, '0')}"/km`;
-          console.log('[问题2修复] 已计算并更新配速显示:', paceEl.textContent, `(${durationMin.toFixed(2)}分钟 / ${distanceKm.toFixed(2)}公里)`);
-        }
-
-        // 从服务器获取历史路径数据（用于绘制路径）
+        // 从服务器获取历史路径数据
         const response = await fetch(`/api/get_historical_track?task_id=${taskId}&record_id=${recordId}`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
@@ -33448,7 +33311,54 @@
         }
 
         const data = await response.json();
-        console.log('[移动端路径详情] 获取历史路径数据成功');
+        
+        // 【问题2修复】添加调试日志，输出API返回的完整数据，便于排查数据填充问题
+        console.log('[移动端路径详情] API返回的数据:', data);
+        console.log('[移动端路径详情] 距离:', data.distance, '时长:', data.duration, '配速:', data.pace, '时间戳:', data.timestamp);
+
+        // 更新路径信息显示
+        const timeEl = document.getElementById('mobile-track-time');
+        const distEl = document.getElementById('mobile-track-distance');
+        const durEl = document.getElementById('mobile-track-duration');
+        const paceEl = document.getElementById('mobile-track-pace');
+        
+        // 【问题2修复】添加DOM元素检查日志，确认元素是否存在
+        console.log('[移动端路径详情] DOM元素检查 - timeEl:', !!timeEl, 'distEl:', !!distEl, 'durEl:', !!durEl, 'paceEl:', !!paceEl);
+
+        if (timeEl && data.timestamp) {
+          const date = new Date(data.timestamp);
+          timeEl.textContent = date.toLocaleString('zh-CN');
+          console.log('[移动端路径详情] 已更新时间显示:', timeEl.textContent);
+        } else {
+          // 【问题2修复】添加错误提示，说明为何没有更新时间
+          console.warn('[移动端路径详情] 未更新时间 - timeEl存在:', !!timeEl, 'data.timestamp存在:', !!data.timestamp);
+        }
+
+        if (distEl && data.distance) {
+          distEl.textContent = `${(data.distance / 1000).toFixed(2)} km`;
+          console.log('[移动端路径详情] 已更新距离显示:', distEl.textContent);
+        } else {
+          // 【问题2修复】添加错误提示，说明为何没有更新距离
+          console.warn('[移动端路径详情] 未更新距离 - distEl存在:', !!distEl, 'data.distance存在:', !!data.distance, '距离值:', data.distance);
+        }
+
+        if (durEl && data.duration) {
+          const min = Math.floor(data.duration / 60);
+          const sec = data.duration % 60;
+          durEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+          console.log('[移动端路径详情] 已更新时长显示:', durEl.textContent);
+        } else {
+          // 【问题2修复】添加错误提示，说明为何没有更新时长
+          console.warn('[移动端路径详情] 未更新时长 - durEl存在:', !!durEl, 'data.duration存在:', !!data.duration, '时长值:', data.duration);
+        }
+
+        if (paceEl && data.pace) {
+          paceEl.textContent = data.pace;
+          console.log('[移动端路径详情] 已更新配速显示:', paceEl.textContent);
+        } else {
+          // 【问题2修复】添加错误提示，说明为何没有更新配速
+          console.warn('[移动端路径详情] 未更新配速 - paceEl存在:', !!paceEl, 'data.pace存在:', !!data.pace, '配速值:', data.pace);
+        }
 
         // 在地图上绘制路径
         if (mobileTrackMapInstance && data.path && data.path.length > 0) {
@@ -33493,85 +33403,40 @@
             mobileTrackMarkers.push(endMarker);
           }
 
-          // 【问题3修复】从get_task_details获取打卡点，不再依赖get_historical_track
-          console.log('[问题3修复] 开始从get_task_details获取打卡点...');
-          try {
-            // 调用后端API获取任务详情（包含打卡点）
-            const taskDetailsResult = await callPythonAPI('get_task_details', taskId);
+          // 【问题3修复】添加打卡点标记，并增加详细的调试日志和错误处理
+          if (data.checkpoints && data.checkpoints.length > 0) {
+            // 输出打卡点数据，便于调试
+            console.log('[移动端路径详情] 开始添加打卡点标记，总数:', data.checkpoints.length);
+            console.log('[移动端路径详情] 打卡点原始数据:', data.checkpoints);
             
-            if (taskDetailsResult && taskDetailsResult.success && taskDetailsResult.details) {
-              const taskDetails = taskDetailsResult.details;
-              console.log('[问题3修复] 成功获取任务详情:', taskDetails);
-              
-              // 从任务详情中提取打卡点（waypoints字段）
-              const checkpoints = taskDetails.waypoints || taskDetails.checkpoints;
-              
-              if (checkpoints && checkpoints.length > 0) {
-                console.log('[问题3修复] 开始添加打卡点标记，总数:', checkpoints.length);
-                console.log('[问题3修复] 打卡点原始数据:', checkpoints);
+            data.checkpoints.forEach((cp, idx) => {
+              try {
+                // 【问题3修复】检查打卡点数据格式是否正确
+                if (!Array.isArray(cp) || cp.length < 2) {
+                  console.error(`[移动端路径详情] 打卡点 ${idx + 1} 格式错误，应为 [经度, 纬度] 数组，实际为:`, cp);
+                  return; // 跳过格式错误的打卡点
+                }
                 
-                checkpoints.forEach((cp, idx) => {
-                  try {
-                    // 【问题3修复】检查打卡点数据格式
-                    // 打卡点可能是 [经度, 纬度] 或 {lng: 经度, lat: 纬度}
-                    let lon, lat;
-                    
-                    if (Array.isArray(cp) && cp.length >= 2) {
-                      // 数组格式：[经度, 纬度]
-                      lon = parseFloat(cp[0]);
-                      lat = parseFloat(cp[1]);
-                    } else if (typeof cp === 'object' && cp !== null) {
-                      // 对象格式：{lng: 经度, lat: 纬度} 或 {lon: 经度, lat: 纬度}
-                      lon = parseFloat(cp.lng || cp.lon || cp[0]);
-                      lat = parseFloat(cp.lat || cp[1]);
-                    } else {
-                      console.error(`[问题3修复] 打卡点 ${idx + 1} 格式不支持:`, cp);
-                      return;
-                    }
-                    
-                    // 【问题3修复】检查经纬度值是否有效
-                    if (isNaN(lon) || isNaN(lat)) {
-                      console.error(`[问题3修复] 打卡点 ${idx + 1} 坐标值无效:`, cp);
-                      return;
-                    }
-                    
-                    // 创建打卡点标记
-                    const marker = new AMapInstance.Marker({
-                      position: new AMapInstance.LngLat(lon, lat),
-                      icon: new AMapInstance.Icon({
-                        image: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#f59e0b" width="28" height="28"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><text x="12" y="12" text-anchor="middle" fill="white" font-size="8" font-weight="bold">${idx + 1}</text></svg>`),
-                        size: new AMapInstance.Size(28, 28)
-                      }),
-                      map: mobileTrackMapInstance
-                    });
-                    mobileTrackMarkers.push(marker);
-                    console.log(`[问题3修复] 打卡点 ${idx + 1} 已添加: 经度=${lon}, 纬度=${lat}`);
-                  } catch (error) {
-                    // 【问题3修复】捕获单个打卡点添加失败的错误，不影响其他打卡点
-                    console.error(`[问题3修复] 添加打卡点 ${idx + 1} 失败:`, error, '打卡点数据:', cp);
-                  }
-                });
+                // 【问题3修复】检查经纬度值是否有效（中国境内大致范围：经度73-135，纬度18-54）
+                const lon = parseFloat(cp[0]);
+                const lat = parseFloat(cp[1]);
+                if (isNaN(lon) || isNaN(lat)) {
+                  console.error(`[移动端路径详情] 打卡点 ${idx + 1} 坐标值无效:`, cp);
+                  return;
+                }
+                if (lon < 73 || lon > 135 || lat < 18 || lat > 54) {
+                  console.warn(`[移动端路径详情] 打卡点 ${idx + 1} 坐标超出中国境内范围: 经度=${lon}, 纬度=${lat}`);
+                  // 不return，继续尝试添加，可能是特殊情况
+                }
                 
-                console.log('[问题3修复] 打卡点标记添加完成，成功添加数量:', mobileTrackMarkers.length - 2); // 减去起点和终点
-              } else {
-                console.log('[问题3修复] 任务详情中没有打卡点数据');
-              }
-            } else {
-              console.warn('[问题3修复] 获取任务详情失败或返回数据格式错误:', taskDetailsResult);
-            }
-          } catch (error) {
-            console.error('[问题3修复] 获取任务详情时发生错误:', error);
-            // 不中断主流程，继续显示路径
-          }
-
-          // 自适应地图视野
-          mobileTrackMapInstance.setFitView();
-        }
-      } catch (error) {
-        console.error('加载路径失败:', error);
-        showTempMessage('加载路径失败: ' + error.message, 'error');
-      }
-    }
+                // 创建打卡点标记
+                const marker = new AMapInstance.Marker({
+                  position: new AMapInstance.LngLat(lon, lat),
+                  icon: new AMapInstance.Icon({
+                    image: 'data:image/svg+xml;base64,' + btoa(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#f59e0b" width="28" height="28"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><text x="12" y="12" text-anchor="middle" fill="white" font-size="8" font-weight="bold">${idx + 1}</text></svg>`),
+                    size: new AMapInstance.Size(28, 28)
+                  }),
+                  map: mobileTrackMapInstance
                 });
                 mobileTrackMarkers.push(marker);
                 console.log(`[移动端路径详情] 打卡点 ${idx + 1} 已添加: 经度=${lon}, 纬度=${lat}`);
