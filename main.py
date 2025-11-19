@@ -20900,9 +20900,11 @@ def start_web_server(args_param):
             os.makedirs(captchas_dir, exist_ok=True)
             
             # 准备验证码数据
+            # 【CDN缓存修复】添加html字段，用于新的iframe API读取
             captcha_data = {
                 'id': captcha_id,
                 'code': captcha_code.upper(),  # 统一转换为大写
+                'html': captcha_html,  # 【CDN缓存修复】存储HTML内容，供 /api/captcha/html/<captcha_id> 使用
                 'session_id': session_id,
                 'timestamp': time.time(),
                 'expires_at': time.time() + 600  # 10分钟后过期
@@ -21029,6 +21031,185 @@ def start_web_server(args_param):
                 "success": False,
                 "message": "获取验证码时发生错误"
             }), 500
+    
+    @app.route('/api/captcha/html/<captcha_id>', methods=['GET'])
+    def get_captcha_html_page(captcha_id):
+        """
+        【CDN缓存修复】获取验证码HTML页面（用于iframe嵌入）
+        
+        功能说明:
+            - 根据captcha_id从存储中读取验证码HTML内容
+            - 返回完整的HTML页面（包含完整的HTML文档结构和meta标签）
+            - 通过captcha_id作为URL参数，确保每次刷新验证码时URL不同，避免CDN缓存问题
+            - 设置强制禁用缓存的HTTP响应头，确保浏览器和CDN都不缓存此页面
+        
+        参数:
+            captcha_id (str): 验证码唯一标识符，通过URL路径传递
+        
+        返回:
+            完整的HTML页面 (text/html)，包含：
+            - HTML5文档结构
+            - 防缓存meta标签
+            - 验证码图片HTML（从第三方API获取的img标签）
+            - 响应式样式（确保验证码在iframe中正确显示）
+        
+        HTTP状态码:
+            200: 成功返回验证码HTML页面
+            400: 验证码ID无效（为空或格式错误）
+            404: 验证码不存在（可能已被删除或从未创建）
+            410: 验证码已过期（超过10分钟有效期）
+            500: 服务器内部错误（读取文件失败等）
+        
+        安全说明:
+            - 不验证session_id，因为iframe加载时可能跨域
+            - 验证码ID使用UUID格式，难以猜测
+            - 验证码有效期10分钟，过期自动失效
+        """
+        # ========================================
+        # 步骤1: 验证captcha_id参数
+        # - 检查captcha_id是否存在且非空
+        # - 如果无效，返回400错误和友好的HTML错误页面
+        # ========================================
+        if not captcha_id:
+            logging.warning("[验证码HTML页面] 请求缺少验证码ID")
+            return '<html><body><p style="color: red; text-align: center; padding: 20px;">验证码ID无效</p></body></html>', 400
+        
+        # ========================================
+        # 步骤2: 构建验证码文件路径
+        # - 验证码数据存储在 logs/captchas/ 目录下
+        # - 每个验证码一个JSON文件，文件名为 {captcha_id}.json
+        # ========================================
+        captchas_dir = os.path.join('logs', 'captchas')
+        captcha_file = os.path.join(captchas_dir, f'{captcha_id}.json')
+        
+        # ========================================
+        # 步骤3: 检查验证码文件是否存在
+        # - 如果文件不存在，可能是：
+        #   1. 验证码ID错误（客户端传错了）
+        #   2. 验证码已被使用并删除（验证后自动删除）
+        #   3. 验证码已过期被清理
+        # ========================================
+        if not os.path.exists(captcha_file):
+            logging.warning(f"[验证码HTML页面] 验证码文件不存在: {captcha_id[:8]}...")
+            return '<html><body><p style="color: orange; text-align: center; padding: 20px;">验证码不存在或已过期</p></body></html>', 404
+        
+        try:
+            # ========================================
+            # 步骤4: 读取验证码JSON文件
+            # - 使用utf-8编码读取，确保中文字符正确显示
+            # - 解析JSON数据，获取验证码信息
+            # ========================================
+            with open(captcha_file, 'r', encoding='utf-8') as f:
+                captcha_data = json.load(f)
+            
+            # ========================================
+            # 步骤5: 检查验证码是否过期
+            # - 验证码有效期为10分钟（600秒）
+            # - 通过比较当前时间和expires_at时间戳判断
+            # - 如果过期，返回410 Gone状态码
+            # ========================================
+            current_time = time.time()
+            expires_at = captcha_data.get('expires_at', 0)
+            if expires_at < current_time:
+                logging.info(f"[验证码HTML页面] 验证码已过期: {captcha_id[:8]}... (过期时间: {expires_at}, 当前时间: {current_time})")
+                return '<html><body><p style="color: orange; text-align: center; padding: 20px;">验证码已过期，请刷新</p></body></html>', 410
+            
+            # ========================================
+            # 步骤6: 提取验证码HTML内容
+            # - 从JSON数据中读取html字段
+            # - 这个HTML通常是一个<img>标签，包含base64编码的验证码图片
+            # - 如果html字段不存在或为空，返回404错误
+            # ========================================
+            captcha_html_content = captcha_data.get('html', '')
+            
+            if not captcha_html_content:
+                logging.error(f"[验证码HTML页面] 验证码HTML内容为空: {captcha_id[:8]}...")
+                return '<html><body><p style="color: red; text-align: center; padding: 20px;">验证码内容不可用</p></body></html>', 404
+            
+            # ========================================
+            # 步骤7: 构建完整的HTML5页面
+            # - 添加完整的HTML文档结构（<!DOCTYPE html>, <html>, <head>, <body>）
+            # - 添加meta标签设置字符编码和viewport（移动端适配）
+            # - 【关键】添加多层防缓存meta标签：
+            #   * Cache-Control: no-cache, no-store, must-revalidate
+            #   * Pragma: no-cache (兼容HTTP/1.0)
+            #   * Expires: 0 (立即过期)
+            # - 添加CSS样式，确保验证码图片在iframe中居中显示且响应式
+            # - 插入验证码HTML内容（通常是<img>标签）
+            # ========================================
+            full_html = f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 【CDN缓存修复】禁用缓存的meta标签，确保验证码每次都是最新的 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>验证码</title>
+    <style>
+        /* 【CDN缓存修复】响应式样式，确保验证码在iframe中正确显示 */
+        body {{
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80px;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }}
+        /* 确保验证码图片响应式显示，不超出iframe边界 */
+        img {{
+            max-width: 100%;
+            height: auto;
+            display: block;
+            image-rendering: crisp-edges; /* 优化图片渲染，避免模糊 */
+        }}
+    </style>
+</head>
+<body>
+    <!-- 【CDN缓存修复】验证码HTML内容，通常是包含base64图片的<img>标签 -->
+    {captcha_html_content}
+</body>
+</html>'''
+            
+            # ========================================
+            # 步骤8: 设置HTTP响应头，强制禁用缓存
+            # - Content-Type: text/html; charset=utf-8（指定HTML内容和字符编码）
+            # - Cache-Control: no-cache, no-store, must-revalidate（HTTP/1.1禁用缓存）
+            #   * no-cache: 必须向服务器验证后才能使用缓存
+            #   * no-store: 完全禁止缓存
+            #   * must-revalidate: 过期后必须重新验证
+            # - Pragma: no-cache（HTTP/1.0兼容性，禁用缓存）
+            # - Expires: 0（设置过期时间为0，立即过期）
+            # ========================================
+            response = make_response(full_html)
+            response.headers['Content-Type'] = 'text/html; charset=utf-8'
+            # 【CDN缓存修复】多层防缓存响应头，确保CDN和浏览器都不缓存
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            
+            # 记录成功日志（仅记录captcha_id的前8位，避免日志过长）
+            logging.debug(f"[验证码HTML页面] 成功返回验证码HTML: {captcha_id[:8]}...")
+            
+            return response
+            
+        except json.JSONDecodeError as e:
+            # JSON解析错误（文件损坏或格式错误）
+            logging.error(f"[验证码HTML页面] JSON解析失败: {captcha_id[:8]}... - {e}")
+            return '<html><body><p style="color: red; text-align: center; padding: 20px;">验证码数据损坏</p></body></html>', 500
+            
+        except IOError as e:
+            # 文件读取错误（权限问题、磁盘错误等）
+            logging.error(f"[验证码HTML页面] 文件读取失败: {captcha_id[:8]}... - {e}")
+            return '<html><body><p style="color: red; text-align: center; padding: 20px;">读取验证码失败</p></body></html>', 500
+            
+        except Exception as e:
+            # 其他未预料的错误
+            logging.error(f"[验证码HTML页面] 未知错误: {captcha_id[:8]}... - {e}", exc_info=True)
+            return '<html><body><p style="color: red; text-align: center; padding: 20px;">读取验证码时发生错误</p></body></html>', 500
     
     def verify_captcha(captcha_id, user_input):
         """

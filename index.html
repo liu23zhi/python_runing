@@ -12236,49 +12236,94 @@
 
     async function loadCaptcha(formType) {
       // 根据表单类型确定验证码显示区域的ID
+      // 'login' -> 'auth-login-captcha-display'
+      // 'register' -> 'auth-register-captcha-display'
       const displayId = formType === 'login' ? 'auth-login-captcha-display' : 'auth-register-captcha-display';
       const displayElement = document.getElementById(displayId);
 
+      // 【验证】检查显示元素是否存在
+      // 如果找不到元素，说明DOM结构有问题，记录错误并退出
       if (!displayElement) {
         console.error(`[验证码] 未找到验证码显示元素: ${displayId}`);
         return;
       }
 
-      // 显示加载状态
+      // 显示加载状态，提升用户体验
       displayElement.innerHTML = '<span class="text-slate-400 text-xs">加载中...</span>';
 
       try {
-        // 调用后端API获取验证码
+        // ========================================
+        // 步骤1: 调用后端API获取验证码ID
+        // - 请求 /api/captcha/get 接口
+        // - 传递session ID用于安全验证
+        // - 后端会生成新的验证码并返回captcha_id
+        // ========================================
         const response = await fetch('/api/captcha/get', {
           method: 'GET',
           headers: {
-            'X-Session-ID': sessionUUID
+            'X-Session-ID': sessionUUID  // 传递会话ID，用于后端验证和日志记录
           }
         });
 
         const result = await response.json();
 
-        if (result.success && result.html && result.captcha_id) {
-          // 存储验证码ID
-          captchaIds[formType] = result.captcha_id;
-
-          // 将验证码HTML插入到显示区域
-          // 使用innerHTML直接插入HTML（包含img标签）
-          displayElement.innerHTML = result.html;
-
-          // 为验证码图片添加样式，等比例缩放
-          const imgElement = displayElement.querySelector('img');
-          if (imgElement) {
-            // 使用max-width和max-height来限制图片大小，同时保持原始宽高比
-            imgElement.style.maxWidth = '100%';
-            imgElement.style.maxHeight = '100%';
-            imgElement.style.width = 'auto';
-            imgElement.style.height = 'auto';
-            imgElement.style.objectFit = 'contain';  // 保持比例，完整显示
-            imgElement.style.imageRendering = 'crisp-edges';  // 优化图片渲染，避免模糊
+        // ========================================
+        // 步骤2: 检查API响应是否成功
+        // - 验证success标志和captcha_id是否存在
+        // - captcha_id是验证码的唯一标识符（UUID格式）
+        // ========================================
+        if (result.success && result.captcha_id) {
+          // 【安全验证】验证captcha_id格式，防止XSS攻击
+          // - captcha_id应该是UUID格式（8-4-4-4-12位十六进制数字）
+          // - 正则表达式匹配标准UUID格式
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!uuidRegex.test(result.captcha_id)) {
+            console.error('[验证码] 无效的captcha_id格式，可能存在安全风险');
+            displayElement.innerHTML = '<span class="text-red-500 text-xs">验证码ID格式错误</span>';
+            return;
           }
 
-          console.log(`[验证码] ${formType}表单验证码加载成功，ID: ${result.captcha_id}`);
+          // 存储验证码ID到全局对象
+          // 后续提交表单时需要使用此ID进行验证
+          captchaIds[formType] = result.captcha_id;
+
+          // ========================================
+          // 【CDN缓存修复】使用iframe嵌入验证码HTML页面
+          // 
+          // 原问题：
+          // - 之前直接将result.html插入到页面（innerHTML = result.html）
+          // - 如果使用CDN，/api/captcha/get的响应可能被缓存
+          // - 刷新验证码时，获取到的可能是旧的缓存HTML，显示旧的验证码图片
+          // 
+          // 解决方案：
+          // - 使用iframe加载独立的验证码HTML页面
+          // - 每次刷新时，iframe的src包含不同的captcha_id和时间戳
+          // - URL不同，CDN会认为是不同的资源，不会返回缓存
+          // - 新增的 /api/captcha/html/<captcha_id> API也设置了强制禁用缓存的响应头
+          // 
+          // URL参数说明：
+          // - captcha_id: 验证码唯一ID，确保每个验证码有独立的URL（已验证UUID格式）
+          // - t=${timestamp}: 时间戳参数，确保每次刷新时URL都不同
+          // 
+          // 安全说明：
+          // - captcha_id已通过UUID格式验证，防止XSS注入
+          // - 时间戳是纯数字，安全可靠
+          // ========================================
+          const timestamp = Date.now();  // 当前时间戳（毫秒）
+          const iframeHtml = `
+            <iframe 
+              src="/api/captcha/html/${result.captcha_id}?t=${timestamp}"
+              style="width: 100%; height: 80px; border: none; overflow: hidden; display: block;"
+              scrolling="no"
+              frameborder="0"
+              title="验证码">
+            </iframe>
+          `;
+          
+          // 将iframe插入到显示区域
+          displayElement.innerHTML = iframeHtml;
+          
+          console.log(`[验证码] 【CDN缓存修复】已加载验证码iframe: ${result.captcha_id.substring(0, 8)}... (时间戳: ${timestamp})`);
 
           // ========================================
           // 【移动端同步】同时加载移动端验证码
@@ -12288,12 +12333,12 @@
           // ========================================
           loadMobileCaptcha(formType);
         } else {
-          // 加载失败，显示错误提示
+          // API返回失败，显示错误提示
           displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
           console.error(`[验证码] 加载失败: ${result.message || '未知错误'}`);
         }
       } catch (error) {
-        // 网络错误或其他异常
+        // 网络错误或其他异常（fetch失败、JSON解析失败等）
         displayElement.innerHTML = '<span class="text-red-500 text-xs">网络错误</span>';
         console.error(`[验证码] 加载异常:`, error);
       }
@@ -12326,10 +12371,16 @@
 
     /**
      * 加载模态窗中的验证码
+     * 
+     * 功能说明：
+     * - 在SMS验证码发送前的模态窗中显示图片验证码
+     * - 使用iframe方式加载，避免CDN缓存问题
+     * - 与主登录/注册验证码使用相同的加载机制
      */
     async function loadCaptchaModal() {
       const displayElement = document.getElementById('captcha-modal-display');
 
+      // 【验证】检查模态窗验证码显示元素是否存在
       if (!displayElement) {
         console.error('[验证码模态窗] 未找到验证码显示元素');
         return;
@@ -12339,40 +12390,66 @@
       displayElement.innerHTML = '<span class="text-slate-400 text-xs">加载中...</span>';
 
       try {
-        // 调用后端API获取验证码
+        // ========================================
+        // 步骤1: 调用后端API获取验证码ID
+        // - 与主验证码使用相同的API接口
+        // - 传递session ID用于安全验证
+        // ========================================
         const response = await fetch('/api/captcha/get', {
           method: 'GET',
           headers: {
-            'X-Session-ID': sessionUUID
+            'X-Session-ID': sessionUUID  // 传递会话ID
           }
         });
 
         const result = await response.json();
 
-        if (result.success && result.html && result.captcha_id) {
-          // 存储模态窗验证码ID
-          captchaIds.modal = result.captcha_id;
-
-          // 将验证码HTML插入到显示区域
-          displayElement.innerHTML = result.html;
-
-          // 为验证码图片添加样式，等比例缩放
-          const imgElement = displayElement.querySelector('img');
-          if (imgElement) {
-            imgElement.style.maxWidth = '100%';
-            imgElement.style.maxHeight = '100%';
-            imgElement.style.width = 'auto';
-            imgElement.style.height = 'auto';
-            imgElement.style.objectFit = 'contain';
-            imgElement.style.imageRendering = 'crisp-edges';
+        // ========================================
+        // 步骤2: 检查API响应并使用iframe加载验证码
+        // ========================================
+        if (result.success && result.captcha_id) {
+          // 【安全验证】验证captcha_id格式，防止XSS攻击
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!uuidRegex.test(result.captcha_id)) {
+            console.error('[验证码模态窗] 无效的captcha_id格式，可能存在安全风险');
+            displayElement.innerHTML = '<span class="text-red-500 text-xs">验证码ID格式错误</span>';
+            return;
           }
 
-          console.log('[验证码模态窗] 验证码加载成功，ID:', result.captcha_id.substring(0, 8) + '...');
+          // 存储模态窗验证码ID
+          // 'modal'作为特殊的formType，用于SMS发送验证
+          captchaIds.modal = result.captcha_id;
+
+          // ========================================
+          // 【CDN缓存修复】使用iframe嵌入验证码HTML页面
+          // 
+          // 与主验证码加载函数使用相同的解决方案：
+          // - iframe的src指向 /api/captcha/html/<captcha_id>
+          // - 添加时间戳参数确保URL唯一性
+          // - 避免CDN返回缓存的验证码图片
+          // ========================================
+          const timestamp = Date.now();  // 当前时间戳
+          const iframeHtml = `
+            <iframe 
+              src="/api/captcha/html/${result.captcha_id}?t=${timestamp}"
+              style="width: 100%; height: 80px; border: none; overflow: hidden; display: block;"
+              scrolling="no"
+              frameborder="0"
+              title="验证码">
+            </iframe>
+          `;
+          
+          // 将iframe插入到模态窗显示区域
+          displayElement.innerHTML = iframeHtml;
+
+          console.log(`[验证码模态窗] 【CDN缓存修复】验证码加载成功，ID: ${result.captcha_id.substring(0, 8)}... (时间戳: ${timestamp})`);
         } else {
+          // API返回失败
           displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
           console.error('[验证码模态窗] 加载失败:', result.message || '未知错误');
         }
       } catch (error) {
+        // 网络错误或异常
         displayElement.innerHTML = '<span class="text-red-500 text-xs">网络错误</span>';
         console.error('[验证码模态窗] 加载异常:', error);
       }
@@ -30162,49 +30239,58 @@ function renderMultiAccountList(accounts) {
       const displayId = formType === 'login' ? 'mobile-login-captcha-display' : 'mobile-register-captcha-display';
       const displayElement = document.getElementById(displayId);
 
+      // 【验证】检查移动端显示元素是否存在
+      // 在PC端访问时，移动端元素可能不存在，这是正常情况
       if (!displayElement) {
         console.log(`[移动端验证码] 未找到验证码显示元素: ${displayId}`);
         return;
       }
 
-      // 【修复关键】从PC端获取已经加载的验证码HTML，而不是重新请求API
-      // PC端的验证码显示元素ID：'auth-login-captcha-display' 或 'auth-register-captcha-display'
-      const pcDisplayId = formType === 'login' ? 'auth-login-captcha-display' : 'auth-register-captcha-display';
-      const pcDisplayElement = document.getElementById(pcDisplayId);
-
-      if (!pcDisplayElement || !pcDisplayElement.innerHTML) {
-        // 如果PC端验证码还未加载，显示加载提示
+      // ========================================
+      // 【CDN缓存修复】移动端也改用iframe方式
+      // 
+      // 原实现：从PC端复制HTML（innerHTML = pcDisplayElement.innerHTML）
+      // - 问题：PC端和移动端共用同一个验证码，但如果PC端的iframe已加载，
+      //   直接复制innerHTML会复制整个iframe元素，导致重复加载
+      // 
+      // 新实现：移动端也使用独立的iframe
+      // - 使用相同的captcha_id（从captchaIds[formType]获取）
+      // - 添加不同的时间戳，确保URL独立
+      // - 这样PC端和移动端显示同一个验证码，但是独立的iframe实例
+      // ========================================
+      
+      // 检查captcha_id是否已经存在（应该在PC端loadCaptcha时已经存储）
+      const captchaId = captchaIds[formType];
+      
+      if (!captchaId) {
+        // 如果captcha_id不存在，说明PC端验证码还未加载
+        // 显示等待提示
         displayElement.innerHTML = '<span class="text-slate-400 text-xs">等待加载...</span>';
-        console.log(`[移动端验证码] PC端验证码尚未加载: ${pcDisplayId}`);
+        console.log(`[移动端验证码] captchaId尚未生成，等待PC端加载: ${formType}`);
         return;
       }
 
-      // 【修复关键】直接复制PC端的验证码HTML（包含img标签和验证码图片）
-      // 这样移动端和PC端显示的是同一张验证码图片
-      displayElement.innerHTML = pcDisplayElement.innerHTML;
+      // ========================================
+      // 使用iframe加载验证码
+      // - 使用与PC端相同的captcha_id，确保显示同一个验证码
+      // - 添加时间戳参数，确保URL唯一性（避免缓存）
+      // - iframe样式适配移动端，确保响应式显示
+      // ========================================
+      const timestamp = Date.now();  // 当前时间戳
+      const iframeHtml = `
+        <iframe 
+          src="/api/captcha/html/${captchaId}?t=${timestamp}"
+          style="width: 100%; height: 80px; border: none; overflow: hidden; display: block;"
+          scrolling="no"
+          frameborder="0"
+          title="验证码">
+        </iframe>
+      `;
+      
+      // 将iframe插入到移动端显示区域
+      displayElement.innerHTML = iframeHtml;
 
-      // 为移动端验证码图片添加响应式样式，确保在移动端正确显示
-      const imgElement = displayElement.querySelector('img');
-      if (imgElement) {
-        // 设置图片样式：
-        // - max-width/max-height: 限制图片最大尺寸，适配移动端屏幕
-        // - width/height: auto 保持原始宽高比
-        // - object-fit: contain 确保图片完整显示不裁剪
-        // - imageRendering: crisp-edges 优化图片渲染，避免模糊
-        imgElement.style.maxWidth = '100%';
-        imgElement.style.maxHeight = '100%';
-        imgElement.style.width = 'auto';
-        imgElement.style.height = 'auto';
-        imgElement.style.objectFit = 'contain';
-        imgElement.style.imageRendering = 'crisp-edges';
-      }
-
-      // 验证captchaIds是否已存储（应该在PC端loadCaptcha时已经存储）
-      if (typeof captchaIds !== 'undefined' && captchaIds[formType]) {
-        console.log(`[移动端验证码] ${formType}表单验证码同步成功，复用ID: ${captchaIds[formType].substring(0, 8)}...`);
-      } else {
-        console.warn(`[移动端验证码] 警告：captchaIds[${formType}]未找到，可能导致验证失败`);
-      }
+      console.log(`[移动端验证码] 【CDN缓存修复】${formType}表单验证码同步成功，复用ID: ${captchaId.substring(0, 8)}... (时间戳: ${timestamp})`);
     }
 
     // ==================== 任务8-10: 注册登录和个人资料功能 ====================
