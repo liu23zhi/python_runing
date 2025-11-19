@@ -7615,7 +7615,7 @@
         </button>
 
         <!-- 【本地验证码】验证码管理标签（含二级菜单：设置和历史） -->
-        <div class="relative group">
+        <!-- <div class="relative group"> -->
           <button id="admin-tab-captcha_modal"
             class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap">
             <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -7626,29 +7626,9 @@
               </path>
             </svg>
             验证码管理
-            <svg class="w-3 h-3 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-          </button>
-          <!-- 【二级菜单】验证码子菜单 -->
-          <div class="hidden group-hover:block absolute top-full left-0 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-50 min-w-[160px]">
-            <button id="admin-tab-captcha-settings" data-panel="captcha-settings"
-              class="captcha-sub-tab w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-sky-50 hover:text-sky-600 flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-              </svg>
-              验证码设置
+            
             </button>
-            <button id="admin-tab-captcha-history" data-panel="captcha-history"
-              class="captcha-sub-tab w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-sky-50 hover:text-sky-600 flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-              验证码历史
-            </button>
-          </div>
-        </div>
+          
 
         <!-- 定时提醒管理标签 -->
         <button id="admin-tab-reminders_modal"
@@ -8413,7 +8393,7 @@
           </div>
           
           <!-- 说明文本 -->
-          <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 mb-4">
+          <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 mb-4" style="display: none;">
             <p class="text-sm text-slate-600 mb-2">
               <strong>本地验证码生成器</strong>：使用MicroPixelCaptcha生成黑白像素风格验证码，无需第三方API，更稳定、更安全、响应更快。
             </p>
@@ -8465,7 +8445,11 @@
               </button>
               <button id="test-captcha-btn" 
                       class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 text-sm font-medium transition-colors duration-200">
-                🔄 测试验证码
+                🔄 测试生成
+              </button>
+              <button id="view-captcha-history-btn" 
+                      class="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-md hover:bg-purple-100 text-sm font-medium transition-colors duration-200 ml-auto">
+                📜 查看历史
               </button>
             </div>
             
@@ -8474,7 +8458,7 @@
               <p class="text-sm font-medium text-slate-700 mb-2">预览效果：</p>
               <div id="captcha-preview-display" class="flex justify-center my-3"></div>
               <p class="text-xs text-slate-500 mt-2">
-                验证码答案（仅测试时显示）：
+                验证码答案：
                 <span id="captcha-preview-answer" class="font-mono font-bold text-slate-900"></span>
               </p>
             </div>
@@ -8497,44 +8481,55 @@
         <!-- 【验证码历史】验证码历史记录面板 -->
         <div id="admin-captcha-history-panel_modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
-            <h4 class="font-semibold text-lg">📜 验证码历史记录</h4>
-            <button id="refresh-captcha-history-btn" 
-                    class="px-3 py-1 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 text-sm">
-              🔄 刷新
-            </button>
+            <div class="flex items-center gap-3">
+              <button id="back-to-captcha-settings-btn"
+                class="p-1 rounded-full hover:bg-slate-100 text-slate-500 transition-colors" title="返回设置">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+              </button>
+              <h4 class="font-semibold text-lg">📜 验证码历史记录</h4>
+            </div>
+            <div class="flex gap-2 items-center">
+              <input type="date" id="captcha-history-date" class="px-3 py-1 border border-slate-300 rounded-md text-sm"
+                value="">
+              <select id="captcha-history-status" class="px-3 py-1 border border-slate-300 rounded-md text-sm">
+                <option value="">全部状态</option>
+                <option value="created">待验证</option>
+                <option value="verified_success">验证成功</option>
+                <option value="verified_failed">验证失败</option>
+                <option value="expired">已过期</option>
+              </select>
+              <button id="admin-refresh-captcha_modal" class="btn btn-ghost !py-1 !px-2"
+                onclick="loadCaptchaHistory()">刷新</button>
+            </div>
           </div>
-          
-          <!-- 过滤条件 -->
-          <div class="flex gap-2 mb-4">
-            <input type="date" id="captcha-history-date" 
-                   class="px-3 py-1 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                   title="选择日期查看该日的验证码历史">
-            <select id="captcha-history-status" 
-                    class="px-3 py-1 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
-              <option value="all">全部状态</option>
-              <option value="success">验证成功</option>
-              <option value="failed">验证失败</option>
-              <option value="pending">待验证</option>
-            </select>
+
+          <div id="admin-captcha-list_modal" class="space-y-2 max-h-[47vh] overflow-y-auto pr-2">
+            <p class="text-slate-400 text-center py-10">请选择日期并点击刷新按钮查看验证码历史</p>
           </div>
-          
-          <!-- 历史记录列表 -->
-          <div id="captcha-history-list" 
-               class="max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg">
-            <p class="text-slate-400 text-center py-10">
-              请选择日期并点击刷新按钮查看验证码历史
-            </p>
-          </div>
-          
-          <!-- 说明文本 -->
-          <div class="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
-            <p class="text-sm text-slate-600 mb-2">
-              <strong>📖 说明</strong>：此面板显示验证码的请求和验证历史，用于排查验证码相关问题。
-            </p>
-            <p class="text-xs text-slate-500">
-              💡 提示：历史记录按日期存储在 <code class="bg-slate-200 px-1 rounded">logs/captcha_history/</code> 目录。
-              选择日期后点击刷新按钮即可查看该日的验证码使用记录。
-            </p>
+
+          <div id="captcha-stats" class="grid grid-cols-5 gap-2 text-center text-sm">
+            <div class="p-2 bg-slate-100 rounded">
+              <div class="text-slate-600">总计</div>
+              <div id="captcha-stat-total" class="text-lg font-semibold">0</div>
+            </div>
+            <div class="p-2 bg-green-100 rounded">
+              <div class="text-green-700">成功</div>
+              <div id="captcha-stat-success" class="text-lg font-semibold text-green-700">0</div>
+            </div>
+            <div class="p-2 bg-red-100 rounded">
+              <div class="text-red-700">失败</div>
+              <div id="captcha-stat-failed" class="text-lg font-semibold text-red-700">0</div>
+            </div>
+            <div class="p-2 bg-yellow-100 rounded">
+              <div class="text-yellow-700">待验证</div>
+              <div id="captcha-stat-pending" class="text-lg font-semibold text-yellow-700">0</div>
+            </div>
+            <div class="p-2 bg-gray-100 rounded">
+              <div class="text-gray-700">已过期</div>
+              <div id="captcha-stat-expired" class="text-lg font-semibold text-gray-700">0</div>
+            </div>
           </div>
         </div>
 
@@ -12417,33 +12412,11 @@
           // 后续提交表单时需要使用此ID进行验证
           captchaIds[formType] = result.captcha_id;
 
-          // ========================================
-          // 【CDN缓存修复】使用iframe嵌入验证码HTML页面
-          // 
-          // 原问题：
-          // - 之前直接将result.html插入到页面（innerHTML = result.html）
-          // - 如果使用CDN，/api/captcha/get的响应可能被缓存
-          // - 刷新验证码时，获取到的可能是旧的缓存HTML，显示旧的验证码图片
-          // 
-          // 解决方案：
-          // - 使用iframe加载独立的验证码HTML页面
-          // - 每次刷新时，iframe的src包含不同的captcha_id和时间戳
-          // - URL不同，CDN会认为是不同的资源，不会返回缓存
-          // - 新增的 /api/captcha/html/<captcha_id> API也设置了强制禁用缓存的响应头
-          // 
-          // URL参数说明：
-          // - captcha_id: 验证码唯一ID，确保每个验证码有独立的URL（已验证UUID格式）
-          // - t=${timestamp}: 时间戳参数，确保每次刷新时URL都不同
-          // 
-          // 安全说明：
-          // - captcha_id已通过UUID格式验证，防止XSS注入
-          // - 时间戳是纯数字，安全可靠
-          // ========================================
           const timestamp = Date.now();  // 当前时间戳（毫秒）
           const iframeHtml = `
             <iframe 
               src="/api/captcha/html/${result.captcha_id}?t=${timestamp}"
-              style="width: 460px; height: 140px; border: none; overflow: hidden; display: block;"
+              style="width: 460px; height: 140px; border: none; overflow: hidden; display: block; margin: 0 auto;"
               scrolling="no"
               frameborder="0"
               title="验证码">
@@ -12453,14 +12426,9 @@
           // 将iframe插入到显示区域
           displayElement.innerHTML = iframeHtml;
           
-          console.log(`[验证码] 【CDN缓存修复】已加载验证码iframe: ${result.captcha_id.substring(0, 8)}... (时间戳: ${timestamp})`);
+          console.log(`[验证码] 已加载验证码iframe: ${result.captcha_id} (时间戳: ${timestamp})`);
 
-          // ========================================
-          // 【移动端同步】同时加载移动端验证码
-          // - 调用loadMobileCaptcha函数，使用相同的formType
-          // - 移动端验证码使用相同的验证码ID（captchaIds[formType]）
-          // - 确保PC端和移动端验证码显示一致
-          // ========================================
+
           loadMobileCaptcha(formType);
         } else {
           // API返回失败，显示错误提示
@@ -13522,37 +13490,33 @@
             logMessage_Info('[标签页导航] 已添加滚轮水平滚动支持');
           }
 
-          // 【验证码二级菜单】绑定验证码设置和历史的子菜单
-          const captchaSettingsSubTab = $('admin-tab-captcha-settings');
-          const captchaHistorySubTab = $('admin-tab-captcha-history');
-          
-          if (captchaSettingsSubTab) {
-            captchaSettingsSubTab.addEventListener('click', () => {
-              // 隐藏所有验证码面板
+          // 【验证码面板切换】绑定面板内的切换按钮
+          const viewHistoryBtn = $('view-captcha-history-btn');
+          const backToSettingsBtn = $('back-to-captcha-settings-btn');
+
+          if (viewHistoryBtn) {
+            viewHistoryBtn.addEventListener('click', () => {
               const captchaPanel = $('admin-captcha-panel_modal');
               const captchaHistoryPanel = $('admin-captcha-history-panel_modal');
-              if (captchaPanel) captchaPanel.classList.remove('hidden');
-              if (captchaHistoryPanel) captchaHistoryPanel.classList.add('hidden');
-              
-              // 加载验证码设置
-              loadCaptchaSettings();
-              
-              logMessage_Info('[验证码二级菜单] 切换到验证码设置');
-            });
-          }
-          
-          if (captchaHistorySubTab) {
-            captchaHistorySubTab.addEventListener('click', () => {
-              // 隐藏所有验证码面板
-              const captchaPanel = $('admin-captcha-panel_modal');
-              const captchaHistoryPanel = $('admin-captcha-history-panel_modal');
+              // 切换显示
               if (captchaPanel) captchaPanel.classList.add('hidden');
               if (captchaHistoryPanel) captchaHistoryPanel.classList.remove('hidden');
               
-              // 加载验证码历史
+              // 加载数据
               loadCaptchaHistory();
+              logMessage_Info('[验证码管理] 切换到历史记录视图');
+            });
+          }
+
+          if (backToSettingsBtn) {
+            backToSettingsBtn.addEventListener('click', () => {
+              const captchaPanel = $('admin-captcha-panel_modal');
+              const captchaHistoryPanel = $('admin-captcha-history-panel_modal');
+              // 切换显示
+              if (captchaHistoryPanel) captchaHistoryPanel.classList.add('hidden');
+              if (captchaPanel) captchaPanel.classList.remove('hidden');
               
-              logMessage_Info('[验证码二级菜单] 切换到验证码历史');
+              logMessage_Info('[验证码管理] 返回设置视图');
             });
           }
 
@@ -14303,10 +14267,20 @@
           captchaTab.classList.add('text-sky-600', 'border-sky-600');
           captchaTab.classList.remove('text-slate-400', 'border-transparent');
           captchaPanel.classList.remove('hidden');
+          
           // 设置默认日期为今天
           const dateInput = $('captcha-history-date');
-          // 【本地验证码】加载验证码设置（原为加载验证码历史）
+          if (dateInput) {
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.value = today;
+          }
+
+          // 【本地验证码】加载验证码设置
           loadCaptchaSettings();
+          
+          // 自动加载当天的历史记录
+          loadCaptchaHistory();
+
           // 停止健康状态自动刷新
           stopHealthAutoRefresh();
         }
@@ -30621,19 +30595,6 @@ function renderMultiAccountList(accounts) {
         console.log(`[移动端验证码] 未找到验证码显示元素: ${displayId}`);
         return;
       }
-
-      // ========================================
-      // 【CDN缓存修复】移动端也改用iframe方式
-      // 
-      // 原实现：从PC端复制HTML（innerHTML = pcDisplayElement.innerHTML）
-      // - 问题：PC端和移动端共用同一个验证码，但如果PC端的iframe已加载，
-      //   直接复制innerHTML会复制整个iframe元素，导致重复加载
-      // 
-      // 新实现：移动端也使用独立的iframe
-      // - 使用相同的captcha_id（从captchaIds[formType]获取）
-      // - 添加不同的时间戳，确保URL独立
-      // - 这样PC端和移动端显示同一个验证码，但是独立的iframe实例
-      // ========================================
       
       // 检查captcha_id是否已经存在（应该在PC端loadCaptcha时已经存储）
       const captchaId = captchaIds[formType];
@@ -30648,21 +30609,10 @@ function renderMultiAccountList(accounts) {
 
       // ========================================
       // 【移动端验证码缩放】计算移动端屏幕可用宽度
-      // 
-      // 功能说明:
-      // - 移动端设备屏幕宽度可能不足以显示验证码
-      // - 需要根据屏幕实际宽度动态调整验证码大小
-      // - 【修正】不假设验证码固定为460px，由后端根据实际宽度判断是否需要缩放
-      // - 只缩小不放大原则由后端控制
-      // 
-      // 实现步骤:
-      // 1. 获取视口宽度 (window.innerWidth)
-      // 2. 减去左右padding（预估40px），得到可用宽度
-      // 3. 将可用宽度作为目标宽度传递给后端
-      // 4. 后端会比较目标宽度和实际原始宽度，决定是否缩放
       // ========================================
+
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth; // 获取视口宽度，兼容旧版浏览器
-      const padding = 40; // 左右padding总和（估算值：左20px + 右20px）
+      const padding = 80; // 左右padding总和（估算值：左20px + 右20px）
       const availableWidth = viewportWidth - padding; // 计算实际可用宽度
       
       // 【移动端验证码缩放】目标宽度 = 可用宽度
@@ -31349,7 +31299,7 @@ function renderMultiAccountList(accounts) {
           Swal.fire({
             icon: 'success',
             title: '保存成功',
-            text: '验证码设置已保存到config.ini文件',
+            text: '验证码设置已保存',
             timer: 2000,
             showConfirmButton: false
           });
@@ -31418,7 +31368,7 @@ function renderMultiAccountList(accounts) {
           return;
         }
         
-        console.log('[验证码设置] 测试参数:', { length, scale_factor, noise_level });
+        // console.log('[验证码设置] 测试参数:', { length, scale_factor, noise_level });
         
         // 3. 调用后端API测试生成（直接使用fetch调用独立路由）
         const response = await fetch('/api/captcha/test_generate', {
@@ -31444,13 +31394,35 @@ function renderMultiAccountList(accounts) {
           // 显示预览区域
           $('captcha-test-preview').classList.remove('hidden');
           
-          // 显示验证码HTML
-          $('captcha-preview-display').innerHTML = result.html;
+          // --- 改用 iframe 显示 (与登录/注册页保持一致) ---
+          const displayContainer = $('captcha-preview-display');
+          
+          // 计算容器可用宽度，用于向后端请求自适应缩放
+          // 如果容器当前不可见，宽度可能为0，默认给一个标准值
+          const containerWidth = displayContainer.clientWidth || 500;
+          // 预留一点padding
+          const targetWidth = Math.max(100, Math.floor(containerWidth - 20));
+          
+          const timestamp = Date.now();
+          // 预估高度 (宽高比约 1:3 到 1:4，给 150px 足够显示)
+          const estimatedHeight = 150; 
+          
+          const iframeHtml = `
+            <iframe 
+              src="/api/captcha/html/${result.captcha_id}?t=${timestamp}&width=${targetWidth}"
+              style="width: 100%; height: ${estimatedHeight}px; border: none; overflow: hidden; display: block;"
+              scrolling="no"
+              frameborder="0"
+              title="验证码预览">
+            </iframe>
+          `;
+          
+          displayContainer.innerHTML = iframeHtml;
           
           // 显示验证码答案（仅用于测试）
           $('captcha-preview-answer').textContent = result.code;
           
-          console.log('[验证码设置] 预览区域已更新');
+          console.log('[验证码设置] 预览区域已更新 (iframe模式)');
         } else {
           throw new Error(result?.message || '生成失败');
         }
@@ -31493,102 +31465,125 @@ function renderMultiAccountList(accounts) {
 
     /**
      * 【验证码历史】加载验证码历史记录
-     * 
-     * 功能说明：
-     * - 从后端API获取指定日期的验证码使用历史
-     * - 显示验证码的请求、验证状态等信息
-     * - 用于排查验证码相关问题
-     * 
-     * 权限要求：管理员
      */
     async function loadCaptchaHistory() {
+      const listContainer = $('admin-captcha-list_modal'); // 使用新的ID
+      if (!listContainer) {
+        console.error("找不到容器 admin-captcha-list_modal");
+        return;
+      }
+      listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+
       try {
-        console.log('[验证码历史] 开始加载验证码历史记录...');
-        
-        // 获取过滤条件
+        // 获取查询参数
         const dateInput = $('captcha-history-date');
         const statusSelect = $('captcha-history-status');
-        const listContainer = $('captcha-history-list');
-        
-        if (!dateInput || !statusSelect || !listContainer) {
-          console.warn('[验证码历史] 历史面板元素未找到');
-          return;
+
+        if (!dateInput || !statusSelect) return;
+
+        const date = dateInput.value.replace(/-/g, ''); // YYYYMMDD格式
+        const status = statusSelect.value;
+
+        // 构建查询参数
+        const params = new URLSearchParams({ date });
+        if (status) {
+          params.append('status', status);
         }
-        
-        const selectedDate = dateInput.value;
-        const selectedStatus = statusSelect.value;
-        
-        if (!selectedDate) {
-          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">请选择日期并点击刷新按钮查看验证码历史</p>';
-          return;
-        }
-        
-        // 显示加载中
-        listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
-        
-        // 调用API获取历史记录
-        const result = await callPythonAPI('captcha_get_history', {
-          date: selectedDate,
-          status: selectedStatus
+
+        const response = await fetch(`/api/captcha/history?${params}`, {
+          headers: { 'X-Session-ID': sessionUUID }
         });
-        
-        if (result && result.success && result.records) {
-          const records = result.records;
-          
-          if (records.length === 0) {
-            listContainer.innerHTML = `
-              <p class="text-slate-400 text-center py-10">
-                ${selectedDate} 没有验证码使用记录
-              </p>
-            `;
-            return;
-          }
-          
-          // 渲染历史记录列表
-          let html = '<div class="divide-y divide-slate-200">';
-          
-          records.forEach(record => {
-            const statusColor = record.status === 'success' ? 'text-green-600' : 
-                               record.status === 'failed' ? 'text-red-600' : 'text-slate-500';
-            const statusText = record.status === 'success' ? '✓ 验证成功' : 
-                              record.status === 'failed' ? '✗ 验证失败' : '⏳ 待验证';
-            
-            html += `
-              <div class="p-3 hover:bg-slate-50">
-                <div class="flex justify-between items-start mb-1">
-                  <span class="text-sm font-medium ${statusColor}">${statusText}</span>
-                  <span class="text-xs text-slate-500">${record.time || ''}</span>
+        const result = await response.json();
+
+        if (!result.success) {
+          listContainer.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+          return;
+        }
+
+        const records = result.data || [];
+
+        // 更新统计信息
+        const total = records.length;
+        const success = records.filter(r => r.status === 'verified_success').length;
+        const failed = records.filter(r => r.status === 'verified_failed').length;
+        const pending = records.filter(r => r.status === 'created').length;
+        const expired = records.filter(r => r.status === 'expired').length;
+
+        const statTotal = $('captcha-stat-total');
+        const statSuccess = $('captcha-stat-success');
+        const statFailed = $('captcha-stat-failed');
+        const statPending = $('captcha-stat-pending');
+        const statExpired = $('captcha-stat-expired');
+
+        if (statTotal) statTotal.textContent = total;
+        if (statSuccess) statSuccess.textContent = success;
+        if (statFailed) statFailed.textContent = failed;
+        if (statPending) statPending.textContent = pending;
+        if (statExpired) statExpired.textContent = expired;
+
+        if (records.length === 0) {
+          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">该日期没有验证码记录</p>';
+          return;
+        }
+
+        // 渲染记录列表
+        listContainer.innerHTML = '';
+        records.forEach(record => {
+          // 修复状态映射
+          const statusClass = {
+            'created': 'bg-yellow-100 text-yellow-800',
+            'verified_success': 'bg-green-100 text-green-800',
+            'verified_failed': 'bg-red-100 text-red-800',
+            'expired': 'bg-gray-100 text-gray-800'
+          }[record.status] || 'bg-gray-100 text-gray-800';
+
+          const statusText = {
+            'created': '待验证',
+            'verified_success': '验证成功',
+            'verified_failed': '验证失败',
+            'expired': '已过期'
+          }[record.status] || record.status;
+
+          const itemDiv = document.createElement('div');
+          itemDiv.className = 'p-3 bg-white border border-slate-200 rounded-lg hover:shadow-md transition-shadow mb-2';
+          itemDiv.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-mono text-sm text-slate-600">ID: ${record.captcha_id ? record.captcha_id : 'N/A'}</span>
+                  <span class="px-2 py-0.5 text-xs rounded ${statusClass}">${statusText}</span>
                 </div>
-                <div class="text-xs text-slate-600 space-y-1">
-                  <div><strong>验证码ID:</strong> ${record.captcha_id || 'N/A'}</div>
-                  ${record.user ? `<div><strong>用户:</strong> ${record.user}</div>` : ''}
-                  ${record.ip ? `<div><strong>IP:</strong> ${record.ip}</div>` : ''}
-                  ${record.input ? `<div><strong>输入:</strong> ${record.input}</div>` : ''}
+                <div class="text-xs text-slate-500 space-y-0.5">
+                  <div>验证码: <span class="font-semibold text-slate-700 font-mono">${record.code}</span></div>
+                  <div>创建时间: ${record.timestamp_readable || new Date(record.timestamp * 1000).toLocaleString('zh-CN')}</div>
+                  ${record.verified_at_readable ? `<div>验证时间: ${record.verified_at_readable}</div>` : ''}
+                  ${record.verified_input ? `<div>用户输入: <span class="${record.status === 'verified_success' ? 'text-green-600' : 'text-red-600'} font-semibold">${record.verified_input}</span></div>` : ''}
+                  <div>客户端IP: ${record.client_ip || 'N/A'}</div>
                 </div>
               </div>
-            `;
-          });
-          
-          html += '</div>';
-          listContainer.innerHTML = html;
-          
-          console.log(`[验证码历史] 加载完成，共 ${records.length} 条记录`);
-        } else {
-          throw new Error(result?.message || '加载失败');
-        }
-      } catch (error) {
-        console.error('[验证码历史] 加载失败:', error);
-        const listContainer = $('captcha-history-list');
-        if (listContainer) {
-          listContainer.innerHTML = `
-            <p class="text-red-500 text-center py-10">
-              加载失败: ${error.message || '未知错误'}
-            </p>
+              <button onclick="showCaptchaDetail('${record.captcha_id}')" 
+                class="text-sm text-blue-600 hover:text-blue-800 ml-2 bg-blue-50 px-2 py-1 rounded">
+                详情
+              </button>
+            </div>
+            ${record.html ? `
+              <div class="mt-2 pt-2 border-t border-slate-100">
+                <div class="text-xs text-slate-500 mb-1">验证码图片:</div>
+                <div class="flex items-center justify-center bg-slate-50 p-2 rounded overflow-hidden">
+                  <div class="scale-75 origin-center">${record.html}</div>
+                </div>
+              </div>
+            ` : ''}
           `;
-        }
+          listContainer.appendChild(itemDiv);
+        });
+
+        console.log(`[验证码历史] 已加载 ${records.length} 条记录`);
+      } catch (e) {
+        console.error('[验证码历史] 加载失败:', e);
+        listContainer.innerHTML = `<p class="text-red-500 text-center py-10">加载验证码历史时发生错误: ${e.message}</p>`;
       }
     }
-
     
 
     /**
@@ -33256,10 +33251,21 @@ function renderMultiAccountList(accounts) {
             setTimeout(() => copyAdminContentToPanelVersion('config'), 500);
             break;
           case 'captcha':
-            const dateInput = $('captcha-history-date');
-          case 'captcha':
-            // 【本地验证码】加载验证码设置（原为加载验证码历史）
+            // 【本地验证码】
+            // 1. 加载设置
             loadCaptchaSettings();
+            
+            // 2. 设置默认日期为今天
+            const dateInput = $('captcha-history-date');
+            if (dateInput) {
+                const today = new Date().toISOString().split('T')[0];
+                dateInput.value = today;
+            }
+            
+            // 3. 加载历史记录（不需要等待DOM复制，因为loadCaptchaHistory会填充原始DOM，copyAdminContentToMobile会复制它）
+            loadCaptchaHistory();
+
+            // 4. 延迟复制到移动端面板
             setTimeout(() => copyAdminContentToPanelVersion('captcha'), 500);
             break;
           case 'reminders':
@@ -33331,10 +33337,17 @@ function renderMultiAccountList(accounts) {
           setTimeout(() => copyAdminContentToMobile('config', contentId), 500);
           break;
         case 'captcha':
-          const dateInput = $('captcha-history-date');
-        case 'captcha':
-          // 【本地验证码】加载验证码设置（原为加载验证码历史）
+          // 【本地验证码】
           loadCaptchaSettings();
+          
+          // 设置默认日期
+          const dateInputEl = $('captcha-history-date');
+          if (dateInputEl) {
+             dateInputEl.value = new Date().toISOString().split('T')[0];
+          }
+          // 加载历史
+          loadCaptchaHistory();
+          
           setTimeout(() => copyAdminContentToMobile('captcha', contentId), 500);
           break;
         case 'reminders':

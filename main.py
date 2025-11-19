@@ -154,7 +154,8 @@ def import_standard_libraries():
         ('io', 'import io'),
         ('zipfile', 'import zipfile'),
         ('functools', 'import functools'),
-        ('ipaddress', 'import ipaddress')
+        ('ipaddress', 'import ipaddress'),
+        ('string', 'import string')
     ]
 
     failed_imports = []
@@ -1315,30 +1316,6 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# ========================================\n")
         f.write("# 使用MicroPixelCaptcha生成黑白像素风格验证码\n")
         f.write("# 无需第三方API，更稳定、更安全、响应更快\n")
-        f.write("#\n")
-        f.write("# 【参数说明】\n")
-        f.write("#\n")
-        f.write("# length: 验证码字符数（3-6），默认4\n")
-        f.write("#   - 3个字符：简单，但安全性较低，可能易被机器识别\n")
-        f.write("#   - 4个字符：★推荐★ 平衡了安全性和用户体验\n")
-        f.write("#   - 5-6个字符：更安全，但用户输入较麻烦，可能影响体验\n")
-        f.write("#\n")
-        f.write("# scale_factor: 像素细分倍数（2-4），默认2\n")
-        f.write("#   - 2: ★推荐★ 标准密度，验证码清晰度适中，文件大小合理\n")
-        f.write("#   - 3: 高密度，验证码更精细，文件稍大\n")
-        f.write("#   - 4: 超高密度，验证码非常精细，但文件较大，加载可能变慢\n")
-        f.write("#\n")
-        f.write("# noise_level: 噪点比例（0.0-0.3），默认0.08\n")
-        f.write("#   - 0.0: 无噪点，验证码过于清晰，可能易被OCR识别\n")
-        f.write("#   - 0.05-0.15: ★推荐范围★ 适度干扰，既能防止机器识别，又不影响人类识别\n")
-        f.write("#   - 0.08: ★默认值★ 8%的像素会随机反转颜色，平衡最佳\n")
-        f.write("#   - 0.2-0.3: 高噪点，非常难识别，可能导致用户体验下降\n")
-        f.write("#\n")
-        f.write("# 【调试建议】\n")
-        f.write("# 1. 修改参数后，使用控制面板的\"验证码设置\"面板测试效果\n")
-        f.write("# 2. 如果验证码太难识别，降低noise_level或length\n")
-        f.write("# 3. 如果验证码加载慢，降低scale_factor\n")
-        f.write("# 4. 如果担心安全性，可适当增加length或noise_level\n")
         f.write("# ========================================\n\n")
         f.write("[Captcha]\n")
         f.write(f"length = {config_obj.get('Captcha', 'length', fallback='4')}\n")
@@ -1544,6 +1521,7 @@ def _create_permissions_json():
                     "delete_own_messages": False,  # 删除自己的留言（游客不能删除）
                     "delete_any_messages": False,  # 删除任何人的留言（游客不能）
                     "exit_single_account_mode": True, # 退出单账号模式
+                    "modify_config": False # 修改配置文件
                 }
             },
             "user": {
@@ -1596,6 +1574,7 @@ def _create_permissions_json():
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": False,  # 删除任何人的留言（仅管理员）
                     "execute_single_account": True, # 退出单账号模式
+                    "modify_config": True # 修改配置文件
                 }
             },
             "admin": {
@@ -1658,7 +1637,8 @@ def _create_permissions_json():
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
                     "view_captcha_history": True,
-                    "execute_single_account": True # 退出单账号模式
+                    "execute_single_account": True, # 退出单账号模式
+                    "modify_config": True # 修改配置文件
                 }
             },
             "super_admin": {
@@ -1727,6 +1707,7 @@ def _create_permissions_json():
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
                     "execute_single_account": True, # 退出单账号模式
+                    "modify_config": True # 修改配置文件
                 }
             }
         },
@@ -4885,10 +4866,24 @@ class Api:
             # ========================================
             # 从config.ini的[Captcha]节读取本地验证码生成器的参数
             # 这些参数将传递给前端，用于"验证码设置"面板的初始化
+            
+            # 修复：定义本地读取函数或直接使用 cfg.get，避免 NameError
+            def _safe_get_int(section, key, default):
+                try:
+                    return int(cfg.get(section, key, fallback=str(default)))
+                except (ValueError, TypeError):
+                    return int(default)
+
+            def _safe_get_float(section, key, default):
+                try:
+                    return float(cfg.get(section, key, fallback=str(default)))
+                except (ValueError, TypeError):
+                    return float(default)
+
             captcha_settings = {
-                'length': int(_get_config_value(cfg, 'Captcha', 'length', fallback='4')),
-                'scale_factor': int(_get_config_value(cfg, 'Captcha', 'scale_factor', fallback='2')),
-                'noise_level': float(_get_config_value(cfg, 'Captcha', 'noise_level', fallback='0.08'))
+                'length': _safe_get_int('Captcha', 'length', 4),
+                'scale_factor': _safe_get_int('Captcha', 'scale_factor', 2),
+                'noise_level': _safe_get_float('Captcha', 'noise_level', 0.08)
             }
             logging.debug(f"【本地验证码】加载验证码设置: {captcha_settings}")
 
@@ -4922,6 +4917,7 @@ class Api:
 
             return response_data
         except Exception as e:
+            logging.error(f"获取初始数据时发生错误: {e}", exc_info=True)
             self.is_offline_mode = True
             return {
                 "success": False,
@@ -11135,10 +11131,19 @@ def get_captcha_original_width(html_content):
         
         css_text = style_tag.string
         sample_pixel_class = pixel_classes[0]
+        container_class = container.get('class')[0] # 获取容器类名
         
         # 正则匹配width
-        w_match = re.search(rf'\.{sample_pixel_class}[^}}]*width\s*:\s*(\d+(\.\d+)?)px', css_text)
+        # 【修正】优先匹配容器下的span样式
+        w_match = re.search(rf'\.{container_class}\s+span[^}}]*width\s*:\s*(\d+(\.\d+)?)px', css_text)
+        
         if not w_match:
+             # 备用：匹配像素类样式
+             w_match = re.search(rf'\.{sample_pixel_class}[^}}]*width\s*:\s*(\d+(\.\d+)?)px', css_text)
+             
+        if not w_match:
+            # 如果都匹配不到，假设默认值 (通常 scale_factor=2 时是 6px)
+            # 或者返回 None 让后续逻辑处理
             return None
         
         old_pixel_w = float(w_match.group(1))
@@ -11155,127 +11160,167 @@ def get_captcha_original_width(html_content):
         return None
 
 
+
+
+
+
+
 def resize_captcha_html(html_content, target_width):
     """
-    自动分析并调整像素验证码HTML的大小，保持原始比例。
-    
-    :param html_content: 原始 HTML 字符串
-    :param target_width: 想要修改成的总宽度 (int 或 float)
-    :return: 修改后的 HTML 字符串
+    自动分析并调整像素验证码HTML的大小 (Grid Layout 增强版 - 修正Padding/Border计算)。
     """
-    soup = BeautifulSoup(html_content, 'html.parser')
-    
-    # 1. 获取容器 DIV 和 像素 SPAN 的类名
-    container = soup.find('div')
-    if not container:
-        return "Error: 无法找到容器 div"
-    
-    container_class = container.get('class')[0]
-    
-    # 获取容器内的所有 span 类名 (通常有两个，一个黑色一个白色)
-    spans = container.find_all('span')
-    if not spans:
-        return "Error: 无法找到像素 span"
+    try:
+        target_width = float(target_width) # 确保是数字
+        soup = BeautifulSoup(html_content, 'html.parser')
         
-    # 使用 set 去重，获取所有像素点的类名 (例如 xccpid, xzcnqt)
-    pixel_classes = list(set([s.get('class')[0] for s in spans if s.get('class')]))
-    
-    # 2. 计算网格维度 (列数和行数)
-    # 计算列数: 统计第一个 <br> 之前有多少个 span
-    first_line_spans = 0
-    for child in container.contents:
-        if child.name == 'br':
-            break
-        if child.name == 'span':
-            first_line_spans += 1
+        # 1. 获取容器
+        container = soup.find('div')
+        if not container:
+            logging.warning("[resize_captcha_html] 无法找到容器 div")
+            return html_content 
+        
+        container_class = container.get('class')[0]
+        
+        # 2. 解析 CSS 内容
+        style_tag = soup.find('style')
+        if not style_tag:
+            return html_content
+        
+        css_text = style_tag.string
+
+        # --- 步骤 A: 智能解析布局参数 (Grid 优先) ---
+        
+        num_cols = 0
+        old_pixel_w = 0.0
+        old_pixel_h = 0.0
+        old_gap = 0.0
+
+        # 解析 Grid 列数和宽
+        grid_match = re.search(r'grid-template-columns\s*:\s*repeat\(\s*(\d+)\s*,\s*(\d+(?:\.\d+)?)\s*px\s*\)', css_text, re.IGNORECASE)
+        
+        if grid_match:
+            num_cols = int(grid_match.group(1))
+            old_pixel_w = float(grid_match.group(2))
+            logging.info(f"[验证码缩放] 检测到 CSS Grid 布局: {num_cols} 列, 原始宽 {old_pixel_w}px")
+        else:
+            # 备用方案（略，你的场景主要是Grid）
+            pass 
+
+        if num_cols == 0:
+            logging.error("[resize_captcha_html] 无法解析列数，跳过缩放")
+            return html_content
+
+        # 解析 Gap
+        gap_match = re.search(rf'\.{container_class}\s*\{{.*?\bgap\s*:\s*(\d+(?:\.\d+)?)px', css_text, re.DOTALL | re.IGNORECASE)
+        if gap_match:
+            old_gap = float(gap_match.group(1))
+        
+        # 解析高度
+        h_match = re.search(rf'\.{container_class}\s+span[^}}]*?height\s*:\s*(\d+(\.\d+)?)px', css_text, re.IGNORECASE)
+        if h_match:
+            old_pixel_h = float(h_match.group(1))
+        else:
+            old_pixel_h = old_pixel_w
+
+        # --- 新增步骤: 解析 Padding 和 Border (修正的核心) ---
+        padding_w = 0.0
+        border_w = 0.0
+        
+        # 解析 Padding (匹配 padding: 10px 格式)
+        pad_match = re.search(rf'\.{container_class}\s*\{{.*?\bpadding\s*:\s*(\d+(?:\.\d+)?)px', css_text, re.DOTALL | re.IGNORECASE)
+        if pad_match:
+            padding_w = float(pad_match.group(1)) * 2 # 左右两边
             
-    num_cols = first_line_spans
-    
-    # 计算行数: <br> 的数量 + 1
-    br_count = len(container.find_all('br'))
-    num_rows = br_count + 1
-    
-    # 【移动端验证码缩放】记录验证码结构信息
-    # 使用logging.debug代替print，保持日志一致性
-    logging.debug(f"[resize_captcha_html] 检测到结构: {num_rows} 行 x {num_cols} 列")
-    logging.debug(f"[resize_captcha_html] 容器类名: {container_class}")
-    logging.debug(f"[resize_captcha_html] 像素类名: {pixel_classes}")
+        # 解析 Border (匹配 border: 1px ... 格式)
+        bor_match = re.search(rf'\.{container_class}\s*\{{.*?\bborder\s*:\s*(\d+(?:\.\d+)?)px', css_text, re.DOTALL | re.IGNORECASE)
+        if bor_match:
+            border_w = float(bor_match.group(1)) * 2 # 左右两边
 
-    # 3. 解析原始样式以获取原始比例
-    style_tag = soup.find('style')
-    if not style_tag:
-        return "Error: 找不到 <style> 标签"
-    
-    css_text = style_tag.string
-    
-    # 尝试从 CSS 中提取原始像素的宽和高 (匹配类似 width:10px;height:16px)
-    # 我们随便找一个像素类名来匹配
-    sample_pixel_class = pixel_classes[0]
-    
-    # 正则匹配 width 和 height
-    # 注意：CSS 可能是压缩的，也可能有空格
-    w_match = re.search(rf'\.{sample_pixel_class}[^}}]*width\s*:\s*(\d+(\.\d+)?)px', css_text)
-    h_match = re.search(rf'\.{sample_pixel_class}[^}}]*height\s*:\s*(\d+(\.\d+)?)px', css_text)
-    
-    old_pixel_w = float(w_match.group(1)) if w_match else 10.0
-    old_pixel_h = float(h_match.group(1)) if h_match else 16.0
-    
-    aspect_ratio = old_pixel_h / old_pixel_w
-    # 【移动端验证码缩放】记录原始像素尺寸
-    logging.debug(f"[resize_captcha_html] 原始像素尺寸: {old_pixel_w}x{old_pixel_h} (比例: {aspect_ratio})")
+        # --- 步骤 B: 计算缩放比例 ---
 
-    # 4. 计算新的尺寸
-    # 新的单个像素宽度 = 总目标宽度 / 列数
-    new_pixel_w = target_width / num_cols
-    # 新的单个像素高度 = 新宽度 * 原始比例
-    new_pixel_h = new_pixel_w * aspect_ratio
-    
-    # 容器的新总高度 (加上一点余量防止溢出，或者严格计算)
-    # 很多时候容器有 padding，这里我们只计算内容区域高度
-    new_container_content_height = new_pixel_h * num_rows
-    
-    # 【移动端验证码缩放】记录调整后的尺寸
-    logging.debug(f"[resize_captcha_html] 新像素尺寸: {new_pixel_w:.2f}x{new_pixel_h:.2f}")
-    logging.debug(f"[resize_captcha_html] 新容器高度: {new_container_content_height:.2f}")
+        # 原始 Grid 内容宽度 (仅内容)
+        original_grid_width = (num_cols * old_pixel_w) + ((num_cols - 1) * old_gap)
+        
+        if original_grid_width <= 0:
+            return html_content
 
-    # 5. 修改 CSS (使用正则替换)
-    new_css = css_text
+        # 计算有效可用宽度 (扣除装饰)
+        available_grid_width = target_width - padding_w - border_w
 
-    # A. 修改所有像素类 (.xccpid, .xzcnqt) 的 width 和 height
-    for p_class in pixel_classes:
-        # 替换宽度
+        if available_grid_width <= 0:
+            logging.warning(f"[验证码缩放] 目标宽度过小，无法容纳Padding/Border")
+            return html_content
+
+        # 修正后的缩放系数
+        scale_ratio = available_grid_width / original_grid_width
+
+        new_pixel_w = old_pixel_w * scale_ratio
+        new_pixel_h = old_pixel_h * scale_ratio
+        new_gap = old_gap * scale_ratio
+
+        logging.info(f"[验证码缩放] Scaling: {scale_ratio:.4f} | Pad/Bor: {padding_w}/{border_w} | Target Grid: {available_grid_width:.2f}px")
+
+        # --- 步骤 C: 执行替换 ---
+        
+        new_css = css_text
+
+        # 1. 替换 grid-template-columns
         new_css = re.sub(
-            rf'(\.{p_class}[^}}]*width\s*:\s*)(\d+(\.\d+)?)px', 
-            rf'\g<1>{new_pixel_w:.2f}px', 
-            new_css
-        )
-        # 替换高度
-        new_css = re.sub(
-            rf'(\.{p_class}[^}}]*height\s*:\s*)(\d+(\.\d+)?)px', 
-            rf'\g<1>{new_pixel_h:.2f}px', 
-            new_css
+            r'(grid-template-columns\s*:\s*repeat\(\s*\d+\s*,\s*)(\d+(?:\.\d+)?)px',
+            rf'\g<1>{new_pixel_w:.4f}px',
+            new_css, flags=re.IGNORECASE
         )
 
-    # B. 修改容器类 (.jmkbduucjejr) 的 height 和 line-height
-    # 修改容器 height (注意：原始代码可能有 height: 140px)
-    new_css = re.sub(
-        rf'(\.{container_class}[^}}]*height\s*:\s*)(\d+(\.\d+)?)px',
-        rf'\g<1>{new_container_content_height:.2f}px',
-        new_css
-    )
-    
-    # 修改容器 line-height (必须等于像素高度，否则会有缝隙)
-    new_css = re.sub(
-        rf'(\.{container_class}[^}}]*line-height\s*:\s*)(\d+(\.\d+)?)px',
-        rf'\g<1>{new_pixel_h:.2f}px',
-        new_css
-    )
+        # 2. 替换 gap
+        if old_gap >= 0: # 即使是0也要替换，防止原有是1px
+             new_css = re.sub(
+                rf'(\.{container_class}\s*\{{.*?\bgap\s*:\s*)(\d+(?:\.\d+)?)px',
+                rf'\g<1>{new_gap:.4f}px',
+                new_css, flags=re.DOTALL | re.IGNORECASE
+            )
+
+        # 3. 替换 span width/height (通用匹配，防止漏掉)
+        # 替换 width
+        new_css = re.sub(
+            rf'(\.{container_class}\s+span[^}}]*?width\s*:\s*)(\d+(\.\d+)?)px',
+            rf'\g<1>{new_pixel_w:.4f}px',
+            new_css, flags=re.IGNORECASE
+        )
+        # 替换 height
+        new_css = re.sub(
+            rf'(\.{container_class}\s+span[^}}]*?height\s*:\s*)(\d+(\.\d+)?)px',
+            rf'\g<1>{new_pixel_h:.4f}px',
+            new_css, flags=re.IGNORECASE
+        )
+
+        # 4. 替换单独像素类 (ekzfv, desiz)
+        spans = container.find_all('span')
+        pixel_classes = set([s.get('class')[0] for s in spans if s.get('class')])
+        
+        for p_class in pixel_classes:
+            new_css = re.sub(
+                rf'(\.{p_class}[^}}]*?(?<![-\w])width\s*:\s*)(\d+(\.\d+)?)px', 
+                rf'\g<1>{new_pixel_w:.4f}px', 
+                new_css, flags=re.IGNORECASE
+            )
+            new_css = re.sub(
+                rf'(\.{p_class}[^}}]*?(?<![-\w])height\s*:\s*)(\d+(\.\d+)?)px', 
+                rf'\g<1>{new_pixel_h:.4f}px', 
+                new_css, flags=re.IGNORECASE
+            )
+
+        style_tag.string = new_css
+        return str(soup)
+
+    except Exception as e:
+        logging.error(f"[resize_captcha_html] 调整失败: {e}", exc_info=True)
+        return html_content
 
 
-    # 6. 将新的 CSS 写回 HTML
-    style_tag.string = new_css
-    
-    return str(soup)
+
+
+
+
 
 
 def load_all_sessions(args):
@@ -12021,6 +12066,122 @@ class BackgroundTaskManager:
                     logging.warning(f"处理任务文件失败，文件名: {filename}，错误: {e}")
         except Exception as e:
             logging.error(f"清理旧任务文件失败，异常信息: {e}")
+
+
+class MicroPixelCaptcha:
+    # 5x7 字库 (保持不变)
+    FONT = {
+        'A': ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+        'B': ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+        'C': ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+        'D': ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+        'E': ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+        'F': ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+        'G': ["01111", "10000", "10000", "10011", "10001", "10001", "01111"],
+        'H': ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+        'I': ["01110", "00100", "00100", "00100", "00100", "00100", "01110"],
+        'J': ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
+        'K': ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+        'L': ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+        'M': ["10001", "11011", "10101", "10001", "10001", "10001", "10001"],
+        'N': ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
+        'O': ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+        'P': ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+        'Q': ["01110", "10001", "10001", "10001", "10101", "10011", "01101"],
+        'R': ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+        'S': ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+        'T': ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+        'U': ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+        'V': ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+        'W': ["10001", "10001", "10001", "10101", "10101", "10101", "01010"],
+        'X': ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
+        'Y': ["10001", "10001", "10001", "01010", "00100", "00100", "00100"],
+        'Z': ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+        '0': ["01110", "10011", "10101", "10101", "10101", "11001", "01110"],
+        '1': ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+        '2': ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+        '3': ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+        '4': ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+        '5': ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+        '6': ["01110", "10000", "10000", "11110", "10001", "10001", "01110"],
+        '7': ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+        '8': ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+        '9': ["01110", "10001", "10001", "01111", "00001", "00001", "01110"]
+    }
+
+    def _random_string(self, length: int) -> str:
+        return ''.join(random.choices(string.ascii_lowercase, k=length))
+
+    def generate(self, length: int = 4, scale_factor: int = 2, noise_level: float = 0.08):
+        """
+        生成高密度微像素验证码
+        :param length: 验证码字符数
+        :param scale_factor: 细分倍数 (建议2或3)
+        :param noise_level: 噪点比例
+        """
+        code = ''.join(random.choices(list(self.FONT.keys()), k=length))
+
+        # 1. 构建基础逻辑行
+        char_patterns = [self.FONT.get(c, ["11111"] * 7) for c in code]
+        base_rows = ['0'.join(row_tuple) for row_tuple in zip(*char_patterns)]
+        
+        # 2. 像素细分与扩展
+        expanded_bit_string = []
+        for row in base_rows:
+            # 水平扩展
+            expanded_row_str = "".join([bit * scale_factor for bit in row])
+            # 垂直扩展
+            for _ in range(scale_factor):
+                expanded_bit_string.append(expanded_row_str)
+        
+        full_bit_stream = "".join(expanded_bit_string)
+
+        # 3. 计算 Grid 布局参数
+        logic_width = length * 5 + (length - 1)
+        grid_cols = logic_width * scale_factor
+
+        # 4. 生成 HTML 像素块
+        cls_con = self._random_string(10)
+        cls_bg = self._random_string(5)
+        cls_fg = self._random_string(5)
+        
+        pixels = []
+        for bit in full_bit_stream:
+            is_fg = (bit == '1')
+            if random.random() < noise_level:
+                is_fg = not is_fg
+            
+            pixels.append(f'<span class="{cls_fg if is_fg else cls_bg}"></span>')
+
+        html_content = ''.join(pixels)
+
+        # 5. CSS 样式优化 (黑白风格)
+        pixel_size = 12 // scale_factor
+        if pixel_size < 4: pixel_size = 4
+        
+        css = f"""<style>
+.{cls_con}{{
+    display:grid;
+    grid-template-columns:repeat({grid_cols}, {pixel_size}px);
+    gap:1px;
+    background:#000;
+    padding:10px;
+    width:fit-content;
+    border:1px solid #333;
+}}
+.{cls_con} span{{
+    width:{pixel_size}px;
+    height:{pixel_size}px;
+    display:block;
+    border-radius:0;
+}}
+.{cls_bg}{{background:#000;}}
+.{cls_fg}{{background:#fff;}}
+</style>"""
+
+        full_html = f'<div class="{cls_con}">{html_content}</div>{css}'
+        return code, full_html
+
 
 
 class ChromeBrowserPool:
@@ -16865,7 +17026,6 @@ def start_web_server(args_param):
                 return jsonify({"success": False, "message": f"该手机号每日发送次数已达上限({phone_limit}次)"})
             
             # 6. 生成6位数字验证码（安全：仅后端存储，不返回前端）
-            import random
             code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
             
             # 7. 调用短信宝API发送短信
@@ -21137,8 +21297,8 @@ def start_web_server(args_param):
                 except Exception as e:
                     logging.warning(f"[本地验证码] 读取配置文件失败，使用默认值: {e}")
             
-            # 【本地验证码生成器】导入并使用本地生成器
-            from get_captchas import MicroPixelCaptcha
+            # 【本地验证码生成器】使用 MicroPixelCaptcha (已在文件顶部处理导入或Fallback)
+            # from get_captchas import MicroPixelCaptcha # 不需要再次导入，使用全局定义
             generator = MicroPixelCaptcha()
             
             # 生成验证码（返回验证码答案和HTML）
@@ -21162,8 +21322,8 @@ def start_web_server(args_param):
             import uuid
             captcha_id = str(uuid.uuid4())
             
-            # 确保captchas目录存在
-            captchas_dir = os.path.join('logs', 'captchas')
+            # 确保captchas目录存在 - 使用全局 LOGIN_LOGS_DIR
+            captchas_dir = os.path.join(LOGIN_LOGS_DIR, 'captchas')
             os.makedirs(captchas_dir, exist_ok=True)
             
             # 准备验证码数据
@@ -21186,7 +21346,8 @@ def start_web_server(args_param):
             # 修正：函数定义接收参数，以避免在线程中访问 request 上下文
             def log_captcha_history(p_captcha_id, p_code, p_html, p_session_id, p_client_ip, p_user_agent):
                 try:
-                    history_dir = os.path.join('logs', 'captcha_history')
+                    # 使用全局配置的 LOGIN_LOGS_DIR，确保路径一致性
+                    history_dir = os.path.join(LOGIN_LOGS_DIR, 'captcha_history')
                     os.makedirs(history_dir, exist_ok=True)
                     
                     # 获取客户端IP和User-Agent (已通过参数传入)
@@ -21386,10 +21547,10 @@ def start_web_server(args_param):
             elif target_width < 100:
                 logging.warning(f"[移动端验证码缩放] width参数过小: {target_width} (建议 >= 100)，使用原始HTML")
                 target_width = None
-            elif target_width >= 460:
-                # 这种情况是正常的，不需要调整大小
-                logging.debug(f"[移动端验证码缩放] width参数 >= 460 ({target_width})，使用原始HTML")
-                target_width = None
+            # elif target_width >= 460:
+            #     # 这种情况是正常的，不需要调整大小
+            #     logging.debug(f"[移动端验证码缩放] width参数 >= 460 ({target_width})，使用原始HTML")
+            #     target_width = None
         
         # ========================================
         # 步骤2: 构建验证码文件路径
@@ -21468,32 +21629,13 @@ def start_web_server(args_param):
             #    - 确保即使调整失败，验证码仍然可以显示
             #    - 记录错误日志，便于调试
             # ========================================
+            # 【移动端优化】根据width参数动态调整验证码大小
+            # 逻辑已封装在 resize_captcha_html 内部：
+            # 1. 解析 HTML 获取当前宽度
+            # 2. 仅当 target_width < 当前宽度时才执行缩放
+            # 3. 出错或无需缩放时返回原始 HTML
             if target_width is not None:
-                try:
-                    # 【修正】首先获取验证码的原始宽度
-                    # 不能假设是460px，需要从HTML中解析实际宽度
-                    original_width = get_captcha_original_width(captcha_html_content)
-                    
-                    if original_width is None:
-                        # 如果无法解析原始宽度，记录警告但不进行调整
-                        logging.warning(f"[移动端验证码缩放] 无法解析验证码原始宽度，跳过调整: {captcha_id[:8]}...")
-                    elif target_width < original_width:
-                        # 【关键】只在目标宽度小于原始宽度时才缩放
-                        # 原因：只缩小不放大，避免图片模糊
-                        logging.info(f"[移动端验证码缩放] 调整验证码大小: {captcha_id[:8]}... 原始={original_width}px → 目标={target_width}px")
-                        # 调用resize_captcha_html函数调整HTML
-                        # 注意：这里修改的是captcha_html_content变量，不影响原始数据
-                        captcha_html_content = resize_captcha_html(captcha_html_content, target_width)
-                        logging.info(f"[移动端验证码缩放] 验证码调整成功")
-                    else:
-                        # 目标宽度 >= 原始宽度，不进行调整（只缩小不放大）
-                        logging.info(f"[移动端验证码缩放] 目标宽度({target_width}px) >= 原始宽度({original_width}px)，保持原始大小")
-                        
-                except Exception as resize_error:
-                    # 如果调整失败，记录错误但继续使用原始HTML
-                    # 这确保了即使resize_captcha_html函数出错，验证码仍然可以显示
-                    logging.error(f"[移动端验证码缩放] 调整失败: {resize_error}，使用原始HTML")
-                    # 不修改captcha_html_content，继续使用原始HTML
+                captcha_html_content = resize_captcha_html(captcha_html_content, target_width)
             
             # ========================================
             # 步骤7: 构建完整的HTML5页面
@@ -21562,23 +21704,23 @@ def start_web_server(args_param):
             response.headers['Expires'] = '0'
             
             # 记录成功日志（仅记录captcha_id的前8位，避免日志过长）
-            logging.debug(f"[验证码HTML页面] 成功返回验证码HTML: {captcha_id[:8]}...")
+            logging.debug(f"[验证码HTML页面] 成功返回验证码HTML: {captcha_id}")
             
             return response
             
         except json.JSONDecodeError as e:
             # JSON解析错误（文件损坏或格式错误）
-            logging.error(f"[验证码HTML页面] JSON解析失败: {captcha_id[:8]}... - {e}")
+            logging.error(f"[验证码HTML页面] JSON解析失败: {captcha_id} - {e}")
             return '<html><body><p style="color: red; text-align: center; padding: 20px;">验证码数据损坏</p></body></html>', 500
             
         except IOError as e:
             # 文件读取错误（权限问题、磁盘错误等）
-            logging.error(f"[验证码HTML页面] 文件读取失败: {captcha_id[:8]}... - {e}")
+            logging.error(f"[验证码HTML页面] 文件读取失败: {captcha_id} - {e}")
             return '<html><body><p style="color: red; text-align: center; padding: 20px;">读取验证码失败</p></body></html>', 500
             
         except Exception as e:
             # 其他未预料的错误
-            logging.error(f"[验证码HTML页面] 未知错误: {captcha_id[:8]}... - {e}", exc_info=True)
+            logging.error(f"[验证码HTML页面] 未知错误: {captcha_id} - {e}", exc_info=True)
             return '<html><body><p style="color: red; text-align: center; padding: 20px;">读取验证码时发生错误</p></body></html>', 500
     
     def verify_captcha(captcha_id, user_input):
@@ -21717,6 +21859,7 @@ def start_web_server(args_param):
             logging.error(f"[验证码] 验证过程出错: {e}", exc_info=True)
             return False, "验证码验证失败"
     
+
     @app.route('/api/captcha/history', methods=['GET'])
     def get_captcha_history():
         """
@@ -21771,11 +21914,18 @@ def start_web_server(args_param):
             limit = int(request.args.get('limit', 100))
             status_filter = request.args.get('status', '')
             
-            # 读取历史记录
-            history_dir = os.path.join('logs', 'captcha_history')
-            history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+            # # 【修正】移除日期字符串中的连字符，以匹配文件名格式 (YYYY-MM-DD -> YYYYMMDD)
+            clean_date_str = date_str.replace('-', '')
+
+            # 读取历史记录 - 使用全局 LOGIN_LOGS_DIR
+            history_dir = os.path.join(LOGIN_LOGS_DIR, 'captcha_history')
+            # 使用处理后的日期字符串构建文件名
+            history_file = os.path.join(history_dir, f'captcha_history_{clean_date_str}.jsonl')
             
+            logging.debug(f"[验证码历史] 正在读取文件: {history_file}")
+
             if not os.path.exists(history_file):
+                logging.info(f"[验证码历史] 文件不存在: {history_file}")
                 return jsonify({
                     "success": True,
                     "data": [],
@@ -21788,10 +21938,27 @@ def start_web_server(args_param):
             current_time = time.time()
             expiry_threshold = 30 * 60  # 30分钟（1800秒）
             
+            line_count = 0
+            parse_error_count = 0
+
+            # 状态映射：前端状态 -> 后端状态
+            # pending -> created
+            # success -> verified_success
+            # failed -> verified_failed
+            # all -> (忽略过滤)
+            target_status = status_filter
+            if status_filter == 'pending': target_status = 'created'
+            elif status_filter == 'success': target_status = 'verified_success'
+            elif status_filter == 'failed': target_status = 'verified_failed'
+
             with open(history_file, 'r', encoding='utf-8') as f:
                 for line in f:
+                    line_count += 1
+                    line = line.strip()
+                    if not line: continue # 跳过空行
+
                     try:
-                        record = json.loads(line.strip())
+                        record = json.loads(line)
                         
                         # 自动标记过期的验证码
                         # 如果状态是 'created' 且已经超过30分钟，自动标记为 'expired'
@@ -21804,9 +21971,11 @@ def start_web_server(args_param):
                                     timestamp + expiry_threshold
                                 ).strftime('%Y-%m-%d %H:%M:%S')
                         
-                        # 状态过滤
-                        if status_filter and record.get('status') != status_filter:
-                            continue
+                        # 状态过滤 (修正：处理 'all' 和状态映射)
+                        if status_filter and status_filter != 'all':
+                            if record.get('status') != target_status:
+                                continue
+
                         # 移除敏感信息
                         record.pop('session_id', None)
                         records.append(record)
@@ -21880,7 +22049,6 @@ def start_web_server(args_param):
                 "success": False,
                 "message": "获取验证码历史失败"
             }), 500
-
     # ============================================================
     # 修正：验证码详情API
     # 用于根据ID获取单个验证码的详细信息
@@ -21903,7 +22071,8 @@ def start_web_server(args_param):
                 return jsonify({"success": False, "message": "无效的验证码ID"}), 400
 
             # 3. 遍历所有历史文件查找该ID
-            history_dir = os.path.join('logs', 'captcha_history')
+            # 使用全局 LOGIN_LOGS_DIR
+            history_dir = os.path.join(LOGIN_LOGS_DIR, 'captcha_history')
             if not os.path.exists(history_dir):
                 return jsonify({"success": False, "message": "验证码历史目录不存在"}), 404
 
@@ -22147,8 +22316,9 @@ def start_web_server(args_param):
             # ========================================
             # 2. 导入本地验证码生成器
             # ========================================
-            # 从get_captchas.py导入MicroPixelCaptcha类
-            from get_captchas import MicroPixelCaptcha
+            # 使用全局定义的 MicroPixelCaptcha (支持 Fallback)
+            # from get_captchas import MicroPixelCaptcha # 不需要再次导入
+            pass
             
             # ========================================
             # 3. 解析请求数据
@@ -22211,7 +22381,60 @@ def start_web_server(args_param):
             )
             
             logging.debug(f"【本地验证码】测试验证码生成成功: code={code}, html_length={len(html)}")
+
+            # ========================================
+            # 5.1 保存到文件及历史记录 (新增逻辑)
+            # ========================================
+            import uuid
+            captcha_id = str(uuid.uuid4())
             
+            # 1. 保存验证码数据文件 (供iframe读取)
+            captchas_dir = os.path.join(LOGIN_LOGS_DIR, 'captchas')
+            os.makedirs(captchas_dir, exist_ok=True)
+            
+            captcha_data = {
+                'id': captcha_id,
+                'code': code.upper(),
+                'html': html,
+                'session_id': request.headers.get('X-Session-ID', 'test_session'),
+                'timestamp': time.time(),
+                'expires_at': time.time() + 600 # 10分钟后过期
+            }
+            
+            captcha_file = os.path.join(captchas_dir, f'{captcha_id}.json')
+            with open(captcha_file, 'w', encoding='utf-8') as f:
+                json.dump(captcha_data, f, indent=2, ensure_ascii=False)
+
+            # 2. 记录到历史记录文件 (供管理员查看)
+            try:
+                history_dir = os.path.join(LOGIN_LOGS_DIR, 'captcha_history')
+                os.makedirs(history_dir, exist_ok=True)
+                
+                date_str = datetime.datetime.now().strftime('%Y%m%d')
+                history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+                
+                history_entry = {
+                    'captcha_id': captcha_id,
+                    'code': code.upper(),
+                    'html': html,
+                    'session_id': request.headers.get('X-Session-ID', 'unknown'),
+                    'client_ip': request.headers.get('X-Forwarded-For', request.remote_addr),
+                    'user_agent': request.headers.get('User-Agent', 'unknown'),
+                    'timestamp': time.time(),
+                    'timestamp_readable': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'expires_at': time.time() + 600,
+                    'status': 'test_generated',  # 特殊状态：测试生成
+                    'verified_at': None,
+                    'verified_input': None
+                }
+                
+                with open(history_file, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
+                    
+                logging.info(f"【本地验证码】测试记录已保存: ID={captcha_id}")
+            except Exception as e:
+                logging.error(f"【本地验证码】保存测试历史失败: {e}")
+
             # ========================================
             # 6. 返回成功响应
             # ========================================
@@ -22219,7 +22442,8 @@ def start_web_server(args_param):
             return jsonify({
                 'success': True,
                 'code': code,       # 验证码答案（仅用于测试预览）
-                'html': html,       # 验证码HTML（用于前端显示）
+                'html': html,       # 验证码HTML（保留用于兼容）
+                'captcha_id': captcha_id, # 返回ID供iframe使用
                 'message': '验证码生成成功'
             })
         
