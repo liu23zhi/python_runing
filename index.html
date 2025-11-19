@@ -5409,14 +5409,16 @@
               </div>
             </div>
 
-            <!-- 验证码历史面板 -->
+            <!-- 【本地验证码】验证码设置面板（移动端） -->
             <div id="mobile-admin-captcha-panel-panel" class="hidden space-y-3">
               <div class="flex justify-between items-center">
-                <h4 class="font-semibold text-sm">验证码历史</h4>
-                <button id="mobile-admin-refresh-captcha-panel" class="btn btn-ghost !py-1 !px-2 text-xs">刷新</button>
+                <h4 class="font-semibold text-sm">⚙️ 验证码设置</h4>
               </div>
-              <div id="mobile-admin-captcha-list-panel" class="space-y-2 max-h-[50vh] overflow-y-auto">
-                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              <p class="text-xs text-slate-500 bg-sky-50 p-2 rounded">
+                💡 使用本地验证码生成器，无需第三方API。请在桌面端控制面板中调整详细参数。
+              </p>
+              <div id="mobile-admin-captcha-list-panel" class="space-y-2">
+                <p class="text-slate-400 text-center py-4 text-xs">请在桌面端查看和修改验证码设置</p>
               </div>
             </div>
 
@@ -7612,16 +7614,41 @@
           系统配置
         </button>
 
-        <!-- 验证码历史标签 -->
-        <button id="admin-tab-captcha_modal"
-          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap">
-          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
-            </path>
-          </svg>
-          验证码历史
-        </button>
+        <!-- 【本地验证码】验证码管理标签（含二级菜单：设置和历史） -->
+        <div class="relative group">
+          <button id="admin-tab-captcha_modal"
+            class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap">
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+              </path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
+              </path>
+            </svg>
+            验证码管理
+            <svg class="w-3 h-3 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </button>
+          <!-- 【二级菜单】验证码子菜单 -->
+          <div class="hidden group-hover:block absolute top-full left-0 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-50 min-w-[160px]">
+            <button id="admin-tab-captcha-settings" data-panel="captcha-settings"
+              class="captcha-sub-tab w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-sky-50 hover:text-sky-600 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              验证码设置
+            </button>
+            <button id="admin-tab-captcha-history" data-panel="captcha-history"
+              class="captcha-sub-tab w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-sky-50 hover:text-sky-600 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              验证码历史
+            </button>
+          </div>
+        </div>
 
         <!-- 定时提醒管理标签 -->
         <button id="admin-tab-reminders_modal"
@@ -8379,53 +8406,135 @@
 
         </div>
 
-        <!-- 验证码历史面板 -->
+        <!-- 【本地验证码】验证码设置面板（原为"验证码历史面板"） -->
         <div id="admin-captcha-panel_modal" class="hidden space-y-4">
           <div class="flex justify-between items-center">
+            <h4 class="font-semibold text-lg">⚙️ 验证码生成设置</h4>
+          </div>
+          
+          <!-- 说明文本 -->
+          <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 mb-4">
+            <p class="text-sm text-slate-600 mb-2">
+              <strong>本地验证码生成器</strong>：使用MicroPixelCaptcha生成黑白像素风格验证码，无需第三方API，更稳定、更安全、响应更快。
+            </p>
+            <p class="text-xs text-slate-500">
+              💡 提示：修改参数后需刷新验证码才能看到效果。建议scale_factor使用2或3，noise_level保持在0.05-0.15之间。
+            </p>
+          </div>
+          
+          <!-- 设置表单 -->
+          <div class="space-y-4">
+            <!-- 验证码长度 -->
+            <div class="flex items-center gap-4">
+              <label for="captcha-length" class="text-sm font-medium text-slate-700 w-32">
+                验证码长度：
+              </label>
+              <input type="number" id="captcha-length" 
+                     min="3" max="6" step="1" value="4"
+                     class="px-3 py-2 border border-slate-300 rounded-md text-sm w-24 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+              <span class="text-xs text-slate-500">字符数（3-6），推荐4</span>
+            </div>
+            
+            <!-- 细分倍数 -->
+            <div class="flex items-center gap-4">
+              <label for="captcha-scale-factor" class="text-sm font-medium text-slate-700 w-32">
+                细分倍数：
+              </label>
+              <input type="number" id="captcha-scale-factor" 
+                     min="2" max="4" step="1" value="2"
+                     class="px-3 py-2 border border-slate-300 rounded-md text-sm w-24 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+              <span class="text-xs text-slate-500">像素细分（2-4），推荐2或3</span>
+            </div>
+            
+            <!-- 噪点比例 -->
+            <div class="flex items-center gap-4">
+              <label for="captcha-noise-level" class="text-sm font-medium text-slate-700 w-32">
+                噪点比例：
+              </label>
+              <input type="number" id="captcha-noise-level" 
+                     min="0" max="0.3" step="0.01" value="0.08"
+                     class="px-3 py-2 border border-slate-300 rounded-md text-sm w-24 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+              <span class="text-xs text-slate-500">噪点密度（0.0-0.3），推荐0.05-0.15</span>
+            </div>
+            
+            <!-- 保存按钮 -->
+            <div class="flex gap-2 mt-6">
+              <button id="save-captcha-settings-btn" 
+                      class="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 text-sm font-medium transition-colors duration-200 shadow-sm">
+                💾 保存设置
+              </button>
+              <button id="test-captcha-btn" 
+                      class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 text-sm font-medium transition-colors duration-200">
+                🔄 测试验证码
+              </button>
+            </div>
+            
+            <!-- 测试预览区域 -->
+            <div id="captcha-test-preview" class="hidden mt-4 p-4 border border-slate-300 rounded-lg bg-white">
+              <p class="text-sm font-medium text-slate-700 mb-2">预览效果：</p>
+              <div id="captcha-preview-display" class="flex justify-center my-3"></div>
+              <p class="text-xs text-slate-500 mt-2">
+                验证码答案（仅测试时显示）：
+                <span id="captcha-preview-answer" class="font-mono font-bold text-slate-900"></span>
+              </p>
+            </div>
+          </div>
+          
+          <!-- 参数说明文本 -->
+          <div class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <p class="text-sm text-slate-600 font-medium mb-2">📖 参数说明：</p>
+            <ul class="text-xs text-slate-600 space-y-1 list-disc list-inside">
+              <li><strong>验证码长度</strong>：生成的验证码字符数，推荐4个字符（平衡安全性和用户体验）</li>
+              <li><strong>细分倍数</strong>：控制像素密度，值越大验证码越精细，但文件也越大。推荐2或3</li>
+              <li><strong>噪点比例</strong>：添加随机噪点的比例，增加机器识别难度。0.08表示8%的像素会反转颜色</li>
+            </ul>
+            <p class="text-xs text-slate-500 mt-3">
+              ⚠️ 注意：如果验证码太难识别，请降低noise_level或length；如果加载慢，请降低scale_factor。
+            </p>
+          </div>
+        </div>
+
+        <!-- 【验证码历史】验证码历史记录面板 -->
+        <div id="admin-captcha-history-panel_modal" class="hidden space-y-4">
+          <div class="flex justify-between items-center">
             <h4 class="font-semibold text-lg">📜 验证码历史记录</h4>
-            <div class="flex gap-2 items-center">
-              <input type="date" id="captcha-history-date" class="px-3 py-1 border border-slate-300 rounded-md text-sm"
-                value="">
-              <select id="captcha-history-status" class="px-3 py-1 border border-slate-300 rounded-md text-sm">
-                <option value="">全部状态</option>
-                <option value="created">待验证</option>
-                <option value="verified_success">验证成功</option>
-                <option value="verified_failed">验证失败</option>
-                <option value="expired">已过期</option>
-              </select>
-              <button id="admin-refresh-captcha_modal" class="btn btn-ghost !py-1 !px-2"
-                onclick="loadCaptchaHistory()">刷新</button>
-            </div>
+            <button id="refresh-captcha-history-btn" 
+                    class="px-3 py-1 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 text-sm">
+              🔄 刷新
+            </button>
           </div>
-          <p class="text-xs text-blue-700 bg-blue-50 p-2 rounded-md" style="display: none;">💡
-            提示：此面板显示验证码的请求和验证历史，用于排查验证码相关问题。历史记录按日期存储在 logs/captcha_history/ 目录。</p>
-
-          <div id="admin-captcha-list_modal" class="space-y-2 max-h-[47vh] overflow-y-auto pr-2">
-            <p class="text-slate-400 text-center py-10">请选择日期并点击刷新按钮查看验证码历史</p>
+          
+          <!-- 过滤条件 -->
+          <div class="flex gap-2 mb-4">
+            <input type="date" id="captcha-history-date" 
+                   class="px-3 py-1 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                   title="选择日期查看该日的验证码历史">
+            <select id="captcha-history-status" 
+                    class="px-3 py-1 border border-slate-300 rounded-md text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+              <option value="all">全部状态</option>
+              <option value="success">验证成功</option>
+              <option value="failed">验证失败</option>
+              <option value="pending">待验证</option>
+            </select>
           </div>
-
-          <!-- 统计信息 -->
-          <div id="captcha-stats" class="grid grid-cols-5 gap-2 text-center text-sm">
-            <div class="p-2 bg-slate-100 rounded">
-              <div class="text-slate-600">总计</div>
-              <div id="captcha-stat-total" class="text-lg font-semibold">0</div>
-            </div>
-            <div class="p-2 bg-green-100 rounded">
-              <div class="text-green-700">成功</div>
-              <div id="captcha-stat-success" class="text-lg font-semibold text-green-700">0</div>
-            </div>
-            <div class="p-2 bg-red-100 rounded">
-              <div class="text-red-700">失败</div>
-              <div id="captcha-stat-failed" class="text-lg font-semibold text-red-700">0</div>
-            </div>
-            <div class="p-2 bg-yellow-100 rounded">
-              <div class="text-yellow-700">待验证</div>
-              <div id="captcha-stat-pending" class="text-lg font-semibold text-yellow-700">0</div>
-            </div>
-            <div class="p-2 bg-gray-100 rounded">
-              <div class="text-gray-700">已过期</div>
-              <div id="captcha-stat-expired" class="text-lg font-semibold text-gray-700">0</div>
-            </div>
+          
+          <!-- 历史记录列表 -->
+          <div id="captcha-history-list" 
+               class="max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg">
+            <p class="text-slate-400 text-center py-10">
+              请选择日期并点击刷新按钮查看验证码历史
+            </p>
+          </div>
+          
+          <!-- 说明文本 -->
+          <div class="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <p class="text-sm text-slate-600 mb-2">
+              <strong>📖 说明</strong>：此面板显示验证码的请求和验证历史，用于排查验证码相关问题。
+            </p>
+            <p class="text-xs text-slate-500">
+              💡 提示：历史记录按日期存储在 <code class="bg-slate-200 px-1 rounded">logs/captcha_history/</code> 目录。
+              选择日期后点击刷新按钮即可查看该日的验证码使用记录。
+            </p>
           </div>
         </div>
 
@@ -13413,6 +13522,40 @@
             logMessage_Info('[标签页导航] 已添加滚轮水平滚动支持');
           }
 
+          // 【验证码二级菜单】绑定验证码设置和历史的子菜单
+          const captchaSettingsSubTab = $('admin-tab-captcha-settings');
+          const captchaHistorySubTab = $('admin-tab-captcha-history');
+          
+          if (captchaSettingsSubTab) {
+            captchaSettingsSubTab.addEventListener('click', () => {
+              // 隐藏所有验证码面板
+              const captchaPanel = $('admin-captcha-panel_modal');
+              const captchaHistoryPanel = $('admin-captcha-history-panel_modal');
+              if (captchaPanel) captchaPanel.classList.remove('hidden');
+              if (captchaHistoryPanel) captchaHistoryPanel.classList.add('hidden');
+              
+              // 加载验证码设置
+              loadCaptchaSettings();
+              
+              logMessage_Info('[验证码二级菜单] 切换到验证码设置');
+            });
+          }
+          
+          if (captchaHistorySubTab) {
+            captchaHistorySubTab.addEventListener('click', () => {
+              // 隐藏所有验证码面板
+              const captchaPanel = $('admin-captcha-panel_modal');
+              const captchaHistoryPanel = $('admin-captcha-history-panel_modal');
+              if (captchaPanel) captchaPanel.classList.add('hidden');
+              if (captchaHistoryPanel) captchaHistoryPanel.classList.remove('hidden');
+              
+              // 加载验证码历史
+              loadCaptchaHistory();
+              
+              logMessage_Info('[验证码二级菜单] 切换到验证码历史');
+            });
+          }
+
           logMessage_Info("Admin Panel Modal Tabs event listeners bound (using _modal IDs).");
         } else {
           logMessage_Error("Could not find admin panel modal element to bind tab events.");
@@ -14162,11 +14305,8 @@
           captchaPanel.classList.remove('hidden');
           // 设置默认日期为今天
           const dateInput = $('captcha-history-date');
-          if (dateInput && !dateInput.value) {
-            const today = new Date().toISOString().split('T')[0];
-            dateInput.value = today;
-          }
-          loadCaptchaHistory();
+          // 【本地验证码】加载验证码设置（原为加载验证码历史）
+          loadCaptchaSettings();
           // 停止健康状态自动刷新
           stopHealthAutoRefresh();
         }
@@ -31083,9 +31223,10 @@ function renderMultiAccountList(accounts) {
         html += createInput('Map', 'amap_js_key', '高德地图 API Key', 'text', '用于前端地图显示的JS API Key。');
 
         // [API]
+        // 【本地验证码】第三方API配置（已移除验证码API密钥，改用本地生成器）
         html += '<h5 class="font-bold text-base text-sky-800 border-b pb-1 mt-4 mb-2">第三方 API 配置</h5>';
         html += createInput('API', 'ip_api_key', 'IP定位 API Key', 'text', 'IP地理位置查询API密钥（可选，留空使用免费接口）。');
-        html += createInput('API', 'captcha_api_key', '验证码 API Key', 'text', '验证码生成API密钥（可选，留空使用免费接口）。');
+        // 注意：验证码API密钥已移除，现使用本地验证码生成器（见"验证码设置"面板）
 
         formContainer.innerHTML = html;
 
@@ -31095,78 +31236,263 @@ function renderMultiAccountList(accounts) {
     }
 
     /**
-     * 加载验证码历史记录
+     * 【本地验证码】加载验证码设置（替换原loadCaptchaHistory函数）
+     * 
+     * 功能说明：
+     * - 从后端API获取当前的验证码生成器配置参数
+     * - 将参数填充到"验证码设置"面板的输入框中
+     * - 在页面加载和管理面板打开时调用
      */
-    async function loadCaptchaHistory() {
-      const listContainer = $('admin-captcha-list_modal');
-      listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
-
+    async function loadCaptchaSettings() {
       try {
-        // 获取查询参数
-        const dateInput = $('captcha-history-date');
-        const statusSelect = $('captcha-history-status');
-
-        const date = dateInput.value.replace(/-/g, ''); // YYYYMMDD格式
-        const status = statusSelect.value;
-
-        // 构建查询参数
-        const params = new URLSearchParams({ date });
-        if (status) {
-          params.append('status', status);
+        console.log('[验证码设置] 开始加载验证码配置参数...');
+        
+        // 从get_initial_data API获取配置（该API已返回captcha_settings）
+        // 注意：这里复用了页面加载时已经获取的数据
+        if (window.initialData && window.initialData.captcha_settings) {
+          // 如果已有缓存数据，直接使用
+          const settings = window.initialData.captcha_settings;
+          $('captcha-length').value = settings.length || 4;
+          $('captcha-scale-factor').value = settings.scale_factor || 2;
+          $('captcha-noise-level').value = settings.noise_level || 0.08;
+          
+          console.log('[验证码设置] 已从缓存加载配置:', settings);
+        } else {
+          // 如果没有缓存，重新请求
+          const response = await callPythonAPI('get_initial_data');
+          if (response && response.captcha_settings) {
+            const settings = response.captcha_settings;
+            $('captcha-length').value = settings.length || 4;
+            $('captcha-scale-factor').value = settings.scale_factor || 2;
+            $('captcha-noise-level').value = settings.noise_level || 0.08;
+            
+            console.log('[验证码设置] 已从API加载配置:', settings);
+          } else {
+            console.warn('[验证码设置] 未能获取配置，使用默认值');
+          }
         }
-
-        const response = await fetch(`/api/captcha/history?${params}`, {
-          headers: { 'X-Session-ID': sessionUUID }
+      } catch (error) {
+        console.error('[验证码设置] 加载配置失败:', error);
+        // 加载失败时使用默认值（输入框的默认value已设置）
+      }
+    }
+    
+    /**
+     * 【本地验证码】保存验证码设置
+     * 
+     * 功能说明：
+     * - 从输入框获取用户配置的参数
+     * - 调用后端API保存到config.ini文件
+     * - 显示保存结果（成功/失败）
+     * 
+     * 权限要求：管理员（modify_config）
+     */
+    async function saveCaptchaSettings() {
+      try {
+        console.log('[验证码设置] 开始保存验证码配置...');
+        
+        // 1. 获取输入框的值
+        const length = parseInt($('captcha-length').value);
+        const scale_factor = parseInt($('captcha-scale-factor').value);
+        const noise_level = parseFloat($('captcha-noise-level').value);
+        
+        // 2. 前端参数验证（减少无效请求）
+        if (isNaN(length) || length < 3 || length > 6) {
+          Swal.fire({
+            icon: 'error',
+            title: '参数错误',
+            text: '验证码长度必须在3-6之间'
+          });
+          return;
+        }
+        
+        if (isNaN(scale_factor) || scale_factor < 2 || scale_factor > 4) {
+          Swal.fire({
+            icon: 'error',
+            title: '参数错误',
+            text: '细分倍数必须在2-4之间'
+          });
+          return;
+        }
+        
+        if (isNaN(noise_level) || noise_level < 0 || noise_level > 0.3) {
+          Swal.fire({
+            icon: 'error',
+            title: '参数错误',
+            text: '噪点比例必须在0.0-0.3之间'
+          });
+          return;
+        }
+        
+        console.log('[验证码设置] 参数验证通过:', { length, scale_factor, noise_level });
+        
+        // 3. 调用后端API保存配置（直接使用fetch调用独立路由）
+        const response = await fetch('/api/captcha/save_settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            length,
+            scale_factor,
+            noise_level
+          })
         });
+        
         const result = await response.json();
-
-        if (!result.success) {
-          listContainer.innerHTML = `<p class="text-red-500 text-center py-10">${result.message}</p>`;
+        
+        // 4. 处理响应结果
+        if (result && result.success) {
+          console.log('[验证码设置] 保存成功');
+          Swal.fire({
+            icon: 'success',
+            title: '保存成功',
+            text: '验证码设置已保存到config.ini文件',
+            timer: 2000,
+            showConfirmButton: false
+          });
+          
+          // 更新缓存数据
+          if (window.initialData) {
+            window.initialData.captcha_settings = { length, scale_factor, noise_level };
+          }
+        } else {
+          throw new Error(result?.message || '保存失败');
+        }
+      } catch (error) {
+        console.error('[验证码设置] 保存失败:', error);
+        Swal.fire({
+          icon: 'error',
+          title: '保存失败',
+          text: error.message || '无法保存验证码设置'
+        });
+      }
+    }
+    
+    /**
+     * 【本地验证码】测试生成验证码
+     * 
+     * 功能说明：
+     * - 使用当前输入框的参数临时生成一个验证码
+     * - 在预览区域显示生成的验证码HTML和答案
+     * - 用于调整参数后实时预览效果
+     * 
+     * 权限要求：管理员（modify_config）
+     */
+    async function testGenerateCaptcha() {
+      try {
+        console.log('[验证码设置] 开始测试生成验证码...');
+        
+        // 1. 获取输入框的值
+        const length = parseInt($('captcha-length').value);
+        const scale_factor = parseInt($('captcha-scale-factor').value);
+        const noise_level = parseFloat($('captcha-noise-level').value);
+        
+        // 2. 前端参数验证
+        if (isNaN(length) || length < 3 || length > 6) {
+          Swal.fire({
+            icon: 'error',
+            title: '参数错误',
+            text: '验证码长度必须在3-6之间'
+          });
           return;
         }
-
-        const records = result.data || [];
-
-        // 更新统计信息
-        const total = records.length;
-        const success = records.filter(r => r.status === 'verified_success').length;
-        const failed = records.filter(r => r.status === 'verified_failed').length;
-        // 修正： 'created' 状态在JS中可能会被动态转换为 'expired' (取决于后端逻辑，但为保险起见，分开计算)
-        const pending = records.filter(r => r.status === 'created').length;
-        // 新增：计算 'expired' 状态
-        const expired = records.filter(r => r.status === 'expired').length;
-
-        $('captcha-stat-total').textContent = total;
-        $('captcha-stat-success').textContent = success;
-        $('captcha-stat-failed').textContent = failed;
-        $('captcha-stat-pending').textContent = pending;
-        // 新增：更新 'expired' 统计
-        const expiredEl = $('captcha-stat-expired');
-        if (expiredEl) expiredEl.textContent = expired;
-
-        if (records.length === 0) {
-          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">该日期没有验证码记录</p>';
+        
+        if (isNaN(scale_factor) || scale_factor < 2 || scale_factor > 4) {
+          Swal.fire({
+            icon: 'error',
+            title: '参数错误',
+            text: '细分倍数必须在2-4之间'
+          });
           return;
         }
+        
+        if (isNaN(noise_level) || noise_level < 0 || noise_level > 0.3) {
+          Swal.fire({
+            icon: 'error',
+            title: '参数错误',
+            text: '噪点比例必须在0.0-0.3之间'
+          });
+          return;
+        }
+        
+        console.log('[验证码设置] 测试参数:', { length, scale_factor, noise_level });
+        
+        // 3. 调用后端API测试生成（直接使用fetch调用独立路由）
+        const response = await fetch('/api/captcha/test_generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Session-ID': sessionUUID
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            length,
+            scale_factor,
+            noise_level
+          })
+        });
+        
+        const result = await response.json();
+        
+        // 4. 处理响应结果
+        if (result && result.success) {
+          console.log('[验证码设置] 测试生成成功，验证码:', result.code);
+          
+          // 显示预览区域
+          $('captcha-test-preview').classList.remove('hidden');
+          
+          // 显示验证码HTML
+          $('captcha-preview-display').innerHTML = result.html;
+          
+          // 显示验证码答案（仅用于测试）
+          $('captcha-preview-answer').textContent = result.code;
+          
+          console.log('[验证码设置] 预览区域已更新');
+        } else {
+          throw new Error(result?.message || '生成失败');
+        }
+      } catch (error) {
+        console.error('[验证码设置] 测试生成失败:', error);
+        Swal.fire({
+          icon: 'error',
+          title: '生成失败',
+          text: error.message || '无法生成测试验证码'
+        });
+      }
+    }
 
-        // 渲染记录列表
-        listContainer.innerHTML = '';
-        records.forEach(record => {
-          const statusClass = {
-            'created': 'bg-yellow-100 text-yellow-800',
-            'verified_success': 'bg-green-100 text-green-800',
-            'verified_failed': 'bg-red-100 text-red-800',
-            'expired': 'bg-gray-100 text-gray-800'
-          }[record.status] || 'bg-gray-100 text-gray-800';
+    // ========================================
+    // 【本地验证码】注册事件监听器
+    // ========================================
+    // 在DOM加载完成后注册按钮点击事件
+    document.addEventListener('DOMContentLoaded', function() {
+      // 保存设置按钮
+      const saveCaptchaSettingsBtn = $('save-captcha-settings-btn');
+      if (saveCaptchaSettingsBtn) {
+        saveCaptchaSettingsBtn.addEventListener('click', saveCaptchaSettings);
+        console.log('[验证码设置] 已注册保存按钮事件');
+      }
+      
+      // 测试验证码按钮
+      const testCaptchaBtn = $('test-captcha-btn');
+      if (testCaptchaBtn) {
+        testCaptchaBtn.addEventListener('click', testGenerateCaptcha);
+        console.log('[验证码设置] 已注册测试按钮事件');
+      }
+    });
 
-          const statusText = {
-            'created': '待验证',
-            'verified_success': '验证成功',
-            'verified_failed': '验证失败',
-            'expired': '已过期'
-          }[record.status] || record.status;
-
-          const itemDiv = document.createElement('div');
+    /**
+         * 显示验证码详细信息（已废弃，保留兼容性）
+         * 功能：在模态框中展示验证码的完整信息
+         * 参数：
+         * captchaId: 验证码ID
+         * 说明：
+         * - 此函数已废弃，因为验证码历史功能已被验证码设置功能替代
+         * - 保留此函数以避免其他地方的引用报错
+         */
           itemDiv.className = 'p-3 bg-white border border-slate-200 rounded-lg hover:shadow-md transition-shadow';
           itemDiv.innerHTML = `
             <div class="flex justify-between items-start mb-2">
@@ -32228,9 +32554,10 @@ function renderMultiAccountList(accounts) {
           'Map': {
             'amap_js_key': $('config-Map-amap_js_key').value
           },
+          // 【本地验证码】API配置（已移除captcha_api_key）
           'API': {
-            'ip_api_key': $('config-API-ip_api_key').value,
-            'captcha_api_key': $('config-API-captcha_api_key').value
+            'ip_api_key': $('config-API-ip_api_key').value
+            // 注意：验证码API密钥已移除，改用本地生成器
           }
         };
 
@@ -32872,11 +33199,9 @@ function renderMultiAccountList(accounts) {
             break;
           case 'captcha':
             const dateInput = $('captcha-history-date');
-            if (dateInput && !dateInput.value) {
-              const today = new Date().toISOString().split('T')[0];
-              dateInput.value = today;
-            }
-            loadCaptchaHistory();
+          case 'captcha':
+            // 【本地验证码】加载验证码设置（原为加载验证码历史）
+            loadCaptchaSettings();
             setTimeout(() => copyAdminContentToPanelVersion('captcha'), 500);
             break;
           case 'reminders':
@@ -32949,11 +33274,9 @@ function renderMultiAccountList(accounts) {
           break;
         case 'captcha':
           const dateInput = $('captcha-history-date');
-          if (dateInput && !dateInput.value) {
-            const today = new Date().toISOString().split('T')[0];
-            dateInput.value = today;
-          }
-          loadCaptchaHistory();
+        case 'captcha':
+          // 【本地验证码】加载验证码设置（原为加载验证码历史）
+          loadCaptchaSettings();
           setTimeout(() => copyAdminContentToMobile('captcha', contentId), 500);
           break;
         case 'reminders':

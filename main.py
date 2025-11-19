@@ -1144,10 +1144,24 @@ def _get_default_config():
         'amap_js_key': '',  # 高德地图JS API密钥
     }
     
+    # ========================================
     # [API] 第三方API配置
+    # ========================================
+    # 存储第三方服务的API密钥和凭证
     config['API'] = {
         'ip_api_key': '',  # IP地理位置查询API密钥（可选，留空则使用免费接口）
-        'captcha_api_key': '',  # 验证码API密钥（可选，留空则使用免费接口）
+        # 注意：验证码已改用本地生成器，不再需要第三方API密钥
+    }
+    
+    # ========================================
+    # [Captcha] 本地验证码生成器配置
+    # ========================================
+    # 使用MicroPixelCaptcha生成黑白像素风格验证码
+    # 无需第三方API，更稳定、更安全、响应更快
+    config['Captcha'] = {
+        'length': '4',          # 【验证码字符数】范围3-6，默认4（推荐）
+        'scale_factor': '2',    # 【像素细分倍数】范围2-4，默认2（推荐2或3）
+        'noise_level': '0.08',  # 【噪点比例】范围0.0-0.3，默认0.08（8%噪点）
     }
 
     # [Features] 功能开关配置
@@ -1279,18 +1293,57 @@ def _write_config_with_comments(config_obj, filepath):
         f.write(
             f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
         
+        # ========================================
         # [API] 第三方API配置
+        # ========================================
+        f.write("# ========================================\n")
+        f.write("# [API] 第三方API配置\n")
+        f.write("# ========================================\n")
         f.write("[API]\n")
         f.write("# IP地理位置查询API密钥（可选）\n")
         f.write("# 用于获取用户登录IP的地理位置信息\n")
         f.write("# 留空则使用免费接口（有频率限制）\n")
         f.write(
             f"ip_api_key = {config_obj.get('API', 'ip_api_key', fallback='')}\n")
-        f.write("# 验证码生成API密钥（可选）\n")
-        f.write("# 用于生成图形验证码\n")
-        f.write("# 留空则使用免费接口（有频率限制）\n")
-        f.write(
-            f"captcha_api_key = {config_obj.get('API', 'captcha_api_key', fallback='')}\n\n")
+        f.write("# 注意：验证码已改用本地生成器（见[Captcha]节），不再需要第三方API密钥\n\n")
+        
+        # ========================================
+        # [Captcha] 本地验证码生成器配置
+        # ========================================
+        f.write("# ========================================\n")
+        f.write("# [Captcha] 本地验证码生成器配置\n")
+        f.write("# ========================================\n")
+        f.write("# 使用MicroPixelCaptcha生成黑白像素风格验证码\n")
+        f.write("# 无需第三方API，更稳定、更安全、响应更快\n")
+        f.write("#\n")
+        f.write("# 【参数说明】\n")
+        f.write("#\n")
+        f.write("# length: 验证码字符数（3-6），默认4\n")
+        f.write("#   - 3个字符：简单，但安全性较低，可能易被机器识别\n")
+        f.write("#   - 4个字符：★推荐★ 平衡了安全性和用户体验\n")
+        f.write("#   - 5-6个字符：更安全，但用户输入较麻烦，可能影响体验\n")
+        f.write("#\n")
+        f.write("# scale_factor: 像素细分倍数（2-4），默认2\n")
+        f.write("#   - 2: ★推荐★ 标准密度，验证码清晰度适中，文件大小合理\n")
+        f.write("#   - 3: 高密度，验证码更精细，文件稍大\n")
+        f.write("#   - 4: 超高密度，验证码非常精细，但文件较大，加载可能变慢\n")
+        f.write("#\n")
+        f.write("# noise_level: 噪点比例（0.0-0.3），默认0.08\n")
+        f.write("#   - 0.0: 无噪点，验证码过于清晰，可能易被OCR识别\n")
+        f.write("#   - 0.05-0.15: ★推荐范围★ 适度干扰，既能防止机器识别，又不影响人类识别\n")
+        f.write("#   - 0.08: ★默认值★ 8%的像素会随机反转颜色，平衡最佳\n")
+        f.write("#   - 0.2-0.3: 高噪点，非常难识别，可能导致用户体验下降\n")
+        f.write("#\n")
+        f.write("# 【调试建议】\n")
+        f.write("# 1. 修改参数后，使用控制面板的\"验证码设置\"面板测试效果\n")
+        f.write("# 2. 如果验证码太难识别，降低noise_level或length\n")
+        f.write("# 3. 如果验证码加载慢，降低scale_factor\n")
+        f.write("# 4. 如果担心安全性，可适当增加length或noise_level\n")
+        f.write("# ========================================\n\n")
+        f.write("[Captcha]\n")
+        f.write(f"length = {config_obj.get('Captcha', 'length', fallback='4')}\n")
+        f.write(f"scale_factor = {config_obj.get('Captcha', 'scale_factor', fallback='2')}\n")
+        f.write(f"noise_level = {config_obj.get('Captcha', 'noise_level', fallback='0.08')}\n\n")
 
         # [Features] 功能开关配置
         f.write("[Features]\n")
@@ -4827,6 +4880,18 @@ class Api:
             logging.debug(
                 f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
 
+            # ========================================
+            # 【本地验证码】读取验证码生成器配置
+            # ========================================
+            # 从config.ini的[Captcha]节读取本地验证码生成器的参数
+            # 这些参数将传递给前端，用于"验证码设置"面板的初始化
+            captcha_settings = {
+                'length': int(_get_config_value(cfg, 'Captcha', 'length', fallback='4')),
+                'scale_factor': int(_get_config_value(cfg, 'Captcha', 'scale_factor', fallback='2')),
+                'noise_level': float(_get_config_value(cfg, 'Captcha', 'noise_level', fallback='0.08'))
+            }
+            logging.debug(f"【本地验证码】加载验证码设置: {captcha_settings}")
+
             # [代码片段 2.1：替换掉旧的 return 语句]
             # 构造返回字典
             response_data = {
@@ -4842,7 +4907,9 @@ class Api:
                 "auth_group": auth_group,
                 "is_guest": is_guest,
                 # [修复] 添加多账号模式状态，用于会话恢复和PC/移动端切换
-                "is_multi_account_mode": getattr(self, 'is_multi_account_mode', False)
+                "is_multi_account_mode": getattr(self, 'is_multi_account_mode', False),
+                # 【本地验证码】添加验证码设置到响应数据
+                "captcha_settings": captcha_settings
             }
 
             # [BUG 2 修复] 如果是已登录状态（会话恢复），则从实例中提取 device_ua
@@ -21900,6 +21967,289 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"[验证码详情] 获取详情失败: {e}", exc_info=True)
             return jsonify({"success": False, "message": "获取验证码详情时发生错误"}), 500
+
+    # ========================================
+    # 【本地验证码】新增API端点
+    # ========================================
+    
+    @app.route('/api/captcha/save_settings', methods=['POST'])
+    @login_required
+    def save_captcha_settings():
+        """
+        【本地验证码】保存验证码生成器设置到config.ini
+        
+        权限要求：管理员 (modify_config)
+        
+        功能说明:
+            - 将验证码生成参数（length, scale_factor, noise_level）保存到config.ini的[Captcha]节
+            - 参数会经过严格的范围验证，防止无效或危险的配置
+            - 保存后立即生效，下次生成验证码时使用新参数
+        
+        请求格式 (JSON):
+            {
+                "length": 4,           # 验证码字符数（3-6）
+                "scale_factor": 2,     # 像素细分倍数（2-4）
+                "noise_level": 0.08    # 噪点比例（0.0-0.3）
+            }
+        
+        返回格式:
+            {
+                "success": True/False,
+                "message": "设置保存成功" / "错误信息"
+            }
+        
+        安全说明:
+            - 只有管理员才能修改验证码设置
+            - 所有参数都会进行范围检查，防止异常值
+            - 使用_write_config_with_comments保存，保留注释
+        """
+        try:
+            # ========================================
+            # 1. 权限检查：只有管理员可以修改验证码设置
+            # ========================================
+            if not auth_system.check_permission(g.user, 'modify_config'):
+                logging.warning(f"【本地验证码】用户 {g.user} 尝试保存验证码设置但权限不足")
+                return jsonify({
+                    'success': False, 
+                    'message': '权限不足：只有管理员可以修改验证码设置'
+                }), 403
+            
+            # ========================================
+            # 2. 解析请求数据
+            # ========================================
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    'success': False, 
+                    'message': '请求数据为空'
+                }), 400
+            
+            # ========================================
+            # 3. 提取并验证参数
+            # ========================================
+            # 提取参数，如果不存在则使用默认值
+            try:
+                length = int(data.get('length', 4))
+                scale_factor = int(data.get('scale_factor', 2))
+                noise_level = float(data.get('noise_level', 0.08))
+            except (ValueError, TypeError) as e:
+                logging.error(f"【本地验证码】参数类型转换失败: {e}")
+                return jsonify({
+                    'success': False, 
+                    'message': f'参数类型错误: {str(e)}'
+                }), 400
+            
+            # 参数范围检查（防止异常值导致验证码生成失败或性能问题）
+            if not (3 <= length <= 6):
+                return jsonify({
+                    'success': False, 
+                    'message': '验证码长度必须在3-6之间'
+                }), 400
+            
+            if not (2 <= scale_factor <= 4):
+                return jsonify({
+                    'success': False, 
+                    'message': '细分倍数必须在2-4之间'
+                }), 400
+            
+            if not (0 <= noise_level <= 0.3):
+                return jsonify({
+                    'success': False, 
+                    'message': '噪点比例必须在0.0-0.3之间'
+                }), 400
+            
+            logging.info(f"【本地验证码】用户 {g.user} 请求保存验证码设置: length={length}, scale_factor={scale_factor}, noise_level={noise_level}")
+            
+            # ========================================
+            # 4. 读取现有配置文件
+            # ========================================
+            config_file = 'config.ini'
+            config = configparser.ConfigParser()
+            
+            # 如果配置文件存在，先读取现有配置
+            if os.path.exists(config_file):
+                config.read(config_file, encoding='utf-8')
+            
+            # ========================================
+            # 5. 确保[Captcha]节存在
+            # ========================================
+            # 如果[Captcha]节不存在（旧版本配置文件），则创建它
+            if not config.has_section('Captcha'):
+                config.add_section('Captcha')
+                logging.debug("【本地验证码】[Captcha]节不存在，已创建")
+            
+            # ========================================
+            # 6. 更新配置值
+            # ========================================
+            config.set('Captcha', 'length', str(length))
+            config.set('Captcha', 'scale_factor', str(scale_factor))
+            config.set('Captcha', 'noise_level', str(noise_level))
+            
+            # ========================================
+            # 7. 保存配置文件（使用带注释的方式）
+            # ========================================
+            # 注意：必须使用_write_config_with_comments函数保存
+            # 如果使用config.write()会丢失所有注释
+            _write_config_with_comments(config, config_file)
+            
+            logging.info(f"【本地验证码】验证码设置已成功保存到 {config_file}")
+            
+            # ========================================
+            # 8. 返回成功响应
+            # ========================================
+            return jsonify({
+                'success': True,
+                'message': '验证码设置保存成功'
+            })
+        
+        except Exception as e:
+            # 捕获所有未预期的异常，防止服务器崩溃
+            logging.error(f"【本地验证码】保存验证码设置失败: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': f'保存失败: {str(e)}'
+            }), 500
+
+    
+    @app.route('/api/captcha/test_generate', methods=['POST'])
+    @login_required
+    def test_generate_captcha():
+        """
+        【本地验证码】测试生成验证码（用于预览效果）
+        
+        权限要求：管理员 (modify_config)
+        
+        功能说明:
+            - 使用指定的参数临时生成一个验证码，用于预览效果
+            - 不会将验证码保存到数据库或记录历史
+            - 返回验证码的HTML和答案（仅用于测试预览）
+            - 管理员可以在"验证码设置"面板中调整参数并实时预览
+        
+        请求格式 (JSON):
+            {
+                "length": 4,           # 验证码字符数（3-6）
+                "scale_factor": 2,     # 像素细分倍数（2-4）
+                "noise_level": 0.08    # 噪点比例（0.0-0.3）
+            }
+        
+        返回格式:
+            {
+                "success": True/False,
+                "code": "ABC1",           # 验证码答案（仅用于测试预览）
+                "html": "<div>...</div>", # 验证码HTML（用于前端显示）
+                "message": "生成成功" / "错误信息"
+            }
+        
+        安全说明:
+            - 只有管理员才能测试生成验证码（需要modify_config权限）
+            - 测试生成的验证码不会被记录或用于实际登录
+            - 返回的code仅用于预览效果，实际使用时不返回
+        """
+        try:
+            # ========================================
+            # 1. 权限检查：只有管理员可以测试生成验证码
+            # ========================================
+            if not auth_system.check_permission(g.user, 'modify_config'):
+                logging.warning(f"【本地验证码】用户 {g.user} 尝试测试生成验证码但权限不足")
+                return jsonify({
+                    'success': False, 
+                    'message': '权限不足：只有管理员可以测试验证码'
+                }), 403
+            
+            # ========================================
+            # 2. 导入本地验证码生成器
+            # ========================================
+            # 从get_captchas.py导入MicroPixelCaptcha类
+            from get_captchas import MicroPixelCaptcha
+            
+            # ========================================
+            # 3. 解析请求数据
+            # ========================================
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    'success': False, 
+                    'message': '请求数据为空'
+                }), 400
+            
+            # ========================================
+            # 4. 提取并验证参数
+            # ========================================
+            # 提取参数，如果不存在则使用默认值
+            try:
+                length = int(data.get('length', 4))
+                scale_factor = int(data.get('scale_factor', 2))
+                noise_level = float(data.get('noise_level', 0.08))
+            except (ValueError, TypeError) as e:
+                logging.error(f"【本地验证码】测试生成时参数类型转换失败: {e}")
+                return jsonify({
+                    'success': False, 
+                    'message': f'参数类型错误: {str(e)}'
+                }), 400
+            
+            # 参数范围检查（防止异常值导致生成失败）
+            if not (3 <= length <= 6):
+                return jsonify({
+                    'success': False, 
+                    'message': '验证码长度必须在3-6之间'
+                }), 400
+            
+            if not (2 <= scale_factor <= 4):
+                return jsonify({
+                    'success': False, 
+                    'message': '细分倍数必须在2-4之间'
+                }), 400
+            
+            if not (0 <= noise_level <= 0.3):
+                return jsonify({
+                    'success': False, 
+                    'message': '噪点比例必须在0.0-0.3之间'
+                }), 400
+            
+            logging.info(f"【本地验证码】用户 {g.user} 测试生成验证码: length={length}, scale_factor={scale_factor}, noise_level={noise_level}")
+            
+            # ========================================
+            # 5. 生成验证码
+            # ========================================
+            # 创建验证码生成器实例
+            generator = MicroPixelCaptcha()
+            
+            # 调用generate方法生成验证码
+            # 返回: (验证码答案, 验证码HTML)
+            code, html = generator.generate(
+                length=length,
+                scale_factor=scale_factor,
+                noise_level=noise_level
+            )
+            
+            logging.debug(f"【本地验证码】测试验证码生成成功: code={code}, html_length={len(html)}")
+            
+            # ========================================
+            # 6. 返回成功响应
+            # ========================================
+            # 注意：code仅用于测试预览，实际使用时不应返回
+            return jsonify({
+                'success': True,
+                'code': code,       # 验证码答案（仅用于测试预览）
+                'html': html,       # 验证码HTML（用于前端显示）
+                'message': '验证码生成成功'
+            })
+        
+        except ImportError as e:
+            # 如果get_captchas.py文件不存在或MicroPixelCaptcha类不存在
+            logging.error(f"【本地验证码】导入MicroPixelCaptcha失败: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': f'验证码生成器不可用: {str(e)}'
+            }), 500
+        
+        except Exception as e:
+            # 捕获所有未预期的异常，防止服务器崩溃
+            logging.error(f"【本地验证码】测试生成验证码失败: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': f'生成失败: {str(e)}'
+            }), 500
 
 
     @app.route('/health')
