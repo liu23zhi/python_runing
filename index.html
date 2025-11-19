@@ -31482,7 +31482,112 @@ function renderMultiAccountList(accounts) {
         testCaptchaBtn.addEventListener('click', testGenerateCaptcha);
         console.log('[验证码设置] 已注册测试按钮事件');
       }
+      
+      // 【验证码历史】刷新历史记录按钮
+      const refreshCaptchaHistoryBtn = $('refresh-captcha-history-btn');
+      if (refreshCaptchaHistoryBtn) {
+        refreshCaptchaHistoryBtn.addEventListener('click', loadCaptchaHistory);
+        console.log('[验证码历史] 已注册刷新按钮事件');
+      }
     });
+
+    /**
+     * 【验证码历史】加载验证码历史记录
+     * 
+     * 功能说明：
+     * - 从后端API获取指定日期的验证码使用历史
+     * - 显示验证码的请求、验证状态等信息
+     * - 用于排查验证码相关问题
+     * 
+     * 权限要求：管理员
+     */
+    async function loadCaptchaHistory() {
+      try {
+        console.log('[验证码历史] 开始加载验证码历史记录...');
+        
+        // 获取过滤条件
+        const dateInput = $('captcha-history-date');
+        const statusSelect = $('captcha-history-status');
+        const listContainer = $('captcha-history-list');
+        
+        if (!dateInput || !statusSelect || !listContainer) {
+          console.warn('[验证码历史] 历史面板元素未找到');
+          return;
+        }
+        
+        const selectedDate = dateInput.value;
+        const selectedStatus = statusSelect.value;
+        
+        if (!selectedDate) {
+          listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">请选择日期并点击刷新按钮查看验证码历史</p>';
+          return;
+        }
+        
+        // 显示加载中
+        listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+        
+        // 调用API获取历史记录
+        const result = await callPythonAPI('captcha_get_history', {
+          date: selectedDate,
+          status: selectedStatus
+        });
+        
+        if (result && result.success && result.records) {
+          const records = result.records;
+          
+          if (records.length === 0) {
+            listContainer.innerHTML = `
+              <p class="text-slate-400 text-center py-10">
+                ${selectedDate} 没有验证码使用记录
+              </p>
+            `;
+            return;
+          }
+          
+          // 渲染历史记录列表
+          let html = '<div class="divide-y divide-slate-200">';
+          
+          records.forEach(record => {
+            const statusColor = record.status === 'success' ? 'text-green-600' : 
+                               record.status === 'failed' ? 'text-red-600' : 'text-slate-500';
+            const statusText = record.status === 'success' ? '✓ 验证成功' : 
+                              record.status === 'failed' ? '✗ 验证失败' : '⏳ 待验证';
+            
+            html += `
+              <div class="p-3 hover:bg-slate-50">
+                <div class="flex justify-between items-start mb-1">
+                  <span class="text-sm font-medium ${statusColor}">${statusText}</span>
+                  <span class="text-xs text-slate-500">${record.time || ''}</span>
+                </div>
+                <div class="text-xs text-slate-600 space-y-1">
+                  <div><strong>验证码ID:</strong> ${record.captcha_id || 'N/A'}</div>
+                  ${record.user ? `<div><strong>用户:</strong> ${record.user}</div>` : ''}
+                  ${record.ip ? `<div><strong>IP:</strong> ${record.ip}</div>` : ''}
+                  ${record.input ? `<div><strong>输入:</strong> ${record.input}</div>` : ''}
+                </div>
+              </div>
+            `;
+          });
+          
+          html += '</div>';
+          listContainer.innerHTML = html;
+          
+          console.log(`[验证码历史] 加载完成，共 ${records.length} 条记录`);
+        } else {
+          throw new Error(result?.message || '加载失败');
+        }
+      } catch (error) {
+        console.error('[验证码历史] 加载失败:', error);
+        const listContainer = $('captcha-history-list');
+        if (listContainer) {
+          listContainer.innerHTML = `
+            <p class="text-red-500 text-center py-10">
+              加载失败: ${error.message || '未知错误'}
+            </p>
+          `;
+        }
+      }
+    }
 
     /**
          * 显示验证码详细信息（已废弃，保留兼容性）
