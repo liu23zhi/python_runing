@@ -20466,6 +20466,13 @@
           }
           return; // 停止初始化，等待认证
         }
+        
+        // 【修复桌面端UUID认证后auth-login-container不隐藏的问题】
+        // 认证成功后，确保隐藏所有认证界面，显示应用界面
+        console.log("[Desktop Init] 已认证，隐藏认证界面，准备显示应用");
+        $('auth-login-container').classList.add('hidden');
+        $('mobile-auth-login-container').classList.add('hidden');
+        
         $('loading-overlay').classList.remove('hidden');
         ShowMobileLoadingOverlay();
 
