@@ -7627,6 +7627,12 @@ class Api:
 
     def multi_refresh_all_statuses(self):
         """(多线程)刷新所有账号的任务状态和统计信息"""
+        # 【多账号自动刷新】记录刷新请求
+        # 原因：记录刷新调用可以帮助追踪系统行为，便于调试和性能分析
+        # 记录会话UUID可以区分不同用户的请求，便于多用户环境下的问题排查
+        session_uuid = session.get('uuid', 'unknown')
+        logging.info(f"[多账号自动刷新] 收到刷新请求，会话UUID: {session_uuid}, 当前账号数量: {len(self.accounts) if self.accounts else 0}")
+        
         if not self.accounts:
             self.log("账号列表为空，无需刷新。")
             return {"success": True}
