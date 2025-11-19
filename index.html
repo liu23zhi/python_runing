@@ -30507,16 +30507,66 @@ function renderMultiAccountList(accounts) {
       }
 
       // ========================================
-      // 使用iframe加载验证码
-      // - 使用与PC端相同的captcha_id，确保显示同一个验证码
-      // - 添加时间戳参数，确保URL唯一性（避免缓存）
-      // - iframe样式适配移动端，确保响应式显示
+      // 【移动端验证码缩放】计算移动端屏幕可用宽度
+      // 
+      // 功能说明:
+      // - 移动端设备屏幕宽度可能不足以显示验证码
+      // - 需要根据屏幕实际宽度动态调整验证码大小
+      // - 【修正】不假设验证码固定为460px，由后端根据实际宽度判断是否需要缩放
+      // - 只缩小不放大原则由后端控制
+      // 
+      // 实现步骤:
+      // 1. 获取视口宽度 (window.innerWidth)
+      // 2. 减去左右padding（预估40px），得到可用宽度
+      // 3. 将可用宽度作为目标宽度传递给后端
+      // 4. 后端会比较目标宽度和实际原始宽度，决定是否缩放
       // ========================================
-      const timestamp = Date.now();  // 当前时间戳
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth; // 获取视口宽度，兼容旧版浏览器
+      const padding = 40; // 左右padding总和（估算值：左20px + 右20px）
+      const availableWidth = viewportWidth - padding; // 计算实际可用宽度
+      
+      // 【移动端验证码缩放】目标宽度 = 可用宽度
+      // 原因：
+      // - 不假设验证码的原始宽度（可能是460px、480px或其他值）
+      // - 将可用宽度直接传给后端，由后端决定是否需要缩放
+      // - 后端会调用get_captcha_original_width()获取实际宽度，然后比较
+      const targetWidth = Math.floor(availableWidth); // 使用Math.floor确保是整数
+      
+      // ========================================
+      // 【移动端验证码缩放】构建API请求URL
+      // - 基础URL: /api/captcha/html/{captcha_id}?t={timestamp}
+      // - 添加width参数，告诉后端移动端的可用宽度
+      // - 后端会根据验证码实际宽度决定是否缩放
+      // ========================================
+      const timestamp = Date.now();  // 当前时间戳，用于避免CDN缓存
+      let iframeSrc = `/api/captcha/html/${captchaId}?t=${timestamp}`;
+      
+      // 【移动端验证码缩放】总是添加width参数
+      // 原因：后端需要知道移动端的可用宽度来决定是否缩放
+      // 后端逻辑：如果width < 原始宽度，则缩放；否则保持原样
+      iframeSrc += `&width=${targetWidth}`;
+      console.log(`[移动端验证码缩放] 屏幕宽度${viewportWidth}px，可用${availableWidth}px，目标宽度${targetWidth}px`);
+      
+      // ========================================
+      // 【移动端验证码缩放】设置iframe尺寸
+      // - 宽度：使用目标宽度
+      // - 高度：预估为目标宽度的30%（验证码宽高比约为3:1到4:1）
+      //   实际高度由验证码内容决定，这里只是iframe容器的最小高度
+      // - max-width: 100% 确保在更小屏幕上能响应式缩放
+      // ========================================
+      const estimatedHeight = Math.floor(targetWidth * 0.35); // 预估高度（35%的宽度）
+      
+      // 构建iframe HTML
+      // 【移动端验证码缩放】构建iframe HTML
+      // 注意：
+      // - iframe的width使用targetWidth
+      // - iframe的height使用estimatedHeight（预估值）
+      // - max-width: 100% 确保在更小屏幕上响应式缩放
+      // - 实际验证码高度由后端resize_captcha_html函数按比例计算
       const iframeHtml = `
         <iframe 
-          src="/api/captcha/html/${captchaId}?t=${timestamp}"
-          style="width: 460px; height: 140px; border: none; overflow: hidden; display: block; max-width: 100%;"
+          src="${iframeSrc}"
+          style="width: ${targetWidth}px; height: ${estimatedHeight}px; border: none; overflow: hidden; display: block; max-width: 100%;"
           scrolling="no"
           frameborder="0"
           title="验证码">
