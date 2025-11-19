@@ -11014,6 +11014,80 @@ def restore_session_to_api_instance(api_instance, state):
         logging.error(f"恢复会话状态失败: {e}", exc_info=True)
 
 
+def get_captcha_original_width(html_content):
+    """
+    【移动端验证码缩放】获取验证码的原始宽度
+    
+    功能说明:
+        - 从HTML中解析验证码结构（行数、列数）
+        - 从CSS中提取单个像素的宽度
+        - 计算总宽度 = 列数 × 单个像素宽度
+    
+    参数:
+        html_content (str): 验证码HTML内容
+    
+    返回:
+        float: 验证码原始宽度（像素），解析失败返回None
+    
+    示例:
+        原始HTML: 46列 × 10px/像素 = 460px总宽度
+        原始HTML: 40列 × 12px/像素 = 480px总宽度
+    """
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # 获取容器和像素span
+        container = soup.find('div')
+        if not container:
+            return None
+        
+        spans = container.find_all('span')
+        if not spans:
+            return None
+        
+        pixel_classes = list(set([s.get('class')[0] for s in spans if s.get('class')]))
+        if not pixel_classes:
+            return None
+        
+        # 计算列数（统计第一行有多少个span）
+        first_line_spans = 0
+        for child in container.contents:
+            if child.name == 'br':
+                break
+            if child.name == 'span':
+                first_line_spans += 1
+        
+        num_cols = first_line_spans
+        if num_cols == 0:
+            return None
+        
+        # 从CSS中提取单个像素宽度
+        style_tag = soup.find('style')
+        if not style_tag:
+            return None
+        
+        css_text = style_tag.string
+        sample_pixel_class = pixel_classes[0]
+        
+        # 正则匹配width
+        w_match = re.search(rf'\.{sample_pixel_class}[^}}]*width\s*:\s*(\d+(\.\d+)?)px', css_text)
+        if not w_match:
+            return None
+        
+        old_pixel_w = float(w_match.group(1))
+        
+        # 计算总宽度 = 列数 × 单个像素宽度
+        original_width = num_cols * old_pixel_w
+        
+        logging.debug(f"[get_captcha_original_width] 列数={num_cols}, 像素宽度={old_pixel_w}px, 总宽度={original_width}px")
+        
+        return original_width
+        
+    except Exception as e:
+        logging.error(f"[get_captcha_original_width] 解析失败: {e}")
+        return None
+
+
 def resize_captcha_html(html_content, target_width):
     """
     自动分析并调整像素验证码HTML的大小，保持原始比例。
@@ -11054,9 +11128,11 @@ def resize_captcha_html(html_content, target_width):
     br_count = len(container.find_all('br'))
     num_rows = br_count + 1
     
-    print(f"检测到结构: {num_rows} 行 x {num_cols} 列")
-    print(f"容器类名: {container_class}")
-    print(f"像素类名: {pixel_classes}")
+    # 【移动端验证码缩放】记录验证码结构信息
+    # 使用logging.debug代替print，保持日志一致性
+    logging.debug(f"[resize_captcha_html] 检测到结构: {num_rows} 行 x {num_cols} 列")
+    logging.debug(f"[resize_captcha_html] 容器类名: {container_class}")
+    logging.debug(f"[resize_captcha_html] 像素类名: {pixel_classes}")
 
     # 3. 解析原始样式以获取原始比例
     style_tag = soup.find('style')
@@ -11078,7 +11154,8 @@ def resize_captcha_html(html_content, target_width):
     old_pixel_h = float(h_match.group(1)) if h_match else 16.0
     
     aspect_ratio = old_pixel_h / old_pixel_w
-    print(f"原始像素尺寸: {old_pixel_w}x{old_pixel_h} (比例: {aspect_ratio})")
+    # 【移动端验证码缩放】记录原始像素尺寸
+    logging.debug(f"[resize_captcha_html] 原始像素尺寸: {old_pixel_w}x{old_pixel_h} (比例: {aspect_ratio})")
 
     # 4. 计算新的尺寸
     # 新的单个像素宽度 = 总目标宽度 / 列数
@@ -11090,8 +11167,9 @@ def resize_captcha_html(html_content, target_width):
     # 很多时候容器有 padding，这里我们只计算内容区域高度
     new_container_content_height = new_pixel_h * num_rows
     
-    print(f"新像素尺寸: {new_pixel_w:.2f}x{new_pixel_h:.2f}")
-    print(f"新容器高度: {new_container_content_height:.2f}")
+    # 【移动端验证码缩放】记录调整后的尺寸
+    logging.debug(f"[resize_captcha_html] 新像素尺寸: {new_pixel_w:.2f}x{new_pixel_h:.2f}")
+    logging.debug(f"[resize_captcha_html] 新容器高度: {new_container_content_height:.2f}")
 
     # 5. 修改 CSS (使用正则替换)
     new_css = css_text
@@ -21166,15 +21244,18 @@ def start_web_server(args_param):
     def get_captcha_html_page(captcha_id):
         """
         【CDN缓存修复】获取验证码HTML页面（用于iframe嵌入）
+        【移动端优化】支持动态调整验证码大小
         
         功能说明:
             - 根据captcha_id从存储中读取验证码HTML内容
+            - 【新增】支持width参数，动态调整验证码大小（仅针对移动端）
             - 返回完整的HTML页面（包含完整的HTML文档结构和meta标签）
             - 通过captcha_id作为URL参数，确保每次刷新验证码时URL不同，避免CDN缓存问题
             - 设置强制禁用缓存的HTTP响应头，确保浏览器和CDN都不缓存此页面
         
         参数:
             captcha_id (str): 验证码唯一标识符，通过URL路径传递
+            width (int): 可选，目标宽度（通过URL查询参数传递），仅在移动端需要缩小时使用
         
         返回:
             完整的HTML页面 (text/html)，包含：
@@ -21194,6 +21275,11 @@ def start_web_server(args_param):
             - 不验证session_id，因为iframe加载时可能跨域
             - 验证码ID使用UUID格式，难以猜测
             - 验证码有效期10分钟，过期自动失效
+        
+        注意事项（移动端优化）:
+            - logs/captcha_history 中保存的始终是原始未调整的HTML
+            - 只有返回给客户端的HTML会根据width参数动态调整
+            - 验证码只缩小不放大（width参数大于460时忽略）
         """
         # ========================================
         # 步骤1: 验证captcha_id参数
@@ -21203,6 +21289,52 @@ def start_web_server(args_param):
         if not captcha_id:
             logging.warning("[验证码HTML页面] 请求缺少验证码ID")
             return '<html><body><p style="color: red; text-align: center; padding: 20px;">验证码ID无效</p></body></html>', 400
+        
+        # ========================================
+        # 【移动端优化】步骤1.5: 获取width参数（可选）
+        # 
+        # 功能说明:
+        # - 通过request.args.get获取URL查询参数中的width值
+        # - type=int: 自动将字符串转换为整数，转换失败则返回None
+        # - default=None: 如果参数不存在，默认值为None（表示不需要调整）
+        # 
+        # 使用场景:
+        # - 移动端屏幕宽度不足460px时，前端会传递width参数
+        # - PC端或屏幕足够宽的设备不会传递此参数
+        # 
+        # 原因:
+        # - 后端默认返回460px宽度的验证码（标准尺寸）
+        # - 只有在移动端需要缩小时，才需要动态调整
+        # ========================================
+        target_width = request.args.get('width', type=int, default=None)
+        
+        # ========================================
+        # 【移动端优化】步骤1.6: 验证width参数的有效性
+        # 
+        # 功能说明:
+        # - 检查width参数是否在合理范围内
+        # - 防止无效值（0、负数、过小的值）导致问题
+        # 
+        # 验证规则:
+        # 1. 如果width不为None，必须 > 0
+        # 2. 最小宽度建议为100px（保证验证码可读性）
+        # 3. 最大宽度限制为460px（"只缩小不放大"原则）
+        # 
+        # 错误处理:
+        # - 如果width无效，记录警告日志并设置为None
+        # - 这样会使用原始HTML，确保验证码始终可用
+        # ========================================
+        if target_width is not None:
+            if target_width <= 0:
+                logging.warning(f"[移动端验证码缩放] 无效的width参数: {target_width} (必须 > 0)，使用原始HTML")
+                target_width = None
+            elif target_width < 100:
+                logging.warning(f"[移动端验证码缩放] width参数过小: {target_width} (建议 >= 100)，使用原始HTML")
+                target_width = None
+            elif target_width >= 460:
+                # 这种情况是正常的，不需要调整大小
+                logging.debug(f"[移动端验证码缩放] width参数 >= 460 ({target_width})，使用原始HTML")
+                target_width = None
         
         # ========================================
         # 步骤2: 构建验证码文件路径
@@ -21249,12 +21381,64 @@ def start_web_server(args_param):
             # - 从JSON数据中读取html字段
             # - 这个HTML通常是一个<img>标签，包含base64编码的验证码图片
             # - 如果html字段不存在或为空，返回404错误
+            # 
+            # 【关键】这是从JSON文件读取的原始HTML，不会被修改
+            # - logs/captcha_history 中保存的就是这个原始HTML
+            # - 只有返回给客户端的HTML会根据width参数调整
             # ========================================
             captcha_html_content = captcha_data.get('html', '')
             
             if not captcha_html_content:
                 logging.error(f"[验证码HTML页面] 验证码HTML内容为空: {captcha_id[:8]}...")
                 return '<html><body><p style="color: red; text-align: center; padding: 20px;">验证码内容不可用</p></body></html>', 404
+            
+            # ========================================
+            # 【移动端优化】步骤6.5: 根据width参数动态调整验证码大小
+            # 
+            # 功能说明:
+            # - 只有在提供了width参数且width < 460时才调整
+            # - 使用resize_captcha_html函数进行调整（第11017行定义）
+            # - 如果调整失败，记录错误但继续使用原始HTML（健壮性处理）
+            # 
+            # 关键要点:
+            # 1. 【修正】只缩小不放大：先获取验证码原始宽度，只有当target_width < 原始宽度时才调整
+            #    - 原因：放大会导致验证码图片变模糊
+            #    - 原始宽度可能是460px、480px或其他值，需要动态获取
+            #    - 不能硬编码460px，因为不同验证码宽度不同
+            # 2. 原始HTML不会被修改：
+            #    - captcha_data['html']保持不变
+            #    - 只修改返回给客户端的captcha_html_content变量
+            #    - logs/captcha_history中的HTML始终是原始版本
+            # 3. 错误处理：如果resize失败，使用原始HTML
+            #    - 确保即使调整失败，验证码仍然可以显示
+            #    - 记录错误日志，便于调试
+            # ========================================
+            if target_width is not None:
+                try:
+                    # 【修正】首先获取验证码的原始宽度
+                    # 不能假设是460px，需要从HTML中解析实际宽度
+                    original_width = get_captcha_original_width(captcha_html_content)
+                    
+                    if original_width is None:
+                        # 如果无法解析原始宽度，记录警告但不进行调整
+                        logging.warning(f"[移动端验证码缩放] 无法解析验证码原始宽度，跳过调整: {captcha_id[:8]}...")
+                    elif target_width < original_width:
+                        # 【关键】只在目标宽度小于原始宽度时才缩放
+                        # 原因：只缩小不放大，避免图片模糊
+                        logging.info(f"[移动端验证码缩放] 调整验证码大小: {captcha_id[:8]}... 原始={original_width}px → 目标={target_width}px")
+                        # 调用resize_captcha_html函数调整HTML
+                        # 注意：这里修改的是captcha_html_content变量，不影响原始数据
+                        captcha_html_content = resize_captcha_html(captcha_html_content, target_width)
+                        logging.info(f"[移动端验证码缩放] 验证码调整成功")
+                    else:
+                        # 目标宽度 >= 原始宽度，不进行调整（只缩小不放大）
+                        logging.info(f"[移动端验证码缩放] 目标宽度({target_width}px) >= 原始宽度({original_width}px)，保持原始大小")
+                        
+                except Exception as resize_error:
+                    # 如果调整失败，记录错误但继续使用原始HTML
+                    # 这确保了即使resize_captcha_html函数出错，验证码仍然可以显示
+                    logging.error(f"[移动端验证码缩放] 调整失败: {resize_error}，使用原始HTML")
+                    # 不修改captcha_html_content，继续使用原始HTML
             
             # ========================================
             # 步骤7: 构建完整的HTML5页面
