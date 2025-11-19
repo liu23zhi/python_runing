@@ -19934,10 +19934,31 @@
           return uuidPattern.test(uuid);
         }
 
+        // 【移动端加载遮罩管理】显示移动端加载遮罩
+        function showMobileLoadingOverlay() {
+          const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+          if (mobileLoadingOverlay) {
+            mobileLoadingOverlay.classList.remove('hidden');
+            console.log('[加载遮罩] 显示移动端加载遮罩');
+          }
+        }
+
+        // 【移动端加载遮罩管理】隐藏移动端加载遮罩
+        function hideMobileLoadingOverlay() {
+          const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+          if (mobileLoadingOverlay) {
+            mobileLoadingOverlay.classList.add('hidden');
+            console.log('[加载遮罩] 隐藏移动端加载遮罩');
+          }
+        }
+
         // 隐藏加载覆盖层的通用函数
+        // 【修复】同时隐藏PC端和移动端的加载遮罩
         function hideLoadingOverlays() {
           $('loading-overlay').classList.add('hidden');
           $('cdn-error-overlay').classList.add('hidden');
+          // 【修复】同时隐藏移动端加载遮罩
+          hideMobileLoadingOverlay();
         }
 
         // 显示用户友好的错误提示
@@ -19951,7 +19972,11 @@
           });
         }
 
+        // 【修复】根据设备类型显示对应的加载遮罩
         $('loading-overlay').classList.remove('hidden');
+        if (isMobileMode) {
+          showMobileLoadingOverlay();
+        }
 
         // 检测Web模式并提取UUID
 
@@ -20813,11 +20838,17 @@
         }
 
         // 【修复】移动端页面刷新后恢复任务执行状态
+        // 延迟执行，确保页面完全加载后再恢复状态
         if (isMobileMode) {
-          setTimeout(() => restoreMobileTaskState(), 1000);
+          setTimeout(() => {
+            restoreMobileTaskState();
+            // 【修复】确保在页面完全加载后隐藏移动端加载遮罩
+            hideMobileLoadingOverlay();
+          }, 1000);
         }
       } catch (err) {
-        hideModal('loading-overlay');
+        // 【修复】发生错误时，确保隐藏所有加载遮罩
+        hideLoadingOverlays();
         showModalAlert('服务器无法连接，请检查网络或稍后重试。', '网络错误');
         IS_OFFLINE = true;
       }
