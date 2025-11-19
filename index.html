@@ -31589,54 +31589,7 @@ function renderMultiAccountList(accounts) {
       }
     }
 
-    /**
-         * 显示验证码详细信息（已废弃，保留兼容性）
-         * 功能：在模态框中展示验证码的完整信息
-         * 参数：
-         * captchaId: 验证码ID
-         * 说明：
-         * - 此函数已废弃，因为验证码历史功能已被验证码设置功能替代
-         * - 保留此函数以避免其他地方的引用报错
-         */
-          itemDiv.className = 'p-3 bg-white border border-slate-200 rounded-lg hover:shadow-md transition-shadow';
-          itemDiv.innerHTML = `
-            <div class="flex justify-between items-start mb-2">
-              <div class="flex-1">
-                <div class="flex items-center gap-2 mb-1">
-                  <span class="font-mono text-sm text-slate-600">ID: ${record.captcha_id}</span>
-                  <span class="px-2 py-0.5 text-xs rounded ${statusClass}">${statusText}</span>
-                </div>
-                <div class="text-xs text-slate-500 space-y-0.5">
-                  <div>验证码: <span class="font-semibold text-slate-700">${record.code}</span></div>
-                  <div>创建时间: ${record.timestamp_readable || new Date(record.timestamp * 1000).toLocaleString('zh-CN')}</div>
-                  ${record.verified_at_readable ? `<div>验证时间: ${record.verified_at_readable}</div>` : ''}
-                  ${record.verified_input ? `<div>用户输入: <span class="${record.status === 'verified_success' ? 'text-green-600' : 'text-red-600'} font-semibold">${record.verified_input}</span></div>` : ''}
-                  <div>客户端IP: ${record.client_ip || 'N/A'}</div>
-                </div>
-              </div>
-              <button onclick="showCaptchaDetail('${record.captcha_id}')" 
-                class="text-sm text-blue-600 hover:text-blue-800 ml-2">
-                查看详情
-              </button>
-            </div>
-            ${record.html ? `
-              <div class="mt-2 pt-2 border-t border-slate-100">
-                <div class="text-xs text-slate-500 mb-1">验证码图片:</div>
-                <div class="flex items-center justify-center bg-slate-50 p-2 rounded">
-                  ${record.html}
-                </div>
-              </div>
-            ` : ''}
-          `;
-          listContainer.appendChild(itemDiv);
-        });
-
-        console.log(`[验证码历史] 已加载 ${records.length} 条记录`);
-      } catch (e) {
-        console.error('[验证码历史] 加载失败:', e);
-        listContainer.innerHTML = `<p class="text-red-500 text-center py-10">加载验证码历史时发生错误: ${e.message}</p>`;
-      }
-    }
+    
 
     /**
          * 显示验证码详细信息
