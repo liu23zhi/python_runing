@@ -353,7 +353,10 @@ def check_and_import_dependencies():
          'cssutils'),
          ('cryptography (SSL/加密)',
          'import cryptography',
-         'cryptography')
+         'cryptography'),
+        ('BeautifulSoup (HTML解析)',
+         'from bs4 import BeautifulSoup',
+         'beautifulsoup4')
     ]
     
     failed_imports = []
@@ -11011,6 +11014,125 @@ def restore_session_to_api_instance(api_instance, state):
         logging.error(f"恢复会话状态失败: {e}", exc_info=True)
 
 
+def resize_captcha_html(html_content, target_width):
+    """
+    自动分析并调整像素验证码HTML的大小，保持原始比例。
+    
+    :param html_content: 原始 HTML 字符串
+    :param target_width: 想要修改成的总宽度 (int 或 float)
+    :return: 修改后的 HTML 字符串
+    """
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # 1. 获取容器 DIV 和 像素 SPAN 的类名
+    container = soup.find('div')
+    if not container:
+        return "Error: 无法找到容器 div"
+    
+    container_class = container.get('class')[0]
+    
+    # 获取容器内的所有 span 类名 (通常有两个，一个黑色一个白色)
+    spans = container.find_all('span')
+    if not spans:
+        return "Error: 无法找到像素 span"
+        
+    # 使用 set 去重，获取所有像素点的类名 (例如 xccpid, xzcnqt)
+    pixel_classes = list(set([s.get('class')[0] for s in spans if s.get('class')]))
+    
+    # 2. 计算网格维度 (列数和行数)
+    # 计算列数: 统计第一个 <br> 之前有多少个 span
+    first_line_spans = 0
+    for child in container.contents:
+        if child.name == 'br':
+            break
+        if child.name == 'span':
+            first_line_spans += 1
+            
+    num_cols = first_line_spans
+    
+    # 计算行数: <br> 的数量 + 1
+    br_count = len(container.find_all('br'))
+    num_rows = br_count + 1
+    
+    print(f"检测到结构: {num_rows} 行 x {num_cols} 列")
+    print(f"容器类名: {container_class}")
+    print(f"像素类名: {pixel_classes}")
+
+    # 3. 解析原始样式以获取原始比例
+    style_tag = soup.find('style')
+    if not style_tag:
+        return "Error: 找不到 <style> 标签"
+    
+    css_text = style_tag.string
+    
+    # 尝试从 CSS 中提取原始像素的宽和高 (匹配类似 width:10px;height:16px)
+    # 我们随便找一个像素类名来匹配
+    sample_pixel_class = pixel_classes[0]
+    
+    # 正则匹配 width 和 height
+    # 注意：CSS 可能是压缩的，也可能有空格
+    w_match = re.search(rf'\.{sample_pixel_class}[^}}]*width\s*:\s*(\d+(\.\d+)?)px', css_text)
+    h_match = re.search(rf'\.{sample_pixel_class}[^}}]*height\s*:\s*(\d+(\.\d+)?)px', css_text)
+    
+    old_pixel_w = float(w_match.group(1)) if w_match else 10.0
+    old_pixel_h = float(h_match.group(1)) if h_match else 16.0
+    
+    aspect_ratio = old_pixel_h / old_pixel_w
+    print(f"原始像素尺寸: {old_pixel_w}x{old_pixel_h} (比例: {aspect_ratio})")
+
+    # 4. 计算新的尺寸
+    # 新的单个像素宽度 = 总目标宽度 / 列数
+    new_pixel_w = target_width / num_cols
+    # 新的单个像素高度 = 新宽度 * 原始比例
+    new_pixel_h = new_pixel_w * aspect_ratio
+    
+    # 容器的新总高度 (加上一点余量防止溢出，或者严格计算)
+    # 很多时候容器有 padding，这里我们只计算内容区域高度
+    new_container_content_height = new_pixel_h * num_rows
+    
+    print(f"新像素尺寸: {new_pixel_w:.2f}x{new_pixel_h:.2f}")
+    print(f"新容器高度: {new_container_content_height:.2f}")
+
+    # 5. 修改 CSS (使用正则替换)
+    new_css = css_text
+
+    # A. 修改所有像素类 (.xccpid, .xzcnqt) 的 width 和 height
+    for p_class in pixel_classes:
+        # 替换宽度
+        new_css = re.sub(
+            rf'(\.{p_class}[^}}]*width\s*:\s*)(\d+(\.\d+)?)px', 
+            rf'\g<1>{new_pixel_w:.2f}px', 
+            new_css
+        )
+        # 替换高度
+        new_css = re.sub(
+            rf'(\.{p_class}[^}}]*height\s*:\s*)(\d+(\.\d+)?)px', 
+            rf'\g<1>{new_pixel_h:.2f}px', 
+            new_css
+        )
+
+    # B. 修改容器类 (.jmkbduucjejr) 的 height 和 line-height
+    # 修改容器 height (注意：原始代码可能有 height: 140px)
+    new_css = re.sub(
+        rf'(\.{container_class}[^}}]*height\s*:\s*)(\d+(\.\d+)?)px',
+        rf'\g<1>{new_container_content_height:.2f}px',
+        new_css
+    )
+    
+    # 修改容器 line-height (必须等于像素高度，否则会有缝隙)
+    new_css = re.sub(
+        rf'(\.{container_class}[^}}]*line-height\s*:\s*)(\d+(\.\d+)?)px',
+        rf'\g<1>{new_pixel_h:.2f}px',
+        new_css
+    )
+
+
+    # 6. 将新的 CSS 写回 HTML
+    style_tag.string = new_css
+    
+    return str(soup)
+
+
 def load_all_sessions(args):
     """启动时加载所有持久化会话"""
     if not os.path.exists(SESSION_STORAGE_DIR):
@@ -20869,6 +20991,8 @@ def start_web_server(args_param):
                 captcha_api_url = f'https://api.vore.top/api/VerifyCode?key={api_key}&length=4'
             else:
                 captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
+
+            logging.debug(f"[验证码API] 请求URL: {captcha_api_url}")
             
             # 发送GET请求获取验证码，设置5秒超时
             response = requests.get(captcha_api_url, timeout=5)
@@ -21147,12 +21271,13 @@ def start_web_server(args_param):
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- 【CDN缓存修复】禁用缓存的meta标签，确保验证码每次都是最新的 -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>验证码</title>
+    <title>跑步助手图形化验证码</title>
     <style>
         /* 【CDN缓存修复】响应式样式，确保验证码在iframe中正确显示 */
         body {{

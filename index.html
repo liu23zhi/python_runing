@@ -10023,8 +10023,11 @@
      */
     function initializeMobileUI() {
       console.log('[移动端UI] 初始化移动端UI功能 (重构版)');
+      // 显示加载遮罩（使用安全的 DOM 访问）
+      const loadingOverlayEl = document.getElementById('loading-overlay');
+      if (loadingOverlayEl) loadingOverlayEl.classList.remove('hidden');
 
-      // === 1. Helper function for tab switching ===
+      
       function showMobileAuthForm(formToShow) {
         // 获取所有相关的DOM元素
         // loginTab, registerTab: 顶部的标签页切换按钮
@@ -10378,6 +10381,7 @@
 
             // 【修复】添加UI反馈：禁用按钮并显示加载状态
             mobileSingleLoginBtn.disabled = true;
+            
             const originalText = mobileSingleLoginBtn.textContent;
             mobileSingleLoginBtn.textContent = '登录中...';
             
@@ -10392,11 +10396,12 @@
 
             logMessage_Info('[移动端UI] 触发单账号（学校）登录...');
 
+            let result_mobile_login = false;
             // 调用桌面端的 onLogin 函数
-            await onLogin();
+            await result_mobile_login==onLogin();
 
             // onLogin 成功后，显示移动端主应用界面
-            if (isMobileMode) {
+            if (result_mobile_login) {
               // 隐藏桌面端的main-app
               const desktopMainApp = document.getElementById('main-app');
               if (desktopMainApp && !desktopMainApp.classList.contains('hidden')) {
@@ -10431,13 +10436,23 @@
               if (typeof mobileRefreshNotifications === 'function') {
                 await mobileRefreshNotifications();
               }
+            } else {
+              // 登录失败
+              // showMobileMessage('登录失败，请检查用户名和密码', 'error');
+              // 恢复按钮状态并隐藏加载遮罩
+              mobileSingleLoginBtn.disabled = false;
+            mobileSingleLoginBtn.textContent = originalText;
+            const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+            if (mobileLoadingOverlay) {
+              mobileLoadingOverlay.classList.add('hidden');
+            }
             }
           } catch (e) {
             logMessage_Error("代理[学校登录]失败:", e);
             showMobileMessage('学校登录时发生内部错误', 'error');
             // 【修复】恢复按钮状态并隐藏加载遮罩
             mobileSingleLoginBtn.disabled = false;
-            mobileSingleLoginBtn.textContent = originalText;
+            mobileSingleLoginBtn.textContent = "登录";
             const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
             if (mobileLoadingOverlay) {
               mobileLoadingOverlay.classList.add('hidden');
@@ -10568,7 +10583,7 @@
 
 
 
-
+    if (loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
 
       console.log('[移动端UI] 移动端UI初始化完成');
     }
@@ -19927,6 +19942,34 @@
 
     // --- 初始化 ---
     async function initializeApp() {
+      
+      function ShowMobileLoadingOverlay() {
+        const isMobile = detectMobileDevice();
+        if (isMobile) {
+          $('mobile-loading-overlay').classList.remove('hidden');
+        }
+      }
+
+      function HiddenMobileLoadingOverlay() {
+
+        $('mobile-loading-overlay').classList.add('hidden');
+      }
+
+      function ShowLoadingOverlay() {
+        const isMobile = detectMobileDevice();
+        if (!isMobile) {
+          $('loading-overlay').classList.remove('hidden');
+        }
+      }
+
+      function HiddenLoadingOverlay() {
+
+        $('loading-overlay').classList.add('hidden');
+      }
+      
+      ShowLoadingOverlay();
+      ShowMobileLoadingOverlay();
+
       try {
         // UUID格式验证函数 - 验证是否符合标准的UUID v4格式
         function isValidUUID(uuid) {
@@ -19984,6 +20027,7 @@
         // 使用标准UUID v4格式的正则表达式
         const match = urlPath.match(/\/uuid=([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/i);
 
+        ShowLoadingOverlay();
         if (match) {
           // 情况2：访问含UUID的网址
           sessionUUID = match[1];
@@ -19991,6 +20035,7 @@
           // 验证UUID格式
           if (!isValidUUID(sessionUUID)) {
 
+            hideLoadingOverlays();
             hideLoadingOverlays();
             logMessage_Error('无效的UUID格式:', sessionUUID);
 
@@ -20018,6 +20063,7 @@
 
           }
           $('loading-overlay').classList.remove('hidden');
+          ShowLoadingOverlay();
           logMessage_Info('Web模式: 检测到有效UUID =', sessionUUID);
           let result = null;
           // 检查UUID类型
@@ -20233,6 +20279,7 @@
           logMessage_Info('Web模式: 未检测到UUID，显示认证登录页面');
           //移除加载提示
           hideLoadingOverlays();
+          HiddenMobileLoadingOverlay();
 
           // 显示认证登录界面，等待用户登录/游客模式
           if (isMobileMode) {
@@ -20251,6 +20298,7 @@
         }
 
         $('loading-overlay').classList.remove('hidden');
+        ShowMobileLoadingOverlay();
 
         // 检查认证状态
         const isAuthenticated = await checkAuthStatus();
@@ -20260,6 +20308,7 @@
 
         if (!isAuthenticated) {
           hideLoadingOverlays(); // 认证失败时隐藏加载遮挡
+          HiddenMobileLoadingOverlay();
 
           if (isMobileMode) {
             // 移动端：显示移动端认证页，并隐藏导航栏
@@ -20278,6 +20327,7 @@
           return; // 停止初始化，等待认证
         }
         $('loading-overlay').classList.remove('hidden');
+        ShowMobileLoadingOverlay();
 
         // 认证成功，继续初始化
         // hideLoadingOverlays();
@@ -20367,6 +20417,7 @@
         const hasLoadedTasks = sessionModeInfo && sessionModeInfo.has_tasks;
 
         $('loading-overlay').classList.remove('hidden');
+        ShowMobileLoadingOverlay();
 
         resetUI();
 
@@ -20394,6 +20445,7 @@
           }
 
           hideLoadingOverlays();
+          HiddenMobileLoadingOverlay();
           // 确保API Key已配置并加载地图（多账号模式也需要地图）
           AMAP_API_KEY = initialData.amap_key || "";
           if (AMAP_API_KEY) {
@@ -20404,11 +20456,9 @@
             }
           }
           $('loading-overlay').classList.remove('hidden');
+          ShowMobileLoadingOverlay();
 
-          // 隐藏登录界面和认证界面
-          $('auth-login-container').classList.add('hidden');
-          $('login-container').classList.add('hidden');
-
+          
           // [修复] 根据设备类型显示对应的多账号界面
           if (isMobileMode) {
             // 移动端：显示mobile-multi-account-app，隐藏mobile-login-container和mobile-auth-login-container
@@ -20495,6 +20545,10 @@
             } catch (e) {
               logMessage_Error('初始化多账号地图失败:', e);
             }
+          // 隐藏登录界面和认证界面
+          $('auth-login-container').classList.add('hidden');
+          $('login-container').classList.add('hidden');
+
           }
 
           // 初始化配置用户下拉列表
@@ -20572,6 +20626,7 @@
           startMultiAccountAutoRefresh(10000);
 
           hideLoadingOverlays();
+          HiddenMobileLoadingOverlay();
           // return; // 提前返回，不执行后续单账号模式的逻辑
         }
 
@@ -22159,11 +22214,13 @@
         if (adminBtnLogin) adminBtnLogin.classList.remove('hidden');
         $('loading-overlay').classList.add('hidden');
         logMessage_Info('[前端-登录] ✓ 登录流程完成！');
+        return true;
       } else {
         logMessage_Info(`[前端-登录] ✗ 登录失败: ${result.message}`);
         setButtonLoading('login-button', false);
         showButtonError('login-button', '登录失败');
         showModalAlert(result.message, '登录失败');
+        return false;
       }
     }
 
@@ -23754,18 +23811,31 @@ function renderMultiAccountList(accounts) {
 
     $('multi-account-list').addEventListener('change', (event) => { if (event.target.classList.contains('account-checkbox')) { updateSelectAllCheckboxState(); } });
 
-    async function multi_removeAll() {
-      const confirmed = await jsShowConfirm('确认操作', '确定要移除列表中的所有账号吗？此操作不可撤销。');
+    async function multi_removeAll(confirm = false) {
+      if (!confirm) {
+        logMessage_Info('准备移除列表中的所有账号');
+        const confirmed = await jsShowConfirm('确认操作', '确定要移除列表中的所有账号吗？此操作不可撤销。');
+      } else {
+        logMessage_Info('移除列表中的所有账号');
+        const confirmed = true;
+      }
+      
       if (confirmed) {
         const result = await callPythonAPI('multi_remove_all_accounts');
         if (result && result.accounts) renderMultiAccountList(result.accounts);
       }
     }
 
-    async function multi_removeSelected() {
+    async function multi_removeSelected(confirm = false) {
       const selectedUsernames = Array.from(document.querySelectorAll('.account-checkbox:checked')).map(cb => cb.closest('[data-username]').dataset.username);
       if (selectedUsernames.length === 0) { showModalAlert("请至少选择一个要移除的账号。"); return; }
-      const confirmed = await jsShowConfirm('确认操作', `确定要移除选中的 ${selectedUsernames.length} 个账号吗？`);
+      if (!confirm) {
+        logMessage_Info(`准备移除选中的账号: ${selectedUsernames.join(', ')}`);
+        const confirmed = await jsShowConfirm('确认操作', `确定要移除选中的 ${selectedUsernames.length} 个账号吗？`);
+      } else {
+        logMessage_Info(`移除选中的账号: ${selectedUsernames.join(', ')}`);
+        const confirmed = true;
+      }
       if (confirmed) {
         const result = await callPythonAPI('multi_remove_selected_accounts', selectedUsernames);
         if (result && result.accounts) renderMultiAccountList(result.accounts);
@@ -33302,7 +33372,7 @@ function renderMultiAccountList(accounts) {
             try {
               // 调用PC端的删除选中账号函数
               if (typeof multi_removeSelected === 'function') {
-                await multi_removeSelected();
+                await multi_removeSelected(true);
                 showTempMessage('已删除选中账号', 'success');
                 // 刷新账号列表
                 await mobileRefreshMultiAccounts();
@@ -33338,8 +33408,8 @@ function renderMultiAccountList(accounts) {
           async () => {
             try {
               // 调用PC端的删除所有账号函数
-              if (typeof multi_clearAll === 'function') {
-                await multi_clearAll();
+              if (typeof multi_removeAll === 'function') {
+                await multi_removeAll(true);
                 showTempMessage('已删除所有账号', 'success');
                 // 刷新账号列表
                 await mobileRefreshMultiAccounts();
