@@ -22407,7 +22407,7 @@ def start_web_server(args_param):
     
     # 打印启动信息
     print(f"\n{'='*60}")
-    print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染，2048位UUID）")
+    print(f"  跑步助手 Web 模式已启动")
     print(f"  访问地址: {server_url}")
     if ssl_config.get('ssl_enabled', False):
         print(f"  SSL/HTTPS: 已启用 ✓")
