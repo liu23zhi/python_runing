@@ -21087,10 +21087,10 @@ def start_web_server(args_param):
     @app.route('/api/captcha/get', methods=['GET'])
     def get_captcha():
         """
-        获取验证码接口
+        获取验证码接口 【本地验证码生成器】
         
         功能说明:
-            - 从第三方API (https://api.vore.top/api/VerifyCode) 获取验证码图片HTML和答案
+            - 使用本地MicroPixelCaptcha生成器生成验证码（替代不稳定的第三方API）
             - 生成唯一的验证码ID，将ID和答案存储在JSON文件中
             - 返回验证码的HTML内容和验证码ID给前端显示
         
@@ -21119,51 +21119,43 @@ def start_web_server(args_param):
             }), 401
         
         try:
-            # 调用第三方验证码API
-            # length=4 表示生成4位验证码
-            # 从 config.ini 读取 API 密钥
+            # 【本地验证码生成器】读取配置参数
             config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
-            api_key = ''
+            length = 4  # 默认4位验证码
+            scale_factor = 2  # 默认细分倍数为2
+            noise_level = 0.08  # 默认噪点比例0.08
+            
             if os.path.exists(config_file):
                 try:
                     cfg = configparser.ConfigParser()
                     cfg.read(config_file, encoding='utf-8')
-                    api_key = cfg.get('API', 'captcha_api_key', fallback='')
+                    # 从[Captcha]节读取参数
+                    length = int(cfg.get('Captcha', 'length', fallback='4'))
+                    scale_factor = int(cfg.get('Captcha', 'scale_factor', fallback='2'))
+                    noise_level = float(cfg.get('Captcha', 'noise_level', fallback='0.08'))
+                    logging.debug(f"[本地验证码] 从config.ini读取参数: length={length}, scale_factor={scale_factor}, noise_level={noise_level}")
                 except Exception as e:
-                    logging.debug(f"[验证码] 读取配置文件失败: {e}")
+                    logging.warning(f"[本地验证码] 读取配置文件失败，使用默认值: {e}")
             
-            if api_key and api_key != '' and api_key != 'your_api_key_here':
-                captcha_api_url = f'https://api.vore.top/api/VerifyCode?key={api_key}&length=4'
-            else:
-                captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
-
-            logging.debug(f"[验证码API] 请求URL: {captcha_api_url}")
+            # 【本地验证码生成器】导入并使用本地生成器
+            from get_captchas import MicroPixelCaptcha
+            generator = MicroPixelCaptcha()
             
-            # 发送GET请求获取验证码，设置5秒超时
-            response = requests.get(captcha_api_url, timeout=5)
+            # 生成验证码（返回验证码答案和HTML）
+            captcha_code, captcha_html = generator.generate(
+                length=length,
+                scale_factor=scale_factor,
+                noise_level=noise_level
+            )
             
-            # 解析返回的JSON数据
-            result = response.json()
-            
-            # 检查API返回状态码
-            if result.get('code') != 200:
-                logging.error(f"[验证码API] 获取失败: {result.get('msg', '未知错误')}")
-                return jsonify({
-                    "success": False,
-                    "message": "验证码服务暂时不可用，请稍后重试"
-                }), 500
-            
-            # 提取验证码数据
-            data = result.get('data', {})
-            captcha_html = data.get('html', '')  # 验证码图片的HTML内容
-            captcha_code = data.get('code', '')  # 验证码答案
+            logging.debug(f"[本地验证码] 已生成验证码，长度={length}，答案={captcha_code}")
             
             # 验证数据完整性
             if not captcha_html or not captcha_code:
-                logging.error(f"[验证码API] 返回数据不完整: html={bool(captcha_html)}, code={bool(captcha_code)}")
+                logging.error(f"[本地验证码] 生成数据不完整: html={bool(captcha_html)}, code={bool(captcha_code)}")
                 return jsonify({
                     "success": False,
-                    "message": "验证码数据获取失败"
+                    "message": "验证码生成失败"
                 }), 500
             
             # 生成唯一的验证码ID
@@ -21270,7 +21262,7 @@ def start_web_server(args_param):
             threading.Thread(target=cleanup_expired_captchas, daemon=True).start()
             
             # 记录日志（不记录验证码答案）
-            logging.info(f"[验证码] 已生成验证码 ID: {captcha_id[:8]}... 会话: {session_id[:8]}...")
+            logging.info(f"[本地验证码] 已生成验证码 ID: {captcha_id[:8]}... 会话: {session_id[:8]}... 长度: {length}")
             
             # 返回验证码HTML和ID给前端
             return jsonify({
@@ -21279,32 +21271,28 @@ def start_web_server(args_param):
                 "captcha_id": captcha_id
             })
             
-        except requests.exceptions.Timeout:
-            logging.warning(f"[验证码API] 请求超时")
+        except ImportError as e:
+            # 【本地验证码生成器】无法导入get_captchas模块
+            logging.error(f"[本地验证码] 导入MicroPixelCaptcha失败: {str(e)}")
             return jsonify({
                 "success": False,
-                "message": "验证码服务响应超时，请重试"
+                "message": "验证码生成器加载失败"
             }), 500
             
-        except requests.exceptions.RequestException as e:
-            logging.error(f"[验证码API] 网络请求失败: {str(e)}")
+        except (ValueError, KeyError, TypeError) as e:
+            # 【本地验证码生成器】数据处理错误
+            logging.error(f"[本地验证码] 数据处理失败: {str(e)}")
             return jsonify({
                 "success": False,
-                "message": "网络错误，无法获取验证码"
-            }), 500
-            
-        except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
-            logging.error(f"[验证码API] 数据解析失败: {str(e)}")
-            return jsonify({
-                "success": False,
-                "message": "验证码数据解析错误"
+                "message": "验证码数据处理错误"
             }), 500
             
         except Exception as e:
-            logging.error(f"[验证码API] 未知错误: {str(e)}", exc_info=True)
+            # 【本地验证码生成器】其他未知错误
+            logging.error(f"[本地验证码] 未知错误: {str(e)}", exc_info=True)
             return jsonify({
                 "success": False,
-                "message": "获取验证码时发生错误"
+                "message": "生成验证码时发生错误"
             }), 500
     
     @app.route('/api/captcha/html/<captcha_id>', methods=['GET'])
