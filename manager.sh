@@ -5,11 +5,14 @@
 # 1. screen 会话的英文名称
 SESSION_NAME="zis_runner_helper"
 
-# 2. 临时的 screen 配置文件路径 (用于添加顶部提示栏)
-SCREEN_RC_FILE="./${SESSION_NAME}.screenrc"
 
+# 获取脚本文件所在的绝对路径
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# 2. 临时的 screen 配置文件路径 (用于添加顶部提示栏)
+SCREEN_RC_FILE="${SCRIPT_DIR}/${SESSION_NAME}.screenrc"
 # 3. 你想在后台运行的实际命令 
-COMMAND_TO_RUN="./start.sh --port 80 --host 0.0.0.0"
+COMMAND_TO_RUN="${SCRIPT_DIR}/start.sh --port 443 --host 0.0.0.0"
 
 # --- 脚本正文 ---
 
