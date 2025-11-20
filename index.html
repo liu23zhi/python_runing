@@ -23195,6 +23195,54 @@
       // self.log("已进入多账号模式。")
       updateMultiGlobalButtons(true, true); // 初始禁用，后端很快会根据真实状态刷新
 
+      // 【添加"仅执行未完成"复选框的事件监听器】
+      // 功能说明：当用户切换"仅执行未完成"复选框状态时，自动更新所有账号的状态文本
+      // 设计原因：
+      // 1. 该复选框影响任务的过滤逻辑（是否只统计未完成任务）
+      // 2. 状态文本（如"有3个任务可执行"）需要根据复选框状态实时更新
+      // 3. 提供即时的视觉反馈，让用户清楚地看到不同设置下的任务情况
+      
+      // 【步骤1】为桌面端的"仅执行未完成"复选框添加change事件监听器
+      const desktopCheckbox = document.getElementById('multi-run-only-incomplete-check');
+      if (desktopCheckbox) {
+        // 【步骤1.1】移除可能存在的旧事件监听器，避免重复绑定
+        // 使用命名函数的好处：可以通过函数引用来移除监听器
+        // 如果不移除旧监听器，每次进入多账号模式都会添加一个新监听器，导致一次操作触发多次更新
+        desktopCheckbox.removeEventListener('change', updateAllAccountsStatusText);
+        
+        // 【步骤1.2】添加新的change事件监听器
+        // change事件：当复选框的选中状态发生改变时触发
+        // updateAllAccountsStatusText函数：异步更新所有账号的状态文本并重新渲染
+        desktopCheckbox.addEventListener('change', updateAllAccountsStatusText);
+        
+        // 【步骤1.3】记录日志，便于调试
+        console.log('[事件监听器] 已为桌面端"仅执行未完成"复选框绑定change事件');
+      } else {
+        // 【步骤1.4】如果找不到桌面端复选框元素，记录警告日志
+        console.warn('[事件监听器] 未找到桌面端"仅执行未完成"复选框 (multi-run-only-incomplete-check)');
+      }
+      
+      // 【步骤2】为移动端的"仅执行未完成"复选框添加change事件监听器
+      // 移动端和桌面端有各自独立的复选框元素，需要分别绑定事件
+      const mobileCheckbox = document.getElementById('mobile-multi-only-incomplete-check');
+      if (mobileCheckbox) {
+        // 【步骤2.1】移除可能存在的旧事件监听器
+        // 原理同上，确保不会重复绑定
+        mobileCheckbox.removeEventListener('change', updateAllAccountsStatusText);
+        
+        // 【步骤2.2】添加新的change事件监听器
+        // 移动端和桌面端使用相同的处理函数updateAllAccountsStatusText
+        // 因为更新逻辑是一样的：重新计算所有账号的状态文本并刷新界面
+        mobileCheckbox.addEventListener('change', updateAllAccountsStatusText);
+        
+        // 【步骤2.3】记录日志
+        console.log('[事件监听器] 已为移动端"仅执行未完成"复选框绑定change事件');
+      } else {
+        // 【步骤2.4】如果找不到移动端复选框元素，记录警告日志
+        // 注意：移动端元素可能在某些页面布局中不存在，这是正常情况
+        console.warn('[事件监听器] 未找到移动端"仅执行未完成"复选框 (mobile-multi-only-incomplete-check)');
+      }
+
       // 【多账号自动刷新】启动定时自动刷新账号列表
       // 原因：用户进入多账号模式后，需要实时查看账号的任务状态、进度等信息
       // 设置10秒刷新间隔，平衡实时性和服务器负载
@@ -23845,6 +23893,91 @@
       }
     }
 
+    /**
+     * 更新所有账号的状态文本（status_text）
+     * 
+     * 功能说明：
+     * - 从后端获取最新的账号列表数据
+     * - 根据"仅执行未完成"复选框的状态和ignore_task_time参数
+     * - 重新计算每个账号的status_text（可执行任务数量）
+     * - 最后调用renderMultiAccountList重新渲染界面
+     * 
+     * 使用场景：
+     * - 当用户切换"仅执行未完成"复选框时
+     * - 需要刷新所有账号的状态显示时
+     * 
+     * @returns {Promise<void>} 异步函数，无返回值
+     */
+    async function updateAllAccountsStatusText() {
+      try {
+        // 【步骤1】记录日志，便于调试和问题追踪
+        console.log('[更新账号状态] 开始更新所有账号的状态文本...');
+        
+        // 【步骤2】从后端API获取所有账号的最新数据
+        // multi_get_all_accounts_status 会返回包含accounts数组的对象
+        // accounts数组中的每个账号对象包含username、name、tasks等信息
+        const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
+        
+        // 【步骤3】验证后端返回的数据是否有效
+        // 如果返回结果为空、没有accounts属性，或accounts不是数组，则提前返回
+        if (!accountsResult || !accountsResult.accounts || !Array.isArray(accountsResult.accounts)) {
+          console.warn('[更新账号状态] 获取账号列表失败或列表为空，无法更新状态文本');
+          return; // 提前退出，不进行后续处理
+        }
+        
+        // 【步骤4】获取"仅执行未完成"复选框的当前状态
+        // 从桌面端的复选框读取状态（checked属性为true表示勾选）
+        // 如果元素不存在，使用空值合并操作符(??)设置默认值为false
+        const onlyIncompleteCheckbox = document.getElementById('multi-run-only-incomplete-check');
+        const onlyIncomplete = onlyIncompleteCheckbox?.checked ?? false;
+        
+        // 【步骤5】获取ignore_task_time参数的值
+        // 该参数控制是否忽略任务的具体时间，只比对日期
+        // pythonParams是全局参数对象，存储了从后端获取的所有配置参数
+        // 如果参数不存在，默认为false（即默认需要检查完整的日期和时间）
+        const ignoreTaskTime = pythonParams.ignore_task_time ?? false;
+        
+        // 【步骤6】记录当前使用的参数值，方便调试
+        console.log(`[更新账号状态] 参数设置 - 仅未完成: ${onlyIncomplete}, 忽略任务时间: ${ignoreTaskTime}`);
+        
+        // 【步骤7】遍历所有账号，重新计算每个账号的status_text
+        // forEach会对accounts数组中的每个元素执行一次回调函数
+        accountsResult.accounts.forEach(account => {
+          // 【步骤7.1】调用calculateStatusText函数计算账号的状态文本
+          // 该函数会根据账号的任务列表、onlyIncomplete和ignoreTaskTime参数
+          // 计算出当前有多少个任务可以执行，返回类似"有3个任务可执行"或"无任务可执行"的文本
+          const newStatusText = calculateStatusText(account, onlyIncomplete, ignoreTaskTime);
+          
+          // 【步骤7.2】将计算得到的新状态文本赋值给账号对象的status_text属性
+          // 这样后续渲染时就会显示更新后的状态
+          account.status_text = newStatusText;
+          
+          // 【步骤7.3】记录详细的更新日志（仅在开发调试时有用）
+          // 可以看到每个账号的用户名和计算出的新状态文本
+          console.log(`[更新账号状态] ${account.username} -> ${newStatusText}`);
+        });
+        
+        // 【步骤8】调用renderMultiAccountList函数重新渲染账号列表
+        // 该函数会将更新后的账号数据渲染到桌面端和移动端的界面上
+        // 用户可以立即看到更新后的状态文本
+        renderMultiAccountList(accountsResult.accounts);
+        
+        // 【步骤9】记录成功日志
+        console.log(`[更新账号状态] 状态文本更新完成，共更新 ${accountsResult.accounts.length} 个账号`);
+        
+      } catch (error) {
+        // 【步骤10】捕获并记录任何错误
+        // 可能的错误包括：网络请求失败、数据格式错误、函数调用异常等
+        // 使用console.error确保错误信息在控制台中以红色醒目显示
+        console.error('[更新账号状态] 更新状态文本时发生错误:', error);
+        
+        // 【步骤11】向用户显示友好的错误提示
+        // showModalAlert会弹出一个模态对话框，告知用户操作失败
+        // 避免静默失败，让用户知道发生了问题
+        showModalAlert('更新账号状态失败，请稍后重试');
+      }
+    }
+
 function renderMultiAccountList(accounts) {
         // 定义渲染逻辑的通用函数
         const renderToContainer = (containerId, isMobile) => {
@@ -23922,7 +24055,7 @@ function renderMultiAccountList(accounts) {
             // 为当前容器内的按钮绑定事件
             listDiv.querySelectorAll('.btn-account-start').forEach(b => b.onclick = (e) => {
                 // 获取对应的 "仅执行未完成" 复选框状态
-                const checkboxId = isMobile ? 'mobile-multi-run-only-incomplete-check' : 'multi-run-only-incomplete-check';
+                const checkboxId = isMobile ? 'mobile-multi-only-incomplete-check' : 'multi-run-only-incomplete-check';
                 const runOnly = document.getElementById(checkboxId)?.checked ?? true;
                 callPythonAPI('multi_start_single_account', e.target.dataset.username, runOnly);
             });
