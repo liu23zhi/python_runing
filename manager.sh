@@ -5,11 +5,17 @@
 # 1. screen 会话的英文名称
 SESSION_NAME="zis_runner_helper"
 
-# 2. 临时的 screen 配置文件路径 (用于添加顶部提示栏)
-SCREEN_RC_FILE="./${SESSION_NAME}.screenrc"
+# 获取脚本文件所在的绝对路径
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# 3. 你想在后台运行的实际命令 
-COMMAND_TO_RUN="./start.sh --port 80 --host 0.0.0.0"
+# 2. 临时的 screen 配置文件路径
+SCREEN_RC_FILE="${SCRIPT_DIR}/${SESSION_NAME}.screenrc"
+
+# 3. 定义要运行的脚本文件路径
+TARGET_SCRIPT="${SCRIPT_DIR}/start.sh"
+
+# 4. 你想在后台运行的实际命令 
+COMMAND_TO_RUN="${TARGET_SCRIPT} --port 443 --host 0.0.0.0"
 
 # --- 脚本正文 ---
 
@@ -37,51 +43,123 @@ show_menu() {
     echo -n "请输入选项 [0-2]: "
 }
 
+# 辅助函数：清理残留文件
+cleanup_rc_file() {
+    if [ -f "$SCREEN_RC_FILE" ]; then
+        # 尝试删除
+        rm "$SCREEN_RC_FILE" 2>/dev/null
+        if [ $? -eq 0 ]; then
+            echo "已清理残留的配置文件: $SCREEN_RC_FILE"
+        else
+            echo "警告: 无法删除残留文件 '$SCREEN_RC_FILE' (可能权限不足)。"
+            echo "尝试强制修改权限..."
+            chmod 777 "$SCREEN_RC_FILE" 2>/dev/null && rm "$SCREEN_RC_FILE"
+        fi
+    fi
+}
+
+# 辅助函数：检查并修复权限
+check_and_fix_permissions() {
+    echo "正在检查文件权限..."
+
+    # 1. 检查目标启动脚本 (start.sh)
+    if [ -f "$TARGET_SCRIPT" ]; then
+        if [ ! -x "$TARGET_SCRIPT" ]; then
+            echo "权限检查: '$TARGET_SCRIPT' 缺少执行权限。"
+            echo "正在尝试修复权限 (chmod +x) ..."
+            chmod +x "$TARGET_SCRIPT"
+            if [ $? -ne 0 ]; then
+                echo "错误: 无法修改 '$TARGET_SCRIPT' 的权限。请手动执行: chmod +x $TARGET_SCRIPT"
+                return 1
+            else
+                echo " -> '$TARGET_SCRIPT' 权限修复成功。"
+            fi
+        fi
+    else
+        echo "严重错误: 未找到启动脚本 '$TARGET_SCRIPT'，请确认文件位置。"
+        return 1
+    fi
+
+    # 2. 检查当前目录是否可写 (用于创建 .screenrc)
+    if [ ! -w "$SCRIPT_DIR" ]; then
+        echo "错误: 当前目录 '$SCRIPT_DIR' 不可写，无法创建配置文件。"
+        return 1
+    fi
+
+    # 3. 检查残留的 RC 文件权限 (如果存在)
+    if [ -f "$SCREEN_RC_FILE" ]; then
+        if [ ! -w "$SCREEN_RC_FILE" ]; then
+            echo "警告: 发现残留配置文件 '$SCREEN_RC_FILE' 且无写权限。"
+            echo "尝试赋予权限..."
+            chmod +w "$SCREEN_RC_FILE"
+        fi
+    fi
+    
+    return 0
+}
+
 # 功能 1: 启动或连接会话
 start_session() {
-    # 检查会话是否已在运行
+    # 1. 检查会话是否已在运行
     if screen -ls | grep -q "\.$SESSION_NAME\s"; then
         echo "会话 '$SESSION_NAME' 已在运行。正在连接..."
         sleep 1
-        # 直接连接，它会自动使用已有的配置
         exec screen -r "$SESSION_NAME"
     else
-        echo "未找到会话。正在启动新的会话 '$SESSION_NAME'..."
+        # 2. 启动新会话流程
+        echo "未找到会话。准备启动新的会话 '$SESSION_NAME'..."
 
-        # --- 新增功能：创建顶部提示栏的配置文件 ---
+        # --- 步骤 A: 权限检查 ---
+        check_and_fix_permissions
+        if [ $? -ne 0 ]; then
+            echo "权限检查失败，取消启动。"
+            sleep 3
+            return
+        fi
+
+        # --- 步骤 B: 清理残留文件 (防止上次意外退出导致文件存在) ---
+        cleanup_rc_file
+
+        # --- 步骤 C: 创建配置文件 ---
         echo "正在创建顶部提示栏配置文件: $SCREEN_RC_FILE"
-        
-        # 1. 告诉 screen 把状态栏放在最顶行 (first line) 并始终显示
-        echo "hardstatus alwaysfirstline" > "$SCREEN_RC_FILE"
-        
-        # 2. 设置状态栏的显示内容
-        # %{= Yk} -> 黄色(Y)背景，黑色(k)文字
-        # %{= Kk} -> 重置为默认颜色
-        # 您可以按需修改 "分离会话" 后的中文
-        echo "hardstatus string \"%{= Yk} 提示: 按 Ctrl+A 然后按 D (分离会话)，返回到主终端 %{= Kk}\"" >> "$SCREEN_RC_FILE"
-        # --- 配置文件创建完毕 ---
+        # 使用 try-catch 风格确保文件能写入
+        {
+            echo "hardstatus alwaysfirstline"
+            echo "hardstatus string \"%{= Yk} 提示: 按 Ctrl+A 然后按 D (分离会话)，返回到主终端 %{= Kk}\""
+        } > "$SCREEN_RC_FILE"
 
-        # 使用 -c 加载我们的自定义配置文件来启动 screen
-        # 防止会话立即消失，以便用户能连接进去看到底发生了什么。
+        if [ ! -f "$SCREEN_RC_FILE" ]; then
+             echo "错误: 配置文件创建失败，无法启动。"
+             sleep 2
+             return
+        fi
+
+        # --- 步骤 D: 启动 Screen ---
         screen -c "$SCREEN_RC_FILE" -dmS "$SESSION_NAME" bash -c "$COMMAND_TO_RUN; exec bash"
         
         # 检查是否启动成功
-        sleep 0.5
+        sleep 1 # 给一点时间让 screen 启动
         if screen -ls | grep -q "\.$SESSION_NAME\s"; then
             echo "会话已在后台启动。现在连接..."
             sleep 1
-            # 连接到新创建的会话
             exec screen -r "$SESSION_NAME"
         else
+            echo "-------------------------------------------------"
             echo "错误：无法启动会话 '$SESSION_NAME'。"
-            echo "请检查 '$COMMAND_TO_RUN' 命令是否正确。"
-            sleep 3
+            echo "可能原因："
+            echo "1. 端口被占用"
+            echo "2. start.sh 脚本内部报错 (请尝试手动运行 ./start.sh 排查)"
+            echo "-------------------------------------------------"
+            # 启动失败也要清理临时文件
+            cleanup_rc_file
+            sleep 5
         fi
     fi
 }
 
 # 功能 2: 关闭会话
 stop_session() {
+    # 尝试关闭 Screen 会话
     if screen -ls | grep -q "\.$SESSION_NAME\s"; then
         echo "正在发送关闭命令到会话 '$SESSION_NAME'..."
         screen -S "$SESSION_NAME" -X quit
@@ -91,17 +169,15 @@ stop_session() {
             echo "错误：会话未能正常关闭。请手动检查: screen -ls"
         else
             echo "会话 '$SESSION_NAME' 已成功关闭。"
-            
-            # --- 新增功能：清理临时的配置文件 ---
-            if [ -f "$SCREEN_RC_FILE" ]; then
-                rm "$SCREEN_RC_FILE"
-                echo "已自动清理临时配置文件: $SCREEN_RC_FILE"
-            fi
-            # --- 清理完毕 ---
         fi
     else
-        echo "会话 '$SESSION_NAME' 未在运行。"
+        echo "会话 '$SESSION_NAME' 当前未运行。"
     fi
+
+    # --- 无论会话之前是否在运行，都检查并清理残留文件 ---
+    cleanup_rc_file
+    # --------------------------------------------------
+
     echo ""
     echo "按 Enter 键返回菜单..."
     read -r
@@ -115,19 +191,23 @@ main() {
         case $choice in
             1)
                 start_session
-                echo "会话已结束或启动失败。正在返回菜单..."
-                sleep 2
+                # 如果 start_session 里的 exec 执行了，下面的代码不会跑
+                # 如果没执行 exec (比如启动失败)，会跑到这里
+                echo "正在返回菜单..."
+                sleep 1
                 ;;
             2)
                 stop_session
                 ;;
             0)
                 echo "正在退出。"
+                # 退出前也可以尝试清理一下，保持环境整洁
+                cleanup_rc_file
                 break
                 ;;
             *)
                 echo "无效选项 '$choice'，请重试。"
-                sleep 2
+                sleep 1
                 ;;
         esac
     done

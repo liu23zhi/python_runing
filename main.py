@@ -154,7 +154,8 @@ def import_standard_libraries():
         ('io', 'import io'),
         ('zipfile', 'import zipfile'),
         ('functools', 'import functools'),
-        ('ipaddress', 'import ipaddress')
+        ('ipaddress', 'import ipaddress'),
+        ('string', 'import string')
     ]
 
     failed_imports = []
@@ -353,7 +354,10 @@ def check_and_import_dependencies():
          'cssutils'),
          ('cryptography (SSL/加密)',
          'import cryptography',
-         'cryptography')
+         'cryptography'),
+        ('BeautifulSoup (HTML解析)',
+         'from bs4 import BeautifulSoup',
+         'beautifulsoup4')
     ]
     
     failed_imports = []
@@ -1141,10 +1145,24 @@ def _get_default_config():
         'amap_js_key': '',  # 高德地图JS API密钥
     }
     
+    # ========================================
     # [API] 第三方API配置
+    # ========================================
+    # 存储第三方服务的API密钥和凭证
     config['API'] = {
         'ip_api_key': '',  # IP地理位置查询API密钥（可选，留空则使用免费接口）
-        'captcha_api_key': '',  # 验证码API密钥（可选，留空则使用免费接口）
+        # 注意：验证码已改用本地生成器，不再需要第三方API密钥
+    }
+    
+    # ========================================
+    # [Captcha] 本地验证码生成器配置
+    # ========================================
+    # 使用MicroPixelCaptcha生成黑白像素风格验证码
+    # 无需第三方API，更稳定、更安全、响应更快
+    config['Captcha'] = {
+        'length': '4',          # 【验证码字符数】范围3-6，默认4（推荐）
+        'scale_factor': '2',    # 【像素细分倍数】范围2-4，默认2（推荐2或3）
+        'noise_level': '0.08',  # 【噪点比例】范围0.0-0.3，默认0.08（8%噪点）
     }
 
     # [Features] 功能开关配置
@@ -1276,18 +1294,33 @@ def _write_config_with_comments(config_obj, filepath):
         f.write(
             f"amap_js_key = {config_obj.get('Map', 'amap_js_key', fallback='')}\n\n")
         
+        # ========================================
         # [API] 第三方API配置
+        # ========================================
+        f.write("# ========================================\n")
+        f.write("# [API] 第三方API配置\n")
+        f.write("# ========================================\n")
         f.write("[API]\n")
         f.write("# IP地理位置查询API密钥（可选）\n")
         f.write("# 用于获取用户登录IP的地理位置信息\n")
         f.write("# 留空则使用免费接口（有频率限制）\n")
         f.write(
             f"ip_api_key = {config_obj.get('API', 'ip_api_key', fallback='')}\n")
-        f.write("# 验证码生成API密钥（可选）\n")
-        f.write("# 用于生成图形验证码\n")
-        f.write("# 留空则使用免费接口（有频率限制）\n")
-        f.write(
-            f"captcha_api_key = {config_obj.get('API', 'captcha_api_key', fallback='')}\n\n")
+        f.write("# 注意：验证码已改用本地生成器（见[Captcha]节），不再需要第三方API密钥\n\n")
+        
+        # ========================================
+        # [Captcha] 本地验证码生成器配置
+        # ========================================
+        f.write("# ========================================\n")
+        f.write("# [Captcha] 本地验证码生成器配置\n")
+        f.write("# ========================================\n")
+        f.write("# 使用MicroPixelCaptcha生成黑白像素风格验证码\n")
+        f.write("# 无需第三方API，更稳定、更安全、响应更快\n")
+        f.write("# ========================================\n\n")
+        f.write("[Captcha]\n")
+        f.write(f"length = {config_obj.get('Captcha', 'length', fallback='4')}\n")
+        f.write(f"scale_factor = {config_obj.get('Captcha', 'scale_factor', fallback='2')}\n")
+        f.write(f"noise_level = {config_obj.get('Captcha', 'noise_level', fallback='0.08')}\n\n")
 
         # [Features] 功能开关配置
         f.write("[Features]\n")
@@ -1488,6 +1521,7 @@ def _create_permissions_json():
                     "delete_own_messages": False,  # 删除自己的留言（游客不能删除）
                     "delete_any_messages": False,  # 删除任何人的留言（游客不能）
                     "exit_single_account_mode": True, # 退出单账号模式
+                    "modify_config": False # 修改配置文件
                 }
             },
             "user": {
@@ -1540,6 +1574,7 @@ def _create_permissions_json():
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": False,  # 删除任何人的留言（仅管理员）
                     "execute_single_account": True, # 退出单账号模式
+                    "modify_config": True # 修改配置文件
                 }
             },
             "admin": {
@@ -1602,7 +1637,8 @@ def _create_permissions_json():
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
                     "view_captcha_history": True,
-                    "execute_single_account": True # 退出单账号模式
+                    "execute_single_account": True, # 退出单账号模式
+                    "modify_config": True # 修改配置文件
                 }
             },
             "super_admin": {
@@ -1671,6 +1707,7 @@ def _create_permissions_json():
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
                     "execute_single_account": True, # 退出单账号模式
+                    "modify_config": True # 修改配置文件
                 }
             }
         },
@@ -4506,6 +4543,8 @@ class Api:
         # --- 2. 处理主 config.ini 文件 ---
         main_cfg = configparser.RawConfigParser()
         main_cfg.optionxform = str  # 保持键的大小写
+        
+        # 先尝试读取现有文件，以获取其中的 amap_js_key
         if os.path.exists(self.config_path):
             try:
                 main_cfg.read(self.config_path, encoding='utf-8')
@@ -4517,12 +4556,27 @@ class Api:
             main_cfg.add_section('Config')
         main_cfg.set('Config', 'LastUser', username)
 
-        # 确保 [Map] 分区存在并更新 amap_js_key（新版）
+        # 确保 [Map] 分区存在
         if not main_cfg.has_section('Map'):
             main_cfg.add_section('Map')
-        # 从内存中的全局参数获取最新的 Key
-        amap_key_in_memory = self.global_params.get('amap_js_key', '')
-        main_cfg.set('Map', 'amap_js_key', amap_key_in_memory)
+            
+        # 【修复】智能更新 amap_js_key，防止空值覆盖
+        # 1. 获取内存中的值
+        amap_key_in_memory = self.global_params.get('amap_js_key', '').strip()
+        # 2. 获取文件中的现有值
+        amap_key_in_file = main_cfg.get('Map', 'amap_js_key', fallback='').strip()
+        
+        if amap_key_in_memory:
+            # 如果内存中有值（例如用户刚在前端设置了），则更新到文件
+            main_cfg.set('Map', 'amap_js_key', amap_key_in_memory)
+        elif amap_key_in_file:
+            # 如果内存为空但文件里有值，则保留文件里的值（不要覆盖为空）
+            # 同时反向同步到内存，防止后续逻辑读取到空值
+            self.global_params['amap_js_key'] = amap_key_in_file
+            # main_cfg.set 保持不变即可
+        else:
+            # 两个都为空，确保键存在
+            main_cfg.set('Map', 'amap_js_key', '')
 
         # 安全写入主 config.ini 文件
         try:
@@ -4807,6 +4861,32 @@ class Api:
             logging.debug(
                 f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}")
 
+            # ========================================
+            # 【本地验证码】读取验证码生成器配置
+            # ========================================
+            # 从config.ini的[Captcha]节读取本地验证码生成器的参数
+            # 这些参数将传递给前端，用于"验证码设置"面板的初始化
+            
+            # 修复：定义本地读取函数或直接使用 cfg.get，避免 NameError
+            def _safe_get_int(section, key, default):
+                try:
+                    return int(cfg.get(section, key, fallback=str(default)))
+                except (ValueError, TypeError):
+                    return int(default)
+
+            def _safe_get_float(section, key, default):
+                try:
+                    return float(cfg.get(section, key, fallback=str(default)))
+                except (ValueError, TypeError):
+                    return float(default)
+
+            captcha_settings = {
+                'length': _safe_get_int('Captcha', 'length', 4),
+                'scale_factor': _safe_get_int('Captcha', 'scale_factor', 2),
+                'noise_level': _safe_get_float('Captcha', 'noise_level', 0.08)
+            }
+            logging.debug(f"【本地验证码】加载验证码设置: {captcha_settings}")
+
             # [代码片段 2.1：替换掉旧的 return 语句]
             # 构造返回字典
             response_data = {
@@ -4822,7 +4902,9 @@ class Api:
                 "auth_group": auth_group,
                 "is_guest": is_guest,
                 # [修复] 添加多账号模式状态，用于会话恢复和PC/移动端切换
-                "is_multi_account_mode": getattr(self, 'is_multi_account_mode', False)
+                "is_multi_account_mode": getattr(self, 'is_multi_account_mode', False),
+                # 【本地验证码】添加验证码设置到响应数据
+                "captcha_settings": captcha_settings
             }
 
             # [BUG 2 修复] 如果是已登录状态（会话恢复），则从实例中提取 device_ua
@@ -4835,6 +4917,7 @@ class Api:
 
             return response_data
         except Exception as e:
+            logging.error(f"获取初始数据时发生错误: {e}", exc_info=True)
             self.is_offline_mode = True
             return {
                 "success": False,
@@ -7439,17 +7522,24 @@ class Api:
         final_status['accounts_missing_password'] = accounts_missing_password
         return final_status
 
-    def multi_add_account(self, username, password, tag=None):
+    def multi_add_account(self, username, password, tag=None, params=None):
         """模式二：手动或选择性添加账号
         
         Args:
             username: 账号用户名
             password: 账号密码
             tag: 账号标记（备注/标签），可选
+            params: 额外的参数配置（可选，防止前端传参报错）
         """
         if username in self.accounts:
             # 如果账号已存在，智能处理密码更新或从文件刷新
             acc = self.accounts[username]
+
+            # [新增] 如果传入了params，尝试更新参数
+            if params and isinstance(params, dict):
+                for k, v in params.items():
+                    if k in acc.params:
+                        acc.params[k] = v
 
             # 场景1: 提供了新的、非空的密码 (来自导入或手动输入)。
             # 则更新内存和文件中的密码。
@@ -7491,7 +7581,7 @@ class Api:
                 logging.error(f"更新账号后触发刷新失败: {traceback.format_exc()}")
             # 刷新全局按钮状态并返回最新账号状态列表
             self._update_multi_global_buttons()
-            return self.multi_get_all_accounts_status()
+            return self.multi_get_all_accounts_status([{"success": True}])
 
         # 创建账号会话（注意：若稍后判定密码为空，将撤销）
         # 加载已保存的标记（如果有）
@@ -7585,8 +7675,8 @@ class Api:
         if hasattr(self, '_web_session_id') and self._web_session_id:
             save_session_state(self._web_session_id, self, force_save=True)
         
-        return self.multi_get_all_accounts_status()
-
+        return self.multi_get_all_accounts_status([{"success": True}])
+    
     def multi_remove_account(self, username):
         """移除一个账号"""
         if username in self.accounts:
@@ -7603,6 +7693,12 @@ class Api:
 
     def multi_refresh_all_statuses(self):
         """(多线程)刷新所有账号的任务状态和统计信息"""
+        # 【多账号自动刷新】记录刷新请求
+        # 原因：记录刷新调用可以帮助追踪系统行为，便于调试和性能分析
+        # 记录会话UUID可以区分不同用户的请求，便于多用户环境下的问题排查
+        session_uuid = session.get('uuid', 'unknown')
+        logging.info(f"[多账号自动刷新] 收到刷新请求，会话UUID: {session_uuid}, 当前账号数量: {len(self.accounts) if self.accounts else 0}")
+        
         if not self.accounts:
             self.log("账号列表为空，无需刷新。")
             return {"success": True}
@@ -7707,7 +7803,8 @@ class Api:
                         self._save_config(acc.username)
 
                 # 更新名字（允许）
-                self._update_account_status_js(acc, name=acc.user_data.name)
+                # 【修正】同时更新状态文本为“获取数据...”，避免一直显示“正在登录”
+                self._update_account_status_js(acc, name=acc.user_data.name, status_text="获取数据...")
 
             # 2) 拉取任务并汇总
             self._multi_fetch_and_summarize_tasks(acc)
@@ -7798,19 +7895,35 @@ class Api:
             save_session_state(self._web_session_id, self, force_save=True)
         return self.multi_get_all_accounts_status()
 
-    def multi_get_all_accounts_status(self):
+    def multi_get_all_accounts_status(self, addition=None):
         """获取所有账号的当前状态，用于刷新前端UI"""
         status_list = []
+        # 1. 遍历生成账号列表
         for acc in self.accounts.values():
             status_list.append({
                 "username": acc.username,
                 "name": acc.user_data.name or "---",
                 "status_text": acc.status_text,
                 "summary": acc.summary,
-                "tag": acc.tag,  # 添加标记字段
+                "tag": acc.tag, 
             })
-        return {"accounts": status_list}
+        
+        # 2. 构建基础返回对象
+        response = {"accounts": status_list}
 
+        # 3. 处理传入的补全内容 (addition)
+        # 你的调用方式是: self.multi_get_all_accounts_status([{"success": True}])
+        if addition:
+            if isinstance(addition, list):
+                # 如果传入的是列表，遍历并将字典项更新到 response 中
+                for item in addition:
+                    if isinstance(item, dict):
+                        response.update(item)
+            elif isinstance(addition, dict):
+                # 如果直接传入的是字典，直接更新
+                response.update(addition)
+
+        return response
     def multi_download_import_template(self):
         """下载导入模板（账号、密码、标记），支持 Web模式直接返回文件内容"""
         try:
@@ -8508,6 +8621,10 @@ class Api:
             # 二次检查停止（同样按参数决定是否尊重全局停止）
             if acc.stop_event.is_set() or (respect_global_stop and self.multi_run_stop_flag.is_set()):
                 return None
+            
+            # 【修正】获取锁后，立即更新状态为“正在登录”，防止一直显示排队
+            self._update_account_status_js(acc, status_text="正在登录...")
+            
             # 执行实际登录请求
             return acc.api_client.login(acc.username, acc.password)
         finally:
@@ -10960,6 +11077,258 @@ def restore_session_to_api_instance(api_instance, state):
         logging.error(f"恢复会话状态失败: {e}", exc_info=True)
 
 
+def get_captcha_original_width(html_content):
+    """
+    【移动端验证码缩放】获取验证码的原始宽度
+    
+    功能说明:
+        - 从HTML中解析验证码结构（行数、列数）
+        - 从CSS中提取单个像素的宽度
+        - 计算总宽度 = 列数 × 单个像素宽度
+    
+    参数:
+        html_content (str): 验证码HTML内容
+    
+    返回:
+        float: 验证码原始宽度（像素），解析失败返回None
+    
+    示例:
+        原始HTML: 46列 × 10px/像素 = 460px总宽度
+        原始HTML: 40列 × 12px/像素 = 480px总宽度
+    """
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # 获取容器和像素span
+        container = soup.find('div')
+        if not container:
+            return None
+        
+        spans = container.find_all('span')
+        if not spans:
+            return None
+        
+        pixel_classes = list(set([s.get('class')[0] for s in spans if s.get('class')]))
+        if not pixel_classes:
+            return None
+        
+        # 计算列数（统计第一行有多少个span）
+        first_line_spans = 0
+        for child in container.contents:
+            if child.name == 'br':
+                break
+            if child.name == 'span':
+                first_line_spans += 1
+        
+        num_cols = first_line_spans
+        if num_cols == 0:
+            return None
+        
+        # 从CSS中提取单个像素宽度
+        style_tag = soup.find('style')
+        if not style_tag:
+            return None
+        
+        css_text = style_tag.string
+        sample_pixel_class = pixel_classes[0]
+        container_class = container.get('class')[0] # 获取容器类名
+        
+        # 正则匹配width
+        # 【修正】优先匹配容器下的span样式
+        w_match = re.search(rf'\.{container_class}\s+span[^}}]*width\s*:\s*(\d+(\.\d+)?)px', css_text)
+        
+        if not w_match:
+             # 备用：匹配像素类样式
+             w_match = re.search(rf'\.{sample_pixel_class}[^}}]*width\s*:\s*(\d+(\.\d+)?)px', css_text)
+             
+        if not w_match:
+            # 如果都匹配不到，假设默认值 (通常 scale_factor=2 时是 6px)
+            # 或者返回 None 让后续逻辑处理
+            return None
+        
+        old_pixel_w = float(w_match.group(1))
+        
+        # 计算总宽度 = 列数 × 单个像素宽度
+        original_width = num_cols * old_pixel_w
+        
+        logging.debug(f"[get_captcha_original_width] 列数={num_cols}, 像素宽度={old_pixel_w}px, 总宽度={original_width}px")
+        
+        return original_width
+        
+    except Exception as e:
+        logging.error(f"[get_captcha_original_width] 解析失败: {e}")
+        return None
+
+
+
+
+
+
+
+def resize_captcha_html(html_content, target_width):
+    """
+    自动分析并调整像素验证码HTML的大小 (Grid Layout 增强版 - 修正Padding/Border计算)。
+    """
+    try:
+        target_width = float(target_width) # 确保是数字
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # 1. 获取容器
+        container = soup.find('div')
+        if not container:
+            logging.warning("[resize_captcha_html] 无法找到容器 div")
+            return html_content 
+        
+        container_class = container.get('class')[0]
+        
+        # 2. 解析 CSS 内容
+        style_tag = soup.find('style')
+        if not style_tag:
+            return html_content
+        
+        css_text = style_tag.string
+
+        # --- 步骤 A: 智能解析布局参数 (Grid 优先) ---
+        
+        num_cols = 0
+        old_pixel_w = 0.0
+        old_pixel_h = 0.0
+        old_gap = 0.0
+
+        # 解析 Grid 列数和宽
+        grid_match = re.search(r'grid-template-columns\s*:\s*repeat\(\s*(\d+)\s*,\s*(\d+(?:\.\d+)?)\s*px\s*\)', css_text, re.IGNORECASE)
+        
+        if grid_match:
+            num_cols = int(grid_match.group(1))
+            old_pixel_w = float(grid_match.group(2))
+            logging.info(f"[验证码缩放] 检测到 CSS Grid 布局: {num_cols} 列, 原始宽 {old_pixel_w}px")
+        else:
+            # 备用方案（略，你的场景主要是Grid）
+            pass 
+
+        if num_cols == 0:
+            logging.error("[resize_captcha_html] 无法解析列数，跳过缩放")
+            return html_content
+
+        # 解析 Gap
+        gap_match = re.search(rf'\.{container_class}\s*\{{.*?\bgap\s*:\s*(\d+(?:\.\d+)?)px', css_text, re.DOTALL | re.IGNORECASE)
+        if gap_match:
+            old_gap = float(gap_match.group(1))
+        
+        # 解析高度
+        h_match = re.search(rf'\.{container_class}\s+span[^}}]*?height\s*:\s*(\d+(\.\d+)?)px', css_text, re.IGNORECASE)
+        if h_match:
+            old_pixel_h = float(h_match.group(1))
+        else:
+            old_pixel_h = old_pixel_w
+
+        # --- 新增步骤: 解析 Padding 和 Border (修正的核心) ---
+        padding_w = 0.0
+        border_w = 0.0
+        
+        # 解析 Padding (匹配 padding: 10px 格式)
+        pad_match = re.search(rf'\.{container_class}\s*\{{.*?\bpadding\s*:\s*(\d+(?:\.\d+)?)px', css_text, re.DOTALL | re.IGNORECASE)
+        if pad_match:
+            padding_w = float(pad_match.group(1)) * 2 # 左右两边
+            
+        # 解析 Border (匹配 border: 1px ... 格式)
+        bor_match = re.search(rf'\.{container_class}\s*\{{.*?\bborder\s*:\s*(\d+(?:\.\d+)?)px', css_text, re.DOTALL | re.IGNORECASE)
+        if bor_match:
+            border_w = float(bor_match.group(1)) * 2 # 左右两边
+
+        # --- 步骤 B: 计算缩放比例 ---
+
+        # 原始 Grid 内容宽度 (仅内容)
+        original_grid_width = (num_cols * old_pixel_w) + ((num_cols - 1) * old_gap)
+        
+        if original_grid_width <= 0:
+            return html_content
+
+        # 计算有效可用宽度 (扣除装饰)
+        available_grid_width = target_width - padding_w - border_w
+
+        if available_grid_width <= 0:
+            logging.warning(f"[验证码缩放] 目标宽度过小，无法容纳Padding/Border")
+            return html_content
+
+        # 修正后的缩放系数
+        scale_ratio = available_grid_width / original_grid_width
+
+        # --- [新增] 约束：只允许缩小，不允许放大 ---
+        if scale_ratio >= 1.0:
+            logging.info(f"[验证码缩放] 目标宽度 ({target_width}px) 足以容纳原始尺寸，跳过放大 (Ratio: {scale_ratio:.2f})")
+            return html_content
+        # ---------------------------------------
+
+        new_pixel_w = old_pixel_w * scale_ratio
+        new_pixel_h = old_pixel_h * scale_ratio
+        new_gap = old_gap * scale_ratio
+
+        logging.info(f"[验证码缩放] Scaling: {scale_ratio:.4f} | Pad/Bor: {padding_w}/{border_w} | Target Grid: {available_grid_width:.2f}px")
+
+        # --- 步骤 C: 执行替换 ---
+        
+        new_css = css_text
+
+        # 1. 替换 grid-template-columns
+        new_css = re.sub(
+            r'(grid-template-columns\s*:\s*repeat\(\s*\d+\s*,\s*)(\d+(?:\.\d+)?)px',
+            rf'\g<1>{new_pixel_w:.4f}px',
+            new_css, flags=re.IGNORECASE
+        )
+
+        # 2. 替换 gap
+        if old_gap >= 0: # 即使是0也要替换，防止原有是1px
+             new_css = re.sub(
+                rf'(\.{container_class}\s*\{{.*?\bgap\s*:\s*)(\d+(?:\.\d+)?)px',
+                rf'\g<1>{new_gap:.4f}px',
+                new_css, flags=re.DOTALL | re.IGNORECASE
+            )
+
+        # 3. 替换 span width/height (通用匹配，防止漏掉)
+        # 替换 width
+        new_css = re.sub(
+            rf'(\.{container_class}\s+span[^}}]*?width\s*:\s*)(\d+(\.\d+)?)px',
+            rf'\g<1>{new_pixel_w:.4f}px',
+            new_css, flags=re.IGNORECASE
+        )
+        # 替换 height
+        new_css = re.sub(
+            rf'(\.{container_class}\s+span[^}}]*?height\s*:\s*)(\d+(\.\d+)?)px',
+            rf'\g<1>{new_pixel_h:.4f}px',
+            new_css, flags=re.IGNORECASE
+        )
+
+        # 4. 替换单独像素类 (ekzfv, desiz)
+        spans = container.find_all('span')
+        pixel_classes = set([s.get('class')[0] for s in spans if s.get('class')])
+        
+        for p_class in pixel_classes:
+            new_css = re.sub(
+                rf'(\.{p_class}[^}}]*?(?<![-\w])width\s*:\s*)(\d+(\.\d+)?)px', 
+                rf'\g<1>{new_pixel_w:.4f}px', 
+                new_css, flags=re.IGNORECASE
+            )
+            new_css = re.sub(
+                rf'(\.{p_class}[^}}]*?(?<![-\w])height\s*:\s*)(\d+(\.\d+)?)px', 
+                rf'\g<1>{new_pixel_h:.4f}px', 
+                new_css, flags=re.IGNORECASE
+            )
+
+        style_tag.string = new_css
+        return str(soup)
+
+    except Exception as e:
+        logging.error(f"[resize_captcha_html] 调整失败: {e}", exc_info=True)
+        return html_content
+
+
+
+
+
+
+
+
 def load_all_sessions(args):
     """启动时加载所有持久化会话"""
     if not os.path.exists(SESSION_STORAGE_DIR):
@@ -11703,6 +12072,122 @@ class BackgroundTaskManager:
                     logging.warning(f"处理任务文件失败，文件名: {filename}，错误: {e}")
         except Exception as e:
             logging.error(f"清理旧任务文件失败，异常信息: {e}")
+
+
+class MicroPixelCaptcha:
+    # 5x7 字库 (保持不变)
+    FONT = {
+        'A': ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+        'B': ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+        'C': ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+        'D': ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+        'E': ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+        'F': ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+        'G': ["01111", "10000", "10000", "10011", "10001", "10001", "01111"],
+        'H': ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+        'I': ["01110", "00100", "00100", "00100", "00100", "00100", "01110"],
+        'J': ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
+        'K': ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+        'L': ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+        'M': ["10001", "11011", "10101", "10001", "10001", "10001", "10001"],
+        'N': ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
+        'O': ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+        'P': ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+        'Q': ["01110", "10001", "10001", "10001", "10101", "10011", "01101"],
+        'R': ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+        'S': ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+        'T': ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+        'U': ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+        'V': ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+        'W': ["10001", "10001", "10001", "10101", "10101", "10101", "01010"],
+        'X': ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
+        'Y': ["10001", "10001", "10001", "01010", "00100", "00100", "00100"],
+        'Z': ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+        '0': ["01110", "10011", "10101", "10101", "10101", "11001", "01110"],
+        '1': ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+        '2': ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+        '3': ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+        '4': ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+        '5': ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+        '6': ["01110", "10000", "10000", "11110", "10001", "10001", "01110"],
+        '7': ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+        '8': ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+        '9': ["01110", "10001", "10001", "01111", "00001", "00001", "01110"]
+    }
+
+    def _random_string(self, length: int) -> str:
+        return ''.join(random.choices(string.ascii_lowercase, k=length))
+
+    def generate(self, length: int = 4, scale_factor: int = 2, noise_level: float = 0.08):
+        """
+        生成高密度微像素验证码
+        :param length: 验证码字符数
+        :param scale_factor: 细分倍数 (建议2或3)
+        :param noise_level: 噪点比例
+        """
+        code = ''.join(random.choices(list(self.FONT.keys()), k=length))
+
+        # 1. 构建基础逻辑行
+        char_patterns = [self.FONT.get(c, ["11111"] * 7) for c in code]
+        base_rows = ['0'.join(row_tuple) for row_tuple in zip(*char_patterns)]
+        
+        # 2. 像素细分与扩展
+        expanded_bit_string = []
+        for row in base_rows:
+            # 水平扩展
+            expanded_row_str = "".join([bit * scale_factor for bit in row])
+            # 垂直扩展
+            for _ in range(scale_factor):
+                expanded_bit_string.append(expanded_row_str)
+        
+        full_bit_stream = "".join(expanded_bit_string)
+
+        # 3. 计算 Grid 布局参数
+        logic_width = length * 5 + (length - 1)
+        grid_cols = logic_width * scale_factor
+
+        # 4. 生成 HTML 像素块
+        cls_con = self._random_string(10)
+        cls_bg = self._random_string(5)
+        cls_fg = self._random_string(5)
+        
+        pixels = []
+        for bit in full_bit_stream:
+            is_fg = (bit == '1')
+            if random.random() < noise_level:
+                is_fg = not is_fg
+            
+            pixels.append(f'<span class="{cls_fg if is_fg else cls_bg}"></span>')
+
+        html_content = ''.join(pixels)
+
+        # 5. CSS 样式优化 (黑白风格)
+        pixel_size = 12 // scale_factor
+        if pixel_size < 4: pixel_size = 4
+        
+        css = f"""<style>
+.{cls_con}{{
+    display:grid;
+    grid-template-columns:repeat({grid_cols}, {pixel_size}px);
+    gap:1px;
+    background:#000;
+    padding:10px;
+    width:fit-content;
+    border:1px solid #333;
+}}
+.{cls_con} span{{
+    width:{pixel_size}px;
+    height:{pixel_size}px;
+    display:block;
+    border-radius:0;
+}}
+.{cls_bg}{{background:#000;}}
+.{cls_fg}{{background:#fff;}}
+</style>"""
+
+        full_html = f'<div class="{cls_con}">{html_content}</div>{css}'
+        return code, full_html
+
 
 
 class ChromeBrowserPool:
@@ -16547,7 +17032,6 @@ def start_web_server(args_param):
                 return jsonify({"success": False, "message": f"该手机号每日发送次数已达上限({phone_limit}次)"})
             
             # 6. 生成6位数字验证码（安全：仅后端存储，不返回前端）
-            import random
             code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
             
             # 7. 调用短信宝API发送短信
@@ -20769,10 +21253,10 @@ def start_web_server(args_param):
     @app.route('/api/captcha/get', methods=['GET'])
     def get_captcha():
         """
-        获取验证码接口
+        获取验证码接口 【本地验证码生成器】
         
         功能说明:
-            - 从第三方API (https://api.vore.top/api/VerifyCode) 获取验证码图片HTML和答案
+            - 使用本地MicroPixelCaptcha生成器生成验证码（替代不稳定的第三方API）
             - 生成唯一的验证码ID，将ID和答案存储在JSON文件中
             - 返回验证码的HTML内容和验证码ID给前端显示
         
@@ -20801,63 +21285,59 @@ def start_web_server(args_param):
             }), 401
         
         try:
-            # 调用第三方验证码API
-            # length=4 表示生成4位验证码
-            # 从 config.ini 读取 API 密钥
+            # 【本地验证码生成器】读取配置参数
             config_file = os.path.join(os.path.dirname(__file__), 'config.ini')
-            api_key = ''
+            length = 4  # 默认4位验证码
+            scale_factor = 2  # 默认细分倍数为2
+            noise_level = 0.08  # 默认噪点比例0.08
+            
             if os.path.exists(config_file):
                 try:
                     cfg = configparser.ConfigParser()
                     cfg.read(config_file, encoding='utf-8')
-                    api_key = cfg.get('API', 'captcha_api_key', fallback='')
+                    # 从[Captcha]节读取参数
+                    length = int(cfg.get('Captcha', 'length', fallback='4'))
+                    scale_factor = int(cfg.get('Captcha', 'scale_factor', fallback='2'))
+                    noise_level = float(cfg.get('Captcha', 'noise_level', fallback='0.08'))
+                    logging.debug(f"[本地验证码] 从config.ini读取参数: length={length}, scale_factor={scale_factor}, noise_level={noise_level}")
                 except Exception as e:
-                    logging.debug(f"[验证码] 读取配置文件失败: {e}")
+                    logging.warning(f"[本地验证码] 读取配置文件失败，使用默认值: {e}")
             
-            if api_key and api_key != '' and api_key != 'your_api_key_here':
-                captcha_api_url = f'https://api.vore.top/api/VerifyCode?key={api_key}&length=4'
-            else:
-                captcha_api_url = 'https://api.vore.top/api/VerifyCode?length=4'
+            # 【本地验证码生成器】使用 MicroPixelCaptcha (已在文件顶部处理导入或Fallback)
+            # from get_captchas import MicroPixelCaptcha # 不需要再次导入，使用全局定义
+            generator = MicroPixelCaptcha()
             
-            # 发送GET请求获取验证码，设置5秒超时
-            response = requests.get(captcha_api_url, timeout=5)
+            # 生成验证码（返回验证码答案和HTML）
+            captcha_code, captcha_html = generator.generate(
+                length=length,
+                scale_factor=scale_factor,
+                noise_level=noise_level
+            )
             
-            # 解析返回的JSON数据
-            result = response.json()
-            
-            # 检查API返回状态码
-            if result.get('code') != 200:
-                logging.error(f"[验证码API] 获取失败: {result.get('msg', '未知错误')}")
-                return jsonify({
-                    "success": False,
-                    "message": "验证码服务暂时不可用，请稍后重试"
-                }), 500
-            
-            # 提取验证码数据
-            data = result.get('data', {})
-            captcha_html = data.get('html', '')  # 验证码图片的HTML内容
-            captcha_code = data.get('code', '')  # 验证码答案
+            logging.debug(f"[本地验证码] 已生成验证码，长度={length}，答案={captcha_code}")
             
             # 验证数据完整性
             if not captcha_html or not captcha_code:
-                logging.error(f"[验证码API] 返回数据不完整: html={bool(captcha_html)}, code={bool(captcha_code)}")
+                logging.error(f"[本地验证码] 生成数据不完整: html={bool(captcha_html)}, code={bool(captcha_code)}")
                 return jsonify({
                     "success": False,
-                    "message": "验证码数据获取失败"
+                    "message": "验证码生成失败"
                 }), 500
             
             # 生成唯一的验证码ID
             import uuid
             captcha_id = str(uuid.uuid4())
             
-            # 确保captchas目录存在
-            captchas_dir = os.path.join('logs', 'captchas')
+            # 确保captchas目录存在 - 使用全局 LOGIN_LOGS_DIR
+            captchas_dir = os.path.join(LOGIN_LOGS_DIR, 'captchas')
             os.makedirs(captchas_dir, exist_ok=True)
             
             # 准备验证码数据
+            # 【CDN缓存修复】添加html字段，用于新的iframe API读取
             captcha_data = {
                 'id': captcha_id,
                 'code': captcha_code.upper(),  # 统一转换为大写
+                'html': captcha_html,  # 【CDN缓存修复】存储HTML内容，供 /api/captcha/html/<captcha_id> 使用
                 'session_id': session_id,
                 'timestamp': time.time(),
                 'expires_at': time.time() + 600  # 10分钟后过期
@@ -20872,7 +21352,8 @@ def start_web_server(args_param):
             # 修正：函数定义接收参数，以避免在线程中访问 request 上下文
             def log_captcha_history(p_captcha_id, p_code, p_html, p_session_id, p_client_ip, p_user_agent):
                 try:
-                    history_dir = os.path.join('logs', 'captcha_history')
+                    # 使用全局配置的 LOGIN_LOGS_DIR，确保路径一致性
+                    history_dir = os.path.join(LOGIN_LOGS_DIR, 'captcha_history')
                     os.makedirs(history_dir, exist_ok=True)
                     
                     # 获取客户端IP和User-Agent (已通过参数传入)
@@ -20948,7 +21429,7 @@ def start_web_server(args_param):
             threading.Thread(target=cleanup_expired_captchas, daemon=True).start()
             
             # 记录日志（不记录验证码答案）
-            logging.info(f"[验证码] 已生成验证码 ID: {captcha_id[:8]}... 会话: {session_id[:8]}...")
+            logging.info(f"[本地验证码] 已生成验证码 ID: {captcha_id[:8]}... 会话: {session_id[:8]}... 长度: {length}")
             
             # 返回验证码HTML和ID给前端
             return jsonify({
@@ -20957,33 +21438,296 @@ def start_web_server(args_param):
                 "captcha_id": captcha_id
             })
             
-        except requests.exceptions.Timeout:
-            logging.warning(f"[验证码API] 请求超时")
+        except ImportError as e:
+            # 【本地验证码生成器】无法导入get_captchas模块
+            logging.error(f"[本地验证码] 导入MicroPixelCaptcha失败: {str(e)}")
             return jsonify({
                 "success": False,
-                "message": "验证码服务响应超时，请重试"
+                "message": "验证码生成器加载失败"
             }), 500
             
-        except requests.exceptions.RequestException as e:
-            logging.error(f"[验证码API] 网络请求失败: {str(e)}")
+        except (ValueError, KeyError, TypeError) as e:
+            # 【本地验证码生成器】数据处理错误
+            logging.error(f"[本地验证码] 数据处理失败: {str(e)}")
             return jsonify({
                 "success": False,
-                "message": "网络错误，无法获取验证码"
-            }), 500
-            
-        except (ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
-            logging.error(f"[验证码API] 数据解析失败: {str(e)}")
-            return jsonify({
-                "success": False,
-                "message": "验证码数据解析错误"
+                "message": "验证码数据处理错误"
             }), 500
             
         except Exception as e:
-            logging.error(f"[验证码API] 未知错误: {str(e)}", exc_info=True)
+            # 【本地验证码生成器】其他未知错误
+            logging.error(f"[本地验证码] 未知错误: {str(e)}", exc_info=True)
             return jsonify({
                 "success": False,
-                "message": "获取验证码时发生错误"
+                "message": "生成验证码时发生错误"
             }), 500
+    
+    @app.route('/api/captcha/html/<captcha_id>', methods=['GET'])
+    def get_captcha_html_page(captcha_id):
+        """
+        【CDN缓存修复】获取验证码HTML页面（用于iframe嵌入）
+        【移动端优化】支持动态调整验证码大小
+        
+        功能说明:
+            - 根据captcha_id从存储中读取验证码HTML内容
+            - 【新增】支持width参数，动态调整验证码大小（仅针对移动端）
+            - 返回完整的HTML页面（包含完整的HTML文档结构和meta标签）
+            - 通过captcha_id作为URL参数，确保每次刷新验证码时URL不同，避免CDN缓存问题
+            - 设置强制禁用缓存的HTTP响应头，确保浏览器和CDN都不缓存此页面
+        
+        参数:
+            captcha_id (str): 验证码唯一标识符，通过URL路径传递
+            width (int): 可选，目标宽度（通过URL查询参数传递），仅在移动端需要缩小时使用
+        
+        返回:
+            完整的HTML页面 (text/html)，包含：
+            - HTML5文档结构
+            - 防缓存meta标签
+            - 验证码图片HTML（从第三方API获取的img标签）
+            - 响应式样式（确保验证码在iframe中正确显示）
+        
+        HTTP状态码:
+            200: 成功返回验证码HTML页面
+            400: 验证码ID无效（为空或格式错误）
+            404: 验证码不存在（可能已被删除或从未创建）
+            410: 验证码已过期（超过10分钟有效期）
+            500: 服务器内部错误（读取文件失败等）
+        
+        安全说明:
+            - 不验证session_id，因为iframe加载时可能跨域
+            - 验证码ID使用UUID格式，难以猜测
+            - 验证码有效期10分钟，过期自动失效
+        
+        注意事项（移动端优化）:
+            - logs/captcha_history 中保存的始终是原始未调整的HTML
+            - 只有返回给客户端的HTML会根据width参数动态调整
+            - 验证码只缩小不放大（width参数大于460时忽略）
+        """
+        # ========================================
+        # 步骤1: 验证captcha_id参数
+        # - 检查captcha_id是否存在且非空
+        # - 如果无效，返回400错误和友好的HTML错误页面
+        # ========================================
+        if not captcha_id:
+            logging.warning("[验证码HTML页面] 请求缺少验证码ID")
+            return '<html><body><p style="color: red; text-align: center; padding: 20px;">验证码ID无效</p></body></html>', 400
+        
+        # ========================================
+        # 【移动端优化】步骤1.5: 获取width参数（可选）
+        # 
+        # 功能说明:
+        # - 通过request.args.get获取URL查询参数中的width值
+        # - type=int: 自动将字符串转换为整数，转换失败则返回None
+        # - default=None: 如果参数不存在，默认值为None（表示不需要调整）
+        # 
+        # 使用场景:
+        # - 移动端屏幕宽度不足460px时，前端会传递width参数
+        # - PC端或屏幕足够宽的设备不会传递此参数
+        # 
+        # 原因:
+        # - 后端默认返回460px宽度的验证码（标准尺寸）
+        # - 只有在移动端需要缩小时，才需要动态调整
+        # ========================================
+        target_width = request.args.get('width', type=int, default=None)
+        
+        # ========================================
+        # 【移动端优化】步骤1.6: 验证width参数的有效性
+        # 
+        # 功能说明:
+        # - 检查width参数是否在合理范围内
+        # - 防止无效值（0、负数、过小的值）导致问题
+        # 
+        # 验证规则:
+        # 1. 如果width不为None，必须 > 0
+        # 2. 最小宽度建议为100px（保证验证码可读性）
+        # 3. 最大宽度限制为460px（"只缩小不放大"原则）
+        # 
+        # 错误处理:
+        # - 如果width无效，记录警告日志并设置为None
+        # - 这样会使用原始HTML，确保验证码始终可用
+        # ========================================
+        if target_width is not None:
+            if target_width <= 0:
+                logging.warning(f"[移动端验证码缩放] 无效的width参数: {target_width} (必须 > 0)，使用原始HTML")
+                target_width = None
+            elif target_width < 100:
+                logging.warning(f"[移动端验证码缩放] width参数过小: {target_width} (建议 >= 100)，使用原始HTML")
+                target_width = None
+            # elif target_width >= 460:
+            #     # 这种情况是正常的，不需要调整大小
+            #     logging.debug(f"[移动端验证码缩放] width参数 >= 460 ({target_width})，使用原始HTML")
+            #     target_width = None
+        
+        # ========================================
+        # 步骤2: 构建验证码文件路径
+        # - 验证码数据存储在 logs/captchas/ 目录下
+        # - 每个验证码一个JSON文件，文件名为 {captcha_id}.json
+        # ========================================
+        captchas_dir = os.path.join('logs', 'captchas')
+        captcha_file = os.path.join(captchas_dir, f'{captcha_id}.json')
+        
+        # ========================================
+        # 步骤3: 检查验证码文件是否存在
+        # - 如果文件不存在，可能是：
+        #   1. 验证码ID错误（客户端传错了）
+        #   2. 验证码已被使用并删除（验证后自动删除）
+        #   3. 验证码已过期被清理
+        # ========================================
+        if not os.path.exists(captcha_file):
+            logging.warning(f"[验证码HTML页面] 验证码文件不存在: {captcha_id[:8]}...")
+            return '<html><body><p style="color: orange; text-align: center; padding: 20px;">验证码不存在或已过期</p></body></html>', 404
+        
+        try:
+            # ========================================
+            # 步骤4: 读取验证码JSON文件
+            # - 使用utf-8编码读取，确保中文字符正确显示
+            # - 解析JSON数据，获取验证码信息
+            # ========================================
+            with open(captcha_file, 'r', encoding='utf-8') as f:
+                captcha_data = json.load(f)
+            
+            # ========================================
+            # 步骤5: 检查验证码是否过期
+            # - 验证码有效期为10分钟（600秒）
+            # - 通过比较当前时间和expires_at时间戳判断
+            # - 如果过期，返回410 Gone状态码
+            # ========================================
+            current_time = time.time()
+            expires_at = captcha_data.get('expires_at', 0)
+            if expires_at < current_time:
+                logging.info(f"[验证码HTML页面] 验证码已过期: {captcha_id[:8]}... (过期时间: {expires_at}, 当前时间: {current_time})")
+                return '<html><body><p style="color: orange; text-align: center; padding: 20px;">验证码已过期，请刷新</p></body></html>', 410
+            
+            # ========================================
+            # 步骤6: 提取验证码HTML内容
+            # - 从JSON数据中读取html字段
+            # - 这个HTML通常是一个<img>标签，包含base64编码的验证码图片
+            # - 如果html字段不存在或为空，返回404错误
+            # 
+            # 【关键】这是从JSON文件读取的原始HTML，不会被修改
+            # - logs/captcha_history 中保存的就是这个原始HTML
+            # - 只有返回给客户端的HTML会根据width参数调整
+            # ========================================
+            captcha_html_content = captcha_data.get('html', '')
+            
+            if not captcha_html_content:
+                logging.error(f"[验证码HTML页面] 验证码HTML内容为空: {captcha_id[:8]}...")
+                return '<html><body><p style="color: red; text-align: center; padding: 20px;">验证码内容不可用</p></body></html>', 404
+            
+            # ========================================
+            # 【移动端优化】步骤6.5: 根据width参数动态调整验证码大小
+            # 
+            # 功能说明:
+            # - 只有在提供了width参数且width < 460时才调整
+            # - 使用resize_captcha_html函数进行调整（第11017行定义）
+            # - 如果调整失败，记录错误但继续使用原始HTML（健壮性处理）
+            # 
+            # 关键要点:
+            # 1. 【修正】只缩小不放大：先获取验证码原始宽度，只有当target_width < 原始宽度时才调整
+            #    - 原因：放大会导致验证码图片变模糊
+            #    - 原始宽度可能是460px、480px或其他值，需要动态获取
+            #    - 不能硬编码460px，因为不同验证码宽度不同
+            # 2. 原始HTML不会被修改：
+            #    - captcha_data['html']保持不变
+            #    - 只修改返回给客户端的captcha_html_content变量
+            #    - logs/captcha_history中的HTML始终是原始版本
+            # 3. 错误处理：如果resize失败，使用原始HTML
+            #    - 确保即使调整失败，验证码仍然可以显示
+            #    - 记录错误日志，便于调试
+            # ========================================
+            # 【移动端优化】根据width参数动态调整验证码大小
+            # 逻辑已封装在 resize_captcha_html 内部：
+            # 1. 解析 HTML 获取当前宽度
+            # 2. 仅当 target_width < 当前宽度时才执行缩放
+            # 3. 出错或无需缩放时返回原始 HTML
+            if target_width is not None:
+                captcha_html_content = resize_captcha_html(captcha_html_content, target_width)
+            
+            # ========================================
+            # 步骤7: 构建完整的HTML5页面
+            # - 添加完整的HTML文档结构（<!DOCTYPE html>, <html>, <head>, <body>）
+            # - 添加meta标签设置字符编码和viewport（移动端适配）
+            # - 【关键】添加多层防缓存meta标签：
+            #   * Cache-Control: no-cache, no-store, must-revalidate
+            #   * Pragma: no-cache (兼容HTTP/1.0)
+            #   * Expires: 0 (立即过期)
+            # - 添加CSS样式，确保验证码图片在iframe中居中显示且响应式
+            # - 插入验证码HTML内容（通常是<img>标签）
+            # ========================================
+            full_html = f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 【CDN缓存修复】禁用缓存的meta标签，确保验证码每次都是最新的 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>跑步助手图形化验证码</title>
+    <style>
+        /* 【CDN缓存修复】响应式样式，确保验证码在iframe中正确显示 */
+        body {{
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 80px;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }}
+        /* 确保验证码图片响应式显示，不超出iframe边界 */
+        img {{
+            max-width: 100%;
+            height: auto;
+            display: block;
+            image-rendering: crisp-edges; /* 优化图片渲染，避免模糊 */
+        }}
+    </style>
+</head>
+<body>
+    <!-- 【CDN缓存修复】验证码HTML内容，通常是包含base64图片的<img>标签 -->
+    {captcha_html_content}
+</body>
+</html>'''
+            
+            # ========================================
+            # 步骤8: 设置HTTP响应头，强制禁用缓存
+            # - Content-Type: text/html; charset=utf-8（指定HTML内容和字符编码）
+            # - Cache-Control: no-cache, no-store, must-revalidate（HTTP/1.1禁用缓存）
+            #   * no-cache: 必须向服务器验证后才能使用缓存
+            #   * no-store: 完全禁止缓存
+            #   * must-revalidate: 过期后必须重新验证
+            # - Pragma: no-cache（HTTP/1.0兼容性，禁用缓存）
+            # - Expires: 0（设置过期时间为0，立即过期）
+            # ========================================
+            response = make_response(full_html)
+            response.headers['Content-Type'] = 'text/html; charset=utf-8'
+            # 【CDN缓存修复】多层防缓存响应头，确保CDN和浏览器都不缓存
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            
+            # 记录成功日志（仅记录captcha_id的前8位，避免日志过长）
+            logging.debug(f"[验证码HTML页面] 成功返回验证码HTML: {captcha_id}")
+            
+            return response
+            
+        except json.JSONDecodeError as e:
+            # JSON解析错误（文件损坏或格式错误）
+            logging.error(f"[验证码HTML页面] JSON解析失败: {captcha_id} - {e}")
+            return '<html><body><p style="color: red; text-align: center; padding: 20px;">验证码数据损坏</p></body></html>', 500
+            
+        except IOError as e:
+            # 文件读取错误（权限问题、磁盘错误等）
+            logging.error(f"[验证码HTML页面] 文件读取失败: {captcha_id} - {e}")
+            return '<html><body><p style="color: red; text-align: center; padding: 20px;">读取验证码失败</p></body></html>', 500
+            
+        except Exception as e:
+            # 其他未预料的错误
+            logging.error(f"[验证码HTML页面] 未知错误: {captcha_id} - {e}", exc_info=True)
+            return '<html><body><p style="color: red; text-align: center; padding: 20px;">读取验证码时发生错误</p></body></html>', 500
     
     def verify_captcha(captcha_id, user_input):
         """
@@ -21121,6 +21865,7 @@ def start_web_server(args_param):
             logging.error(f"[验证码] 验证过程出错: {e}", exc_info=True)
             return False, "验证码验证失败"
     
+
     @app.route('/api/captcha/history', methods=['GET'])
     def get_captcha_history():
         """
@@ -21175,11 +21920,18 @@ def start_web_server(args_param):
             limit = int(request.args.get('limit', 100))
             status_filter = request.args.get('status', '')
             
-            # 读取历史记录
-            history_dir = os.path.join('logs', 'captcha_history')
-            history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+            # # 【修正】移除日期字符串中的连字符，以匹配文件名格式 (YYYY-MM-DD -> YYYYMMDD)
+            clean_date_str = date_str.replace('-', '')
+
+            # 读取历史记录 - 使用全局 LOGIN_LOGS_DIR
+            history_dir = os.path.join(LOGIN_LOGS_DIR, 'captcha_history')
+            # 使用处理后的日期字符串构建文件名
+            history_file = os.path.join(history_dir, f'captcha_history_{clean_date_str}.jsonl')
             
+            logging.debug(f"[验证码历史] 正在读取文件: {history_file}")
+
             if not os.path.exists(history_file):
+                logging.info(f"[验证码历史] 文件不存在: {history_file}")
                 return jsonify({
                     "success": True,
                     "data": [],
@@ -21192,10 +21944,27 @@ def start_web_server(args_param):
             current_time = time.time()
             expiry_threshold = 30 * 60  # 30分钟（1800秒）
             
+            line_count = 0
+            parse_error_count = 0
+
+            # 状态映射：前端状态 -> 后端状态
+            # pending -> created
+            # success -> verified_success
+            # failed -> verified_failed
+            # all -> (忽略过滤)
+            target_status = status_filter
+            if status_filter == 'pending': target_status = 'created'
+            elif status_filter == 'success': target_status = 'verified_success'
+            elif status_filter == 'failed': target_status = 'verified_failed'
+
             with open(history_file, 'r', encoding='utf-8') as f:
                 for line in f:
+                    line_count += 1
+                    line = line.strip()
+                    if not line: continue # 跳过空行
+
                     try:
-                        record = json.loads(line.strip())
+                        record = json.loads(line)
                         
                         # 自动标记过期的验证码
                         # 如果状态是 'created' 且已经超过30分钟，自动标记为 'expired'
@@ -21208,9 +21977,11 @@ def start_web_server(args_param):
                                     timestamp + expiry_threshold
                                 ).strftime('%Y-%m-%d %H:%M:%S')
                         
-                        # 状态过滤
-                        if status_filter and record.get('status') != status_filter:
-                            continue
+                        # 状态过滤 (修正：处理 'all' 和状态映射)
+                        if status_filter and status_filter != 'all':
+                            if record.get('status') != target_status:
+                                continue
+
                         # 移除敏感信息
                         record.pop('session_id', None)
                         records.append(record)
@@ -21284,7 +22055,6 @@ def start_web_server(args_param):
                 "success": False,
                 "message": "获取验证码历史失败"
             }), 500
-
     # ============================================================
     # 修正：验证码详情API
     # 用于根据ID获取单个验证码的详细信息
@@ -21307,7 +22077,8 @@ def start_web_server(args_param):
                 return jsonify({"success": False, "message": "无效的验证码ID"}), 400
 
             # 3. 遍历所有历史文件查找该ID
-            history_dir = os.path.join('logs', 'captcha_history')
+            # 使用全局 LOGIN_LOGS_DIR
+            history_dir = os.path.join(LOGIN_LOGS_DIR, 'captcha_history')
             if not os.path.exists(history_dir):
                 return jsonify({"success": False, "message": "验证码历史目录不存在"}), 404
 
@@ -21359,6 +22130,344 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"[验证码详情] 获取详情失败: {e}", exc_info=True)
             return jsonify({"success": False, "message": "获取验证码详情时发生错误"}), 500
+
+    # ========================================
+    # 【本地验证码】新增API端点
+    # ========================================
+    
+    @app.route('/api/captcha/save_settings', methods=['POST'])
+    @login_required
+    def save_captcha_settings():
+        """
+        【本地验证码】保存验证码生成器设置到config.ini
+        
+        权限要求：管理员 (modify_config)
+        
+        功能说明:
+            - 将验证码生成参数（length, scale_factor, noise_level）保存到config.ini的[Captcha]节
+            - 参数会经过严格的范围验证，防止无效或危险的配置
+            - 保存后立即生效，下次生成验证码时使用新参数
+        
+        请求格式 (JSON):
+            {
+                "length": 4,           # 验证码字符数（3-6）
+                "scale_factor": 2,     # 像素细分倍数（2-4）
+                "noise_level": 0.08    # 噪点比例（0.0-0.3）
+            }
+        
+        返回格式:
+            {
+                "success": True/False,
+                "message": "设置保存成功" / "错误信息"
+            }
+        
+        安全说明:
+            - 只有管理员才能修改验证码设置
+            - 所有参数都会进行范围检查，防止异常值
+            - 使用_write_config_with_comments保存，保留注释
+        """
+        try:
+            # ========================================
+            # 1. 权限检查：只有管理员可以修改验证码设置
+            # ========================================
+            if not auth_system.check_permission(g.user, 'modify_config'):
+                logging.warning(f"【本地验证码】用户 {g.user} 尝试保存验证码设置但权限不足")
+                return jsonify({
+                    'success': False, 
+                    'message': '权限不足：只有管理员可以修改验证码设置'
+                }), 403
+            
+            # ========================================
+            # 2. 解析请求数据
+            # ========================================
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    'success': False, 
+                    'message': '请求数据为空'
+                }), 400
+            
+            # ========================================
+            # 3. 提取并验证参数
+            # ========================================
+            # 提取参数，如果不存在则使用默认值
+            try:
+                length = int(data.get('length', 4))
+                scale_factor = int(data.get('scale_factor', 2))
+                noise_level = float(data.get('noise_level', 0.08))
+            except (ValueError, TypeError) as e:
+                logging.error(f"【本地验证码】参数类型转换失败: {e}")
+                return jsonify({
+                    'success': False, 
+                    'message': f'参数类型错误: {str(e)}'
+                }), 400
+            
+            # 参数范围检查（防止异常值导致验证码生成失败或性能问题）
+            if not (3 <= length <= 6):
+                return jsonify({
+                    'success': False, 
+                    'message': '验证码长度必须在3-6之间'
+                }), 400
+            
+            if not (2 <= scale_factor <= 4):
+                return jsonify({
+                    'success': False, 
+                    'message': '细分倍数必须在2-4之间'
+                }), 400
+            
+            if not (0 <= noise_level <= 0.3):
+                return jsonify({
+                    'success': False, 
+                    'message': '噪点比例必须在0.0-0.3之间'
+                }), 400
+            
+            logging.info(f"【本地验证码】用户 {g.user} 请求保存验证码设置: length={length}, scale_factor={scale_factor}, noise_level={noise_level}")
+            
+            # ========================================
+            # 4. 读取现有配置文件
+            # ========================================
+            config_file = 'config.ini'
+            config = configparser.ConfigParser()
+            
+            # 如果配置文件存在，先读取现有配置
+            if os.path.exists(config_file):
+                config.read(config_file, encoding='utf-8')
+            
+            # ========================================
+            # 5. 确保[Captcha]节存在
+            # ========================================
+            # 如果[Captcha]节不存在（旧版本配置文件），则创建它
+            if not config.has_section('Captcha'):
+                config.add_section('Captcha')
+                logging.debug("【本地验证码】[Captcha]节不存在，已创建")
+            
+            # ========================================
+            # 6. 更新配置值
+            # ========================================
+            config.set('Captcha', 'length', str(length))
+            config.set('Captcha', 'scale_factor', str(scale_factor))
+            config.set('Captcha', 'noise_level', str(noise_level))
+            
+            # ========================================
+            # 7. 保存配置文件（使用带注释的方式）
+            # ========================================
+            # 注意：必须使用_write_config_with_comments函数保存
+            # 如果使用config.write()会丢失所有注释
+            _write_config_with_comments(config, config_file)
+            
+            logging.info(f"【本地验证码】验证码设置已成功保存到 {config_file}")
+            
+            # ========================================
+            # 8. 返回成功响应
+            # ========================================
+            return jsonify({
+                'success': True,
+                'message': '验证码设置保存成功'
+            })
+        
+        except Exception as e:
+            # 捕获所有未预期的异常，防止服务器崩溃
+            logging.error(f"【本地验证码】保存验证码设置失败: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': f'保存失败: {str(e)}'
+            }), 500
+
+    
+    @app.route('/api/captcha/test_generate', methods=['POST'])
+    @login_required
+    def test_generate_captcha():
+        """
+        【本地验证码】测试生成验证码（用于预览效果）
+        
+        权限要求：管理员 (modify_config)
+        
+        功能说明:
+            - 使用指定的参数临时生成一个验证码，用于预览效果
+            - 不会将验证码保存到数据库或记录历史
+            - 返回验证码的HTML和答案（仅用于测试预览）
+            - 管理员可以在"验证码设置"面板中调整参数并实时预览
+        
+        请求格式 (JSON):
+            {
+                "length": 4,           # 验证码字符数（3-6）
+                "scale_factor": 2,     # 像素细分倍数（2-4）
+                "noise_level": 0.08    # 噪点比例（0.0-0.3）
+            }
+        
+        返回格式:
+            {
+                "success": True/False,
+                "code": "ABC1",           # 验证码答案（仅用于测试预览）
+                "html": "<div>...</div>", # 验证码HTML（用于前端显示）
+                "message": "生成成功" / "错误信息"
+            }
+        
+        安全说明:
+            - 只有管理员才能测试生成验证码（需要modify_config权限）
+            - 测试生成的验证码不会被记录或用于实际登录
+            - 返回的code仅用于预览效果，实际使用时不返回
+        """
+        try:
+            # ========================================
+            # 1. 权限检查：只有管理员可以测试生成验证码
+            # ========================================
+            if not auth_system.check_permission(g.user, 'modify_config'):
+                logging.warning(f"【本地验证码】用户 {g.user} 尝试测试生成验证码但权限不足")
+                return jsonify({
+                    'success': False, 
+                    'message': '权限不足：只有管理员可以测试验证码'
+                }), 403
+            
+            # ========================================
+            # 2. 导入本地验证码生成器
+            # ========================================
+            # 使用全局定义的 MicroPixelCaptcha (支持 Fallback)
+            # from get_captchas import MicroPixelCaptcha # 不需要再次导入
+            pass
+            
+            # ========================================
+            # 3. 解析请求数据
+            # ========================================
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    'success': False, 
+                    'message': '请求数据为空'
+                }), 400
+            
+            # ========================================
+            # 4. 提取并验证参数
+            # ========================================
+            # 提取参数，如果不存在则使用默认值
+            try:
+                length = int(data.get('length', 4))
+                scale_factor = int(data.get('scale_factor', 2))
+                noise_level = float(data.get('noise_level', 0.08))
+            except (ValueError, TypeError) as e:
+                logging.error(f"【本地验证码】测试生成时参数类型转换失败: {e}")
+                return jsonify({
+                    'success': False, 
+                    'message': f'参数类型错误: {str(e)}'
+                }), 400
+            
+            # 参数范围检查（防止异常值导致生成失败）
+            if not (3 <= length <= 6):
+                return jsonify({
+                    'success': False, 
+                    'message': '验证码长度必须在3-6之间'
+                }), 400
+            
+            if not (2 <= scale_factor <= 4):
+                return jsonify({
+                    'success': False, 
+                    'message': '细分倍数必须在2-4之间'
+                }), 400
+            
+            if not (0 <= noise_level <= 0.3):
+                return jsonify({
+                    'success': False, 
+                    'message': '噪点比例必须在0.0-0.3之间'
+                }), 400
+            
+            logging.info(f"【本地验证码】用户 {g.user} 测试生成验证码: length={length}, scale_factor={scale_factor}, noise_level={noise_level}")
+            
+            # ========================================
+            # 5. 生成验证码
+            # ========================================
+            # 创建验证码生成器实例
+            generator = MicroPixelCaptcha()
+            
+            # 调用generate方法生成验证码
+            # 返回: (验证码答案, 验证码HTML)
+            code, html = generator.generate(
+                length=length,
+                scale_factor=scale_factor,
+                noise_level=noise_level
+            )
+            
+            logging.debug(f"【本地验证码】测试验证码生成成功: code={code}, html_length={len(html)}")
+
+            # ========================================
+            # 5.1 保存到文件及历史记录 (新增逻辑)
+            # ========================================
+            import uuid
+            captcha_id = str(uuid.uuid4())
+            
+            # 1. 保存验证码数据文件 (供iframe读取)
+            captchas_dir = os.path.join(LOGIN_LOGS_DIR, 'captchas')
+            os.makedirs(captchas_dir, exist_ok=True)
+            
+            captcha_data = {
+                'id': captcha_id,
+                'code': code.upper(),
+                'html': html,
+                'session_id': request.headers.get('X-Session-ID', 'test_session'),
+                'timestamp': time.time(),
+                'expires_at': time.time() + 600 # 10分钟后过期
+            }
+            
+            captcha_file = os.path.join(captchas_dir, f'{captcha_id}.json')
+            with open(captcha_file, 'w', encoding='utf-8') as f:
+                json.dump(captcha_data, f, indent=2, ensure_ascii=False)
+
+            # 2. 记录到历史记录文件 (供管理员查看)
+            try:
+                history_dir = os.path.join(LOGIN_LOGS_DIR, 'captcha_history')
+                os.makedirs(history_dir, exist_ok=True)
+                
+                date_str = datetime.datetime.now().strftime('%Y%m%d')
+                history_file = os.path.join(history_dir, f'captcha_history_{date_str}.jsonl')
+                
+                history_entry = {
+                    'captcha_id': captcha_id,
+                    'code': code.upper(),
+                    'html': html,
+                    'session_id': request.headers.get('X-Session-ID', 'unknown'),
+                    'client_ip': request.headers.get('X-Forwarded-For', request.remote_addr),
+                    'user_agent': request.headers.get('User-Agent', 'unknown'),
+                    'timestamp': time.time(),
+                    'timestamp_readable': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'expires_at': time.time() + 600,
+                    'status': 'test_generated',  # 特殊状态：测试生成
+                    'verified_at': None,
+                    'verified_input': None
+                }
+                
+                with open(history_file, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(history_entry, ensure_ascii=False) + '\n')
+                    
+                logging.info(f"【本地验证码】测试记录已保存: ID={captcha_id}")
+            except Exception as e:
+                logging.error(f"【本地验证码】保存测试历史失败: {e}")
+
+            # ========================================
+            # 6. 返回成功响应
+            # ========================================
+            # 注意：code仅用于测试预览，实际使用时不应返回
+            return jsonify({
+                'success': True,
+                'code': code,       # 验证码答案（仅用于测试预览）
+                'html': html,       # 验证码HTML（保留用于兼容）
+                'captcha_id': captcha_id, # 返回ID供iframe使用
+                'message': '验证码生成成功'
+            })
+        
+        except ImportError as e:
+            # 如果get_captchas.py文件不存在或MicroPixelCaptcha类不存在
+            logging.error(f"【本地验证码】导入MicroPixelCaptcha失败: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': f'验证码生成器不可用: {str(e)}'
+            }), 500
+        
+        except Exception as e:
+            # 捕获所有未预期的异常，防止服务器崩溃
+            logging.error(f"【本地验证码】测试生成验证码失败: {e}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': f'生成失败: {str(e)}'
+            }), 500
 
 
     @app.route('/health')
@@ -21866,7 +22975,7 @@ def start_web_server(args_param):
     
     # 打印启动信息
     print(f"\n{'='*60}")
-    print(f"  跑步助手 Web 模式已启动（服务器端Chrome渲染，2048位UUID）")
+    print(f"  跑步助手 Web 模式已启动")
     print(f"  访问地址: {server_url}")
     if ssl_config.get('ssl_enabled', False):
         print(f"  SSL/HTTPS: 已启用 ✓")

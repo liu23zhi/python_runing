@@ -13,3 +13,5 @@ Pillow
 bcrypt
 Flask-SocketIO
 cryptography
+eventlet
+BeautifulSoup4
