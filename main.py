@@ -12165,6 +12165,14 @@ class MicroPixelCaptcha:
         pixel_size = 12 // scale_factor
         if pixel_size < 4: pixel_size = 4
         
+        # 6. 计算实际渲染尺寸
+        # 验证码总行数固定为7（字体高度）
+        grid_rows = 7 * scale_factor
+        # 宽度计算：列数 * (像素大小 + 间隙) - 最后一个间隙 + 两侧padding + 两侧border
+        captcha_width = grid_cols * (pixel_size + 1) - 1 + 2 * 10 + 2 * 1
+        # 高度计算：行数 * (像素大小 + 间隙) - 最后一个间隙 + 两侧padding + 两侧border
+        captcha_height = grid_rows * (pixel_size + 1) - 1 + 2 * 10 + 2 * 1
+        
         css = f"""<style>
 .{cls_con}{{
     display:grid;
@@ -12186,7 +12194,7 @@ class MicroPixelCaptcha:
 </style>"""
 
         full_html = f'<div class="{cls_con}">{html_content}</div>{css}'
-        return code, full_html
+        return code, full_html, captcha_width, captcha_height
 
 
 
@@ -21258,13 +21266,15 @@ def start_web_server(args_param):
         功能说明:
             - 使用本地MicroPixelCaptcha生成器生成验证码（替代不稳定的第三方API）
             - 生成唯一的验证码ID，将ID和答案存储在JSON文件中
-            - 返回验证码的HTML内容和验证码ID给前端显示
+            - 返回验证码的HTML内容、验证码ID和尺寸给前端显示
         
         返回格式:
             {
                 "success": True/False,
                 "html": "验证码HTML内容（用于在前端显示图片）",
                 "captcha_id": "唯一的验证码ID",
+                "width": 验证码宽度（像素），
+                "height": 验证码高度（像素），
                 "message": "错误消息（仅失败时返回）"
             }
         
@@ -21307,14 +21317,14 @@ def start_web_server(args_param):
             # from get_captchas import MicroPixelCaptcha # 不需要再次导入，使用全局定义
             generator = MicroPixelCaptcha()
             
-            # 生成验证码（返回验证码答案和HTML）
-            captcha_code, captcha_html = generator.generate(
+            # 生成验证码（返回验证码答案、HTML、宽度和高度）
+            captcha_code, captcha_html, captcha_width, captcha_height = generator.generate(
                 length=length,
                 scale_factor=scale_factor,
                 noise_level=noise_level
             )
             
-            logging.debug(f"[本地验证码] 已生成验证码，长度={length}，答案={captcha_code}")
+            logging.debug(f"[本地验证码] 已生成验证码，长度={length}，答案={captcha_code}，尺寸={captcha_width}x{captcha_height}")
             
             # 验证数据完整性
             if not captcha_html or not captcha_code:
@@ -21429,13 +21439,15 @@ def start_web_server(args_param):
             threading.Thread(target=cleanup_expired_captchas, daemon=True).start()
             
             # 记录日志（不记录验证码答案）
-            logging.info(f"[本地验证码] 已生成验证码 ID: {captcha_id[:8]}... 会话: {session_id[:8]}... 长度: {length}")
+            logging.info(f"[本地验证码] 已生成验证码 ID: {captcha_id[:8]}... 会话: {session_id[:8]}... 长度: {length} 尺寸: {captcha_width}x{captcha_height}px")
             
-            # 返回验证码HTML和ID给前端
+            # 返回验证码HTML、ID和尺寸给前端
             return jsonify({
                 "success": True,
                 "html": captcha_html,
-                "captcha_id": captcha_id
+                "captcha_id": captcha_id,
+                "width": captcha_width,
+                "height": captcha_height
             })
             
         except ImportError as e:
@@ -22379,14 +22391,14 @@ def start_web_server(args_param):
             generator = MicroPixelCaptcha()
             
             # 调用generate方法生成验证码
-            # 返回: (验证码答案, 验证码HTML)
-            code, html = generator.generate(
+            # 返回: (验证码答案, 验证码HTML, 宽度, 高度)
+            code, html, width, height = generator.generate(
                 length=length,
                 scale_factor=scale_factor,
                 noise_level=noise_level
             )
             
-            logging.debug(f"【本地验证码】测试验证码生成成功: code={code}, html_length={len(html)}")
+            logging.debug(f"【本地验证码】测试验证码生成成功: code={code}, html_length={len(html)}, size={width}x{height}")
 
             # ========================================
             # 5.1 保存到文件及历史记录 (新增逻辑)
@@ -22450,6 +22462,8 @@ def start_web_server(args_param):
                 'code': code,       # 验证码答案（仅用于测试预览）
                 'html': html,       # 验证码HTML（保留用于兼容）
                 'captcha_id': captcha_id, # 返回ID供iframe使用
+                'width': width,     # 验证码宽度（像素）
+                'height': height,   # 验证码高度（像素）
                 'message': '验证码生成成功'
             })
         
