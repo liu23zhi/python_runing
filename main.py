@@ -11254,6 +11254,12 @@ def resize_captcha_html(html_content, target_width):
         # 修正后的缩放系数
         scale_ratio = available_grid_width / original_grid_width
 
+        # --- [新增] 约束：只允许缩小，不允许放大 ---
+        if scale_ratio >= 1.0:
+            logging.info(f"[验证码缩放] 目标宽度 ({target_width}px) 足以容纳原始尺寸，跳过放大 (Ratio: {scale_ratio:.2f})")
+            return html_content
+        # ---------------------------------------
+
         new_pixel_w = old_pixel_w * scale_ratio
         new_pixel_h = old_pixel_h * scale_ratio
         new_gap = old_gap * scale_ratio

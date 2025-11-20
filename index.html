@@ -2656,7 +2656,7 @@
   </div>
 
   <!-- ========== 验证码验证模态窗（用于SMS发送前验证） ========== -->
-  <div id="captcha-verification-modal" class="fixed inset-0 hidden z-[70] flex items-center justify-center p-4"
+  <div id="captcha-verification-modal" class="fixed inset-0 hidden z-[10001] flex items-center justify-center p-4"
     style="background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);">
     <!-- 对话框主体容器 - 拟态风格卡片 -->
     <div
@@ -30824,7 +30824,7 @@ function renderMultiAccountList(accounts) {
       // ========================================
 
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth; // 获取视口宽度，兼容旧版浏览器
-      const padding = 80; // 左右padding总和（估算值：左20px + 右20px）
+      const padding = 80+40; // 左右padding总和（估算值：左20px + 右20px）
       const availableWidth = viewportWidth - padding; // 计算实际可用宽度
       
       // 【移动端验证码缩放】目标宽度 = 可用宽度
@@ -31617,7 +31617,7 @@ function renderMultiAccountList(accounts) {
           
           const timestamp = Date.now();
           // 预估高度 (宽高比约 1:3 到 1:4，给 150px 足够显示)
-          const estimatedHeight = 150; 
+          const estimatedHeight = 200; 
           
           const iframeHtml = `
             <iframe 
