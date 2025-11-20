@@ -12030,6 +12030,11 @@
     ];
 
     let pythonParams = {};
+    
+    // 缓存的多账号数据，用于在不重新获取数据的情况下更新状态文本
+    // 当renderMultiAccountList被调用时，会将accounts数据存储到这里
+    // 当multi-run-only-incomplete-check复选框变化时，会使用这个缓存来重新计算状态
+    let cachedMultiAccounts = [];
 
     let runAccumulatedMs = 0;
     let draftTotalDist = 0;
@@ -23908,91 +23913,99 @@
     }
 
     /**
-     * 更新所有账号的状态文本（status_text）
+     * 更新所有账号的状态文本（status_text）- 使用缓存数据，不重新获取
      * 
      * 功能说明：
-     * - 从后端获取最新的账号列表数据
+     * - 使用cachedMultiAccounts中的缓存数据（不从后端重新获取）
      * - 根据"仅执行未完成"复选框的状态和ignore_task_time参数
-     * - 重新计算每个账号的status_text（可执行任务数量）
-     * - 最后调用renderMultiAccountList重新渲染界面
+     * - 遍历缓存的任务列表，重新计算每个账号的status_text（可执行任务数量）
+     * - 直接更新DOM元素（通过ID: ${acc.username}-status-text），不重新渲染整个列表
      * 
      * 使用场景：
      * - 当用户切换"仅执行未完成"复选框时
-     * - 需要刷新所有账号的状态显示时
+     * - 需要基于已加载的任务数据重新计算状态时
      * 
-     * @returns {Promise<void>} 异步函数，无返回值
+     * 注意：
+     * - 此函数不会从后端获取新数据，只遍历已缓存的任务列表
+     * - 只更新状态文本，不影响其他显示内容
      */
-    async function updateAllAccountsStatusText() {
+    function updateAllAccountsStatusText() {
       try {
         // 【步骤1】记录日志，便于调试和问题追踪
-        console.log('[更新账号状态] 开始更新所有账号的状态文本...');
+        console.log('[更新账号状态] 开始更新所有账号的状态文本（使用缓存数据）...');
         
-        // 【步骤2】从后端API获取所有账号的最新数据
-        // multi_get_all_accounts_status 会返回包含accounts数组的对象
-        // accounts数组中的每个账号对象包含username、name、tasks等信息
-        const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
-        
-        // 【步骤3】验证后端返回的数据是否有效
-        // 如果返回结果为空、没有accounts属性，或accounts不是数组，则提前返回
-        if (!accountsResult || !accountsResult.accounts || !Array.isArray(accountsResult.accounts)) {
-          console.warn('[更新账号状态] 获取账号列表失败或列表为空，无法更新状态文本');
+        // 【步骤2】验证缓存的账号数据是否可用
+        // 如果cachedMultiAccounts为空或不是数组，说明还没有加载过账号数据
+        if (!cachedMultiAccounts || !Array.isArray(cachedMultiAccounts) || cachedMultiAccounts.length === 0) {
+          console.warn('[更新账号状态] 缓存的账号列表为空，无法更新状态文本');
           return; // 提前退出，不进行后续处理
         }
         
-        // 【步骤4】获取"仅执行未完成"复选框的当前状态
+        // 【步骤3】获取"仅执行未完成"复选框的当前状态
         // 从桌面端的复选框读取状态（checked属性为true表示勾选）
         // 如果元素不存在，使用空值合并操作符(??)设置默认值为false
         const onlyIncompleteCheckbox = document.getElementById('multi-run-only-incomplete-check');
         const onlyIncomplete = onlyIncompleteCheckbox?.checked ?? false;
         
-        // 【步骤5】获取ignore_task_time参数的值
+        // 【步骤4】获取ignore_task_time参数的值
         // 该参数控制是否忽略任务的具体时间，只比对日期
         // pythonParams是全局参数对象，存储了从后端获取的所有配置参数
         // 如果参数不存在，默认为false（即默认需要检查完整的日期和时间）
         const ignoreTaskTime = pythonParams.ignore_task_time ?? false;
         
-        // 【步骤6】记录当前使用的参数值，方便调试
+        // 【步骤5】记录当前使用的参数值，方便调试
         console.log(`[更新账号状态] 参数设置 - 仅未完成: ${onlyIncomplete}, 忽略任务时间: ${ignoreTaskTime}`);
         
-        // 【步骤7】遍历所有账号，重新计算每个账号的status_text
-        // forEach会对accounts数组中的每个元素执行一次回调函数
-        accountsResult.accounts.forEach(account => {
-          // 【步骤7.1】调用calculateStatusText函数计算账号的状态文本
-          // 该函数会根据账号的任务列表、onlyIncomplete和ignoreTaskTime参数
+        // 【步骤6】遍历缓存的账号数据，重新计算每个账号的status_text
+        // 注意：这里遍历的是cachedMultiAccounts，不是从后端获取的新数据
+        let updatedCount = 0;
+        cachedMultiAccounts.forEach(account => {
+          // 【步骤6.1】调用calculateStatusText函数计算账号的状态文本
+          // 该函数会遍历account.tasks数组，根据onlyIncomplete和ignoreTaskTime参数
           // 计算出当前有多少个任务可以执行，返回类似"有3个任务可执行"或"无任务可执行"的文本
           const newStatusText = calculateStatusText(account, onlyIncomplete, ignoreTaskTime);
           
-          // 【步骤7.2】将计算得到的新状态文本赋值给账号对象的status_text属性
-          // 这样后续渲染时就会显示更新后的状态
-          account.status_text = newStatusText;
+          // 【步骤6.2】查找对应的DOM元素（桌面端）
+          // 状态文本元素的ID格式为：${acc.username}-status-text
+          const statusElement = document.getElementById(`${account.username}-status-text`);
+          if (statusElement) {
+            // 【步骤6.3】直接更新DOM元素的文本内容
+            // 这样可以避免重新渲染整个列表，提高性能
+            statusElement.textContent = newStatusText;
+            updatedCount++;
+            
+            // 【步骤6.4】记录详细的更新日志（仅在开发调试时有用）
+            console.log(`[更新账号状态] ${account.username} -> ${newStatusText}`);
+          } else {
+            // 如果找不到DOM元素，记录警告（但不影响其他账号的更新）
+            console.warn(`[更新账号状态] 未找到账号 ${account.username} 的状态文本元素`);
+          }
           
-          // 【步骤7.3】记录详细的更新日志（仅在开发调试时有用）
-          // 可以看到每个账号的用户名和计算出的新状态文本
-          console.log(`[更新账号状态] ${account.username} -> ${newStatusText}`);
+          // 【步骤6.5】同时更新缓存数据中的status_text
+          // 这样下次renderMultiAccountList时会使用更新后的值
+          account.status_text = newStatusText;
         });
         
-        // 【步骤8】调用renderMultiAccountList函数重新渲染账号列表
-        // 该函数会将更新后的账号数据渲染到桌面端和移动端的界面上
-        // 用户可以立即看到更新后的状态文本
-        renderMultiAccountList(accountsResult.accounts);
-        
-        // 【步骤9】记录成功日志
-        console.log(`[更新账号状态] 状态文本更新完成，共更新 ${accountsResult.accounts.length} 个账号`);
+        // 【步骤7】记录成功日志
+        console.log(`[更新账号状态] 状态文本更新完成，共更新 ${updatedCount}/${cachedMultiAccounts.length} 个账号`);
         
       } catch (error) {
-        // 【步骤10】捕获并记录任何错误
-        // 可能的错误包括：网络请求失败、数据格式错误、函数调用异常等
+        // 【步骤8】捕获并记录任何错误
+        // 可能的错误包括：数据格式错误、函数调用异常、DOM操作失败等
         // 使用console.error确保错误信息在控制台中以红色醒目显示
         console.error('[更新账号状态] 更新状态文本时发生错误:', error);
         
-        // 【步骤11】向用户显示友好的错误提示
+        // 【步骤9】向用户显示友好的错误提示
         // showModalAlert会弹出一个模态对话框，告知用户操作失败
-        // 避免静默失败，让用户知道发生了问题
-        showModalAlert('更新账号状态失败，请稍后重试');
+        showModalAlert('更新账号状态失败，请检查控制台日志');
       }
     }
 
 function renderMultiAccountList(accounts) {
+        // 【缓存账号数据】将accounts存储到全局变量cachedMultiAccounts
+        // 这样当复选框变化时，可以直接使用缓存数据更新状态文本，而不需要重新从后端获取
+        cachedMultiAccounts = accounts;
+        
         // 定义渲染逻辑的通用函数
         const renderToContainer = (containerId, isMobile) => {
             const listDiv = document.getElementById(containerId);
