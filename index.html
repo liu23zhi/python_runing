@@ -4691,7 +4691,8 @@
 
           <!-- ========== 执行选项复选框 ========== -->
           <!-- 提供任务执行的额外选项控制 -->
-          <div class="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
+          <!-- 【问题5修复】隐藏任务执行额外选项控制div，避免在移动端显示不必要的选项 -->
+          <div class="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2" style="display:none">
             <!-- 忽略已完成状态复选框 - 执行时跳过已完成的任务 -->
             <label
               class="flex items-center gap-2 cursor-pointer p-2 bg-amber-50 rounded-lg hover:bg-amber-100 transition">
@@ -12564,27 +12565,62 @@
     /**
      * 打开验证码验证模态窗
      * @param {Object} context - SMS发送上下文信息（包含手机号、发送按钮等）
+     * 【问题3修复】增强验证码模态框的显示逻辑，确保在各种情况下都能正常工作
      */
     function openCaptchaModal(context) {
+      // 保存短信发送的上下文信息，以便验证通过后使用
       pendingSMSContext = context;
+      
+      // 获取模态框和输入框元素
       const modal = document.getElementById('captcha-verification-modal');
       const input = document.getElementById('captcha-modal-input');
 
-      if (modal) {
-        modal.classList.remove('hidden');
-        // 确保modal在移动端也能正确显示
-        modal.style.display = 'flex';
-        input.value = '';  // 清空输入框
-        loadCaptchaModal();  // 加载验证码
+      // 【问题3修复】检查模态框元素是否存在
+      if (!modal) {
+        logMessage_Error('[验证码模态窗] 找不到captcha-verification-modal元素');
+        // 如果模态框不存在，显示错误提示
+        showTempMessage('验证码模态框加载失败，请刷新页面重试', 'error');
+        return;
+      }
 
-        // 自动聚焦到输入框
+      // 【问题3修复】确保输入框元素存在
+      if (!input) {
+        logMessage_Error('[验证码模态窗] 找不到captcha-modal-input输入框');
+        showTempMessage('验证码输入框加载失败，请刷新页面重试', 'error');
+        return;
+      }
+
+      try {
+        // 【问题3修复】移除hidden类以显示模态框
+        modal.classList.remove('hidden');
+        
+        // 【问题3修复】强制设置display样式，确保模态框可见
+        // 这对于移动端和某些样式冲突的情况特别重要
+        modal.style.display = 'flex';
+        
+        // 【问题3修复】确保模态框在最顶层显示
+        modal.style.zIndex = '70';
+        
+        // 清空输入框，准备接收新的验证码输入
+        input.value = '';
+        
+        // 【问题3修复】加载验证码图片
+        // 这会触发后端API获取新的验证码图片
+        loadCaptchaModal();
+        
+        // 【问题3修复】延迟聚焦到输入框，确保模态框完全显示后再聚焦
+        // 这样可以避免在某些浏览器中聚焦失败的问题
         setTimeout(() => {
-          if (input) {
+          if (input && modal.style.display !== 'none') {
             input.focus();
+            logMessage_Info('[验证码模态窗] 模态框已打开并聚焦到输入框');
           }
         }, 300);
-      } else {
-        logMessage_Error('[验证码模态窗] 找不到captcha-verification-modal元素');
+        
+      } catch (error) {
+        // 【问题3修复】捕获并记录任何错误
+        logMessage_Error('[验证码模态窗] 打开模态框时发生错误:', error);
+        showTempMessage('打开验证码窗口时出错', 'error');
       }
     }
 
@@ -25113,6 +25149,10 @@ function renderMultiAccountList(accounts) {
             $('start-all-button').classList.remove('btn-danger');
             $('start-all-button').classList.add('btn-secondary');
 
+            // 【问题1修复】任务完成时，同步更新移动端UI状态
+            // 确保移动端的开始和停止按钮也能正确复位
+            updateMobileTaskUI('已完成', '所有任务已完成');
+
             // 刷新任务列表
             if (!isOldTask) {
               refreshTasks();
@@ -25132,6 +25172,10 @@ function renderMultiAccountList(accounts) {
             $('start-all-button').textContent = '执行所有';
             $('start-all-button').classList.remove('btn-danger');
             $('start-all-button').classList.add('btn-secondary');
+
+            // 【问题1修复】任务出错时，同步更新移动端UI状态
+            // 确保移动端按钮能够复位，并显示错误信息
+            updateMobileTaskUI('错误', errorMsg || '任务执行出错');
           }
         }
       } catch (e) {
@@ -27926,6 +27970,9 @@ function renderMultiAccountList(accounts) {
           statusIndicator.className += ' bg-yellow-200 text-yellow-600';
         } else if (status === '已停止') {
           statusIndicator.className += ' bg-red-200 text-red-600';
+        // 【问题1修复】添加对"已完成"状态的样式处理，使用蓝色背景表示任务成功完成
+        } else if (status === '已完成') {
+          statusIndicator.className += ' bg-blue-200 text-blue-600';
         } else {
           statusIndicator.className += ' bg-slate-200 text-slate-600';
         }
@@ -27935,15 +27982,27 @@ function renderMultiAccountList(accounts) {
         statusDetail.textContent = detail || '等待执行任务';
       }
 
-      // 更新按钮状态
+      // 【问题1修复】更新按钮状态，确保任务完成后按钮能够正确复位
+      // 修复逻辑：任务完成时，应该将按钮重置为初始状态（开始按钮启用，停止按钮禁用）
       if (startBtn && stopBtn) {
         if (status === '运行中') {
+          // 任务运行时：开始按钮禁用（不能重复开始），停止按钮启用（可以停止任务）
           startBtn.disabled = true;
           stopBtn.disabled = false;
         } else if (status === '已暂停') {
+          // 任务暂停时：开始按钮启用（可以恢复），停止按钮启用（可以停止）
           startBtn.disabled = false;
           stopBtn.disabled = false;
+        } else if (status === '已完成') {
+          // 【问题1修复核心】任务完成时：重置按钮状态
+          // 开始按钮启用（允许重新开始新任务），停止按钮禁用（没有任务可停止）
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          // 重置全局任务状态标志，表示没有任务在运行
+          mobileTaskRunning = false;
+          mobileTaskPaused = false;
         } else {
+          // 其他状态（已停止、未启动等）：开始按钮启用，停止按钮禁用
           startBtn.disabled = false;
           stopBtn.disabled = true;
         }
@@ -28230,8 +28289,68 @@ function renderMultiAccountList(accounts) {
 
     /**
      * 退出移动端多账号模式，返回首页
+     * 【问题2修复】在退出前检查是否有正在运行的任务
      */
     async function exitMobileMultiAccount() {
+      // 【问题2修复】在退出多账号模式前，检查是否有正在运行的跑步任务
+      // 目的：防止用户在任务执行过程中误操作退出，导致任务中断和数据丢失
+      try {
+        // 通过API查询后端任务状态
+        const statusRes = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+        const isTaskRunning = statusRes.success && 
+                              statusRes.task_status && 
+                              statusRes.task_status.status === 'running';
+
+        // 如果检测到有任务正在运行
+        if (isTaskRunning || mobileTaskRunning) {
+          // 先弹出警告对话框，告知用户有任务正在运行
+          showMobileConfirm(
+            '警告：任务正在运行', // 对话框标题
+            '检测到有跑步任务正在执行中。退出多账号模式将停止当前任务，可能导致数据不完整。\n\n确定要继续退出吗？', // 警告消息
+            async () => {
+              // 用户确认继续退出：首先停止正在运行的任务
+              try {
+                // 调用停止任务API
+                await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+                // 停止轮询
+                stopBackgroundTaskPolling();
+                // 更新UI状态
+                updateMobileTaskUI('已停止', '任务已停止（退出多账号模式）');
+                // 重置任务状态标志
+                mobileTaskRunning = false;
+                mobileTaskPaused = false;
+                
+                // 任务停止后，继续执行退出多账号模式逻辑
+                performExitMobileMultiAccount();
+              } catch (error) {
+                console.error('[移动端] 停止任务失败:', error);
+                // 即使停止失败，也允许用户退出（但要提示）
+                showTempMessage('停止任务时出错，但仍将退出多账号模式', 'warning');
+                performExitMobileMultiAccount();
+              }
+            },
+            () => {
+              // 用户取消退出操作
+              showTempMessage('已取消退出多账号模式', 'info');
+            }
+          );
+          return; // 等待用户确认，不继续执行
+        }
+      } catch (error) {
+        console.error('[移动端] 检查任务状态失败:', error);
+        // 如果检查失败，仍然允许退出（显示警告）
+        showTempMessage('无法检查任务状态，将继续退出', 'warning');
+      }
+
+      // 如果没有任务运行，直接执行退出逻辑
+      performExitMobileMultiAccount();
+    }
+
+    /**
+     * 【问题2修复】执行实际的退出多账号模式操作
+     * 将原exitMobileMultiAccount中的退出逻辑提取为独立函数
+     */
+    async function performExitMobileMultiAccount() {
       // 【多账号自动刷新】停止定时自动刷新账号列表（移动端）
       // 原因：移动端用户退出多账号模式后，不再需要刷新账号列表
       // 及时停止定时器，避免内存泄漏和不必要的网络请求
@@ -28828,8 +28947,68 @@ function renderMultiAccountList(accounts) {
      * - 显示登录容器
      * - 隐藏底部导航栏
      * - 清除用户会话数据
+     * - 【问题2修复】在退出前检查是否有正在运行的任务，防止数据丢失
      */
-    function mobileLogout() {
+    async function mobileLogout() {
+      // 【问题2修复】在退出登录前，检查是否有正在运行的跑步任务
+      // 目的：防止用户在任务执行过程中误操作退出，导致任务中断和数据丢失
+      try {
+        // 通过API查询后端任务状态
+        const statusRes = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
+        const isTaskRunning = statusRes.success && 
+                              statusRes.task_status && 
+                              statusRes.task_status.status === 'running';
+
+        // 如果检测到有任务正在运行
+        if (isTaskRunning || mobileTaskRunning) {
+          // 先弹出警告对话框，告知用户有任务正在运行
+          showMobileConfirm(
+            '警告：任务正在运行', // 对话框标题
+            '检测到有跑步任务正在执行中。退出登录将停止当前任务，可能导致数据不完整。\n\n确定要继续退出吗？', // 警告消息
+            async () => {
+              // 用户确认继续退出：首先停止正在运行的任务
+              try {
+                // 调用停止任务API
+                await callPythonAPI_raw('/api/background_task/stop', 'POST', {});
+                // 停止轮询
+                stopBackgroundTaskPolling();
+                // 更新UI状态
+                updateMobileTaskUI('已停止', '任务已停止（退出登录）');
+                // 重置任务状态标志
+                mobileTaskRunning = false;
+                mobileTaskPaused = false;
+                
+                // 任务停止后，继续执行退出登录逻辑
+                performMobileLogout();
+              } catch (error) {
+                console.error('[移动端] 停止任务失败:', error);
+                // 即使停止失败，也允许用户退出（但要提示）
+                showTempMessage('停止任务时出错，但仍将退出登录', 'warning');
+                performMobileLogout();
+              }
+            },
+            () => {
+              // 用户取消退出操作
+              showTempMessage('已取消退出登录', 'info');
+            }
+          );
+          return; // 等待用户确认，不继续执行
+        }
+      } catch (error) {
+        console.error('[移动端] 检查任务状态失败:', error);
+        // 如果检查失败，仍然允许退出（显示警告）
+        showTempMessage('无法检查任务状态，将继续退出', 'warning');
+      }
+
+      // 如果没有任务运行，直接显示退出确认对话框
+      performMobileLogout();
+    }
+
+    /**
+     * 【问题2修复】执行实际的退出登录操作
+     * 将原mobileLogout中的退出逻辑提取为独立函数，便于复用
+     */
+    function performMobileLogout() {
       // 显示自定义确认对话框，防止误操作
       // 使用自定义确认对话框替代原生confirm()
       showMobileConfirm(
@@ -29224,110 +29403,10 @@ function renderMultiAccountList(accounts) {
      * @param {string} containerId - 地图容器的DOM元素ID
      * @param {object} mapInstance - 用于存储地图实例的对象（map或multiAccountMap）
      */
-    function initMobileMap(containerId, isMultiAccount = false) {
-      // 检查地图容器是否存在
-      const container = document.getElementById(containerId);
-      if (!container) {
-        console.warn(`[移动端地图] 容器 ${containerId} 不存在`);
-        return;
-      }
-
-      // 检查高德地图API是否已加载
-      if (typeof AMapInstance === 'undefined') {
-        console.error('[移动端地图] 高德地图API未加载');
-        // 显示错误提示
-        container.innerHTML = `
-          <div class="absolute inset-0 flex items-center justify-center text-slate-400">
-            <div class="text-center">
-              <svg class="w-12 h-12 mx-auto mb-2 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <p class="text-sm">地图加载失败</p>
-            </div>
-          </div>
-        `;
-        return;
-      }
-
-      // 判断是多账号模式还是单账号模式
-      if (isMultiAccount) {
-        // 多账号模式：检查multiAccountMap是否已初始化
-        // if (multiAccountMap) {
-        //   console.log('[移动端地图] 多账号地图已初始化，跳过');
-        //   return;
-        // }
-
-        console.log(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
-
-        try {
-          // 创建多账号地图实例
-          multiAccountMap = new AMapInstance.Map(containerId, {
-            zoom: 15, // 缩放级别
-            center: [116.397428, 39.90923], // 默认中心点：北京
-            mapStyle: 'amap://styles/normal' // 地图样式
-          });
-
-          // 添加控制条（缩放、指南针等）
-          const ctrlBar = new AMapInstance.ControlBar({
-            position: { top: '10px', right: '10px' }
-          });
-          multiAccountMap.addControl(ctrlBar);
-
-          // 添加3D建筑图层（如果可用）
-          try {
-            const buildings = new AMapInstance.BuildingLayer();
-            buildings.setMap(multiAccountMap);
-          } catch (e) {
-            console.warn('[移动端地图] 3D建筑图层不可用:', e);
-          }
-
-          console.log('[移动端地图] 多账号地图初始化成功');
-        } catch (error) {
-          console.error('[移动端地图] 多账号地图初始化失败:', error);
-        }
-      } else {
-        // 单账号模式：检查map是否已初始化
-        // if (map) {
-        //   console.log('[移动端地图] 单账号地图已初始化，跳过');
-        //   return;
-        // }
-
-        console.log(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
-
-        try {
-          // 创建单账号地图实例
-          map = new AMapInstance.Map(containerId, {
-            zoom: 15,
-            center: [116.397428, 39.90923],
-            mapStyle: 'amap://styles/normal'
-          });
-
-          // 添加控制条
-          const ctrlBar = new AMapInstance.ControlBar({
-            position: { top: '10px', right: '10px' }
-          });
-          map.addControl(ctrlBar);
-
-          // 添加3D建筑图层
-          try {
-            const buildings = new AMapInstance.BuildingLayer();
-            buildings.setMap(map);
-          } catch (e) {
-            console.warn('[移动端地图] 3D建筑图层不可用:', e);
-          }
-
-          console.log('[移动端地图] 单账号地图初始化成功');
-        } catch (error) {
-          console.error('[移动端地图] 单账号地图初始化失败:', error);
-        }
-      }
-    }
-
 
 
     /**
-     * 【问题12&26修复】初始化移动端地图
+     * 【问题12&26&4修复】初始化移动端地图
      * 
      * 功能说明：
      * - 为移动端地图容器初始化高德地图实例
@@ -29335,21 +29414,54 @@ function renderMultiAccountList(accounts) {
      * - 支持多账号模式的mobile-multi-map-container
      * - 在面板激活时自动调用此函数
      * - 【问题26修复】使用深圳坐标作为默认中心点
+     * - 【问题4修复】添加重试机制、完善错误处理、确保容器可见性检查
      * 
      * @param {string} containerId - 地图容器的DOM元素ID
      * @param {boolean} isMultiAccount - 是否为多账号模式
+     * @param {number} retryCount - 当前重试次数（内部使用）
      */
-    function initMobileMap(containerId, isMultiAccount = false) {
-      // 检查地图容器是否存在
+    async function initMobileMap(containerId, isMultiAccount = false, retryCount = 0) {
+      // 【问题4修复】定义最大重试次数
+      const MAX_RETRIES = 3;
+      // 【问题4修复】定义重试延迟时间（毫秒）
+      const RETRY_DELAY = 1000;
+
+      // 【问题4修复】检查地图容器是否存在
       const container = document.getElementById(containerId);
       if (!container) {
         logMessage_Warning(`[移动端地图] 容器 ${containerId} 不存在`);
-        return;
+        // 如果容器不存在且还有重试次数，则延迟后重试
+        if (retryCount < MAX_RETRIES) {
+          logMessage_Info(`[移动端地图] 将在 ${RETRY_DELAY}ms 后重试 (${retryCount + 1}/${MAX_RETRIES})`);
+          setTimeout(() => {
+            initMobileMap(containerId, isMultiAccount, retryCount + 1);
+          }, RETRY_DELAY);
+        }
+        return false;
       }
 
-      // 检查高德地图API是否已加载
+      // 【问题4修复】检查容器是否可见
+      // 容器必须有尺寸才能正确初始化地图
+      const containerStyle = window.getComputedStyle(container);
+      const containerWidth = container.offsetWidth;
+      const containerHeight = container.offsetHeight;
+      
+      if (containerWidth === 0 || containerHeight === 0 || containerStyle.display === 'none') {
+        logMessage_Warning(`[移动端地图] 容器 ${containerId} 不可见或尺寸为0 (${containerWidth}x${containerHeight})`);
+        // 如果容器不可见且还有重试次数，则延迟后重试
+        if (retryCount < MAX_RETRIES) {
+          logMessage_Info(`[移动端地图] 将在 ${RETRY_DELAY}ms 后重试 (${retryCount + 1}/${MAX_RETRIES})`);
+          setTimeout(() => {
+            initMobileMap(containerId, isMultiAccount, retryCount + 1);
+          }, RETRY_DELAY);
+        }
+        return false;
+      }
+
+      // 【问题4修复】检查高德地图API是否已加载
       if (typeof AMapInstance === 'undefined') {
         logMessage_Error('[移动端地图] 高德地图API未加载');
+        // 显示错误提示UI
         container.innerHTML = `
           <div class="absolute inset-0 flex items-center justify-center text-slate-400">
             <div class="text-center">
@@ -29358,19 +29470,44 @@ function renderMultiAccountList(accounts) {
                   d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <p class="text-sm">地图加载失败</p>
+              <p class="text-xs mt-1">高德地图API未加载</p>
             </div>
           </div>
         `;
-        return;
+        
+        // 【问题4修复】如果API未加载且还有重试次数，则延迟后重试
+        if (retryCount < MAX_RETRIES) {
+          logMessage_Info(`[移动端地图] 将在 ${RETRY_DELAY}ms 后重试加载 (${retryCount + 1}/${MAX_RETRIES})`);
+          setTimeout(() => {
+            initMobileMap(containerId, isMultiAccount, retryCount + 1);
+          }, RETRY_DELAY);
+        }
+        return false;
       }
+
+      // 【问题4修复】显示加载中状态
+      container.innerHTML = `
+        <div class="absolute inset-0 flex items-center justify-center text-slate-400">
+          <div class="text-center">
+            <svg class="w-12 h-12 mx-auto mb-2 text-blue-300 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <p class="text-sm">地图初始化中...</p>
+          </div>
+        </div>
+      `;
 
       // 判断是多账号模式还是单账号模式
       if (isMultiAccount) {
         // 多账号模式：检查multiAccountMap是否已初始化
-        // if (multiAccountMap) {
-        //   logMessage_Info('[移动端地图] 多账号地图已初始化，跳过');
-        //   return;
-        // }
+        // 【问题4修复】如果已经初始化且正常工作，跳过重复初始化
+        if (multiAccountMap && multiAccountMap.getZoom) {
+          logMessage_Info('[移动端地图] 多账号地图已初始化，跳过');
+          // 清除加载中状态
+          container.innerHTML = '';
+          return true;
+        }
 
         logMessage_Info(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
 
@@ -29380,6 +29517,18 @@ function renderMultiAccountList(accounts) {
             zoom: 15, // 缩放级别
             center: [113.390342, 22.527403], // 默认中心点：深圳
             mapStyle: 'amap://styles/normal' // 地图样式
+          });
+
+          // 【问题4修复】等待地图完全加载
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('地图加载超时'));
+            }, 5000);
+
+            multiAccountMap.on('complete', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
           });
 
           // 添加控制条（缩放、指南针等）
@@ -29397,15 +29546,42 @@ function renderMultiAccountList(accounts) {
           }
 
           logMessage_Info('[移动端地图] 多账号地图初始化成功');
+          return true;
         } catch (error) {
           logMessage_Error('[移动端地图] 多账号地图初始化失败:', error);
+          
+          // 【问题4修复】显示错误信息
+          container.innerHTML = `
+            <div class="absolute inset-0 flex items-center justify-center text-slate-400">
+              <div class="text-center">
+                <svg class="w-12 h-12 mx-auto mb-2 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p class="text-sm">地图初始化失败</p>
+                <p class="text-xs mt-1">${error.message || '未知错误'}</p>
+              </div>
+            </div>
+          `;
+          
+          // 【问题4修复】如果初始化失败且还有重试次数，则延迟后重试
+          if (retryCount < MAX_RETRIES) {
+            logMessage_Info(`[移动端地图] 将在 ${RETRY_DELAY}ms 后重试 (${retryCount + 1}/${MAX_RETRIES})`);
+            setTimeout(() => {
+              initMobileMap(containerId, isMultiAccount, retryCount + 1);
+            }, RETRY_DELAY);
+          }
+          return false;
         }
       } else {
         // 单账号模式：检查map是否已初始化
-        // if (map) {
-        //   logMessage_Info('[移动端地图] 单账号地图已初始化，跳过');
-        //   return;
-        // }
+        // 【问题4修复】如果已经初始化且正常工作，跳过重复初始化
+        if (map && map.getZoom) {
+          logMessage_Info('[移动端地图] 单账号地图已初始化，跳过');
+          // 清除加载中状态
+          container.innerHTML = '';
+          return true;
+        }
 
         logMessage_Info(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
 
@@ -29424,6 +29600,18 @@ function renderMultiAccountList(accounts) {
             mapStyle: 'amap://styles/normal' // 地图样式
           });
 
+          // 【问题4修复】等待地图完全加载
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('地图加载超时'));
+            }, 5000);
+
+            map.on('complete', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+          });
+
           // 添加控制条（缩放、指南针等）
           const ctrlBar = new AMapInstance.ControlBar({
             position: { top: '10px', right: '10px' }
@@ -29439,8 +29627,32 @@ function renderMultiAccountList(accounts) {
           }
 
           logMessage_Info('[移动端地图] 单账号地图初始化成功');
+          return true;
         } catch (error) {
           logMessage_Error('[移动端地图] 单账号地图初始化失败:', error);
+          
+          // 【问题4修复】显示错误信息
+          container.innerHTML = `
+            <div class="absolute inset-0 flex items-center justify-center text-slate-400">
+              <div class="text-center">
+                <svg class="w-12 h-12 mx-auto mb-2 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p class="text-sm">地图初始化失败</p>
+                <p class="text-xs mt-1">${error.message || '未知错误'}</p>
+              </div>
+            </div>
+          `;
+          
+          // 【问题4修复】如果初始化失败且还有重试次数，则延迟后重试
+          if (retryCount < MAX_RETRIES) {
+            logMessage_Info(`[移动端地图] 将在 ${RETRY_DELAY}ms 后重试 (${retryCount + 1}/${MAX_RETRIES})`);
+            setTimeout(() => {
+              initMobileMap(containerId, isMultiAccount, retryCount + 1);
+            }, RETRY_DELAY);
+          }
+          return false;
         }
       }
     }
