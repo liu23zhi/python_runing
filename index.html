@@ -3,9 +3,9 @@
 
 <head>
   <script>
-// var cdnErrorCount = 0;
-// var cdnErrorTimer = null;
-// var appInitialized = false;
+    // var cdnErrorCount = 0;
+    // var cdnErrorTimer = null;
+    // var appInitialized = false;
 
     function handleCdnError(resourceName) {
       resourceName = resourceName || '未指定';
@@ -16,7 +16,7 @@
         clearTimeout(cdnErrorTimer);
       }
 
-      cdnErrorTimer = setTimeout(function() {
+      cdnErrorTimer = setTimeout(function () {
         if (!appInitialized && cdnErrorCount > 0) {
           var errorOverlay = document.getElementById('cdn-error-overlay');
           if (errorOverlay) {
@@ -2742,7 +2742,7 @@
 
   <!-- 用户认证登录界面 -->
   <div id="auth-login-container" class="hidden w-full h-full flex items-center justify-center">
-    <div class="panel rounded-2xl w-full max-w-[580px] p-6 space-y-6">
+    <div class="panel rounded-2xl w-full max-w-[600px] p-6 space-y-6">
       <div class="text-center">
         <h2 class="text-3xl font-bold text-sky-700 card-title mb-2">跑步助手</h2>
         <p class="text-sm text-slate-500">请登录或注册以继续使用</p>
@@ -4361,9 +4361,10 @@
            - 包含任务列表、地图、控制面板
            - 登录成功后显示
            ======================================== -->
-      
+
       <!-- 【修复】移动端加载遮罩 - 在UI完全加载前显示，防止误操作 -->
-      <div id="mobile-loading-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/90 backdrop-blur-sm hidden">
+      <div id="mobile-loading-overlay"
+        class="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-white/90 backdrop-blur-sm hidden">
         <div class="flex flex-col items-center gap-4">
           <!-- 加载动画 -->
           <div class="w-16 h-16 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin"></div>
@@ -4371,7 +4372,7 @@
           <p class="text-slate-600 text-sm font-medium">加载中，请稍候...</p>
         </div>
       </div>
-      
+
       <div id="mobile-main-app" class="space-y-4 hidden">
 
         <!-- ========================================
@@ -7617,19 +7618,19 @@
 
         <!-- 【本地验证码】验证码管理标签（含二级菜单：设置和历史） -->
         <!-- <div class="relative group"> -->
-          <button id="admin-tab-captcha_modal"
-            class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap">
-            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
-              </path>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
-              </path>
-            </svg>
-            验证码管理
-            
-            </button>
-          
+        <button id="admin-tab-captcha_modal"
+          class="px-5 py-3 font-semibold text-slate-400 border-b-3 border-transparent hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 rounded-t-lg whitespace-nowrap">
+          <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+            </path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
+            </path>
+          </svg>
+          验证码管理
+
+        </button>
+
 
         <!-- 定时提醒管理标签 -->
         <button id="admin-tab-reminders_modal"
@@ -8392,7 +8393,7 @@
           <div class="flex justify-between items-center">
             <h4 class="font-semibold text-lg">⚙️ 验证码生成设置</h4>
           </div>
-          
+
           <!-- 说明文本 -->
           <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 mb-4" style="display: none;">
             <p class="text-sm text-slate-600 mb-2">
@@ -8402,7 +8403,7 @@
               💡 提示：修改参数后需刷新验证码才能看到效果。建议scale_factor使用2或3，noise_level保持在0.05-0.15之间。
             </p>
           </div>
-          
+
           <!-- 设置表单 -->
           <div class="space-y-4">
             <!-- 验证码长度 -->
@@ -8410,50 +8411,47 @@
               <label for="captcha-length" class="text-sm font-medium text-slate-700 w-32">
                 验证码长度：
               </label>
-              <input type="number" id="captcha-length" 
-                     min="3" max="6" step="1" value="4"
-                     class="px-3 py-2 border border-slate-300 rounded-md text-sm w-24 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+              <input type="number" id="captcha-length" min="3" max="6" step="1" value="4"
+                class="px-3 py-2 border border-slate-300 rounded-md text-sm w-24 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
               <span class="text-xs text-slate-500">字符数（3-6），推荐4</span>
             </div>
-            
+
             <!-- 细分倍数 -->
             <div class="flex items-center gap-4">
               <label for="captcha-scale-factor" class="text-sm font-medium text-slate-700 w-32">
                 细分倍数：
               </label>
-              <input type="number" id="captcha-scale-factor" 
-                     min="2" max="4" step="1" value="2"
-                     class="px-3 py-2 border border-slate-300 rounded-md text-sm w-24 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+              <input type="number" id="captcha-scale-factor" min="2" max="4" step="1" value="2"
+                class="px-3 py-2 border border-slate-300 rounded-md text-sm w-24 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
               <span class="text-xs text-slate-500">像素细分（2-4），推荐2或3</span>
             </div>
-            
+
             <!-- 噪点比例 -->
             <div class="flex items-center gap-4">
               <label for="captcha-noise-level" class="text-sm font-medium text-slate-700 w-32">
                 噪点比例：
               </label>
-              <input type="number" id="captcha-noise-level" 
-                     min="0" max="0.3" step="0.01" value="0.08"
-                     class="px-3 py-2 border border-slate-300 rounded-md text-sm w-24 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
+              <input type="number" id="captcha-noise-level" min="0" max="0.3" step="0.01" value="0.08"
+                class="px-3 py-2 border border-slate-300 rounded-md text-sm w-24 focus:ring-2 focus:ring-sky-500 focus:border-sky-500">
               <span class="text-xs text-slate-500">噪点密度（0.0-0.3），推荐0.05-0.15</span>
             </div>
-            
+
             <!-- 保存按钮 -->
             <div class="flex gap-2 mt-6">
-              <button id="save-captcha-settings-btn" 
-                      class="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 text-sm font-medium transition-colors duration-200 shadow-sm">
+              <button id="save-captcha-settings-btn"
+                class="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 text-sm font-medium transition-colors duration-200 shadow-sm">
                 💾 保存设置
               </button>
-              <button id="test-captcha-btn" 
-                      class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 text-sm font-medium transition-colors duration-200">
+              <button id="test-captcha-btn"
+                class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 text-sm font-medium transition-colors duration-200">
                 🔄 测试生成
               </button>
-              <button id="view-captcha-history-btn" 
-                      class="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-md hover:bg-purple-100 text-sm font-medium transition-colors duration-200 ml-auto">
+              <button id="view-captcha-history-btn"
+                class="px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-md hover:bg-purple-100 text-sm font-medium transition-colors duration-200 ml-auto">
                 📜 查看历史
               </button>
             </div>
-            
+
             <!-- 测试预览区域 -->
             <div id="captcha-test-preview" class="hidden mt-4 p-4 border border-slate-300 rounded-lg bg-white">
               <p class="text-sm font-medium text-slate-700 mb-2">预览效果：</p>
@@ -8464,7 +8462,7 @@
               </p>
             </div>
           </div>
-          
+
           <!-- 参数说明文本 -->
           <div class="mt-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
             <p class="text-sm text-slate-600 font-medium mb-2">📖 参数说明：</p>
@@ -9885,14 +9883,14 @@
           if (mobileLoadingOverlay) {
             mobileLoadingOverlay.classList.remove('hidden');
           }
-          
+
           $('mobile-main-app').classList.remove('hidden');
           updateMobileNavVisibility(true, 'single');
           console.log('[UI切换] PC端main-app可见，显示移动端mobile-main-app');
           // 【问题13修复】默认激活mobile-control-panel
           switchMobileSinglePanel('mobile-control-panel');
           console.log('[UI切换] 已默认激活mobile-control-panel');
-          
+
           // 【修复】延迟隐藏加载遮罩
           setTimeout(() => {
             if (mobileLoadingOverlay) {
@@ -10137,7 +10135,7 @@
       const loadingOverlayEl = document.getElementById('loading-overlay');
       if (loadingOverlayEl) loadingOverlayEl.classList.remove('hidden');
 
-      
+
       function showMobileAuthForm(formToShow) {
         // 获取所有相关的DOM元素
         // loginTab, registerTab: 顶部的标签页切换按钮
@@ -10491,10 +10489,10 @@
 
             // 【修复】添加UI反馈：禁用按钮并显示加载状态
             mobileSingleLoginBtn.disabled = true;
-            
+
             const originalText = mobileSingleLoginBtn.textContent;
             mobileSingleLoginBtn.textContent = '登录中...';
-            
+
             // 【修复】显示移动端加载遮罩
             const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
             if (mobileLoadingOverlay) {
@@ -10508,7 +10506,7 @@
 
             let result_mobile_login = false;
             // 调用桌面端的 onLogin 函数
-            await result_mobile_login==onLogin();
+            await result_mobile_login == onLogin();
 
             // onLogin 成功后，显示移动端主应用界面
             if (result_mobile_login) {
@@ -10529,7 +10527,7 @@
                 logMessage_Info('[移动端UI] 已显示 mobile-main-app');
                 // 初始化面板显示：默认显示控制面板
                 switchMobileSinglePanel('mobile-control-panel');
-                
+
                 // 【修复】延迟隐藏加载遮罩，确保UI完全加载
                 setTimeout(() => {
                   const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
@@ -10551,11 +10549,11 @@
               // showMobileMessage('登录失败，请检查用户名和密码', 'error');
               // 恢复按钮状态并隐藏加载遮罩
               mobileSingleLoginBtn.disabled = false;
-            mobileSingleLoginBtn.textContent = originalText;
-            const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
-            if (mobileLoadingOverlay) {
-              mobileLoadingOverlay.classList.add('hidden');
-            }
+              mobileSingleLoginBtn.textContent = originalText;
+              const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
+              if (mobileLoadingOverlay) {
+                mobileLoadingOverlay.classList.add('hidden');
+              }
             }
           } catch (e) {
             logMessage_Error("代理[学校登录]失败:", e);
@@ -10667,7 +10665,7 @@
           }
           // 显示底部导航和菜单按钮 - 多账号模式
           updateMobileNavVisibility(true, 'multi');
-          
+
           // 【多账号自动刷新】启动定时自动刷新账号列表（移动端）
           // 原因：移动端用户进入多账号模式后，同样需要实时查看账号状态
           // 与PC端使用相同的刷新间隔（10秒），确保体验一致
@@ -10693,7 +10691,7 @@
 
 
 
-    if (loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
+      if (loadingOverlayEl) loadingOverlayEl.classList.add('hidden');
 
       console.log('[移动端UI] 移动端UI初始化完成');
     }
@@ -12030,7 +12028,7 @@
     ];
 
     let pythonParams = {};
-    
+
     // 缓存的多账号数据，用于在不重新获取数据的情况下更新状态文本
     // 当renderMultiAccountList被调用时，会将accounts数据存储到这里
     // 当multi-run-only-incomplete-check复选框变化时，会使用这个缓存来重新计算状态
@@ -12369,7 +12367,7 @@
       register: null,
       modal: null
     };
-    
+
     // 全局变量：存储各个表单的验证码尺寸
     const captchaDimensions = {
       login: { width: 343, height: 119 },  // 默认尺寸
@@ -12429,7 +12427,7 @@
           // 存储验证码ID到全局对象
           // 后续提交表单时需要使用此ID进行验证
           captchaIds[formType] = result.captcha_id;
-          
+
           // 存储验证码尺寸到全局对象
           // 使用返回的实际尺寸，如果没有返回则使用默认值
           captchaDimensions[formType] = {
@@ -12438,11 +12436,11 @@
           };
 
           const timestamp = Date.now();  // 当前时间戳（毫秒）
-          
+
           // 使用API返回的实际尺寸
           const captchaWidth = captchaDimensions[formType].width;
           const captchaHeight = captchaDimensions[formType].height;
-          
+
           const iframeHtml = `
             <iframe 
               src="/api/captcha/html/${result.captcha_id}?t=${timestamp}"
@@ -12452,10 +12450,10 @@
               title="验证码">
             </iframe>
           `;
-          
+
           // 将iframe插入到显示区域
           displayElement.innerHTML = iframeHtml;
-          
+
           console.log(`[验证码] 已加载验证码iframe: ${result.captcha_id} (时间戳: ${timestamp})`);
 
 
@@ -12547,7 +12545,7 @@
           // 存储模态窗验证码ID
           // 'modal'作为特殊的formType，用于SMS发送验证
           captchaIds.modal = result.captcha_id;
-          
+
           // 存储验证码尺寸
           captchaDimensions.modal = {
             width: result.width || 343,
@@ -12563,11 +12561,11 @@
           // - 避免CDN返回缓存的验证码图片
           // ========================================
           const timestamp = Date.now();  // 当前时间戳
-          
+
           // 使用API返回的实际尺寸
           const captchaWidth = captchaDimensions.modal.width;
           const captchaHeight = captchaDimensions.modal.height;
-          
+
           const iframeHtml = `
             <iframe 
               src="/api/captcha/html/${result.captcha_id}?t=${timestamp}"
@@ -12577,7 +12575,7 @@
               title="验证码">
             </iframe>
           `;
-          
+
           // 将iframe插入到模态窗显示区域
           displayElement.innerHTML = iframeHtml;
 
@@ -12610,7 +12608,7 @@
     function openCaptchaModal(context) {
       // 保存短信发送的上下文信息，以便验证通过后使用
       pendingSMSContext = context;
-      
+
       // 获取模态框和输入框元素
       const modal = document.getElementById('captcha-verification-modal');
       const input = document.getElementById('captcha-modal-input');
@@ -12633,21 +12631,21 @@
       try {
         // 【问题3修复】移除hidden类以显示模态框
         modal.classList.remove('hidden');
-        
+
         // 【问题3修复】强制设置display样式，确保模态框可见
         // 这对于移动端和某些样式冲突的情况特别重要
         modal.style.display = 'flex';
-        
+
         // 【问题3修复】确保模态框在最顶层显示
         modal.style.zIndex = '70';
-        
+
         // 清空输入框，准备接收新的验证码输入
         input.value = '';
-        
+
         // 【问题3修复】加载验证码图片
         // 这会触发后端API获取新的验证码图片
         loadCaptchaModal();
-        
+
         // 【问题3修复】延迟聚焦到输入框，确保模态框完全显示后再聚焦
         // 这样可以避免在某些浏览器中聚焦失败的问题
         setTimeout(() => {
@@ -12656,7 +12654,7 @@
             logMessage_Info('[验证码模态窗] 模态框已打开并聚焦到输入框');
           }
         }, 300);
-        
+
       } catch (error) {
         // 【问题3修复】捕获并记录任何错误
         logMessage_Error('[验证码模态窗] 打开模态框时发生错误:', error);
@@ -13577,7 +13575,7 @@
               // 切换显示
               if (captchaPanel) captchaPanel.classList.add('hidden');
               if (captchaHistoryPanel) captchaHistoryPanel.classList.remove('hidden');
-              
+
               // 加载数据
               loadCaptchaHistory();
               logMessage_Info('[验证码管理] 切换到历史记录视图');
@@ -13591,7 +13589,7 @@
               // 切换显示
               if (captchaHistoryPanel) captchaHistoryPanel.classList.add('hidden');
               if (captchaPanel) captchaPanel.classList.remove('hidden');
-              
+
               logMessage_Info('[验证码管理] 返回设置视图');
             });
           }
@@ -14163,7 +14161,7 @@
         modal.classList.add('hidden');
         modal.classList.remove('flex');
         document.body.classList.remove('modal-visible'); // 移除 body class
-        
+
         // 【修复】关闭模态框时，确保验证码历史记录面板也被隐藏
         const captchaHistoryPanel = $('admin-captcha-history-panel_modal');
         if (captchaHistoryPanel) captchaHistoryPanel.classList.add('hidden');
@@ -14352,7 +14350,7 @@
           captchaTab.classList.add('text-sky-600', 'border-sky-600');
           captchaTab.classList.remove('text-slate-400', 'border-transparent');
           captchaPanel.classList.remove('hidden');
-          
+
           // 设置默认日期为今天
           const dateInput = $('captcha-history-date');
           if (dateInput) {
@@ -14362,7 +14360,7 @@
 
           // 【本地验证码】加载验证码设置
           loadCaptchaSettings();
-          
+
           // 自动加载当天的历史记录
           loadCaptchaHistory();
 
@@ -20141,7 +20139,7 @@
 
     // --- 初始化 ---
     async function initializeApp() {
-      
+
       function ShowMobileLoadingOverlay() {
         const isMobile = detectMobileDevice();
         if (isMobile) {
@@ -20165,7 +20163,7 @@
 
         $('loading-overlay').classList.add('hidden');
       }
-      
+
       ShowLoadingOverlay();
       ShowMobileLoadingOverlay();
 
@@ -20566,7 +20564,7 @@
           option.value = option.textContent = user;
           userCombo.appendChild(option);
         });
-        
+
         // 【修复】同时更新多账号模式的用户选择框
         const multiConfigUserSelect = $('multi-config-user-select');
         if (multiConfigUserSelect) {
@@ -20657,7 +20655,7 @@
           $('loading-overlay').classList.remove('hidden');
           ShowMobileLoadingOverlay();
 
-          
+
           // [修复] 根据设备类型显示对应的多账号界面
           if (isMobileMode) {
             // 移动端：显示mobile-multi-account-app，隐藏mobile-login-container和mobile-auth-login-container
@@ -20744,9 +20742,9 @@
             } catch (e) {
               logMessage_Error('初始化多账号地图失败:', e);
             }
-          // 隐藏登录界面和认证界面
-          $('auth-login-container').classList.add('hidden');
-          $('login-container').classList.add('hidden');
+            // 隐藏登录界面和认证界面
+            $('auth-login-container').classList.add('hidden');
+            $('login-container').classList.add('hidden');
 
           }
 
@@ -23220,7 +23218,7 @@
       // 1. 该复选框影响任务的过滤逻辑（是否只统计未完成任务）
       // 2. 状态文本（如"有3个任务可执行"）需要根据复选框状态实时更新
       // 3. 提供即时的视觉反馈，让用户清楚地看到不同设置下的任务情况
-      
+
       // 【步骤1】为桌面端的"仅执行未完成"复选框添加change事件监听器
       const desktopCheckbox = document.getElementById('multi-run-only-incomplete-check');
       if (desktopCheckbox) {
@@ -23228,19 +23226,19 @@
         // 使用命名函数的好处：可以通过函数引用来移除监听器
         // 如果不移除旧监听器，每次进入多账号模式都会添加一个新监听器，导致一次操作触发多次更新
         desktopCheckbox.removeEventListener('change', updateAllAccountsStatusText);
-        
+
         // 【步骤1.2】添加新的change事件监听器
         // change事件：当复选框的选中状态发生改变时触发
         // updateAllAccountsStatusText函数：异步更新所有账号的状态文本并重新渲染
         desktopCheckbox.addEventListener('change', updateAllAccountsStatusText);
-        
+
         // 【步骤1.3】记录日志，便于调试
         console.log('[事件监听器] 已为桌面端"仅执行未完成"复选框绑定change事件');
       } else {
         // 【步骤1.4】如果找不到桌面端复选框元素，记录警告日志
         console.warn('[事件监听器] 未找到桌面端"仅执行未完成"复选框 (multi-run-only-incomplete-check)');
       }
-      
+
       // 【步骤2】为移动端的"仅执行未完成"复选框添加change事件监听器
       // 移动端和桌面端有各自独立的复选框元素，需要分别绑定事件
       const mobileCheckbox = document.getElementById('mobile-multi-only-incomplete-check');
@@ -23248,12 +23246,12 @@
         // 【步骤2.1】移除可能存在的旧事件监听器
         // 原理同上，确保不会重复绑定
         mobileCheckbox.removeEventListener('change', updateAllAccountsStatusText);
-        
+
         // 【步骤2.2】添加新的change事件监听器
         // 移动端和桌面端使用相同的处理函数updateAllAccountsStatusText
         // 因为更新逻辑是一样的：重新计算所有账号的状态文本并刷新界面
         mobileCheckbox.addEventListener('change', updateAllAccountsStatusText);
-        
+
         // 【步骤2.3】记录日志
         console.log('[事件监听器] 已为移动端"仅执行未完成"复选框绑定change事件');
       } else {
@@ -23274,7 +23272,7 @@
       // 原因：用户退出多账号模式后，不再需要刷新账号列表
       // 及时停止定时器可以避免不必要的网络请求，节省服务器资源
       stopMultiAccountAutoRefresh();
-      
+
       path_planning_queue = [];
       is_planning_path = false;
       await callPythonAPI('exit_multi_account_mode');
@@ -23933,29 +23931,29 @@
       try {
         // 【步骤1】记录日志，便于调试和问题追踪
         console.log('[更新账号状态] 开始更新所有账号的状态文本（使用缓存数据）...');
-        
+
         // 【步骤2】验证缓存的账号数据是否可用
         // 如果cachedMultiAccounts为空或不是数组，说明还没有加载过账号数据
         if (!cachedMultiAccounts || !Array.isArray(cachedMultiAccounts) || cachedMultiAccounts.length === 0) {
           console.warn('[更新账号状态] 缓存的账号列表为空，无法更新状态文本');
           return; // 提前退出，不进行后续处理
         }
-        
+
         // 【步骤3】获取"仅执行未完成"复选框的当前状态
         // 从桌面端的复选框读取状态（checked属性为true表示勾选）
         // 如果元素不存在，使用空值合并操作符(??)设置默认值为false
         const onlyIncompleteCheckbox = document.getElementById('multi-run-only-incomplete-check');
         const onlyIncomplete = onlyIncompleteCheckbox?.checked ?? false;
-        
+
         // 【步骤4】获取ignore_task_time参数的值
         // 该参数控制是否忽略任务的具体时间，只比对日期
         // pythonParams是全局参数对象，存储了从后端获取的所有配置参数
         // 如果参数不存在，默认为false（即默认需要检查完整的日期和时间）
         const ignoreTaskTime = pythonParams.ignore_task_time ?? false;
-        
+
         // 【步骤5】记录当前使用的参数值，方便调试
         console.log(`[更新账号状态] 参数设置 - 仅未完成: ${onlyIncomplete}, 忽略任务时间: ${ignoreTaskTime}`);
-        
+
         // 【步骤6】遍历缓存的账号数据，重新计算每个账号的status_text
         // 注意：这里遍历的是cachedMultiAccounts，不是从后端获取的新数据
         let updatedCount = 0;
@@ -23964,7 +23962,7 @@
           // 该函数会遍历account.tasks数组，根据onlyIncomplete和ignoreTaskTime参数
           // 计算出当前有多少个任务可以执行，返回类似"有3个任务可执行"或"无任务可执行"的文本
           const newStatusText = calculateStatusText(account, onlyIncomplete, ignoreTaskTime);
-          
+
           // 【步骤6.2】查找对应的DOM元素（桌面端）
           // 状态文本元素的ID格式为：${acc.username}-status-text
           const statusElement = document.getElementById(`${account.username}-status-text`);
@@ -23973,67 +23971,67 @@
             // 这样可以避免重新渲染整个列表，提高性能
             statusElement.textContent = newStatusText;
             updatedCount++;
-            
+
             // 【步骤6.4】记录详细的更新日志（仅在开发调试时有用）
             console.log(`[更新账号状态] ${account.username} -> ${newStatusText}`);
           } else {
             // 如果找不到DOM元素，记录警告（但不影响其他账号的更新）
             console.warn(`[更新账号状态] 未找到账号 ${account.username} 的状态文本元素`);
           }
-          
+
           // 【步骤6.5】同时更新缓存数据中的status_text
           // 这样下次renderMultiAccountList时会使用更新后的值
           account.status_text = newStatusText;
         });
-        
+
         // 【步骤7】记录成功日志
         console.log(`[更新账号状态] 状态文本更新完成，共更新 ${updatedCount}/${cachedMultiAccounts.length} 个账号`);
-        
+
       } catch (error) {
         // 【步骤8】捕获并记录任何错误
         // 可能的错误包括：数据格式错误、函数调用异常、DOM操作失败等
         // 使用console.error确保错误信息在控制台中以红色醒目显示
         console.error('[更新账号状态] 更新状态文本时发生错误:', error);
-        
+
         // 【步骤9】向用户显示友好的错误提示
         // showModalAlert会弹出一个模态对话框，告知用户操作失败
         showModalAlert('更新账号状态失败，请检查控制台日志');
       }
     }
 
-function renderMultiAccountList(accounts) {
-        // 【缓存账号数据】将accounts存储到全局变量cachedMultiAccounts
-        // 这样当复选框变化时，可以直接使用缓存数据更新状态文本，而不需要重新从后端获取
-        cachedMultiAccounts = accounts;
-        
-        // 定义渲染逻辑的通用函数
-        const renderToContainer = (containerId, isMobile) => {
-            const listDiv = document.getElementById(containerId);
-            if (!listDiv) return;
+    function renderMultiAccountList(accounts) {
+      // 【缓存账号数据】将accounts存储到全局变量cachedMultiAccounts
+      // 这样当复选框变化时，可以直接使用缓存数据更新状态文本，而不需要重新从后端获取
+      cachedMultiAccounts = accounts;
 
-            listDiv.innerHTML = '';
+      // 定义渲染逻辑的通用函数
+      const renderToContainer = (containerId, isMobile) => {
+        const listDiv = document.getElementById(containerId);
+        if (!listDiv) return;
 
-            // 更新对应的计数器
-            const countId = isMobile ? 'mobile-multi-account-count' : 'multi-account-count';
-            const countEl = document.getElementById(countId);
-            if (countEl) countEl.textContent = isMobile ? `${accounts.length} 个账号` : accounts.length;
+        listDiv.innerHTML = '';
 
-            if (accounts.length === 0) {
-                listDiv.innerHTML = '<p class="text-slate-400 text-center py-10">请先添加或导入账号</p>';
-                return;
-            }
+        // 更新对应的计数器
+        const countId = isMobile ? 'mobile-multi-account-count' : 'multi-account-count';
+        const countEl = document.getElementById(countId);
+        if (countEl) countEl.textContent = isMobile ? `${accounts.length} 个账号` : accounts.length;
 
-            accounts.forEach(acc => {
-                const s = acc.summary;
-                const item = document.createElement('div');
-                // 使用不同的ID前缀防止ID冲突
-                const prefix = isMobile ? 'mobile-multi-acc-' : 'multi-acc-';
-                item.id = `${prefix}${acc.username}`;
-                item.dataset.username = acc.username;
-                item.className = 'p-3 rounded-xl border border-slate-200 bg-white/80 mb-2 text-sm';
-                
-                // 移动端和桌面端共用相同的卡片结构
-                item.innerHTML = `
+        if (accounts.length === 0) {
+          listDiv.innerHTML = '<p class="text-slate-400 text-center py-10">请先添加或导入账号</p>';
+          return;
+        }
+
+        accounts.forEach(acc => {
+          const s = acc.summary;
+          const item = document.createElement('div');
+          // 使用不同的ID前缀防止ID冲突
+          const prefix = isMobile ? 'mobile-multi-acc-' : 'multi-acc-';
+          item.id = `${prefix}${acc.username}`;
+          item.dataset.username = acc.username;
+          item.className = 'p-3 rounded-xl border border-slate-200 bg-white/80 mb-2 text-sm';
+
+          // 移动端和桌面端共用相同的卡片结构
+          item.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="font-bold text-slate-800 flex items-start gap-2 truncate min-w-0">
                             <input type="checkbox" class="account-checkbox w-4 h-4 accent-sky-600 rounded flex-shrink-0 mt-1">
@@ -24076,58 +24074,58 @@ function renderMultiAccountList(accounts) {
                         </div>
                     </div>
                 `;
-                listDiv.appendChild(item);
-            });
+          listDiv.appendChild(item);
+        });
 
-            // 为当前容器内的按钮绑定事件
-            listDiv.querySelectorAll('.btn-account-start').forEach(b => b.onclick = (e) => {
-                // 获取对应的 "仅执行未完成" 复选框状态
-                const checkboxId = isMobile ? 'mobile-multi-only-incomplete-check' : 'multi-run-only-incomplete-check';
-                const runOnly = document.getElementById(checkboxId)?.checked ?? true;
-                callPythonAPI('multi_start_single_account', e.target.dataset.username, runOnly);
-            });
+        // 为当前容器内的按钮绑定事件
+        listDiv.querySelectorAll('.btn-account-start').forEach(b => b.onclick = (e) => {
+          // 获取对应的 "仅执行未完成" 复选框状态
+          const checkboxId = isMobile ? 'mobile-multi-only-incomplete-check' : 'multi-run-only-incomplete-check';
+          const runOnly = document.getElementById(checkboxId)?.checked ?? true;
+          callPythonAPI('multi_start_single_account', e.target.dataset.username, runOnly);
+        });
 
-            listDiv.querySelectorAll('.btn-account-stop').forEach(b => b.onclick = (e) => 
-                callPythonAPI('multi_stop_single_account', e.target.dataset.username)
-            );
+        listDiv.querySelectorAll('.btn-account-stop').forEach(b => b.onclick = (e) =>
+          callPythonAPI('multi_stop_single_account', e.target.dataset.username)
+        );
 
-            listDiv.querySelectorAll('.btn-account-refresh').forEach(b => {
-                b.onclick = async (e) => {
-                    const u = e.currentTarget.dataset.username;
-                    // 立即反馈
-                    const itemPrefix = isMobile ? 'mobile-multi-acc-' : 'multi-acc-';
-                    const item = document.getElementById(`${itemPrefix}${u}`);
-                    if (item) {
-                        const statusEl = item.querySelector('.status-text');
-                        if (statusEl) statusEl.textContent = '刷新中...';
-                    }
-                    const result = await callPythonAPI('multi_refresh_single_status', u);
-                    if (!result || !result.success) {
-                        showModalAlert(result?.message || '刷新失败');
-                    }
-                };
-            });
+        listDiv.querySelectorAll('.btn-account-refresh').forEach(b => {
+          b.onclick = async (e) => {
+            const u = e.currentTarget.dataset.username;
+            // 立即反馈
+            const itemPrefix = isMobile ? 'mobile-multi-acc-' : 'multi-acc-';
+            const item = document.getElementById(`${itemPrefix}${u}`);
+            if (item) {
+              const statusEl = item.querySelector('.status-text');
+              if (statusEl) statusEl.textContent = '刷新中...';
+            }
+            const result = await callPythonAPI('multi_refresh_single_status', u);
+            if (!result || !result.success) {
+              showModalAlert(result?.message || '刷新失败');
+            }
+          };
+        });
 
-            listDiv.querySelectorAll('.btn-account-params').forEach(b => {
-                b.onclick = (e) => {
-                    if (isMobile) {
-                        openMobileAccountParams(e.target.dataset.username);
-                    } else {
-                        openAccountParamsModal(e.target.dataset.username);
-                    }
-                }
-            });
-        };
+        listDiv.querySelectorAll('.btn-account-params').forEach(b => {
+          b.onclick = (e) => {
+            if (isMobile) {
+              openMobileAccountParams(e.target.dataset.username);
+            } else {
+              openAccountParamsModal(e.target.dataset.username);
+            }
+          }
+        });
+      };
 
-        // 1. 渲染桌面端列表
-        renderToContainer('multi-account-list', false);
+      // 1. 渲染桌面端列表
+      renderToContainer('multi-account-list', false);
 
-        // 2. 渲染移动端列表
-        renderToContainer('mobile-multi-account-list', true);
+      // 2. 渲染移动端列表
+      renderToContainer('mobile-multi-account-list', true);
 
-        // 更新全选框状态
-        if (typeof updateSelectAllCheckboxState === 'function') updateSelectAllCheckboxState();
-        if (typeof updateMobileSelectAllCheckboxState === 'function') updateMobileSelectAllCheckboxState();
+      // 更新全选框状态
+      if (typeof updateSelectAllCheckboxState === 'function') updateSelectAllCheckboxState();
+      if (typeof updateMobileSelectAllCheckboxState === 'function') updateMobileSelectAllCheckboxState();
     }
 
     // --- 新的JS函数 ---
@@ -24159,7 +24157,7 @@ function renderMultiAccountList(accounts) {
         logMessage_Info('移除列表中的所有账号');
         const confirmed = true;
       }
-      
+
       if (confirmed) {
         const result = await callPythonAPI('multi_remove_all_accounts');
         if (result && result.accounts) renderMultiAccountList(result.accounts);
@@ -24283,7 +24281,7 @@ function renderMultiAccountList(accounts) {
         multiAccountAutoRefreshInterval = null;
         console.log('[多账号自动刷新] 检测到已有定时器，已清除旧定时器');
       }
-      
+
       // 【步骤2】启动新的定时器，使用 setInterval 实现周期性执行
       // setInterval 会在指定的时间间隔后重复执行回调函数
       multiAccountAutoRefreshInterval = setInterval(async () => {
@@ -24292,12 +24290,12 @@ function renderMultiAccountList(accounts) {
           // 通过检查 multi-account-app 元素是否可见来判断
           const pcMultiApp = document.getElementById('multi-account-app');
           const isPCMultiMode = pcMultiApp && !pcMultiApp.classList.contains('hidden');
-          
+
           // 【步骤2.2】检查是否仍处于多账号模式（移动端）
           // 通过检查 mobile-multi-account-app 元素是否可见来判断
           const mobileMultiApp = document.getElementById('mobile-multi-account-app');
           const isMobileMultiMode = mobileMultiApp && !mobileMultiApp.classList.contains('hidden');
-          
+
           // 【步骤2.3】如果PC端和移动端都不在多账号模式，停止刷新
           // 原因：用户可能通过其他方式退出了多账号模式（如直接点击返回按钮），
           //       此时应该停止无效的刷新请求，节省服务器资源和网络带宽
@@ -24306,7 +24304,7 @@ function renderMultiAccountList(accounts) {
             stopMultiAccountAutoRefresh();
             return; // 退出当前回调，不再执行刷新
           }
-          
+
           // 【步骤2.4】调用刷新函数，获取并渲染账号列表
           // multi_get_all_accounts_status() 获取最新的账号列表数据
           // renderMultiAccountList() 将数据渲染到PC端和移动端界面
@@ -24325,9 +24323,9 @@ function renderMultiAccountList(accounts) {
           // 注意：这里不停止定时器，允许下次继续尝试刷新
         }
       }, interval); // interval 参数指定了定时器的执行间隔
-      
+
       // 【步骤3】记录日志，方便调试和问题追踪
-      console.log(`[多账号自动刷新] 已启动定时自动刷新，刷新间隔: ${interval}ms (${interval/1000}秒)`);
+      console.log(`[多账号自动刷新] 已启动定时自动刷新，刷新间隔: ${interval}ms (${interval / 1000}秒)`);
     }
 
     /**
@@ -24348,11 +24346,11 @@ function renderMultiAccountList(accounts) {
         // 【步骤2】清除定时器
         // clearInterval 会停止 setInterval 创建的定时器
         clearInterval(multiAccountAutoRefreshInterval);
-        
+
         // 【步骤3】将定时器变量重置为 null
         // 原因：便于后续代码通过检查变量是否为 null 来判断定时器是否在运行
         multiAccountAutoRefreshInterval = null;
-        
+
         // 【步骤4】记录日志
         console.log('[多账号自动刷新] 已停止定时自动刷新');
       }
@@ -24383,107 +24381,107 @@ function renderMultiAccountList(accounts) {
     }
 
     function updateMobileSelectAllCheckboxState() {
-        const container = document.getElementById('mobile-multi-account-list');
-        if (!container) return;
-        
-        const allCheckboxes = container.querySelectorAll('.account-checkbox');
-        const checkedCount = container.querySelectorAll('.account-checkbox:checked').length;
-        const selectAllCheckbox = document.getElementById('mobile-select-all-accounts');
-        
-        if (selectAllCheckbox) {
-            if (allCheckboxes.length > 0) {
-                selectAllCheckbox.checked = checkedCount === allCheckboxes.length;
-                selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < allCheckboxes.length;
-            } else {
-                selectAllCheckbox.checked = false;
-                selectAllCheckbox.indeterminate = false;
-            }
+      const container = document.getElementById('mobile-multi-account-list');
+      if (!container) return;
+
+      const allCheckboxes = container.querySelectorAll('.account-checkbox');
+      const checkedCount = container.querySelectorAll('.account-checkbox:checked').length;
+      const selectAllCheckbox = document.getElementById('mobile-select-all-accounts');
+
+      if (selectAllCheckbox) {
+        if (allCheckboxes.length > 0) {
+          selectAllCheckbox.checked = checkedCount === allCheckboxes.length;
+          selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < allCheckboxes.length;
+        } else {
+          selectAllCheckbox.checked = false;
+          selectAllCheckbox.indeterminate = false;
         }
+      }
     }
-    
+
     // 绑定移动端列表的 change 事件以更新全选框
     const mobileListDiv = document.getElementById('mobile-multi-account-list');
     if (mobileListDiv) {
-        mobileListDiv.addEventListener('change', (event) => { 
-            if (event.target.classList.contains('account-checkbox')) { 
-                updateMobileSelectAllCheckboxState(); 
-            } 
-        });
+      mobileListDiv.addEventListener('change', (event) => {
+        if (event.target.classList.contains('account-checkbox')) {
+          updateMobileSelectAllCheckboxState();
+        }
+      });
     }
 
     function multi_updateAccountStatus(username, data) {
-        // 尝试获取桌面端和移动端的卡片元素
-        const ids = [`multi-acc-${username}`, `mobile-multi-acc-${username}`];
+      // 尝试获取桌面端和移动端的卡片元素
+      const ids = [`multi-acc-${username}`, `mobile-multi-acc-${username}`];
 
-        ids.forEach(id => {
-            const item = document.getElementById(id);
-            if (!item) return;
+      ids.forEach(id => {
+        const item = document.getElementById(id);
+        if (!item) return;
 
-            // 1. 文案与摘要的常规更新
-            if (data.status_text) {
-                const statusEl = item.querySelector('.status-text');
-                if (statusEl) statusEl.textContent = data.status_text;
-            }
-            if (data.name) {
-                const nameEl = item.querySelector('.account-name');
-                if (nameEl) nameEl.textContent = data.name;
-            }
-
-            if (data.summary) {
-                const s = data.summary;
-                const setVal = (sel, val) => { 
-                    const el = item.querySelector(sel); 
-                    if (el) el.textContent = val; 
-                };
-                
-                setVal('.summary-total', s.total);
-                setVal('.summary-completed', s.completed);
-                setVal('.summary-notstarted', s.not_started ?? 0);
-                setVal('.summary-executable', s.executable);
-                setVal('.summary-expired', s.expired);
-
-                setVal('.summary-att-pending', s.att_pending || 0);
-                setVal('.summary-att-completed', s.att_completed || 0);
-                setVal('.summary-att-expired', s.att_expired || 0);
-            }
-
-            // 2. 进度条与附加文本的更新
-            if (typeof data.progress_pct === 'number') {
-                const fill = item.querySelector('.progress-fill');
-                if (fill) fill.style.width = `${Math.max(0, Math.min(100, data.progress_pct))}%`;
-            }
-            if (typeof data.progress_text === 'string') {
-                const label = item.querySelector('.progress-text');
-                if (label) label.textContent = data.progress_text;
-            }
-            if (typeof data.progress_extra === 'string') {
-                const extra = item.querySelector('.progress-extra');
-                if (extra) extra.textContent = data.progress_extra;
-            }
-        });
-
-        // 3. 状态驱动的标记清理逻辑 (使用最新状态判断)
-        const currentStatus = (typeof data.status_text === 'string' && data.status_text.trim()) 
-            ? data.status_text.trim() 
-            : ''; // 若未提供状态文本，这里简化处理不清理，或者从 DOM 读
-
-        const NON_RUNNING_STATUSES = new Set([
-            '任务已完成', '全部完成', '无任务可执行', '无可执行任务', '已停止', '已中止', '待命'
-        ]);
-
-        if (NON_RUNNING_STATUSES.has(currentStatus)) {
-            if (typeof multi_removeRunnerMarker === 'function') multi_removeRunnerMarker(username);
-            return;
+        // 1. 文案与摘要的常规更新
+        if (data.status_text) {
+          const statusEl = item.querySelector('.status-text');
+          if (statusEl) statusEl.textContent = data.status_text;
+        }
+        if (data.name) {
+          const nameEl = item.querySelector('.account-name');
+          if (nameEl) nameEl.textContent = data.name;
         }
 
-        const s = data.summary;
-        if (s && typeof s.executable === 'number' && s.executable <= 0) {
-            const maybeRunning = ['登录中...', '分析任务', '运行', '等待', '排队登录...', '延迟'];
-            const isLikelyRunning = maybeRunning.some(k => currentStatus.includes(k));
-            if (!isLikelyRunning) {
-                if (typeof multi_removeRunnerMarker === 'function') multi_removeRunnerMarker(username);
-            }
+        if (data.summary) {
+          const s = data.summary;
+          const setVal = (sel, val) => {
+            const el = item.querySelector(sel);
+            if (el) el.textContent = val;
+          };
+
+          setVal('.summary-total', s.total);
+          setVal('.summary-completed', s.completed);
+          setVal('.summary-notstarted', s.not_started ?? 0);
+          setVal('.summary-executable', s.executable);
+          setVal('.summary-expired', s.expired);
+
+          setVal('.summary-att-pending', s.att_pending || 0);
+          setVal('.summary-att-completed', s.att_completed || 0);
+          setVal('.summary-att-expired', s.att_expired || 0);
         }
+
+        // 2. 进度条与附加文本的更新
+        if (typeof data.progress_pct === 'number') {
+          const fill = item.querySelector('.progress-fill');
+          if (fill) fill.style.width = `${Math.max(0, Math.min(100, data.progress_pct))}%`;
+        }
+        if (typeof data.progress_text === 'string') {
+          const label = item.querySelector('.progress-text');
+          if (label) label.textContent = data.progress_text;
+        }
+        if (typeof data.progress_extra === 'string') {
+          const extra = item.querySelector('.progress-extra');
+          if (extra) extra.textContent = data.progress_extra;
+        }
+      });
+
+      // 3. 状态驱动的标记清理逻辑 (使用最新状态判断)
+      const currentStatus = (typeof data.status_text === 'string' && data.status_text.trim())
+        ? data.status_text.trim()
+        : ''; // 若未提供状态文本，这里简化处理不清理，或者从 DOM 读
+
+      const NON_RUNNING_STATUSES = new Set([
+        '任务已完成', '全部完成', '无任务可执行', '无可执行任务', '已停止', '已中止', '待命'
+      ]);
+
+      if (NON_RUNNING_STATUSES.has(currentStatus)) {
+        if (typeof multi_removeRunnerMarker === 'function') multi_removeRunnerMarker(username);
+        return;
+      }
+
+      const s = data.summary;
+      if (s && typeof s.executable === 'number' && s.executable <= 0) {
+        const maybeRunning = ['登录中...', '分析任务', '运行', '等待', '排队登录...', '延迟'];
+        const isLikelyRunning = maybeRunning.some(k => currentStatus.includes(k));
+        if (!isLikelyRunning) {
+          if (typeof multi_removeRunnerMarker === 'function') multi_removeRunnerMarker(username);
+        }
+      }
     }
 
     function multi_updateRunnerPosition(username, lon, lat, name) {
@@ -25850,17 +25848,17 @@ function renderMultiAccountList(accounts) {
               if (AMapInstance.GeometryUtil) {
                 totalDist = AMapInstance.GeometryUtil.distanceOfLine(path);
               }
-              
+
               // 从result获取统计数据（如果有的话）
               const distance = result.distance || (totalDist / 1000);
               const duration = result.duration || result.used_time || '--:--';
               const checkpoints = result.checkpoints || result.target_points?.length || 0;
-              
+
               // 更新摘要中的各个元素
               const distEl = $('mobile-track-distance');
               const durEl = $('mobile-track-duration');
               const paceEl = $('mobile-track-pace');
-              
+
               if (distEl) {
                 distEl.textContent = `${typeof distance === 'number' ? distance.toFixed(2) : distance} km`;
               }
@@ -25881,7 +25879,7 @@ function renderMultiAccountList(accounts) {
                   paceEl.textContent = '--:--';
                 }
               }
-              
+
               logMessage_Info(`[历史轨迹] 摘要信息已更新 - 距离: ${distance} km, 时长: ${duration}, 打卡点: ${checkpoints}`);
 
               // 9. 绘制打卡点标记（如果有的话）
@@ -27699,7 +27697,7 @@ function renderMultiAccountList(accounts) {
     // 本节包含所有移动端专用UI组件的JavaScript交互逻辑
     // 包括：通知面板、任务面板、地图面板、控制面板、多账号管理等
     function sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+      return new Promise(resolve => setTimeout(resolve, ms));
     }
     /**
      * 切换移动端通知标签页（全部/签到）
@@ -28160,7 +28158,7 @@ function renderMultiAccountList(accounts) {
           statusIndicator.className += ' bg-yellow-200 text-yellow-600';
         } else if (status === '已停止') {
           statusIndicator.className += ' bg-red-200 text-red-600';
-        // 【问题1修复】添加对"已完成"状态的样式处理，使用蓝色背景表示任务成功完成
+          // 【问题1修复】添加对"已完成"状态的样式处理，使用蓝色背景表示任务成功完成
         } else if (status === '已完成') {
           statusIndicator.className += ' bg-blue-200 text-blue-600';
         } else {
@@ -28487,9 +28485,9 @@ function renderMultiAccountList(accounts) {
       try {
         // 通过API查询后端任务状态
         const statusRes = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
-        const isTaskRunning = statusRes.success && 
-                              statusRes.task_status && 
-                              statusRes.task_status.status === 'running';
+        const isTaskRunning = statusRes.success &&
+          statusRes.task_status &&
+          statusRes.task_status.status === 'running';
 
         // 如果检测到有任务正在运行
         if (isTaskRunning || mobileTaskRunning) {
@@ -28509,7 +28507,7 @@ function renderMultiAccountList(accounts) {
                 // 重置任务状态标志
                 mobileTaskRunning = false;
                 mobileTaskPaused = false;
-                
+
                 // 任务停止后，继续执行退出多账号模式逻辑
                 performExitMobileMultiAccount();
               } catch (error) {
@@ -28545,7 +28543,7 @@ function renderMultiAccountList(accounts) {
       // 原因：移动端用户退出多账号模式后，不再需要刷新账号列表
       // 及时停止定时器，避免内存泄漏和不必要的网络请求
       stopMultiAccountAutoRefresh();
-      
+
       // 调用API退出多账号模式
       await callPythonAPI('exit_multi_account_mode');
 
@@ -29145,9 +29143,9 @@ function renderMultiAccountList(accounts) {
       try {
         // 通过API查询后端任务状态
         const statusRes = await callPythonAPI_raw('/api/background_task/status', 'GET', null);
-        const isTaskRunning = statusRes.success && 
-                              statusRes.task_status && 
-                              statusRes.task_status.status === 'running';
+        const isTaskRunning = statusRes.success &&
+          statusRes.task_status &&
+          statusRes.task_status.status === 'running';
 
         // 如果检测到有任务正在运行
         if (isTaskRunning || mobileTaskRunning) {
@@ -29167,7 +29165,7 @@ function renderMultiAccountList(accounts) {
                 // 重置任务状态标志
                 mobileTaskRunning = false;
                 mobileTaskPaused = false;
-                
+
                 // 任务停止后，继续执行退出登录逻辑
                 performMobileLogout();
               } catch (error) {
@@ -29635,7 +29633,7 @@ function renderMultiAccountList(accounts) {
       const containerStyle = window.getComputedStyle(container);
       const containerWidth = container.offsetWidth;
       const containerHeight = container.offsetHeight;
-      
+
       if (containerWidth === 0 || containerHeight === 0 || containerStyle.display === 'none') {
         logMessage_Warning(`[移动端地图] 容器 ${containerId} 不可见或尺寸为0 (${containerWidth}x${containerHeight})`);
         // 如果容器不可见且还有重试次数，则延迟后重试
@@ -29664,7 +29662,7 @@ function renderMultiAccountList(accounts) {
             </div>
           </div>
         `;
-        
+
         // 【问题4修复】如果API未加载且还有重试次数，则延迟后重试
         if (retryCount < MAX_RETRIES) {
           logMessage_Info(`[移动端地图] 将在 ${RETRY_DELAY}ms 后重试加载 (${retryCount + 1}/${MAX_RETRIES})`);
@@ -29739,7 +29737,7 @@ function renderMultiAccountList(accounts) {
           return true;
         } catch (error) {
           logMessage_Error('[移动端地图] 多账号地图初始化失败:', error);
-          
+
           // 【问题4修复】显示错误信息
           container.innerHTML = `
             <div class="absolute inset-0 flex items-center justify-center text-slate-400">
@@ -29753,7 +29751,7 @@ function renderMultiAccountList(accounts) {
               </div>
             </div>
           `;
-          
+
           // 【问题4修复】如果初始化失败且还有重试次数，则延迟后重试
           if (retryCount < MAX_RETRIES) {
             logMessage_Info(`[移动端地图] 将在 ${RETRY_DELAY}ms 后重试 (${retryCount + 1}/${MAX_RETRIES})`);
@@ -29820,7 +29818,7 @@ function renderMultiAccountList(accounts) {
           return true;
         } catch (error) {
           logMessage_Error('[移动端地图] 单账号地图初始化失败:', error);
-          
+
           // 【问题4修复】显示错误信息
           container.innerHTML = `
             <div class="absolute inset-0 flex items-center justify-center text-slate-400">
@@ -29834,7 +29832,7 @@ function renderMultiAccountList(accounts) {
               </div>
             </div>
           `;
-          
+
           // 【问题4修复】如果初始化失败且还有重试次数，则延迟后重试
           if (retryCount < MAX_RETRIES) {
             logMessage_Info(`[移动端地图] 将在 ${RETRY_DELAY}ms 后重试 (${retryCount + 1}/${MAX_RETRIES})`);
@@ -29993,15 +29991,15 @@ function renderMultiAccountList(accounts) {
           if (!window.mobile_map_panel_initialize_mark) {
             switchMobileSinglePanel('mobile-map-panel');
             logMessage_Info('[移动端单账号] 首次激活控制面板，初始化地图...');
-            setTimeout(function() {
+            setTimeout(function () {
 
-            // 设置标记为 true
-            window.mobile_map_panel_initialize_mark = true;
+              // 设置标记为 true
+              window.mobile_map_panel_initialize_mark = true;
 
-            initMobileMap('mobile-map-container', false);
+              initMobileMap('mobile-map-container', false);
             }, 200);
-            setTimeout(function() {
-            switchMobileSinglePanel('mobile-control-panel');
+            setTimeout(function () {
+              switchMobileSinglePanel('mobile-control-panel');
             }, 400);
             logMessage_Info('[移动端单账号] 地图初始化完成，返回控制面板');
           }
@@ -30313,20 +30311,20 @@ function renderMultiAccountList(accounts) {
         // 3. 这样可以保持与CSS定义的一致性，避免破坏原有的布局设计
         targetPanel.style.display = '';
 
-        if(panelId === 'mobile-multi-control-panel') {
+        if (panelId === 'mobile-multi-control-panel') {
           logMessage_Info('[移动端多账号] 激活多账号控制面板');
           if (!window.mobile_multi_map_panel_initialize_mark) {
             switchMobileMulitPanel('mobile-multi-map-panel');
             logMessage_Info('[移动端多账号] 首次激活多账号控制面板，初始化地图...');
-            setTimeout(function() {
+            setTimeout(function () {
 
-            // 设置标记为 true
-            window.mobile_multi_map_panel_initialize_mark = true;
+              // 设置标记为 true
+              window.mobile_multi_map_panel_initialize_mark = true;
 
-            initMobileMap('mobile-multi-map-container', true);
+              initMobileMap('mobile-multi-map-container', true);
             }, 200);
-            setTimeout(function() {
-            switchMobileMulitPanel('mobile-multi-control-panel');
+            setTimeout(function () {
+              switchMobileMulitPanel('mobile-multi-control-panel');
             }, 400);
             logMessage_Info('[移动端多账号] 多账号地图初始化完成，返回控制面板');
           }
@@ -30707,60 +30705,60 @@ function renderMultiAccountList(accounts) {
      * - 显示账号参数设置模态框
      */
     async function openMobileAccountParams(username) {
-        if (!username) return;
+      if (!username) return;
 
-        // 获取模态框元素
-        const modal = document.getElementById('mobile-account-params-modal');
-        const titleEl = document.getElementById('mobile-account-params-title');
-        const container = document.getElementById('mobile-account-params-container');
-        const saveBtn = document.getElementById('mobile-save-account-params-btn');
+      // 获取模态框元素
+      const modal = document.getElementById('mobile-account-params-modal');
+      const titleEl = document.getElementById('mobile-account-params-title');
+      const container = document.getElementById('mobile-account-params-container');
+      const saveBtn = document.getElementById('mobile-save-account-params-btn');
 
-        if (!modal || !container) return;
+      if (!modal || !container) return;
 
-        // 显示加载状态
-        container.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
-        modal.classList.remove('hidden');
+      // 显示加载状态
+      container.innerHTML = '<p class="text-slate-400 text-center py-10">加载中...</p>';
+      modal.classList.remove('hidden');
 
-        if (titleEl) titleEl.textContent = `[${username}] 参数设置`;
+      if (titleEl) titleEl.textContent = `[${username}] 参数设置`;
 
-        try {
-            // 获取参数
-            const result = await callPythonAPI('multi_get_account_params', username);
-            if (!result.success) {
-                showModalAlert(result.message);
-                modal.classList.add('hidden');
-                return;
-            }
-
-            // 生成表单
-            // 复用 createParamInputs 函数 (prefix='mobile-acc-param')
-            // 排除 '主题与外观' 组
-            createParamInputs(container, 'mobile-acc-param', () => {}, ['主题与外观']);
-            updateParamInputs(container, 'mobile-acc-param', result.params);
-
-            // 绑定保存按钮
-            if (saveBtn) {
-                saveBtn.onclick = async () => {
-                    showTempMessage('正在保存...', 'info');
-                    const inputs = container.querySelectorAll('input, select');
-                    try {
-                        for (const input of inputs) {
-                            const key = input.dataset.key;
-                            if (!key) continue;
-                            const value = input.type === 'checkbox' ? input.checked : input.value;
-                            await callPythonAPI('multi_update_account_param', username, key, value);
-                        }
-                        showTempMessage('设置已保存', 'success');
-                        closeMobileAccountParams();
-                    } catch (e) {
-                        showTempMessage('保存失败: ' + e.message, 'error');
-                    }
-                };
-            }
-
-        } catch (e) {
-            container.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      try {
+        // 获取参数
+        const result = await callPythonAPI('multi_get_account_params', username);
+        if (!result.success) {
+          showModalAlert(result.message);
+          modal.classList.add('hidden');
+          return;
         }
+
+        // 生成表单
+        // 复用 createParamInputs 函数 (prefix='mobile-acc-param')
+        // 排除 '主题与外观' 组
+        createParamInputs(container, 'mobile-acc-param', () => { }, ['主题与外观']);
+        updateParamInputs(container, 'mobile-acc-param', result.params);
+
+        // 绑定保存按钮
+        if (saveBtn) {
+          saveBtn.onclick = async () => {
+            showTempMessage('正在保存...', 'info');
+            const inputs = container.querySelectorAll('input, select');
+            try {
+              for (const input of inputs) {
+                const key = input.dataset.key;
+                if (!key) continue;
+                const value = input.type === 'checkbox' ? input.checked : input.value;
+                await callPythonAPI('multi_update_account_param', username, key, value);
+              }
+              showTempMessage('设置已保存', 'success');
+              closeMobileAccountParams();
+            } catch (e) {
+              showTempMessage('保存失败: ' + e.message, 'error');
+            }
+          };
+        }
+
+      } catch (e) {
+        container.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
+      }
     }
 
     // ==================== 移动端地图控制函数 ====================
@@ -30997,10 +30995,10 @@ function renderMultiAccountList(accounts) {
         console.log(`[移动端验证码] 未找到验证码显示元素: ${displayId}`);
         return;
       }
-      
+
       // 检查captcha_id是否已经存在（应该在PC端loadCaptcha时已经存储）
       const captchaId = captchaIds[formType];
-      
+
       if (!captchaId) {
         // 如果captcha_id不存在，说明PC端验证码还未加载
         // 显示等待提示
@@ -31008,7 +31006,7 @@ function renderMultiAccountList(accounts) {
         console.log(`[移动端验证码] captchaId尚未生成，等待PC端加载: ${formType}`);
         return;
       }
-      
+
       // 获取存储的验证码尺寸
       const captchaDims = captchaDimensions[formType] || { width: 343, height: 119 };
 
@@ -31017,18 +31015,18 @@ function renderMultiAccountList(accounts) {
       // ========================================
 
       const viewportWidth = window.innerWidth || document.documentElement.clientWidth; // 获取视口宽度，兼容旧版浏览器
-      const padding = 80+40; // 左右padding总和（估算值：左20px + 右20px）
+      const padding = 80 + 40; // 左右padding总和（估算值：左20px + 右20px）
       const availableWidth = viewportWidth - padding; // 计算实际可用宽度
-      
+
       // 【移动端验证码缩放】目标宽度和高度
       // 如果可用宽度小于验证码实际宽度，需要缩放
       const needsScaling = availableWidth < captchaDims.width;
       const targetWidth = needsScaling ? Math.floor(availableWidth) : captchaDims.width;
       const scaleFactor = needsScaling ? (targetWidth / captchaDims.width) : 1;
       const targetHeight = Math.floor(captchaDims.height * scaleFactor);
-      
+
       console.log(`[移动端验证码缩放] 屏幕宽度${viewportWidth}px，可用${availableWidth}px，验证码原始${captchaDims.width}x${captchaDims.height}px，目标${targetWidth}x${targetHeight}px`);
-      
+
       // ========================================
       // 【移动端验证码缩放】构建API请求URL
       // - 基础URL: /api/captcha/html/{captcha_id}?t={timestamp}
@@ -31036,12 +31034,12 @@ function renderMultiAccountList(accounts) {
       // ========================================
       const timestamp = Date.now();  // 当前时间戳，用于避免CDN缓存
       let iframeSrc = `/api/captcha/html/${captchaId}?t=${timestamp}`;
-      
+
       // 只在需要缩放时添加width参数
       if (needsScaling) {
         iframeSrc += `&width=${targetWidth}`;
       }
-      
+
       // ========================================
       // 【移动端验证码缩放】设置iframe尺寸
       // - 使用计算出的目标尺寸（已考虑缩放）
@@ -31056,7 +31054,7 @@ function renderMultiAccountList(accounts) {
           title="验证码">
         </iframe>
       `;
-      
+
       // 将iframe插入到移动端显示区域
       displayElement.innerHTML = iframeHtml;
 
@@ -31270,12 +31268,12 @@ function renderMultiAccountList(accounts) {
       const avatarInput = document.getElementById('auth-reg-avatar');
       if (avatarInput) {
         // [已修复] 使用匿名函数包裹，防止函数未定义错误
-        avatarInput.addEventListener('change', function(e) {
-            if (typeof previewAvatarForRegistration === 'function') {
-                previewAvatarForRegistration(e);
-            } else {
-                console.error("previewAvatarForRegistration 函数尚未加载");
-            }
+        avatarInput.addEventListener('change', function (e) {
+          if (typeof previewAvatarForRegistration === 'function') {
+            previewAvatarForRegistration(e);
+          } else {
+            console.error("previewAvatarForRegistration 函数尚未加载");
+          }
         });
       }
 
@@ -31590,7 +31588,7 @@ function renderMultiAccountList(accounts) {
     async function loadCaptchaSettings() {
       try {
         console.log('[验证码设置] 开始加载验证码配置参数...');
-        
+
         // 从get_initial_data API获取配置（该API已返回captcha_settings）
         // 注意：这里复用了页面加载时已经获取的数据
         if (window.initialData && window.initialData.captcha_settings) {
@@ -31599,7 +31597,7 @@ function renderMultiAccountList(accounts) {
           $('captcha-length').value = settings.length || 4;
           $('captcha-scale-factor').value = settings.scale_factor || 2;
           $('captcha-noise-level').value = settings.noise_level || 0.08;
-          
+
           console.log('[验证码设置] 已从缓存加载配置:', settings);
         } else {
           // 如果没有缓存，重新请求
@@ -31609,7 +31607,7 @@ function renderMultiAccountList(accounts) {
             $('captcha-length').value = settings.length || 4;
             $('captcha-scale-factor').value = settings.scale_factor || 2;
             $('captcha-noise-level').value = settings.noise_level || 0.08;
-            
+
             console.log('[验证码设置] 已从API加载配置:', settings);
           } else {
             console.warn('[验证码设置] 未能获取配置，使用默认值');
@@ -31620,7 +31618,7 @@ function renderMultiAccountList(accounts) {
         // 加载失败时使用默认值（输入框的默认value已设置）
       }
     }
-    
+
     /**
      * 【本地验证码】保存验证码设置
      * 
@@ -31634,12 +31632,12 @@ function renderMultiAccountList(accounts) {
     async function saveCaptchaSettings() {
       try {
         console.log('[验证码设置] 开始保存验证码配置...');
-        
+
         // 1. 获取输入框的值
         const length = parseInt($('captcha-length').value);
         const scale_factor = parseInt($('captcha-scale-factor').value);
         const noise_level = parseFloat($('captcha-noise-level').value);
-        
+
         // 2. 前端参数验证（减少无效请求）
         if (isNaN(length) || length < 3 || length > 6) {
           Swal.fire({
@@ -31649,7 +31647,7 @@ function renderMultiAccountList(accounts) {
           });
           return;
         }
-        
+
         if (isNaN(scale_factor) || scale_factor < 2 || scale_factor > 4) {
           Swal.fire({
             icon: 'error',
@@ -31658,7 +31656,7 @@ function renderMultiAccountList(accounts) {
           });
           return;
         }
-        
+
         if (isNaN(noise_level) || noise_level < 0 || noise_level > 0.3) {
           Swal.fire({
             icon: 'error',
@@ -31667,9 +31665,9 @@ function renderMultiAccountList(accounts) {
           });
           return;
         }
-        
+
         console.log('[验证码设置] 参数验证通过:', { length, scale_factor, noise_level });
-        
+
         // 3. 调用后端API保存配置（直接使用fetch调用独立路由）
         const response = await fetch('/api/captcha/save_settings', {
           method: 'POST',
@@ -31684,9 +31682,9 @@ function renderMultiAccountList(accounts) {
             noise_level
           })
         });
-        
+
         const result = await response.json();
-        
+
         // 4. 处理响应结果
         if (result && result.success) {
           console.log('[验证码设置] 保存成功');
@@ -31697,7 +31695,7 @@ function renderMultiAccountList(accounts) {
             timer: 2000,
             showConfirmButton: false
           });
-          
+
           // 更新缓存数据
           if (window.initialData) {
             window.initialData.captcha_settings = { length, scale_factor, noise_level };
@@ -31714,7 +31712,7 @@ function renderMultiAccountList(accounts) {
         });
       }
     }
-    
+
     /**
      * 【本地验证码】测试生成验证码
      * 
@@ -31728,12 +31726,12 @@ function renderMultiAccountList(accounts) {
     async function testGenerateCaptcha() {
       try {
         console.log('[验证码设置] 开始测试生成验证码...');
-        
+
         // 1. 获取输入框的值
         const length = parseInt($('captcha-length').value);
         const scale_factor = parseInt($('captcha-scale-factor').value);
         const noise_level = parseFloat($('captcha-noise-level').value);
-        
+
         // 2. 前端参数验证
         if (isNaN(length) || length < 3 || length > 6) {
           Swal.fire({
@@ -31743,7 +31741,7 @@ function renderMultiAccountList(accounts) {
           });
           return;
         }
-        
+
         if (isNaN(scale_factor) || scale_factor < 2 || scale_factor > 4) {
           Swal.fire({
             icon: 'error',
@@ -31752,7 +31750,7 @@ function renderMultiAccountList(accounts) {
           });
           return;
         }
-        
+
         if (isNaN(noise_level) || noise_level < 0 || noise_level > 0.3) {
           Swal.fire({
             icon: 'error',
@@ -31761,9 +31759,9 @@ function renderMultiAccountList(accounts) {
           });
           return;
         }
-        
+
         // console.log('[验证码设置] 测试参数:', { length, scale_factor, noise_level });
-        
+
         // 3. 调用后端API测试生成（直接使用fetch调用独立路由）
         const response = await fetch('/api/captcha/test_generate', {
           method: 'POST',
@@ -31778,25 +31776,25 @@ function renderMultiAccountList(accounts) {
             noise_level
           })
         });
-        
+
         const result = await response.json();
-        
+
         // 4. 处理响应结果
         if (result && result.success) {
           console.log('[验证码设置] 测试生成成功，验证码:', result.code);
-          
+
           // 显示预览区域
           $('captcha-test-preview').classList.remove('hidden');
-          
+
           // --- 改用 iframe 显示 (与登录/注册页保持一致) ---
           const displayContainer = $('captcha-preview-display');
-          
+
           // 使用API返回的实际尺寸，而不是估算值
           const captchaWidth = result.width || 343;   // 使用返回的宽度，默认343px
           const captchaHeight = result.height || 119; // 使用返回的高度，默认119px
-          
+
           const timestamp = Date.now();
-          
+
           const iframeHtml = `
             <iframe 
               src="/api/captcha/html/${result.captcha_id}?t=${timestamp}"
@@ -31806,12 +31804,12 @@ function renderMultiAccountList(accounts) {
               title="验证码预览">
             </iframe>
           `;
-          
+
           displayContainer.innerHTML = iframeHtml;
-          
+
           // 显示验证码答案（仅用于测试）
           $('captcha-preview-answer').textContent = result.code;
-          
+
           console.log('[验证码设置] 预览区域已更新 (iframe模式)');
         } else {
           throw new Error(result?.message || '生成失败');
@@ -31830,21 +31828,21 @@ function renderMultiAccountList(accounts) {
     // 【本地验证码】注册事件监听器
     // ========================================
     // 在DOM加载完成后注册按钮点击事件
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
       // 保存设置按钮
       const saveCaptchaSettingsBtn = $('save-captcha-settings-btn');
       if (saveCaptchaSettingsBtn) {
         saveCaptchaSettingsBtn.addEventListener('click', saveCaptchaSettings);
         console.log('[验证码设置] 已注册保存按钮事件');
       }
-      
+
       // 测试验证码按钮
       const testCaptchaBtn = $('test-captcha-btn');
       if (testCaptchaBtn) {
         testCaptchaBtn.addEventListener('click', testGenerateCaptcha);
         console.log('[验证码设置] 已注册测试按钮事件');
       }
-      
+
       // 【验证码历史】刷新历史记录按钮
       const refreshCaptchaHistoryBtn = $('refresh-captcha-history-btn');
       if (refreshCaptchaHistoryBtn) {
@@ -31912,7 +31910,7 @@ function renderMultiAccountList(accounts) {
         if (statFailed) statFailed.textContent = failed;
         if (statPending) statPending.textContent = pending;
         if (statExpired) statExpired.textContent = expired;
-        if(statTestGenerated) statTestGenerated.textContent = testGenerated;
+        if (statTestGenerated) statTestGenerated.textContent = testGenerated;
 
         if (records.length === 0) {
           listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">该日期没有验证码记录</p>';
@@ -31978,7 +31976,7 @@ function renderMultiAccountList(accounts) {
         listContainer.innerHTML = `<p class="text-red-500 text-center py-10">加载验证码历史时发生错误: ${e.message}</p>`;
       }
     }
-    
+
 
     /**
          * 显示验证码详细信息
@@ -32595,10 +32593,11 @@ function renderMultiAccountList(accounts) {
     async function checkAndShowReminders() {
       // [已修复] 如果没有 sessionUUID，直接返回，不执行检查
       if (!sessionUUID) {
-          sessionUUID=getUUIDFromURL() ;
-          if (!sessionUUID) {
-            logMessage_Error("跳过提醒检查: sessionUUID 未定义");
-            return;}
+        sessionUUID = getUUIDFromURL();
+        if (!sessionUUID) {
+          logMessage_Error("跳过提醒检查: sessionUUID 未定义");
+          return;
+        }
       }
 
       try {
@@ -33654,14 +33653,14 @@ function renderMultiAccountList(accounts) {
             // 【本地验证码】
             // 1. 加载设置
             loadCaptchaSettings();
-            
+
             // 2. 设置默认日期为今天
             const dateInput = $('captcha-history-date');
             if (dateInput) {
-                const today = new Date().toISOString().split('T')[0];
-                dateInput.value = today;
+              const today = new Date().toISOString().split('T')[0];
+              dateInput.value = today;
             }
-            
+
             // 3. 加载历史记录（不需要等待DOM复制，因为loadCaptchaHistory会填充原始DOM，copyAdminContentToMobile会复制它）
             loadCaptchaHistory();
 
@@ -33739,15 +33738,15 @@ function renderMultiAccountList(accounts) {
         case 'captcha':
           // 【本地验证码】
           loadCaptchaSettings();
-          
+
           // 设置默认日期
           const dateInputEl = $('captcha-history-date');
           if (dateInputEl) {
-             dateInputEl.value = new Date().toISOString().split('T')[0];
+            dateInputEl.value = new Date().toISOString().split('T')[0];
           }
           // 加载历史
           loadCaptchaHistory();
-          
+
           setTimeout(() => copyAdminContentToMobile('captcha', contentId), 500);
           break;
         case 'reminders':
@@ -34731,7 +34730,7 @@ function renderMultiAccountList(accounts) {
         // 【修复】先移除 show 类触发滑出动画，延迟后再隐藏元素
         modal.classList.remove('show');
         setTimeout(() => {
-            modal.classList.add('hidden');
+          modal.classList.add('hidden');
         }, 300); // 300ms 对应 CSS 中的 transition 时间
       }
 
