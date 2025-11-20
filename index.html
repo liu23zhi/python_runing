@@ -8500,6 +8500,7 @@
                 <option value="verified_success">验证成功</option>
                 <option value="verified_failed">验证失败</option>
                 <option value="expired">已过期</option>
+                <option value="test_generated">测试生成</option>
               </select>
               <button id="admin-refresh-captcha_modal" class="btn btn-ghost !py-1 !px-2"
                 onclick="loadCaptchaHistory()">刷新</button>
@@ -8510,7 +8511,7 @@
             <p class="text-slate-400 text-center py-10">请选择日期并点击刷新按钮查看验证码历史</p>
           </div>
 
-          <div id="captcha-stats" class="grid grid-cols-5 gap-2 text-center text-sm">
+          <div id="captcha-stats" class="grid grid-cols-6 gap-2 text-center text-sm">
             <div class="p-2 bg-slate-100 rounded">
               <div class="text-slate-600">总计</div>
               <div id="captcha-stat-total" class="text-lg font-semibold">0</div>
@@ -8530,6 +8531,10 @@
             <div class="p-2 bg-gray-100 rounded">
               <div class="text-gray-700">已过期</div>
               <div id="captcha-stat-expired" class="text-lg font-semibold text-gray-700">0</div>
+            </div>
+            <div class="p-2 bg-blue-100 rounded">
+              <div class="text-blue-700">测试生成</div>
+              <div id="captcha-stat-test" class="text-lg font-semibold text-blue-700">0</div>
             </div>
           </div>
         </div>
@@ -14153,6 +14158,11 @@
         modal.classList.add('hidden');
         modal.classList.remove('flex');
         document.body.classList.remove('modal-visible'); // 移除 body class
+        
+        // 【修复】关闭模态框时，确保验证码历史记录面板也被隐藏
+        const captchaHistoryPanel = $('admin-captcha-history-panel_modal');
+        if (captchaHistoryPanel) captchaHistoryPanel.classList.add('hidden');
+
         // 关闭时停止自动刷新
         stopHealthAutoRefresh();
       }
@@ -14229,6 +14239,10 @@
         p.classList.add('hidden');
       });
 
+      // 【修复】切换标签页时，强制隐藏验证码历史记录二级面板
+      // 防止从验证码标签切走后，历史记录面板依然残留
+      const captchaHistoryPanel = $('admin-captcha-history-panel_modal');
+      if (captchaHistoryPanel) captchaHistoryPanel.classList.add('hidden');
 
       // 根据传入的 tab 参数，激活对应的标签按钮和内容面板，并调用加载函数
       if (tab === 'users') {
@@ -24016,7 +24030,7 @@ function renderMultiAccountList(accounts) {
                                 ${acc.tag ? `<span class="text-xs text-purple-600 font-medium block">🏷️ ${acc.tag}</span>` : ''}
                             </div>
                         </div>
-                        <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap">${acc.status_text}</span>
+                        <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap" id="${acc.username}-status-text">${acc.status_text}</span>
                     </div>
 
                     <div class="grid grid-cols-5 gap-2 text-center text-xs mt-2 pt-2 border-t text-slate-600">
@@ -31871,18 +31885,21 @@ function renderMultiAccountList(accounts) {
         const failed = records.filter(r => r.status === 'verified_failed').length;
         const pending = records.filter(r => r.status === 'created').length;
         const expired = records.filter(r => r.status === 'expired').length;
+        const testGenerated = records.filter(r => r.status === 'test_generated').length;
 
         const statTotal = $('captcha-stat-total');
         const statSuccess = $('captcha-stat-success');
         const statFailed = $('captcha-stat-failed');
         const statPending = $('captcha-stat-pending');
         const statExpired = $('captcha-stat-expired');
+        const statTestGenerated = $('captcha-stat-test');
 
         if (statTotal) statTotal.textContent = total;
         if (statSuccess) statSuccess.textContent = success;
         if (statFailed) statFailed.textContent = failed;
         if (statPending) statPending.textContent = pending;
         if (statExpired) statExpired.textContent = expired;
+        if(statTestGenerated) statTestGenerated.textContent = testGenerated;
 
         if (records.length === 0) {
           listContainer.innerHTML = '<p class="text-slate-400 text-center py-10">该日期没有验证码记录</p>';
@@ -31904,7 +31921,8 @@ function renderMultiAccountList(accounts) {
             'created': '待验证',
             'verified_success': '验证成功',
             'verified_failed': '验证失败',
-            'expired': '已过期'
+            'expired': '已过期',
+            'test_generated': '测试生成'
           }[record.status] || record.status;
 
           const itemDiv = document.createElement('div');
@@ -32016,7 +32034,8 @@ function renderMultiAccountList(accounts) {
         'created': { text: '待验证', class: 'bg-yellow-100 text-yellow-800' },
         'verified_success': { text: '验证成功', class: 'bg-green-100 text-green-800' },
         'verified_failed': { text: '验证失败', class: 'bg-red-100 text-red-800' },
-        'expired': { text: '已过期', class: 'bg-gray-100 text-gray-800' }
+        'expired': { text: '已过期', class: 'bg-gray-100 text-gray-800' },
+        'test_generated': { text: '测试生成', class: 'bg-blue-100 text-blue-800' }
       };
       const statusInfo = statusConfig[captcha.status] || { text: captcha.status, class: 'bg-gray-100 text-gray-800' };
       statusElement.textContent = statusInfo.text;
@@ -33561,6 +33580,11 @@ function renderMultiAccountList(accounts) {
           const panel = document.getElementById(panelId);
           if (panel) panel.classList.add('hidden');
         });
+
+        // 【修复】切换移动端管理标签时，强制隐藏验证码历史二级面板
+        const captchaHistoryPanelMobile = document.getElementById('admin-captcha-history-panel_modal'); // 注意移动端复用了部分PC端的ID结构或有特定ID，需根据实际DOM确认，但这里为了保险起见可以尝试隐藏通用ID
+        if (captchaHistoryPanelMobile) captchaHistoryPanelMobile.classList.add('hidden');
+        // 如果移动端有独立的ID（如 mobile-admin-captcha-history-panel），也应在此隐藏
 
         // 显示目标面板
         const targetPanelId = `mobile-admin-${tabId}-panel-panel`;

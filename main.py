@@ -7819,7 +7819,7 @@ class Api:
                 not_started_cnt = acc.summary.get("not_started", 0)
 
                 if exe_cnt > 0:
-                    final_status = "待命"
+                    final_status = f"有 {exe_cnt} 个任务可执行"
                     acc.has_pending_tasks = True
                 elif not_started_cnt > 0:
                     final_status = "无任务可执行"
@@ -8707,9 +8707,12 @@ class Api:
             # 1. 首先处理已完成的任务
             if r.status == 1:
                 completed += 1
-                continue  # 已完成的任务无需再进行后续分类
+                # 如果全局开关开启了“仅执行未完成”，则已完成的任务不再视为可执行
+                if self.multi_run_only_incomplete:
+                    continue  
+                # 如果“仅执行未完成”为False，则已完成的任务继续向下进行时间检查，可能计入可执行
 
-            # 2. 对未完成的任务 (status != 1) 进行分类
+            # 2. 对任务进行时间分类 (status != 1 或者 status == 1 且允许重跑)
             start_dt, end_dt = None, None
             try:
                 if r.start_time:
