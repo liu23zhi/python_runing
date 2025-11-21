@@ -32591,7 +32591,6 @@
      * 从后端API获取当前时间需要显示的提醒，并使用SweetAlert2显示
      */
     async function checkAndShowReminders() {
-      // [已修复] 如果没有 sessionUUID，直接返回，不执行检查
       if (!sessionUUID) {
         sessionUUID = getUUIDFromURL();
         if (!sessionUUID) {

@@ -1,49 +1,42 @@
 # 跑步助手
 # 这是一个基于Flask的Web应用，用于模拟跑步任务的执行
 
-# 启用延迟类型注解评估（Python 3.7+）
-# 这允许我们在类定义中使用尚未导入的模块的类型注解
 from __future__ import annotations
 
-# ============================================================================
-# 预导入：文件级别必需的内置模块
-# 这些模块用于定义类和全局变量，必须在文件加载时就可用
-# ============================================================================
+_import_failures = [] # 导入失败列表，用于收集所有导入失败的信息
+_log_buffer = [] # 日志缓冲区，用于存储初始化前的日志
 
-# 存储导入失败的模块信息
-_import_failures = []
+def _buffer_log(level, message):
+    """
+    暂存日志到缓冲区，同时打印到控制台。
+    level: 'INFO', 'WARNING', 'ERROR' 等
+    """
+    print(message) # 保证控制台依然能看到
+    _log_buffer.append((level, message)) # 存入缓冲区
 
-
-def _try_import_builtin(module_name, display_name=None):
+def _try_import_builtin(module_name, display_name=None, use_print=False):
     """
     尝试导入内置模块，失败时记录但不立即退出。
-
-    参数:
-        module_name: 模块名称（用于import语句）
-        display_name: 显示名称（用于错误提示，可选）
-
-    返回:
-        模块对象或None（失败时）
     """
     if display_name is None:
         display_name = module_name
 
     try:
         module = __import__(module_name)
-        print(f"[导入检查] ✓ {display_name} 导入成功")
+        # [修改] 使用缓冲日志函数
+        _buffer_log("INFO", f"[导入检查] ✓ {display_name} 导入成功")
         return module
     except ImportError as e:
         error_msg = f"内置模块 '{display_name}' 导入失败: {e}"
         _import_failures.append(
             {"module": display_name, "type": "builtin", "error": str(e)}
         )
-        print(f"[导入检查] ✗ {display_name} 导入失败: {e}")
+        # [修改] 使用缓冲日志函数
+        _buffer_log("ERROR", f"[导入检查] ✗ {display_name} 导入失败: {e}")
         return None
 
-
-# 导入所有必需的内置模块
-print("[导入检查] 开始导入Python内置模块...")
-logging = _try_import_builtin("logging")
+_buffer_log("INFO", "[导入检查] 开始导入Python内置模块...")
+logging = _try_import_builtin("logging", None, True)
 sys = _try_import_builtin("sys")
 os = _try_import_builtin("os")
 re = _try_import_builtin("re")
@@ -58,24 +51,23 @@ zipfile = _try_import_builtin("zipfile")
 random = _try_import_builtin("random")
 argparse = _try_import_builtin("argparse")
 
-# 检查是否有导入失败
 if _import_failures:
-    print(f"\n{'='*70}")
-    print(f"[致命错误] 内置模块导入失败")
-    print(f"{'='*70}")
-    print(f"\n检测到 {len(_import_failures)} 个内置模块导入失败：\n")
+    _buffer_log("ERROR", f"\n{'='*70}")
+    _buffer_log("ERROR", f"[致命错误] 内置模块导入失败")
+    _buffer_log("ERROR", f"{'='*70}")
+    _buffer_log("ERROR", f"\n检测到 {len(_import_failures)} 个内置模块导入失败：\n")
     for i, failure in enumerate(_import_failures, 1):
-        print(f"  {i}. {failure['module']}")
-        print(f"     错误: {failure['error']}\n")
-    print("这通常表示您的 Python 环境已损坏。")
-    print("建议重新安装 Python 或修复当前安装。")
-    print(f"{'='*70}\n")
+        _buffer_log("ERROR", f"  {i}. {failure['module']}")
+        _buffer_log("ERROR", f"     错误: {failure['error']}\n")
+    _buffer_log("ERROR", "这通常表示您的 Python 环境已损坏。")
+    _buffer_log("ERROR", "建议重新安装 Python 或修复当前安装。")
+    _buffer_log(f"{'='*70}\n")
     if sys:
         sys.exit(1)
     else:
         exit(1)
 
-print("[导入检查] ✓ 所有内置模块导入成功\n")
+_buffer_log("INFO", "[导入检查] ✓ 所有内置模块导入成功\n")
 
 # 配置UTF-8编码（用于日志和控制台输出）
 if sys and sys.platform.startswith("win"):
@@ -90,31 +82,6 @@ if sys and sys.platform.startswith("win"):
         sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer, "strict")
         sys.stderr = codecs.getwriter("utf-8")(sys.stderr.buffer, "strict")
 
-# ============================================================================
-# 延迟导入函数：第三方库和可选模块在main()中导入
-# ============================================================================
-
-
-def import_builtin_modules():
-    """
-    兼容性函数：确保内置模块已导入。
-
-    注意：内置模块现在在文件顶部预导入，此函数保留用于兼容性。
-    在main()函数中调用此函数可以确认所有模块都已正确加载。
-    """
-    if logging:
-        logging.info("[模块导入] 内置模块已预加载完成")
-    return True
-
-
-def import_logging_and_other_early_modules():
-    """
-    兼容性函数：在程序启动的最早阶段导入模块。
-    现在由文件顶部的预导入统一处理。
-    """
-    pass
-
-
 def import_standard_libraries():
     """
     逐步导入所有必需的标准库。
@@ -122,7 +89,7 @@ def import_standard_libraries():
     """
     logging.info("=" * 80)
     logging.info("开始检查并导入 Python 标准库...")
-    print("[依赖检查] 正在导入 Python 标准库...")
+    logging.info("[依赖检查] 正在导入 Python 标准库...")
 
     # (模块名, 导入命令)
     std_libs = [
@@ -164,43 +131,42 @@ def import_standard_libraries():
     for name, import_cmd in std_libs:
         try:
             logging.info(f"  -> 正在导入 {name}...")
-            print(f"[依赖检查]   -> {name}...", end=" ")
+            logging.info(f"[依赖检查]   -> {name}...")
             exec(import_cmd, globals())
             logging.info(f"  ✓ {name} 导入成功")
-            print("✓")
+            logging.info("✓")
         except ImportError as e:
             logging.error(f"  ✗ {name} 导入失败: {e}")
-            print(f"✗ ({e})")
+            logging.error(f"✗ ({e})")
             failed_imports.append({"name": name, "error": str(e)})
 
     # 特殊处理 fcntl (仅限非 Windows 平台)
     if sys.platform != "win32":
         try:
             logging.info("  -> 正在导入 fcntl (非Windows)...")
-            print(f"[依赖检查]   -> fcntl (非Windows)...", end=" ")
+            logging.info("[依赖检查]   -> fcntl (非Windows)...")
             import fcntl
 
             globals()["fcntl"] = fcntl
             logging.info("  ✓ fcntl 导入成功")
-            print("✓")
+            logging.info("✓")
         except ImportError as e:
             logging.error(f"  ✗ fcntl 导入失败: {e}")
-            print(f"✗ ({e})")
+            logging.error(f"✗ ({e})")
             failed_imports.append({"name": "fcntl", "error": str(e)})
     else:
         logging.warning("  -> fcntl 模块在 Windows 平台不可用，已跳过。")
-        print("[依赖检查]   -> fcntl (Windows平台跳过)")
-
+        logging.info("[依赖检查]   -> fcntl (Windows平台跳过)")
     if "eventlet" in globals():
         try:
             logging.info("  -> 正在应用 eventlet.monkey_patch()...")
-            print("[依赖检查]   -> eventlet.monkey_patch()...", end=" ")
+            logging.info("[依赖检查]   -> eventlet.monkey_patch()...")
             eventlet.monkey_patch()
             logging.info("  ✓ eventlet.monkey_patch() 应用成功")
-            print("✓")
+            logging.info("✓")
         except Exception as e:
             logging.error(f"  ✗ eventlet.monkey_patch() 应用失败: {e}")
-            print(f"✗ ({e})")
+            logging.error(f"✗ ({e})")
             failed_imports.append(
                 {
                     "name": "eventlet.monkey_patch()",
@@ -907,9 +873,22 @@ def setup_logging():
     logger.addHandler(error_file_handler)
     # ========== 结束：错误日志文件处理器 ==========
 
+
+    # 回放缓冲区的早期日志
+    global _log_buffer
+    if _log_buffer:
+        # 先记录一条分割线，表示上方是补录的日志
+        # 但为了保持时间顺序，我们直接按顺序写入
+        for level_str, msg in _log_buffer:
+            level_num = getattr(logging, level_str.upper(), logging.INFO)
+            logger.log(level_num, msg.rstrip())
+        
+        # 清空缓冲区，释放内存
+        _log_buffer.clear()
+
     # 记录日志系统启动
     logging.info("=" * 80)
-    logging.info("日志系统初始化完成（启用自定义轮转）")
+    logging.info("日志系统初始化完成！")
     logging.info(f"日志文件: {log_file}")
     logging.info(f"警告日志文件: {warning_log_file}")  # 添加警告日志文件信息
     logging.info(f"错误日志文件: {error_log_file}")  # 添加错误日志文件信息
@@ -6819,30 +6798,46 @@ class Api:
         payload_str = urllib.parse.urlencode(payload)
 
         # 通过全局串行队列进行提交，保证同一时间只提交一个数据包
+        # [Debug] 增加提交前的日志
+        logging.debug(f"[{user.name}] 正在入队提交数据包, 大小: {len(payload_str)} 字节")
+        
         resp = self._enqueue_submission(client, payload_str, wait_timeout=60.0)
         success = bool(resp and resp.get("success"))
-        log_func(f"数据提交{'成功' if success else '失败'}。")
-        logging.debug(
-            f"Chunk submission result: success={success}, msg={resp.get('message') if resp else 'network error'}"
-        )
+        
+        # [Debug] 增强结果日志
+        msg = resp.get('message') if resp else '请求无响应或超时'
+        if not success:
+            log_func(f"数据提交失败: {msg}")
+            logging.error(f"[{user.name}] 数据提交失败详情: {resp}")
+        else:
+            log_func(f"数据提交成功。")
+            logging.debug(f"[{user.name}] 数据提交成功: {msg}")
+            
         return success
 
     # ===================== 提交队列：串行化所有数据包提交 =====================
     def _submission_worker_loop(self):
         """后台工作线程：从队列取出提交任务并串行执行。"""
+        logging.info("[SubmissionWorker] 提交队列工作线程已启动")
         while not getattr(self, "_submission_worker_stop", threading.Event()).is_set():
             try:
                 task = self._submission_queue.get(timeout=0.5)
             except Exception:
                 continue
             try:
+                # [Debug] 记录开始处理
+                logging.debug("[SubmissionWorker] 正在处理一个提交任务...")
+                
                 client: ApiClient = task.get("client")
                 payload_str: str = task.get("payload")
                 # 实际网络提交（内部已带重试）
                 resp = client.submit_run_track(payload_str)
                 task["response"] = resp
+                
+                # [Debug] 记录处理完成
+                logging.debug(f"[SubmissionWorker] 提交任务完成，结果: {bool(resp and resp.get('success'))}")
             except Exception as e:
-                logging.error(f"提交任务执行异常: {e}", exc_info=True)
+                logging.error(f"[SubmissionWorker] 提交任务执行异常: {e}", exc_info=True)
                 task["response"] = None
             finally:
                 try:
@@ -6853,6 +6848,10 @@ class Api:
                     self._submission_queue.task_done()
                 except Exception:
                     pass
+            
+            # 【优化】防止循环过快占用CPU，给其他协程（如SocketIO）留出时间
+            # [修复] 使用 time.sleep 替代 socketio.sleep，避免跨线程上下文切换错误
+            time.sleep(0.01)
 
     def _enqueue_submission(
         self, client: ApiClient, payload_str: str, wait_timeout: float = 30.0
@@ -8645,6 +8644,20 @@ class Api:
         status_list = []
         # 1. 遍历生成账号列表
         for acc in self.accounts.values():
+            # --- 新增：序列化任务列表供前端筛选 ---
+            tasks_simple = []
+            if hasattr(acc, 'all_run_data'):
+                for r in acc.all_run_data:
+                    # 只包含计算状态所需的字段，减少数据量
+                    tasks_simple.append({
+                        'status': getattr(r, 'status', 0),
+                        'start_time': getattr(r, 'start_time', ''),
+                        'end_time': getattr(r, 'end_time', ''),
+                        # 调用现有的 _get_task_info_text 方法获取 "已过期" / "开始于..." 等文本
+                        'info_text': self._get_task_info_text(r)
+                    })
+            # -----------------------------------
+
             status_list.append(
                 {
                     "username": acc.username,
@@ -8652,6 +8665,7 @@ class Api:
                     "status_text": acc.status_text,
                     "summary": acc.summary,
                     "tag": acc.tag,
+                    "tasks": tasks_simple,
                 }
             )
 
@@ -9322,6 +9336,8 @@ class Api:
                     {"username": acc.username, "data": update_data},
                     room=session_id,
                 )
+                # [修复] 使用 time.sleep 替代 socketio.sleep，避免 greenlet.error
+                time.sleep(0.001)  # 强制交出控制权，确保状态更新立即发送
             except Exception as e:
                 logging.error(f"SocketIO emit 'multi_status_update' failed: {e}")
 
@@ -10051,6 +10067,9 @@ class Api:
                 if not api_path_coords:
                     acc.log("路径规划失败，跳过任务。")
                     continue
+                
+                # [Debug] 输出规划点数
+                logging.debug(f"[{acc.username}] 路径规划返回点数: {len(api_path_coords)}")
 
                 min_t_m, max_t_m, min_d_m = (
                     acc.params.get("min_time_m", 20),
@@ -10073,6 +10092,9 @@ class Api:
                 if not final_path_dedup:
                     acc.log("路径处理失败：无有效坐标点。")
                     continue
+                
+                # [Debug] 输出去重后点数
+                logging.debug(f"[{acc.username}] 路径去重后点数: {len(final_path_dedup)}")
 
                 target_time_s = random.uniform(min_t_m * 60, max_t_m * 60)
                 target_dist_m = random.uniform(min_d_m, min_d_m * 1.15)
@@ -10107,6 +10129,9 @@ class Api:
                 if actual_total_dist == 0:
                     acc.log("路径计算距离为0，跳过。")
                     continue
+                
+                # [Debug] 输出计算结果
+                acc.log(f"路径计算完成: 目标距离 {actual_total_dist:.1f}m, 目标耗时 {target_time_s:.1f}s")
 
                 avg_speed = actual_total_dist / target_time_s
                 new_run_coords = []
@@ -10146,6 +10171,9 @@ class Api:
                 run_data.total_run_distance_m = d_covered
                 run_data.total_run_time_s = t_elapsed
 
+                # [Debug] 输出轨迹生成结果
+                acc.log(f"已生成模拟轨迹: {len(new_run_coords)} 个GPS点")
+
                 tasks_executed_count += 1  # 任务已通过所有检查，准备执行
 
                 run_data.trid = f"{acc.user_data.student_id}{int(time.time() * 1000)}"
@@ -10153,8 +10181,15 @@ class Api:
                 submission_successful = True
                 # 总点数用于进度计算（更高频率的进度更新）
                 total_points = max(1, len(run_data.run_coords))
+                
+                # [Debug] 检查点数是否为0
+                if total_points <= 1:
+                    acc.log("警告: 生成的轨迹点数过少，无法执行任务。")
+                    continue
 
                 for chunk_idx in range(0, len(run_data.run_coords), 40):
+                    # [Debug] 记录执行进度
+                    logging.debug(f"[{acc.username}] 执行进度: {chunk_idx}/{len(run_data.run_coords)}")
                     if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
                         submission_successful = False
                         break
@@ -10180,6 +10215,8 @@ class Api:
                                     },
                                     room=session_id,
                                 )
+                                # [修复] 使用 time.sleep 替代 socketio.sleep，避免 greenlet.error
+                                time.sleep(0.001)  # 强制交出控制权，确保消息立即发送
                             except Exception as e:
                                 logging.debug(
                                     f"Failed to emit multi_position_update: {e}"
@@ -11809,7 +11846,7 @@ def save_session_state(session_id, api_instance, force_save=False):
 
             tasks_count = len(state.get("loaded_tasks", []))
             logging.debug(
-                f"会话状态已保存: {session_id[:32]}... (任务数:{tasks_count}, 选中索引:{state.get('current_run_idx', -1)})"
+                f"会话状态已保存: {session_id} (任务数:{tasks_count}, 选中索引:{state.get('current_run_idx', -1)})"
             )
     except Exception as e:
         logging.error(f"保存会话状态失败: {e}", exc_info=True)
@@ -13114,12 +13151,19 @@ class BackgroundTaskManager:
                     # 跳过此任务，继续执行下一个任务
                     continue
 
-                # 设置当前任务
-                api_instance.current_run_idx = task_idx
+                # 计算任务索引（修正 task_idx 未定义错误）
+                try:
+                    task_idx = acc.all_run_data.index(run_data)
+                except ValueError:
+                    task_idx = -1
+
+                # 设置当前任务状态
+                # 注意：多账号模式不使用 self.current_run_idx (单账号专用)
                 run_data.target_sequence = 0  # ✓ 从0开始（0-based索引）
                 run_data.is_in_target_zone = False
-                api_instance._first_center_done = False
-                api_instance.stop_run_flag.clear()
+                
+                # 确保当前账号的停止标志已清除 (修正 api_instance 未定义错误)
+                acc.stop_event.clear()
 
                 # 创建完成事件
                 finished_event = threading.Event()
@@ -13128,11 +13172,11 @@ class BackgroundTaskManager:
                 try:
                     # 调用实际的执行逻辑
                     thread = threading.Thread(
-                        target=api_instance._run_submission_thread,
+                        target=self._run_submission_thread,  # 使用 self 调用方法
                         args=(
                             run_data,
                             task_idx,
-                            api_instance.api_client,
+                            acc.api_client,  # 使用账号专属的 api_client
                             False,
                             finished_event,
                         ),
@@ -13352,44 +13396,77 @@ class BackgroundTaskManager:
 
 
 class MicroPixelCaptcha:
-    # 5x7 字库 (保持不变)
+
     FONT = {
-        "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
-        "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
-        "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
-        "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
-        "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
-        "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
-        "G": ["01111", "10000", "10000", "10011", "10001", "10001", "01111"],
-        "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
-        "I": ["01110", "00100", "00100", "00100", "00100", "00100", "01110"],
-        "J": ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
-        "K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
-        "L": ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
-        "M": ["10001", "11011", "10101", "10001", "10001", "10001", "10001"],
-        "N": ["10001", "11001", "10101", "10011", "10001", "10001", "10001"],
-        "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
-        "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
-        "Q": ["01110", "10001", "10001", "10001", "10101", "10011", "01101"],
-        "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
-        "S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
-        "T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
-        "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
-        "V": ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
-        "W": ["10001", "10001", "10001", "10101", "10101", "10101", "01010"],
-        "X": ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
-        "Y": ["10001", "10001", "10001", "01010", "00100", "00100", "00100"],
-        "Z": ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
-        "0": ["01110", "10011", "10101", "10101", "10101", "11001", "01110"],
-        "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
-        "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
-        "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
-        "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
-        "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
-        "6": ["01110", "10000", "10000", "11110", "10001", "10001", "01110"],
-        "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
-        "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
-        "9": ["01110", "10001", "10001", "01111", "00001", "00001", "01110"],
+    
+    "M": [
+        "10001",
+        "11011",
+        "10101",
+        "10101",
+        "10001",
+        "10001",
+        "10001"
+    ],
+    "N": [
+        "10001",
+        "11001",
+        "10101",
+        "10101",
+        "10011",
+        "10001",
+        "10001"
+    ],
+    "W": [
+        "10001",
+        "10001",
+        "10001",
+        "10101",
+        "10101",
+        "11011",
+        "10001"
+    ],
+    "Q": [
+        "01110",
+        "10001",
+        "10001",
+        "10001",
+        "10101",
+        "10010",
+        "01101"
+    ],
+    "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+    "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+    "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+    "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+    "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+    "G": ["01111", "10000", "10000", "10011", "10001", "10001", "01111"],
+    "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "I": ["01110", "00100", "00100", "00100", "00100", "00100", "01110"],
+    "J": ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
+    "K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+    "L": ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+    "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+    "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+    "S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+    "T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+    "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "V": ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+    "X": ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
+    "Y": ["10001", "10001", "10001", "01010", "00100", "00100", "00100"],
+    "Z": ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+    "0": ["01110", "10011", "10101", "10101", "10101", "11001", "01110"],
+    "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+    "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+    "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+    "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+    "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+    "6": ["01110", "10000", "10000", "11110", "10001", "10001", "01110"],
+    "7": ["11111", "00001", "00010", "00100", "00100", "00100", "00100"],
+    "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+    "9": ["01110", "10001", "10001", "01111", "00001", "00001", "01110"],
     }
 
     def _random_string(self, length: int) -> str:
