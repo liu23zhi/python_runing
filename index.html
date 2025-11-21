@@ -24273,6 +24273,21 @@
      *                            - 10000ms (10秒): 平衡性能和实时性（推荐）
      *                            - 15000ms (15秒): 减少服务器负载，适合低频更新场景
      */
+    /**
+     * 【多账号自动刷新】启动多账号模式的定时自动刷新（替代WebSocket推送）
+     * 
+     * 功能说明:
+     * - 由于WebSocket不再工作，改用前端主动轮询的方式获取最新数据
+     * - 定期从后端拉取账号状态、进度、位置等信息
+     * - 更新多账号列表UI、地图标记、进度条等
+     * 
+     * 刷新内容:
+     * 1. 账号列表数据（状态文本、任务统计、进度等）
+     * 2. 地图标记位置（如果账号正在运行）
+     * 3. 各账号的实时状态和进度
+     * 
+     * @param {number} interval - 刷新间隔（毫秒），默认10000ms（10秒）
+     */
     function startMultiAccountAutoRefresh(interval = 10000) {
       // 【步骤1】如果已有定时器在运行，先清除旧定时器
       // 原因：避免重复创建定时器导致多次刷新，造成资源浪费和请求拥堵
@@ -24283,7 +24298,7 @@
       }
 
       // 【步骤2】启动新的定时器，使用 setInterval 实现周期性执行
-      // setInterval 会在指定的时间间隔后重复执行回调函数
+      // 注意：此函数替代了之前的WebSocket推送机制，改为前端主动拉取
       multiAccountAutoRefreshInterval = setInterval(async () => {
         try {
           // 【步骤2.1】检查是否仍处于多账号模式（PC端）
@@ -24305,19 +24320,59 @@
             return; // 退出当前回调，不再执行刷新
           }
 
-          // 【步骤2.4】调用刷新函数，获取并渲染账号列表
-          // multi_get_all_accounts_status() 获取最新的账号列表数据
-          // renderMultiAccountList() 将数据渲染到PC端和移动端界面
-          console.log('[多账号自动刷新] 正在自动刷新账号列表...');
+          // 【步骤2.4】从后端获取所有账号的最新状态数据
+          // 这是前端主动拉取的核心步骤，替代了WebSocket的被动推送
+          console.log('[多账号自动刷新] 正在自动刷新账号数据...');
           const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
-          if (accountsResult && accountsResult.accounts) {
-            renderMultiAccountList(accountsResult.accounts);
-            console.log(`[多账号自动刷新] 自动刷新完成，当前账号数: ${accountsResult.accounts.length}`);
-          } else {
+          
+          if (!accountsResult || !accountsResult.accounts) {
             console.warn('[多账号自动刷新] 获取账号列表失败或列表为空');
+            return;
           }
+
+          // 【步骤2.5】更新账号列表UI
+          // 调用renderMultiAccountList更新账号卡片的显示
+          renderMultiAccountList(accountsResult.accounts);
+
+          // 【步骤2.6】遍历每个账号，更新详细状态和地图标记
+          // 这部分功能之前由WebSocket的multi_status_update和multi_position_update事件处理
+          // 现在改为在轮询时主动更新
+          accountsResult.accounts.forEach(acc => {
+            // 【步骤2.6.1】更新账号的详细状态（进度条、状态文本等）
+            // 如果账号数据包含详细的状态信息，调用multi_updateAccountStatus更新
+            if (acc.username) {
+              const updateData = {
+                status_text: acc.status_text,
+                name: acc.name,
+                summary: acc.summary,
+                progress_pct: acc.progress_pct,
+                progress_text: acc.progress_text,
+                progress_extra: acc.progress_extra
+              };
+              
+              // 只有当有数据时才调用更新函数
+              if (updateData.status_text || updateData.summary) {
+                multi_updateAccountStatus(acc.username, updateData);
+              }
+
+              // 【步骤2.6.2】更新地图标记位置
+              // 如果账号正在运行且有位置信息，更新地图标记
+              // 位置信息可能包含在current_position字段中
+              if (acc.current_position && typeof acc.current_position.lon === 'number' && typeof acc.current_position.lat === 'number') {
+                multi_updateRunnerPosition(
+                  acc.username, 
+                  acc.current_position.lon, 
+                  acc.current_position.lat, 
+                  acc.name || acc.username
+                );
+              }
+            }
+          });
+
+          console.log(`[多账号自动刷新] 自动刷新完成，当前账号数: ${accountsResult.accounts.length}`);
+          
         } catch (error) {
-          // 【步骤2.5】捕获并记录刷新过程中的任何错误
+          // 【步骤2.7】捕获并记录刷新过程中的任何错误
           // 原因：网络问题或后端异常不应导致定时器停止，继续尝试下次刷新
           console.error('[多账号自动刷新] 自动刷新失败:', error);
           // 注意：这里不停止定时器，允许下次继续尝试刷新
@@ -24325,7 +24380,7 @@
       }, interval); // interval 参数指定了定时器的执行间隔
 
       // 【步骤3】记录日志，方便调试和问题追踪
-      console.log(`[多账号自动刷新] 已启动定时自动刷新，刷新间隔: ${interval}ms (${interval / 1000}秒)`);
+      console.log(`[多账号自动刷新] 已启动定时自动刷新（轮询模式，替代WebSocket），刷新间隔: ${interval}ms (${interval / 1000}秒)`);
     }
 
     /**
