@@ -9878,6 +9878,12 @@
         // 【需求2修复】根据PC端当前显示的容器，显示对应的移动端容器
         if (desktopMainAppVisible) {
           // PC端显示main-app，则移动端显示mobile-main-app
+          // 销毁多账号地图（如果之前在多账号模式）
+          if (typeof destroyMobileMultiMap === 'function') {
+            destroyMobileMultiMap();
+            console.log('[UI切换] 已销毁多账号地图（切换到单账号模式）');
+          }
+          
           // 【修复】先显示加载遮罩
           const mobileLoadingOverlay = document.getElementById('mobile-loading-overlay');
           if (mobileLoadingOverlay) {
@@ -9899,6 +9905,12 @@
           }, 500);
         } else if (desktopMultiAccountVisible) {
           // PC端显示multi-account-app，则移动端显示mobile-multi-account-app
+          // 销毁单账号地图（如果之前在单账号模式）
+          if (typeof destroyMobileSingleMap === 'function') {
+            destroyMobileSingleMap();
+            console.log('[UI切换] 已销毁单账号地图（切换到多账号模式）');
+          }
+          
           $('mobile-multi-account-app').classList.remove('hidden');
           updateMobileNavVisibility(true, 'multi');
           console.log('[UI切换] PC端multi-account-app可见，显示移动端mobile-multi-account-app');
@@ -23093,6 +23105,13 @@
 
       // [修复] 根据设备类型显示对应的多账号界面
       if (isMobileMode) {
+        // 移动端：销毁单账号地图，防止地图实例冲突
+        // 当从单账号模式切换到多账号模式时，必须先销毁单账号地图
+        if (typeof destroyMobileSingleMap === 'function') {
+          destroyMobileSingleMap();
+          console.log('[切换模式] 移动端：已销毁单账号地图');
+        }
+        
         // 移动端：隐藏登录容器，显示mobile-multi-account-app
         const mobileLoginContainer = document.getElementById('mobile-login-container');
         const mobileMultiApp = document.getElementById('mobile-multi-account-app');
@@ -23307,6 +23326,13 @@
 
       // [修复] 根据设备类型隐藏对应的多账号界面，显示登录容器
       if (isMobileMode) {
+        // 移动端：销毁多账号地图，防止下次进入时出现空白
+        // 当退出多账号模式时，必须销毁多账号地图实例
+        if (typeof destroyMobileMultiMap === 'function') {
+          destroyMobileMultiMap();
+          console.log('[退出多账号] 移动端：已销毁多账号地图');
+        }
+        
         // 移动端：隐藏mobile-multi-account-app，显示mobile-login-container
         const mobileMultiApp = document.getElementById('mobile-multi-account-app');
         const mobileLoginContainer = document.getElementById('mobile-login-container');
@@ -28652,22 +28678,29 @@
 
         console.log('[移动端] 退出单账号模式成功，开始切换界面...');
 
-        // 3. 隐藏单账号主应用界面
+        // 3. 销毁单账号地图，防止下次进入时出现空白
+        // 当退出单账号模式时，必须销毁单账号地图实例
+        if (typeof destroyMobileSingleMap === 'function') {
+          destroyMobileSingleMap();
+          console.log('[退出单账号] 移动端：已销毁单账号地图');
+        }
+
+        // 4. 隐藏单账号主应用界面
         const mobileMainApp = document.getElementById('mobile-main-app');
         if (mobileMainApp) {
           mobileMainApp.classList.add('hidden');
         }
 
-        // 4. 显示会话选择界面（登录容器）
+        // 5. 显示会话选择界面（登录容器）
         const loginContainer = document.getElementById('mobile-login-container');
         if (loginContainer) {
           loginContainer.classList.remove('hidden');
         }
 
-        // 5. 隐藏底部导航栏和菜单按钮
+        // 6. 隐藏底部导航栏和菜单按钮
         updateMobileNavVisibility(false);
 
-        // 6. 刷新会话列表，显示最新的可用会话
+        // 7. 刷新会话列表，显示最新的可用会话
         // 延迟200ms确保界面已切换完成
         setTimeout(async () => {
           console.log('[移动端] 开始刷新会话列表...');
