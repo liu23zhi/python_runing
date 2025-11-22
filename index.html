@@ -2882,7 +2882,7 @@
             <span class="phone-prefix">+86 </span>
             <!-- 输入框：移除了mt-1类，因为容器已经有了mt-1 -->
             <input type="tel" id="auth-reg-phone" class="input-field" placeholder="请输入手机号" autocomplete="tel"
-              inputmode="numeric" pattern="[0-9]*">
+              inputmode="numeric" pattern="[0-9]*" maxlength="11">
           </div>
         </div>
 
@@ -12649,7 +12649,9 @@
         modal.style.display = 'flex';
 
         // 【问题3修复】确保模态框在最顶层显示
-        modal.style.zIndex = '70';
+        // 修复：移动端容器(#mobile-container)的z-index为10000，此处必须设置得更高(如20001)，
+        // 否则虽然display为flex，但会被移动端背景遮挡而看不见。
+        modal.style.zIndex = '20001';
 
         // 清空输入框，准备接收新的验证码输入
         input.value = '';
@@ -12674,6 +12676,7 @@
       }
     }
 
+    /* 新代码：index.html */
     /**
      * 关闭验证码验证模态窗
      */
@@ -12682,8 +12685,13 @@
       const input = document.getElementById('captcha-modal-input');
 
       if (modal) {
+        // 修复：openCaptchaModal 中使用了 modal.style.display = 'flex' (内联样式)。
+        // 内联样式的优先级高于 .hidden 类，导致 classList.add('hidden') 无效。
+        // 必须显式将 style.display 设置为 'none' 才能隐藏。
+        modal.style.display = 'none';
         modal.classList.add('hidden');
-        input.value = '';  // 清空输入框
+        
+        if(input) input.value = '';  // 清空输入框
         pendingSMSContext = null;  // 清除上下文
       }
     }
@@ -12787,12 +12795,14 @@
             }
           }, 1000);
         } else {
-          showModalAlert(result.message || '发送失败，请重试');
-          throw new Error(result.message || '发送失败');
+          // 修复：只抛出错误，由 catch 块统一显示后端返回的具体错误信息 (如 "验证码错误")
+          // 避免 showModalAlert 被调用两次或被通用错误覆盖
+          throw new Error(result.message || '发送失败，请重试');
         }
       } catch (error) {
         console.error('[SMS] 发送异常:', error);
-        showModalAlert('发送失败，请重试');
+        // 修复：优先显示 error.message，这样用户能看到"验证码错误"等具体原因
+        showModalAlert(error.message || '发送失败，请重试');
         throw error;
       }
     }
@@ -31409,69 +31419,25 @@
       // 发送登录验证码
       const sendLoginCodeBtn = document.getElementById('auth-send-login-code');
       if (sendLoginCodeBtn) {
-        sendLoginCodeBtn.addEventListener('click', async function () {
-          const phone = document.getElementById('auth-username').value;
+        sendLoginCodeBtn.addEventListener('click', function () {
+          // 获取手机号 (注意：登录框复用了auth-username输入框)
+          const phoneInput = document.getElementById('auth-username');
+          const phone = phoneInput.value.trim();
+          
           if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
             showModalAlert('请输入正确的手机号');
             return;
           }
 
-          sendLoginCodeBtn.disabled = true;
-          const originalText = sendLoginCodeBtn.textContent;
-
-          try {
-            // 修正：使用 fetch 调用独立的 /api/sms/send_code 接口
-            const response = await fetch('/api/sms/send_code', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Session-ID': sessionUUID
-              },
-              body: JSON.stringify({
-                phone: phone,
-                scene: 'login' // 场景：登录
-              })
-            });
-            const result = await response.json();
-
-            if (result && result.success) {
-              const expireMin = result.expire_minutes || 5;
-              const retryAfter = result.retry_after || 180;
-              showTempMessage(`验证码已发送，${expireMin}分钟内有效`, 'success');
-
-              let countdown = retryAfter;
-              const timer = setInterval(() => {
-                countdown--;
-                sendLoginCodeBtn.textContent = countdown + '秒';
-                if (countdown <= 0) {
-                  clearInterval(timer);
-                  sendLoginCodeBtn.disabled = false;
-                  sendLoginCodeBtn.textContent = originalText;
-                }
-              }, 1000);
-            } else {
-              if (result?.retry_after) {
-                const retrySeconds = result.retry_after;
-                let countdown = retrySeconds;
-                sendLoginCodeBtn.textContent = countdown + '秒';
-                const timer = setInterval(() => {
-                  countdown--;
-                  sendLoginCodeBtn.textContent = countdown + '秒';
-                  if (countdown <= 0) {
-                    clearInterval(timer);
-                    sendLoginCodeBtn.disabled = false;
-                    sendLoginCodeBtn.textContent = originalText;
-                  }
-                }, 1000);
-              } else {
-                sendLoginCodeBtn.disabled = false;
-              }
-              showModalAlert(result?.message || '发送失败');
-            }
-          } catch (error) {
-            sendLoginCodeBtn.disabled = false;
-            showModalAlert('发送失败: ' + error.message);
-          }
+          // 修复：调用 openCaptchaModal 打开图形验证码窗口
+          // 用户输入图形验证码后，会自动调用 sendSMSWithCaptcha 发送短信
+          // 并附带 captcha_id 和 captcha 参数，解决"验证码ID不能为空"的问题
+          openCaptchaModal({
+            phone: phone,
+            button: sendLoginCodeBtn,
+            originalText: sendLoginCodeBtn.textContent,
+            scene: 'login' // 场景：登录
+          });
         });
       }
 
