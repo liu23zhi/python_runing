@@ -19,7 +19,7 @@ check_environment() {
         echo "请安装 Python 3 并确保它在您的 PATH 中。"
         exit 1
     fi
-
+    
     # 检查依赖文件是否存在
     if [ ! -f "${SCRIPT_DIR}/requirements.txt" ]; then
         echo "错误: 未找到 requirements.txt 文件。"
@@ -55,7 +55,7 @@ run_auto_start() {
     else
         echo "找到虚拟环境 '$VENV_NAME'。"
     fi
-
+    
     # 2. 激活虚拟环境
     echo "正在激活虚拟环境..."
     source $VENV_NAME/bin/activate
@@ -63,7 +63,7 @@ run_auto_start() {
         echo "激活虚拟环境失败。请尝试使用 'manual' 模式运行。"
         exit 1
     fi
-
+    
     # 3. 安装/更新依赖
     echo "正在从 requirements.txt 安装/更新依赖..."
     pip install -r "${SCRIPT_DIR}/requirements.txt"
@@ -72,10 +72,10 @@ run_auto_start() {
         echo "请尝试使用 'manual' 模式运行。"
         exit 1
     fi
-
+    
     # 3.5 执行额外安装脚本 (例如 Playwright install)
     EXTRA_SCRIPT_PATH="${SCRIPT_DIR}/${EXTRA_SCRIPT_NAME}"
-
+    
     if [ -f "$EXTRA_SCRIPT_PATH" ]; then
         echo "-----------------------------------------"
         echo "检测到额外配置脚本: $EXTRA_SCRIPT_NAME"
@@ -84,7 +84,7 @@ run_auto_start() {
             echo "检测到脚本缺少执行权限，正在授权 (chmod +x) ..."
             chmod +x "$EXTRA_SCRIPT_PATH"
         fi
-
+        
         echo "正在执行额外指令..."
         source "$EXTRA_SCRIPT_PATH"
         
@@ -94,14 +94,14 @@ run_auto_start() {
             echo "额外指令执行完毕。"
         fi
     fi
-
+    
     # 4. 启动 main.py
     echo "-----------------------------------------"
     echo "准备就绪。正在启动 main.py ..."
     cd "$SCRIPT_DIR"
     # 注意：这里的 "$@" 将传递任何命令行参数给 Python
     $PYTHON_CMD "${SCRIPT_DIR}/main.py" "$@"
-
+    
     echo "-----------------------------------------"
     echo "程序已退出。"
 }
@@ -126,20 +126,20 @@ show_menu() {
                 # 运行完后暂停一下，让用户看清楚输出
                 echo "按 Enter 返回菜单..."
                 read -r
-                ;;
+            ;;
             2)
                 show_manual_mode
                 echo ""
                 echo "按 Enter 返回菜单..."
                 read -r
-                ;;
+            ;;
             0)
                 exit 0
-                ;;
+            ;;
             *)
                 echo "无效选项。"
                 sleep 1
-                ;;
+            ;;
         esac
     done
 }

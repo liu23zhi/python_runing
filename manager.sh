@@ -14,7 +14,7 @@ SCREEN_RC_FILE="${SCRIPT_DIR}/${SESSION_NAME}.screenrc"
 # 3. 定义要运行的脚本文件路径
 TARGET_SCRIPT="${SCRIPT_DIR}/start.sh"
 
-# 4. 你想在后台运行的实际命令 
+# 4. 你想在后台运行的实际命令
 COMMAND_TO_RUN="${TARGET_SCRIPT} --port 443 --host 0.0.0.0"
 
 # --- 脚本正文 ---
@@ -61,7 +61,7 @@ cleanup_rc_file() {
 # 辅助函数：检查并修复权限
 check_and_fix_permissions() {
     echo "正在检查文件权限..."
-
+    
     # 1. 检查目标启动脚本 (start.sh)
     if [ -f "$TARGET_SCRIPT" ]; then
         if [ ! -x "$TARGET_SCRIPT" ]; then
@@ -79,13 +79,13 @@ check_and_fix_permissions() {
         echo "严重错误: 未找到启动脚本 '$TARGET_SCRIPT'，请确认文件位置。"
         return 1
     fi
-
+    
     # 2. 检查当前目录是否可写 (用于创建 .screenrc)
     if [ ! -w "$SCRIPT_DIR" ]; then
         echo "错误: 当前目录 '$SCRIPT_DIR' 不可写，无法创建配置文件。"
         return 1
     fi
-
+    
     # 3. 检查残留的 RC 文件权限 (如果存在)
     if [ -f "$SCREEN_RC_FILE" ]; then
         if [ ! -w "$SCREEN_RC_FILE" ]; then
@@ -108,7 +108,7 @@ start_session() {
     else
         # 2. 启动新会话流程
         echo "未找到会话。准备启动新的会话 '$SESSION_NAME'..."
-
+        
         # --- 步骤 A: 权限检查 ---
         check_and_fix_permissions
         if [ $? -ne 0 ]; then
@@ -116,10 +116,10 @@ start_session() {
             sleep 3
             return
         fi
-
+        
         # --- 步骤 B: 清理残留文件 (防止上次意外退出导致文件存在) ---
         cleanup_rc_file
-
+        
         # --- 步骤 C: 创建配置文件 ---
         echo "正在创建顶部提示栏配置文件: $SCREEN_RC_FILE"
         # 使用 try-catch 风格确保文件能写入
@@ -127,13 +127,13 @@ start_session() {
             echo "hardstatus alwaysfirstline"
             echo "hardstatus string \"%{= Yk} 提示: 按 Ctrl+A 然后按 D (分离会话)，返回到主终端 %{= Kk}\""
         } > "$SCREEN_RC_FILE"
-
+        
         if [ ! -f "$SCREEN_RC_FILE" ]; then
-             echo "错误: 配置文件创建失败，无法启动。"
-             sleep 2
-             return
+            echo "错误: 配置文件创建失败，无法启动。"
+            sleep 2
+            return
         fi
-
+        
         # --- 步骤 D: 启动 Screen ---
         screen -c "$SCREEN_RC_FILE" -dmS "$SESSION_NAME" bash -c "$COMMAND_TO_RUN; exec bash"
         
@@ -173,11 +173,11 @@ stop_session() {
     else
         echo "会话 '$SESSION_NAME' 当前未运行。"
     fi
-
+    
     # --- 无论会话之前是否在运行，都检查并清理残留文件 ---
     cleanup_rc_file
     # --------------------------------------------------
-
+    
     echo ""
     echo "按 Enter 键返回菜单..."
     read -r
@@ -195,20 +195,20 @@ main() {
                 # 如果没执行 exec (比如启动失败)，会跑到这里
                 echo "正在返回菜单..."
                 sleep 1
-                ;;
+            ;;
             2)
                 stop_session
-                ;;
+            ;;
             0)
                 echo "正在退出。"
                 # 退出前也可以尝试清理一下，保持环境整洁
                 cleanup_rc_file
                 break
-                ;;
+            ;;
             *)
                 echo "无效选项 '$choice'，请重试。"
                 sleep 1
-                ;;
+            ;;
         esac
     done
 }
