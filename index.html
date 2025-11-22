@@ -24203,12 +24203,20 @@
     // --- 新的JS函数 ---
     function multi_toggleSelectAll(event) {
       const isChecked = event.target.checked;
-      document.querySelectorAll('.account-checkbox').forEach(cb => cb.checked = isChecked);
+      // 只选择桌面端列表中的复选框，避免影响移动端列表
+      const container = document.getElementById('multi-account-list');
+      if (container) {
+        container.querySelectorAll('.account-checkbox').forEach(cb => cb.checked = isChecked);
+      }
     }
 
     function updateSelectAllCheckboxState() {
-      const allCheckboxes = document.querySelectorAll('.account-checkbox');
-      const checkedCount = document.querySelectorAll('.account-checkbox:checked').length;
+      // 只统计桌面端列表中的复选框，避免与移动端列表混淆
+      const container = document.getElementById('multi-account-list');
+      if (!container) return;
+      
+      const allCheckboxes = container.querySelectorAll('.account-checkbox');
+      const checkedCount = container.querySelectorAll('.account-checkbox:checked').length;
       const selectAllCheckbox = $('multi-select-all-check');
       if (allCheckboxes.length > 0) {
         selectAllCheckbox.checked = checkedCount === allCheckboxes.length;
@@ -24237,7 +24245,11 @@
     }
 
     async function multi_removeSelected(confirm = false) {
-      const selectedUsernames = Array.from(document.querySelectorAll('.account-checkbox:checked')).map(cb => cb.closest('[data-username]').dataset.username);
+      // 只选择桌面端列表中的复选框
+      const container = document.getElementById('multi-account-list');
+      if (!container) return;
+      
+      const selectedUsernames = Array.from(container.querySelectorAll('.account-checkbox:checked')).map(cb => cb.closest('[data-username]').dataset.username);
       if (selectedUsernames.length === 0) { showModalAlert("请至少选择一个要移除的账号。"); return; }
       if (!confirm) {
         logMessage_Info(`准备移除选中的账号: ${selectedUsernames.join(', ')}`);
@@ -24253,7 +24265,11 @@
     }
 
     function multi_getSelectedUsernames() {
-      return Array.from(document.querySelectorAll('.account-checkbox:checked'))
+      // 只选择桌面端列表中的复选框
+      const container = document.getElementById('multi-account-list');
+      if (!container) return [];
+      
+      return Array.from(container.querySelectorAll('.account-checkbox:checked'))
         .map(cb => cb.closest('[data-username]')?.dataset?.username)
         .filter(Boolean);
     }
