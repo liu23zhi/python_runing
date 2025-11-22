@@ -23307,6 +23307,26 @@
         mbCheck.addEventListener('change', updateAllAccountsStatusText);
       }
 
+      // 【初始加载】立即获取并渲染账号列表
+      // 确保进入多账号模式时，移动端面板能够自动填充账号数据
+      // 不依赖auto-refresh的首次触发，提供更好的用户体验
+      try {
+        console.log('[多账号模式] 初始加载账号列表...');
+        const initialAccounts = await callPythonAPI('multi_get_all_accounts_status');
+        if (initialAccounts && initialAccounts.accounts) {
+          renderMultiAccountList(initialAccounts.accounts);
+          console.log(`[多账号模式] 初始加载完成，当前有 ${initialAccounts.accounts.length} 个账号`);
+        } else {
+          console.log('[多账号模式] 初始加载完成，当前有 0 个账号');
+          // 即使没有账号，也要调用render来显示空状态提示
+          renderMultiAccountList([]);
+        }
+      } catch (error) {
+        console.error('[多账号模式] 初始加载账号列表失败:', error);
+        // 失败时也显示空列表，避免界面卡在加载状态
+        renderMultiAccountList([]);
+      }
+
       // 立即执行一次更新，确保初始状态正确
       updateAllAccountsStatusText();
 
