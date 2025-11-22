@@ -21703,8 +21703,19 @@
 
     // 初始化高德地图
     function initMap(AMap) {
-      if (map) return;
+      // 【修复】防止地图实例挂载在错误的容器上
+      if (map) {
+        const container = map.getContainer();
+        if (container && container.id === 'map-container') {
+          return; // 已经正确挂载
+        }
+        // 挂载错误（例如之前是移动端的），销毁
+        try { map.destroy(); } catch (e) { }
+        map = null;
+      }
+
       AMapInstance = AMap;
+      // ... 后续代码不变 ...
       // 浏览器会尽量将图像数据缓存在GPU内存中，从而提高多个getImageData读取操作的速度
       map = new AMapInstance.Map('map-container', {
         viewMode: '3D', pitch: 55, rotation: 0, zoom: 17,
@@ -23263,7 +23274,24 @@
       // 【多账号自动刷新】启动定时自动刷新账号列表
       // 原因：用户进入多账号模式后，需要实时查看账号的任务状态、进度等信息
       // 设置10秒刷新间隔，平衡实时性和服务器负载
-      startMultiAccountAutoRefresh(10000);
+
+      // [修复] 强制绑定复选框事件，确保状态切换生效
+      const pcCheck = document.getElementById('multi-run-only-incomplete-check');
+      const mbCheck = document.getElementById('mobile-multi-only-incomplete-check');
+
+      if (pcCheck) {
+        pcCheck.removeEventListener('change', updateAllAccountsStatusText); // 防止重复
+        pcCheck.addEventListener('change', updateAllAccountsStatusText);
+      }
+      if (mbCheck) {
+        mbCheck.removeEventListener('change', updateAllAccountsStatusText); // 防止重复
+        mbCheck.addEventListener('change', updateAllAccountsStatusText);
+      }
+
+      // 立即执行一次更新，确保初始状态正确
+      updateAllAccountsStatusText();
+
+      startMultiAccountAutoRefresh(500);
 
     }
 
@@ -23848,14 +23876,6 @@
       }
     }
 
-    /**
-     * 任务17修复：计算账户的状态文本（status_text）
-     * 根据only_incomplete和ignore_task_time参数，计算可执行任务数量
-     * @param {Object} account - 账户对象，包含tasks数组
-     * @param {boolean} onlyIncomplete - 是否只统计未完成任务
-     * @param {boolean} ignoreTaskTime - 是否忽略任务时间限制（只比对日期）
-     * @returns {string} 状态文本，如"有3个任务可执行"或"无任务可执行"
-     */
     function calculateStatusText(account, onlyIncomplete = false, ignoreTaskTime = false) {
       if (!account || !account.tasks || !Array.isArray(account.tasks)) {
         return '无任务数据';
@@ -23863,42 +23883,55 @@
 
       let executableCount = 0;
       const now = new Date();
+      // 提前计算当前的纯日期对象（时分秒置零），用于忽略时间的比较
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
       account.tasks.forEach(task => {
-        // 问题17修复：如果only_incomplete=true，跳过已完成的任务（status=1）
-        if (onlyIncomplete && task.status === 1) {
+        // 1. 检查任务完成状态
+        // 逻辑：如果 multi-run-only-incomplete-check (onlyIncomplete) 为 true，则剔除已完成任务
+        // 如果为 false，则保留已完成任务（视为可重复执行或仅用于计数）
+        // task.status == 1 表示已完成
+        if (onlyIncomplete && task.status == 1) {
+          return; // 跳过此任务（不计数）
+        }
+
+        // 2. 检查时间范围 (Start Time & End Time)
+        let isExpired = false;
+        let isNotStarted = false;
+
+        // 兼容性处理：将 YYYY-MM-DD 转换为 YYYY/MM/DD 以兼容 iOS/Safari
+        const startTimeStr = task.start_time ? task.start_time.replace(/-/g, '/') : null;
+        const endTimeStr = task.end_time ? task.end_time.replace(/-/g, '/') : null;
+
+        const startTime = startTimeStr ? new Date(startTimeStr) : null;
+        const endTime = endTimeStr ? new Date(endTimeStr) : null;
+
+        if (ignoreTaskTime) {
+          // [忽略时间模式]：只比对日期 (YYYY-MM-DD)
+          if (startTime) {
+            // 获取任务开始日期的 00:00:00
+            const startDate = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate());
+            // 如果今天(00:00) 小于 开始日期(00:00)，说明还没到开始那天
+            if (today < startDate) isNotStarted = true;
+          }
+          if (endTime) {
+            // 获取任务结束日期的 00:00:00
+            const endDate = new Date(endTime.getFullYear(), endTime.getMonth(), endTime.getDate());
+            // 如果今天(00:00) 大于 结束日期(00:00)，说明已经过了结束那天
+            if (today > endDate) isExpired = true;
+          }
+        } else {
+          // [精确时间模式]：比对完整时间戳
+          if (startTime && now < startTime) isNotStarted = true;
+          if (endTime && now > endTime) isExpired = true;
+        }
+
+        // 如果任务未开始或已过期，则跳过
+        if (isNotStarted || isExpired) {
           return;
         }
 
-        // 检查任务是否已过期
-        const isExpired = task.info_text === '已过期';
-        if (isExpired) {
-          return; // 过期任务不可执行
-        }
-
-        // 问题17修复：根据ignore_task_time参数决定如何检查时间
-        if (task.start_time && task.end_time) {
-          const startTime = new Date(task.start_time);
-          const endTime = new Date(task.end_time);
-
-          if (ignoreTaskTime) {
-            // 如果ignoreTaskTime=true，只比对日期，忽略具体时间
-            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const startDate = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate());
-            const endDate = new Date(endTime.getFullYear(), endTime.getMonth(), endTime.getDate());
-
-            if (nowDate < startDate || nowDate > endDate) {
-              return; // 不在日期范围内
-            }
-          } else {
-            // 如果ignoreTaskTime=false，比对完整的日期和时间
-            if (now < startTime || now > endTime) {
-              return; // 不在时间窗口内
-            }
-          }
-        }
-
-        // 满足条件，计入可执行任务
+        // 3. 通过所有检查，计入可执行任务
         executableCount++;
       });
 
@@ -23906,10 +23939,9 @@
       if (executableCount === 0) {
         return '无任务可执行';
       } else {
-        return `有${executableCount}个任务可执行`;
+        return `有 ${executableCount} 个任务可执行`;
       }
     }
-
     /**
      * 更新所有账号的状态文本（status_text）- 使用缓存数据，不重新获取
      * 
@@ -23929,73 +23961,87 @@
      */
     function updateAllAccountsStatusText() {
       try {
-        // 【步骤1】记录日志，便于调试和问题追踪
-        console.log('[更新账号状态] 开始更新所有账号的状态文本（使用缓存数据）...');
-
-        // 【步骤2】验证缓存的账号数据是否可用
-        // 如果cachedMultiAccounts为空或不是数组，说明还没有加载过账号数据
+        // 【步骤1】验证缓存的账号数据是否可用
+        // 注意：即便 cachedMultiAccounts 为空，我们也应该允许逻辑跑通以防报错，但这里提前返回是安全的。
         if (!cachedMultiAccounts || !Array.isArray(cachedMultiAccounts) || cachedMultiAccounts.length === 0) {
-          console.warn('[更新账号状态] 缓存的账号列表为空，无法更新状态文本');
-          return; // 提前退出，不进行后续处理
+          return;
         }
 
-        // 【步骤3】获取"仅执行未完成"复选框的当前状态
-        // 从桌面端的复选框读取状态（checked属性为true表示勾选）
-        // 如果元素不存在，使用空值合并操作符(??)设置默认值为false
-        const onlyIncompleteCheckbox = document.getElementById('multi-run-only-incomplete-check');
-        const onlyIncomplete = onlyIncompleteCheckbox?.checked ?? false;
+        // 【步骤2】获取"仅执行未完成"复选框的当前状态 (multi-run-only-incomplete-check)
+        // 优先获取当前显示模式下的复选框状态，并同步给另一个模式
+        let onlyIncomplete = true;
+        const mbChk = document.getElementById('mobile-multi-only-incomplete-check');
+        const pcChk = document.getElementById('multi-run-only-incomplete-check');
 
-        // 【步骤4】获取ignore_task_time参数的值
-        // 该参数控制是否忽略任务的具体时间，只比对日期
-        // pythonParams是全局参数对象，存储了从后端获取的所有配置参数
-        // 如果参数不存在，默认为false（即默认需要检查完整的日期和时间）
-        const ignoreTaskTime = pythonParams.ignore_task_time ?? false;
+        // 判定逻辑：读取可见的一个，或者默认PC
+        if (typeof isMobileMode !== 'undefined' && isMobileMode && mbChk) {
+          onlyIncomplete = mbChk.checked;
+          if (pcChk) pcChk.checked = onlyIncomplete; // 同步
+        } else if (pcChk) {
+          onlyIncomplete = pcChk.checked;
+          if (mbChk) mbChk.checked = onlyIncomplete; // 同步
+        }
 
-        // 【步骤5】记录当前使用的参数值，方便调试
-        console.log(`[更新账号状态] 参数设置 - 仅未完成: ${onlyIncomplete}, 忽略任务时间: ${ignoreTaskTime}`);
+        // 【步骤3】获取ignore_task_time参数的值 (multi-param-ignore_task_time)
+        // 优先从 pythonParams (全局缓存) 中获取
+        // 注意：pythonParams 中的 key 是 'ignore_task_time'，不是 'multi-param-...'
+        // 确保它是一个布尔值
+        let ignoreTaskTime = true; // 默认值
+        if (typeof pythonParams !== 'undefined') {
+          // 检查是否存在，如果不存在默认 true (根据 main.py 中的 default)
+          if (pythonParams.hasOwnProperty('ignore_task_time')) {
+            ignoreTaskTime = !!pythonParams.ignore_task_time;
+          }
+        }
 
-        // 【步骤6】遍历缓存的账号数据，重新计算每个账号的status_text
-        // 注意：这里遍历的是cachedMultiAccounts，不是从后端获取的新数据
+        // 【步骤4】遍历缓存的账号数据，重新计算每个账号的status_text
         let updatedCount = 0;
         cachedMultiAccounts.forEach(account => {
-          // 【步骤6.1】调用calculateStatusText函数计算账号的状态文本
-          // 该函数会遍历account.tasks数组，根据onlyIncomplete和ignoreTaskTime参数
-          // 计算出当前有多少个任务可以执行，返回类似"有3个任务可执行"或"无任务可执行"的文本
+          // 调用核心计算函数
           const newStatusText = calculateStatusText(account, onlyIncomplete, ignoreTaskTime);
 
-          // 【步骤6.2】查找对应的DOM元素（桌面端）
-          // 状态文本元素的ID格式为：${acc.username}-status-text
-          const statusElement = document.getElementById(`${account.username}-status-text`);
-          if (statusElement) {
-            // 【步骤6.3】直接更新DOM元素的文本内容
-            // 这样可以避免重新渲染整个列表，提高性能
-            statusElement.textContent = newStatusText;
-            updatedCount++;
+          // 更新 JS 对象缓存中的状态文本，以便后续渲染使用
+          account.status_text = newStatusText;
 
-            // 【步骤6.4】记录详细的更新日志（仅在开发调试时有用）
-            console.log(`[更新账号状态] ${account.username} -> ${newStatusText}`);
-          } else {
-            // 如果找不到DOM元素，记录警告（但不影响其他账号的更新）
-            console.warn(`[更新账号状态] 未找到账号 ${account.username} 的状态文本元素`);
+          // [核心修正] 分别直接更新桌面端和移动端的 DOM 元素，实现无闪烁更新
+
+          // 1. 更新桌面端 (ID: multi-acc-{username})
+          const pcItem = document.getElementById(`multi-acc-${account.username}`);
+          if (pcItem) {
+            const statusEl = pcItem.querySelector('.status-text');
+            if (statusEl) {
+              statusEl.textContent = newStatusText;
+              // 还可以根据内容更新颜色，例如 "无任务" 变灰，"有任务" 变蓝
+              if (newStatusText.includes('无任务')) {
+                statusEl.className = 'status-text font-semibold text-slate-500 text-xs px-2 py-0.5 rounded-full bg-slate-100 flex-shrink-0 whitespace-nowrap';
+              } else if (newStatusText.includes('有')) {
+                statusEl.className = 'status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap';
+              }
+              updatedCount++;
+            }
           }
 
-          // 【步骤6.5】同时更新缓存数据中的status_text
-          // 这样下次renderMultiAccountList时会使用更新后的值
-          account.status_text = newStatusText;
+          // 2. 更新移动端 (ID: mobile-multi-acc-{username})
+          const mobileItem = document.getElementById(`mobile-multi-acc-${account.username}`);
+          if (mobileItem) {
+            const statusEl = mobileItem.querySelector('.status-text');
+            if (statusEl) {
+              statusEl.textContent = newStatusText;
+              // 同样应用颜色逻辑
+              if (newStatusText.includes('无任务')) {
+                statusEl.className = 'status-text font-semibold text-slate-500 text-xs px-2 py-0.5 rounded-full bg-slate-100 flex-shrink-0 whitespace-nowrap';
+              } else if (newStatusText.includes('有')) {
+                statusEl.className = 'status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap';
+              }
+              updatedCount++;
+            }
+          }
         });
 
-        // 【步骤7】记录成功日志
-        console.log(`[更新账号状态] 状态文本更新完成，共更新 ${updatedCount}/${cachedMultiAccounts.length} 个账号`);
+        console.log(`[状态刷新] 根据本地缓存已更新 ${updatedCount} 个账号状态 (OnlyIncomplete: ${onlyIncomplete}, IgnoreTime: ${ignoreTaskTime})`);
 
       } catch (error) {
-        // 【步骤8】捕获并记录任何错误
-        // 可能的错误包括：数据格式错误、函数调用异常、DOM操作失败等
-        // 使用console.error确保错误信息在控制台中以红色醒目显示
         console.error('[更新账号状态] 更新状态文本时发生错误:', error);
-
-        // 【步骤9】向用户显示友好的错误提示
-        // showModalAlert会弹出一个模态对话框，告知用户操作失败
-        showModalAlert('更新账号状态失败，请检查控制台日志');
       }
     }
 
@@ -24041,7 +24087,7 @@
                                 ${acc.tag ? `<span class="text-xs text-purple-600 font-medium block">🏷️ ${acc.tag}</span>` : ''}
                             </div>
                         </div>
-                        <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap" id="${acc.username}-status-text">${acc.status_text}</span>
+                        <span class="status-text font-semibold text-sky-600 text-xs px-2 py-0.5 rounded-full bg-sky-100 flex-shrink-0 whitespace-nowrap">${acc.status_text}</span>
                     </div>
 
                     <div class="grid grid-cols-5 gap-2 text-center text-xs mt-2 pt-2 border-t text-slate-600">
@@ -24253,94 +24299,61 @@
 
     async function multi_refreshAll() { await callPythonAPI('multi_refresh_all_statuses'); }
 
+
+    // 【新增】用于追踪账号列表结构变化的签名变量
+    let lastAccountListSignature = '';
+
     /**
-     * 【多账号自动刷新】启动多账号模式账号列表的定时自动刷新
-     * 
-     * 功能说明:
-     * - 进入多账号模式时调用此函数，启动定时刷新机制
-     * - 每隔一定时间（默认10秒）自动调用 multi_refreshAll() 刷新所有账号的状态和统计信息
-     * - 适用于PC端和移动端两种UI模式
-     * - 在定时器回调中会检查是否仍处于多账号模式，如果已退出则自动停止刷新
-     * 
-     * 设计原因:
-     * - 用户在多账号模式下，账号的任务状态、进度等信息会不断变化
-     * - 手动刷新体验不佳，定时自动刷新可以让用户实时看到最新状态
-     * - 通过智能检测多账号界面是否显示，避免退出后继续无效刷新，节省资源
-     * 
-     * @param {number} interval - 刷新间隔（单位：毫秒），默认10000ms（10秒）
-     *                            可根据服务器负载和实时性需求调整：
-     *                            - 5000ms (5秒): 实时性更高，但服务器压力更大
-     *                            - 10000ms (10秒): 平衡性能和实时性（推荐）
-     *                            - 15000ms (15秒): 减少服务器负载，适合低频更新场景
-     */
-    /**
-     * 【多账号自动刷新】启动多账号模式的定时自动刷新（替代WebSocket推送）
-     * 
-     * 功能说明:
-     * - 由于WebSocket不再工作，改用前端主动轮询的方式获取最新数据
-     * - 定期从后端拉取账号状态、进度、位置等信息
-     * - 更新多账号列表UI、地图标记、进度条等
-     * 
-     * 刷新内容:
-     * 1. 账号列表数据（状态文本、任务统计、进度等）
-     * 2. 地图标记位置（如果账号正在运行）
-     * 3. 各账号的实时状态和进度
-     * 
-     * @param {number} interval - 刷新间隔（毫秒），默认10000ms（10秒）
-     */
-    function startMultiAccountAutoRefresh(interval = 10000) {
-      // 【步骤1】如果已有定时器在运行，先清除旧定时器
-      // 原因：避免重复创建定时器导致多次刷新，造成资源浪费和请求拥堵
+         * 【多账号自动刷新】启动多账号模式的定时自动刷新（替代WebSocket推送）
+         * * 修正版功能说明:
+         * - 弃用 WebSocket，使用高频前端主动轮询 (Polling 1.5s)
+         * - 智能刷新：仅当账号数量或顺序变化时才重绘 DOM (renderMultiAccountList)
+         * - 增量更新：其余时间仅更新进度条、文本和地图坐标，避免 UI 闪烁和复选框重置
+         */
+    function startMultiAccountAutoRefresh(interval = 500) { // 修正：默认间隔改为 1500ms 以获得更流畅的体验
+      // 1. 清除旧定时器
       if (multiAccountAutoRefreshInterval) {
         clearInterval(multiAccountAutoRefreshInterval);
         multiAccountAutoRefreshInterval = null;
-        console.log('[多账号自动刷新] 检测到已有定时器，已清除旧定时器');
       }
 
-      // 【步骤2】启动新的定时器，使用 setInterval 实现周期性执行
-      // 注意：此函数替代了之前的WebSocket推送机制，改为前端主动拉取
+      // 2. 启动轮询
       multiAccountAutoRefreshInterval = setInterval(async () => {
         try {
-          // 【步骤2.1】检查是否仍处于多账号模式（PC端）
-          // 通过检查 multi-account-app 元素是否可见来判断
+          // 检查UI可见性 (无需变动)
           const pcMultiApp = document.getElementById('multi-account-app');
-          const isPCMultiMode = pcMultiApp && !pcMultiApp.classList.contains('hidden');
-
-          // 【步骤2.2】检查是否仍处于多账号模式（移动端）
-          // 通过检查 mobile-multi-account-app 元素是否可见来判断
           const mobileMultiApp = document.getElementById('mobile-multi-account-app');
-          const isMobileMultiMode = mobileMultiApp && !mobileMultiApp.classList.contains('hidden');
+          const isVisible = (pcMultiApp && !pcMultiApp.classList.contains('hidden')) ||
+            (mobileMultiApp && !mobileMultiApp.classList.contains('hidden'));
 
-          // 【步骤2.3】如果PC端和移动端都不在多账号模式，停止刷新
-          // 原因：用户可能通过其他方式退出了多账号模式（如直接点击返回按钮），
-          //       此时应该停止无效的刷新请求，节省服务器资源和网络带宽
-          if (!isPCMultiMode && !isMobileMultiMode) {
-            console.log('[多账号自动刷新] 检测到已退出多账号模式（PC端和移动端均未显示），停止自动刷新');
-            stopMultiAccountAutoRefresh();
-            return; // 退出当前回调，不再执行刷新
-          }
-
-          // 【步骤2.4】从后端获取所有账号的最新状态数据
-          // 这是前端主动拉取的核心步骤，替代了WebSocket的被动推送
-          console.log('[多账号自动刷新] 正在自动刷新账号数据...');
-          const accountsResult = await callPythonAPI('multi_get_all_accounts_status');
-          
-          if (!accountsResult || !accountsResult.accounts) {
-            console.warn('[多账号自动刷新] 获取账号列表失败或列表为空');
+          if (!isVisible) {
             return;
           }
 
-          // 【步骤2.5】更新账号列表UI
-          // 调用renderMultiAccountList更新账号卡片的显示
-          renderMultiAccountList(accountsResult.accounts);
+          // 3. 主动拉取数据
+          const response = await callPythonAPI('multi_get_all_accounts_status');
 
-          // 【步骤2.6】遍历每个账号，更新详细状态和地图标记
-          // 这部分功能之前由WebSocket的multi_status_update和multi_position_update事件处理
-          // 现在改为在轮询时主动更新
-          accountsResult.accounts.forEach(acc => {
-            // 【步骤2.6.1】更新账号的详细状态（进度条、状态文本等）
-            // 如果账号数据包含详细的状态信息，调用multi_updateAccountStatus更新
-            if (acc.username) {
+          if (response && response.success && response.accounts) {
+
+            // --- 核心修正：智能 DOM 更新 ---
+            // 生成当前账号列表的指纹（使用用户名拼接，如果有tag也可以加上）
+            // 目的：判断列表结构是否发生变化（新增/删除账号）
+            const currentSignature = response.accounts.map(a => a.username).join('|');
+
+            // 仅当结构变化时，才完全重绘 DOM
+            // 注意：lastAccountListSignature 需要在函数外定义或作为全局变量
+            if (currentSignature !== lastAccountListSignature) {
+              console.log('[多账号刷新] 账号列表结构变化，重绘 DOM');
+              renderMultiAccountList(response.accounts);
+              lastAccountListSignature = currentSignature;
+            }
+
+            // 4. 总是执行：刷新详细状态（进度条、地图标记、文本状态）
+            // 这部分通过 DOM 操作直接修改现有元素，不会导致闪烁
+            response.accounts.forEach(acc => {
+              if (!acc.username) return;
+
+              // 构造更新数据包
               const updateData = {
                 status_text: acc.status_text,
                 name: acc.name,
@@ -24349,39 +24362,36 @@
                 progress_text: acc.progress_text,
                 progress_extra: acc.progress_extra
               };
-              
-              // 只有当有数据时才调用更新函数
-              if (updateData.status_text || updateData.summary) {
-                multi_updateAccountStatus(acc.username, updateData);
-              }
 
-              // 【步骤2.6.2】更新地图标记位置
-              // 如果账号正在运行且有位置信息，更新地图标记
-              // 位置信息可能包含在current_position字段中
-              if (acc.current_position && typeof acc.current_position.lon === 'number' && typeof acc.current_position.lat === 'number') {
+              // 5.1 更新 DOM (文本、进度条)
+              // 该函数会查找 id="multi-acc-{username}" 的元素并更新其子元素
+              multi_updateAccountStatus(acc.username, updateData);
+
+              // 5.2 更新地图标记
+              if (acc.current_position &&
+                typeof acc.current_position.lon === 'number' &&
+                typeof acc.current_position.lat === 'number') {
+
                 multi_updateRunnerPosition(
-                  acc.username, 
-                  acc.current_position.lon, 
-                  acc.current_position.lat, 
+                  acc.username,
+                  acc.current_position.lon,
+                  acc.current_position.lat,
                   acc.name || acc.username
                 );
               }
-            }
-          });
+            });
+          }
 
-          console.log(`[多账号自动刷新] 自动刷新完成，当前账号数: ${accountsResult.accounts.length}`);
-          
         } catch (error) {
-          // 【步骤2.7】捕获并记录刷新过程中的任何错误
-          // 原因：网络问题或后端异常不应导致定时器停止，继续尝试下次刷新
-          console.error('[多账号自动刷新] 自动刷新失败:', error);
-          // 注意：这里不停止定时器，允许下次继续尝试刷新
+          // 降低日志级别，避免网络波动时控制台刷屏
+          console.error('[多账号自动刷新] 轮询请求失败:', error);
         }
-      }, interval); // interval 参数指定了定时器的执行间隔
+      }, interval);
 
-      // 【步骤3】记录日志，方便调试和问题追踪
-      console.log(`[多账号自动刷新] 已启动定时自动刷新（轮询模式，替代WebSocket），刷新间隔: ${interval}ms (${interval / 1000}秒)`);
+      console.log(`[多账号自动刷新] 已启动高频轮询 (间隔: ${interval}ms)`);
     }
+
+
 
     /**
      * 【多账号自动刷新】停止多账号模式账号列表的定时自动刷新
@@ -26560,8 +26570,12 @@
       let value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
       pythonParams[key] = value;
       callPythonAPI('update_param', key, value);
-    }
 
+      // [修正] 当 ignore_task_time 变化时，实时更新账号状态文本
+      if (key === 'ignore_task_time') {
+        updateAllAccountsStatusText();
+      }
+    }
     async function openAccountParamsModal(username) {
       const result = await callPythonAPI('multi_get_account_params', username);
       if (!result.success) { showModalAlert(result.message); return; }
@@ -29647,7 +29661,50 @@
      * @param {object} mapInstance - 用于存储地图实例的对象（map或multiAccountMap）
      */
 
+    // ==================== 新增辅助函数：地图销毁 ====================
+    /**
+     * 销毁移动端单账号地图
+     * 在退出单账号模式时调用
+     */
+    function destroyMobileSingleMap() {
+      try {
+        if (map) {
+          map.destroy();
+          map = null;
+          console.log('[移动端] 单账号地图已销毁');
+        }
+        // 重置初始化标记，确保下次进入时重新初始化
+        window.mobile_map_panel_initialize_mark = false;
 
+        // 清理相关DOM标记
+        const container = document.getElementById('mobile-map-container');
+        if (container) container.innerHTML = '';
+      } catch (e) {
+        console.warn('[移动端] 销毁单账号地图失败:', e);
+      }
+    }
+
+    /**
+     * 销毁移动端多账号地图
+     * 在退出多账号模式时调用
+     */
+    function destroyMobileMultiMap() {
+      try {
+        if (multiAccountMap) {
+          multiAccountMap.destroy();
+          multiAccountMap = null;
+          console.log('[移动端] 多账号地图已销毁');
+        }
+        // 重置初始化标记
+        window.mobile_multi_map_panel_initialize_mark = false;
+
+        // 清理相关DOM标记
+        const container = document.getElementById('mobile-multi-map-container');
+        if (container) container.innerHTML = '';
+      } catch (e) {
+        console.warn('[移动端] 销毁多账号地图失败:', e);
+      }
+    }
     /**
      * 【问题12&26&4修复】初始化移动端地图
      * 
@@ -29746,10 +29803,26 @@
         // 多账号模式：检查multiAccountMap是否已初始化
         // 【问题4修复】如果已经初始化且正常工作，跳过重复初始化
         if (multiAccountMap && multiAccountMap.getZoom) {
-          logMessage_Info('[移动端地图] 多账号地图已初始化，跳过');
-          // 清除加载中状态
-          container.innerHTML = '';
-          return true;
+          // 【关键修复】检查容器ID是否匹配。如果不匹配（例如从桌面切到移动端），必须销毁重建
+          const currentContainer = multiAccountMap.getContainer();
+          if (currentContainer && currentContainer.id === containerId) {
+            logMessage_Info('[移动端地图] 多账号地图已初始化且容器匹配，执行Resize刷新');
+            container.innerHTML = '';
+            // 【修复】容器从隐藏变为显示时，必须强制Resize，否则地图空白
+            setTimeout(() => {
+              multiAccountMap.resize();
+            }, 200);
+            return true;
+          } else {
+            logMessage_Info(`[移动端地图] 多账号地图容器不匹配 (旧: ${currentContainer?.id}, 新: ${containerId})，正在销毁旧实例...`);
+            try {
+              multiAccountMap.destroy();
+            } catch (e) {
+              console.warn('销毁多账号地图失败:', e);
+            }
+            multiAccountMap = null;
+            multiAccountMarkers = {}; // 重置标记
+          }
         }
 
         logMessage_Info(`[移动端地图] 初始化多账号地图容器: ${containerId}`);
@@ -29820,10 +29893,36 @@
         // 单账号模式：检查map是否已初始化
         // 【问题4修复】如果已经初始化且正常工作，跳过重复初始化
         if (map && map.getZoom) {
-          logMessage_Info('[移动端地图] 单账号地图已初始化，跳过');
-          // 清除加载中状态
-          container.innerHTML = '';
-          return true;
+          // 【关键修复】检查容器ID是否匹配
+          const currentContainer = map.getContainer();
+          if (currentContainer && currentContainer.id === containerId) {
+            logMessage_Info('[移动端地图] 单账号地图已初始化且容器匹配，执行Resize刷新');
+            // 清除加载中状态
+            container.innerHTML = '';
+            // 【修复】容器从隐藏变为显示时，必须强制Resize，否则地图空白
+            setTimeout(() => {
+              map.resize();
+              // 可选：如果单账号有路径，可以在resize后重新自适应视野
+              if (typeof drawOnMap === 'function') {
+                // drawOnMap(); // 根据需要决定是否重绘
+              }
+            }, 200);
+            return true;
+          } else {
+            logMessage_Info(`[移动端地图] 单账号地图容器不匹配 (旧: ${currentContainer?.id}, 新: ${containerId})，正在销毁旧实例...`);
+            try {
+              // 清理旧的 runnerMarker 引用
+              if (runnerMarker) runnerMarker = null;
+              // 销毁旧地图
+              map.destroy();
+            } catch (e) {
+              console.warn('销毁单账号地图失败:', e);
+            }
+            map = null;
+            // 重置相关的绘图状态
+            markers = [];
+            polylines = { recommended: [], draft: null, run: null, history: null };
+          }
         }
 
         logMessage_Info(`[移动端地图] 初始化单账号地图容器: ${containerId}`);
@@ -30114,7 +30213,9 @@
           if (currentRunData && currentRunData.run_coords && currentRunData.run_coords.length > 0) {
             logMessage_Info('[移动端单账号] 开始绘制任务路径和打卡点...');
             if (typeof drawOnMap === 'function') {
+
               drawOnMap();
+
               drawOnMap(); // 调用两次以确保绘制完整
               logMessage_Info('[移动端单账号] 任务路径和打卡点已绘制');
               ensureRunnerMarker();

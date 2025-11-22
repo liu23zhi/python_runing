@@ -8656,7 +8656,6 @@ class Api:
                         # 调用现有的 _get_task_info_text 方法获取 "已过期" / "开始于..." 等文本
                         'info_text': self._get_task_info_text(r)
                     })
-            # -----------------------------------
 
             status_list.append(
                 {
@@ -8666,6 +8665,12 @@ class Api:
                     "summary": acc.summary,
                     "tag": acc.tag,
                     "tasks": tasks_simple,
+                    # 【新增】返回实时状态数据供前端轮询
+                    # 使用 getattr 避免属性不存在时报错
+                    "current_position": getattr(acc, "current_position", None),
+                    "progress_pct": getattr(acc, "progress_pct", 0),
+                    "progress_text": getattr(acc, "progress_text", ""),
+                    "progress_extra": getattr(acc, "progress_extra", "")
                 }
             )
 
@@ -8683,7 +8688,7 @@ class Api:
             elif isinstance(addition, dict):
                 # 如果直接传入的是字典，直接更新
                 response.update(addition)
-
+        response["success"] = True
         return response
 
     def multi_download_import_template(self):
@@ -9322,10 +9327,16 @@ class Api:
 
         # 进度条更新
         if progress_pct is not None:
+            # 【新增】保存到实例属性
+            acc.progress_pct = int(progress_pct)
             update_data["progress_pct"] = int(progress_pct)
         if progress_text is not None:
+            # 【新增】保存到实例属性
+            acc.progress_text = progress_text
             update_data["progress_text"] = progress_text
         if progress_extra is not None:
+            # 【新增】保存到实例属性
+            acc.progress_extra = progress_extra
             update_data["progress_extra"] = progress_extra
 
         if update_data:
@@ -10203,8 +10214,16 @@ class Api:
 
                         # 位置与前端地图更新（使用 SocketIO）
                         session_id = getattr(self, "_web_session_id", None)
+                        
+                        # 【新增】将当前坐标保存到对象实例，供前端轮询拉取
+                        acc.current_position = {
+                            "lon": lon,
+                            "lat": lat
+                        }
+
                         if session_id and socketio:
                             try:
+                                # (保持原有的emit逻辑以兼容可能的WebSocket连接)
                                 socketio.emit(
                                     "multi_position_update",
                                     {
