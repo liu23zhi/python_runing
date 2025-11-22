@@ -180,7 +180,6 @@ def import_standard_libraries():
     print("[依赖检查] ✓ 所有标准库导入成功！")
     logging.info("所有标准库导入成功！")
 
-
 def import_core_third_party():
     """
     导入 'check_and_import_dependencies' 未涵盖的核心第三方库。
@@ -236,7 +235,6 @@ def import_core_third_party():
 
     print("[依赖检查] ✓ 核心第三方库导入成功！")
     logging.info("核心第三方库导入成功！")
-
 
 def check_and_import_dependencies():
     """
@@ -355,7 +353,6 @@ def check_and_import_dependencies():
     print("[依赖检查] ✓ 所有主要应用依赖库导入完成！")
     logging.info("=" * 80)
 
-
 def initialize_global_variables():
     """
     初始化所有全局变量和应用状态。
@@ -405,9 +402,6 @@ def initialize_global_variables():
 
     logging.info("全局变量初始化完成。")
 
-
-
-
 class NoColorFileFormatter(logging.Formatter):
     """
     自定义日志格式化程序，用于在写入文件前去除ANSI颜色代码。
@@ -422,7 +416,6 @@ class NoColorFileFormatter(logging.Formatter):
         original_message = super().format(record)
         cleaned_message = self.ansi_escape_regex.sub("", original_message)
         return cleaned_message
-
 
 class CustomLogHandler(logging.FileHandler):
     """
@@ -512,7 +505,6 @@ class CustomLogHandler(logging.FileHandler):
 
         self.stream = self._open()
 
-
 def archive_old_logs():
     """
     归档旧的日志文件。
@@ -555,7 +547,6 @@ def archive_old_logs():
         print(f"[日志归档] 归档失败: {e}")
 
         traceback.print_exc()
-
 
 def cleanup_archive_directory(archive_dir, max_size_mb):
     """
@@ -614,7 +605,6 @@ def cleanup_archive_directory(archive_dir, max_size_mb):
         print(f"[归档清理] 清理失败: {e}")
 
         traceback.print_exc()
-
 
 def setup_logging():
     """
@@ -720,7 +710,6 @@ def setup_logging():
 
     logger.addHandler(error_file_handler)
 
-
     global _log_buffer
     if _log_buffer:
         for level_str, msg in _log_buffer:
@@ -742,9 +731,6 @@ def setup_logging():
     logging.info("=" * 80)
 
     return logger
-
-
-
 
 def auto_init_system():
     """
@@ -779,7 +765,6 @@ def auto_init_system():
         logging.error(f"系统初始化失败: {e}", exc_info=True)
         print(f"[系统初始化] 错误: 系统初始化失败 - {e}")
 
-
 SCHOOL_ACCOUNTS_DIR = "school_accounts"
 SYSTEM_ACCOUNTS_DIR = "system_accounts"
 LOGIN_LOGS_DIR = "logs"
@@ -790,7 +775,6 @@ PERMISSIONS_FILE = "permissions.json"
 SESSION_INDEX_FILE = None
 LOGIN_LOG_FILE = None
 AUDIT_LOG_FILE = None
-
 
 def _create_directories():
     """
@@ -880,7 +864,6 @@ def _create_directories():
 
     print(f"[目录创建] 所有目录创建完成")
 
-
 def _get_default_config():
     """
     获取默认配置项字典。
@@ -949,7 +932,6 @@ def _get_default_config():
     }
 
     return config
-
 
 def _write_config_with_comments(config_obj, filepath):
     """
@@ -1181,7 +1163,6 @@ def _write_config_with_comments(config_obj, filepath):
             f"https_only = {config_obj.get('SSL', 'https_only', fallback='false')}\n\n"
         )
 
-
 def _create_config_ini():
     """创建或更新config.ini配置文件（兼容旧版本，自动补全缺失参数）"""
     default_config = _get_default_config()
@@ -1236,7 +1217,6 @@ def _create_config_ini():
         print("[配置文件] config.ini 不存在，创建新配置文件...")
         _write_config_with_comments(default_config, "config.ini")
         print("[配置文件] 配置文件创建完成（包含详细注释）")
-
 
 def _create_permissions_json():
     """创建默认的permissions.json权限配置文件"""
@@ -1423,7 +1403,6 @@ def _create_permissions_json():
         json.dump(permissions, f, indent=2, ensure_ascii=False)
     print("[权限配置] permissions.json 文件创建完成")
 
-
 def _create_default_admin():
     """创建默认的管理员账号"""
     admin_dir = "system_accounts"
@@ -1469,14 +1448,10 @@ def _create_default_admin():
         f"[系统初始化] 管理员账号创建成功 --> 文件路径: {admin_file}, 账号信息: 用户名=admin, 权限组=super_admin, 双因素认证=未启用, 最大会话数=无限制, 主题=light"
     )
 
-
 def get_session_file_path(session_id: str) -> str:
     """根据 session_id (UUID) 计算会话文件的完整路径"""
     session_hash = hashlib.sha256(session_id.encode()).hexdigest()
     return os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
-
-
-
 
 class AuthSystem:
     """用户认证和权限管理系统"""
@@ -1724,7 +1699,6 @@ class AuthSystem:
         logging.debug(
             f"[密码验证] 开始验证密码 --> 输入密码长度: {len(input_password)}字符, 存储密码长度: {len(stored_password)}字符"
         )
-
 
         if stored_password.startswith("$2b$") or stored_password.startswith("$2a$"):
             try:
@@ -2681,9 +2655,6 @@ class AuthSystem:
             if max_sessions == -1:
                 return [], ""
 
-
-
-
             current_count = len(old_sessions)
             if current_count > max_sessions:
                 sessions_to_remove = old_sessions[: current_count - max_sessions + 1]
@@ -2814,9 +2785,6 @@ class AuthSystem:
             logging.error(
                 f"[权限同步] 同步 super_admin 权限时发生严重错误: {e}", exc_info=True
             )
-
-
-
 
 class TokenManager:
     """
@@ -3021,9 +2989,6 @@ class TokenManager:
 
         return old_sessions
 
-
-
-
 class UserData:
     """存储用户相关信息的类"""
 
@@ -3042,7 +3007,6 @@ class UserData:
         self.school_name: str = ""
         self.attribute_type: str = ""
         self.avatar_url: str = ""
-
 
 class RunData:
     """存储单个跑步任务相关数据的类"""
@@ -3073,7 +3037,6 @@ class RunData:
         self.total_run_time_s: float = 0.0
         self.total_run_distance_m: float = 0.0
         self.distance_covered_m: float = 0.0
-
 
 class AccountSession:
     """封装单个账号的所有运行时数据、状态和操作"""
@@ -3117,7 +3080,6 @@ class AccountSession:
     def log(self, message: str):
         """为日志自动添加账号前缀"""
         self.api_bridge.log(f"[{self.username}] {message}")
-
 
 class ApiClient:
     """处理与后端服务器网络请求的类"""
@@ -3273,7 +3235,6 @@ class ApiClient:
                 )
                 time.sleep(1.5)
                 continue
-
 
             except requests.exceptions.HTTPError as http_err:
                 log_func(
@@ -3527,9 +3488,6 @@ class ApiClient:
                 force_content_type="application/json;charset=UTF-8",
             )
         )
-
-
-
 
 class Api:
     """此类的方法会暴露给WebView前端的JavaScript调用"""
@@ -4309,7 +4267,6 @@ class Api:
             logging.debug(
                 f"Initial users={users}, last user={last_user}, logged_in={is_logged_in}"
             )
-
 
             def _safe_get_int(section, key, default):
                 try:
@@ -5099,7 +5056,6 @@ class Api:
         try:
             run = self.all_run_data[self.current_run_idx]
 
-
             draft_coords_list = []
             if coords:
                 for c in coords:
@@ -5246,7 +5202,6 @@ class Api:
         current_gps_pos, draft_idx = (draft[0][0], draft[0][1]), 0
         p = self.params
 
-
         speed_history = []
         speed_window = 3
 
@@ -5326,7 +5281,6 @@ class Api:
             run.run_coords.append((lon, lat, int(interval_t * 1000)))
             total_time += interval_t
 
-
         run.total_run_time_s, run.total_run_distance_m = total_time, total_dist
         self.log(f"处理完成。")
         logging.info(
@@ -5390,7 +5344,6 @@ class Api:
             f"距离={dist:.2f}米, 范围={self.target_range_m:.2f}米, "
             f"在范围内={is_in_zone}, 已在区域内={run_data.is_in_target_zone}"
         )
-
 
         if is_in_zone and not run_data.is_in_target_zone:
             run_data.is_in_target_zone = True
@@ -5763,20 +5716,6 @@ class Api:
                     if sio and current_session_id:
                         should_emit = True
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 if stop_flag.is_set():
                     break
 
@@ -5816,7 +5755,6 @@ class Api:
                         f"数据提交在 {max_attempts} 次尝试后仍然失败，任务中止"
                     )
                     break
-
 
             if not stop_flag.is_set() and submission_successful:
                 log_func("任务执行完毕，等待确认...")
@@ -6813,7 +6751,6 @@ class Api:
                 f"发现 {len(accounts_missing_password)} 个账号缺少密码，等待用户手动添加。"
             )
         self._update_multi_global_buttons()
-
 
         final_status = self.multi_get_all_accounts_status()
         final_status["accounts_missing_password"] = accounts_missing_password
@@ -8525,7 +8462,6 @@ class Api:
                     if not submission_successful:
                         break
 
-
                     is_final_chunk = chunk_idx + 40 >= len(run_data.run_coords)
                     if not self._submit_chunk(
                         run_data,
@@ -8838,7 +8774,6 @@ class Api:
             logging.error(f"提交签到请求时发生错误，异常信息: {e}", exc_info=True)
             return {"success": False, "message": f"提交签到时出错: {e}"}
 
-
     def get_notifications(
         self,
         is_auto_refresh: bool = False,
@@ -9043,8 +8978,6 @@ class Api:
                     if self.stop_auto_refresh.wait(timeout=5.0):
                         break
                     continue
-
-
 
                 refresh_interval_s = self.params.get(
                     "auto_attendance_refresh_s", 30
@@ -9300,15 +9233,11 @@ class Api:
             return True
         return False
 
-
-
-
 def resource_path(relative_path):
     """获取资源文件的绝对路径，兼容 PyInstaller 打包和开发环境"""
     if hasattr(sys, "_MEIPASS"):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
-
 
 def check_port_available(host, port):
     """检查端口是否可用"""
@@ -9321,14 +9250,10 @@ def check_port_available(host, port):
     except OSError:
         return False
 
-
-
-
 IP_CACHE_FILE = os.path.join("logs", "ip_location_cache.json")
 ip_location_cache = {}
 ip_cache_lock = threading.Lock()
 CACHE_DURATION_SECONDS = 86400
-
 
 def _load_ip_cache():
     """启动时加载IP归属地缓存文件"""
@@ -9346,7 +9271,6 @@ def _load_ip_cache():
             logging.warning(f"[IP缓存] 加载缓存文件失败: {e}，将创建新缓存")
             ip_location_cache = {}
 
-
 def _save_ip_cache():
     """保存IP归属地缓存到文件（线程安全）"""
     with ip_cache_lock:
@@ -9362,12 +9286,10 @@ def _save_ip_cache():
         except Exception as e:
             logging.error(f"[IP缓存] 序列化缓存数据失败: {e}")
 
-
 def update_session_activity(session_id):
     """更新会话活动时间"""
     with session_activity_lock:
         session_activity[session_id] = time.time()
-
 
 def update_session_activity(session_id):
     """更新会话活动时间（线程安全）"""
@@ -9377,7 +9299,6 @@ def update_session_activity(session_id):
         session_activity[session_id] = time.time()
         logging.debug(f"[会话活跃] 更新会话 {session_id} 的活跃时间")
 
-
 def cleanup_session(session_id, reason="manual"):
     """清理指定会话（支持指定原因）"""
     if not session_id or session_id == "null" or session_id.strip() == "":
@@ -9386,7 +9307,6 @@ def cleanup_session(session_id, reason="manual"):
 
     logging.info(f"清理会话: {session_id[:32]}... (原因: {reason})")
     cleanup_inactive_session(session_id)
-
 
 def cleanup_inactive_session(session_id):
     """清理不活跃的会话"""
@@ -9416,7 +9336,6 @@ def cleanup_inactive_session(session_id):
 
                 del web_sessions[session_id]
 
-
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         if os.path.exists(session_file):
@@ -9435,7 +9354,6 @@ def cleanup_inactive_session(session_id):
         logging.info(f"会话清理完成: {session_id[:32]}...")
     except Exception as e:
         logging.error(f"清理会话失败 {session_id[:32]}...: {e}")
-
 
 def monitor_session_inactivity():
     """
@@ -9565,7 +9483,6 @@ def monitor_session_inactivity():
                                     f"[会话监控] 会话 {session_id[:8]}... 标记为不活跃（超时{int(time_since_activity)}秒，无任务执行）"
                                 )
 
-
             if active_sessions_to_update:
                 logging.debug(
                     f"[会话监控] 更新 {len(active_sessions_to_update)} 个活跃会话的时间..."
@@ -9585,17 +9502,11 @@ def monitor_session_inactivity():
             logging.error(f"会话监控线程错误: {e}", exc_info=True)
             time.sleep(check_interval)
 
-
-
-
 def start_session_monitor():
     """启动会话不活跃监控"""
     monitor_thread = threading.Thread(target=monitor_session_inactivity, daemon=True)
     monitor_thread.start()
     logging.info("会话监控线程已启动")
-
-
-
 
 def _load_session_index():
     """加载会话索引文件"""
@@ -9607,7 +9518,6 @@ def _load_session_index():
         logging.warning(f"加载会话索引失败: {e}")
     return {}
 
-
 def _save_session_index(index):
     """保存会话索引文件"""
     try:
@@ -9615,7 +9525,6 @@ def _save_session_index(index):
             json.dump(index, f, indent=2, ensure_ascii=False)
     except Exception as e:
         logging.error(f"保存会话索引失败: {e}")
-
 
 def save_session_state(session_id, api_instance, force_save=False):
     """
@@ -9914,7 +9823,6 @@ def save_session_state(session_id, api_instance, force_save=False):
     except Exception as e:
         logging.error(f"保存会话状态失败: {e}", exc_info=True)
 
-
 def load_session_state(session_id):
     """从文件加载会话状态"""
     try:
@@ -9970,7 +9878,6 @@ def load_session_state(session_id):
         logging.error(f"[会话管理] 加载会话状态失败 --> 错误: {e}", exc_info=True)
     return None
 
-
 def cleanup_expired_sessions():
     """
     清理过期的会话文件（7天未访问）
@@ -10020,7 +9927,6 @@ def cleanup_expired_sessions():
 
     except Exception as e:
         logging.error(f"[会话清理] 清理过期会话失败 --> 错误: {e}", exc_info=True)
-
 
 def restore_session_to_api_instance(api_instance, state):
     """
@@ -10241,7 +10147,6 @@ def restore_session_to_api_instance(api_instance, state):
     except Exception as e:
         logging.error(f"恢复会话状态失败: {e}", exc_info=True)
 
-
 def get_captcha_original_width(html_content):
     """
     【移动端验证码缩放】获取验证码的原始宽度
@@ -10306,7 +10211,6 @@ def get_captcha_original_width(html_content):
         logging.error(f"[get_captcha_original_width] 解析失败: {e}")
         return None
 
-
 def resize_captcha_html(html_content, target_width):
     """
     自动分析并调整像素验证码HTML的大小 (Grid Layout 增强版 - 修正Padding/Border计算)。
@@ -10327,7 +10231,6 @@ def resize_captcha_html(html_content, target_width):
             return html_content
 
         css_text = style_tag.string
-
 
         num_cols = 0
         old_pixel_w = 0.0
@@ -10390,7 +10293,6 @@ def resize_captcha_html(html_content, target_width):
         if bor_match:
             border_w = float(bor_match.group(1)) * 2
 
-
         original_grid_width = (num_cols * old_pixel_w) + ((num_cols - 1) * old_gap)
 
         if original_grid_width <= 0:
@@ -10417,7 +10319,6 @@ def resize_captcha_html(html_content, target_width):
         logging.info(
             f"[验证码缩放] Scaling: {scale_ratio:.4f} | Pad/Bor: {padding_w}/{border_w} | Target Grid: {available_grid_width:.2f}px"
         )
-
 
         new_css = css_text
 
@@ -10472,7 +10373,6 @@ def resize_captcha_html(html_content, target_width):
     except Exception as e:
         logging.error(f"[resize_captcha_html] 调整失败: {e}", exc_info=True)
         return html_content
-
 
 def load_all_sessions(args):
     """启动时加载所有持久化会话"""
@@ -10573,9 +10473,6 @@ def load_all_sessions(args):
 
     if loaded_count > 0:
         logging.info(f"共加载 {loaded_count} 个持久化会话")
-
-
-
 
 class BackgroundTaskManager:
     """管理服务器端后台任务执行"""
@@ -11137,7 +11034,6 @@ class BackgroundTaskManager:
                                     else []
                                 )
 
-
                                 server_target_sequence_0based = getattr(
                                     run_data, "target_sequence", 0
                                 )
@@ -11283,7 +11179,6 @@ class BackgroundTaskManager:
                     logging.warning(f"处理任务文件失败，文件名: {filename}，错误: {e}")
         except Exception as e:
             logging.error(f"清理旧任务文件失败，异常信息: {e}")
-
 
 class MicroPixelCaptcha:
 
@@ -11432,7 +11327,6 @@ class MicroPixelCaptcha:
         full_html = f'<div class="{cls_con}">{html_content}</div>{css}'
         return code, full_html, captcha_width, captcha_height
 
-
 class ChromeBrowserPool:
     """管理服务器端Chrome浏览器实例，用于执行JS计算 (线程本地安全模式)"""
 
@@ -11551,7 +11445,6 @@ class ChromeBrowserPool:
                     exc_info=True,
                 )
 
-
 def _cleanup_playwright():
     """
     在程序退出时清理Playwright资源。
@@ -11566,7 +11459,6 @@ def _cleanup_playwright():
             logging.error(f"清理 Playwright 资源时发生错误: {e}", exc_info=False)
     else:
         logging.debug("Playwright 池未初始化，无需清理。")
-
 
 def start_background_auto_attendance(args):
     """
@@ -11691,9 +11583,6 @@ def start_background_auto_attendance(args):
     except Exception as e:
         logging.error(f"启动后台自动签到服务时发生严重错误: {e}", exc_info=True)
 
-
-
-
 def load_ssl_config():
     """
     从config.ini文件加载SSL配置。
@@ -11741,7 +11630,6 @@ def load_ssl_config():
         logging.error(f"加载SSL配置时发生错误: {e}，使用默认配置（禁用SSL）")
         return default_config
 
-
 def save_ssl_config(ssl_config):
     """
     将SSL配置保存到config.ini文件。
@@ -11781,7 +11669,6 @@ def save_ssl_config(ssl_config):
     except Exception as e:
         logging.error(f"保存SSL配置时发生错误: {e}")
         return False
-
 
 def validate_ssl_certificate(cert_path, key_path):
     """
@@ -11865,7 +11752,6 @@ def validate_ssl_certificate(cert_path, key_path):
 
     return True, "", cert_info
 
-
 def get_ssl_certificate_info(cert_path):
     """
     获取SSL证书的详细信息（如有效期、颁发者、主题等）。
@@ -11919,7 +11805,6 @@ def get_ssl_certificate_info(cert_path):
         cert_info = {"error": f"读取证书信息失败: {str(e)}"}
 
     return cert_info
-
 
 def start_web_server(args_param):
     """
@@ -12034,7 +11919,6 @@ def start_web_server(args_param):
 
         return decorated_function
 
-
     @app.before_request
     def check_ip_ban_before_request():
         """
@@ -12123,8 +12007,6 @@ def start_web_server(args_param):
             return make_response(banned_html, 403)
 
         return None
-
-
 
     def get_session_user_safe(
         session_id, required_permission=None, require_super_admin=False
@@ -12442,7 +12324,6 @@ def start_web_server(args_param):
         session_id = request.headers.get("X-Session-ID", "")
         ip_address = request.headers.get("X-Forwarded-For", request.remote_addr) or ""
         user_agent = request.headers.get("User-Agent", "")
-
 
         auth_result = None
         target_username = None
@@ -13256,7 +13137,6 @@ def start_web_server(args_param):
         if not check_uuid:
             return jsonify({"success": False, "message": "UUID参数缺失"}), 400
 
-
         uuid_pattern = re.compile(
             r"^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$",
             re.IGNORECASE,
@@ -13286,7 +13166,6 @@ def start_web_server(args_param):
                     "message": "UUID不存在 (文件未找到)",
                 }
             )
-
 
         max_retries = 3
         retry_delay = 0.1
@@ -14326,7 +14205,6 @@ def start_web_server(args_param):
         if page > total_pages and total_pages > 0:
             page = total_pages
 
-
         start_index = max(0, total_lines - (page * limit))
         end_index = total_lines - ((page - 1) * limit)
 
@@ -14584,7 +14462,6 @@ def start_web_server(args_param):
             if current_username
             else False
         )
-
 
         if filename == "default_avatar.png":
             default_avatar_path = os.path.join(
@@ -15047,7 +14924,6 @@ def start_web_server(args_param):
         if not new_session_id:
             return jsonify({"success": False, "message": "缺少会话ID"}), 400
 
-
         uuid_pattern = re.compile(
             r"^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$",
             re.IGNORECASE,
@@ -15343,7 +15219,6 @@ def start_web_server(args_param):
         if target_username != "unknown" and target_username != "guest":
             auth_system.unlink_session_from_user(target_username, target_session_id)
 
-
         session_hash = hashlib.sha256(target_session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         if os.path.exists(session_file):
@@ -15388,7 +15263,6 @@ def start_web_server(args_param):
 
         logs = auth_system.get_audit_logs(username, action, limit)
         return jsonify({"success": True, "logs": logs})
-
 
     @app.route("/api/sms/send_code", methods=["POST"])
     def sms_send_code():
@@ -15834,7 +15708,6 @@ def start_web_server(args_param):
             logging.error(f"[短信测试] 处理请求异常: {str(e)}", exc_info=True)
             return jsonify({"success": False, "message": f"处理失败：{str(e)}"})
 
-
     @app.route("/api/admin/logs/login_history", methods=["GET"])
     @login_required
     def admin_logs_login_history():
@@ -15855,7 +15728,6 @@ def start_web_server(args_param):
             if not target_username:
                 if not auth_system.check_permission(current_user, "manage_users"):
                     target_username = current_user
-
 
             username_to_query = target_username if target_username else None
 
@@ -15897,7 +15769,6 @@ def start_web_server(args_param):
         except Exception as e:
             app.logger.error(f"[审计日志] 查询失败：{str(e)}")
             return jsonify({"success": False, "message": "查询失败"}), 500
-
 
     def _get_config_value(config, section, key, type_func=str, fallback=None):
         """
@@ -16208,7 +16079,6 @@ def start_web_server(args_param):
         except Exception as e:
             app.logger.error(f"[系统配置] 保存配置失败：{str(e)}", exc_info=True)
             return jsonify({"success": False, "message": "保存配置失败"}), 500
-
 
     @app.route("/api/log_frontend", methods=["POST"])
     def log_frontend():
@@ -16539,7 +16409,6 @@ def start_web_server(args_param):
         except Exception as e:
             app.logger.error(f"[IP封禁] 检查失败：{str(e)}")
             return False
-
 
     @app.route("/api/admin/sms/config", methods=["GET"])
     @login_required
@@ -16990,7 +16859,6 @@ def start_web_server(args_param):
             app.logger.error(f"[验证码管理] 添加验证码失败：{str(e)}")
             return jsonify({"success": False, "message": "添加失败"}), 500
 
-
     @app.route("/api/admin/ssl/info", methods=["GET"])
     @login_required
     def get_ssl_info():
@@ -17250,7 +17118,6 @@ def start_web_server(args_param):
             logging.error(f"[SSL管理] 切换SSL状态失败: {e}", exc_info=True)
             return jsonify({"success": False, "message": f"操作失败: {str(e)}"}), 500
 
-
     def get_frontend_config():
         """辅助函数：读取前端需要的功能开关配置"""
         config = configparser.ConfigParser()
@@ -17430,7 +17297,6 @@ def start_web_server(args_param):
 
             function_name = function_path.replace("/", "_")
 
-
             pattern = rf"(?:^|\n)(\s*(?:(?:async\s+)?function\s+{function_name}\s*\([^)]*\)|(?:const|let|var)\s+{function_name}\s*=\s*(?:function\s*\([^)]*\)|(?:async\s+)?function\s*\([^)]*\)|\([^)]*\)\s*=>))\s*{{)"
 
             match = re.search(pattern, full_content, re.MULTILINE)
@@ -17531,7 +17397,6 @@ def start_web_server(args_param):
                 "%a, %d %b %Y %H:%M:%S GMT"
             )
             response.headers["Last-Modified"] = last_modified
-
 
             etag = hashlib.md5(function_code.encode("utf-8")).hexdigest()
             response.headers["ETag"] = f'"{etag}"'
@@ -17710,9 +17575,7 @@ def start_web_server(args_param):
                     for selector in rule.selectorList:
                         selectors.add(selector.selectorText.strip())
 
-
             sorted_selectors = sorted(list(selectors))
-
 
             return stylesheet, sorted_selectors
 
@@ -17837,7 +17700,6 @@ def start_web_server(args_param):
                             found_css_text.append(rule.cssText)
                             break
 
-
             if not found_css_text:
                 logging.warning(
                     f"CSS 规则未找到: {requested_selector} (原始请求: {css_path})"
@@ -17899,7 +17761,6 @@ def start_web_server(args_param):
             with open(fragments_file, "r", encoding="utf-8") as f:
                 fragments_content = f.read()
 
-
             pattern = rf"<!-- 段落开始： {re.escape(fragment_name)} -->\s*(.*?)\s*<!-- 段落结束： {re.escape(fragment_name)} -->"
             match = re.search(pattern, fragments_content, re.DOTALL)
 
@@ -17914,7 +17775,6 @@ def start_web_server(args_param):
 
             minify_param = request.args.get("minify", "true").lower()
             should_minify = minify_param in ["true", "1", "yes", ""]
-
 
             if should_minify:
                 content = original_content
@@ -17933,7 +17793,6 @@ def start_web_server(args_param):
             last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
                 "%a, %d %b %Y %H:%M:%S GMT"
             )
-
 
             etag_base = hashlib.md5(content.encode("utf-8")).hexdigest()
             etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
@@ -18318,7 +18177,6 @@ def start_web_server(args_param):
         result = background_task_manager.stop_task(session_id)
         return jsonify(result)
 
-
     @app.route("/api/messages/list", methods=["GET"])
     def get_messages():
         """获取留言列表"""
@@ -18534,7 +18392,6 @@ def start_web_server(args_param):
             if not re.match(email_pattern, email):
                 return jsonify({"success": False, "message": "邮箱格式不正确"})
 
-
         client_ip = request.remote_addr
 
         ip_city = get_ip_location(client_ip)
@@ -18704,7 +18561,6 @@ def start_web_server(args_param):
             logging.error(f"[高德Key验证] 验证失败: {str(e)}")
             return jsonify({"success": False, "message": f"验证失败: {str(e)}"})
 
-
     @app.route("/api/reminders/list", methods=["GET"])
     def get_reminders_list():
         """
@@ -18778,7 +18634,6 @@ def start_web_server(args_param):
             end_time = data.get("end_time", "").strip()
             enabled = data.get("enabled", True)
 
-
             if not title:
                 return jsonify({"success": False, "message": "提醒标题不能为空"})
             if len(title) > 50:
@@ -18812,7 +18667,6 @@ def start_web_server(args_param):
             if not isinstance(enabled, bool):
                 enabled = bool(enabled)
 
-
             reminder_id = str(uuid.uuid4())
             current_timestamp = time.time()
 
@@ -18826,7 +18680,6 @@ def start_web_server(args_param):
                 "created_at": current_timestamp,
                 "updated_at": current_timestamp,
             }
-
 
             reminders_file = "reminders.json"
             reminders = []
@@ -19085,7 +18938,6 @@ def start_web_server(args_param):
             logging.warning(f"[定时提醒] 时间范围判断失败: {e}")
             return False
 
-
     @app.route("/api/captcha/get", methods=["GET"])
     def get_captcha():
         """
@@ -19161,7 +19013,6 @@ def start_web_server(args_param):
                 try:
                     history_dir = os.path.join(LOGIN_LOGS_DIR, "captcha_history")
                     os.makedirs(history_dir, exist_ok=True)
-
 
                     history_data = {
                         "captcha_id": p_captcha_id,
@@ -19775,7 +19626,6 @@ def start_web_server(args_param):
                 500,
             )
 
-
     @app.route("/api/captcha/save_settings", methods=["POST"])
     @login_required
     def save_captcha_settings():
@@ -20130,7 +19980,6 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"[SocketIO] 推送 'verification_codes_updated' 失败: {e}")
 
-
     def cleanup_sessions():
         """定期清理超过24小时无活动的会话"""
         while True:
@@ -20260,7 +20109,6 @@ def start_web_server(args_param):
                 f"已清空后台任务管理器的内存状态（清理了 {initial_task_count} 个任务记录）。"
             )
 
-
     ssl_config = load_ssl_config()
 
     ssl_context = None
@@ -20334,7 +20182,6 @@ def start_web_server(args_param):
     else:
         logging.info("SSL未启用，服务器将以HTTP模式运行")
 
-
     @app.before_request
     def handle_forwarded_proto():
         """
@@ -20377,9 +20224,7 @@ def start_web_server(args_param):
 
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
-
         return response
-
 
     protocol = "https" if ssl_config.get("ssl_enabled", False) else "http"
     server_url = f"{protocol}://{args.host}:{args.port}"
@@ -20473,10 +20318,8 @@ def start_web_server(args_param):
     finally:
         pass
 
-
 def main():
     """主函数，启动Web服务器模式（已弃用桌面模式）"""
-
 
     try:
         setup_logging()
@@ -20612,7 +20455,6 @@ def main():
 
     logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
     start_web_server(args)
-
 
 if __name__ == "__main__":
     main()
