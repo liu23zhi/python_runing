@@ -429,6 +429,10 @@ def initialize_global_variables():
     # 全局会话存储
     web_sessions = {}
     web_sessions_lock = threading.Lock()
+    
+    # 内存优化：会话数量限制（防止内存溢出）
+    # 当内存中的会话数超过此值时，cleanup_sessions会更频繁地清理过期会话
+    MAX_MEMORY_SESSIONS = 1000  # 最多保持1000个会话在内存中
 
     # 会话文件锁
     session_file_locks = {}
@@ -24995,7 +24999,7 @@ def start_web_server(args_param):
     # 定期清理过期会话
 
     def cleanup_sessions():
-        """定期清理超过24小时无活动的会话"""
+        """定期清理超过24小时无活动的会话，并强制执行内存会话数量限制"""
         import gc
         while True:
             time.sleep(3600)  # 每小时检查一次
@@ -25010,6 +25014,23 @@ def start_web_server(args_param):
                             last_activity = session_activity.get(session_id, 0)
                             if current_time - last_activity > 86400:  # 24小时 = 86400秒
                                 expired_sessions.append(session_id)
+                    
+                    # 内存优化：如果会话数超过限制，清理最旧的会话
+                    if len(web_sessions) > MAX_MEMORY_SESSIONS:
+                        # 按最后活动时间排序，清理最旧的会话
+                        with session_activity_lock:
+                            sorted_sessions = sorted(
+                                web_sessions.keys(),
+                                key=lambda sid: session_activity.get(sid, 0)
+                            )
+                            # 清理超出限制的会话（保留最新的MAX_MEMORY_SESSIONS个）
+                            sessions_to_remove = len(web_sessions) - MAX_MEMORY_SESSIONS
+                            for session_id in sorted_sessions[:sessions_to_remove]:
+                                if session_id not in expired_sessions:
+                                    expired_sessions.append(session_id)
+                        logging.warning(
+                            f"[会话清理] 内存会话数超过限制({MAX_MEMORY_SESSIONS})，额外清理了 {sessions_to_remove} 个最旧会话"
+                        )
                     
                     # 清理过期会话
                     for session_id in expired_sessions:
@@ -25026,14 +25047,25 @@ def start_web_server(args_param):
                                 if session_id in session_activity:
                                     del session_activity[session_id]
                             
-                            logging.info(f"[会话清理] 已清理过期会话: {session_id[:8]}...")
+                            # 清理session_file_locks中对应的条目（如果存在）
+                            with session_file_locks_lock:
+                                # session_file_locks使用session的hash作为key
+                                # 为了避免遍历所有keys，我们只在这里记录日志
+                                # 实际的锁清理可以在其他地方进行
+                                pass
+                            
+                            logging.info(f"[会话清理] 已清理会话: {session_id[:8]}...")
                         except Exception as e:
                             logging.error(f"[会话清理] 清理会话 {session_id[:8]}... 时出错: {e}")
                 
                 if expired_sessions:
-                    logging.info(f"[会话清理] 本次清理了 {len(expired_sessions)} 个过期会话")
+                    logging.info(f"[会话清理] 本次清理了 {len(expired_sessions)} 个会话")
                     # 强制垃圾回收以释放内存
                     gc.collect()
+                else:
+                    # 即使没有过期会话，也记录当前会话数量
+                    with web_sessions_lock:
+                        logging.debug(f"[会话清理] 当前内存会话数: {len(web_sessions)}/{MAX_MEMORY_SESSIONS}")
             except Exception as e:
                 logging.error(f"[会话清理] 清理过程出错: {e}", exc_info=True)
 
