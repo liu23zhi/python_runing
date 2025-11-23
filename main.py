@@ -51,6 +51,7 @@ zipfile = _try_import_builtin("zipfile")
 random = _try_import_builtin("random")
 argparse = _try_import_builtin("argparse")
 gc = _try_import_builtin("gc")  # 垃圾回收模块，用于内存优化
+heapq = _try_import_builtin("heapq")  # 堆队列模块，用于高效排序
 
 if _import_failures:
     _buffer_log("ERROR", f"\n{'='*70}")
@@ -657,8 +658,7 @@ def archive_old_logs():
 
         print(f"[日志归档] 归档完成: {archive_path}")
         
-        # 清理内存
-        import gc
+        # 清理内存 - 使用全局导入的gc模块
         gc.collect()
 
     except Exception as e:
@@ -730,9 +730,8 @@ def cleanup_archive_directory(archive_dir, max_size_mb):
             f"[归档清理] 清理完成，删除了 {deleted_count} 个文件，当前大小: {final_size_mb:.2f}MB"
         )
         
-        # 如果删除了文件，进行垃圾回收以释放内存
+        # 如果删除了文件，进行垃圾回收以释放内存 - 使用全局导入的gc模块
         if deleted_count > 0:
-            import gc
             gc.collect()
 
     except Exception as e:
@@ -903,8 +902,7 @@ def setup_logging():
         
         # 清空缓冲区，释放内存
         _log_buffer.clear()
-        # 强制垃圾回收以释放内存
-        import gc
+        # 强制垃圾回收以释放内存 - 使用全局导入的gc模块
         gc.collect()
 
     # 记录日志系统启动
@@ -2279,8 +2277,8 @@ class AuthSystem:
             return []
 
         # 优化：使用双端队列存储最近的记录，避免列表频繁扩展
-        from collections import deque
-        history = deque(maxlen=limit * 2)  # 预留2倍空间用于过滤
+        # collections已在标准库导入中全局导入
+        history = collections.deque(maxlen=limit * 2)  # 预留2倍空间用于过滤
         
         try:
             with open(LOGIN_LOG_FILE, "r", encoding="utf-8") as f:
@@ -24281,11 +24279,15 @@ def start_web_server(args_param):
                         record.pop("session_id", None)
                         records.append(record)
                         
-                        # 优化：如果已经收集了足够多的记录（limit * 2），
-                        # 进行排序并只保留最新的limit条，释放其余内存
-                        if len(records) > limit * 2:
-                            records.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
-                            records = records[:limit]
+                        # 优化：如果已经收集了足够多的记录（limit * 3），
+                        # 使用heapq保留最新的limit * 2条，释放其余内存
+                        if len(records) > limit * 3:
+                            # 使用heapq.nlargest按时间戳保留最新的记录
+                            records = heapq.nlargest(
+                                limit * 2, 
+                                records, 
+                                key=lambda x: x.get("timestamp", 0)
+                            )
                     except Exception as e:
                         logging.warning(f"[验证码历史] 解析记录失败: {e}")
                         continue
@@ -25000,7 +25002,6 @@ def start_web_server(args_param):
 
     def cleanup_sessions():
         """定期清理超过24小时无活动的会话，并强制执行内存会话数量限制"""
-        import gc
         while True:
             time.sleep(3600)  # 每小时检查一次
             try:
