@@ -24278,22 +24278,20 @@ def start_web_server(args_param):
                         # 移除敏感信息
                         record.pop("session_id", None)
                         records.append(record)
-                        
-                        # 优化：如果已经收集了足够多的记录（limit * 3），
-                        # 使用heapq保留最新的limit * 2条，释放其余内存
-                        if len(records) > limit * 3:
-                            # 使用heapq.nlargest按时间戳保留最新的记录
-                            records = heapq.nlargest(
-                                limit * 2, 
-                                records, 
-                                key=lambda x: x.get("timestamp", 0)
-                            )
                     except Exception as e:
                         logging.warning(f"[验证码历史] 解析记录失败: {e}")
                         continue
 
             # 按时间戳倒序排列（最新的在前）
-            records.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+            # 优化：如果记录数超过limit * 2，使用heapq.nlargest进行高效选择
+            if len(records) > limit * 2:
+                records = heapq.nlargest(
+                    limit * 2,
+                    records,
+                    key=lambda x: x.get("timestamp", 0)
+                )
+            else:
+                records.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
 
             # 修正：使用 total_matched 作为总数
             total = total_matched
@@ -25016,19 +25014,21 @@ def start_web_server(args_param):
                             if current_time - last_activity > 86400:  # 24小时 = 86400秒
                                 expired_sessions.append(session_id)
                     
-                    # 内存优化：如果会话数超过限制，清理最旧的会话
-                    if len(web_sessions) > MAX_MEMORY_SESSIONS:
+                    # 内存优化：如果会话数减去已过期会话后仍超过限制，清理最旧的会话
+                    remaining_sessions = len(web_sessions) - len(expired_sessions)
+                    if remaining_sessions > MAX_MEMORY_SESSIONS:
                         # 按最后活动时间排序，清理最旧的会话
                         with session_activity_lock:
+                            # 只考虑未过期的会话
+                            active_sessions = [sid for sid in web_sessions.keys() if sid not in expired_sessions]
                             sorted_sessions = sorted(
-                                web_sessions.keys(),
+                                active_sessions,
                                 key=lambda sid: session_activity.get(sid, 0)
                             )
                             # 清理超出限制的会话（保留最新的MAX_MEMORY_SESSIONS个）
-                            sessions_to_remove = len(web_sessions) - MAX_MEMORY_SESSIONS
+                            sessions_to_remove = remaining_sessions - MAX_MEMORY_SESSIONS
                             for session_id in sorted_sessions[:sessions_to_remove]:
-                                if session_id not in expired_sessions:
-                                    expired_sessions.append(session_id)
+                                expired_sessions.append(session_id)
                         logging.warning(
                             f"[会话清理] 内存会话数超过限制({MAX_MEMORY_SESSIONS})，额外清理了 {sessions_to_remove} 个最旧会话"
                         )
@@ -25048,12 +25048,8 @@ def start_web_server(args_param):
                                 if session_id in session_activity:
                                     del session_activity[session_id]
                             
-                            # 清理session_file_locks中对应的条目（如果存在）
-                            with session_file_locks_lock:
-                                # session_file_locks使用session的hash作为key
-                                # 为了避免遍历所有keys，我们只在这里记录日志
-                                # 实际的锁清理可以在其他地方进行
-                                pass
+                            # Note: session_file_locks cleanup is handled separately 
+                            # as it uses session hash as key, not session_id directly
                             
                             logging.info(f"[会话清理] 已清理会话: {session_id[:8]}...")
                         except Exception as e:
