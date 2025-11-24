@@ -24391,6 +24391,11 @@
 
       // 2. 启动轮询
       multiAccountAutoRefreshInterval = setInterval(async () => {
+        // 如果在网络错误状态，暂停轮询，防止控制台报错刷屏
+        if (typeof isInNetworkErrorState !== 'undefined' && isInNetworkErrorState) {
+          return;
+        }
+
         try {
           // 检查UI可见性 (无需变动)
           const pcMultiApp = document.getElementById('multi-account-app');

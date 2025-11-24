@@ -91,7 +91,6 @@ if sys and sys.platform.startswith("win"):
 def import_standard_libraries():
     """
     逐步导入所有必需的标准库。
-    收集所有导入失败的模块，最后统一报告，便于用户一次性解决所有问题。
     """
     logging.info("=" * 80)
     logging.info("开始检查并导入 Python 标准库...")
@@ -203,7 +202,6 @@ def import_standard_libraries():
 def import_core_third_party():
     """
     导入 'check_and_import_dependencies' 未涵盖的核心第三方库。
-    收集所有导入失败的模块，最后统一报告。
     """
     logging.info("=" * 80)
     logging.info("开始检查并导入核心第三方库 (Pillow, bcrypt, Flask-SocketIO)...")
@@ -1346,10 +1344,13 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 无需第三方API，更稳定、更安全、响应更快\n")
         f.write("# ========================================\n\n")
         f.write("[Captcha]\n")
+        f.write("# 验证码字符数（3-6）\n")
         f.write(f"length = {config_obj.get('Captcha', 'length', fallback='4')}\n")
+        f.write("# 像素细分倍数（2-4）\n")
         f.write(
             f"scale_factor = {config_obj.get('Captcha', 'scale_factor', fallback='2')}\n"
         )
+        f.write("# 噪点比例（0.0-0.3）\n")
         f.write(
             f"noise_level = {config_obj.get('Captcha', 'noise_level', fallback='0.08')}\n\n"
         )
@@ -2816,7 +2817,15 @@ class AuthSystem:
             if new_group not in self.permissions["permission_groups"]:
                 return {"success": False, "message": "权限组不存在"}
 
+            # 更新用户组映射
             self.permissions["user_groups"][auth_username] = new_group
+
+            # 【修正】清空该用户的差分权限（user_custom_permissions）
+            # 切换组后，基础权限变更，之前的差分配置应重置以防冲突
+            if "user_custom_permissions" in self.permissions and auth_username in self.permissions["user_custom_permissions"]:
+                del self.permissions["user_custom_permissions"][auth_username]
+                logging.info(f"[权限管理] 用户 {auth_username} 切换到组 {new_group}，已自动清空其自定义差分权限")
+
             self._save_permissions()
 
             # 同时更新用户文件
@@ -11204,11 +11213,6 @@ def check_port_available(host, port):
         return False
 
 
-# ==============================================================================
-# 5. Web服务器模式
-#    支持通过浏览器访问，使用UUID进行会话管理
-#    使用Playwright在服务器端运行Chrome进行JS计算
-# ==============================================================================
 
 
 IP_CACHE_FILE = os.path.join("logs", "ip_location_cache.json")
@@ -11274,7 +11278,7 @@ def cleanup_session(session_id, reason="manual"):
         logging.debug(f"跳过清理无效会话ID: '{session_id}'")
         return
 
-    logging.info(f"清理会话: {session_id[:32]}... (原因: {reason})")
+    logging.info(f"清理会话: {session_id} (原因: {reason})")
     cleanup_inactive_session(session_id)
 
 
@@ -11286,7 +11290,7 @@ def cleanup_inactive_session(session_id):
         return
 
     try:
-        logging.info(f"清理不活跃会话: {session_id[:32]}...")
+        logging.info(f"清理不活跃会话: {session_id}")
 
         # 从内存中移除会话
         with web_sessions_lock:
@@ -11337,13 +11341,12 @@ def cleanup_inactive_session(session_id):
 
 def monitor_session_inactivity():
     """
-    监控会话不活跃状态并清理 (已优化)
+    监控会话不活跃状态并清理 (重构版)
 
     功能说明：
-    1. 定期检查所有会话。
-    2. 如果会话有正在执行的跑步任务或自动签到任务，则自动更新其“最后活跃时间”。
-    3. 如果会话没有活跃任务，则检查其“最后活跃时间”是否超时。
-    4. 如果超时，则调用 cleanup_inactive_session 清理该会话。
+    1. 检查内存中的会话活跃时间。
+    2. 如果会话有正在执行的跑步任务或启用了后台自动签到，更新其活跃时间。
+    3. 如果会话超时，执行清理。
     """
     # 从config.ini读取配置参数
     check_interval = 60
@@ -11360,157 +11363,85 @@ def monitor_session_inactivity():
                 inactivity_timeout = config.getint(
                     "System", "session_inactivity_timeout", fallback=300
                 )
-
-        logging.info(
-            f"会话监控配置：检查间隔={check_interval}秒，不活跃超时={inactivity_timeout}秒"
-        )
     except Exception as e:
         logging.warning(f"读取会话监控配置失败，使用默认值: {e}")
 
     while True:
         try:
-            # 按配置的间隔时间进行检查
             time.sleep(check_interval)
-
             current_time = time.time()
             inactive_sessions_to_cleanup = []
             active_sessions_to_update = []
 
-            if len(web_sessions) > 0:
-                # 1. 锁定 web_sessions 以安全迭代
-                with web_sessions_lock:
-                    logging.debug(
-                        f"[会话监控] 开始检查 {len(web_sessions)} 个内存会话..."
-                    )
+            # 1. 获取当前所有会话的快照（避免长时间持有锁）
+            with web_sessions_lock:
+                sessions_snapshot = list(web_sessions.items())
 
-                    # 遍历所有在内存中的会话
-                    for session_id, api_instance in list(web_sessions.items()):
+            for session_id, api_instance in sessions_snapshot:
+                if not api_instance:
+                    continue
 
-                        if not api_instance:
-                            inactive_sessions_to_cleanup.append(session_id)
-                            continue
-
-                        # --- 核心逻辑：检查该会话是否有活跃任务 ---
-                        has_active_task = False
-
-                        try:
-                            # 1. 检查单账号模式：跑步任务是否正在执行
-                            if (
-                                hasattr(api_instance, "stop_run_flag")
-                                and not api_instance.stop_run_flag.is_set()
-                            ):
-                                has_active_task = True
-                                logging.debug(
-                                    f"[会话监控] 会话 {session_id[:8]}... 有单账号跑步任务正在执行"
-                                )
-
-                            # 2. 检查多账号模式：跑步任务是否正在执行
-                            if (
-                                not has_active_task
-                                and hasattr(api_instance, "multi_run_stop_flag")
-                                and not api_instance.multi_run_stop_flag.is_set()
-                            ):
-                                has_active_task = True
-                                logging.debug(
-                                    f"[会话监控] 会话 {session_id[:8]}... 有多账号跑步任务正在执行"
-                                )
-
-                            # 3. 检查单账号模式：自动签到线程是否正在运行
-                            if not has_active_task and hasattr(
-                                api_instance, "auto_refresh_thread"
-                            ):
-                                thread = api_instance.auto_refresh_thread
-                                if thread is not None and thread.is_alive():
-                                    has_active_task = True
-                                    logging.debug(
-                                        f"[会话监控] 会话 {session_id[:8]}... 有单账号自动签到任务正在执行"
-                                    )
-
-                            # 4. 检查多账号模式：自动签到线程是否正在运行
-                            if not has_active_task and hasattr(
-                                api_instance, "multi_auto_refresh_thread"
-                            ):
-                                thread = api_instance.multi_auto_refresh_thread
-                                if thread is not None and thread.is_alive():
-                                    has_active_task = True
-                                    logging.debug(
-                                        f"[会话监控] 会话 {session_id[:8]}... 有多账号自动签到任务正在执行"
-                                    )
-
-                            # 5. 检查多账号模式：各个子账号的任务线程是否正在运行
-                            if (
-                                not has_active_task
-                                and getattr(
-                                    api_instance, "is_multi_account_mode", False
-                                )
-                                and hasattr(api_instance, "accounts")
-                            ):
-                                for acc in api_instance.accounts.values():
-                                    if (
-                                        hasattr(acc, "worker_thread")
-                                        and acc.worker_thread
-                                        and acc.worker_thread.is_alive()
-                                    ):
-                                        has_active_task = True
-                                        logging.debug(
-                                            f"[会话监控] 会话 {session_id[:8]}... 的多账号子账号有任务正在执行"
-                                        )
-                                        break  # 找到一个即可
-
-                        except Exception as e:
-                            logging.error(
-                                f"[会话监控] 检查会话 {session_id[:8]}... 活跃状态时出错: {e}"
-                            )
-                            # 出现异常时，保守起见，视为活跃
-                            has_active_task = True
-
-                        # --- 根据活跃状态决定操作 ---
-                        if has_active_task:
-                            # 如果有活跃任务，则将其加入“更新活跃时间”列表
-                            active_sessions_to_update.append(session_id)
-                        else:
-                            # 如果没有活跃任务，检查是否超时
-                            last_activity = 0
-                            # 嵌套锁定 session_activity_lock 来读取时间
-                            with session_activity_lock:
-                                # 满足用户要求：尝试读取，如果未定义，默认为0 (即“空”)
-                                last_activity = session_activity.get(session_id, 0)
-
-                            # 只有在 last_activity > 0 (即至少活跃过一次) 且超时的情况下才清理
-                            if last_activity > 0 and (
-                                current_time - last_activity > inactivity_timeout
-                            ):
-                                inactive_sessions_to_cleanup.append(session_id)
-                                time_since_activity = current_time - last_activity
-                                logging.debug(
-                                    f"[会话监控] 会话 {session_id[:8]}... 标记为不活跃（超时{int(time_since_activity)}秒，无任务执行）"
-                                )
-
-            # --- 2. 释放 web_sessions_lock ---
-
-            # 3. 批量更新活跃会话的时间（在主循环外）
-            if active_sessions_to_update:
-                logging.debug(
-                    f"[会话监控] 更新 {len(active_sessions_to_update)} 个活跃会话的时间..."
-                )
-                # 重新获取锁以进行写操作
+                # --- 尝试读取最后活跃时间，如果没有定义，就定义为当前时间 ---
                 with session_activity_lock:
-                    for session_id in active_sessions_to_update:
+                    if session_id not in session_activity:
                         session_activity[session_id] = current_time
+                    last_activity = session_activity[session_id]
 
-            # 4. 批量清理不活跃会话
+                has_background_activity = False
+
+                # --- 检查单账号模式下是否有正在执行的跑步任务 ---
+                if hasattr(api_instance, "stop_run_flag") and not api_instance.stop_run_flag.is_set():
+                    has_background_activity = True
+                    # logging.debug(f"[会话监控] {session_id[:8]}... 单账号跑步任务执行中")
+
+                # --- 检查多账号模式下是否有正在执行的跑步任务 ---
+                if hasattr(api_instance, "multi_run_stop_flag") and not api_instance.multi_run_stop_flag.is_set():
+                    has_background_activity = True
+                    # logging.debug(f"[会话监控] {session_id[:8]}... 多账号跑步任务执行中")
+                
+                # --- 检查后台自动签到配置 ---
+                is_multi = getattr(api_instance, "is_multi_account_mode", False)
+                
+                if is_multi:
+                    # 多账号模式：检查是否有账号 且 开启了自动签到
+                    accounts = getattr(api_instance, "accounts", {})
+                    global_params = getattr(api_instance, "global_params", {})
+                    auto_attendance = global_params.get("auto_attendance_enabled", False)
+                    
+                    if accounts and auto_attendance:
+                        has_background_activity = True
+                        # logging.debug(f"[会话监控] {session_id[:8]}... 多账号自动签到开启中")
+                else:
+                    # 单账号模式：检查是否开启了自动签到
+                    params = getattr(api_instance, "params", {})
+                    auto_attendance = params.get("auto_attendance_enabled", False)
+                    
+                    if auto_attendance:
+                        has_background_activity = True
+                        # logging.debug(f"[会话监控] {session_id[:8]}... 单账号自动签到开启中")
+
+                # --- 结果处理 ---
+                if has_background_activity:
+                    # 如果有后台活动，加入更新队列
+                    active_sessions_to_update.append(session_id)
+                elif (current_time - last_activity) > inactivity_timeout:
+                    # 既无前台活跃也无后台任务，且超时
+                    inactive_sessions_to_cleanup.append(session_id)
+
+            # 2. 批量更新活跃会话
+            if active_sessions_to_update:
+                with session_activity_lock:
+                    for sid in active_sessions_to_update:
+                        session_activity[sid] = current_time
+            
+            # 3. 批量清理过期会话
             if inactive_sessions_to_cleanup:
-                logging.info(
-                    f"[会话监控] 准备清理 {len(inactive_sessions_to_cleanup)} 个不活跃会话..."
-                )
-                for session_id in inactive_sessions_to_cleanup:
-                    # cleanup_inactive_session 包含自己的锁，是安全的
-                    cleanup_inactive_session(session_id)
+                logging.info(f"[会话监控] 发现 {len(inactive_sessions_to_cleanup)} 个超时且无后台任务的会话，准备清理")
+                for sid in inactive_sessions_to_cleanup:
+                    cleanup_inactive_session(sid)
 
         except Exception as e:
             logging.error(f"会话监控线程错误: {e}", exc_info=True)
-            # 即使出错，也继续下一次循环
-            time.sleep(check_interval)  # 发生错误时也保持间隔休眠
 
 
 # 启动会话监控线程
@@ -24594,11 +24525,6 @@ def start_web_server(args_param):
             config.set("Captcha", "scale_factor", str(scale_factor))
             config.set("Captcha", "noise_level", str(noise_level))
 
-            # ========================================
-            # 7. 保存配置文件（使用带注释的方式）
-            # ========================================
-            # 注意：必须使用_write_config_with_comments函数保存
-            # 如果使用config.write()会丢失所有注释
             _write_config_with_comments(config, config_file)
 
             logging.info(f"【本地验证码】验证码设置已成功保存到 {config_file}")
@@ -24618,34 +24544,6 @@ def start_web_server(args_param):
     def test_generate_captcha():
         """
         【本地验证码】测试生成验证码（用于预览效果）
-
-        权限要求：管理员 (modify_config)
-
-        功能说明:
-            - 使用指定的参数临时生成一个验证码，用于预览效果
-            - 不会将验证码保存到数据库或记录历史
-            - 返回验证码的HTML和答案（仅用于测试预览）
-            - 管理员可以在"验证码设置"面板中调整参数并实时预览
-
-        请求格式 (JSON):
-            {
-                "length": 4,           # 验证码字符数（3-6）
-                "scale_factor": 2,     # 像素细分倍数（2-4）
-                "noise_level": 0.08    # 噪点比例（0.0-0.3）
-            }
-
-        返回格式:
-            {
-                "success": True/False,
-                "code": "ABC1",           # 验证码答案（仅用于测试预览）
-                "html": "<div>...</div>", # 验证码HTML（用于前端显示）
-                "message": "生成成功" / "错误信息"
-            }
-
-        安全说明:
-            - 只有管理员才能测试生成验证码（需要modify_config权限）
-            - 测试生成的验证码不会被记录或用于实际登录
-            - 返回的code仅用于预览效果，实际使用时不返回
         """
         try:
             # ========================================
