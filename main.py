@@ -13172,7 +13172,7 @@ class BackgroundTaskManager:
 
                 # 计算任务索引（修正 task_idx 未定义错误）
                 try:
-                    task_idx = acc.all_run_data.index(run_data)
+                    task_idx = api_instance.all_run_data.index(run_data)
                 except ValueError:
                     task_idx = -1
 
@@ -13182,7 +13182,8 @@ class BackgroundTaskManager:
                 run_data.is_in_target_zone = False
                 
                 # 确保当前账号的停止标志已清除 (修正 api_instance 未定义错误)
-                acc.stop_event.clear()
+                if hasattr(api_instance, "stop_run_flag"):
+                    api_instance.stop_run_flag.clear()
 
                 # 创建完成事件
                 finished_event = threading.Event()
@@ -13191,11 +13192,11 @@ class BackgroundTaskManager:
                 try:
                     # 调用实际的执行逻辑
                     thread = threading.Thread(
-                        target=self._run_submission_thread,  # 使用 self 调用方法
+                        target=api_instance._run_submission_thread,  # 使用 api_instance 调用方法
                         args=(
                             run_data,
                             task_idx,
-                            acc.api_client,  # 使用账号专属的 api_client
+                            api_instance.api_client,  # 使用 api_instance 的 api_client
                             False,
                             finished_event,
                         ),
@@ -22714,14 +22715,18 @@ def start_web_server(args_param):
         # IP封禁检查：留言板功能专项封禁
         # 检查客户端IP是否被封禁（scope='messages_only'或'all'）
         # ============================================================
-        client_ip = request.remote_addr
+        # 修复：优先从 X-Forwarded-For 获取真实IP，解决代理后IP显示为127.0.0.1的问题
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            # X-Forwarded-For 可能包含多个IP (client, proxy1, proxy2)，取第一个
+            client_ip = forwarded_for.split(',')[0].strip()
+        else:
+            client_ip = request.remote_addr
+            
         if check_ip_ban(client_ip, scope="messages_only"):
-            logging.warning(f"[IP封禁] 留言功能封禁拦截：IP {client_ip} 尝试发表留言")
-            return (
-                jsonify({"success": False, "message": "您的IP已被限制访问留言功能"}),
-                403,
+            logging.warning(
+                f"[IP封禁] 留言功能封禁拦截：IP {client_ip} 尝试发表留言"
             )
-
         # 验证会话
         session_id = request.headers.get("X-Session-ID", "")
         if not session_id or session_id not in web_sessions:
@@ -22764,8 +22769,12 @@ def start_web_server(args_param):
         # 为留言添加更丰富的用户信息和位置信息
         # ============================================================
 
-        # 获取客户端IP地址
-        client_ip = request.remote_addr
+        # 获取客户端IP地址 (再次确认，确保使用处理过代理的真实IP)
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            client_ip = forwarded_for.split(',')[0].strip()
+        else:
+            client_ip = request.remote_addr
 
         # 获取IP归属地（城市）
         ip_city = get_ip_location(client_ip)
@@ -22803,7 +22812,7 @@ def start_web_server(args_param):
             "email": email if is_guest else None,  # 邮箱（游客）
             "is_guest": is_guest,  # 是否游客
             "timestamp": time.time(),  # 发表时间戳
-            "ip": request.remote_addr,  # IP地址（用于管理）
+            "ip": client_ip,  # IP地址（用于管理，使用处理后的真实IP）
         }
 
         # 读取现有留言
