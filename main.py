@@ -9680,46 +9680,66 @@ class Api:
         acc.has_pending_tasks = executable > 0
 
     def _multi_fetch_attendance_stats(self, acc: AccountSession):
-        """(多账号) 获取单个账号的签到统计"""
+        """(多账号) 获取单个账号的签到统计 - 循环获取所有通知"""
         if not acc.user_data.id:
             return  # 尚未登录
 
+        att_pending = 0
+        att_completed = 0
+        att_expired = 0
+        
+        offset = 0
+        limit = 200  # 每次请求20条，循环获取直到结束
+
         try:
-            list_resp = acc.api_client.get_notice_list(offset=0, limit=20, type_id=0)
-            if not (list_resp and list_resp.get("success")):
-                acc.log("获取通知列表失败 (用于签到统计)")
-                return
+            while True:
+                # [修正] 改为循环分页获取，确保不遗漏被挤出前100条的签到任务
+                list_resp = acc.api_client.get_notice_list(offset=offset, limit=limit, type_id=0)
+                
+                if not (list_resp and list_resp.get("success")):
+                    acc.log(f"获取通知列表失败 (Offset: {offset})")
+                    break
 
-            notices = list_resp.get("data", {}).get("noticeList", [])
-            att_pending = 0
-            att_completed = 0
-            att_expired = 0
+                notices = list_resp.get("data", {}).get("noticeList", [])
+                if not notices:
+                    break  # 没有更多数据
 
-            for notice in notices:
-                is_attendance = notice.get(
-                    "image"
-                ) == "attendance" or "签到" in notice.get("title", "")
-                if is_attendance and notice.get("id"):
-                    roll_call_id = notice["id"]
-                    info_resp = acc.api_client.get_roll_call_info(
-                        roll_call_id, acc.user_data.id
-                    )
+                for notice in notices:
+                    is_attendance = notice.get(
+                        "image"
+                    ) == "attendance" or "签到" in notice.get("title", "")
+                    
+                    if is_attendance and notice.get("id"):
+                        roll_call_id = notice["id"]
+                        info_resp = acc.api_client.get_roll_call_info(
+                            roll_call_id, acc.user_data.id
+                        )
 
-                    status = -2
-                    finished = 0
-                    if info_resp and info_resp.get("success"):
-                        data = info_resp.get("data", {})
-                        roll_call_info = data.get("rollCallInfo", {})
-                        status = roll_call_info.get("status")
-                        finished = data.get("attendFinish")
+                        status = -2
+                        finished = 0
+                        if info_resp and info_resp.get("success"):
+                            data = info_resp.get("data", {})
+                            roll_call_info = data.get("rollCallInfo", {})
+                            status = roll_call_info.get("status")
+                            finished = data.get("attendFinish")
 
-                    # --- 应用新逻辑 ---
-                    if status == -1:
-                        att_expired += 1
-                    elif status != -1 and (finished == 1 or finished is True):
-                        att_completed += 1
-                    else:  # status != -1 and finished == 0
-                        att_pending += 1
+                        # --- 应用新逻辑 ---
+                        if status == -1:
+                            att_expired += 1
+                        elif status != -1 and (finished == 1 or finished is True):
+                            att_completed += 1
+                        else:  # status != -1 and finished == 0
+                            att_pending += 1
+                
+                # 准备下一页
+                offset += len(notices)
+                
+                # 如果返回数量少于 limit，说明已是最后一页
+                if len(notices) < limit:
+                    break
+                
+                # 简单限速，避免请求过快
+                time.sleep(0.1)
 
             # 更新到账号的 summary
             acc.summary.update(
@@ -9730,7 +9750,7 @@ class Api:
                 }
             )
             logging.debug(
-                f"[{acc.username}] 签到统计: 待签{att_pending}, 完成{att_completed}, 过期{att_expired}"
+                f"[{acc.username}] 签到统计(循环获取): 待签{att_pending}, 完成{att_completed}, 过期{att_expired}"
             )
 
         except Exception as e:
@@ -10415,7 +10435,15 @@ class Api:
             if not acc.stop_event.is_set():
                 if tasks_executed_count == 0:
                     # 如果没有执行任何任务（全部跳过）
-                    self._update_account_status_js(acc, status_text="无任务可执行")
+                    # [修正] 同时更新进度条为 100% 并清除额外信息，防止 UI 停留在之前的状态
+                    self._update_account_status_js(
+                        acc, 
+                        status_text="无任务可执行", 
+                        progress_pct=100, 
+                        progress_text="无任务可执行", 
+                        progress_extra=""
+                    )
+                    
                 else:
                     # 至少执行了一个任务
                     self._update_account_status_js(acc, status_text="全部完成")

@@ -16391,8 +16391,8 @@
 
             // 【多账号自动刷新】启动定时自动刷新账号列表（移动端）
             // 原因：移动端用户进入多账号模式后，同样需要实时查看账号状态
-            // 与PC端使用相同的刷新间隔（10秒），确保体验一致
-            startMultiAccountAutoRefresh(10000);
+            // 与PC端使用相同的刷新间隔（0.5秒），确保体验一致
+            startMultiAccountAutoRefresh(500);
           });
         }
 
@@ -27735,7 +27735,7 @@
             // 【多账号自动刷新】启动定时自动刷新账号列表（会话恢复）
             // 原因：从会话恢复进入多账号模式时，同样需要定时刷新账号状态
             // 确保用户看到的是最新的账号任务进度和状态信息
-            startMultiAccountAutoRefresh(10000);
+            startMultiAccountAutoRefresh(500);
 
             hideLoadingOverlays();
             HiddenMobileLoadingOverlay();
@@ -32169,7 +32169,7 @@
           });
           multiAccountMap.add(multiAccountMarkers[username]);
         }
-        multi_resetMapView();
+        // multi_resetMapView();
       }
 
       function multi_removeRunnerMarker(username) {
@@ -32179,7 +32179,7 @@
         }
         delete multiAccountMarkers[username];
         // 移除后根据当前剩余标记统一视角
-        multi_resetMapView();
+        // multi_resetMapView();
       }
 
       function multi_resetMapView() {
@@ -34528,6 +34528,8 @@
             "选择任务",
             // JavaScript路径规划队列相关
             "[JS-Queue]",
+            "无打卡点",
+            "跳过: 任务",
           ];
 
           // 检查消息是否包含核心关键词
