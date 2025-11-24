@@ -4,16 +4,18 @@
 
 from __future__ import annotations
 
-_import_failures = [] # 导入失败列表，用于收集所有导入失败的信息
-_log_buffer = [] # 日志缓冲区，用于存储初始化前的日志
+_import_failures = []  # 导入失败列表，用于收集所有导入失败的信息
+_log_buffer = []  # 日志缓冲区，用于存储初始化前的日志
+
 
 def _buffer_log(level, message):
     """
     暂存日志到缓冲区，同时打印到控制台。
     level: 'INFO', 'WARNING', 'ERROR' 等
     """
-    print(message) # 保证控制台依然能看到
-    _log_buffer.append((level, message)) # 存入缓冲区
+    print(message)  # 保证控制台依然能看到
+    _log_buffer.append((level, message))  # 存入缓冲区
+
 
 def _try_import_builtin(module_name, display_name=None, use_print=False):
     """
@@ -35,6 +37,7 @@ def _try_import_builtin(module_name, display_name=None, use_print=False):
         # [修改] 使用缓冲日志函数
         _buffer_log("ERROR", f"[导入检查] ✗ {display_name} 导入失败: {e}")
         return None
+
 
 _buffer_log("INFO", "[导入检查] 开始导入Python内置模块...")
 logging = _try_import_builtin("logging", None, True)
@@ -88,6 +91,7 @@ if sys and sys.platform.startswith("win"):
 
         sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer, "strict")
         sys.stderr = codecs.getwriter("utf-8")(sys.stderr.buffer, "strict")
+
 
 def import_standard_libraries():
     """
@@ -410,7 +414,6 @@ def initialize_global_variables():
     html_content = ""
     try:
         html_path = "index.html"  # 临时占位符
-        
 
         with open(html_path, "r", encoding="utf-8") as file:
             html_content = file.read()
@@ -426,7 +429,7 @@ def initialize_global_variables():
     # 全局会话存储
     web_sessions = {}
     web_sessions_lock = threading.Lock()
-    
+
     # 内存优化：会话数量限制（防止内存溢出）
     # 当内存中的会话数超过此值时，cleanup_sessions会更频繁地清理过期会话
     MAX_MEMORY_SESSIONS = 1000  # 最多保持1000个会话在内存中
@@ -653,7 +656,7 @@ def archive_old_logs():
             print(f"[日志归档] 已删除原文件: {filename}")
 
         print(f"[日志归档] 归档完成: {archive_path}")
-        
+
         # 清理内存 - 使用全局导入的gc模块
         gc.collect()
 
@@ -725,7 +728,7 @@ def cleanup_archive_directory(archive_dir, max_size_mb):
         print(
             f"[归档清理] 清理完成，删除了 {deleted_count} 个文件，当前大小: {final_size_mb:.2f}MB"
         )
-        
+
         # 如果删除了文件，进行垃圾回收以释放内存 - 使用全局导入的gc模块
         if deleted_count > 0:
             gc.collect()
@@ -886,7 +889,6 @@ def setup_logging():
     logger.addHandler(error_file_handler)
     # ========== 结束：错误日志文件处理器 ==========
 
-
     # 回放缓冲区的早期日志
     global _log_buffer
     if _log_buffer:
@@ -895,7 +897,7 @@ def setup_logging():
         for level_str, msg in _log_buffer:
             level_num = getattr(logging, level_str.upper(), logging.INFO)
             logger.log(level_num, msg.rstrip())
-        
+
         # 清空缓冲区，释放内存
         _log_buffer.clear()
         # 强制垃圾回收以释放内存 - 使用全局导入的gc模块
@@ -1425,7 +1427,9 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 是否仅允许HTTPS访问（true/false）\n")
         f.write("# true：禁止HTTP访问，所有HTTP请求将被重定向到HTTPS\n")
         f.write("# false：同时允许HTTP和HTTPS访问\n")
-        f.write("# 由于端口具有绑定优先级，只要开启HTTPS，但未开启此选项，HTTP可能仍然无法访问\n")
+        f.write(
+            "# 由于端口具有绑定优先级，只要开启HTTPS，但未开启此选项，HTTP可能仍然无法访问\n"
+        )
         f.write(
             f"https_only = {config_obj.get('SSL', 'https_only', fallback='false')}\n\n"
         )
@@ -2262,7 +2266,7 @@ class AuthSystem:
         # 优化：使用双端队列存储最近的记录，避免列表频繁扩展
         # collections已在标准库导入中全局导入
         history = collections.deque(maxlen=limit * 2)  # 预留2倍空间用于过滤
-        
+
         try:
             with open(LOGIN_LOG_FILE, "r", encoding="utf-8") as f:
                 for line in f:
@@ -2314,7 +2318,10 @@ class AuthSystem:
                                         recent_attempts.append(entry)
                                         # 优化：找到超过阈值的失败尝试后立即返回
                                         if len(recent_attempts) >= MAX_ATTEMPTS:
-                                            return True, "登录失败次数过多，请5分钟后再试"
+                                            return (
+                                                True,
+                                                "登录失败次数过多，请5分钟后再试",
+                                            )
                         except json.JSONDecodeError as e:
                             # 跳过损坏的日志行
                             logging.debug(
@@ -2804,9 +2811,14 @@ class AuthSystem:
 
             # 【修正】清空该用户的差分权限（user_custom_permissions）
             # 切换组后，基础权限变更，之前的差分配置应重置以防冲突
-            if "user_custom_permissions" in self.permissions and auth_username in self.permissions["user_custom_permissions"]:
+            if (
+                "user_custom_permissions" in self.permissions
+                and auth_username in self.permissions["user_custom_permissions"]
+            ):
                 del self.permissions["user_custom_permissions"][auth_username]
-                logging.info(f"[权限管理] 用户 {auth_username} 切换到组 {new_group}，已自动清空其自定义差分权限")
+                logging.info(
+                    f"[权限管理] 用户 {auth_username} 切换到组 {new_group}，已自动清空其自定义差分权限"
+                )
 
             self._save_permissions()
 
@@ -6815,20 +6827,22 @@ class Api:
 
         # 通过全局串行队列进行提交，保证同一时间只提交一个数据包
         # [Debug] 增加提交前的日志
-        logging.debug(f"[{user.name}] 正在入队提交数据包, 大小: {len(payload_str)} 字节")
-        
+        logging.debug(
+            f"[{user.name}] 正在入队提交数据包, 大小: {len(payload_str)} 字节"
+        )
+
         resp = self._enqueue_submission(client, payload_str, wait_timeout=60.0)
         success = bool(resp and resp.get("success"))
-        
+
         # [Debug] 增强结果日志
-        msg = resp.get('message') if resp else '请求无响应或超时'
+        msg = resp.get("message") if resp else "请求无响应或超时"
         if not success:
             log_func(f"数据提交失败: {msg}")
             logging.error(f"[{user.name}] 数据提交失败详情: {resp}")
         else:
             log_func(f"数据提交成功。")
             logging.debug(f"[{user.name}] 数据提交成功: {msg}")
-            
+
         return success
 
     # ===================== 提交队列：串行化所有数据包提交 =====================
@@ -6843,17 +6857,21 @@ class Api:
             try:
                 # [Debug] 记录开始处理
                 logging.debug("[SubmissionWorker] 正在处理一个提交任务...")
-                
+
                 client: ApiClient = task.get("client")
                 payload_str: str = task.get("payload")
                 # 实际网络提交（内部已带重试）
                 resp = client.submit_run_track(payload_str)
                 task["response"] = resp
-                
+
                 # [Debug] 记录处理完成
-                logging.debug(f"[SubmissionWorker] 提交任务完成，结果: {bool(resp and resp.get('success'))}")
+                logging.debug(
+                    f"[SubmissionWorker] 提交任务完成，结果: {bool(resp and resp.get('success'))}"
+                )
             except Exception as e:
-                logging.error(f"[SubmissionWorker] 提交任务执行异常: {e}", exc_info=True)
+                logging.error(
+                    f"[SubmissionWorker] 提交任务执行异常: {e}", exc_info=True
+                )
                 task["response"] = None
             finally:
                 try:
@@ -6864,7 +6882,7 @@ class Api:
                     self._submission_queue.task_done()
                 except Exception:
                     pass
-            
+
             # 【优化】防止循环过快占用CPU，给其他协程（如SocketIO）留出时间
             # [修复] 使用 time.sleep 替代 socketio.sleep，避免跨线程上下文切换错误
             time.sleep(0.01)
@@ -8662,16 +8680,18 @@ class Api:
         for acc in self.accounts.values():
             # --- 新增：序列化任务列表供前端筛选 ---
             tasks_simple = []
-            if hasattr(acc, 'all_run_data'):
+            if hasattr(acc, "all_run_data"):
                 for r in acc.all_run_data:
                     # 只包含计算状态所需的字段，减少数据量
-                    tasks_simple.append({
-                        'status': getattr(r, 'status', 0),
-                        'start_time': getattr(r, 'start_time', ''),
-                        'end_time': getattr(r, 'end_time', ''),
-                        # 调用现有的 _get_task_info_text 方法获取 "已过期" / "开始于..." 等文本
-                        'info_text': self._get_task_info_text(r)
-                    })
+                    tasks_simple.append(
+                        {
+                            "status": getattr(r, "status", 0),
+                            "start_time": getattr(r, "start_time", ""),
+                            "end_time": getattr(r, "end_time", ""),
+                            # 调用现有的 _get_task_info_text 方法获取 "已过期" / "开始于..." 等文本
+                            "info_text": self._get_task_info_text(r),
+                        }
+                    )
 
             status_list.append(
                 {
@@ -8686,7 +8706,7 @@ class Api:
                     "current_position": getattr(acc, "current_position", None),
                     "progress_pct": getattr(acc, "progress_pct", 0),
                     "progress_text": getattr(acc, "progress_text", ""),
-                    "progress_extra": getattr(acc, "progress_extra", "")
+                    "progress_extra": getattr(acc, "progress_extra", ""),
                 }
             )
 
@@ -10094,9 +10114,11 @@ class Api:
                 if not api_path_coords:
                     acc.log("路径规划失败，跳过任务。")
                     continue
-                
+
                 # [Debug] 输出规划点数
-                logging.debug(f"[{acc.username}] 路径规划返回点数: {len(api_path_coords)}")
+                logging.debug(
+                    f"[{acc.username}] 路径规划返回点数: {len(api_path_coords)}"
+                )
 
                 min_t_m, max_t_m, min_d_m = (
                     acc.params.get("min_time_m", 20),
@@ -10119,9 +10141,11 @@ class Api:
                 if not final_path_dedup:
                     acc.log("路径处理失败：无有效坐标点。")
                     continue
-                
+
                 # [Debug] 输出去重后点数
-                logging.debug(f"[{acc.username}] 路径去重后点数: {len(final_path_dedup)}")
+                logging.debug(
+                    f"[{acc.username}] 路径去重后点数: {len(final_path_dedup)}"
+                )
 
                 target_time_s = random.uniform(min_t_m * 60, max_t_m * 60)
                 target_dist_m = random.uniform(min_d_m, min_d_m * 1.15)
@@ -10156,9 +10180,11 @@ class Api:
                 if actual_total_dist == 0:
                     acc.log("路径计算距离为0，跳过。")
                     continue
-                
+
                 # [Debug] 输出计算结果
-                acc.log(f"路径计算完成: 目标距离 {actual_total_dist:.1f}m, 目标耗时 {target_time_s:.1f}s")
+                acc.log(
+                    f"路径计算完成: 目标距离 {actual_total_dist:.1f}m, 目标耗时 {target_time_s:.1f}s"
+                )
 
                 avg_speed = actual_total_dist / target_time_s
                 new_run_coords = []
@@ -10208,7 +10234,7 @@ class Api:
                 submission_successful = True
                 # 总点数用于进度计算（更高频率的进度更新）
                 total_points = max(1, len(run_data.run_coords))
-                
+
                 # [Debug] 检查点数是否为0
                 if total_points <= 1:
                     acc.log("警告: 生成的轨迹点数过少，无法执行任务。")
@@ -10216,7 +10242,9 @@ class Api:
 
                 for chunk_idx in range(0, len(run_data.run_coords), 40):
                     # [Debug] 记录执行进度
-                    logging.debug(f"[{acc.username}] 执行进度: {chunk_idx}/{len(run_data.run_coords)}")
+                    logging.debug(
+                        f"[{acc.username}] 执行进度: {chunk_idx}/{len(run_data.run_coords)}"
+                    )
                     if self.multi_run_stop_flag.is_set() or acc.stop_event.is_set():
                         submission_successful = False
                         break
@@ -10230,12 +10258,9 @@ class Api:
 
                         # 位置与前端地图更新（使用 SocketIO）
                         session_id = getattr(self, "_web_session_id", None)
-                        
+
                         # 【新增】将当前坐标保存到对象实例，供前端轮询拉取
-                        acc.current_position = {
-                            "lon": lon,
-                            "lat": lat
-                        }
+                        acc.current_position = {"lon": lon, "lat": lat}
 
                         if session_id and socketio:
                             try:
@@ -11195,8 +11220,6 @@ def check_port_available(host, port):
         return False
 
 
-
-
 IP_CACHE_FILE = os.path.join("logs", "ip_location_cache.json")
 ip_location_cache = {}  # 内存缓存
 ip_cache_lock = threading.Lock()  # 线程安全锁
@@ -11291,9 +11314,7 @@ def cleanup_inactive_session(session_id):
                     auth_system.unlink_session_from_user(username, session_id)
                     # 使token失效
                     token_manager.invalidate_token(username, session_id)
-                    logging.info(
-                        f"已使用户 {username} 的会话 {session_id} 的token失效"
-                    )
+                    logging.info(f"已使用户 {username} 的会话 {session_id} 的token失效")
 
                 del web_sessions[session_id]
 
@@ -11367,24 +11388,34 @@ def monitor_session_inactivity():
                 has_background_activity = False
 
                 # --- 检查单账号模式下是否有正在执行的跑步任务 ---
-                if hasattr(api_instance, "stop_run_flag") and not api_instance.stop_run_flag.is_set():
+                if (
+                    hasattr(api_instance, "stop_run_flag")
+                    and not api_instance.stop_run_flag.is_set()
+                ):
                     has_background_activity = True
                     logging.debug(f"[会话监控] {session_id} 单账号跑步任务执行中")
 
                 # --- 检查多账号模式下是否有正在执行的跑步任务 ---
-                if hasattr(api_instance, "multi_run_stop_flag") and not api_instance.multi_run_stop_flag.is_set():
+                if (
+                    hasattr(api_instance, "multi_run_stop_flag")
+                    and not api_instance.multi_run_stop_flag.is_set()
+                ):
                     has_background_activity = True
                     logging.debug(f"[会话监控] {session_id} 多账号跑步任务执行中")
-                
+
                 # --- 检查后台自动签到配置 ---
                 is_multi = getattr(api_instance, "is_multi_account_mode", False)
-                
+
                 if is_multi:
                     # 多账号模式：检查是否有账号 且 开启了自动签到
                     accounts = getattr(api_instance, "accounts", {})
                     global_params = getattr(api_instance, "multi_global_params", {})
-                    auto_attendance = global_params.get("auto_attendance_enabled", False)
-                    logging.debug(f"[会话监控] {session_id} 多账号模式自动签到状态: {auto_attendance}, 账号数: {len(accounts)}")
+                    auto_attendance = global_params.get(
+                        "auto_attendance_enabled", False
+                    )
+                    logging.debug(
+                        f"[会话监控] {session_id} 多账号模式自动签到状态: {auto_attendance}, 账号数: {len(accounts)}"
+                    )
                     if accounts and auto_attendance:
                         has_background_activity = True
                         logging.debug(f"[会话监控] {session_id} 多账号自动签到开启中")
@@ -11392,8 +11423,10 @@ def monitor_session_inactivity():
                     # 单账号模式：检查是否开启了自动签到
                     params = getattr(api_instance, "params", {})
                     auto_attendance = params.get("auto_attendance_enabled", False)
-                    logging.debug(f"[会话监控] {session_id} 单账号模式自动签到状态: {auto_attendance}")
-                    
+                    logging.debug(
+                        f"[会话监控] {session_id} 单账号模式自动签到状态: {auto_attendance}"
+                    )
+
                     if auto_attendance:
                         has_background_activity = True
                         logging.debug(f"[会话监控] {session_id} 单账号自动签到开启中")
@@ -11408,17 +11441,21 @@ def monitor_session_inactivity():
                     # 既无前台活跃也无后台任务，且超时
                     inactive_sessions_to_cleanup.append(session_id)
                 else:
-                    logging.debug(f"[会话监控] {session_id} 仍在活跃期内，上次活跃时间: {current_time - last_activity:.1f}秒前")
+                    logging.debug(
+                        f"[会话监控] {session_id} 仍在活跃期内，上次活跃时间: {current_time - last_activity:.1f}秒前"
+                    )
 
             # 2. 批量更新活跃会话
             if active_sessions_to_update:
                 with session_activity_lock:
                     for sid in active_sessions_to_update:
                         session_activity[sid] = current_time
-            
+
             # 3. 批量清理过期会话
             if inactive_sessions_to_cleanup:
-                logging.info(f"[会话监控] 发现 {len(inactive_sessions_to_cleanup)} 个超时且无后台任务的会话，准备清理")
+                logging.info(
+                    f"[会话监控] 发现 {len(inactive_sessions_to_cleanup)} 个超时且无后台任务的会话，准备清理"
+                )
                 for sid in inactive_sessions_to_cleanup:
                     cleanup_inactive_session(sid)
 
@@ -13118,7 +13155,7 @@ class BackgroundTaskManager:
                 # 注意：多账号模式不使用 self.current_run_idx (单账号专用)
                 run_data.target_sequence = 0  # ✓ 从0开始（0-based索引）
                 run_data.is_in_target_zone = False
-                
+
                 # 确保当前账号的停止标志已清除 (修正 api_instance 未定义错误)
                 if hasattr(api_instance, "stop_run_flag"):
                     api_instance.stop_run_flag.clear()
@@ -13356,75 +13393,42 @@ class BackgroundTaskManager:
 class MicroPixelCaptcha:
 
     FONT = {
-    
-    "M": [
-        "10001",
-        "11011",
-        "10101",
-        "10101",
-        "10001",
-        "10001",
-        "10001"
-    ],
-    "N": [
-        "10001",
-        "11001",
-        "10101",
-        "10101",
-        "10011",
-        "10001",
-        "10001"
-    ],
-    "W": [
-        "10001",
-        "10001",
-        "10001",
-        "10101",
-        "10101",
-        "11011",
-        "10001"
-    ],
-    "Q": [
-        "01110",
-        "10001",
-        "10001",
-        "10001",
-        "10101",
-        "10010",
-        "01101"
-    ],
-    "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
-    "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
-    "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
-    "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
-    "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
-    "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
-    "G": ["01111", "10000", "10000", "10011", "10001", "10001", "01111"],
-    "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
-    "I": ["01110", "00100", "00100", "00100", "00100", "00100", "01110"],
-    "J": ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
-    "K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
-    "L": ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
-    "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
-    "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
-    "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
-    "S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
-    "T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
-    "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
-    "V": ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
-    "X": ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
-    "Y": ["10001", "10001", "10001", "01010", "00100", "00100", "00100"],
-    "Z": ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
-    "0": ["01110", "10011", "10101", "10101", "10101", "11001", "01110"],
-    "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
-    "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
-    "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
-    "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
-    "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
-    "6": ["01110", "10000", "10000", "11110", "10001", "10001", "01110"],
-    "7": ["11111", "00001", "00010", "00100", "00100", "00100", "00100"],
-    "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
-    "9": ["01110", "10001", "10001", "01111", "00001", "00001", "01110"],
+        "M": ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+        "N": ["10001", "11001", "10101", "10101", "10011", "10001", "10001"],
+        "W": ["10001", "10001", "10001", "10101", "10101", "11011", "10001"],
+        "Q": ["01110", "10001", "10001", "10001", "10101", "10010", "01101"],
+        "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+        "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+        "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+        "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+        "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+        "F": ["11111", "10000", "10000", "11110", "10000", "10000", "10000"],
+        "G": ["01111", "10000", "10000", "10011", "10001", "10001", "01111"],
+        "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+        "I": ["01110", "00100", "00100", "00100", "00100", "00100", "01110"],
+        "J": ["00111", "00010", "00010", "00010", "00010", "10010", "01100"],
+        "K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+        "L": ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+        "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+        "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+        "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+        "S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+        "T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+        "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+        "V": ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
+        "X": ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
+        "Y": ["10001", "10001", "10001", "01010", "00100", "00100", "00100"],
+        "Z": ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+        "0": ["01110", "10011", "10101", "10101", "10101", "11001", "01110"],
+        "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+        "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+        "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+        "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+        "5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+        "6": ["01110", "10000", "10000", "11110", "10001", "10001", "01110"],
+        "7": ["11111", "00001", "00010", "00100", "00100", "00100", "00100"],
+        "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+        "9": ["01110", "10001", "10001", "01111", "00001", "00001", "01110"],
     }
 
     def _random_string(self, length: int) -> str:
@@ -15526,12 +15530,12 @@ def start_web_server(args_param):
         for g_key, g_data in groups.items():
             if "permissions" not in g_data:
                 g_data["permissions"] = {}
-            
+
             current_perms = g_data["permissions"]
             for key in all_permission_keys:
                 if key not in current_perms:
                     current_perms[key] = False
-        
+
         return jsonify({"success": True, "groups": groups})
 
     @app.route("/auth/admin/create_group", methods=["POST"])
@@ -22413,14 +22417,12 @@ def start_web_server(args_param):
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
             # X-Forwarded-For 可能包含多个IP (client, proxy1, proxy2)，取第一个
-            client_ip = forwarded_for.split(',')[0].strip()
+            client_ip = forwarded_for.split(",")[0].strip()
         else:
             client_ip = request.remote_addr
-            
+
         if check_ip_ban(client_ip, scope="messages_only"):
-            logging.warning(
-                f"[IP封禁] 留言功能封禁拦截：IP {client_ip} 尝试发表留言"
-            )
+            logging.warning(f"[IP封禁] 留言功能封禁拦截：IP {client_ip} 尝试发表留言")
         # 验证会话
         session_id = request.headers.get("X-Session-ID", "")
         if not session_id or session_id not in web_sessions:
@@ -22466,7 +22468,7 @@ def start_web_server(args_param):
         # 获取客户端IP地址 (再次确认，确保使用处理过代理的真实IP)
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
-            client_ip = forwarded_for.split(',')[0].strip()
+            client_ip = forwarded_for.split(",")[0].strip()
         else:
             client_ip = request.remote_addr
 
@@ -23904,7 +23906,7 @@ def start_web_server(args_param):
             records = []
             current_time = time.time()
             expiry_threshold = 30 * 60  # 30分钟（1800秒）
-            
+
             line_count = 0
             parse_error_count = 0
             total_matched = 0  # 符合过滤条件的总数
@@ -23950,7 +23952,7 @@ def start_web_server(args_param):
                         if status_filter and status_filter != "all":
                             if record.get("status") != target_status:
                                 continue
-                        
+
                         total_matched += 1
 
                         # 移除敏感信息
@@ -23964,9 +23966,7 @@ def start_web_server(args_param):
             # 优化：如果记录数超过limit * 2，使用heapq.nlargest进行高效选择
             if len(records) > limit * 2:
                 records = heapq.nlargest(
-                    limit * 2,
-                    records,
-                    key=lambda x: x.get("timestamp", 0)
+                    limit * 2, records, key=lambda x: x.get("timestamp", 0)
                 )
             else:
                 records.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
@@ -24650,7 +24650,7 @@ def start_web_server(args_param):
             try:
                 current_time = time.time()
                 expired_sessions = []
-                
+
                 with web_sessions_lock:
                     # 识别过期会话（24小时无活动）
                     for session_id in list(web_sessions.keys()):
@@ -24658,56 +24658,68 @@ def start_web_server(args_param):
                             last_activity = session_activity.get(session_id, 0)
                             if current_time - last_activity > 86400:  # 24小时 = 86400秒
                                 expired_sessions.append(session_id)
-                    
+
                     # 内存优化：如果会话数减去已过期会话后仍超过限制，清理最旧的会话
                     remaining_sessions = len(web_sessions) - len(expired_sessions)
                     if remaining_sessions > MAX_MEMORY_SESSIONS:
                         # 按最后活动时间排序，清理最旧的会话
                         with session_activity_lock:
                             # 只考虑未过期的会话
-                            active_sessions = [sid for sid in web_sessions.keys() if sid not in expired_sessions]
+                            active_sessions = [
+                                sid
+                                for sid in web_sessions.keys()
+                                if sid not in expired_sessions
+                            ]
                             sorted_sessions = sorted(
                                 active_sessions,
-                                key=lambda sid: session_activity.get(sid, 0)
+                                key=lambda sid: session_activity.get(sid, 0),
                             )
                             # 清理超出限制的会话（保留最新的MAX_MEMORY_SESSIONS个）
-                            sessions_to_remove = remaining_sessions - MAX_MEMORY_SESSIONS
+                            sessions_to_remove = (
+                                remaining_sessions - MAX_MEMORY_SESSIONS
+                            )
                             for session_id in sorted_sessions[:sessions_to_remove]:
                                 expired_sessions.append(session_id)
                         logging.warning(
                             f"[会话清理] 内存会话数超过限制({MAX_MEMORY_SESSIONS})，额外清理了 {sessions_to_remove} 个最旧会话"
                         )
-                    
+
                     # 清理过期会话
                     for session_id in expired_sessions:
                         try:
                             # 清理Chrome上下文
                             if chrome_pool:
                                 chrome_pool.cleanup_context(session_id)
-                            
+
                             # 从内存中移除会话
                             if session_id in web_sessions:
                                 del web_sessions[session_id]
-                            
+
                             with session_activity_lock:
                                 if session_id in session_activity:
                                     del session_activity[session_id]
-                            
-                            # Note: session_file_locks cleanup is handled separately 
+
+                            # Note: session_file_locks cleanup is handled separately
                             # as it uses session hash as key, not session_id directly
-                            
+
                             logging.info(f"[会话清理] 已清理会话: {session_id[:8]}...")
                         except Exception as e:
-                            logging.error(f"[会话清理] 清理会话 {session_id[:8]}... 时出错: {e}")
-                
+                            logging.error(
+                                f"[会话清理] 清理会话 {session_id[:8]}... 时出错: {e}"
+                            )
+
                 if expired_sessions:
-                    logging.info(f"[会话清理] 本次清理了 {len(expired_sessions)} 个会话")
+                    logging.info(
+                        f"[会话清理] 本次清理了 {len(expired_sessions)} 个会话"
+                    )
                     # 强制垃圾回收以释放内存
                     gc.collect()
                 else:
                     # 即使没有过期会话，也记录当前会话数量
                     with web_sessions_lock:
-                        logging.debug(f"[会话清理] 当前内存会话数: {len(web_sessions)}/{MAX_MEMORY_SESSIONS}")
+                        logging.debug(
+                            f"[会话清理] 当前内存会话数: {len(web_sessions)}/{MAX_MEMORY_SESSIONS}"
+                        )
             except Exception as e:
                 logging.error(f"[会话清理] 清理过程出错: {e}", exc_info=True)
 
@@ -24981,8 +24993,15 @@ def start_web_server(args_param):
         # 3. HTTPS重定向逻辑（仅在启用https_only模式时）
         if ssl_config.get("https_only", False) and ssl_config.get("ssl_enabled", False):
             # 检查请求是否通过HTTP协议
-            # 需要同时检查request.is_secure和X-Forwarded-Proto
-            is_https = request.is_secure or forwarded_proto.lower() == "https"
+            # [修正] 解决无限重定向问题：
+            # 如果没有反向代理头(forwarded_proto为空)，说明是直连。
+            # 在本程序的架构中，底层的 DualProtocolSocket 已经拦截了非SSL的直连请求。
+            # 因此，能到达这里的直连请求必然是HTTPS。即便 request.is_secure 为 False (WSGI环境误判)，我们也强制认定为安全。
+            if not forwarded_proto:
+                is_https = True
+            else:
+                # 如果有代理头，则信赖代理头或 Flask 的判断
+                is_https = request.is_secure or forwarded_proto.lower() == "https"
 
             if not is_https:
                 # 如果是HTTP请求，构造HTTPS URL并重定向
@@ -24994,6 +25013,8 @@ def start_web_server(args_param):
                     logging.info(f"HTTP请求被重定向到HTTPS: {request.url} -> {url}")
                     # 返回301永久重定向
                     from flask import redirect
+
+                    return redirect(url, code=301)
 
                     return redirect(url, code=301)
 
@@ -25071,40 +25092,122 @@ def start_web_server(args_param):
             )
 
             try:
-                
 
                 logging.info(f"Eventlet 将使用 SSLContext 启动服务器...")
                 logging.info(f"  证书文件: {cert_path}")
                 logging.info(f"  密钥文件: {key_path}")
 
+                # ============================================================
+                # 【SSL 智能兼容层】
+                # 定义一个双协议 Socket 包装类，用于在同一端口处理 HTTPS 和 HTTP 跳转
+                # ============================================================
+                class DualProtocolSocket(object):
+                    def __init__(self, raw_socket, ssl_ctx, https_only=False):
+                        self.sock = raw_socket
+                        self.ssl_ctx = ssl_ctx
+                        self.https_only = https_only  # [新增] 存储是否强制HTTPS的配置
+
+                    # 【修正】使用 __getattr__ 自动代理所有未定义的方法到底层 socket
+                    def __getattr__(self, name):
+                        return getattr(self.sock, name)
+
+                    def accept(self):
+                        while True:
+                            try:
+                                # 1. 接受原始连接
+                                client, addr = self.sock.accept()
+                                
+                                # 2. 嗅探第一个字节（不从缓冲区移除）
+                                try:
+                                    # 设置短超时防止恶意连接挂起
+                                    client.settimeout(1.0)
+                                    first_byte = client.recv(1, socket.MSG_PEEK)
+                                    client.settimeout(None) # 恢复阻塞模式或默认超时
+                                    
+                                    if len(first_byte) == 0:
+                                        client.close()
+                                        continue
+                                        
+                                    # 3. 判断协议类型
+                                    # 0x16 (十进制22) 是 TLS Handshake 的第一个字节
+                                    if first_byte[0] == 22:
+                                        # === HTTPS 连接 ===
+                                        # 包装为 SSL Socket 并返回给 WSGI Server
+                                        secure_client = self.ssl_ctx.wrap_socket(client, server_side=True)
+                                        return secure_client, addr
+                                    else:
+                                        # === HTTP 连接 (或其他) ===
+                                        
+                                        # 如果配置了仅允许 HTTPS，则发送 JS 跳转
+                                        if self.https_only:
+                                            logging.info(f"检测到 HTTP 请求 (来自 {addr[0]})，发送 HTTPS 跳转指令...")
+                                            
+                                            # [关键修复] 消耗掉接收缓冲区中的 HTTP 请求数据
+                                            # 如果不读取，直接关闭 Socket，内核会发送 TCP RST 包，
+                                            # 导致浏览器报错 "ERR_CONNECTION_RESET"
+                                            try:
+                                                client.settimeout(0.1)
+                                                # 读取最多 4KB 数据（通常足够包含请求头）
+                                                client.recv(4096)
+                                            except Exception:
+                                                pass
+
+                                            response = (
+                                                "HTTP/1.1 200 OK\r\n"
+                                                "Content-Type: text/html\r\n"
+                                                "Connection: close\r\n\r\n"
+                                                "<html><head><title>Redirecting...</title></head>"
+                                                "<body><script>window.location.protocol = 'https:';</script>"
+                                                "Please wait, redirecting to HTTPS...</body></html>"
+                                            )
+                                            try:
+                                                client.sendall(response.encode('utf-8'))
+                                            except Exception:
+                                                pass
+                                            finally:
+                                                client.close()
+                                            # 继续循环等待下一个连接，不返回给 WSGI
+                                            continue
+                                        else:
+                                            # [新增] 如果允许 HTTP，直接返回原始 Socket
+                                            # 这样可以在同一端口同时支持 HTTP 和 HTTPS
+                                            return client, addr
+                                        
+                                except (socket.error, ssl.SSLError) as e:
+                                    # 握手或读取错误，关闭连接并忽略
+                                    try: client.close() 
+                                    except: pass
+                                    continue
+                                    
+                            except Exception as e:
+                                logging.error(f"DualProtocolSocket accept error: {e}")
+                                continue
                 # 【修正】1. 手动创建 TCP 监听 Socket
                 server_socket = eventlet.listen((args.host, args.port))
 
-                # 【修正】2. 使用代码前文已创建好的 ssl_context 包装 Socket
-                secure_socket = ssl_context.wrap_socket(server_socket, server_side=True)
+                # 【修正】2. 使用自定义的双协议包装器
+                # 传入配置中的 https_only 选项
+                dual_socket = DualProtocolSocket(
+                    server_socket, 
+                    ssl_context, 
+                    https_only=ssl_config.get("https_only", False)
+                )
 
-                # 【修正】3. 直接调用 eventlet.wsgi.server 启动
-                # 使用 try-except 循环包裹 server 运行，防止因单个 SSL 握手错误导致崩溃
-                while True:
+                # 【修正】3. 启动服务器
+                try:
+                    # 将 dual_socket 传给 server
+                    eventlet.wsgi.server(dual_socket, app, log_output=False)
+                except KeyboardInterrupt:
+                    raise
+                except Exception as runtime_e:
+                    logging.error(f"HTTPS 服务器运行时错误: {runtime_e}", exc_info=True)
+                    # 尝试安全关闭 Socket
                     try:
-                        eventlet.wsgi.server(secure_socket, app, log_output=False)
-                        # 正常退出循环（通常不会执行到这里，除非 socket 关闭）
-                        break
-                    except ssl.SSLError as e:
-                        # 捕获 SSL 握手错误 (例如 HTTP 请求访问 HTTPS 端口)
-                        # 仅记录日志，不退出程序
-                        logging.debug(f"客户端 SSL 握手失败 (可能是 HTTP 访问 HTTPS): {e}")
-                        continue
-                    except KeyboardInterrupt:
-                        # 允许 Ctrl+C 退出
-                        raise
-                    except Exception as runtime_e:
-                        # 其他运行时错误，记录但尝试保持运行
-                        logging.error(f"HTTPS 服务器运行时错误: {runtime_e}", exc_info=True)
-                        # 如果 socket 损坏，则退出
-                        if secure_socket._closed:
-                            break
-                        continue
+                        server_socket.close()
+                    except:
+                        pass
+                    # 抛出异常以便上层处理或退出
+                    raise
 
             except ImportError:
                 logging.error(
@@ -25126,7 +25229,7 @@ def start_web_server(args_param):
         else:
             # HTTP 模式
             logging.info(f"正在启动带有 WebSocket 支持的 Web 服务器于 {server_url}")
-            
+
             # HTTP 模式也添加 Ctrl+C 支持
             try:
                 socketio.run(app, host=args.host, port=args.port, debug=False)
