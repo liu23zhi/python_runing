@@ -1554,7 +1554,6 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言（游客需填写邮箱和昵称）
                     "delete_own_messages": False,  # 删除自己的留言（游客不能删除）
                     "delete_any_messages": False,  # 删除任何人的留言（游客不能）
-                    "exit_single_account_mode": True,  # 退出单账号模式
                     "modify_config": False,  # 修改配置文件
                 },
             },
@@ -1599,8 +1598,9 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": False,  # 删除任何人的留言（仅管理员）
-                    "execute_single_account": True,  # 退出单账号模式
+                    # "execute_single_account": True,  # 退出单账号模式
                     "modify_config": True,  # 修改配置文件
+                    "view_session_details": True,
                 },
             },
             "admin": {
@@ -1654,7 +1654,7 @@ def _create_permissions_json():
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
                     "view_captcha_history": True,
-                    "execute_single_account": True,  # 退出单账号模式
+                    # "execute_single_account": True,  # 退出单账号模式
                     "modify_config": True,  # 修改配置文件
                 },
             },
@@ -1714,7 +1714,7 @@ def _create_permissions_json():
                     "post_messages": True,  # 发表留言
                     "delete_own_messages": True,  # 删除自己的留言
                     "delete_any_messages": True,  # 删除任何人的留言（管理员）
-                    "execute_single_account": True,  # 退出单账号模式
+                    # "execute_single_account": True,  # 退出单账号模式
                     "modify_config": True,  # 修改配置文件
                 },
             },
@@ -11678,6 +11678,10 @@ def save_session_state(session_id, api_instance, force_save=False):
                             "status_text": getattr(
                                 account_session, "status_text", "待命"
                             ),
+                            # [新增] 显式保存验证状态，防止重启后重置为False
+                            "is_first_login_verified": getattr(
+                                account_session, "is_first_login_verified", False
+                            ),
                             "school_account_logged_in": bool(
                                 getattr(account_session, "user_data", None)
                                 and getattr(account_session.user_data, "id", "")
@@ -14308,7 +14312,7 @@ def start_web_server(args_param):
     # 声明 socketio 为全局变量
     global socketio
     # 初始化 SocketIO
-    socketio = SocketIO(app, async_mode="eventlet")
+    socketio = SocketIO(app, async_mode="eventlet", cors_allowed_origins="*")
 
     # 会话配置
     app.config["SESSION_TYPE"] = "filesystem"
@@ -21895,11 +21899,6 @@ def start_web_server(args_param):
                 # 多账号模式切换
                 "enter_multi_account_mode": "execute_multi_account",  # 进入多账号模式
                 "exit_multi_account_mode": "execute_multi_account",  # 退出多账号模式
-                # ===== 单账号管理相关权限 =====
-                # 单账号模式切换 - 用于移动端在单账号和会话选择之间切换
-                # 注意：进入和退出单账号模式不需要权限验证，允许用户自由切换
-                # 'enter_single_account_mode': 'execute_single_account',  # 已删除：进入单账号模式不需要授权
-                # 'exit_single_account_mode': 'execute_single_account',  # 已删除：退出单账号模式不需要授权
                 # 多账号的账户管理
                 "multi_add_account": "execute_multi_account",  # 添加多账号
                 "multi_remove_account": "execute_multi_account",  # 删除单个多账号
@@ -25006,8 +25005,17 @@ def start_web_server(args_param):
             if not is_https:
                 # 如果是HTTP请求，构造HTTPS URL并重定向
                 # 排除某些特殊路径（如健康检查）不进行重定向
-                excluded_paths = ["/health", "/api/health"]
-                if request.path not in excluded_paths:
+                # [修正] 必须排除 /socket.io，否则握手时的 POST 请求会被重定向导致 xhr post error
+                excluded_paths = ["/health", "/api/health", "/socket.io"]
+                
+                # 检查当前路径是否以排除列表中的任何一项开头 (兼容 /socket.io/...)
+                should_redirect = True
+                for path in excluded_paths:
+                    if request.path.startswith(path):
+                        should_redirect = False
+                        break
+
+                if should_redirect:
                     # 构造HTTPS URL
                     url = request.url.replace("http://", "https://", 1)
                     logging.info(f"HTTP请求被重定向到HTTPS: {request.url} -> {url}")
