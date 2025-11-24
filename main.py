@@ -1427,6 +1427,7 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 是否仅允许HTTPS访问（true/false）\n")
         f.write("# true：禁止HTTP访问，所有HTTP请求将被重定向到HTTPS\n")
         f.write("# false：同时允许HTTP和HTTPS访问\n")
+        f.write("# 由于端口具有绑定优先级，只要开启HTTPS，但未开启此选项，HTTP可能仍然无法访问\n")
         f.write(
             f"https_only = {config_obj.get('SSL', 'https_only', fallback='false')}\n\n"
         )
@@ -11293,7 +11294,7 @@ def cleanup_inactive_session(session_id):
                     # 使token失效
                     token_manager.invalidate_token(username, session_id)
                     logging.info(
-                        f"已使用户 {username} 的会话 {session_id[:16]}... 的token失效"
+                        f"已使用户 {username} 的会话 {session_id} 的token失效"
                     )
 
                 del web_sessions[session_id]
@@ -11304,7 +11305,7 @@ def cleanup_inactive_session(session_id):
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         if os.path.exists(session_file):
             os.remove(session_file)
-            logging.info(f"已删除会话文件: {session_hash[:16]}...")
+            logging.info(f"已删除会话文件: {session_hash}")
 
         # 从活动追踪中移除
         with session_activity_lock:
@@ -11317,19 +11318,14 @@ def cleanup_inactive_session(session_id):
             del index[session_id]
             _save_session_index(index)
 
-        logging.info(f"会话清理完成: {session_id[:32]}...")
+        logging.info(f"会话清理完成: {session_id}")
     except Exception as e:
-        logging.error(f"清理会话失败 {session_id[:32]}...: {e}")
+        logging.error(f"清理会话失败 {session_id} {e}")
 
 
 def monitor_session_inactivity():
     """
-    监控会话不活跃状态并清理 (重构版)
-
-    功能说明：
-    1. 检查内存中的会话活跃时间。
-    2. 如果会话有正在执行的跑步任务或启用了后台自动签到，更新其活跃时间。
-    3. 如果会话超时，执行清理。
+    监控会话不活跃状态并清理
     """
     # 从config.ini读取配置参数
     check_interval = 60
@@ -11375,12 +11371,12 @@ def monitor_session_inactivity():
                 # --- 检查单账号模式下是否有正在执行的跑步任务 ---
                 if hasattr(api_instance, "stop_run_flag") and not api_instance.stop_run_flag.is_set():
                     has_background_activity = True
-                    # logging.debug(f"[会话监控] {session_id[:8]}... 单账号跑步任务执行中")
+                    logging.debug(f"[会话监控] {session_id} 单账号跑步任务执行中")
 
                 # --- 检查多账号模式下是否有正在执行的跑步任务 ---
                 if hasattr(api_instance, "multi_run_stop_flag") and not api_instance.multi_run_stop_flag.is_set():
                     has_background_activity = True
-                    # logging.debug(f"[会话监控] {session_id[:8]}... 多账号跑步任务执行中")
+                    logging.debug(f"[会话监控] {session_id} 多账号跑步任务执行中")
                 
                 # --- 检查后台自动签到配置 ---
                 is_multi = getattr(api_instance, "is_multi_account_mode", False)
@@ -11388,28 +11384,33 @@ def monitor_session_inactivity():
                 if is_multi:
                     # 多账号模式：检查是否有账号 且 开启了自动签到
                     accounts = getattr(api_instance, "accounts", {})
-                    global_params = getattr(api_instance, "global_params", {})
+                    global_params = getattr(api_instance, "multi_global_params", {})
                     auto_attendance = global_params.get("auto_attendance_enabled", False)
-                    
+                    logging.debug(f"[会话监控] {session_id} 多账号模式自动签到状态: {auto_attendance}, 账号数: {len(accounts)}")
                     if accounts and auto_attendance:
                         has_background_activity = True
-                        # logging.debug(f"[会话监控] {session_id[:8]}... 多账号自动签到开启中")
+                        logging.debug(f"[会话监控] {session_id} 多账号自动签到开启中")
                 else:
                     # 单账号模式：检查是否开启了自动签到
                     params = getattr(api_instance, "params", {})
                     auto_attendance = params.get("auto_attendance_enabled", False)
+                    logging.debug(f"[会话监控] {session_id} 单账号模式自动签到状态: {auto_attendance}")
                     
                     if auto_attendance:
                         has_background_activity = True
-                        # logging.debug(f"[会话监控] {session_id[:8]}... 单账号自动签到开启中")
+                        logging.debug(f"[会话监控] {session_id} 单账号自动签到开启中")
 
                 # --- 结果处理 ---
                 if has_background_activity:
                     # 如果有后台活动，加入更新队列
                     active_sessions_to_update.append(session_id)
+                    logging.debug(f"[会话监控] {session_id} 有后台任务，更新活跃时间")
                 elif (current_time - last_activity) > inactivity_timeout:
+                    logging.debug(f"[会话监控] {session_id} 超过不活跃超时阈值")
                     # 既无前台活跃也无后台任务，且超时
                     inactive_sessions_to_cleanup.append(session_id)
+                else:
+                    logging.debug(f"[会话监控] {session_id} 仍在活跃期内，上次活跃时间: {current_time - last_activity:.1f}秒前")
 
             # 2. 批量更新活跃会话
             if active_sessions_to_update:
@@ -15291,89 +15292,6 @@ def start_web_server(args_param):
     def auth_check_permission():
         """
         权限检查API - 验证用户是否拥有特定权限。
-
-        功能说明：
-        - 基于RBAC（基于角色的访问控制）模型
-        - 检查用户所在组是否有特定权限
-        - 用于前端UI控制（显示/隐藏功能按钮）
-        - 用于API调用前的权限验证
-
-        请求格式：
-        - 方法：POST
-        - 路径：/auth/check_permission
-        - 请求头：
-          * X-Session-ID: 会话标识符（必需）
-        - 请求体：
-          {
-            "permission": "权限名称"
-          }
-
-        响应格式：
-        {
-          "success": true/false,
-          "has_permission": true/false
-        }
-
-        处理流程：
-        1. 从请求头获取session_id
-        2. 从请求体获取permission名称
-        3. 验证session_id存在且有效
-        4. 从web_sessions获取Api实例
-        5. 验证用户已认证（has auth_username）
-        6. 调用auth_system.check_permission()检查权限
-        7. 返回检查结果
-
-        权限系统：
-        - 权限定义在auth.ini的[Permissions]段
-        - 格式：permission_name = group1,group2,group3
-        - 例如：admin_panel = admin
-        - 支持多组共享同一权限
-
-        差分授权支持（user_custom_permissions）：
-        - 此API完全支持差分授权功能
-        - 通过 auth_system.check_permission() 调用，该方法会自动：
-          1. 检查用户所在组的基础权限
-          2. 应用 user_custom_permissions 中的 added 权限（授予）
-          3. 应用 user_custom_permissions 中的 removed 权限（撤销）
-        - 示例：用户在 'user' 组，但通过 user_custom_permissions.added 获得了特定权限
-          {
-            "user_custom_permissions": {
-              "zelly": {
-                "added": ["use_multi_account_button"],
-                "removed": []
-              }
-            }
-          }
-          该用户调用 /auth/check_permission 检查 use_multi_account_button 时会返回 true
-
-        常见权限示例：
-        - "admin_panel"：访问管理面板
-        - "execute_multi_account"：多账号管理
-        - "use_multi_account_button"：多账号控制台按钮
-        - "export_data"：导出数据
-        - "view_logs"：查看日志
-        - "manage_users"：用户管理
-
-        错误情况：
-        - session_id缺失或无效：返回{"success": false, "has_permission": false}
-        - 用户未认证：返回{"success": false, "has_permission": false}
-        - permission参数缺失：检查空字符串权限（通常返回false）
-
-        安全考虑：
-        - 不泄露权限系统的内部结构
-        - 失败时统一返回has_permission=false
-        - 不区分"用户不存在"和"无权限"
-
-        注意：
-        - 此接口只做检查，不执行实际操作
-        - 前端应根据返回值动态调整UI
-        - 后端API仍需在执行前再次验证权限
-        - 游客用户通常无任何特殊权限
-
-        使用场景：
-        - 页面加载时检查功能可用性
-        - 点击操作前的预先验证
-        - 动态菜单生成
         """
         # 从请求头中提取会话ID，用于识别当前用户的会话
         session_id = request.headers.get("X-Session-ID", "")
@@ -15400,109 +15318,6 @@ def start_web_server(args_param):
     def auth_switch_session():
         """
         会话切换API - 在多标签页间切换时更新认证token和cookie。
-
-        功能说明：
-        - 支持同一用户在多个浏览器标签页间无缝切换
-        - 为目标会话生成新的token
-        - 更新浏览器cookie以匹配目标会话
-        - 预加载目标会话状态（如果存在）
-
-        应用场景：
-        - 用户在标签页A登录后，打开标签页B
-        - 用户从会话列表中选择要切换到的会话
-        - 多窗口协作（如同时查看不同任务）
-
-        请求格式：
-        - 方法：POST
-        - 路径：/auth/switch_session
-        - 请求头：
-          * X-Session-ID: 当前活动窗口的会话ID（必需）
-          * Cookie: auth_token=...（用于验证身份）
-        - 请求体：
-          {
-            "target_session_id": "目标会话的UUID"
-          }
-
-        响应格式：
-        {
-          "success": true/false,
-          "message": "成功/错误信息",
-          "need_login": true（仅当token失效时）
-        }
-
-        响应头：
-        - Set-Cookie: auth_token=新token; Max-Age=3600; HttpOnly; SameSite=Lax
-
-        处理流程（5步）：
-        1. 验证当前用户身份：
-           - 从current_session_id获取用户名
-           - 检查是否为游客（游客不支持切换）
-           - 验证is_authenticated状态
-
-        2. 验证当前token有效性：
-           - 从cookie读取auth_token
-           - 调用token_manager.verify_token()验证
-           - 如果失效，返回401并要求重新登录
-
-        3. 为目标会话生成新token：
-           - 调用token_manager.create_token()
-           - 新token关联到target_session_id
-           - 记录切换事件到日志
-
-        4. 更新cookie：
-           - 设置新的auth_token cookie
-           - 1小时过期时间
-           - HttpOnly防止XSS攻击
-           - SameSite=Lax防止CSRF
-
-        5. 预加载目标会话状态（可选但推荐）：
-           - 从文件加载目标会话的历史状态
-           - 如果成功，创建Api实例并恢复
-           - 如果失败，前端访问时会创建新会话
-
-        安全特性：
-        - **双重验证**：既验证session_id又验证token
-        - **游客限制**：游客用户不允许切换会话
-        - **Token刷新**：即使目标已有token，也生成新的
-        - **自动清理**：无效token会自动清除cookie
-        - **线程安全**：web_sessions_lock保护并发访问
-
-        错误情况：
-        - 缺少参数：返回400错误
-        - 未登录或游客：返回401错误
-        - Token失效：返回401并清除cookie，设置need_login=true
-        - 目标会话不存在：仍然成功（前端访问时创建）
-
-        设计考虑：
-        - **为什么生成新token**：
-          * 增强安全性，每次切换都是新的认证
-          * 避免token复用导致的安全问题
-          * 便于追踪用户的会话切换行为
-
-        - **为什么预加载状态**：
-          * 提升用户体验，减少加载时间
-          * 但即使失败也不影响功能
-          * 前端路由会处理会话创建
-
-        注意：
-        - 切换后前端应导航到 /uuid=<target_session_id>
-        - 旧标签页的会话不会被销毁（用户可能返回）
-        - 每个会话都有独立的状态和数据
-        - Token有效期1小时，过期需重新登录
-
-        与单会话强制的关系：
-        - 此功能允许同一用户多会话并存
-        - 单会话强制针对的是"并发登录设备数"
-        - 会话切换是在已允许的设备内切换
-
-        使用流程示例：
-        1. 用户在标签A登录（会话ID: session-A）
-        2. 用户打开标签B（自动分配会话ID: session-B）
-        3. 用户在标签B点击"切换到会话A"
-        4. 调用此API，target_session_id=session-A
-        5. 服务器生成新token for session-A
-        6. 标签B的cookie更新为新token
-        7. 标签B导航到/uuid=session-A，成功接管会话A的状态
         """
         current_session_id = request.headers.get(
             "X-Session-ID", ""
@@ -15599,36 +15414,7 @@ def start_web_server(args_param):
     @app.route("/auth/admin/list_users", methods=["GET"])
     def auth_admin_list_users():
         """
-        管理员API - 列出所有用户信息。
-
-        功能说明：
-        - 获取系统中所有注册用户的列表
-        - 包含用户名、用户组、创建时间等信息
-        - 用于管理员查看和管理用户
-
-        权限要求：
-        - 必须登录
-        - 必须具有'manage_users'权限
-
-        请求头：
-        - X-Session-ID: 会话ID（必需）
-
-        响应格式：
-        成功：{"success": true, "users": [用户列表]}
-        失败：{"success": false, "message": "错误信息"}
-
-        用户对象结构：
-        {
-            "username": "用户名",
-            "group": "用户组",
-            "created_at": "创建时间",
-            "last_login": "最后登录时间"
-        }
-
-        使用场景：
-        - 管理员查看所有用户
-        - 用户管理界面的数据源
-        - 审计和统计分析
+        列出所有用户信息。
         """
         # 从请求头中提取会话ID
         session_id = request.headers.get("X-Session-ID", "")
@@ -15659,39 +15445,7 @@ def start_web_server(args_param):
     @app.route("/auth/admin/update_user_group", methods=["POST"])
     def auth_admin_update_user_group():
         """
-        管理员API - 修改用户所属的权限组。
-
-        功能说明：
-        - 将指定用户分配到新的权限组
-        - 影响用户的权限范围
-        - 立即生效，无需重新登录
-
-        权限要求：
-        - 必须登录
-        - 必须具有'manage_users'权限
-
-        请求头：
-        - X-Session-ID: 会话ID（必需）
-
-        请求体（JSON）：
-        {
-            "target_username": "目标用户名",
-            "new_group": "新权限组名"
-        }
-
-        响应格式：
-        成功：{"success": true, "message": "用户组已更新"}
-        失败：{"success": false, "message": "错误信息"}
-
-        注意事项：
-        - 目标用户组必须存在
-        - 不能修改自己的用户组（防止锁定）
-        - 更改会立即影响用户权限
-
-        使用场景：
-        - 提升/降低用户权限
-        - 调整用户角色
-        - 权限管理界面
+        修改用户所属的权限组。
         """
         session_id = request.headers.get("X-Session-ID", "")
         data = request.get_json() or {}
@@ -15735,22 +15489,6 @@ def start_web_server(args_param):
     def auth_admin_list_groups():
         """
         管理员API - 列出所有权限组及其权限配置。
-
-        功能说明：
-        - 获取系统中定义的所有权限组
-        - 包含每个组的权限列表
-        - 用于权限管理和配置
-
-        权限要求：
-        - 必须登录
-        - 必须具有'manage_permissions'权限
-
-        请求头：
-        - X-Session-ID: 会话ID（必需）
-
-        响应格式：
-        成功：{"success": true, "groups": {权限组配置}}
-        失败：{"success": false, "message": "错误信息"}
         """
         # 从请求头提取会话ID
         session_id = request.headers.get("X-Session-ID", "")
@@ -15774,14 +15512,33 @@ def start_web_server(args_param):
         if not auth_system.check_permission(auth_username, "manage_permissions"):
             return jsonify({"success": False, "message": "权限不足"})
 
-        # 获取并返回权限组配置
-        # 修正：使用 AuthSystem 中已定义的 get_all_groups() 方法
-        groups = auth_system.get_all_groups()
+        # 获取原始权限组配置
+        raw_groups = auth_system.get_all_groups()
+
+        # --- 自动补全缺失权限逻辑 ---
+        groups = copy.deepcopy(raw_groups)
+
+        # 1. 收集系统当前所有已知的权限键名（）
+        all_permission_keys = set()
+        for g_data in groups.values():
+            perms = g_data.get("permissions", {})
+            all_permission_keys.update(perms.keys())
+
+        # 2. 遍历所有组，补全缺失的权限字段，默认为 False
+        for g_key, g_data in groups.items():
+            if "permissions" not in g_data:
+                g_data["permissions"] = {}
+            
+            current_perms = g_data["permissions"]
+            for key in all_permission_keys:
+                if key not in current_perms:
+                    current_perms[key] = False
+        
         return jsonify({"success": True, "groups": groups})
 
     @app.route("/auth/admin/create_group", methods=["POST"])
     def auth_admin_create_group():
-        """问题7修复：超级管理员：创建权限组（验证必填字段）"""
+        """创建权限组"""
         session_id = request.headers.get("X-Session-ID", "")
         data = request.get_json() or {}
         # 去除首尾空格
@@ -15829,10 +15586,10 @@ def start_web_server(args_param):
 
     @app.route("/auth/admin/update_group", methods=["POST"])
     def auth_admin_update_group():
-        """问题6修复：超级管理员：更新权限组（支持group_key和group_name参数）"""
+        """更新权限组（支持group_key和group_name参数）"""
         session_id = request.headers.get("X-Session-ID", "")
         data = request.get_json() or {}
-        # 问题6修复：兼容group_key和group_name两种参数名
+        # 兼容group_key和group_name两种参数名
         group_name = data.get("group_key") or data.get("group_name", "")
         permissions = data.get("permissions", {})
 
@@ -25326,20 +25083,26 @@ def start_web_server(args_param):
             )
 
             try:
-                logging.info(f"Eventlet 将使用证书文件启动 SSL 服务器...")
+                # 【修正】显式导入 eventlet 相关模块
+                import eventlet
+                import eventlet.wsgi
+
+                logging.info(f"Eventlet 将使用 SSLContext 启动服务器...")
                 logging.info(f"  证书文件: {cert_path}")
                 logging.info(f"  密钥文件: {key_path}")
 
-                # Flask-SocketIO 的 eventlet 后端需要使用 certfile 和 keyfile 参数
-                # 而不是 ssl_context
-                socketio.run(
-                    app,
-                    host=args.host,
-                    port=args.port,
-                    debug=False,
-                    certfile=cert_path,  # 传递证书文件路径
-                    keyfile=key_path,  # 传递密钥文件路径
-                )
+                # 【修正】1. 手动创建 TCP 监听 Socket
+                server_socket = eventlet.listen((args.host, args.port))
+
+                # 【修正】2. 使用代码前文已创建好的 ssl_context 包装 Socket
+                # 这比 socketio.run 内部的默认处理更安全、兼容性更好
+                secure_socket = ssl_context.wrap_socket(server_socket, server_side=True)
+
+                # 【修正】3. 直接调用 eventlet.wsgi.server 启动
+                # Flask-SocketIO 的中间件已经绑定在 app 上，直接服务 app 即可
+                # log_output=False 可以减少控制台的常规访问日志噪音
+                eventlet.wsgi.server(secure_socket, app, log_output=False)
+
             except ImportError:
                 logging.error(
                     "Eventlet 模块未找到，无法启动HTTPS服务器。请运行 'pip install eventlet'"

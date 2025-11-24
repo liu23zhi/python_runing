@@ -12565,7 +12565,7 @@
           };
 
           // ========================================
-          // 【CDN缓存修复】使用iframe嵌入验证码HTML页面
+          // 使用iframe嵌入验证码HTML页面
           // 
           // 与主验证码加载函数使用相同的解决方案：
           // - iframe的src指向 /api/captcha/html/<captcha_id>
@@ -12591,7 +12591,7 @@
           // 将iframe插入到模态窗显示区域
           displayElement.innerHTML = iframeHtml;
 
-          console.log(`[验证码模态窗] 【CDN缓存修复】验证码加载成功，ID: ${result.captcha_id.substring(0, 8)}... (时间戳: ${timestamp})`);
+          console.log(`[验证码模态窗] 验证码加载成功，ID: ${result.captcha_id.substring(0, 8)}... (时间戳: ${timestamp})`);
         } else {
           // API返回失败
           displayElement.innerHTML = '<span class="text-red-500 text-xs">加载失败</span>';
@@ -21223,7 +21223,7 @@
       });
 
       socket.on('disconnect', (reason) => {
-        logMessage_Warning('WebSocket 连接已断开:', reason);
+        logMessage_Info('WebSocket 连接已断开:', reason);
         logMessage_Info("[System] WebSocket 连接已断开，尝试重连...");
         // Socket.IO库会自动尝试重新建立WebSocket连接
       });
@@ -31298,7 +31298,7 @@
       // 将iframe插入到移动端显示区域
       displayElement.innerHTML = iframeHtml;
 
-      console.log(`[移动端验证码] 【CDN缓存修复】${formType}表单验证码同步成功，复用ID: ${captchaId.substring(0, 8)}... (时间戳: ${timestamp})`);
+      console.log(`[移动端验证码] ${formType}表单验证码同步成功，复用ID: ${captchaId.substring(0, 8)}... (时间戳: ${timestamp})`);
     }
 
     // ==================== 任务8-10: 注册登录和个人资料功能 ====================
