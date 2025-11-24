@@ -1094,23 +1094,6 @@ def _create_directories():
 def _get_default_config():
     """
     获取默认配置项字典。
-
-    此函数返回一个ConfigParser对象，包含所有配置节和默认值。
-    主要用途：
-    1. 创建新的config.ini文件
-    2. 补全旧配置文件中缺失的配置项（版本升级场景）
-
-    配置结构：
-    - [Admin]: 超级管理员设置
-    - [Guest]: 游客访问控制
-    - [System]: 系统路径和文件配置
-    - [Security]: 安全策略（密码存储、防暴力破解）
-    - [Map]: 地图API配置（高德地图密钥）
-
-    返回:
-        configparser.ConfigParser: 包含默认配置的对象
-
-    注意：修改这里的默认值会影响新用户的初始配置
     """
     config = configparser.ConfigParser()
 
