@@ -8527,7 +8527,7 @@ class Api:
                     if not preserve_now:
                         self._update_account_status_js(acc, status_text="首次验证中...")
 
-                login_resp = self._queued_login(acc, respect_global_stop=False)
+                login_resp = self._queued_login(acc, respect_global_stop=False,ignore_all_stops=True)
                 if not login_resp or not login_resp.get("success"):
                     # 登录失败
                     if not acc.is_first_login_verified:
@@ -8693,6 +8693,10 @@ class Api:
                         }
                     )
 
+            # [修正] 检查线程是否存活。如果账号已停止，强制清除位置信息，确保前端地图标记消失
+            is_running = bool(acc.worker_thread and acc.worker_thread.is_alive())
+            current_pos = getattr(acc, "current_position", None) if is_running else None
+
             status_list.append(
                 {
                     "username": acc.username,
@@ -8703,7 +8707,7 @@ class Api:
                     "tasks": tasks_simple,
                     # 【新增】返回实时状态数据供前端轮询
                     # 使用 getattr 避免属性不存在时报错
-                    "current_position": getattr(acc, "current_position", None),
+                    "current_position": current_pos,
                     "progress_pct": getattr(acc, "progress_pct", 0),
                     "progress_text": getattr(acc, "progress_text", ""),
                     "progress_extra": getattr(acc, "progress_extra", ""),
@@ -9463,47 +9467,84 @@ class Api:
             logging.error(f"SocketIO emit 'multi_global_buttons_update' failed: {e}")
 
     def _queued_login(
-        self, acc: AccountSession, respect_global_stop: bool = True
+        self, 
+        acc: AccountSession, 
+        respect_global_stop: bool = True,
+        ignore_all_stops: bool = False  # [新增] 是否忽略所有停止标识
     ) -> dict | None:
         """
-        多账号模式下的“排队登录”（参数化是否尊重全局停止标志）：
-        - 使用全局信号量 multi_login_lock 将登录并发固定为 1
-        - 在排队等待期间，若收到停止信号（可选尊重 multi_run_stop_flag），立即退出
-        - 进入队列前给出UI提示“排队登录...”
+        多账号模式下的“排队登录”：
+        - ignore_all_stops: 如果为True，强制忽略 stop_event 和 global_stop_flag，强制尝试登录
+        - respect_global_stop: 如果 ignore_all_stops 为 False，此参数控制是否尊重全局停止
         """
         try:
             self._update_account_status_js(acc, status_text="排队登录...")
         except Exception:
             pass
 
-        # 循环尝试获取登录槽位，期间尊重停止事件
+        # 循环尝试获取登录槽位
         while True:
-            # 刷新线程登录不受全局停止影响；任务执行阶段登录继续尊重全局停止
-            if acc.stop_event.is_set() or (
-                respect_global_stop and self.multi_run_stop_flag.is_set()
+            # [修改] 增加 ignore_all_stops 判断
+            # 只有在 不忽略所有停止 且 (个人停止 或 (需尊重全局停止 且 全局停止)) 时才退出
+            if not ignore_all_stops and (
+                acc.stop_event.is_set() or (respect_global_stop and self.multi_run_stop_flag.is_set())
             ):
+                logging.debug(f"[{acc.username}] 登录被中止: stop_event={acc.stop_event.is_set()}")
                 return None
-            # 尝试以短超时获取锁，便于及时响应停止
-            acquired = self.multi_login_lock.acquire(timeout=0.5)
-            if acquired:
-                break
+            
+            try:
+                # [修正] 使用非阻塞获取 + 手动 sleep 替代 timeout 参数
+                acquired = self.multi_login_lock.acquire(blocking=False)
+                if acquired:
+                    break
+                
+                # 如果没获取到锁，手动等待
+                time.sleep(0.5)
+            
+            except (Exception, BaseException) as e:
+                logging.warning(f"[{acc.username}] 获取登录锁异常 ({type(e).__name__}): {e}，正在尝试修复锁...")
+                
+                # [紧急修复] 锁修复逻辑
+                try:
+                    from eventlet import patcher
+                    native_threading = patcher.original('threading')
+                    self.multi_login_lock = native_threading.Semaphore(1)
+                    logging.info("[Lock Repair] 已将 multi_login_lock 重置为原生 Semaphore")
+                except Exception as reset_err:
+                    logging.error(f"[Lock Repair] 重置锁失败: {reset_err}")
+                    pass
+                
+                time.sleep(0.5)
+                continue
+
         try:
-            # 二次检查停止（同样按参数决定是否尊重全局停止）
-            if acc.stop_event.is_set() or (
-                respect_global_stop and self.multi_run_stop_flag.is_set()
+            # [修改] 二次检查停止 (获取锁之后同样需要判断是否忽略停止)
+            if not ignore_all_stops and (
+                acc.stop_event.is_set() or (respect_global_stop and self.multi_run_stop_flag.is_set())
             ):
+                # 如果决定退出，必须释放刚刚获取的锁
+                self.multi_login_lock.release()
                 return None
 
-            # 【修正】获取锁后，立即更新状态为“正在登录”，防止一直显示排队
+            # 获取锁后，立即更新状态
             self._update_account_status_js(acc, status_text="正在登录...")
 
             # 执行实际登录请求
             return acc.api_client.login(acc.username, acc.password)
-        finally:
+        except Exception as e:
+            logging.error(f"[{acc.username}] 执行登录请求时发生异常: {e}", exc_info=True)
             try:
                 self.multi_login_lock.release()
             except Exception:
                 pass
+            return {"success": False, "message": f"登录执行异常: {e}"}
+        finally:
+            # 正常释放锁
+            try:
+                self.multi_login_lock.release()
+            except Exception:
+                pass
+
 
     def _multi_fetch_and_summarize_tasks(self, acc: AccountSession):
         """(辅助函数) 为单个账号获取任务列表并计算统计信息（按任务ID去重）"""
@@ -10096,7 +10137,7 @@ class Api:
 
                     if path_coords and "path" in path_coords:
                         api_path_coords = path_coords["path"]
-                        acc.log(f"路径规划成功，共 {len(api_path_coords)} 个点。")
+                        acc.log(f"路径规划成功。")
                     else:
                         error_msg = (
                             path_coords.get("error", "未知错误")

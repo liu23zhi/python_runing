@@ -31693,18 +31693,29 @@
       });
 
       async function multi_removeAll(confirm = false) {
+        // [修正] 如果 confirm 是事件对象(点击触发)，强制设为 false 以触发弹窗
+        if (confirm && typeof confirm === 'object' && confirm.type === 'click') {
+            confirm = false;
+        }
+
+        // [修正] 在外部声明变量，避免块级作用域导致 ReferenceError
+        let isConfirmed = false;
+
         if (!confirm) {
           logMessage_Info("准备移除列表中的所有账号");
-          const confirmed = await jsShowConfirm(
-            "确认操作",
-            "确定要移除列表中的所有账号吗？此操作不可撤销。"
+          // [修正] 赋值给外部变量，使用拟态框进行二次确认
+          isConfirmed = await jsShowConfirm(
+            "确认移除全部",
+            "确定要移除列表中的<span style='color:red;font-weight:bold;'>所有账号</span>吗？<br>此操作<span style='color:red;'>不可撤销</span>，所有账号数据将丢失！"
           );
         } else {
           logMessage_Info("移除列表中的所有账号");
-          const confirmed = true;
+          // [修正] 赋值给外部变量
+          isConfirmed = true;
         }
 
-        if (confirmed) {
+        // [修正] 检查外部变量
+        if (isConfirmed) {
           const result = await callPythonAPI("multi_remove_all_accounts");
           if (result && result.accounts)
             renderMultiAccountList(result.accounts);
@@ -31712,6 +31723,11 @@
       }
 
       async function multi_removeSelected(confirm = false) {
+        // [修正] 如果 confirm 是事件对象(点击触发)，强制设为 false 以触发弹窗
+        if (confirm && typeof confirm === 'object' && confirm.type === 'click') {
+            confirm = false;
+        }
+
         // 只选择桌面端列表中的复选框
         const container = document.getElementById("multi-account-list");
         if (!container) return;
@@ -31720,22 +31736,30 @@
           container.querySelectorAll(".account-checkbox:checked")
         ).map((cb) => cb.closest("[data-username]").dataset.username);
         if (selectedUsernames.length === 0) {
-          showModalAlert("请至少选择一个要移除的账号。");
+          showModalAlert("请至少选择一个要移除的账号。", "提示");
           return;
         }
+
+        // [修正] 在外部声明变量，避免块级作用域导致 ReferenceError
+        let isConfirmed = false;
+
         if (!confirm) {
           logMessage_Info(
             `准备移除选中的账号: ${selectedUsernames.join(", ")}`
           );
-          const confirmed = await jsShowConfirm(
-            "确认操作",
-            `确定要移除选中的 ${selectedUsernames.length} 个账号吗？`
+          // [修正] 赋值给外部变量，使用拟态框进行二次确认
+          isConfirmed = await jsShowConfirm(
+            "确认移除选中",
+            `确定要移除选中的 <span style='color:red;font-weight:bold;'>${selectedUsernames.length}</span> 个账号吗？<br>账号: ${selectedUsernames.join(", ")}`
           );
         } else {
           logMessage_Info(`移除选中的账号: ${selectedUsernames.join(", ")}`);
-          const confirmed = true;
+          // [修正] 赋值给外部变量
+          isConfirmed = true;
         }
-        if (confirmed) {
+
+        // [修正] 检查外部变量
+        if (isConfirmed) {
           const result = await callPythonAPI(
             "multi_remove_selected_accounts",
             selectedUsernames
