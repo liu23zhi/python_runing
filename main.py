@@ -1,6 +1,7 @@
 # 跑步助手
 # 这是一个基于Flask的Web应用，用于模拟跑步任务的执行
 
+
 from __future__ import annotations
 
 _import_failures = [] # 导入失败列表，用于收集所有导入失败的信息
@@ -27,7 +28,7 @@ def _try_import_builtin(module_name, display_name=None, use_print=False):
         _buffer_log("INFO", f"[导入检查] ✓ {display_name} 导入成功")
         return module
     except ImportError as e:
-        error_msg = f"内置模块 '{display_name}' 导入失败: {e}"
+        # error_msg = f"内置模块 '{display_name}' 导入失败: {e}"
         _import_failures.append(
             {"module": display_name, "type": "builtin", "error": str(e)}
         )
@@ -99,6 +100,8 @@ def import_standard_libraries():
     # (模块名, 导入命令)
     std_libs = [
         ("ssl", "import ssl"),
+        ("eventlet", "import eventlet"),
+        ("eventlet.wsgi", "import eventlet.wsgi"),
         ("argparse", "import argparse"),
         ("base64", "import base64"),
         ("bisect", "import bisect"),
@@ -273,7 +276,7 @@ def check_and_import_dependencies():
     global CORS, pyotp, requests, openpyxl, xlrd, xlwt, chardet, sync_playwright, np
     global cssutils, playwright_available
 
-    # 【关键修复】声明 socketio 为全局变量
+    # 声明 socketio 为全局变量
     global cryptography, socketio
 
     # 将所有变量预设为 None，以防导入成功但未完全解包
@@ -304,7 +307,7 @@ def check_and_import_dependencies():
 
     cryptography = None
 
-    # 【关键修复】初始化全局 socketio 变量，防止 Api 类引用时出现 NameError
+    # 声明 socketio 为全局变量
     socketio = None
 
     # (显示名称, 导入代码, pip包名)
@@ -390,7 +393,6 @@ def check_and_import_dependencies():
 def initialize_global_variables():
     """
     初始化所有全局变量和应用状态。
-    这应该在所有库都导入成功之后运行。
     """
     logging.info("开始初始化全局变量...")
 
@@ -407,12 +409,8 @@ def initialize_global_variables():
     # 读取 HTML
     html_content = ""
     try:
-        # TODO: 您必须在此函数 *之前* 定义 resource_path 函数
-        # html_path = resource_path("index.html")
         html_path = "index.html"  # 临时占位符
-        logging.warning(
-            "使用的是临时的 'index.html' 路径，请确保 resource_path 函数已定义。"
-        )
+        
 
         with open(html_path, "r", encoding="utf-8") as file:
             html_content = file.read()
@@ -971,7 +969,7 @@ def auto_init_system():
         # 因为有些功能可能在部分初始化失败的情况下仍能工作
 
 
-# 初始化全局目录变量（默认值）
+# 初始化全局目录变量
 # 这些变量会在 _create_directories() 中根据 config.ini 配置更新
 SCHOOL_ACCOUNTS_DIR = "school_accounts"
 SYSTEM_ACCOUNTS_DIR = "system_accounts"
@@ -1223,7 +1221,7 @@ def _write_config_with_comments(config_obj, filepath):
         f.write(
             f"school_accounts_dir = {config_obj.get('System', 'school_accounts_dir', fallback='school_accounts')}\n"
         )
-        f.write("# 系统账号数据存储目录（admin等）\n")
+        f.write("# 系统账号数据存储目录\n")
         f.write(
             f"system_accounts_dir = {config_obj.get('System', 'system_accounts_dir', fallback='system_accounts')}\n"
         )
@@ -25003,16 +25001,6 @@ def start_web_server(args_param):
     def add_security_headers(response):
         """
         为所有响应添加安全相关的HTTP头。
-
-        功能说明：
-        添加多个安全响应头，提升应用的安全性：
-        1. HSTS (Strict-Transport-Security): 强制浏览器使用HTTPS
-        2. X-Content-Type-Options: 防止MIME类型嗅探攻击
-        3. X-Frame-Options: 防止点击劫持攻击
-        4. X-XSS-Protection: 启用浏览器XSS防护
-        5. Referrer-Policy: 控制Referer头的发送策略
-
-        这个函数在每个响应发送之前自动执行。
         """
         # 1. 添加HSTS头（仅在启用SSL时）
         # HSTS告诉浏览器在指定时间内，该域名只能通过HTTPS访问
@@ -25057,7 +25045,7 @@ def start_web_server(args_param):
 
     # 打印启动信息
     print(f"\n{'='*60}")
-    print(f"  跑步助手 Web 模式已启动")
+    print(f"  跑步助手 Web 版本已启动")
     print(f"  访问地址: {server_url}")
     if ssl_config.get("ssl_enabled", False):
         print(f"  SSL/HTTPS: 已启用 ✓")
@@ -25083,9 +25071,7 @@ def start_web_server(args_param):
             )
 
             try:
-                # 【修正】显式导入 eventlet 相关模块
-                import eventlet
-                import eventlet.wsgi
+                
 
                 logging.info(f"Eventlet 将使用 SSLContext 启动服务器...")
                 logging.info(f"  证书文件: {cert_path}")
@@ -25095,20 +25081,41 @@ def start_web_server(args_param):
                 server_socket = eventlet.listen((args.host, args.port))
 
                 # 【修正】2. 使用代码前文已创建好的 ssl_context 包装 Socket
-                # 这比 socketio.run 内部的默认处理更安全、兼容性更好
                 secure_socket = ssl_context.wrap_socket(server_socket, server_side=True)
 
                 # 【修正】3. 直接调用 eventlet.wsgi.server 启动
-                # Flask-SocketIO 的中间件已经绑定在 app 上，直接服务 app 即可
-                # log_output=False 可以减少控制台的常规访问日志噪音
-                eventlet.wsgi.server(secure_socket, app, log_output=False)
+                # 使用 try-except 循环包裹 server 运行，防止因单个 SSL 握手错误导致崩溃
+                while True:
+                    try:
+                        eventlet.wsgi.server(secure_socket, app, log_output=False)
+                        # 正常退出循环（通常不会执行到这里，除非 socket 关闭）
+                        break
+                    except ssl.SSLError as e:
+                        # 捕获 SSL 握手错误 (例如 HTTP 请求访问 HTTPS 端口)
+                        # 仅记录日志，不退出程序
+                        logging.debug(f"客户端 SSL 握手失败 (可能是 HTTP 访问 HTTPS): {e}")
+                        continue
+                    except KeyboardInterrupt:
+                        # 允许 Ctrl+C 退出
+                        raise
+                    except Exception as runtime_e:
+                        # 其他运行时错误，记录但尝试保持运行
+                        logging.error(f"HTTPS 服务器运行时错误: {runtime_e}", exc_info=True)
+                        # 如果 socket 损坏，则退出
+                        if secure_socket._closed:
+                            break
+                        continue
 
             except ImportError:
                 logging.error(
                     "Eventlet 模块未找到，无法启动HTTPS服务器。请运行 'pip install eventlet'"
                 )
                 raise
+            except KeyboardInterrupt:
+                # 捕获 HTTPS 模式下的 Ctrl+C
+                raise
             except Exception as ssl_e:
+                # 这里只捕获启动时的致命错误（如端口绑定失败、证书错误等）
                 logging.error(
                     f"使用 Eventlet 启动 SSL 服务器失败: {ssl_e}", exc_info=True
                 )
@@ -25117,10 +25124,25 @@ def start_web_server(args_param):
                 raise
 
         else:
-            # HTTP 模式 (保持不变)
+            # HTTP 模式
             logging.info(f"正在启动带有 WebSocket 支持的 Web 服务器于 {server_url}")
+            
+            # HTTP 模式也添加 Ctrl+C 支持
+            try:
+                socketio.run(app, host=args.host, port=args.port, debug=False)
+            except KeyboardInterrupt:
+                raise
 
-            socketio.run(app, host=args.host, port=args.port, debug=False)
+    except KeyboardInterrupt:
+        # 最外层的 Ctrl+C 捕获，确保优雅退出
+        print(f"\n{'='*60}")
+        print(f"  用户终止了程序 (Ctrl+C)")
+        print(f"  正在清理资源并退出...")
+        print(f"{'='*60}\n")
+        logging.info("用户通过 Ctrl+C 停止了服务器")
+        # 可以在这里调用清理函数，例如 _cleanup_playwright()
+        sys.exit(0)
+
     except OSError as e:
         if (
             "WinError 10013" in str(e)
