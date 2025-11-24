@@ -8527,7 +8527,9 @@ class Api:
                     if not preserve_now:
                         self._update_account_status_js(acc, status_text="首次验证中...")
 
-                login_resp = self._queued_login(acc, respect_global_stop=False,ignore_all_stops=True)
+                login_resp = self._queued_login(
+                    acc, respect_global_stop=False, ignore_all_stops=True
+                )
                 if not login_resp or not login_resp.get("success"):
                     # 登录失败
                     if not acc.is_first_login_verified:
@@ -9467,10 +9469,10 @@ class Api:
             logging.error(f"SocketIO emit 'multi_global_buttons_update' failed: {e}")
 
     def _queued_login(
-        self, 
-        acc: AccountSession, 
+        self,
+        acc: AccountSession,
         respect_global_stop: bool = True,
-        ignore_all_stops: bool = False  # [新增] 是否忽略所有停止标识
+        ignore_all_stops: bool = False,  # [新增] 是否忽略所有停止标识
     ) -> dict | None:
         """
         多账号模式下的“排队登录”：
@@ -9487,40 +9489,49 @@ class Api:
             # [修改] 增加 ignore_all_stops 判断
             # 只有在 不忽略所有停止 且 (个人停止 或 (需尊重全局停止 且 全局停止)) 时才退出
             if not ignore_all_stops and (
-                acc.stop_event.is_set() or (respect_global_stop and self.multi_run_stop_flag.is_set())
+                acc.stop_event.is_set()
+                or (respect_global_stop and self.multi_run_stop_flag.is_set())
             ):
-                logging.debug(f"[{acc.username}] 登录被中止: stop_event={acc.stop_event.is_set()}")
+                logging.debug(
+                    f"[{acc.username}] 登录被中止: stop_event={acc.stop_event.is_set()}"
+                )
                 return None
-            
+
             try:
                 # [修正] 使用非阻塞获取 + 手动 sleep 替代 timeout 参数
                 acquired = self.multi_login_lock.acquire(blocking=False)
                 if acquired:
                     break
-                
+
                 # 如果没获取到锁，手动等待
                 time.sleep(0.5)
-            
+
             except (Exception, BaseException) as e:
-                logging.warning(f"[{acc.username}] 获取登录锁异常 ({type(e).__name__}): {e}，正在尝试修复锁...")
-                
+                logging.warning(
+                    f"[{acc.username}] 获取登录锁异常 ({type(e).__name__}): {e}，正在尝试修复锁..."
+                )
+
                 # [紧急修复] 锁修复逻辑
                 try:
                     from eventlet import patcher
-                    native_threading = patcher.original('threading')
+
+                    native_threading = patcher.original("threading")
                     self.multi_login_lock = native_threading.Semaphore(1)
-                    logging.info("[Lock Repair] 已将 multi_login_lock 重置为原生 Semaphore")
+                    logging.info(
+                        "[Lock Repair] 已将 multi_login_lock 重置为原生 Semaphore"
+                    )
                 except Exception as reset_err:
                     logging.error(f"[Lock Repair] 重置锁失败: {reset_err}")
                     pass
-                
+
                 time.sleep(0.5)
                 continue
 
         try:
             # [修改] 二次检查停止 (获取锁之后同样需要判断是否忽略停止)
             if not ignore_all_stops and (
-                acc.stop_event.is_set() or (respect_global_stop and self.multi_run_stop_flag.is_set())
+                acc.stop_event.is_set()
+                or (respect_global_stop and self.multi_run_stop_flag.is_set())
             ):
                 # 如果决定退出，必须释放刚刚获取的锁
                 self.multi_login_lock.release()
@@ -9532,7 +9543,9 @@ class Api:
             # 执行实际登录请求
             return acc.api_client.login(acc.username, acc.password)
         except Exception as e:
-            logging.error(f"[{acc.username}] 执行登录请求时发生异常: {e}", exc_info=True)
+            logging.error(
+                f"[{acc.username}] 执行登录请求时发生异常: {e}", exc_info=True
+            )
             try:
                 self.multi_login_lock.release()
             except Exception:
@@ -9544,7 +9557,6 @@ class Api:
                 self.multi_login_lock.release()
             except Exception:
                 pass
-
 
     def _multi_fetch_and_summarize_tasks(self, acc: AccountSession):
         """(辅助函数) 为单个账号获取任务列表并计算统计信息（按任务ID去重）"""
@@ -9687,15 +9699,17 @@ class Api:
         att_pending = 0
         att_completed = 0
         att_expired = 0
-        
+
         offset = 0
         limit = 200  # 每次请求20条，循环获取直到结束
 
         try:
             while True:
                 # [修正] 改为循环分页获取，确保不遗漏被挤出前100条的签到任务
-                list_resp = acc.api_client.get_notice_list(offset=offset, limit=limit, type_id=0)
-                
+                list_resp = acc.api_client.get_notice_list(
+                    offset=offset, limit=limit, type_id=0
+                )
+
                 if not (list_resp and list_resp.get("success")):
                     acc.log(f"获取通知列表失败 (Offset: {offset})")
                     break
@@ -9708,7 +9722,7 @@ class Api:
                     is_attendance = notice.get(
                         "image"
                     ) == "attendance" or "签到" in notice.get("title", "")
-                    
+
                     if is_attendance and notice.get("id"):
                         roll_call_id = notice["id"]
                         info_resp = acc.api_client.get_roll_call_info(
@@ -9730,14 +9744,14 @@ class Api:
                             att_completed += 1
                         else:  # status != -1 and finished == 0
                             att_pending += 1
-                
+
                 # 准备下一页
                 offset += len(notices)
-                
+
                 # 如果返回数量少于 limit，说明已是最后一页
                 if len(notices) < limit:
                     break
-                
+
                 # 简单限速，避免请求过快
                 time.sleep(0.1)
 
@@ -10437,13 +10451,13 @@ class Api:
                     # 如果没有执行任何任务（全部跳过）
                     # [修正] 同时更新进度条为 100% 并清除额外信息，防止 UI 停留在之前的状态
                     self._update_account_status_js(
-                        acc, 
-                        status_text="无任务可执行", 
-                        progress_pct=100, 
-                        progress_text="无任务可执行", 
-                        progress_extra=""
+                        acc,
+                        status_text="无任务可执行",
+                        progress_pct=100,
+                        progress_text="无任务可执行",
+                        progress_extra="",
                     )
-                    
+
                 else:
                     # 至少执行了一个任务
                     self._update_account_status_js(acc, status_text="全部完成")
@@ -25076,7 +25090,7 @@ def start_web_server(args_param):
                 # 排除某些特殊路径（如健康检查）不进行重定向
                 # [修正] 必须排除 /socket.io，否则握手时的 POST 请求会被重定向导致 xhr post error
                 excluded_paths = ["/health", "/api/health", "/socket.io"]
-                
+
                 # 检查当前路径是否以排除列表中的任何一项开头 (兼容 /socket.io/...)
                 should_redirect = True
                 for path in excluded_paths:
@@ -25193,32 +25207,36 @@ def start_web_server(args_param):
                             try:
                                 # 1. 接受原始连接
                                 client, addr = self.sock.accept()
-                                
+
                                 # 2. 嗅探第一个字节（不从缓冲区移除）
                                 try:
                                     # 设置短超时防止恶意连接挂起
                                     client.settimeout(1.0)
                                     first_byte = client.recv(1, socket.MSG_PEEK)
-                                    client.settimeout(None) # 恢复阻塞模式或默认超时
-                                    
+                                    client.settimeout(None)  # 恢复阻塞模式或默认超时
+
                                     if len(first_byte) == 0:
                                         client.close()
                                         continue
-                                        
+
                                     # 3. 判断协议类型
                                     # 0x16 (十进制22) 是 TLS Handshake 的第一个字节
                                     if first_byte[0] == 22:
                                         # === HTTPS 连接 ===
                                         # 包装为 SSL Socket 并返回给 WSGI Server
-                                        secure_client = self.ssl_ctx.wrap_socket(client, server_side=True)
+                                        secure_client = self.ssl_ctx.wrap_socket(
+                                            client, server_side=True
+                                        )
                                         return secure_client, addr
                                     else:
                                         # === HTTP 连接 (或其他) ===
-                                        
+
                                         # 如果配置了仅允许 HTTPS，则发送 JS 跳转
                                         if self.https_only:
-                                            logging.info(f"检测到 HTTP 请求 (来自 {addr[0]})，发送 HTTPS 跳转指令...")
-                                            
+                                            logging.info(
+                                                f"检测到 HTTP 请求 (来自 {addr[0]})，发送 HTTPS 跳转指令..."
+                                            )
+
                                             # [关键修复] 消耗掉接收缓冲区中的 HTTP 请求数据
                                             # 如果不读取，直接关闭 Socket，内核会发送 TCP RST 包，
                                             # 导致浏览器报错 "ERR_CONNECTION_RESET"
@@ -25238,7 +25256,7 @@ def start_web_server(args_param):
                                                 "Please wait, redirecting to HTTPS...</body></html>"
                                             )
                                             try:
-                                                client.sendall(response.encode('utf-8'))
+                                                client.sendall(response.encode("utf-8"))
                                             except Exception:
                                                 pass
                                             finally:
@@ -25249,25 +25267,28 @@ def start_web_server(args_param):
                                             # [新增] 如果允许 HTTP，直接返回原始 Socket
                                             # 这样可以在同一端口同时支持 HTTP 和 HTTPS
                                             return client, addr
-                                        
+
                                 except (socket.error, ssl.SSLError) as e:
                                     # 握手或读取错误，关闭连接并忽略
-                                    try: client.close() 
-                                    except: pass
+                                    try:
+                                        client.close()
+                                    except:
+                                        pass
                                     continue
-                                    
+
                             except Exception as e:
                                 logging.error(f"DualProtocolSocket accept error: {e}")
                                 continue
+
                 # 【修正】1. 手动创建 TCP 监听 Socket
                 server_socket = eventlet.listen((args.host, args.port))
 
                 # 【修正】2. 使用自定义的双协议包装器
                 # 传入配置中的 https_only 选项
                 dual_socket = DualProtocolSocket(
-                    server_socket, 
-                    ssl_context, 
-                    https_only=ssl_config.get("https_only", False)
+                    server_socket,
+                    ssl_context,
+                    https_only=ssl_config.get("https_only", False),
                 )
 
                 # 【修正】3. 启动服务器

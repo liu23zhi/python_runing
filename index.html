@@ -31694,8 +31694,12 @@
 
       async function multi_removeAll(confirm = false) {
         // [修正] 如果 confirm 是事件对象(点击触发)，强制设为 false 以触发弹窗
-        if (confirm && typeof confirm === 'object' && confirm.type === 'click') {
-            confirm = false;
+        if (
+          confirm &&
+          typeof confirm === "object" &&
+          confirm.type === "click"
+        ) {
+          confirm = false;
         }
 
         // [修正] 在外部声明变量，避免块级作用域导致 ReferenceError
@@ -31724,8 +31728,12 @@
 
       async function multi_removeSelected(confirm = false) {
         // [修正] 如果 confirm 是事件对象(点击触发)，强制设为 false 以触发弹窗
-        if (confirm && typeof confirm === 'object' && confirm.type === 'click') {
-            confirm = false;
+        if (
+          confirm &&
+          typeof confirm === "object" &&
+          confirm.type === "click"
+        ) {
+          confirm = false;
         }
 
         // 只选择桌面端列表中的复选框
@@ -31750,7 +31758,9 @@
           // [修正] 赋值给外部变量，使用拟态框进行二次确认
           isConfirmed = await jsShowConfirm(
             "确认移除选中",
-            `确定要移除选中的 <span style='color:red;font-weight:bold;'>${selectedUsernames.length}</span> 个账号吗？<br>账号: ${selectedUsernames.join(", ")}`
+            `确定要移除选中的 <span style='color:red;font-weight:bold;'>${
+              selectedUsernames.length
+            }</span> 个账号吗？<br>账号: ${selectedUsernames.join(", ")}`
           );
         } else {
           logMessage_Info(`移除选中的账号: ${selectedUsernames.join(", ")}`);
