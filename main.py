@@ -2817,6 +2817,18 @@ class AuthSystem:
                 return {"success": False, "message": "权限组不存在"}
 
             self.permissions["user_groups"][auth_username] = new_group
+
+            # 清空该用户的差分权限（user_custom_permissions）
+            # 当用户组发生变更时，之前针对该用户单独添加或移除的权限需要被清空
+            # 因为新的用户组会有自己的一套权限配置，差分权限应该重新计算
+            if auth_username in self.permissions["user_custom_permissions"]:
+                # 从user_custom_permissions字典中删除该用户的记录
+                # 这样该用户就会完全继承新用户组的权限，不再有额外的差分权限
+                del self.permissions["user_custom_permissions"][auth_username]
+                # 记录日志，说明已清空该用户的差分权限
+                logging.info(
+                    f"[权限管理] 用户 {auth_username} 的用户组已更新为 {new_group}，已清空其差分权限"
+                )
             self._save_permissions()
 
             # 同时更新用户文件
@@ -11473,18 +11485,115 @@ def monitor_session_inactivity():
                             last_activity = 0
                             # 嵌套锁定 session_activity_lock 来读取时间
                             with session_activity_lock:
-                                # 满足用户要求：尝试读取，如果未定义，默认为0 (即“空”)
+                                # 尝试读取最后活跃时间，如果session_activity中不存在该session_id的记录
+                                # 说明该会话从未主动调用过get_initial_data，此时默认为0
                                 last_activity = session_activity.get(session_id, 0)
+                                
+                                # 如果该会话从未记录过活跃时间（last_activity为0）
+                                # 则将当前时间作为其初始活跃时间，避免误判为超时
+                                if last_activity == 0:
+                                    # 将当前时间设置为该会话的初始活跃时间
+                                    session_activity[session_id] = current_time
+                                    last_activity = current_time
+                                    logging.debug(
+                                        f"[会话监控] 会话 {session_id[:8]}... 首次记录，初始化活跃时间"
+                                    )
 
+                            # --- 新增：检查后台自动签到任务，如果启用则视为活跃 ---
+                            # 尝试加载会话配置文件，以判断是否有后台自动签到任务在运行
+                            try:
+                                # 通过load_session_state函数加载会话的完整配置信息
+                                # 返回的state字典包含所有会话配置参数
+                                session_state = load_session_state(session_id)
+                                
+                                # 如果成功加载到会话配置（session_state不为None）
+                                if session_state:
+                                    # 标记：用于记录是否因为后台自动签到而需要保持活跃
+                                    has_auto_attendance = False
+                                    
+                                    # 从会话配置中读取is_multi_account_mode字段
+                                    # 判断当前会话是否处于"多账号模式"
+                                    is_multi_mode = session_state.get("is_multi_account_mode", False)
+                                    
+                                    if is_multi_mode:
+                                        # === 多账号模式的处理逻辑 ===
+                                        logging.debug(
+                                            f"[会话监控] 会话 {session_id[:8]}... 为多账号模式，检查多账号配置"
+                                        )
+                                        
+                                        # 从会话配置中读取multi_account_usernames字段
+                                        # 该字段是一个数组，存储了所有已添加的子账号用户名
+                                        multi_usernames = session_state.get("multi_account_usernames", [])
+                                        
+                                        # 判断是否有子账号：如果multi_account_usernames不为空，说明有账号
+                                        if multi_usernames:
+                                            # 多账号模式下有账号，继续检查是否启用了后台自动签到
+                                            
+                                            # 从会话配置中读取multi_global_params字段（多账号全局参数）
+                                            # 这是一个字典，包含多账号模式下的各种全局配置
+                                            multi_params = session_state.get("multi_global_params", {})
+                                            
+                                            # 从multi_global_params中读取auto_attendance_enabled字段
+                                            # 判断多账号模式下是否启用了后台自动签到功能
+                                            if multi_params.get("auto_attendance_enabled", False):
+                                                # 多账号模式下启用了后台自动签到，标记为有自动签到任务
+                                                has_auto_attendance = True
+                                                logging.debug(
+                                                    f"[会话监控] 会话 {session_id[:8]}... 多账号模式已启用后台自动签到"
+                                                )
+                                    else:
+                                        # === 单账号模式的处理逻辑 ===
+                                        logging.debug(
+                                            f"[会话监控] 会话 {session_id[:8]}... 为单账号模式，检查单账号配置"
+                                        )
+                                        
+                                        # 从会话配置中读取params字段（单账号模式的参数配置）
+                                        # 这是一个字典，包含单账号模式下的各种配置参数
+                                        single_params = session_state.get("params", {})
+                                        
+                                        # 从params中读取auto_attendance_enabled字段
+                                        # 判断单账号模式下是否启用了后台自动签到功能
+                                        if single_params.get("auto_attendance_enabled", False):
+                                            # 单账号模式下启用了后台自动签到，标记为有自动签到任务
+                                            has_auto_attendance = True
+                                            logging.debug(
+                                                f"[会话监控] 会话 {session_id[:8]}... 单账号模式已启用后台自动签到"
+                                            )
+                                    
+                                    # 如果检测到有后台自动签到任务（无论是单账号还是多账号）
+                                    if has_auto_attendance:
+                                        # 将该会话加入"需要更新活跃时间"的列表
+                                        # 因为后台自动签到任务会持续保持会话活跃，避免被误清理
+                                        active_sessions_to_update.append(session_id)
+                                        logging.debug(
+                                            f"[会话监控] 会话 {session_id[:8]}... 因启用后台自动签到，更新活跃时间"
+                                        )
+                                        # 跳过后续的超时检查逻辑，直接进入下一个会话的处理
+                                        continue
+                                        
+                            except Exception as e:
+                                # 如果加载会话配置或检查自动签到状态时发生异常
+                                # 记录错误日志，但不影响后续的超时判断流程
+                                logging.error(
+                                    f"[会话监控] 检查会话 {session_id[:8]}... 的自动签到配置时出错: {e}"
+                                )
+                                # 异常情况下，保守处理：不因异常而清理会话
+                                # 继续执行后续的超时检查逻辑
+
+                            # --- 超时检查逻辑 ---
                             # 只有在 last_activity > 0 (即至少活跃过一次) 且超时的情况下才清理
+                            # 这里会检查当前时间与最后活跃时间的差值是否超过了配置的超时阈值
                             if last_activity > 0 and (
                                 current_time - last_activity > inactivity_timeout
                             ):
+                                # 会话已超时且无活跃任务，标记为需要清理的不活跃会话
                                 inactive_sessions_to_cleanup.append(session_id)
+                                # 计算自上次活跃以来经过的时间（秒）
                                 time_since_activity = current_time - last_activity
                                 logging.debug(
                                     f"[会话监控] 会话 {session_id[:8]}... 标记为不活跃（超时{int(time_since_activity)}秒，无任务执行）"
                                 )
+
 
             # --- 2. 释放 web_sessions_lock ---
 
