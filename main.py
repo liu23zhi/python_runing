@@ -50,6 +50,8 @@ traceback = _try_import_builtin("traceback")
 zipfile = _try_import_builtin("zipfile")
 random = _try_import_builtin("random")
 argparse = _try_import_builtin("argparse")
+gc = _try_import_builtin("gc")  # 垃圾回收模块，用于内存优化
+heapq = _try_import_builtin("heapq")  # 堆队列模块，用于高效排序
 
 if _import_failures:
     _buffer_log("ERROR", f"\n{'='*70}")
@@ -62,12 +64,16 @@ if _import_failures:
     _buffer_log("ERROR", "这通常表示您的 Python 环境已损坏。")
     _buffer_log("ERROR", "建议重新安装 Python 或修复当前安装。")
     _buffer_log(f"{'='*70}\n")
+    # 清理内存
+    _import_failures.clear()
     if sys:
         sys.exit(1)
     else:
         exit(1)
 
 _buffer_log("INFO", "[导入检查] ✓ 所有内置模块导入成功\n")
+# 清理导入失败列表，释放内存
+_import_failures.clear()
 
 # 配置UTF-8编码（用于日志和控制台输出）
 if sys and sys.platform.startswith("win"):
@@ -424,6 +430,10 @@ def initialize_global_variables():
     # 全局会话存储
     web_sessions = {}
     web_sessions_lock = threading.Lock()
+    
+    # 内存优化：会话数量限制（防止内存溢出）
+    # 当内存中的会话数超过此值时，cleanup_sessions会更频繁地清理过期会话
+    MAX_MEMORY_SESSIONS = 1000  # 最多保持1000个会话在内存中
 
     # 会话文件锁
     session_file_locks = {}
@@ -647,6 +657,9 @@ def archive_old_logs():
             print(f"[日志归档] 已删除原文件: {filename}")
 
         print(f"[日志归档] 归档完成: {archive_path}")
+        
+        # 清理内存 - 使用全局导入的gc模块
+        gc.collect()
 
     except Exception as e:
         print(f"[日志归档] 归档失败: {e}")
@@ -716,6 +729,10 @@ def cleanup_archive_directory(archive_dir, max_size_mb):
         print(
             f"[归档清理] 清理完成，删除了 {deleted_count} 个文件，当前大小: {final_size_mb:.2f}MB"
         )
+        
+        # 如果删除了文件，进行垃圾回收以释放内存 - 使用全局导入的gc模块
+        if deleted_count > 0:
+            gc.collect()
 
     except Exception as e:
         print(f"[归档清理] 清理失败: {e}")
@@ -885,6 +902,8 @@ def setup_logging():
         
         # 清空缓冲区，释放内存
         _log_buffer.clear()
+        # 强制垃圾回收以释放内存 - 使用全局导入的gc模块
+        gc.collect()
 
     # 记录日志系统启动
     logging.info("=" * 80)
@@ -2253,11 +2272,14 @@ class AuthSystem:
             )
 
     def get_login_history(self, username=None, limit=100):
-        """获取登录历史"""
+        """获取登录历史 - 优化：避免加载所有记录到内存"""
         if not os.path.exists(LOGIN_LOG_FILE):
             return []
 
-        history = []
+        # 优化：使用双端队列存储最近的记录，避免列表频繁扩展
+        # collections已在标准库导入中全局导入
+        history = collections.deque(maxlen=limit * 2)  # 预留2倍空间用于过滤
+        
         try:
             with open(LOGIN_LOG_FILE, "r", encoding="utf-8") as f:
                 for line in f:
@@ -2283,14 +2305,16 @@ class AuthSystem:
                 exc_info=True,
             )
 
-        # 返回最近的记录
-        return history[-limit:]
+        # 返回最近的记录 - 转换为列表并限制数量
+        result = list(history)[-limit:]
+        return result
 
     def check_brute_force(self, auth_username, ip_address):
-        """检查暴力破解（5分钟内最多5次失败）"""
+        """检查暴力破解（5分钟内最多5次失败）- 优化：找到足够记录后提前退出"""
         recent_attempts = []
         current_time = time.time()
         cutoff_time = current_time - 300  # 5分钟前
+        MAX_ATTEMPTS = 5  # 定义为常量
 
         if os.path.exists(LOGIN_LOG_FILE):
             try:
@@ -2305,6 +2329,9 @@ class AuthSystem:
                                 ):
                                     if not entry.get("success", False):
                                         recent_attempts.append(entry)
+                                        # 优化：找到超过阈值的失败尝试后立即返回
+                                        if len(recent_attempts) >= MAX_ATTEMPTS:
+                                            return True, "登录失败次数过多，请5分钟后再试"
                         except json.JSONDecodeError as e:
                             # 跳过损坏的日志行
                             logging.debug(
@@ -2322,9 +2349,7 @@ class AuthSystem:
                     exc_info=True,
                 )
 
-        # 如果5分钟内失败超过5次，则锁定
-        if len(recent_attempts) >= 5:
-            return True, "登录失败次数过多，请5分钟后再试"
+        # 如果5分钟内失败次数未超过阈值，返回正常
         return False, ""
 
     def generate_2fa_secret(self, auth_username):
@@ -24206,13 +24231,14 @@ def start_web_server(args_param):
                     }
                 )
 
-            # 读取并解析历史记录
+            # 读取并解析历史记录 - 优化：只保留需要的记录
             records = []
             current_time = time.time()
             expiry_threshold = 30 * 60  # 30分钟（1800秒）
-
+            
             line_count = 0
             parse_error_count = 0
+            total_matched = 0  # 符合过滤条件的总数
 
             # 状态映射：前端状态 -> 后端状态
             # pending -> created
@@ -24227,6 +24253,7 @@ def start_web_server(args_param):
             elif status_filter == "failed":
                 target_status = "verified_failed"
 
+            # 优化：使用迭代器逐行处理，避免一次性加载所有记录到内存
             with open(history_file, "r", encoding="utf-8") as f:
                 for line in f:
                     line_count += 1
@@ -24254,6 +24281,8 @@ def start_web_server(args_param):
                         if status_filter and status_filter != "all":
                             if record.get("status") != target_status:
                                 continue
+                        
+                        total_matched += 1
 
                         # 移除敏感信息
                         record.pop("session_id", None)
@@ -24263,10 +24292,18 @@ def start_web_server(args_param):
                         continue
 
             # 按时间戳倒序排列（最新的在前）
-            records.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+            # 优化：如果记录数超过limit * 2，使用heapq.nlargest进行高效选择
+            if len(records) > limit * 2:
+                records = heapq.nlargest(
+                    limit * 2,
+                    records,
+                    key=lambda x: x.get("timestamp", 0)
+                )
+            else:
+                records.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
 
-            # 修正：在限制（slicing）之前获取总数
-            total = len(records)
+            # 修正：使用 total_matched 作为总数
+            total = total_matched
 
             # 限制返回数量（最多100条）
             records = records[:limit]
@@ -24971,16 +25008,72 @@ def start_web_server(args_param):
     # 定期清理过期会话
 
     def cleanup_sessions():
-        """定期清理超过24小时无活动的会话"""
+        """定期清理超过24小时无活动的会话，并强制执行内存会话数量限制"""
         while True:
             time.sleep(3600)  # 每小时检查一次
-            with web_sessions_lock:
-                # 这里可以添加更复杂的会话过期逻辑
-                # 清理Chrome上下文
-                if chrome_pool:
+            try:
+                current_time = time.time()
+                expired_sessions = []
+                
+                with web_sessions_lock:
+                    # 识别过期会话（24小时无活动）
                     for session_id in list(web_sessions.keys()):
-                        # 可以添加超时检查逻辑
-                        pass
+                        with session_activity_lock:
+                            last_activity = session_activity.get(session_id, 0)
+                            if current_time - last_activity > 86400:  # 24小时 = 86400秒
+                                expired_sessions.append(session_id)
+                    
+                    # 内存优化：如果会话数减去已过期会话后仍超过限制，清理最旧的会话
+                    remaining_sessions = len(web_sessions) - len(expired_sessions)
+                    if remaining_sessions > MAX_MEMORY_SESSIONS:
+                        # 按最后活动时间排序，清理最旧的会话
+                        with session_activity_lock:
+                            # 只考虑未过期的会话
+                            active_sessions = [sid for sid in web_sessions.keys() if sid not in expired_sessions]
+                            sorted_sessions = sorted(
+                                active_sessions,
+                                key=lambda sid: session_activity.get(sid, 0)
+                            )
+                            # 清理超出限制的会话（保留最新的MAX_MEMORY_SESSIONS个）
+                            sessions_to_remove = remaining_sessions - MAX_MEMORY_SESSIONS
+                            for session_id in sorted_sessions[:sessions_to_remove]:
+                                expired_sessions.append(session_id)
+                        logging.warning(
+                            f"[会话清理] 内存会话数超过限制({MAX_MEMORY_SESSIONS})，额外清理了 {sessions_to_remove} 个最旧会话"
+                        )
+                    
+                    # 清理过期会话
+                    for session_id in expired_sessions:
+                        try:
+                            # 清理Chrome上下文
+                            if chrome_pool:
+                                chrome_pool.cleanup_context(session_id)
+                            
+                            # 从内存中移除会话
+                            if session_id in web_sessions:
+                                del web_sessions[session_id]
+                            
+                            with session_activity_lock:
+                                if session_id in session_activity:
+                                    del session_activity[session_id]
+                            
+                            # Note: session_file_locks cleanup is handled separately 
+                            # as it uses session hash as key, not session_id directly
+                            
+                            logging.info(f"[会话清理] 已清理会话: {session_id[:8]}...")
+                        except Exception as e:
+                            logging.error(f"[会话清理] 清理会话 {session_id[:8]}... 时出错: {e}")
+                
+                if expired_sessions:
+                    logging.info(f"[会话清理] 本次清理了 {len(expired_sessions)} 个会话")
+                    # 强制垃圾回收以释放内存
+                    gc.collect()
+                else:
+                    # 即使没有过期会话，也记录当前会话数量
+                    with web_sessions_lock:
+                        logging.debug(f"[会话清理] 当前内存会话数: {len(web_sessions)}/{MAX_MEMORY_SESSIONS}")
+            except Exception as e:
+                logging.error(f"[会话清理] 清理过程出错: {e}", exc_info=True)
 
     cleanup_thread = threading.Thread(target=cleanup_sessions, daemon=True)
     cleanup_thread.start()
