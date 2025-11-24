@@ -1718,7 +1718,7 @@ def _create_permissions_json():
                     "manage_user_sessions": True,
                     "view_captcha_history": True,
                     "view_session_details": True,
-                    "god_mode": True,  # 上帝模式：可以查看和销毁所有会话
+                    "god_mode": True,  # 查看所有会话：可以查看和销毁所有会话
                     # UI按钮权限（细粒度控制）
                     "use_login_button": True,  # 登录按钮
                     "use_multi_account_button": True,  # 多账号控制台按钮
@@ -18434,7 +18434,7 @@ def start_web_server(args_param):
 
     @app.route("/auth/admin/all_sessions", methods=["GET"])
     def auth_admin_all_sessions():
-        """管理员：获取所有活跃会话（上帝模式）"""
+        """管理员：获取所有活跃会话（查看所有会话）"""
         session_id = request.headers.get("X-Session-ID", "")
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
@@ -18519,9 +18519,9 @@ def start_web_server(args_param):
                 401,
             )
 
-        # 检查上帝模式权限
+        # 检查查看所有会话权限
         if not auth_system.check_permission(auth_username, "god_mode"):
-            return jsonify({"success": False, "message": "需要上帝模式权限"}), 403
+            return jsonify({"success": False, "message": "需要查看所有会话权限"}), 403
 
         # 获取所有会话信息（包括内存中的和磁盘上的）
         all_sessions = []
@@ -18614,7 +18614,7 @@ def start_web_server(args_param):
 
     @app.route("/auth/admin/destroy_session", methods=["POST"])
     def auth_admin_destroy_session():
-        """管理员：强制销毁任意会话（上帝模式）"""
+        """管理员：强制销毁任意会话（查看所有会话）"""
         session_id = request.headers.get("X-Session-ID", "")
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
@@ -18622,9 +18622,9 @@ def start_web_server(args_param):
         api_instance = web_sessions[session_id]
         auth_username = getattr(api_instance, "auth_username", "")
 
-        # 检查上帝模式权限
+        # 检查查看所有会话权限
         if not auth_system.check_permission(auth_username, "god_mode"):
-            return jsonify({"success": False, "message": "需要上帝模式权限"}), 403
+            return jsonify({"success": False, "message": "需要查看所有会话权限"}), 403
 
         data = request.json
         target_session_id = data.get("session_id", "")
