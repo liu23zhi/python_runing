@@ -34328,7 +34328,13 @@
               .join(" ");
 
             // 检查是否已经是我们的日志（避免重复发送）
-            if (message.includes("[前端日志]")) {
+            // 【修正】增加对日志发送失败和网络错误的过滤，防止死循环
+            if (
+              message.includes("[前端日志]") || 
+              message.includes("[日志发送失败]") || 
+              message.includes("Failed to fetch") ||
+              message.includes("NetworkError")
+            ) {
               return;
             }
 
@@ -34479,10 +34485,21 @@
               }),
             }).catch((err) => {
               // 静默失败，避免日志发送失败影响主功能
-              console.error("[日志发送失败]", err);
+              // 【修正】使用原始 console 方法记录，避开拦截器，防止死循环
+              if (console._original && console._original.error) {
+                  console._original.error("[日志发送失败]", err);
+              } else {
+                  // 兜底：如果原始引用不可用，不调用 error 以免触发拦截器，改用 warn 或仅在非拦截环境输出
+                  // 或者依赖 interceptConsole 中的过滤逻辑
+                  // 这里为了安全，暂时什么都不做，或者只在本地调试时输出
+                  // console.warn("[日志发送失败] (Safe Mode)", err); 
+              }
             });
           } catch (e) {
-            console.error("[日志发送异常]", e);
+             // 【修正】同样使用原始 console
+             if (console._original && console._original.error) {
+                 console._original.error("[日志发送异常]", e);
+             }
           }
         }
 

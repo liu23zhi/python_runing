@@ -441,6 +441,12 @@ def initialize_global_variables():
     # 会话活动追踪
     session_activity = {}
     session_activity_lock = threading.Lock()
+    
+    # [新增] 用户浏览活跃追踪 (专门用于记录 get_initial_data 等主动浏览行为)
+    global browsing_activity, browsing_activity_lock
+    browsing_activity = {}
+    browsing_activity_lock = threading.Lock()
+    
     logging.info("会话存储和锁已初始化。")
 
     # 全局浏览器池和任务管理器
@@ -5112,6 +5118,17 @@ class Api:
 
     def get_initial_data(self):
         """应用启动时由前端调用，获取初始用户列表和最后登录用户"""
+
+        # [新增] 记录浏览活跃时间
+        # 只有前端页面加载/刷新/激活时才会调用此接口，视为"正在浏览"
+        try:
+            session_id = getattr(self, '_web_session_id', None)
+            if session_id:
+                with browsing_activity_lock:
+                    browsing_activity[session_id] = time.time()
+                logging.debug(f"[浏览监控] 更新会话 {session_id[:8]} 的浏览活跃时间")
+        except Exception as e:
+            logging.warning(f"[浏览监控] 更新活跃时间失败: {e}")
 
         try:
             logging.info(
@@ -11394,15 +11411,47 @@ def cleanup_inactive_session(session_id):
                     api_instance, "is_guest", True
                 ):
                     username = api_instance.auth_username
+                    
+                    # [修改] 检查用户是否在"浏览网页" (基于 browsing_activity)
+                    is_browsing = False
+                    try:
+                        # 1. 获取超时配置
+                        timeout = 300
+                        if os.path.exists(CONFIG_FILE):
+                            cfg = configparser.ConfigParser()
+                            cfg.read(CONFIG_FILE, encoding="utf-8")
+                            timeout = cfg.getint("System", "session_inactivity_timeout", fallback=300)
+
+                        # 2. 获取用户的所有 Session
+                        user_sids = auth_system.get_user_sessions(username)
+                        current_ts = time.time()
+
+                        # 3. 检查其他 Session 是否有最近的 browsing_activity
+                        with browsing_activity_lock:
+                            for sid in user_sids:
+                                if sid == session_id: 
+                                    continue # 跳过当前正在被清理的死会话
+                                
+                                last_browse_ts = browsing_activity.get(sid, 0)
+                                # 如果某个其他会话在超时时间内有过 get_initial_data 调用
+                                if current_ts - last_browse_ts < timeout:
+                                    is_browsing = True
+                                    break
+                    except Exception as e:
+                        logging.error(f"检查浏览状态失败: {e}")
+
                     auth_system.unlink_session_from_user(username, session_id)
-                    # 使token失效
-                    token_manager.invalidate_token(username, session_id)
-                    logging.info(f"已使用户 {username} 的会话 {session_id} 的token失效")
+                    
+                    # 4. 仅当用户完全没有在浏览时，才使 Token 失效
+                    if not is_browsing:
+                        token_manager.invalidate_token(username, session_id)
+                        logging.info(f"已使用户 {username} 的会话 {session_id} 的token失效 (无其他浏览行为)")
+                    else:
+                        logging.info(f"用户 {username} 仍在其他页面浏览，跳过 Token 失效，仅清理过期会话 {session_id}")
 
                 del web_sessions[session_id]
 
         # 删除会话文件
-
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
         session_file = os.path.join(SESSION_STORAGE_DIR, f"{session_hash}.json")
         if os.path.exists(session_file):
@@ -11413,6 +11462,11 @@ def cleanup_inactive_session(session_id):
         with session_activity_lock:
             if session_id in session_activity:
                 del session_activity[session_id]
+        
+        # 从浏览追踪中移除
+        with browsing_activity_lock:
+            if session_id in browsing_activity:
+                del browsing_activity[session_id]
 
         # 从索引中移除
         index = _load_session_index()
@@ -20911,15 +20965,6 @@ def start_web_server(args_param):
     def favicon():
         """
         返回网站图标（Favicon）文件。
-
-        功能说明：
-        - 当浏览器请求网站图标时，返回位于项目根目录的 favicon.ico 文件
-        - 使用 send_file 函数安全地发送文件到客户端
-        - 设置正确的 MIME 类型（image/vnd.microsoft.icon）以确保浏览器正确识别
-
-        返回值：
-        - 成功：返回 favicon.ico 文件
-        - 失败：返回 404 错误（如果文件不存在）
         """
         try:
             # 获取当前脚本所在的目录（项目根目录）
@@ -20954,18 +20999,6 @@ def start_web_server(args_param):
     def api_shutdown():
         """
         应用退出API端点。
-
-        功能说明：
-        - 响应PC端登录页的退出按钮点击事件
-        - 安全地关闭 Flask + SocketIO 服务器
-        - 执行必要的清理工作（如关闭数据库连接、保存状态等）
-
-        安全考虑：
-        - 此API应该受到权限保护，避免被恶意调用
-        - 在生产环境中，建议添加身份验证或IP白名单
-
-        返回值：
-        - JSON 响应，表示关闭操作已启动
         """
         try:
             # 记录关闭请求的来源信息（IP地址和User-Agent）
@@ -23550,11 +23583,15 @@ def start_web_server(args_param):
             threading.Thread(target=cleanup_expired_captchas, daemon=True).start()
 
             # 记录日志（不记录验证码答案）
-            logging.info(
-                f"[本地验证码] 已生成验证码 ID: {captcha_id[:8]}... 会话: {session_id[:8]}... 长度: {length} 尺寸: {captcha_width}x{captcha_height}px"
-            )
-
-            # 返回验证码HTML、ID和尺寸给前端
+            if session_id and str(session_id).lower() not in ("null", "undefined", ""):
+                logging.info(
+                    f"[本地验证码] 已生成验证码 ID: {captcha_id} 会话: {session_id} 长度: {length} 尺寸: {captcha_width}x{captcha_height}px"
+                )
+            else:
+                logging.info(
+                    f"[本地验证码] 已生成验证码 ID: {captcha_id} 会话: 未知 长度: {length} 尺寸: {captcha_width}x{captcha_height}px"
+                )
+      # 返回验证码HTML、ID和尺寸给前端
             return jsonify(
                 {
                     "success": True,
@@ -25251,7 +25288,7 @@ def start_web_server(args_param):
                                                 "HTTP/1.1 200 OK\r\n"
                                                 "Content-Type: text/html\r\n"
                                                 "Connection: close\r\n\r\n"
-                                                "<html><head><title>Redirecting...</title></head>"
+                                                "<html><head><title>正在重定向到 HTTPS...</title><link rel=\"icon\" href=\"/favicon.ico\" type=\"image/x-icon\" /></head>"
                                                 "<body><script>window.location.protocol = 'https:';</script>"
                                                 "Please wait, redirecting to HTTPS...</body></html>"
                                             )
