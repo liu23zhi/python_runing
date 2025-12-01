@@ -6512,19 +6512,69 @@ class Api:
             return {"success": False, "message": f"导入失败: {e}"}
 
     def clear_current_task_draft(self):
-        """清除当前任务的草稿路径和已生成路径"""
+        """
+        清除当前任务的草稿路径和已生成路径。
+
+        功能说明：
+        - 首先检查是否有任务正在执行中
+        - 如果任务正在执行，拒绝清除操作
+        - 否则清除当前任务的草稿路径和运行数据
+
+        返回值：
+        - 成功: {"success": True}
+        - 失败: {"success": False, "message": "错误信息"}
+        """
         logging.info(
             "API调用: clear_current_task_draft - 清除当前任务的草稿路径和生成路径"
         )
+
+        # 步骤1: 检查是否选择了任务
         if self.current_run_idx == -1 or not (
             0 <= self.current_run_idx < len(self.all_run_data)
         ):
             return {"success": False, "message": "未选择任务"}
+
+        # 步骤2: 检查是否有任务正在执行中
+        # 需要检查后台任务管理器和单账号模式的运行标志
+        is_running = False
+
+        # 检查后台任务管理器中是否有正在运行的任务
+        # background_task_manager 是全局变量，用于管理后台任务
+        if background_task_manager:
+            with background_task_manager.lock:
+                # 遍历所有任务，检查是否有状态为 "running" 的任务
+                for session_id, task in background_task_manager.tasks.items():
+                    if task.get("status") == "running":
+                        is_running = True
+                        logging.info(
+                            f"检测到后台任务正在运行: session_id={session_id[:16]}..."
+                        )
+                        break
+
+        # 检查单账号模式下的运行标志
+        # stop_run_flag 是一个 threading.Event 对象
+        # 当它未被设置(is_set()返回False)时，表示任务可能正在运行
+        if not is_running and hasattr(self, "stop_run_flag") and isinstance(
+            self.stop_run_flag, threading.Event
+        ):
+            # 还需要检查是否真的有任务在执行
+            # 通过检查 run_in_progress 或类似标志来确认
+            if hasattr(self, "run_in_progress") and self.run_in_progress:
+                is_running = True
+                logging.info("检测到单账号模式下任务正在运行")
+
+        # 如果任务正在执行，拒绝清除操作
+        if is_running:
+            logging.warning("任务正在执行中，拒绝清除路径请求")
+            return {"success": False, "message": "任务正在执行中，无法清除路径"}
+
+        # 步骤3: 执行清除操作
         run = self.all_run_data[self.current_run_idx]
-        run.draft_coords = []
-        run.run_coords = []
-        run.total_run_distance_m = 0
-        run.total_run_time_s = 0
+        run.draft_coords = []  # 清除草稿路径坐标
+        run.run_coords = []  # 清除运行路径坐标
+        run.total_run_distance_m = 0  # 重置总运行距离
+        run.total_run_time_s = 0  # 重置总运行时间
+
         logging.info(f"已清除任务的草稿路径和运行数据: 任务名称={run.run_name}")
         return {"success": True}
 
