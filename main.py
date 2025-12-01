@@ -409,11 +409,11 @@ def initialize_global_variables():
 
     session_activity = {}
     session_activity_lock = threading.Lock()
-    
+
     global browsing_activity, browsing_activity_lock
     browsing_activity = {}
     browsing_activity_lock = threading.Lock()
-    
+
     logging.info("会话存储和锁已初始化。")
 
     chrome_pool = None
@@ -421,8 +421,6 @@ def initialize_global_variables():
     logging.info("浏览器池和任务管理器已初始化为 None。")
 
     logging.info("全局变量初始化完成。")
-
-
 
 
 # ==============================================================================
@@ -732,16 +730,13 @@ def setup_logging():
         max_bytes=max_bytes,
     )
 
-
     error_file_handler.setLevel(logging.ERROR)
-
 
     error_no_color_formatter = NoColorFileFormatter(
         log_format._fmt,
         datefmt=log_format.datefmt,
     )
     error_file_handler.setFormatter(error_no_color_formatter)
-
 
     logger.addHandler(error_file_handler)
     global _log_buffer
@@ -766,8 +761,6 @@ def setup_logging():
     logging.info("=" * 80)
 
     return logger
-
-
 
 
 def auto_init_system():
@@ -964,7 +957,7 @@ def _get_default_config():
         "username": "",
         "api_key": "",
         "signature": "【电科大跑步助手】",
-        "template_register": "您的验证码是：{code}，{minutes}分钟内有效。", 
+        "template_register": "您的验证码是：{code}，{minutes}分钟内有效。",
         "code_expire_minutes": "5",
         "send_interval_seconds": "180",
         "rate_limit_per_account_day": "10",
@@ -1769,7 +1762,6 @@ class AuthSystem:
             f"[密码验证] 开始验证密码 --> 输入密码长度: {len(input_password)}字符, 存储密码长度: {len(stored_password)}字符"
         )
 
-
         if stored_password.startswith("$2b$") or stored_password.startswith("$2a$"):
             try:
 
@@ -2172,8 +2164,7 @@ class AuthSystem:
             }
 
     def check_permission(self, auth_username, permission):
-        """检查用户是否有特定权限（支持差分化权限）
-        """
+        """检查用户是否有特定权限（支持差分化权限）"""
         group = self.get_user_group(auth_username)
 
         group_perms = (
@@ -2343,8 +2334,7 @@ class AuthSystem:
             return {"success": True, "message": "权限组已创建"}
 
     def update_permission_group(self, group_name, permissions):
-        """更新权限组（需要超级管理员权限）
-        """
+        """更新权限组（需要超级管理员权限）"""
         with self.lock:
             if group_name not in self.permissions["permission_groups"]:
                 return {"success": False, "message": "权限组不存在"}
@@ -2356,8 +2346,7 @@ class AuthSystem:
             return {"success": True, "message": "权限组已更新"}
 
     def delete_permission_group(self, group_name):
-        """删除权限组（需要超级管理员权限）
-        """
+        """删除权限组（需要超级管理员权限）"""
         with self.lock:
             if group_name not in self.permissions["permission_groups"]:
                 return {"success": False, "message": "权限组不存在"}
@@ -2430,7 +2419,6 @@ class AuthSystem:
         """关联会话ID到用户账号（用于状态恢复）"""
         if auth_username == "guest":
             return
-
 
         if not session_id or session_id == "null" or session_id.strip() == "":
             logging.debug(
@@ -2675,8 +2663,7 @@ class AuthSystem:
         }
 
     def check_single_session_enforcement(self, auth_username, new_session_id):
-        """检查并强制执行会话数量限制
-        """
+        """检查并强制执行会话数量限制"""
         if auth_username == "guest":
             return [], ""
 
@@ -2832,8 +2819,7 @@ class AuthSystem:
 
 
 class TokenManager:
-    """管理用户登录令牌的系统
-    """
+    """管理用户登录令牌的系统"""
 
     def __init__(self, tokens_dir):
         logging.info("=" * 80)
@@ -2861,9 +2847,7 @@ class TokenManager:
         return token
 
     def create_token(self, username, session_id=None):
-        """为用户创建新令牌并存储
-
-        """
+        """为用户创建新令牌并存储"""
         logging.info(f"create_token: 为用户 {username} 创建令牌...")
         token = self.generate_token()
         created_at = time.time()
@@ -2886,8 +2870,7 @@ class TokenManager:
         return token
 
     def verify_token(self, username, session_id, token):
-        """验证令牌是否有效
-        """
+        """验证令牌是否有效"""
         token_file = self._get_token_file_path(username)
 
         if not os.path.exists(token_file):
@@ -2948,8 +2931,7 @@ class TokenManager:
             return None
 
     def refresh_token(self, username, session_id=None):
-        """刷新令牌的过期时间和最后活动时间
-        """
+        """刷新令牌的过期时间和最后活动时间"""
         with self.lock:
             token_file = self._get_token_file_path(username)
 
@@ -2993,8 +2975,7 @@ class TokenManager:
                     logging.error(f"删除令牌文件时出错: {e}")
 
     def get_active_sessions(self, username):
-        """获取用户所有有效的会话
-        """
+        """获取用户所有有效的会话"""
         logging.debug(
             f"get_active_sessions: token文件不再管理session列表，请使用session管理功能"
         )
@@ -3028,8 +3009,7 @@ class TokenManager:
                 logging.error(f"清理过期令牌时出错: {e}")
 
     def detect_multi_device_login(self, username, new_session_id):
-        """检测多设备登录
-        """
+        """检测多设备登录"""
         active_sessions = self.get_active_sessions(username)
 
         old_sessions = [s for s in active_sessions if s != new_session_id]
@@ -3072,9 +3052,7 @@ class RunData:
         self.draft_coords: list[tuple[float, float, int]] = []
         self.run_coords: list[tuple[float, float, int]] = []
         self.recommended_coords: list[tuple[float, float]] = []
-        self.target_points: list[tuple[float, float]] = (
-            []
-        )
+        self.target_points: list[tuple[float, float]] = []
         self.target_point_names: str = ""
         self.upload_time: str = ""
         self.start_time: str = ""
@@ -3084,9 +3062,7 @@ class RunData:
         self.errand_schedule: str = ""
         self.status: int = 0
 
-        self.target_sequence: int = (
-            0
-        )
+        self.target_sequence: int = 0
         self.is_in_target_zone: bool = False
         self.trid: str = ""
         self.details_fetched: bool = False
@@ -3290,7 +3266,6 @@ class ApiClient:
                 )
                 time.sleep(1.5)
                 continue
-
 
             except requests.exceptions.HTTPError as http_err:
                 log_func(
@@ -4258,7 +4233,7 @@ class Api:
         """应用启动时由前端调用，获取初始用户列表和最后登录用户"""
 
         try:
-            session_id = getattr(self, '_web_session_id', None)
+            session_id = getattr(self, "_web_session_id", None)
             if session_id:
                 with browsing_activity_lock:
                     browsing_activity[session_id] = time.time()
@@ -4474,9 +4449,7 @@ class Api:
             )
 
             sessions_info = []
-            current_session_id = getattr(
-                self, "_web_session_id", None
-            )
+            current_session_id = getattr(self, "_web_session_id", None)
 
             for sid in session_ids:
                 session_file = get_session_file_path(sid)
@@ -4565,9 +4538,7 @@ class Api:
         auth_username = getattr(self, "auth_username", None)
         auth_group = getattr(self, "auth_group", "guest")
         is_guest = getattr(self, "is_guest", False)
-        is_authenticated = (
-            hasattr(self, "is_authenticated") and self.is_authenticated
-        )
+        is_authenticated = hasattr(self, "is_authenticated") and self.is_authenticated
         if is_authenticated and auth_username and not is_guest:
             has_view_all_permission = False
 
@@ -4656,7 +4627,11 @@ class Api:
 
         resp = self.api_client.login(input_username, password)
         if not resp or not resp.get("success"):
-            msg = resp.get("message", "未知错误") if resp else "网络连接失败"
+            msg = (
+                resp.get("message", "未知错误")
+                if resp
+                else "网络连接失败，无法连接到学校服务器。"
+            )
             self.log(f"服务器反馈登录失败：{msg}")
             logging.warning(f"用户登录失败: {msg}")
             return {"success": False, "message": msg}
@@ -4774,9 +4749,7 @@ class Api:
         except Exception as e:
             logging.warning(f"预加载通知失败（非致命错误）: {e}")
 
-        auth_group = getattr(
-            self, "auth_group", "guest"
-        )
+        auth_group = getattr(self, "auth_group", "guest")
 
         return {
             "success": True,
@@ -5742,9 +5715,7 @@ class Api:
                     )
                     last_point_gps = (lon, lat, dur_ms)
                     point_index += 1
-                    run_data.current_point_index = (
-                        point_index
-                    )
+                    run_data.current_point_index = point_index
                     self.check_target_reached_during_run(run_data, lon, lat)
 
                     current_session_id = session_id
@@ -5823,7 +5794,6 @@ class Api:
                         f"数据提交在 {max_attempts} 次尝试后仍然失败，任务中止"
                     )
                     break
-
 
             if not stop_flag.is_set() and submission_successful:
                 log_func("任务执行完毕，等待确认...")
@@ -6554,8 +6524,10 @@ class Api:
         # 检查单账号模式下的运行标志
         # stop_run_flag 是一个 threading.Event 对象
         # 当它未被设置(is_set()返回False)时，表示任务可能正在运行
-        if not is_running and hasattr(self, "stop_run_flag") and isinstance(
-            self.stop_run_flag, threading.Event
+        if (
+            not is_running
+            and hasattr(self, "stop_run_flag")
+            and isinstance(self.stop_run_flag, threading.Event)
         ):
             # 还需要检查是否真的有任务在执行
             # 通过检查 run_in_progress 或类似标志来确认
@@ -6875,8 +6847,7 @@ class Api:
         return final_status
 
     def multi_add_account(self, username, password, tag=None, params=None):
-        """模式二：手动或选择性添加账号
-        """
+        """模式二：手动或选择性添加账号"""
         if username in self.accounts:
             acc = self.accounts[username]
 
@@ -7157,6 +7128,7 @@ class Api:
                 and hasattr(self, "_web_session_id")
                 and self._web_session_id
             ):
+
                 def delayed_save():
                     time.sleep(2)
                     try:
@@ -7307,9 +7279,7 @@ class Api:
 
         try:
             imported = 0
-            seen_usernames: set[str] = (
-                set()
-            )
+            seen_usernames: set[str] = set()
 
             if ext == ".xlsx":
                 try:
@@ -8656,7 +8626,6 @@ class Api:
                     if not submission_successful:
                         break
 
-
                     is_final_chunk = chunk_idx + 40 >= len(run_data.run_coords)
                     if not self._submit_chunk(
                         run_data,
@@ -9072,15 +9041,13 @@ class Api:
                                 roll_call_id, self.user_data.id
                             )
 
-                            status = -2 
+                            status = -2
                             finished = 0
 
                             if info_resp and info_resp.get("success"):
                                 data = info_resp.get("data", {})
                                 roll_call_info = data.get("rollCallInfo", {})
-                                status = roll_call_info.get(
-                                    "status"
-                                )
+                                status = roll_call_info.get("status")
                                 finished = data.get("attendFinish")
 
                             notice["attendance_finished"] = finished
@@ -9178,9 +9145,7 @@ class Api:
                     if self.stop_auto_refresh.wait(timeout=5.0):
                         break
                     continue
-                refresh_interval_s = self.params.get(
-                    "auto_attendance_refresh_s", 30
-                )
+                refresh_interval_s = self.params.get("auto_attendance_refresh_s", 30)
                 refresh_interval_s = max(15, refresh_interval_s)
                 if self.is_multi_account_mode or not self.user_data.id:
                     continue
@@ -9189,9 +9154,7 @@ class Api:
                     self.log("(后台) 自动签到已启用，正在检查...")
                     self._check_and_trigger_auto_attendance(self)
                     self.log("正在自动刷新通知 (后台)...")
-                    result = self.get_notifications(
-                        is_auto_refresh=True
-                    )
+                    result = self.get_notifications(is_auto_refresh=True)
                     if result.get("success"):
                         session_id = getattr(self, "_web_session_id", None)
                         if session_id and "socketio" in globals():
@@ -9537,14 +9500,16 @@ def cleanup_inactive_session(session_id):
                         if os.path.exists(CONFIG_FILE):
                             cfg = configparser.ConfigParser()
                             cfg.read(CONFIG_FILE, encoding="utf-8")
-                            timeout = cfg.getint("System", "session_inactivity_timeout", fallback=300)
+                            timeout = cfg.getint(
+                                "System", "session_inactivity_timeout", fallback=300
+                            )
                         user_sids = auth_system.get_user_sessions(username)
                         current_ts = time.time()
                         with browsing_activity_lock:
                             for sid in user_sids:
-                                if sid == session_id: 
+                                if sid == session_id:
                                     continue
-                                
+
                                 last_browse_ts = browsing_activity.get(sid, 0)
                                 if current_ts - last_browse_ts < timeout:
                                     is_browsing = True
@@ -9555,9 +9520,13 @@ def cleanup_inactive_session(session_id):
                     auth_system.unlink_session_from_user(username, session_id)
                     if not is_browsing:
                         token_manager.invalidate_token(username, session_id)
-                        logging.info(f"已使用户 {username} 的会话 {session_id} 的token失效 (无其他浏览行为)")
+                        logging.info(
+                            f"已使用户 {username} 的会话 {session_id} 的token失效 (无其他浏览行为)"
+                        )
                     else:
-                        logging.info(f"用户 {username} 仍在其他页面浏览，跳过 Token 失效，仅清理过期会话 {session_id}")
+                        logging.info(
+                            f"用户 {username} 仍在其他页面浏览，跳过 Token 失效，仅清理过期会话 {session_id}"
+                        )
 
                 del web_sessions[session_id]
         session_hash = hashlib.sha256(session_id.encode()).hexdigest()
@@ -9683,11 +9652,15 @@ def monitor_session_inactivity():
 
         except Exception as e:
             logging.error(f"会话监控线程错误: {e}", exc_info=True)
+
+
 def start_session_monitor():
     """启动会话不活跃监控"""
     monitor_thread = threading.Thread(target=monitor_session_inactivity, daemon=True)
     monitor_thread.start()
     logging.info("会话监控线程已启动")
+
+
 def _load_session_index():
     """加载会话索引文件"""
     try:
@@ -10094,8 +10067,8 @@ def cleanup_expired_sessions():
 
 def restore_session_to_api_instance(api_instance, state):
     """
-    将保存的会话状态恢复到Api实例
-\    """
+        将保存的会话状态恢复到Api实例
+    """
     try:
         if "auth_username" in state:
             api_instance.auth_username = state["auth_username"]
@@ -10179,8 +10152,7 @@ def restore_session_to_api_instance(api_instance, state):
                                 loaded_tag = api_instance._load_account_tag(username)
                                 acc = AccountSession(
                                     username=username,
-                                    password=loaded_password
-                                    or "",
+                                    password=loaded_password or "",
                                     api_bridge=api_instance,
                                     tag=loaded_tag or "",
                                 )
@@ -10534,9 +10506,7 @@ def load_all_sessions(args):
                 )
                 web_sessions[session_id] = api_instance
                 session_activity[session_id] = last_accessed
-                successful_sessions[session_id] = (
-                    session_hash
-                )
+                successful_sessions[session_id] = session_hash
                 loaded_count += 1
 
             except (
@@ -10581,6 +10551,8 @@ def load_all_sessions(args):
 
     if loaded_count > 0:
         logging.info(f"共加载 {loaded_count} 个持久化会话")
+
+
 class BackgroundTaskManager:
     """管理服务器端后台任务执行"""
 
@@ -11127,9 +11099,7 @@ class BackgroundTaskManager:
                                     if hasattr(run_data, "target_points")
                                     else 0
                                 )
-                                task_state["elapsed_time_s"] = (
-                                    time.time() - start_wait
-                                )
+                                task_state["elapsed_time_s"] = time.time() - start_wait
                                 task_state["current_distance_m"] = getattr(
                                     run_data, "distance_covered_m", 0
                                 )
@@ -11414,11 +11384,14 @@ class PlaywrightPageProxy:
             导航结果
         """
         # 向专用线程发送导航请求
-        result = self._browser_pool._send_request("page_goto", {
-            "session_id": self._session_id,
-            "url": url,
-            "options": kwargs,
-        })
+        result = self._browser_pool._send_request(
+            "page_goto",
+            {
+                "session_id": self._session_id,
+                "url": url,
+                "options": kwargs,
+            },
+        )
         if not result.get("success"):
             raise RuntimeError(f"导航失败: {result.get('error', '未知错误')}")
         return result.get("result")
@@ -11435,11 +11408,14 @@ class PlaywrightPageProxy:
             操作结果
         """
         # 向专用线程发送设置内容请求
-        result = self._browser_pool._send_request("page_set_content", {
-            "session_id": self._session_id,
-            "html": html,
-            "options": kwargs,
-        })
+        result = self._browser_pool._send_request(
+            "page_set_content",
+            {
+                "session_id": self._session_id,
+                "html": html,
+                "options": kwargs,
+            },
+        )
         if not result.get("success"):
             raise RuntimeError(f"设置内容失败: {result.get('error', '未知错误')}")
         return result.get("result")
@@ -11456,11 +11432,14 @@ class PlaywrightPageProxy:
             操作结果
         """
         # 向专用线程发送等待函数请求
-        result = self._browser_pool._send_request("page_wait_for_function", {
-            "session_id": self._session_id,
-            "expression": expression,
-            "options": kwargs,
-        })
+        result = self._browser_pool._send_request(
+            "page_wait_for_function",
+            {
+                "session_id": self._session_id,
+                "expression": expression,
+                "options": kwargs,
+            },
+        )
         if not result.get("success"):
             raise RuntimeError(f"等待函数失败: {result.get('error', '未知错误')}")
         return result.get("result")
@@ -11527,6 +11506,7 @@ class ChromeBrowserPool:
         # 导入 eventlet.patcher 获取未被 monkey patch 的原生模块
         # 这是关键：必须使用原生的 threading 和 queue 模块，而不是被 eventlet 修改过的版本
         from eventlet import patcher
+
         # 获取原生的 threading 模块，用于创建真正的系统线程
         self._native_threading = patcher.original("threading")
         # 获取原生的 queue 模块，用于线程间通信
@@ -11542,8 +11522,8 @@ class ChromeBrowserPool:
         # 在专用线程中维护的 Playwright 相关对象引用
         # 这些对象只在专用线程中创建和使用
         self._playwright = None  # Playwright 实例
-        self._browser = None     # Browser 浏览器实例
-        self._contexts = {}      # 会话ID到浏览器上下文的映射字典
+        self._browser = None  # Browser 浏览器实例
+        self._contexts = {}  # 会话ID到浏览器上下文的映射字典
 
         # 记录专用线程是否已初始化的标志
         self._initialized = False
@@ -11579,7 +11559,7 @@ class ChromeBrowserPool:
 
             # 解析请求：操作类型、参数、用于返回结果的事件和结果容器
             operation = request.get("operation")  # 操作类型字符串
-            args = request.get("args", {})        # 操作参数字典
+            args = request.get("args", {})  # 操作参数字典
             result_event = request.get("result_event")  # 用于通知完成的事件
             result_container = request.get("result_container")  # 用于存储结果的容器
 
@@ -11600,7 +11580,7 @@ class ChromeBrowserPool:
                     result = self._do_execute_js(
                         args.get("session_id"),
                         args.get("script"),
-                        args.get("js_args", [])
+                        args.get("js_args", []),
                     )
                 elif operation == "close_context":
                     # 关闭指定会话的上下文
@@ -11614,23 +11594,21 @@ class ChromeBrowserPool:
                 elif operation == "page_goto":
                     # 导航到指定 URL
                     result = self._do_page_goto(
-                        args.get("session_id"),
-                        args.get("url"),
-                        args.get("options", {})
+                        args.get("session_id"), args.get("url"), args.get("options", {})
                     )
                 elif operation == "page_set_content":
                     # 设置页面 HTML 内容
                     result = self._do_page_set_content(
                         args.get("session_id"),
                         args.get("html"),
-                        args.get("options", {})
+                        args.get("options", {}),
                     )
                 elif operation == "page_wait_for_function":
                     # 等待 JavaScript 函数返回真值
                     result = self._do_page_wait_for_function(
                         args.get("session_id"),
                         args.get("expression"),
-                        args.get("options", {})
+                        args.get("options", {}),
                     )
                 else:
                     # 未知操作类型，返回错误
@@ -11684,7 +11662,9 @@ class ChromeBrowserPool:
             # 标记为已初始化
             self._initialized = True
 
-            logging.info(f"Playwright 和 Chrome 浏览器初始化成功 (headless={self.headless})")
+            logging.info(
+                f"Playwright 和 Chrome 浏览器初始化成功 (headless={self.headless})"
+            )
             return {"success": True}
 
         except Exception as e:
@@ -11806,7 +11786,9 @@ class ChromeBrowserPool:
             result = page.goto(url, **options) if options else page.goto(url)
             return {"success": True, "result": result}
         except Exception as e:
-            logging.error(f"页面导航失败 (session={session_id}, url={url}): {e}", exc_info=True)
+            logging.error(
+                f"页面导航失败 (session={session_id}, url={url}): {e}", exc_info=True
+            )
             return {"success": False, "error": str(e)}
 
     def _do_page_set_content(self, session_id, html, options):
@@ -11830,10 +11812,14 @@ class ChromeBrowserPool:
             # 获取页面对象
             page = self._contexts[session_id]["page"]
             # 设置页面内容
-            result = page.set_content(html, **options) if options else page.set_content(html)
+            result = (
+                page.set_content(html, **options) if options else page.set_content(html)
+            )
             return {"success": True, "result": result}
         except Exception as e:
-            logging.error(f"设置页面内容失败 (session={session_id}): {e}", exc_info=True)
+            logging.error(
+                f"设置页面内容失败 (session={session_id}): {e}", exc_info=True
+            )
             return {"success": False, "error": str(e)}
 
     def _do_page_wait_for_function(self, session_id, expression, options):
@@ -11857,7 +11843,11 @@ class ChromeBrowserPool:
             # 获取页面对象
             page = self._contexts[session_id]["page"]
             # 等待函数
-            result = page.wait_for_function(expression, **options) if options else page.wait_for_function(expression)
+            result = (
+                page.wait_for_function(expression, **options)
+                if options
+                else page.wait_for_function(expression)
+            )
             return {"success": True, "result": result}
         except Exception as e:
             logging.error(f"等待函数失败 (session={session_id}): {e}", exc_info=True)
@@ -11957,7 +11947,9 @@ class ChromeBrowserPool:
 
         # 通过 tpool.execute() 在真实线程中等待，保持 eventlet 调度器响应
         try:
-            wait_result = eventlet.tpool.execute(_wait_for_result, result_event, timeout)
+            wait_result = eventlet.tpool.execute(
+                _wait_for_result, result_event, timeout
+            )
         except Exception as e:
             # 如果 tpool 执行失败，记录错误并返回
             logging.error(f"等待 Playwright 操作结果时出错: {e}", exc_info=True)
@@ -12029,11 +12021,14 @@ class ChromeBrowserPool:
         """
         try:
             # 向专用线程发送执行 JS 请求
-            result = self._send_request("execute_js", {
-                "session_id": session_id,
-                "script": script,
-                "js_args": list(args),
-            })
+            result = self._send_request(
+                "execute_js",
+                {
+                    "session_id": session_id,
+                    "script": script,
+                    "js_args": list(args),
+                },
+            )
 
             if result.get("success"):
                 return result.get("result")
@@ -12105,12 +12100,14 @@ class ChromeBrowserPool:
         # 向队列发送一个空请求，确保工作线程能从 queue.get() 中唤醒
         # 这是因为工作线程可能正在 queue.get(timeout=QUEUE_POLL_TIMEOUT_SEC) 中等待
         try:
-            self._request_queue.put({
-                "operation": "_shutdown",
-                "args": {},
-                "result_event": None,
-                "result_container": None,
-            })
+            self._request_queue.put(
+                {
+                    "operation": "_shutdown",
+                    "args": {},
+                    "result_event": None,
+                    "result_container": None,
+                }
+            )
         except Exception:
             pass  # 忽略队列操作失败
 
@@ -12427,6 +12424,7 @@ def validate_ssl_certificate(cert_path, key_path):
     }
     try:
         import ssl
+
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         context.load_cert_chain(cert_path, key_path)
         cert_info["message"] = "证书和密钥验证通过，可以安全使用"
@@ -12450,10 +12448,12 @@ def get_ssl_certificate_info(cert_path):
     try:
         import ssl
         from datetime import datetime
+
         with open(cert_path, "rb") as f:
             cert_data = f.read()
         from cryptography import x509
         from cryptography.hazmat.backends import default_backend
+
         cert = x509.load_pem_x509_certificate(cert_data, default_backend())
         cert_info = {
             "subject": cert.subject.rfc4514_string(),
@@ -12589,6 +12589,7 @@ def start_web_server(args_param):
             return f(*args, **kwargs)
 
         return decorated_function
+
     @app.before_request
     def check_ip_ban_before_request():
         """
@@ -13298,13 +13299,9 @@ def start_web_server(args_param):
         """
         会话切换API - 在多标签页间切换时更新认证token和cookie。
         """
-        current_session_id = request.headers.get(
-            "X-Session-ID", ""
-        )
+        current_session_id = request.headers.get("X-Session-ID", "")
         data = request.get_json() or {}
-        target_session_id = data.get(
-            "target_session_id", ""
-        )
+        target_session_id = data.get("target_session_id", "")
 
         if not current_session_id or not target_session_id:
             return jsonify({"success": False, "message": "缺少会话ID参数"}), 400
@@ -13423,6 +13420,7 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": "权限不足"})
         result = auth_system.update_user_group(target_username, new_group)
         return jsonify(result)
+
     @app.route("/auth/admin/list_groups", methods=["GET"])
     def auth_admin_list_groups():
         """
@@ -13550,11 +13548,15 @@ def start_web_server(args_param):
         auth_username = getattr(api_instance, "auth_username", "")
         if not auth_system.check_permission(auth_username, "manage_permissions"):
             return jsonify({"success": False, "message": "权限不足"}), 403
-            
+
         user_current_permissions = auth_system.get_user_permissions(target_username)
-        
+
         all_possible_keys = set()
-        super_admin_perms = auth_system.permissions["permission_groups"].get("super_admin", {}).get("permissions", {})
+        super_admin_perms = (
+            auth_system.permissions["permission_groups"]
+            .get("super_admin", {})
+            .get("permissions", {})
+        )
         all_possible_keys.update(super_admin_perms.keys())
         for g_data in auth_system.permissions["permission_groups"].values():
             all_possible_keys.update(g_data.get("permissions", {}).keys())
@@ -13590,8 +13592,7 @@ def start_web_server(args_param):
 
     @app.route("/auth/admin/set_user_permission", methods=["POST"])
     def auth_admin_set_user_permission():
-        """管理员：为用户设置自定义权限（差分化存储）
-        """
+        """管理员：为用户设置自定义权限（差分化存储）"""
         session_id = request.headers.get("X-Session-ID", "")
         data = request.get_json() or {}
         target_username = data.get("username", "")
@@ -13695,8 +13696,7 @@ def start_web_server(args_param):
             auth_system.config,
             "Guest",
             "allow_guest_login",
-            type_func=lambda x: str(x).lower()
-            in ("true", "yes", "1", "on"),
+            type_func=lambda x: str(x).lower() in ("true", "yes", "1", "on"),
             fallback=True,
         )
         amap_js_key = _get_config_value(
@@ -14400,21 +14400,15 @@ def start_web_server(args_param):
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录或会话无效"}), 401
         api_instance = web_sessions[session_id]
-        auth_group = getattr(
-            api_instance, "auth_group", "guest"
-        )
-        current_auth_username = getattr(
-            api_instance, "auth_username", None
-        )
+        auth_group = getattr(api_instance, "auth_group", "guest")
+        current_auth_username = getattr(api_instance, "auth_username", None)
 
         # ========== 2. 解析请求数据 ==========
         try:
             data = request.get_json()
             if not data:
                 return jsonify({"success": False, "message": "缺少请求数据"}), 400
-            auth_username = data.get(
-                "auth_username", ""
-            ).strip()
+            auth_username = data.get("auth_username", "").strip()
             school_username = data.get("school_username", "").strip()
             password = data.get("password", "").strip()
             ua = data.get("ua", "").strip()
@@ -14475,6 +14469,7 @@ def start_web_server(args_param):
                 f"保存用户 {auth_username} 的 school_accounts 失败: {e}", exc_info=True
             )
             return jsonify({"success": False, "message": "保存账户数据失败"}), 500
+
     @app.route("/api/admin/school_account/delete", methods=["POST"])
     def api_admin_school_account_delete():
         """
@@ -14486,18 +14481,14 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": "未登录或会话无效"}), 401
         api_instance = web_sessions[session_id]
         auth_group = getattr(api_instance, "auth_group", "guest")
-        current_auth_username = getattr(
-            api_instance, "auth_username", None
-        )
+        current_auth_username = getattr(api_instance, "auth_username", None)
         # ========== 2. 解析请求数据 ==========
         try:
             data = request.get_json()
             if not data:
                 return jsonify({"success": False, "message": "缺少请求数据"}), 400
             auth_username = data.get("auth_username", "").strip()
-            school_username = data.get(
-                "school_username", ""
-            ).strip()
+            school_username = data.get("school_username", "").strip()
             if not auth_username or not school_username:
                 return (
                     jsonify(
@@ -14571,9 +14562,7 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": "未登录或会话无效"}), 401
         api_instance = web_sessions[session_id]
         auth_group = getattr(api_instance, "auth_group", "guest")
-        current_auth_username = getattr(
-            api_instance, "auth_username", None
-        )
+        current_auth_username = getattr(api_instance, "auth_username", None)
         # ========== 2. 解析请求数据 ==========
         try:
             data = request.get_json()
@@ -14699,7 +14688,7 @@ def start_web_server(args_param):
         return jsonify(
             {
                 "success": True,
-                "logs": paginated_logs, 
+                "logs": paginated_logs,
                 "pagination": {
                     "current_page": page,
                     "total_pages": total_pages,
@@ -14887,6 +14876,7 @@ def start_web_server(args_param):
         """
         try:
             import os
+
             base_dir = os.path.dirname(__file__)
             default_avatar_path = os.path.join(base_dir, "default_avatar.png")
 
@@ -15103,8 +15093,7 @@ def start_web_server(args_param):
 
     @app.route("/auth/admin/update_max_sessions", methods=["POST"])
     def auth_admin_update_max_sessions():
-        """更新用户最大会话数量（管理员）
-        """
+        """更新用户最大会话数量（管理员）"""
         session_id = request.headers.get("X-Session-ID", "")
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
@@ -15183,9 +15172,7 @@ def start_web_server(args_param):
                     with open(session_file, "r", encoding="utf-8") as f:
                         session_data = json.load(f)
                     created_at = session_data.get("created_at", 0)
-                    last_activity = session_data.get(
-                        "last_accessed", 0
-                    )
+                    last_activity = session_data.get("last_accessed", 0)
                 except Exception as e:
                     logging.warning(
                         f"Failed to read guest session file {session_file}: {e}"
@@ -15327,9 +15314,7 @@ def start_web_server(args_param):
             with web_sessions_lock:
                 if session_id in web_sessions:
                     api_instance = web_sessions[session_id]
-                    is_guest = getattr(
-                        api_instance, "is_guest", True
-                    )
+                    is_guest = getattr(api_instance, "is_guest", True)
                 else:
                     state = load_session_state(session_id)
                     if state:
@@ -15558,9 +15543,7 @@ def start_web_server(args_param):
                         if not sid or sid in session_ids_in_memory:
                             continue
                         is_multi_mode = state.get("is_multi_account_mode", False)
-                        session_login_success = state.get(
-                            "login_success", False
-                        )
+                        session_login_success = state.get("login_success", False)
 
                         if is_multi_mode:
                             account_states = state.get("multi_account_states", {})
@@ -15665,6 +15648,7 @@ def start_web_server(args_param):
 
         logs = auth_system.get_audit_logs(username, action, limit)
         return jsonify({"success": True, "logs": logs})
+
     @app.route("/api/sms/send_code", methods=["POST"])
     def sms_send_code():
         """
@@ -16344,9 +16328,11 @@ def start_web_server(args_param):
                 config.read(CONFIG_FILE, encoding="utf-8")
             else:
                 config = _get_default_config()
+
             def ensure_section(cfg, section_name):
                 if not cfg.has_section(section_name):
                     cfg.add_section(section_name)
+
             if "Guest" in data and "allow_guest_login" in data["Guest"]:
                 ensure_section(config, "Guest")
                 config.set(
@@ -16516,6 +16502,7 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"[检查手机号] 失败: {e}", exc_info=True)
             return jsonify({"success": False, "message": f"服务器内部错误: {e}"}), 500
+
     @app.route("/api/user/update_phone", methods=["POST"])
     @login_required
     def user_update_phone():
@@ -16592,6 +16579,7 @@ def start_web_server(args_param):
         except Exception as e:
             app.logger.error(f"[用户修改手机号] 失败：{str(e)}", exc_info=True)
             return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
+
     IP_BANS_FILE = os.path.join("logs", "ip_bans.json")
 
     @app.route("/api/admin/ip_bans", methods=["GET"])
@@ -17229,6 +17217,7 @@ def start_web_server(args_param):
             ssl_dir = os.path.join(os.path.dirname(__file__), "ssl")
             os.makedirs(ssl_dir, exist_ok=True)
             import tempfile
+
             with tempfile.NamedTemporaryFile(
                 mode="wb", delete=False, suffix=".pem"
             ) as temp_cert:
@@ -17432,6 +17421,7 @@ def start_web_server(args_param):
             "reg_verify_enabled": reg_verify_enabled,
             "enable_phone_modification": phone_modification_enabled,
         }
+
     # ========== 新增路由：Favicon ==========
     @app.route("/favicon.ico")
     def favicon():
@@ -17448,6 +17438,7 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"返回 favicon.ico 时发生错误: {e}", exc_info=True)
             return jsonify({"success": False, "message": "服务器内部错误"}), 500
+
     # ========== 新增路由：应用退出API ==========
     @app.route("/api/shutdown", methods=["POST"])
     def api_logout():
@@ -17483,11 +17474,9 @@ def start_web_server(args_param):
                 # 如果没有会话ID，仍然返回成功并提供重定向URL
                 # 因为用户可能本身就没有登录，允许其跳转到首页
                 logging.warning("[用户登出] 未提供会话ID，跳过会话清理")
-                return jsonify({
-                    "success": True,
-                    "message": "登出成功",
-                    "redirect_url": "/"
-                })
+                return jsonify(
+                    {"success": True, "message": "登出成功", "redirect_url": "/"}
+                )
 
             # 初始化用户名变量，用于后续token失效操作
             username = None
@@ -17518,11 +17507,9 @@ def start_web_server(args_param):
             cleanup_session(session_id, "user_logout")
 
             # 构建成功响应，包含重定向URL
-            response = jsonify({
-                "success": True,
-                "message": "登出成功",
-                "redirect_url": "/"
-            })
+            response = jsonify(
+                {"success": True, "message": "登出成功", "redirect_url": "/"}
+            )
 
             # 清除客户端的认证cookie，设置 max_age=0 使其立即过期
             response.set_cookie("auth_token", "", max_age=0)
@@ -17534,10 +17521,7 @@ def start_web_server(args_param):
         except Exception as e:
             # 捕获并记录任何异常
             logging.error(f"[用户登出] 处理登出请求时发生错误: {e}", exc_info=True)
-            return jsonify({
-                "success": False,
-                "message": f"登出失败: {str(e)}"
-            }), 500
+            return jsonify({"success": False, "message": f"登出失败: {str(e)}"}), 500
 
     @app.route("/")
     def index():
@@ -17570,9 +17554,7 @@ def start_web_server(args_param):
                 state = load_session_state(uuid)
                 api_instance = Api(args)
                 api_instance._session_created_at = time.time()
-                api_instance._web_session_id = (
-                    uuid
-                )
+                api_instance._web_session_id = uuid
 
                 if state and state.get("login_success"):
                     api_instance.login_success = True
@@ -17902,9 +17884,7 @@ def start_web_server(args_param):
                 return "", 304
 
             response = make_response(jsonify(selectors))
-            response.headers["Cache-Control"] = (
-                "public, max-age=3600"
-            )
+            response.headers["Cache-Control"] = "public, max-age=3600"
             response.headers["Last-Modified"] = last_modified
             response.headers["ETag"] = etag
 
@@ -17914,6 +17894,7 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"获取 CSS 选择器列表时发生错误: {e}", exc_info=True)
             return jsonify({"error": "Internal server error"}), 500
+
     @app.route("/css/<path:css_path>", methods=["GET"])
     def serve_css(css_path):
         """
@@ -18118,19 +18099,27 @@ def start_web_server(args_param):
                             )
 
                             # 如果Token验证失败，检查是否是超级管理员在访问其他用户的会话
-                            validated_user = username # 默认验证的是会话拥有者
+                            validated_user = username  # 默认验证的是会话拥有者
                             if not is_valid and reason == "token_mismatch":
                                 try:
                                     # 获取超级管理员用户名
-                                    super_admin = auth_system.config.get("Admin", "super_admin", fallback="admin")
-                                    
+                                    super_admin = auth_system.config.get(
+                                        "Admin", "super_admin", fallback="admin"
+                                    )
+
                                     # 如果当前会话用户不是超管，尝试用超管身份验证Token
                                     if username != super_admin:
-                                        is_admin_valid, admin_reason = token_manager.verify_token(super_admin, session_id, token)
+                                        is_admin_valid, admin_reason = (
+                                            token_manager.verify_token(
+                                                super_admin, session_id, token
+                                            )
+                                        )
                                         if is_admin_valid:
                                             is_valid = True
                                             validated_user = super_admin
-                                            logging.info(f"[API鉴权] 上帝模式：允许管理员 {super_admin} 访问用户 {username} 的会话")
+                                            logging.info(
+                                                f"[API鉴权] 上帝模式：允许管理员 {super_admin} 访问用户 {username} 的会话"
+                                            )
                                 except Exception as e:
                                     logging.error(f"[API鉴权] 上帝模式检查出错: {e}")
 
@@ -18696,9 +18685,7 @@ def start_web_server(args_param):
         message = {
             "id": str(uuid.uuid4()),
             "content": content,
-            "auth_username": (
-                auth_username if not is_guest else None
-            ),
+            "auth_username": (auth_username if not is_guest else None),
             "nickname": nickname if is_guest else None,
             "email": email if is_guest else None,
             "is_guest": is_guest,
@@ -19126,6 +19113,7 @@ def start_web_server(args_param):
         """
         try:
             from datetime import datetime
+
             current_time_str = datetime.now().strftime("%H:%M")
             reminders_file = "reminders.json"
             if not os.path.exists(reminders_file):
@@ -19163,10 +19151,12 @@ def start_web_server(args_param):
         辅助函数：判断当前时间是否在指定的时间范围内
         """
         try:
+
             def time_to_minutes(time_str):
                 """将HH:MM格式的时间转换为从00:00开始的分钟数"""
                 hours, minutes = map(int, time_str.split(":"))
                 return hours * 60 + minutes
+
             current_minutes = time_to_minutes(current_time)
             start_minutes = time_to_minutes(start_time)
             end_minutes = time_to_minutes(end_time)
@@ -19246,6 +19236,7 @@ def start_web_server(args_param):
             captcha_file = os.path.join(captchas_dir, f"{captcha_id}.json")
             with open(captcha_file, "w", encoding="utf-8") as f:
                 json.dump(captcha_data, f, indent=2, ensure_ascii=False)
+
             def log_captcha_history(
                 p_captcha_id, p_code, p_html, p_session_id, p_client_ip, p_user_agent
             ):
@@ -19280,6 +19271,7 @@ def start_web_server(args_param):
                     )
                 except Exception as e:
                     logging.error(f"[验证码历史] 记录历史失败: {e}", exc_info=True)
+
             import threading
 
             client_ip_data = (
@@ -19298,6 +19290,7 @@ def start_web_server(args_param):
                 ),
                 daemon=True,
             ).start()
+
             def cleanup_expired_captchas():
                 try:
                     current_time = time.time()
@@ -19318,7 +19311,9 @@ def start_web_server(args_param):
                                 )
                 except Exception as e:
                     logging.error(f"[验证码清理] 清理过期验证码失败: {e}")
+
             import threading
+
             threading.Thread(target=cleanup_expired_captchas, daemon=True).start()
             if session_id and str(session_id).lower() not in ("null", "undefined", ""):
                 logging.info(
@@ -19347,11 +19342,13 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"[本地验证码] 未知错误: {str(e)}", exc_info=True)
             return jsonify({"success": False, "message": "生成验证码时发生错误"}), 500
+
     @app.route("/api/captcha/html/<captcha_id>", methods=["GET"])
     def get_captcha_html_page(captcha_id):
         """
         获取验证码HTML页面（用于iframe嵌入）
         """
+
         def get_full_html_for_error(message):
             full_html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -19534,6 +19531,7 @@ def start_web_server(args_param):
             stored_code = captcha_data.get("code", "")
             user_input_upper = user_input.strip().upper()
             is_correct = user_input_upper == stored_code
+
             def update_captcha_history():
                 try:
                     history_dir = os.path.join("logs", "captcha_history")
@@ -19579,6 +19577,7 @@ def start_web_server(args_param):
                             )
                 except Exception as e:
                     logging.error(f"[验证码历史] 更新验证结果失败: {e}", exc_info=True)
+
             import threading
 
             threading.Thread(target=update_captcha_history, daemon=True).start()
@@ -19609,8 +19608,8 @@ def start_web_server(args_param):
     @app.route("/api/captcha/history", methods=["GET"])
     def get_captcha_history():
         """
-        获取验证码请求历史记录
-\        """
+                获取验证码请求历史记录
+        \ """
         session_id = request.headers.get("X-Session-ID", "")
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未授权访问"}), 401
@@ -19703,6 +19702,7 @@ def start_web_server(args_param):
             logging.info(
                 f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条 (总计={total}条)"
             )
+
             def update_expired_captchas_in_history():
                 try:
                     if not os.path.exists(history_file):
@@ -19741,6 +19741,7 @@ def start_web_server(args_param):
                         )
                 except Exception as e:
                     logging.error(f"[验证码历史] 更新过期验证码状态失败: {e}")
+
             import threading
 
             threading.Thread(
@@ -19834,6 +19835,7 @@ def start_web_server(args_param):
                 jsonify({"success": False, "message": "获取验证码详情时发生错误"}),
                 500,
             )
+
     # ========================================
     # 【本地验证码】新增API端点
     # ========================================
@@ -20114,6 +20116,7 @@ def start_web_server(args_param):
         uptime_seconds = (
             current_time - server_start_time if "server_start_time" in globals() else 0
         )
+
         def format_uptime(seconds):
             """
             将秒数转换为人类可读的时间格式。
@@ -20175,6 +20178,7 @@ def start_web_server(args_param):
         if not session_id:
             session_id = session.get("session_id")
         logging.info(f"WebSocket 客户端连接: {request.sid}")
+
     @socketio.on("join")
     def handle_join(data):
         if isinstance(data, str):
@@ -20197,9 +20201,11 @@ def start_web_server(args_param):
             logging.warning(
                 f"WebSocket 客户端 {request.sid} 加入房间失败：缺少 session_id。"
             )
+
     @socketio.on("disconnect")
     def handle_disconnect():
         logging.info(f"WebSocket 客户端断开连接: {request.sid}")
+
     def _emit_verification_codes_update(session_id):
         """辅助函数：向指定会话推送验证码列表更新事件"""
         if not session_id or not socketio:
@@ -20214,6 +20220,7 @@ def start_web_server(args_param):
             )
         except Exception as e:
             logging.error(f"[SocketIO] 推送 'verification_codes_updated' 失败: {e}")
+
     def cleanup_sessions():
         """定期清理超过24小时无活动的会话，并强制执行内存会话数量限制"""
         while True:
@@ -20421,6 +20428,7 @@ def start_web_server(args_param):
             sys.exit(1)
         try:
             import ssl as ssl_module
+
             ssl_context = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_SERVER)
             cert_path = ssl_config["ssl_cert_path"]
             key_path = ssl_config["ssl_key_path"]
@@ -20453,6 +20461,7 @@ def start_web_server(args_param):
             sys.exit(1)
     else:
         logging.info("SSL未启用，服务器将以HTTP模式运行")
+
     # ============================================================================
     # 添加请求钩子：处理X-Forwarded-*头和HTTPS重定向
     # 这些钩子在每个请求处理之前执行
@@ -20490,8 +20499,10 @@ def start_web_server(args_param):
                     url = request.url.replace("http://", "https://", 1)
                     logging.info(f"HTTP请求被重定向到HTTPS: {request.url} -> {url}")
                     from flask import redirect
+
                     return redirect(url, code=301)
                     return redirect(url, code=301)
+
     @app.after_request
     def add_security_headers(response):
         """
@@ -20506,6 +20517,7 @@ def start_web_server(args_param):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         return response
+
     # ============================================================================
     # 启动服务器
     # 根据SSL配置选择HTTP或HTTPS模式
@@ -20527,7 +20539,7 @@ def start_web_server(args_param):
     print(f"{'='*60}\n")
 
     try:
-        if ssl_context:           
+        if ssl_context:
             logging.info(
                 f"正在启动带有 WebSocket 和 SSL(HTTPS) 支持的 Web 服务器于 {server_url}"
             )
@@ -20537,6 +20549,7 @@ def start_web_server(args_param):
                 logging.info(f"Eventlet 将使用 SSLContext 启动服务器...")
                 logging.info(f"  证书文件: {cert_path}")
                 logging.info(f"  密钥文件: {key_path}")
+
                 # ============================================================
                 # 【SSL 智能兼容层】
                 # ============================================================
@@ -20545,6 +20558,7 @@ def start_web_server(args_param):
                         self.sock = raw_socket
                         self.ssl_ctx = ssl_ctx
                         self.https_only = https_only
+
                     def __getattr__(self, name):
                         return getattr(self.sock, name)
 
@@ -20579,7 +20593,7 @@ def start_web_server(args_param):
                                                 "HTTP/1.1 200 OK\r\n"
                                                 "Content-Type: text/html\r\n"
                                                 "Connection: close\r\n\r\n"
-                                                "<html><head><title>正在重定向到 HTTPS...</title><link rel=\"icon\" href=\"/favicon.ico\" type=\"image/x-icon\" /></head>"
+                                                '<html><head><title>正在重定向到 HTTPS...</title><link rel="icon" href="/favicon.ico" type="image/x-icon" /></head>'
                                                 "<body><script>window.location.protocol = 'https:';</script>"
                                                 "Please wait, redirecting to HTTPS...</body></html>"
                                             )
@@ -20603,6 +20617,7 @@ def start_web_server(args_param):
                             except Exception as e:
                                 logging.error(f"DualProtocolSocket accept error: {e}")
                                 continue
+
                 server_socket = eventlet.listen((args.host, args.port))
                 dual_socket = DualProtocolSocket(
                     server_socket,
@@ -20685,6 +20700,8 @@ def start_web_server(args_param):
         sys.exit(1)
     finally:
         pass
+
+
 def main():
     """主函数，启动Web服务器模式（已弃用桌面模式）"""
     # ========== 第1步：导入内置模块 ==========
@@ -20813,5 +20830,7 @@ def main():
     # ========== 第9步：启动Web服务器 ==========
     logging.info("启动Web服务器模式（使用服务器端Chrome渲染）...")
     start_web_server(args)
+
+
 if __name__ == "__main__":
     main()
