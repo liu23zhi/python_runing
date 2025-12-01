@@ -8137,11 +8137,659 @@
               style="scrollbar-width: none; -webkit-overflow-scrolling: touch"
             ></div>
 
+            <!-- ========================================
+                 移动端多账号管理面板内容区域
+                 包含13个管理子面板：用户管理、权限组、日志查看、系统状态、
+                 个人信息、会话管理、留言板、IP封禁、短信配置、系统配置、
+                 验证码管理、定时提醒、HTTPS设置
+                 每个面板ID命名规则：mobile-multi-admin-{tabId}-panel
+                 内容列表ID命名规则：mobile-multi-admin-{tabId}-list
+                 ======================================== -->
             <div
               id="mobile-multi-admin-content-panel"
               class="text-sm space-y-2 min-h-[60vh] overflow-y-auto"
             >
-              <p class="text-slate-400 text-center py-10">请选择管理功能</p>
+              <!-- ========================================
+                   用户管理面板 (users)
+                   管理员可以在此查看、创建和管理系统用户
+                   ======================================== -->
+              <div id="mobile-multi-admin-users-panel" class="space-y-3">
+                <!-- 面板头部：包含标题和操作按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">用户列表</h4>
+                  <!-- 操作按钮组 -->
+                  <div class="flex gap-2">
+                    <!-- 新增用户按钮 -->
+                    <button
+                      id="mobile-multi-admin-create-user"
+                      class="btn btn-primary !py-1 !px-2 text-xs"
+                    >
+                      新增
+                    </button>
+                    <!-- 刷新用户列表按钮 -->
+                    <button
+                      id="mobile-multi-admin-refresh-users"
+                      class="btn btn-ghost !py-1 !px-2 text-xs"
+                    >
+                      刷新
+                    </button>
+                  </div>
+                </div>
+                <!-- 用户列表容器：限制最大高度并支持滚动 -->
+                <div
+                  id="mobile-multi-admin-users-list"
+                  class="space-y-2 max-h-[50vh] overflow-y-auto"
+                >
+                  <!-- 加载占位提示 -->
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   权限组管理面板 (groups)
+                   管理员可以在此查看、创建和管理权限组
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div
+                id="mobile-multi-admin-groups-panel"
+                class="hidden space-y-3"
+              >
+                <!-- 面板头部：包含标题和操作按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">权限组列表</h4>
+                  <!-- 操作按钮组 -->
+                  <div class="flex gap-2">
+                    <!-- 新增权限组按钮 -->
+                    <button
+                      id="mobile-multi-admin-create-group"
+                      class="btn btn-primary !py-1 !px-2 text-xs"
+                    >
+                      新增
+                    </button>
+                    <!-- 刷新权限组列表按钮 -->
+                    <button
+                      id="mobile-multi-admin-refresh-groups"
+                      class="btn btn-ghost !py-1 !px-2 text-xs"
+                    >
+                      刷新
+                    </button>
+                  </div>
+                </div>
+                <!-- 权限组列表容器 -->
+                <div
+                  id="mobile-multi-admin-groups-list"
+                  class="space-y-2 max-h-[50vh] overflow-y-auto"
+                >
+                  <!-- 加载占位提示 -->
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   日志查看面板 (logs)
+                   查看系统运行日志，支持分页和行数选择
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div id="mobile-multi-admin-logs-panel" class="hidden space-y-3">
+                <!-- 面板头部：包含标题和控制选项 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">系统日志</h4>
+                  <!-- 控制选项组：日志行数选择和刷新按钮 -->
+                  <div class="flex gap-2">
+                    <!-- 日志行数选择下拉框 -->
+                    <select
+                      id="mobile-multi-log-limit-select"
+                      class="text-xs border border-slate-300 rounded px-2 py-1"
+                    >
+                      <option value="100">100行</option>
+                      <option value="200">200行</option>
+                      <option value="500">500行</option>
+                    </select>
+                    <!-- 刷新日志按钮 -->
+                    <button
+                      id="mobile-multi-admin-refresh-logs"
+                      class="btn btn-ghost !py-1 !px-2 text-xs"
+                    >
+                      刷新
+                    </button>
+                  </div>
+                </div>
+                <!-- 日志内容显示区域：深色背景终端风格 -->
+                <div
+                  class="bg-slate-900 text-green-400 rounded-lg p-3 font-mono text-xs overflow-auto max-h-[45vh]"
+                >
+                  <!-- 日志内容预格式化文本 -->
+                  <pre
+                    id="mobile-multi-admin-logs-content"
+                    class="whitespace-pre-wrap"
+                  >
+加载中...</pre
+                  >
+                </div>
+                <!-- 分页控制区域 -->
+                <div
+                  id="mobile-multi-admin-logs-pagination"
+                  class="flex justify-between items-center text-xs text-slate-600 pt-2 border-t border-slate-200"
+                >
+                  <!-- 上一页按钮 -->
+                  <button
+                    id="mobile-multi-log-prev-page"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    上一页
+                  </button>
+                  <!-- 页码选择和总行数显示 -->
+                  <div class="flex items-center gap-2">
+                    <!-- 页码选择下拉框 -->
+                    <select
+                      id="mobile-multi-log-page-select"
+                      class="text-xs border border-slate-300 rounded px-2 py-1"
+                    >
+                      <option value="1">第 1 / 1 页</option>
+                    </select>
+                    <!-- 总行数显示 -->
+                    <span
+                      id="mobile-multi-log-page-total"
+                      class="text-xs text-slate-500"
+                      >(共 0 行)</span
+                    >
+                  </div>
+                  <!-- 下一页按钮 -->
+                  <button
+                    id="mobile-multi-log-next-page"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    下一页
+                  </button>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   系统状态面板 (health)
+                   显示系统健康状态，支持自动刷新
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div
+                id="mobile-multi-admin-health-panel"
+                class="hidden space-y-3"
+              >
+                <!-- 面板头部：包含标题和自动刷新控制 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">系统状态</h4>
+                  <!-- 控制选项组：自动刷新开关和手动刷新按钮 -->
+                  <div class="flex items-center gap-2">
+                    <!-- 自动刷新开关标签 -->
+                    <label class="flex items-center gap-1 cursor-pointer">
+                      <!-- 自动刷新复选框 -->
+                      <input
+                        type="checkbox"
+                        id="mobile-multi-health-auto-refresh-toggle"
+                        class="w-3 h-3 accent-sky-600 rounded"
+                        checked
+                      />
+                      <!-- 自动刷新文本和倒计时显示 -->
+                      <span class="text-xs text-slate-600"
+                        >自动刷新
+                        <span
+                          id="mobile-multi-health-countdown-display"
+                          class="font-semibold text-sky-600"
+                        ></span>
+                      </span>
+                    </label>
+                    <!-- 手动刷新按钮 -->
+                    <button
+                      id="mobile-multi-admin-refresh-health"
+                      class="btn btn-ghost !py-1 !px-2 text-xs"
+                    >
+                      刷新
+                    </button>
+                  </div>
+                </div>
+                <!-- 系统状态内容容器 -->
+                <div id="mobile-multi-admin-health-content" class="space-y-3">
+                  <!-- 加载占位提示 -->
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   个人信息面板 (profile)
+                   用户可以查看和编辑个人资料
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div
+                id="mobile-multi-admin-profile-panel"
+                class="hidden space-y-3"
+              >
+                <!-- 面板头部：包含标题和刷新按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">个人信息</h4>
+                  <!-- 刷新按钮 -->
+                  <button
+                    id="mobile-multi-admin-refresh-profile"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    刷新
+                  </button>
+                </div>
+                <!-- 个人信息内容容器 -->
+                <div
+                  id="mobile-multi-admin-profile-content"
+                  class="space-y-3 text-slate-800"
+                >
+                  <!-- 头像设置区域 -->
+                  <div
+                    class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2"
+                  >
+                    <!-- 头像区块标题 -->
+                    <h5 class="font-semibold text-slate-700 text-xs">头像</h5>
+                    <!-- 头像显示和更换区域 -->
+                    <div class="flex items-center gap-3">
+                      <!-- 头像图片显示 -->
+                      <img
+                        id="mobile-multi-profile-avatar-display"
+                        src=""
+                        alt="用户头像"
+                        class="w-16 h-16 rounded-full border-2 border-slate-200"
+                        onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'"
+                      />
+                      <!-- 头像上传控件区域 -->
+                      <div class="flex-1">
+                        <!-- 隐藏的文件上传input -->
+                        <input
+                          type="file"
+                          id="mobile-multi-profile-avatar-file"
+                          accept="image/*"
+                          class="hidden"
+                        />
+                        <!-- 选择图片按钮 -->
+                        <button
+                          class="btn btn-ghost border border-slate-300 !py-1 !px-2 text-xs"
+                          onclick="document.getElementById('mobile-multi-profile-avatar-file').click();"
+                        >
+                          选择图片
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- 个人信息详情区域 -->
+                  <div
+                    id="mobile-multi-profile-details"
+                    class="space-y-2"
+                  ></div>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   会话管理面板 (sessions)
+                   查看和管理当前登录会话
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div
+                id="mobile-multi-admin-sessions-panel"
+                class="hidden space-y-3"
+              >
+                <!-- 面板头部：包含标题、上帝模式和刷新按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">会话列表</h4>
+                  <!-- 控制选项组 -->
+                  <div class="flex items-center gap-2">
+                    <!-- 上帝模式开关（仅超级管理员可见） -->
+                    <label
+                      id="mobile-multi-god-mode-toggle"
+                      class="flex items-center gap-1 cursor-pointer"
+                      style="display: none"
+                    >
+                      <!-- 上帝模式复选框 -->
+                      <input
+                        type="checkbox"
+                        id="mobile-multi-god-mode-checkbox"
+                        class="w-3 h-3 accent-red-600 rounded"
+                      />
+                      <!-- 上帝模式文本 -->
+                      <span class="text-xs font-semibold text-red-600"
+                        >上帝模式</span
+                      >
+                    </label>
+                    <!-- 会话数量显示 -->
+                    <div
+                      id="mobile-multi-admin-session-count-display"
+                      class="text-xs text-slate-600"
+                    ></div>
+                    <!-- 刷新会话列表按钮 -->
+                    <button
+                      id="mobile-multi-admin-refresh-sessions"
+                      class="btn btn-ghost !py-1 !px-2 text-xs"
+                    >
+                      刷新
+                    </button>
+                  </div>
+                </div>
+                <!-- 会话列表容器 -->
+                <div
+                  id="mobile-multi-admin-sessions-list"
+                  class="space-y-2 max-h-[50vh] overflow-y-auto"
+                >
+                  <!-- 加载占位提示 -->
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   留言板面板 (messages)
+                   查看和发表留言
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div
+                id="mobile-multi-admin-messages-panel"
+                class="hidden space-y-3"
+              >
+                <!-- 面板头部：包含标题和刷新按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">留言板</h4>
+                  <!-- 刷新留言按钮 -->
+                  <button
+                    id="mobile-multi-admin-refresh-messages"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    刷新
+                  </button>
+                </div>
+                <!-- 发表留言区域 -->
+                <div
+                  class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2"
+                >
+                  <!-- 发表留言标题 -->
+                  <h5 class="font-semibold text-slate-700 text-xs">发表留言</h5>
+                  <!-- 游客信息输入字段（非登录用户可见） -->
+                  <div
+                    id="mobile-multi-message-guest-fields"
+                    class="space-y-2 hidden"
+                  >
+                    <!-- 昵称输入框 -->
+                    <input
+                      type="text"
+                      id="mobile-multi-message-nickname"
+                      class="input-field text-xs"
+                      placeholder="昵称"
+                      maxlength="50"
+                    />
+                    <!-- 邮箱输入框 -->
+                    <input
+                      type="email"
+                      id="mobile-multi-message-email"
+                      class="input-field text-xs"
+                      placeholder="邮箱"
+                    />
+                  </div>
+                  <!-- 留言内容输入框 -->
+                  <textarea
+                    id="mobile-multi-message-content"
+                    class="input-field text-xs"
+                    rows="3"
+                    placeholder="留言内容（最多1000字）"
+                    maxlength="1000"
+                  ></textarea>
+                  <!-- 字符计数显示 -->
+                  <div class="text-xs text-slate-500 text-right">
+                    <span id="mobile-multi-message-char-count">0</span> / 1000
+                  </div>
+                  <!-- 发表留言按钮 -->
+                  <button
+                    id="mobile-multi-post-message-btn"
+                    class="btn btn-primary w-full !py-1 text-xs"
+                  >
+                    发表
+                  </button>
+                </div>
+                <!-- 留言列表容器 -->
+                <div
+                  id="mobile-multi-admin-messages-list"
+                  class="space-y-2 max-h-[40vh] overflow-y-auto"
+                >
+                  <!-- 加载占位提示 -->
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   IP封禁面板 (ipban)
+                   管理IP黑名单和封禁规则
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div id="mobile-multi-admin-ipban-panel" class="hidden space-y-3">
+                <!-- 面板头部：包含标题和刷新按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">IP封禁</h4>
+                  <!-- 刷新IP封禁列表按钮 -->
+                  <button
+                    id="mobile-multi-admin-refresh-ipban"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    刷新
+                  </button>
+                </div>
+                <!-- 现有封禁规则列表区域 -->
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                  <!-- 现有规则标题 -->
+                  <h5 class="font-semibold text-slate-700 text-xs mb-2">
+                    现有规则
+                  </h5>
+                  <!-- 封禁规则列表容器 -->
+                  <div
+                    id="mobile-multi-ip-ban-list"
+                    class="space-y-2 max-h-[30vh] overflow-y-auto"
+                  >
+                    <!-- 加载占位提示 -->
+                    <p class="text-slate-400 text-center py-6 text-xs">
+                      加载中...
+                    </p>
+                  </div>
+                </div>
+                <!-- 添加封禁规则区域 -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <!-- 添加规则标题 -->
+                  <h5 class="font-semibold text-blue-900 text-xs mb-2">
+                    添加规则
+                  </h5>
+                  <!-- 添加规则表单 -->
+                  <div class="space-y-2">
+                    <!-- 封禁类型选择下拉框 -->
+                    <select
+                      id="mobile-multi-ban-type"
+                      class="select-field text-xs"
+                    >
+                      <option value="ip">单个IP</option>
+                      <option value="range">IP范围</option>
+                    </select>
+                    <!-- 封禁目标输入框 -->
+                    <input
+                      type="text"
+                      id="mobile-multi-ban-target"
+                      class="input-field text-xs"
+                      placeholder="IP地址"
+                    />
+                    <!-- 封禁范围选择下拉框 -->
+                    <select
+                      id="mobile-multi-ban-scope"
+                      class="select-field text-xs"
+                    >
+                      <option value="all">封禁所有功能</option>
+                      <option value="messages_only">仅封禁留言板</option>
+                    </select>
+                    <!-- 添加封禁规则按钮 -->
+                    <button
+                      id="mobile-multi-add-ipban-btn"
+                      class="btn btn-primary w-full !py-1 text-xs"
+                    >
+                      添加
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   短信配置面板 (sms)
+                   配置短信服务参数
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div id="mobile-multi-admin-sms-panel" class="hidden space-y-3">
+                <!-- 面板头部：包含标题和刷新按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">短信配置</h4>
+                  <!-- 刷新短信配置按钮 -->
+                  <button
+                    id="mobile-multi-admin-refresh-sms"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    刷新
+                  </button>
+                </div>
+                <!-- 短信配置内容容器 -->
+                <div id="mobile-multi-admin-sms-content" class="space-y-3">
+                  <!-- 加载占位提示 -->
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   系统配置面板 (config)
+                   管理系统全局配置参数
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div
+                id="mobile-multi-admin-config-panel"
+                class="hidden space-y-3"
+              >
+                <!-- 面板头部：包含标题和刷新按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">系统配置</h4>
+                  <!-- 刷新系统配置按钮 -->
+                  <button
+                    id="mobile-multi-admin-refresh-config"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    刷新
+                  </button>
+                </div>
+                <!-- 系统配置内容容器 -->
+                <div id="mobile-multi-admin-config-content" class="space-y-3">
+                  <!-- 加载占位提示 -->
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   验证码管理面板 (captcha)
+                   配置和管理验证码设置
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div
+                id="mobile-multi-admin-captcha-panel"
+                class="hidden space-y-3"
+              >
+                <!-- 面板头部：包含标题 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">⚙️ 验证码设置</h4>
+                </div>
+                <!-- 验证码说明提示 -->
+                <p class="text-xs text-slate-500 bg-sky-50 p-2 rounded">
+                  💡
+                  使用本地验证码生成器，无需第三方API。请在桌面端控制面板中调整详细参数。
+                </p>
+                <!-- 验证码设置列表容器 -->
+                <div id="mobile-multi-admin-captcha-list" class="space-y-2">
+                  <!-- 提示信息 -->
+                  <p class="text-slate-400 text-center py-4 text-xs">
+                    请在桌面端查看和修改验证码设置
+                  </p>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   定时提醒面板 (reminders)
+                   管理定时任务和提醒设置
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div
+                id="mobile-multi-admin-reminders-panel"
+                class="hidden space-y-3"
+              >
+                <!-- 面板头部：包含标题和刷新按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">定时提醒</h4>
+                  <!-- 刷新定时提醒按钮 -->
+                  <button
+                    id="mobile-multi-admin-refresh-reminders"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    刷新
+                  </button>
+                </div>
+                <!-- 定时提醒内容容器 -->
+                <div
+                  id="mobile-multi-admin-reminders-content"
+                  class="space-y-3"
+                >
+                  <!-- 加载占位提示 -->
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
+
+              <!-- ========================================
+                   HTTPS设置面板 (ssl)
+                   配置SSL/HTTPS证书和相关设置
+                   默认隐藏，通过switchMobileAdminTab切换显示
+                   ======================================== -->
+              <div id="mobile-multi-admin-ssl-panel" class="hidden space-y-3">
+                <!-- 面板头部：包含标题和刷新按钮 -->
+                <div class="flex justify-between items-center">
+                  <!-- 面板标题 -->
+                  <h4 class="font-semibold text-sm">HTTPS设置</h4>
+                  <!-- 刷新SSL配置按钮 -->
+                  <button
+                    id="mobile-multi-admin-refresh-ssl"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    刷新
+                  </button>
+                </div>
+                <!-- HTTPS设置内容容器 -->
+                <div id="mobile-multi-admin-ssl-content" class="space-y-3">
+                  <!-- 加载占位提示 -->
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -36099,6 +36747,130 @@
           return;
         }
 
+        // ========================================
+        // 处理 mobile-multi-admin-panel 前缀
+        // 这个前缀用于多账号模式下的管理面板
+        // 面板ID命名规则：mobile-multi-admin-{tabId}-panel
+        // 内容列表ID命名规则：mobile-multi-admin-{tabId}-list
+        // ========================================
+        if (prefix === "mobile-multi-admin-panel") {
+          // 定义所有管理面板的ID列表
+          // 这些面板会根据用户选择的标签页进行显示/隐藏切换
+          const allMultiPanels = [
+            "mobile-multi-admin-users-panel",     // 用户管理面板
+            "mobile-multi-admin-groups-panel",    // 权限组管理面板
+            "mobile-multi-admin-logs-panel",      // 日志查看面板
+            "mobile-multi-admin-health-panel",    // 系统状态面板
+            "mobile-multi-admin-profile-panel",   // 个人信息面板
+            "mobile-multi-admin-sessions-panel",  // 会话管理面板
+            "mobile-multi-admin-messages-panel",  // 留言板面板
+            "mobile-multi-admin-ipban-panel",     // IP封禁面板
+            "mobile-multi-admin-sms-panel",       // 短信配置面板
+            "mobile-multi-admin-config-panel",    // 系统配置面板
+            "mobile-multi-admin-captcha-panel",   // 验证码管理面板
+            "mobile-multi-admin-reminders-panel", // 定时提醒面板
+            "mobile-multi-admin-ssl-panel",       // HTTPS设置面板
+          ];
+
+          // 先隐藏所有面板，准备切换到目标面板
+          allMultiPanels.forEach((panelId) => {
+            const panel = document.getElementById(panelId);
+            if (panel) panel.classList.add("hidden");
+          });
+
+          // 构建目标面板的ID并显示
+          const targetMultiPanelId = `mobile-multi-admin-${tabId}-panel`;
+          const targetMultiPanel = document.getElementById(targetMultiPanelId);
+          if (targetMultiPanel) {
+            // 移除hidden类以显示目标面板
+            targetMultiPanel.classList.remove("hidden");
+          } else {
+            // 如果找不到目标面板，输出警告日志便于调试
+            console.warn(`[移动端多账号管理面板] 找不到目标面板: ${targetMultiPanelId}`);
+          }
+
+          // 根据选中的标签页加载对应的数据
+          // 并使用copyAdminContentToMultiPanel函数将PC端内容复制到移动端
+          switch (tabId) {
+            case "users":
+              // 加载用户列表数据
+              loadAdminUsers();
+              // 延迟复制以确保数据加载完成
+              setTimeout(() => copyAdminContentToMultiPanel("users"), 500);
+              break;
+            case "groups":
+              // 加载权限组列表数据
+              loadAdminGroups();
+              setTimeout(() => copyAdminContentToMultiPanel("groups"), 500);
+              break;
+            case "logs":
+              // 加载系统日志，默认第1页
+              loadAdminLogs(1);
+              setTimeout(() => copyAdminContentToMultiPanel("logs"), 500);
+              break;
+            case "health":
+              // 加载系统健康状态信息
+              loadHealthStatus();
+              setTimeout(() => copyAdminContentToMultiPanel("health"), 500);
+              break;
+            case "profile":
+              // 加载个人信息
+              loadPersonalInfo();
+              setTimeout(() => copyAdminContentToMultiPanel("profile"), 500);
+              break;
+            case "sessions":
+              // 加载会话列表
+              loadAdminSessions();
+              setTimeout(() => copyAdminContentToMultiPanel("sessions"), 500);
+              break;
+            case "messages":
+              // 加载留言板内容，延迟稍长以确保完整加载
+              loadMessages();
+              setTimeout(() => copyAdminContentToMultiPanel("messages"), 600);
+              break;
+            case "ipban":
+              // 加载IP封禁规则列表
+              loadIPBans();
+              setTimeout(() => copyAdminContentToMultiPanel("ipban"), 500);
+              break;
+            case "sms":
+              // 加载短信服务配置
+              loadSMSConfig();
+              setTimeout(() => copyAdminContentToMultiPanel("sms"), 500);
+              break;
+            case "config":
+              // 加载系统配置
+              loadSystemConfig();
+              setTimeout(() => copyAdminContentToMultiPanel("config"), 500);
+              break;
+            case "captcha":
+              // 加载验证码设置
+              loadCaptchaSettings();
+              // 设置验证码历史日期为今天
+              const dateInputMulti = $("captcha-history-date");
+              if (dateInputMulti) {
+                const todayMulti = new Date().toISOString().split("T")[0];
+                dateInputMulti.value = todayMulti;
+              }
+              // 加载验证码历史记录
+              loadCaptchaHistory();
+              setTimeout(() => copyAdminContentToMultiPanel("captcha"), 500);
+              break;
+            case "reminders":
+              // 加载定时提醒列表
+              loadReminders();
+              setTimeout(() => copyAdminContentToMultiPanel("reminders"), 500);
+              break;
+            case "ssl":
+              // 加载SSL/HTTPS配置信息
+              loadSSLInfo();
+              setTimeout(() => copyAdminContentToMultiPanel("ssl"), 500);
+              break;
+          }
+          // 处理完成后直接返回，不执行后续的通用处理逻辑
+          return;
+        }
+
         content.innerHTML =
           '<p class="text-slate-400 text-center py-10 text-sm">加载中...</p>';
         switch (tabId) {
@@ -36302,6 +37074,118 @@
         mobileContainer.querySelectorAll("h4, h5").forEach((heading) => {
           heading.classList.add("!text-xs");
         });
+        mobileContainer
+          .querySelectorAll("input, select, textarea")
+          .forEach((input) => {
+            input.classList.add("!text-xs");
+          });
+      }
+      // ========================================
+      // 将PC端管理面板内容复制到多账号移动端面板
+      // 用于mobile-multi-admin-panel前缀的面板
+      // 面板ID命名规则：mobile-multi-admin-{tabId}-panel
+      // 内容列表ID命名规则：mobile-multi-admin-{tabId}-list
+      // ========================================
+      function copyAdminContentToMultiPanel(tabType) {
+        // 定义PC端容器ID与多账号移动端容器ID的映射关系
+        // pc: PC端管理面板中对应内容区域的元素ID
+        // mobile: 多账号移动端管理面板中对应内容区域的元素ID
+        const pcToMultiMobileMap = {
+          users: {
+            pc: "admin-users-list_modal",           // PC端用户列表
+            mobile: "mobile-multi-admin-users-list", // 多账号移动端用户列表
+          },
+          groups: {
+            pc: "admin-groups-list_modal",           // PC端权限组列表
+            mobile: "mobile-multi-admin-groups-list", // 多账号移动端权限组列表
+          },
+          logs: {
+            pc: "admin-logs-content_modal",           // PC端日志内容
+            mobile: "mobile-multi-admin-logs-content", // 多账号移动端日志内容
+          },
+          health: {
+            pc: "admin-health-content_modal",           // PC端系统状态内容
+            mobile: "mobile-multi-admin-health-content", // 多账号移动端系统状态
+          },
+          profile: {
+            pc: "admin-profile-content_modal",           // PC端个人信息内容
+            mobile: "mobile-multi-admin-profile-content", // 多账号移动端个人信息
+          },
+          sessions: {
+            pc: "admin-sessions-list_modal",           // PC端会话列表
+            mobile: "mobile-multi-admin-sessions-list", // 多账号移动端会话列表
+          },
+          messages: {
+            pc: "admin-messages-list_modal",           // PC端留言列表
+            mobile: "mobile-multi-admin-messages-list", // 多账号移动端留言列表
+          },
+          ipban: {
+            pc: "ip-ban-list",                         // PC端IP封禁列表
+            mobile: "mobile-multi-ip-ban-list",        // 多账号移动端IP封禁列表
+          },
+          sms: {
+            pc: "admin-sms-config-modal",              // PC端短信配置
+            mobile: "mobile-multi-admin-sms-content",  // 多账号移动端短信配置
+          },
+          config: {
+            pc: "admin-config-panel_modal",            // PC端系统配置
+            mobile: "mobile-multi-admin-config-content", // 多账号移动端系统配置
+          },
+          captcha: {
+            pc: "admin-captcha-list_modal",            // PC端验证码列表
+            mobile: "mobile-multi-admin-captcha-list", // 多账号移动端验证码列表
+          },
+          reminders: {
+            pc: "admin-reminders-panel_modal",           // PC端定时提醒
+            mobile: "mobile-multi-admin-reminders-content", // 多账号移动端定时提醒
+          },
+          ssl: {
+            pc: "admin-ssl-panel_modal",               // PC端SSL配置
+            mobile: "mobile-multi-admin-ssl-content",  // 多账号移动端SSL配置
+          },
+        };
+
+        // 获取当前标签页类型对应的映射配置
+        const mapping = pcToMultiMobileMap[tabType];
+        if (!mapping) {
+          // 如果没有找到映射配置，输出错误日志
+          logMessage_Error(`[多账号移动端管理面板] 未定义的标签页类型: ${tabType}`);
+          return;
+        }
+
+        // 获取PC端和移动端的DOM容器元素
+        const pcContainer = document.getElementById(mapping.pc);
+        const mobileContainer = document.getElementById(mapping.mobile);
+
+        // 检查容器元素是否存在
+        if (!pcContainer || !mobileContainer) {
+          // 输出错误日志，便于调试
+          logMessage_Error(
+            `[多账号移动端管理面板] 找不到容器: PC=${mapping.pc}, Mobile=${mapping.mobile}`
+          );
+          // 如果移动端容器存在但PC端不存在，显示加载失败提示
+          if (mobileContainer) {
+            mobileContainer.innerHTML =
+              '<p class="text-red-500 text-center py-10 text-xs">加载失败</p>';
+          }
+          return;
+        }
+
+        // 将PC端内容复制到移动端容器
+        mobileContainer.innerHTML = pcContainer.innerHTML;
+
+        // 调整按钮样式以适应移动端显示
+        // 添加更小的字体、更紧凑的内边距
+        mobileContainer.querySelectorAll("button").forEach((btn) => {
+          btn.classList.add("!text-xs", "!py-1", "!px-2");
+        });
+
+        // 调整标题样式，使用更小的字体
+        mobileContainer.querySelectorAll("h4, h5").forEach((heading) => {
+          heading.classList.add("!text-xs");
+        });
+
+        // 调整表单元素样式，使用更小的字体
         mobileContainer
           .querySelectorAll("input, select, textarea")
           .forEach((input) => {
