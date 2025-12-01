@@ -4656,7 +4656,7 @@ class Api:
 
         resp = self.api_client.login(input_username, password)
         if not resp or not resp.get("success"):
-            msg = resp.get("message", "未知错误") if resp else "网络连接失败"
+            msg = resp.get("message", "未知错误") if resp else "网络连接失败，无法连接到学校服务器。"
             self.log(f"服务器反馈登录失败：{msg}")
             logging.warning(f"用户登录失败: {msg}")
             return {"success": False, "message": msg}
