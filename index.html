@@ -2,7 +2,6 @@
 <html lang="zh-CN">
   <head>
     <script>
-
       function handleCdnError(resourceName) {
         resourceName = resourceName || "未指定";
         cdnErrorCount++;
@@ -26,6 +25,167 @@
             }
           }
         }, 3000);
+      }
+      // 新增：返回管理员会话逻辑
+      function returnToAdminSession() {
+        const originSession = localStorage.getItem("admin_return_origin");
+        if (originSession) {
+          // 清除记录并跳转回原会话
+          localStorage.removeItem("admin_return_origin");
+          window.location.href = `/uuid=${originSession}`;
+        } else {
+          // 异常情况，回首页
+          window.location.href = "/";
+        }
+      }
+
+      // 新增：检查是否需要显示返回按钮
+      function checkAdminReturnState() {
+        const originSession = localStorage.getItem("admin_return_origin");
+        const overlay = document.getElementById("admin-return-overlay");
+
+        logMessage_Info(
+          "[上帝模式] 检查管理员返回按钮显示状态，来源会话UUID：" +
+            originSession
+        );
+        logMessage_Info("[上帝模式] 当前页面URL：" + window.location.pathname);
+
+        if (!overlay) return;
+
+        // 从URL提取当前UUID，确保比对准确
+        const match = window.location.pathname.match(/\/uuid=([a-f0-9-]{36})/i);
+        const currentUUID = match ? match[1] : null;
+
+        // 只有当存在来源记录，且当前页面UUID与来源UUID不一致时才显示
+        if (
+          originSession &&
+          currentUUID &&
+          originSession !== currentUUID &&
+          originSession !== "null" &&
+          originSession !== "undefined" &&
+          originSession !== "" &&
+          originSession !== "NaN"
+        ) {
+          overlay.classList.remove("hidden");
+          console.log("[上帝模式] 检测到管理员查看他人会话，显示返回按钮");
+          // 初始化拖拽功能
+          initDraggableAdminBtn();
+        } else {
+          overlay.classList.add("hidden");
+          // 修正：如果当前就在来源会话（管理员自己的会话），则清理掉localStorage标记
+          // 防止脏数据导致逻辑混乱
+          if (originSession && currentUUID && originSession === currentUUID) {
+            localStorage.removeItem("admin_return_origin");
+            console.log(
+              "[上帝模式] 检测到已位于管理员原会话，自动清除返回记录"
+            );
+          }
+        }
+      }
+
+      // 新增：使管理员按钮可拖拽
+      function initDraggableAdminBtn() {
+        const overlay = document.getElementById("admin-return-overlay");
+        const btn = document.getElementById("admin-return-btn");
+        if (!overlay || !btn || overlay.dataset.initDrag) return;
+
+        overlay.dataset.initDrag = "true"; // 防止重复绑定
+
+        let isDragging = false;
+        let hasMoved = false; // 用于区分点击和拖拽
+        let startX, startY, initialLeft, initialTop;
+
+        // 获取当前位置 (兼容 touch 和 mouse)
+        const getClientXY = (e) => {
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+          return { x: clientX, y: clientY };
+        };
+
+        const onStart = (e) => {
+          // 如果是鼠标右键，不触发
+          if (e.type === "mousedown" && e.button !== 0) return;
+
+          isDragging = true;
+          hasMoved = false;
+
+          const { x, y } = getClientXY(e);
+          startX = x;
+          startY = y;
+
+          // 获取当前计算后的样式位置
+          const rect = overlay.getBoundingClientRect();
+          initialLeft = rect.left;
+          initialTop = rect.top;
+
+          // 移除 fixed 的定位类（top-4 left-4），改为直接操作 style
+          // 这样拖拽时更平滑
+          overlay.classList.remove("top-4", "left-4", "bottom-4", "right-4");
+          overlay.style.left = `${initialLeft}px`;
+          overlay.style.top = `${initialTop}px`;
+          overlay.style.right = "auto";
+          overlay.style.bottom = "auto";
+
+          // 绑定移动和结束事件到 document，防止拖出元素范围失效
+          document.addEventListener("mousemove", onMove, { passive: false });
+          document.addEventListener("touchmove", onMove, { passive: false });
+          document.addEventListener("mouseup", onEnd);
+          document.addEventListener("touchend", onEnd);
+        };
+
+        const onMove = (e) => {
+          if (!isDragging) return;
+
+          const { x, y } = getClientXY(e);
+          const dx = x - startX;
+          const dy = y - startY;
+
+          // 只有移动超过 5px 才视为拖拽，防止手抖误触
+          if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+            hasMoved = true;
+            // 阻止默认滚动行为（仅在移动时）
+            if (e.cancelable) e.preventDefault();
+          }
+
+          // 更新位置
+          let newLeft = initialLeft + dx;
+          let newTop = initialTop + dy;
+
+          // 边界限制 (防止拖出屏幕)
+          const maxLeft = window.innerWidth - overlay.offsetWidth;
+          const maxTop = window.innerHeight - overlay.offsetHeight;
+
+          newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+          newTop = Math.max(0, Math.min(newTop, maxTop));
+
+          overlay.style.left = `${newLeft}px`;
+          overlay.style.top = `${newTop}px`;
+        };
+
+        const onEnd = () => {
+          isDragging = false;
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("touchmove", onMove);
+          document.removeEventListener("mouseup", onEnd);
+          document.removeEventListener("touchend", onEnd);
+        };
+
+        // 绑定开始事件
+        overlay.addEventListener("mousedown", onStart);
+        overlay.addEventListener("touchstart", onStart, { passive: false });
+
+        // 绑定点击事件
+        btn.addEventListener("click", (e) => {
+          // 如果发生了拖拽移动，则拦截点击事件
+          if (hasMoved) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log("拖拽结束，拦截点击");
+          } else {
+            // 纯点击，执行原有逻辑
+            returnToAdminSession();
+          }
+        });
       }
     </script>
 
@@ -394,8 +554,7 @@
       .neumorphic-modal .modal-content {
         background: #e8ecf4;
         box-shadow: 12px 12px 24px rgba(163, 177, 198, 0.6),
-           -12px -12px 24px
-            rgba(255, 255, 255, 0.8);
+          -12px -12px 24px rgba(255, 255, 255, 0.8);
         border: none;
         border-radius: 20px;
       }
@@ -409,7 +568,7 @@
         background: #e8ecf4;
         border: none;
         box-shadow: inset 4px 4px 8px rgba(163, 177, 198, 0.5),
-           inset -4px -4px 8px rgba(255, 255, 255, 0.7);
+          inset -4px -4px 8px rgba(255, 255, 255, 0.7);
         border-radius: 10px;
         padding: 10px 14px;
         transition: all 0.3s ease;
@@ -1779,6 +1938,43 @@
 
   <body class="text-slate-800 font-sans h-screen overflow-hidden antialiased">
     <div
+      id="admin-return-overlay"
+      class="fixed top-4 left-4 z-[10000] hidden"
+      style="touch-action: none; user-select: none"
+    >
+      <button
+        id="admin-return-btn"
+        class="flex items-center gap-2 px-4 py-2 bg-slate-800/90 text-white rounded-full shadow-xl border border-slate-600 backdrop-blur-sm hover:bg-slate-700 transition-colors font-bold text-sm cursor-move"
+      >
+        <!-- <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg> -->
+        <span>返回管理员会话</span>
+      </button>
+    </div>
+
+    <button
+      id="exit-app-btn"
+      class="fixed bottom-4 right-4 z-[9999] btn btn-ghost !py-2 !px-4 bg-white/80 backdrop-blur-sm shadow-lg hover:bg-red-50 hover:text-red-600 transition-all duration-300 rounded-xl border border-slate-200 touch-none select-none"
+      title="退出应用"
+    >
+      <svg
+        class="w-5 h-5 mr-1"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+        />
+      </svg>
+      退出应用
+    </button>
+
+    <div
       id="cdn-error-overlay"
       class="fixed inset-0 z-9999 hidden flex-col items-center justify-center bg-[#f8fafc] p-8 text-center text-[#475569]"
       style="font-family: sans-serif"
@@ -2960,26 +3156,7 @@
         id="login-container"
         class="w-full h-full grid grid-cols-1 lg:grid-cols-3"
       >
-        <button
-          id="exit-app-btn"
-          class="absolute top-4 right-4 z-50 btn btn-ghost !py-2 !px-4 bg-white/80 backdrop-blur-sm shadow-lg hover:bg-red-50 hover:text-red-600 transition-all duration-300 rounded-xl border border-slate-200"
-          title="退出应用"
-        >
-          <svg
-            class="w-5 h-5 mr-1"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-            />
-          </svg>
-          退出应用
-        </button>
+        
 
         <div
           class="flex flex-col items-center justify-center p-8 lg:p-12 bg-gradient-to-br from-purple-50 via-violet-50 to-purple-100 relative overflow-hidden"
@@ -3341,8 +3518,7 @@
                   <div
                     id="admin-session-count-display-inline"
                     class="text-sm font-medium text-slate-600 bg-white/70 px-3 py-1.5 rounded-full border border-slate-200"
-                  >
-                  </div>
+                  ></div>
 
                   <button
                     id="admin-refresh-sessions-inline"
@@ -4854,8 +5030,7 @@
             <div
               id="mobile-session-count-display"
               class="text-sm text-slate-600 bg-sky-50 px-3 py-2 rounded-lg mb-4 text-center"
-            >
-            </div>
+            ></div>
 
             <div
               id="mobile-sessions-list"
@@ -6125,8 +6300,10 @@
               <h3 class="text-xl font-bold text-indigo-700">参数设置</h3>
             </div>
 
-            <div id="mobile-params-container" class="space-y-3 overflow-y-auto">
-            </div>
+            <div
+              id="mobile-params-container"
+              class="space-y-3 overflow-y-auto"
+            ></div>
 
             <div
               class="flex-shrink-0 pt-3 border-t border-indigo-100 flex gap-3 bg-white"
@@ -7903,8 +8080,7 @@
             <div
               id="mobile-multi-global-params-container"
               class="space-y-3 max-h-[60vh] overflow-y-auto"
-            >
-            </div>
+            ></div>
 
             <div class="pt-3 border-t border-teal-100">
               <button
@@ -7959,12 +8135,11 @@
               id="mobile-multi-admin-tabs-nav-panel"
               class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 mb-4"
               style="scrollbar-width: none; -webkit-overflow-scrolling: touch"
-            >
-            </div>
+            ></div>
 
             <div
               id="mobile-multi-admin-content-panel"
-              class="text-sm space-y-2 max-h-[60vh] overflow-y-auto"
+              class="text-sm space-y-2 min-h-[60vh] overflow-y-auto"
             >
               <p class="text-slate-400 text-center py-10">请选择管理功能</p>
             </div>
@@ -8536,8 +8711,7 @@
             id="mobile-admin-tabs-nav"
             class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 -mx-2 px-2"
             style="scrollbar-width: none"
-          >
-          </div>
+          ></div>
           <div
             id="mobile-admin-panel-content"
             class="text-sm space-y-2 max-h-[60vh] overflow-y-auto"
@@ -8640,8 +8814,7 @@
             id="mobile-multi-admin-tabs-nav"
             class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 -mx-2 px-2"
             style="scrollbar-width: none"
-          >
-          </div>
+          ></div>
           <div
             id="mobile-multi-admin-panel-content"
             class="text-sm space-y-2 max-h-[60vh] overflow-y-auto"
@@ -9818,8 +9991,7 @@
           <div
             id="mobile-session-picker-count-display"
             class="text-sm text-slate-600 bg-sky-50 px-3 py-1 rounded-full"
-          >
-          </div>
+          ></div>
         </div>
 
         <div class="bg-sky-50 border border-sky-200 rounded-lg p-4">
@@ -10491,8 +10663,7 @@
                 <div
                   id="admin-session-count-display"
                   class="text-sm text-slate-600"
-                >
-                </div>
+                ></div>
                 <button
                   id="admin-refresh-sessions_modal"
                   class="btn btn-ghost !py-1 !px-2"
@@ -12616,7 +12787,7 @@
 
     <script>
       async function loadMobileSessionPickerList() {
-        const listEl = $("mobile-session-picker-list"); 
+        const listEl = $("mobile-session-picker-list");
         if (!listEl) {
           logMessage_Error(
             "loadMobileSessionPickerList: 无法找到 'mobile-session-picker-list' 容器。"
@@ -12799,8 +12970,7 @@
       >
         <div class="flex items-center justify-between">
           <h3 class="text-xl font-bold text-sky-600">会话管理</h3>
-          <div id="session-count-display" class="text-sm text-slate-600">
-          </div>
+          <div id="session-count-display" class="text-sm text-slate-600"></div>
         </div>
 
         <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
@@ -13173,8 +13343,7 @@
             <div
               id="detail-captcha-html"
               class="flex items-center justify-center bg-white p-4 rounded-lg border border-slate-200"
-            >
-            </div>
+            ></div>
           </div>
         </div>
 
@@ -13242,8 +13411,7 @@
             <div
               id="create-group-permissions"
               class="grid grid-cols-2 gap-2 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-3"
-            >
-            </div>
+            ></div>
           </div>
         </div>
 
@@ -13292,8 +13460,7 @@
             <div
               id="edit-group-permissions-list"
               class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3"
-            >
-            </div>
+            ></div>
           </div>
         </div>
 
@@ -13356,8 +13523,7 @@
             <div
               id="manage-user-permissions-list"
               class="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto border border-slate-200 rounded-lg p-3"
-            >
-            </div>
+            ></div>
           </div>
         </div>
 
@@ -13440,8 +13606,7 @@
         <div
           id="school-accounts-list"
           class="space-y-3 max-h-[50vh] overflow-y-auto"
-        >
-        </div>
+        ></div>
 
         <div class="flex justify-end gap-3 pt-4 border-t">
           <button
@@ -13678,7 +13843,6 @@
       // ==============================================================================
       // JavaScript代码部分
       // ==============================================================================
-
 
       let refreshUserListInterval = null;
       let isInNetworkErrorState = false;
@@ -14822,7 +14986,6 @@
       }
 
       function updateMobileNavVisibility(show, mode = "single") {
-
         const mobileMenuBtn = document.getElementById("mobile-menu-btn");
         const mobileHeader = document.getElementById("mobile-header");
         const sidebarSingle = document.getElementById(
@@ -14833,7 +14996,6 @@
         );
 
         if (show) {
-
           if (mobileMenuBtn) {
             mobileMenuBtn.style.display = "";
           }
@@ -14850,7 +15012,6 @@
             sidebarMulti.classList.remove("hidden");
           }
         } else {
-
           if (mobileMenuBtn) {
             mobileMenuBtn.style.display = "none";
           }
@@ -14863,7 +15024,6 @@
             sidebarMulti.classList.add("hidden");
             sidebarMulti.classList.remove("show");
           }
-
         }
 
         const mobileBottomNavSingle = document.getElementById(
@@ -14920,7 +15080,6 @@
         } else {
           showModalAlert(message, "提示");
         }
-
       }
       document.addEventListener("DOMContentLoaded", function () {
         console.log("[页面加载] DOM内容已加载，开始执行设备检测和UI切换");
@@ -15299,11 +15458,89 @@
 
               logMessage_Info("[移动端] 已切换到登录页面");
             } else {
-              showModalAlert("您的会话已过期或无效，请重新登录。", "会话失效");
+              // ==================== 修改开始：使用全屏遮罩替代简单弹窗 ====================
+              // 检查遮罩是否已存在，防止重复创建
+              if (!document.getElementById("logout-elsewhere-overlay")) {
+                const logoutOverlay = document.createElement("div");
+                logoutOverlay.id = "logout-elsewhere-overlay";
+                logoutOverlay.style.cssText = `
+                  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                  background: rgba(0, 0, 0, 0.85); z-index: 9999;
+                  display: flex; align-items: center; justify-content: center;
+                `;
 
-              setTimeout(() => {
-                window.location.href = "/";
-              }, 2500);
+                const modalContent = document.createElement("div");
+                modalContent.style.cssText = `
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  padding: 40px;
+                  border-radius: 20px;
+                  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                  max-width: 500px;
+                  width: 90%;
+                  text-align: center;
+                  color: white;
+                `;
+
+                const icon = document.createElement("div");
+                icon.innerHTML = `
+                  <svg style="width: 80px; height: 80px; margin: 0 auto 20px;" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                  </svg>
+                `;
+
+                const title = document.createElement("h2");
+                title.textContent = "会话已失效";
+                title.style.cssText = "font-size: 24px; font-weight: bold; margin: 0 0 20px 0;";
+
+                const text = document.createElement("p");
+                text.textContent = "您的会话已过期或无效，为了安全起见请重新登录。";
+                text.style.cssText = "font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; opacity: 0.95;";
+
+                const countdown = document.createElement("div");
+                countdown.style.cssText = "font-size: 24px; font-weight: bold; margin: 0 0 30px 0;";
+
+                const button = document.createElement("button");
+                button.textContent = "立即返回登录";
+                button.style.cssText = `
+                  background: white; color: #667eea; border: none; padding: 12px 30px;
+                  border-radius: 25px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s;
+                `;
+                button.onmouseover = () => { button.style.transform = "scale(1.05)"; button.style.boxShadow = "0 5px 15px rgba(255, 255, 255, 0.3)"; };
+                button.onmouseout = () => { button.style.transform = "scale(1)"; button.style.boxShadow = "none"; };
+
+                modalContent.appendChild(icon);
+                modalContent.appendChild(title);
+                modalContent.appendChild(text);
+                modalContent.appendChild(countdown);
+                modalContent.appendChild(button);
+                logoutOverlay.appendChild(modalContent);
+                document.body.appendChild(logoutOverlay);
+
+                let remainingSeconds = 120; // 设置为120秒倒计时
+                const updateCountdown = () => {
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                countdown.textContent = `${minutes}:${seconds
+                  .toString()
+                  .padStart(2, "0")}`;
+              };
+                updateCountdown();
+
+                const countdownInterval = setInterval(() => {
+                  remainingSeconds--;
+                  updateCountdown();
+                  if (remainingSeconds <= 0) {
+                    clearInterval(countdownInterval);
+                    window.location.href = "/";
+                  }
+                }, 1000);
+
+                button.onclick = () => {
+                  clearInterval(countdownInterval);
+                  window.location.href = "/";
+                };
+              }
+              // ==================== 修改结束 ====================
             }
 
             throw new Error("会话已过期或无效");
@@ -15313,6 +15550,13 @@
             logMessage_Info(`[API调用] ✗ 需要重新登录: ${errorMsg}`);
 
             if (errorData.logged_out_elsewhere) {
+              // ==================== 修复开始 ====================
+              // 检查遮罩是否已存在，防止重复创建和倒计时重置
+              if (document.getElementById("logout-elsewhere-overlay")) {
+                return;
+              }
+              // ==================== 修复结束 ====================
+
               logMessage_Info(
                 "[安全提示] 检测到账号在其他设备登录，已自动登出"
               );
@@ -15427,33 +15671,9 @@
                 }
               }, 1000);
 
+              // 修正：移除用户活动监听，强制执行倒计时
               button.onclick = () => {
                 clearInterval(countdownInterval);
-                window.location.href = "/";
-              };
-
-              const userActivityEvents = ["mousedown", "keydown", "touchstart"];
-              const resetCountdown = () => {
-                remainingSeconds = 120;
-                updateCountdown();
-                logMessage_Info("[安全提示] 检测到用户活动，倒计时已重置");
-              };
-
-              userActivityEvents.forEach((eventType) => {
-                document.addEventListener(eventType, resetCountdown, {
-                  once: false,
-                });
-              });
-
-              const cleanupListeners = () => {
-                userActivityEvents.forEach((eventType) => {
-                  document.removeEventListener(eventType, resetCountdown);
-                });
-              };
-
-              button.onclick = () => {
-                clearInterval(countdownInterval);
-                cleanupListeners();
                 window.location.href = "/";
               };
             } else {
@@ -15964,6 +16184,10 @@
         $("auth-login-container").classList.remove("hidden");
         $("login-container").classList.add("hidden");
         $("main-app").classList.add("hidden");
+
+        // 新增：在认证登录界面隐藏退出应用按钮
+        const exitBtn = $("exit-app-btn");
+        if (exitBtn) exitBtn.classList.add("hidden");
 
         checkGuestLoginEnabled();
       }
@@ -16604,7 +16828,6 @@
               }
             }, 1000);
           } else {
-
             setButtonLoading("auth-login-btn", false);
             showButtonError("auth-login-btn", "登录失败");
             showModalAlert(result.message || "登录失败", "登录失败");
@@ -16992,9 +17215,112 @@
               toggleAdminPanel(true)
             );
 
+          // --- 新增：使元素可拖拽的通用函数 ---
+          function makeDraggable(elementId) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+
+            let isDragging = false;
+            let hasMoved = false; // 用于区分点击和拖拽
+            let startX, startY, initialLeft, initialTop;
+
+            // 获取触点或鼠标坐标
+            const getClientXY = (e) => {
+              const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+              const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+              return { x: clientX, y: clientY };
+            };
+
+            const onStart = (e) => {
+              if (e.type === "mousedown" && e.button !== 0) return; // 仅左键
+
+              isDragging = true;
+              hasMoved = false;
+
+              const { x, y } = getClientXY(e);
+              startX = x;
+              startY = y;
+
+              // 获取当前位置，转换为 fixed 绝对定位数值
+              const rect = el.getBoundingClientRect();
+              initialLeft = rect.left;
+              initialTop = rect.top;
+
+              // 清除定位类，改为直接控制样式
+              el.classList.remove("bottom-4", "right-4", "top-4", "left-4");
+              el.style.position = "fixed";
+              el.style.left = `${initialLeft}px`;
+              el.style.top = `${initialTop}px`;
+              el.style.bottom = "auto";
+              el.style.right = "auto";
+              // 拖拽时增加一点透明度或阴影效果
+              el.style.transition = "none"; // 拖拽时移除过渡效果以保证跟手
+
+              document.addEventListener("mousemove", onMove, {
+                passive: false,
+              });
+              document.addEventListener("touchmove", onMove, {
+                passive: false,
+              });
+              document.addEventListener("mouseup", onEnd);
+              document.addEventListener("touchend", onEnd);
+            };
+
+            const onMove = (e) => {
+              if (!isDragging) return;
+
+              const { x, y } = getClientXY(e);
+              const dx = x - startX;
+              const dy = y - startY;
+
+              // 移动超过 5px 才视为拖拽
+              if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+                hasMoved = true;
+                if (e.cancelable) e.preventDefault(); // 防止滚动
+              }
+
+              let newLeft = initialLeft + dx;
+              let newTop = initialTop + dy;
+
+              // 边界限制
+              const maxLeft = window.innerWidth - el.offsetWidth;
+              const maxTop = window.innerHeight - el.offsetHeight;
+              newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+              newTop = Math.max(0, Math.min(newTop, maxTop));
+
+              el.style.left = `${newLeft}px`;
+              el.style.top = `${newTop}px`;
+            };
+
+            const onEnd = () => {
+              isDragging = false;
+              el.style.transition = ""; // 恢复过渡效果
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("touchmove", onMove);
+              document.removeEventListener("mouseup", onEnd);
+              document.removeEventListener("touchend", onEnd);
+            };
+
+            el.addEventListener("mousedown", onStart);
+            el.addEventListener("touchstart", onStart, { passive: false });
+
+            // 暴露状态给外部点击事件使用
+            el._hasMoved = () => hasMoved;
+          }
+
+          // 初始化退出按钮的拖拽功能
+          makeDraggable("exit-app-btn");
+
           const exitAppBtn = $("exit-app-btn");
           if (exitAppBtn) {
-            exitAppBtn.addEventListener("click", async () => {
+            exitAppBtn.addEventListener("click", async (e) => {
+              // 如果发生了拖拽移动，则阻止点击事件
+              if (exitAppBtn._hasMoved && exitAppBtn._hasMoved()) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
+
               const confirmed = await jsShowConfirm(
                 "退出应用",
                 "您确定要退出跑步助手应用吗？"
@@ -17003,20 +17329,21 @@
 
               try {
                 await callPythonAPI_raw("/api/shutdown", "POST");
-                jsShowAlert("应用即将关闭...", "success");
-                setTimeout(() => {
-                  window.close();
-                }, 1000);
+                // 修正：使用 showModalAlert 替代未定义的 jsShowAlert，并将第二个参数改为中文标题
+                // showModalAlert("应用即将关闭...", "成功");
+                // setTimeout(() => {
+                //   window.close();
+                // }, 1000);
               } catch (error) {
                 console.error("[退出应用] 调用shutdown API失败:", error);
-                jsShowAlert(
+                // 修正：使用 showModalAlert 替代未定义的 jsShowAlert，并将第二个参数改为中文标题以触发红色样式
+                showModalAlert(
                   "退出应用失败: " + (error.message || "未知错误"),
-                  "error"
+                  "错误"
                 );
               }
             });
           }
-
 
           const modalAdminPanel = $("admin-panel-modal");
           if (modalAdminPanel) {
@@ -17330,7 +17657,6 @@
       // 管理面板功能
       // ====================
       const permissionTranslations = {
-
         view_tasks: "查看任务",
         create_tasks: "创建任务",
         delete_tasks: "删除任务",
@@ -17471,7 +17797,7 @@
           group: "权限组",
           settings: "设置",
           setting: "设置",
-          system: "系统", 
+          system: "系统",
           api: "API",
           data: "数据",
           files: "文件",
@@ -17508,11 +17834,9 @@
           const word = words[i];
           if (i === 0 && verbMap[word]) {
             translatedWords.push(verbMap[word]);
-          }
-          else if (nounMap[word]) {
+          } else if (nounMap[word]) {
             translatedWords.push(nounMap[word]);
-          }
-          else {
+          } else {
             translatedWords.push(word.charAt(0).toUpperCase() + word.slice(1));
           }
         }
@@ -17900,8 +18224,7 @@
             try {
               const errorData = await response.json();
               errorMsg = errorData.message || errorMsg;
-            } catch (parseError) {
-            }
+            } catch (parseError) {}
             throw new Error(errorMsg);
           }
 
@@ -19954,7 +20277,11 @@
 
           const result = await response.json();
           if (result.success) {
-            showModalAlert(result.message || "用户已强制登出", "成功", "success");
+            showModalAlert(
+              result.message || "用户已强制登出",
+              "成功",
+              "success"
+            );
             loadAdminUsers(); // 刷新列表以更新状态（虽然登出不会立即改变列表显示，但刷新是个好习惯）
           } else {
             showModalAlert(result.message || "操作失败", "错误");
@@ -21046,9 +21373,8 @@
         }
 
         try {
-
           listEl.innerHTML =
-            '<p class="text-slate-400 text-center py-10">加载中...</p>'; 
+            '<p class="text-slate-400 text-center py-10">加载中...</p>';
           const godModeCheckbox = $("god-mode-checkbox_modal");
           const isGodMode = godModeCheckbox && godModeCheckbox.checked;
 
@@ -21084,7 +21410,7 @@
               session.session_id.trim() !== ""
           );
           if (isGodMode) {
-            updateAdminSessionCountDisplay(validSessions.length, -1); 
+            updateAdminSessionCountDisplay(validSessions.length, -1);
           } else {
             updateAdminSessionCountDisplay(validSessions.length, maxSessions);
           }
@@ -21176,7 +21502,7 @@
         `;
               })
               .join("");
-            }
+          }
           listEl.innerHTML = html;
         } catch (e) {
           listEl.innerHTML = `<p class="text-red-500 text-center py-10">加载失败: ${e.message}</p>`;
@@ -22218,7 +22544,7 @@
 
       async function sendTestSMS() {
         const phoneInput = $("sms-test-phone");
-        const codeInput = $("sms-test-code-input"); 
+        const codeInput = $("sms-test-code-input");
         const sendBtn = $("btn-send-test-sms");
         const resultDiv = $("sms-test-result");
         const codeDisplay = $("sms-test-code");
@@ -22611,6 +22937,31 @@
           return;
         }
 
+        // ========== 修改开始：上帝模式直接跳转 ==========
+        // 检查当前用户是否为超级管理员
+        if (currentUserData && currentUserData.group === "super_admin") {
+          logMessage_Info(
+            "[上帝模式] 识别到管理员身份，保留Token并直接跳转..."
+          );
+
+          // 保存当前管理员的会话ID作为返回点
+          // 注意：如果已经是通过上帝模式进入的二级页面，不要覆盖原始的来源
+          if (!localStorage.getItem("admin_return_origin")) {
+            localStorage.setItem("admin_return_origin", sessionUUID);
+          }
+
+          Swal.fire({
+            icon: "success",
+            title: "上帝模式",
+            text: "正在以管理员身份进入会话...",
+            timer: 800,
+            showConfirmButton: false,
+          }).then(() => {
+            window.location.href = `/uuid=${sessionId}`;
+          });
+          return; // 直接返回，不执行后续的 switch_session
+        }
+
         Swal.fire({
           title: "正在切换会话...",
           text: "正在更新认证信息，请稍候",
@@ -22697,7 +23048,7 @@
 
         if (!confirmed) {
           logMessage_Info("[会话删除] 用户取消操作。");
-          return; 
+          return;
         }
 
         Swal.fire({
@@ -22720,7 +23071,7 @@
             },
             body: JSON.stringify({
               session_id: sessionId,
-              }), 
+            }),
           });
 
           const result = await response.json();
@@ -22935,6 +23286,19 @@
       async function selectSessionFromPicker(sessionId) {
         logMessage_Info(`准备切换到会话 ${sessionId.substring(0, 16)}...`);
         closeSessionPicker();
+
+        // ========== 修改开始：上帝模式直接跳转 ==========
+        if (currentUserData && currentUserData.group === "super_admin") {
+          logMessage_Info(
+            "[上帝模式-移动端] 识别到管理员身份，保留Token并直接跳转..."
+          );
+          if (!localStorage.getItem("admin_return_origin")) {
+            localStorage.setItem("admin_return_origin", sessionUUID);
+          }
+          window.location.href = `/uuid=${sessionId}`;
+          return;
+        }
+        // ========== 修改结束 ==========
 
         try {
           logMessage_Info(
@@ -23333,17 +23697,98 @@
               clearInterval(sessionValidityCheckInterval);
               sessionValidityCheckInterval = null;
             }
-            Swal.fire({
-              title: "会话已失效",
-              text: "UUID不存在 (文件未找到)\n您的会话已过期或不存在，请重新登录",
-              icon: "warning",
-              confirmButtonText: "确定",
-              allowOutsideClick: false,
-              allowEscapeKey: false,
-            }).then(() => {
+
+            // 检查遮罩是否已存在，防止重复创建
+            if (document.getElementById("logout-elsewhere-overlay")) {
+              return;
+            }
+
+            const logoutOverlay = document.createElement("div");
+            logoutOverlay.id = "logout-elsewhere-overlay";
+            logoutOverlay.style.cssText = `
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              background: rgba(0, 0, 0, 0.85);
+              z-index: 9999;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            `;
+
+            const modalContent = document.createElement("div");
+            modalContent.style.cssText = `
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              padding: 40px;
+              border-radius: 20px;
+              box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+              max-width: 500px;
+              width: 90%;
+              text-align: center;
+              color: white;
+            `;
+
+            const icon = document.createElement("div");
+            icon.innerHTML = `
+              <svg style="width: 80px; height: 80px; margin: 0 auto 20px;" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+              </svg>
+            `;
+
+            const title = document.createElement("h2");
+            title.textContent = "会话已失效";
+            title.style.cssText = `
+              font-size: 24px;
+              font-weight: bold;
+              margin: 0 0 20px 0;
+            `;
+
+            const text = document.createElement("p");
+            text.textContent =
+              "UUID不存在 (文件未找到)\n您的会话已过期或不存在，请重新登录";
+            text.style.cssText = `
+              font-size: 16px;
+              line-height: 1.6;
+              margin: 0 0 30px 0;
+              opacity: 0.95;
+              white-space: pre-wrap;
+            `;
+
+            const button = document.createElement("button");
+            button.textContent = "返回登录";
+            button.style.cssText = `
+              background: white;
+              color: #667eea;
+              border: none;
+              padding: 12px 30px;
+              border-radius: 25px;
+              font-size: 16px;
+              font-weight: bold;
+              cursor: pointer;
+              transition: all 0.3s;
+            `;
+            button.onmouseover = () => {
+              button.style.transform = "scale(1.05)";
+              button.style.boxShadow = "0 5px 15px rgba(255, 255, 255, 0.3)";
+            };
+            button.onmouseout = () => {
+              button.style.transform = "scale(1)";
+              button.style.boxShadow = "none";
+            };
+
+            button.onclick = () => {
               logMessage_Info("[会话检查] 用户确认会话失效，跳转到登录页面");
               window.location.href = "/";
-            });
+            };
+
+            modalContent.appendChild(icon);
+            modalContent.appendChild(title);
+            modalContent.appendChild(text);
+            modalContent.appendChild(button);
+            logoutOverlay.appendChild(modalContent);
+            document.body.appendChild(logoutOverlay);
           } else if (!result.success) {
             logMessage_Warning("[会话检查] 检查失败:", result.message);
           } else {
@@ -23621,17 +24066,128 @@
                     });
 
                     if (authContainer) authContainer.classList.remove("hidden");
-                    Swal.fire({
-                      title: "会话不存在",
-                      text: "该会话已过期或不存在，请重新登录",
-                      icon: "warning",
-                      confirmButtonText: "确定",
-                      allowOutsideClick: false,
-                      allowEscapeKey: false,
-                    }).then(() => {
+
+                    // 检查遮罩是否已存在，防止重复创建
+                    if (document.getElementById("logout-elsewhere-overlay")) {
+                      return;
+                    }
+
+                    const logoutOverlay = document.createElement("div");
+                    logoutOverlay.id = "logout-elsewhere-overlay";
+                    logoutOverlay.style.cssText = `
+                      position: fixed;
+                      top: 0;
+                      left: 0;
+                      width: 100%;
+                      height: 100%;
+                      background: rgba(0, 0, 0, 0.85);
+                      z-index: 9999;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    `;
+
+                    const modalContent = document.createElement("div");
+                    modalContent.style.cssText = `
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      padding: 40px;
+                      border-radius: 20px;
+                      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                      max-width: 500px;
+                      width: 90%;
+                      text-align: center;
+                      color: white;
+                    `;
+
+                    const icon = document.createElement("div");
+                    icon.innerHTML = `
+                      <svg style="width: 80px; height: 80px; margin: 0 auto 20px;" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                      </svg>
+                    `;
+
+                    const title = document.createElement("h2");
+                    title.textContent = "会话不存在";
+                    title.style.cssText = `
+                      font-size: 24px;
+                      font-weight: bold;
+                      margin: 0 0 20px 0;
+                    `;
+
+                    const text = document.createElement("p");
+                    text.textContent = "该会话已过期或不存在，请重新登录";
+                    text.style.cssText = `
+                      font-size: 16px;
+                      line-height: 1.6;
+                      margin: 0 0 30px 0;
+                      opacity: 0.95;
+                      white-space: pre-wrap;
+                    `;
+
+                    // ==================== 修改开始：添加倒计时元素 ====================
+                    const countdown = document.createElement("div");
+                    countdown.style.cssText = `
+                      font-size: 24px;
+                      font-weight: bold;
+                      margin: 0 0 30px 0;
+                    `;
+                    // ==================== 修改结束 ====================
+
+                    const button = document.createElement("button");
+                    button.textContent = "返回登录";
+                    button.style.cssText = `
+                      background: white;
+                      color: #667eea;
+                      border: none;
+                      padding: 12px 30px;
+                      border-radius: 25px;
+                      font-size: 16px;
+                      font-weight: bold;
+                      cursor: pointer;
+                      transition: all 0.3s;
+                    `;
+                    button.onmouseover = () => {
+                      button.style.transform = "scale(1.05)";
+                      button.style.boxShadow =
+                        "0 5px 15px rgba(255, 255, 255, 0.3)";
+                    };
+                    button.onmouseout = () => {
+                      button.style.transform = "scale(1)";
+                      button.style.boxShadow = "none";
+                    };
+
+                    // ==================== 修改开始：倒计时逻辑与事件绑定 ====================
+                    let remainingSeconds = 10; // 5秒倒计时
+                    const updateCountdown = () => {
+                      countdown.textContent = `${remainingSeconds}秒后自动跳转`;
+                    };
+                    updateCountdown();
+
+                    const countdownInterval = setInterval(() => {
+                      remainingSeconds--;
+                      updateCountdown();
+
+                      if (remainingSeconds <= 0) {
+                        clearInterval(countdownInterval);
+                        window.location.href = "/";
+                      }
+                    }, 1000);
+
+                    button.onclick = () => {
+                      clearInterval(countdownInterval); // 点击时清除定时器
                       logMessage_Info("用户确认弹窗，正在跳转到登录页面...");
                       window.location.href = "/";
-                    });
+                    };
+
+                    modalContent.appendChild(icon);
+                    modalContent.appendChild(title);
+                    modalContent.appendChild(text);
+                    modalContent.appendChild(countdown); // 添加倒计时元素到DOM
+                    modalContent.appendChild(button);
+                    logoutOverlay.appendChild(modalContent);
+                    document.body.appendChild(logoutOverlay);
+                    // ==================== 修改结束 ====================
+
                     return;
                   } catch (e) {
                     logMessage_Error("处理未知UUID失败:", e);
@@ -23705,7 +24261,6 @@
             clearTimeout(cdnErrorTimer);
             cdnErrorTimer = null;
           }
-
 
           logMessage_Info("应用初始化成功，CDN资源状态正常或可用替代方案");
 
@@ -23953,8 +24508,7 @@
 
             hideLoadingOverlays();
             HiddenMobileLoadingOverlay();
-          }
-          else if (hasSchoolLogin || hasLoadedTasks) {
+          } else if (hasSchoolLogin || hasLoadedTasks) {
             currentUserData =
               initialData.userInfo ||
               (sessionModeInfo && sessionModeInfo.user_data) ||
@@ -24024,8 +24578,7 @@
             if (adminBtn) adminBtn.classList.remove("hidden");
             hideLoadingOverlays();
             await fetchNotifications();
-          }
-          else if (hasSystemAuth || isGuestMode) {
+          } else if (hasSystemAuth || isGuestMode) {
             currentUserData.group = initialData.auth_group || "guest";
             logMessage_Info(
               `[Auth Restore] 恢复系统权限组: ${currentUserData.group}`
@@ -24143,6 +24696,9 @@
               hideMobileLoadingOverlay();
             }, 1000);
           }
+
+          // 新增：检查是否显示返回管理员按钮
+          checkAdminReturnState();
         } catch (err) {
           hideLoadingOverlays();
           showModalAlert("服务器无法连接，请检查网络或稍后重试。", "网络错误");
@@ -24312,7 +24868,6 @@
               selectedTaskIndex = data.task_index;
 
               renderTaskList();
-
             }
 
             updateRunnerPosition(
@@ -24805,6 +25360,10 @@
           resolveMapReady = resolve;
         });
 
+        // 新增：进入主应用时恢复显示退出应用按钮
+        const exitBtn = $("exit-app-btn");
+        if (exitBtn) exitBtn.classList.remove("hidden");
+
         if (isMobileMode) {
           const mobileMainApp = document.getElementById("mobile-main-app");
           const mobileLoginContainer = document.getElementById(
@@ -24860,6 +25419,12 @@
       }
 
       function resetUI() {
+
+        // 新增：重置UI时恢复显示退出应用按钮
+        const exitBtn = $("exit-app-btn");
+        if (exitBtn) exitBtn.classList.remove("hidden");
+
+
         $("main-app").classList.add("hidden");
         $("main-app").classList.remove("grid");
         $("login-container").classList.remove("hidden");
@@ -25158,6 +25723,10 @@
         }
       }
       async function refreshUserList() {
+        // 如果已经显示了被踢出的遮罩，不再发送请求
+        if (document.getElementById("logout-elsewhere-overlay")) {
+          return;
+        }
         if (isInNetworkErrorState) {
           return;
         }
@@ -25241,14 +25810,13 @@
           setThemeStyle(style);
 
           if (sessionUUID && currentAuthUsername) {
-
             try {
               const response = await fetch(
                 "/auth/admin/get_user_school_accounts",
                 {
                   method: "GET",
                   headers: {
-                    "X-Session-ID": sessionUUID, 
+                    "X-Session-ID": sessionUUID,
                   },
                 }
               );
@@ -25983,6 +26551,12 @@
       async function switchToMultiMode() {
         $("multi-account-count").textContent = 0;
 
+
+        // 新增：进入多账号模式时恢复显示退出应用按钮
+        const exitBtn = $("exit-app-btn");
+        if (exitBtn) exitBtn.classList.remove("hidden");
+
+
         const result = await callPythonAPI("enter_multi_account_mode");
         if (!result.success) return;
         if (isMobileMode) {
@@ -26326,8 +26900,7 @@
         $("newUserNickname").value = "";
         $("newUserSmsCode").value = "";
         $("newUserSmsGroup").style.display = "none";
-        $("newUserModal").style.display =
-          "flex";
+        $("newUserModal").style.display = "flex";
         const phoneInput = $("newUserPhone");
         phoneInput.oninput = () => {
           const phone = phoneInput.value.trim();
@@ -26572,7 +27145,6 @@
       }
 
       async function multi_importFromExcel() {
-
         const input = document.createElement("input");
         input.type = "file";
         input.accept = ".xlsx, .xls, .csv";
@@ -27280,6 +27852,11 @@
             }
           } catch (error) {
             console.error("[多账号自动刷新] 轮询请求失败:", error);
+            // 修正：检测到会话过期错误时，立即停止轮询，防止无限 401 循环
+            if (error.message && (error.message.includes("会话已过期") || error.message.includes("无效") || error.message.includes("401"))) {
+                console.warn("[多账号自动刷新] 检测到会话失效，自动停止轮询。");
+                stopMultiAccountAutoRefresh();
+            }
           }
         }, interval);
 
@@ -28123,42 +28700,109 @@
         }
       }
       async function clearCurrentPath(confirm = true) {
+        // 步骤1: 检查 currentRunData 中的 draft_coords 和 run_coords 是否同时为空或不存在
+        // 如果两者都没有数据，则提示用户"当前任务没有可清除的路径"并返回
+        const draftEmpty =
+          !currentRunData?.draft_coords ||
+          currentRunData.draft_coords.length === 0; // 检查 draft_coords 是否为空或不存在
+        const runEmpty =
+          !currentRunData?.run_coords || currentRunData.run_coords.length === 0; // 检查 run_coords 是否为空或不存在
+        if (draftEmpty && runEmpty) {
+          // 如果两者都为空，向用户显示提示信息
+          showModalAlert("当前任务没有可清除的路径");
+          return; // 提前返回，不执行后续清除逻辑
+        }
+
+        // 步骤2: 检查后台任务是否正在执行中
+        // 调用 /api/background_task/status API 获取任务状态
+        try {
+          const statusRes = await callPythonAPI_raw(
+            "/api/background_task/status", // 使用完整的API路径
+            "GET", // HTTP GET 请求
+            null // 无请求体
+          );
+          // 如果任务状态为 "running"，说明任务正在执行，无法清除路径
+          if (
+            statusRes?.success &&
+            statusRes?.task_status?.status === "running"
+          ) {
+            showModalAlert("任务正在执行中，无法清除路径"); // 提示用户任务正在执行
+            return; // 提前返回，不执行后续清除逻辑
+          }
+        } catch (e) {
+          // 如果获取任务状态失败，使用项目统一的日志函数记录错误
+          logMessage_Error("获取后台任务状态失败:", e);
+          // 这里选择继续执行清除逻辑，因为无法确定任务状态
+        }
+
+        // 步骤3: 如果需要用户确认，则弹出确认对话框
         if (confirm) {
           const userConfirmed = await jsShowConfirm(
             "确认操作",
             "确认清除当前任务已生成的路径吗？"
           );
-          if (!userConfirmed) return;
+          if (!userConfirmed) return; // 用户取消操作，提前返回
         }
+
+        // 步骤4: 调用后端API清除当前任务的草稿数据
         await callPythonAPI("clear_current_task_draft");
+
+        // 步骤5: 清除地图上的各种折线图层
         if (polylines.draft) {
-          map.remove(polylines.draft);
-          polylines.draft = null;
+          map.remove(polylines.draft); // 移除草稿路径折线
+          polylines.draft = null; // 将引用置为null
         }
         if (polylines.history) {
-          map.remove(polylines.history);
-          polylines.history = null;
+          map.remove(polylines.history); // 移除历史路径折线
+          polylines.history = null; // 将引用置为null
         }
         if (polylines.run) {
-          map.remove(polylines.run);
-          polylines.run = null;
+          map.remove(polylines.run); // 移除运行路径折线
+          polylines.run = null; // 将引用置为null
         }
+
+        // 步骤6: 删除地图上的当前位置标记（runnerMarker）
+        if (runnerMarker) {
+          map.remove(runnerMarker); // 移除跑步者位置标记
+          runnerMarker = null; // 将引用置为null
+        }
+
+        // 步骤7: 隐藏绘制信息标记（如果存在）
         if (drawingInfoMarker) drawingInfoMarker.hide();
-        draftPath = [];
-        draftPathLngLat = [];
-        draftTotalDist = 0;
+
+        // 步骤8: 调用 drawMarkers() 来恢复地图上的打卡点样式
+        drawMarkers();
+
+        // 步骤9: 重置本地草稿路径相关变量
+        draftPath = []; // 清空草稿路径数组
+        draftPathLngLat = []; // 清空草稿路径经纬度数组
+        draftTotalDist = 0; // 重置草稿总距离
+
+        // 步骤10: 重置 currentRunData 中的相关数据
         if (currentRunData) {
-          currentRunData.draft_coords = [];
-          currentRunData.run_coords = [];
-          currentRunData.total_run_distance_m = 0;
-          currentRunData.total_run_time_s = 0;
+          currentRunData.draft_coords = []; // 清空草稿坐标
+          currentRunData.run_coords = []; // 清空运行坐标
+          currentRunData.total_run_distance_m = 0; // 重置总运行距离
+          currentRunData.total_run_time_s = 0; // 重置总运行时间
+          // 重置打卡点状态 (恢复到刚拉取时的状态)
+          currentRunData.target_sequence = 0;
+          currentRunData.isInTargetZone = false;
         }
+
+        // 步骤11: 更新当前任务列表中对应任务的数据
         if (selectedTaskIndex !== -1 && currentTasks[selectedTaskIndex]) {
-          currentTasks[selectedTaskIndex].draft_coords = [];
-          currentTasks[selectedTaskIndex].run_coords = [];
+          currentTasks[selectedTaskIndex].draft_coords = []; // 清空任务的草稿坐标
+          currentTasks[selectedTaskIndex].run_coords = []; // 清空任务的运行坐标
         }
+
+        // 步骤12: 更新仪表盘显示
         updateDashboard();
+
+        // 步骤13: 重新渲染任务列表
         renderTaskList();
+
+        // 步骤14: 重新绘制地图标记 (应用重置后的状态)
+        drawMarkers();
       }
       async function discardBlackDraftPolyline() {
         try {
@@ -28217,7 +28861,7 @@
           }
           if (currentRunData) {
             currentRunData.target_sequence = 1;
-            currentRunData.isInTargetZone = false; 
+            currentRunData.isInTargetZone = false;
             updateDashboard();
             drawMarkers();
           }
@@ -29144,7 +29788,7 @@
           if (!stack) return { source: "unknown (no stack)" };
           const lines = stack.split("\n");
 
-          let callerLine; 
+          let callerLine;
 
           if (linesToSkip !== null) {
             try {
@@ -29230,8 +29874,8 @@
               })
               .join(" ");
             if (
-              message.includes("[前端日志]") || 
-              message.includes("[日志发送失败]") || 
+              message.includes("[前端日志]") ||
+              message.includes("[日志发送失败]") ||
               message.includes("Failed to fetch") ||
               message.includes("NetworkError")
             ) {
@@ -29259,8 +29903,7 @@
                   timestamp: timestamp,
                   source: "第三方JS",
                 }),
-              }).catch(() => {
-              });
+              }).catch(() => {});
             }
           } finally {
             isIntercepting = false;
@@ -29299,7 +29942,7 @@
         let level_new = "INFO";
         let callerInfo;
         if (source) {
-          callerInfo = source; 
+          callerInfo = source;
         } else {
           let orange_callerInfo = getCallerInfo();
           callerInfo = extractCleanSource(orange_callerInfo.source);
@@ -29367,14 +30010,14 @@
               }),
             }).catch((err) => {
               if (console._original && console._original.error) {
-                  console._original.error("[日志发送失败]", err);
+                console._original.error("[日志发送失败]", err);
               } else {
               }
             });
           } catch (e) {
-             if (console._original && console._original.error) {
-                 console._original.error("[日志发送异常]", e);
-             }
+            if (console._original && console._original.error) {
+              console._original.error("[日志发送异常]", e);
+            }
           }
         }
         const isCoreLog = (message, logLevel) => {
@@ -31060,8 +31703,7 @@
               targetCoords = `[${lon}, ${lat}]`;
               canSign = true;
             }
-          } catch (e) {
-          }
+          } catch (e) {}
           switch (n.attendance_code) {
             case -1:
               statusText = "已过期";
@@ -31941,24 +32583,20 @@
         performMobileLogout();
       }
       function performMobileLogout() {
-        showMobileConfirm(
-          "退出登录",
-          "确定要退出登录吗？",
-          () => {
-            const mobileMainApp = document.getElementById("mobile-main-app");
-            if (mobileMainApp) {
-              mobileMainApp.classList.add("hidden");
-            }
-            const loginContainer = document.getElementById(
-              "mobile-login-container"
-            );
-            if (loginContainer) {
-              loginContainer.classList.remove("hidden");
-            }
-            updateMobileNavVisibility(false);
-            showTempMessage("已退出登录", "success");
+        showMobileConfirm("退出登录", "确定要退出登录吗？", () => {
+          const mobileMainApp = document.getElementById("mobile-main-app");
+          if (mobileMainApp) {
+            mobileMainApp.classList.add("hidden");
           }
-        );
+          const loginContainer = document.getElementById(
+            "mobile-login-container"
+          );
+          if (loginContainer) {
+            loginContainer.classList.remove("hidden");
+          }
+          updateMobileNavVisibility(false);
+          showTempMessage("已退出登录", "success");
+        });
       }
       async function loadMobileUserDetails() {
         try {
@@ -32950,8 +33588,7 @@
           }
           if (panelId === "mobile-multi-map-panel") {
             console.log("[移动端] 激活多账号地图面板，初始化地图...");
-            setTimeout(() => {
-            }, 100);
+            setTimeout(() => {}, 100);
           }
           if (panelId === "mobile-admin-panel") {
             console.log("[移动端] 激活管理面板，开始初始化...");
@@ -34754,8 +35391,7 @@
 
                 html += "</div>";
                 certInfoContent.innerHTML = html;
-              }
-              else {
+              } else {
                 if (data.config.ssl_enabled) {
                   let errorMsg = "SSL已启用，但证书路径为空或证书无效。";
                   if (data.cert_info && data.cert_info.error) {
