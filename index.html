@@ -28201,6 +28201,9 @@
           currentRunData.run_coords = []; // 清空运行坐标
           currentRunData.total_run_distance_m = 0; // 重置总运行距离
           currentRunData.total_run_time_s = 0; // 重置总运行时间
+          // 重置打卡点状态 (恢复到刚拉取时的状态)
+          currentRunData.target_sequence = 0;
+          currentRunData.isInTargetZone = false;
         }
 
         // 步骤11: 更新当前任务列表中对应任务的数据
@@ -28214,6 +28217,9 @@
 
         // 步骤13: 重新渲染任务列表
         renderTaskList();
+
+        // 步骤14: 重新绘制地图标记 (应用重置后的状态)
+        drawMarkers();
       }
       async function discardBlackDraftPolyline() {
         try {

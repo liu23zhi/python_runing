@@ -18117,6 +18117,23 @@ def start_web_server(args_param):
                                 username, session_id, token
                             )
 
+                            # 如果Token验证失败，检查是否是超级管理员在访问其他用户的会话
+                            validated_user = username # 默认验证的是会话拥有者
+                            if not is_valid and reason == "token_mismatch":
+                                try:
+                                    # 获取超级管理员用户名
+                                    super_admin = auth_system.config.get("Admin", "super_admin", fallback="admin")
+                                    
+                                    # 如果当前会话用户不是超管，尝试用超管身份验证Token
+                                    if username != super_admin:
+                                        is_admin_valid, admin_reason = token_manager.verify_token(super_admin, session_id, token)
+                                        if is_admin_valid:
+                                            is_valid = True
+                                            validated_user = super_admin
+                                            logging.info(f"[API鉴权] 上帝模式：允许管理员 {super_admin} 访问用户 {username} 的会话")
+                                except Exception as e:
+                                    logging.error(f"[API鉴权] 上帝模式检查出错: {e}")
+
                             if not is_valid:
                                 if reason == "token_expired":
                                     return (
@@ -18152,7 +18169,9 @@ def start_web_server(args_param):
                                         ),
                                         401,
                                     )
-                            token_manager.refresh_token(username, session_id)
+                            # 刷新实际持有人(validated_user)的Token，而不是会话拥有者(username)的Token
+                            # 否则管理员操作用户界面会导致管理员自己的Token过期或无法刷新
+                            token_manager.refresh_token(validated_user, session_id)
         update_session_activity(session_id)
 
         with web_sessions_lock:
