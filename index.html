@@ -15516,10 +15516,14 @@
                 logoutOverlay.appendChild(modalContent);
                 document.body.appendChild(logoutOverlay);
 
-                let remainingSeconds = 5; // 设置为5秒倒计时
+                let remainingSeconds = 120; // 设置为120秒倒计时
                 const updateCountdown = () => {
-                  countdown.textContent = `${remainingSeconds}秒后自动跳转`;
-                };
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                countdown.textContent = `${minutes}:${seconds
+                  .toString()
+                  .padStart(2, "0")}`;
+              };
                 updateCountdown();
 
                 const countdownInterval = setInterval(() => {
@@ -27848,6 +27852,11 @@
             }
           } catch (error) {
             console.error("[多账号自动刷新] 轮询请求失败:", error);
+            // 修正：检测到会话过期错误时，立即停止轮询，防止无限 401 循环
+            if (error.message && (error.message.includes("会话已过期") || error.message.includes("无效") || error.message.includes("401"))) {
+                console.warn("[多账号自动刷新] 检测到会话失效，自动停止轮询。");
+                stopMultiAccountAutoRefresh();
+            }
           }
         }, interval);
 
