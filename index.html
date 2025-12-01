@@ -2075,7 +2075,8 @@
             ></path>
           </svg>
         </div>
-        <div class="flex-1 pr-6"> <h3 class="text-xl font-bold text-red-700 mb-2">
+        <div class="flex-1 pr-6">
+          <h3 class="text-xl font-bold text-red-700 mb-2">
             ⚠️ 游客模式重要提示
           </h3>
           <div class="text-base text-slate-800 space-y-2 font-medium">
@@ -3156,8 +3157,6 @@
         id="login-container"
         class="w-full h-full grid grid-cols-1 lg:grid-cols-3"
       >
-        
-
         <div
           class="flex flex-col items-center justify-center p-8 lg:p-12 bg-gradient-to-br from-purple-50 via-violet-50 to-purple-100 relative overflow-hidden"
         >
@@ -4983,21 +4982,49 @@
           <!-- ========================================
              【区域3】会话管理面板卡片
              ======================================== -->
-          <div class="mobile-card relative overflow-hidden !p-5" id="mobile-session-panel-card" style="min-height: 400px;">
-            <div class="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-sky-100/50 to-blue-100/50 rounded-full blur-3xl pointer-events-none"></div>
-            <div class="absolute -bottom-10 -left-10 w-32 h-32 bg-gradient-to-tr from-indigo-100/50 to-purple-100/50 rounded-full blur-3xl pointer-events-none"></div>
+          <div
+            class="mobile-card relative overflow-hidden !p-5"
+            id="mobile-session-panel-card"
+            style="min-height: 400px"
+          >
+            <div
+              class="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-sky-100/50 to-blue-100/50 rounded-full blur-3xl pointer-events-none"
+            ></div>
+            <div
+              class="absolute -bottom-10 -left-10 w-32 h-32 bg-gradient-to-tr from-indigo-100/50 to-purple-100/50 rounded-full blur-3xl pointer-events-none"
+            ></div>
 
             <div class="relative flex items-center justify-between mb-6">
               <div class="flex items-center gap-3">
-                 <div class="w-12 h-12 rounded-2xl bg-white shadow-md border border-slate-100 flex items-center justify-center text-sky-600">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                     </svg>
-                 </div>
-                 <div>
-                     <h3 class="text-xl font-bold text-slate-800 tracking-tight">会话列表</h3>
-                     <div id="mobile-session-count-display" class="text-xs font-medium mt-0.5">统计中...</div>
-                 </div>
+                <div
+                  class="w-12 h-12 rounded-2xl bg-white shadow-md border border-slate-100 flex items-center justify-center text-sky-600"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="w-6 h-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="text-xl font-bold text-slate-800 tracking-tight">
+                    会话列表
+                  </h3>
+                  <div
+                    id="mobile-session-count-display"
+                    class="text-xs font-medium mt-0.5"
+                  >
+                    统计中...
+                  </div>
+                </div>
               </div>
 
               <button
@@ -5005,20 +5032,34 @@
                 class="flex items-center justify-center bg-slate-50 hover:bg-sky-50 text-slate-500 hover:text-sky-600 rounded-xl transition-all active:scale-90 border border-transparent hover:border-sky-100"
                 title="刷新列表"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
                 </svg>
               </button>
             </div>
 
-            <div id="mobile-session-guest-msg" class="hidden mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl text-center shadow-sm">
-                <div class="flex flex-col items-center gap-2">
-                    <span class="text-2xl">👋</span>
-                    <p class="text-sm text-blue-700 font-bold">游客模式</p>
-                    <p class="text-xs text-blue-600/80 leading-relaxed px-2">
-                        当前会话如下。<br>如需使用多个会话或保存数据，请注册账号。
-                    </p>
-                </div>
+            <div
+              id="mobile-session-guest-msg"
+              class="hidden mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl text-center shadow-sm"
+            >
+              <div class="flex flex-col items-center gap-2">
+                <span class="text-2xl">👋</span>
+                <p class="text-sm text-blue-700 font-bold">游客模式</p>
+                <p class="text-xs text-blue-600/80 leading-relaxed px-2">
+                  当前会话如下。<br />如需使用多个会话或保存数据，请注册账号。
+                </p>
+              </div>
             </div>
 
             <button
@@ -5026,10 +5067,22 @@
               id="mobile-create-session-btn"
               class="group relative w-full py-4 px-4 mb-6 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-2xl text-sm font-bold shadow-lg shadow-blue-200/50 transition-all active:scale-[0.98] overflow-hidden"
             >
-              <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+              <div
+                class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"
+              ></div>
               <div class="relative flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+                <svg
+                  class="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2.5"
+                    d="M12 4v16m8-8H4"
+                  ></path>
                 </svg>
                 <span>创建新会话</span>
               </div>
@@ -5039,17 +5092,35 @@
               id="mobile-sessions-list"
               class="space-y-3 max-h-[50vh] overflow-y-auto pr-1 pb-2 scrollbar-hide"
             >
-              <div class="flex flex-col items-center justify-center py-12 text-slate-400">
-                 <div class="w-8 h-8 border-4 border-sky-100 border-t-sky-500 rounded-full animate-spin mb-3"></div>
-                 <span class="text-xs font-medium">正在同步会话数据...</span>
+              <div
+                class="flex flex-col items-center justify-center py-12 text-slate-400"
+              >
+                <div
+                  class="w-8 h-8 border-4 border-sky-100 border-t-sky-500 rounded-full animate-spin mb-3"
+                ></div>
+                <span class="text-xs font-medium">正在同步会话数据...</span>
               </div>
             </div>
-            
+
             <div class="mt-2 pt-3 border-t border-slate-100 text-center">
-                <p class="text-[10px] text-slate-400 flex items-center justify-center gap-1">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    长按会话可删除，点击即可切换
-                </p>
+              <p
+                class="text-[10px] text-slate-400 flex items-center justify-center gap-1"
+              >
+                <svg
+                  class="w-3 h-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
+                </svg>
+                长按会话可删除，点击即可切换
+              </p>
             </div>
           </div>
 
@@ -9447,132 +9518,286 @@
           <div class="flex justify-center mb-2">
             <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
           </div>
-          
-          <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
-            <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+
+          <div
+            class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200"
+          >
+            <svg
+              class="w-6 h-6 text-sky-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              ></path>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              ></path>
             </svg>
-            <h3 class="text-xl font-bold text-sky-600 text-center">多账号管理面板</h3>
+            <h3 class="text-xl font-bold text-sky-600 text-center">
+              多账号管理面板
+            </h3>
           </div>
 
           <div
             id="mobile-multi-admin-tabs-nav-panel"
             class="flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 -mx-2 px-2"
-            style="scrollbar-width: none; -webkit-overflow-scrolling: touch;"
+            style="scrollbar-width: none; -webkit-overflow-scrolling: touch"
           ></div>
 
-          <div id="mobile-multi-admin-panel-content" class="text-sm space-y-2 max-h-[60vh] overflow-y-auto min-h-[300px]">
-            
+          <div
+            id="mobile-multi-admin-panel-content"
+            class="text-sm space-y-2 max-h-[60vh] overflow-y-auto min-h-[300px]"
+          >
             <div id="mobile-multi-admin-users-panel" class="space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">用户列表</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('users', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-users-list" class="space-y-2"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">用户列表</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('users', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-users-list" class="space-y-2">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
             <div id="mobile-multi-admin-groups-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">权限组列表</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('groups', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-groups-list" class="space-y-2"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">权限组列表</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('groups', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-groups-list" class="space-y-2">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
             <div id="mobile-multi-admin-logs-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">系统日志</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('logs', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div class="bg-slate-900 text-green-400 rounded-lg p-3 font-mono text-xs overflow-auto max-h-[45vh]">
-                  <pre id="mobile-multi-admin-logs-content" class="whitespace-pre-wrap">加载中...</pre>
-               </div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">系统日志</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('logs', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div
+                class="bg-slate-900 text-green-400 rounded-lg p-3 font-mono text-xs overflow-auto max-h-[45vh]"
+              >
+                <pre
+                  id="mobile-multi-admin-logs-content"
+                  class="whitespace-pre-wrap"
+                >
+加载中...</pre
+                >
+              </div>
             </div>
 
             <div id="mobile-multi-admin-health-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">系统状态</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('health', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-health-content" class="space-y-3"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">系统状态</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('health', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-health-content" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
             <div id="mobile-multi-admin-profile-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">个人信息</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('profile', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-profile-content" class="space-y-3 text-slate-800"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">个人信息</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('profile', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div
+                id="mobile-multi-admin-profile-content"
+                class="space-y-3 text-slate-800"
+              >
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
-            <div id="mobile-multi-admin-sessions-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">会话列表</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('sessions', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-sessions-list" class="space-y-2"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+            <div
+              id="mobile-multi-admin-sessions-panel"
+              class="hidden space-y-3"
+            >
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">会话列表</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('sessions', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-sessions-list" class="space-y-2">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
-            <div id="mobile-multi-admin-messages-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">留言板</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('messages', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-messages-list" class="space-y-2"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+            <div
+              id="mobile-multi-admin-messages-panel"
+              class="hidden space-y-3"
+            >
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">留言板</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('messages', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-messages-list" class="space-y-2">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
             <div id="mobile-multi-admin-ipban-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">IP封禁</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('ipban', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                  <h5 class="font-semibold text-slate-700 text-xs mb-2">现有规则</h5>
-                  <div id="mobile-multi-ip-ban-list" class="space-y-2"><p class="text-slate-400 text-center py-6 text-xs">加载中...</p></div>
-               </div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">IP封禁</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('ipban', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <h5 class="font-semibold text-slate-700 text-xs mb-2">
+                  现有规则
+                </h5>
+                <div id="mobile-multi-ip-ban-list" class="space-y-2">
+                  <p class="text-slate-400 text-center py-6 text-xs">
+                    加载中...
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div id="mobile-multi-admin-sms-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">短信配置</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('sms', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-sms-content" class="space-y-3"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">短信配置</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('sms', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-sms-content" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
             <div id="mobile-multi-admin-config-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">系统配置</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('config', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-config-content" class="space-y-3"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">系统配置</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('config', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-config-content" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
             <div id="mobile-multi-admin-captcha-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">验证码设置</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('captcha', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-captcha-list" class="space-y-2"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">验证码设置</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('captcha', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-captcha-list" class="space-y-2">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
-            <div id="mobile-multi-admin-reminders-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">定时提醒</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('reminders', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-reminders-content" class="space-y-3"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+            <div
+              id="mobile-multi-admin-reminders-panel"
+              class="hidden space-y-3"
+            >
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">定时提醒</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('reminders', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-reminders-content" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
 
             <div id="mobile-multi-admin-ssl-panel" class="hidden space-y-3">
-               <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">HTTPS设置</h4>
-                  <button class="btn btn-ghost !py-1 !px-2 text-xs" onclick="switchMobileAdminTab('ssl', 'mobile-multi-admin-panel')">刷新</button>
-               </div>
-               <div id="mobile-multi-admin-ssl-content" class="space-y-3"><p class="text-slate-400 text-center py-10 text-xs">加载中...</p></div>
+              <div class="flex justify-between items-center">
+                <h4 class="font-semibold text-sm">HTTPS设置</h4>
+                <button
+                  class="btn btn-ghost !py-1 !px-2 text-xs"
+                  onclick="switchMobileAdminTab('ssl', 'mobile-multi-admin-panel')"
+                >
+                  刷新
+                </button>
+              </div>
+              <div id="mobile-multi-admin-ssl-content" class="space-y-3">
+                <p class="text-slate-400 text-center py-10 text-xs">
+                  加载中...
+                </p>
+              </div>
             </div>
-
           </div>
 
           <div class="flex justify-end pt-2 border-t border-slate-100">
@@ -13636,10 +13861,14 @@
                 <div class="flex flex-col"> <div class="flex items-center mb-1">
                      <span class="text-sm font-bold text-slate-800">会话</span>
                      ${
-                        isCurrent? '<span class="text-xs text-sky-600 ml-2 px-2 py-0.5 bg-sky-100 rounded-full flex-shrink-0">(当前)</span>' : ""
-                      }
+                       isCurrent
+                         ? '<span class="text-xs text-sky-600 ml-2 px-2 py-0.5 bg-sky-100 rounded-full flex-shrink-0">(当前)</span>'
+                         : ""
+                     }
                   </div>
-                  <p class="font-mono text-xs text-slate-600 break-all select-all bg-slate-50 p-1 rounded border border-slate-100" title="${session.session_id}">
+                  <p class="font-mono text-xs text-slate-600 break-all select-all bg-slate-50 p-1 rounded border border-slate-100" title="${
+                    session.session_id
+                  }">
                     ${session.session_id}
                   </p>
                 </div>
@@ -15489,17 +15718,17 @@
       async function loadMobileSessionsList() {
         const listEl = document.getElementById("mobile-sessions-list");
         const countEl = document.getElementById("mobile-session-count-display");
-        
+
         // 游客模式支持：切换显示
         const createBtn = document.getElementById("mobile-create-session-btn");
         const guestMsg = document.getElementById("mobile-session-guest-msg");
-        
-        if (typeof currentUserIsGuest !== 'undefined' && currentUserIsGuest) {
-            if (createBtn) createBtn.classList.add("hidden");
-            if (guestMsg) guestMsg.classList.remove("hidden");
+
+        if (typeof currentUserIsGuest !== "undefined" && currentUserIsGuest) {
+          if (createBtn) createBtn.classList.add("hidden");
+          if (guestMsg) guestMsg.classList.remove("hidden");
         } else {
-            if (createBtn) createBtn.classList.remove("hidden");
-            if (guestMsg) guestMsg.classList.add("hidden");
+          if (createBtn) createBtn.classList.remove("hidden");
+          if (guestMsg) guestMsg.classList.add("hidden");
         }
 
         if (!listEl) return;
@@ -15530,19 +15759,24 @@
 
           // 更新计数器显示
           if (countEl) {
-            if (typeof currentUserIsGuest !== 'undefined' && currentUserIsGuest) {
-               countEl.innerHTML = `<span class="text-blue-600 text-[10px] font-bold">会话: 1 / 游客限单会话</span>`;
+            if (
+              typeof currentUserIsGuest !== "undefined" &&
+              currentUserIsGuest
+            ) {
+              countEl.innerHTML = `<span class="text-blue-600 text-[10px] font-bold">会话: 1 / 游客限单会话</span>`;
             } else {
-                const maxSessions = result.max_sessions || 1;
-                const currentCount = validSessions.length;
-                let countHtml = "";
-                if (maxSessions === -1) {
-                  countHtml = `<span class="text-slate-600">${currentCount}</span> <span class="text-slate-400 text-[10px]">/ ∞</span>`;
-                } else {
-                  const isFull = currentCount >= maxSessions;
-                  countHtml = `<span class="${isFull ? 'text-red-500' : 'text-slate-600'}">${currentCount}</span> <span class="text-slate-400 text-[10px]">/ ${maxSessions}</span>`;
-                }
-                countEl.innerHTML = countHtml;
+              const maxSessions = result.max_sessions || 1;
+              const currentCount = validSessions.length;
+              let countHtml = "";
+              if (maxSessions === -1) {
+                countHtml = `<span class="text-slate-600">${currentCount}</span> <span class="text-slate-400 text-[10px]">/ ∞</span>`;
+              } else {
+                const isFull = currentCount >= maxSessions;
+                countHtml = `<span class="${
+                  isFull ? "text-red-500" : "text-slate-600"
+                }">${currentCount}</span> <span class="text-slate-400 text-[10px]">/ ${maxSessions}</span>`;
+              }
+              countEl.innerHTML = countHtml;
             }
           }
 
@@ -15555,61 +15789,83 @@
           listEl.innerHTML = "";
 
           // 按时间排序，最新的在前面
-          validSessions.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+          validSessions.sort(
+            (a, b) => (b.created_at || 0) - (a.created_at || 0)
+          );
 
           validSessions.forEach((session) => {
             // 格式化时间，只显示月-日 时:分
             const dateObj = new Date(session.created_at * 1000);
-            const dateStr = `${(dateObj.getMonth()+1).toString().padStart(2,'0')}-${dateObj.getDate().toString().padStart(2,'0')} ${dateObj.getHours().toString().padStart(2,'0')}:${dateObj.getMinutes().toString().padStart(2,'0')}`;
-            
-            const isCurrent = session.is_current || session.session_id === sessionUUID;
+            const dateStr = `${(dateObj.getMonth() + 1)
+              .toString()
+              .padStart(2, "0")}-${dateObj
+              .getDate()
+              .toString()
+              .padStart(2, "0")} ${dateObj
+              .getHours()
+              .toString()
+              .padStart(2, "0")}:${dateObj
+              .getMinutes()
+              .toString()
+              .padStart(2, "0")}`;
+
+            const isCurrent =
+              session.is_current || session.session_id === sessionUUID;
             // 【修改点1】不再截断UUID，保存完整字符串
-            const fullSessionId = session.session_id || "Unknown"; 
-            
+            const fullSessionId = session.session_id || "Unknown";
+
             const isMulti = session.is_multi_account_mode;
             const loginStatus = session.login_success;
-            
+
             // 提取用户名
             let displayTitle = "未登录会话";
             let displayIcon = "👤"; // 默认单人图标
             let iconBgClass = "bg-slate-100 text-slate-400";
 
-            if (session.user_data && session.user_data.username && session.user_data.username !== 'guest') {
-                displayTitle = session.user_data.username;
-                if (isMulti) {
-                    displayIcon = "👥"; // 多人图标
-                    iconBgClass = loginStatus ? "bg-purple-100 text-purple-600" : "bg-slate-100 text-slate-400";
-                } else {
-                    displayIcon = "👤";
-                    iconBgClass = loginStatus ? "bg-green-100 text-green-600" : "bg-slate-100 text-slate-400";
-                }
+            if (
+              session.user_data &&
+              session.user_data.username &&
+              session.user_data.username !== "guest"
+            ) {
+              displayTitle = session.user_data.username;
+              if (isMulti) {
+                displayIcon = "👥"; // 多人图标
+                iconBgClass = loginStatus
+                  ? "bg-purple-100 text-purple-600"
+                  : "bg-slate-100 text-slate-400";
+              } else {
+                displayIcon = "👤";
+                iconBgClass = loginStatus
+                  ? "bg-green-100 text-green-600"
+                  : "bg-slate-100 text-slate-400";
+              }
             } else if (isMulti) {
-                displayTitle = "多账号控制台";
-                displayIcon = "🎛️";
-                iconBgClass = "bg-purple-50 text-purple-500";
+              displayTitle = "多账号控制台";
+              displayIcon = "🎛️";
+              iconBgClass = "bg-purple-50 text-purple-500";
             }
 
             // 构建标签 HTML
             let badgesHtml = "";
             if (isCurrent) {
-                badgesHtml += `<span class="px-2 py-0.5 bg-sky-100 text-sky-600 text-[10px] font-bold rounded-full border border-sky-200 mr-1 shadow-sm">当前</span>`;
+              badgesHtml += `<span class="px-2 py-0.5 bg-sky-100 text-sky-600 text-[10px] font-bold rounded-full border border-sky-200 mr-1 shadow-sm">当前</span>`;
             }
             if (loginStatus) {
-                badgesHtml += `<span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-medium rounded-full border border-emerald-100">已登录</span>`;
+              badgesHtml += `<span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-medium rounded-full border border-emerald-100">已登录</span>`;
             } else {
-                badgesHtml += `<span class="px-2 py-0.5 bg-slate-50 text-slate-400 text-[10px] font-medium rounded-full border border-slate-100">未登录</span>`;
+              badgesHtml += `<span class="px-2 py-0.5 bg-slate-50 text-slate-400 text-[10px] font-medium rounded-full border border-slate-100">未登录</span>`;
             }
 
-            const itemDiv = document.createElement('div');
-            
+            const itemDiv = document.createElement("div");
+
             // 【美化修改】更现代的卡片样式
             // 当前会话使用渐变边框和蓝色背景，未选中使用白色悬浮卡片
-            const activeClass = isCurrent 
-                ? "border-blue-400/30 bg-gradient-to-br from-sky-50 via-white to-blue-50 shadow-md ring-1 ring-blue-200" 
-                : "border-slate-100 bg-white shadow-sm hover:border-slate-200 hover:shadow-md";
-            
+            const activeClass = isCurrent
+              ? "border-blue-400/30 bg-gradient-to-br from-sky-50 via-white to-blue-50 shadow-md ring-1 ring-blue-200"
+              : "border-slate-100 bg-white shadow-sm hover:border-slate-200 hover:shadow-md";
+
             itemDiv.className = `relative group rounded-2xl border p-4 mb-4 transition-all duration-300 active:scale-[0.98] touch-manipulation select-none ${activeClass}`;
-            
+
             // 【美化修改】重构卡片内部结构：纯信息流布局
             itemDiv.innerHTML = `
                 <div class="flex flex-col gap-3">
@@ -15630,7 +15886,8 @@
 
                     <div class="flex items-center justify-between px-1">
                         <span class="text-xs text-slate-400 font-medium">登录状态</span>
-                        ${loginStatus 
+                        ${
+                          loginStatus
                             ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100">
                                  <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> 已登录
                                </span>`
@@ -15640,24 +15897,35 @@
                         }
                     </div>
 
-                    ${isCurrent ? `
+                    ${
+                      isCurrent
+                        ? `
                     <div class="mt-1 pt-2 border-t border-slate-50 flex justify-end px-1">
                         <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-500 to-sky-500 text-white text-[10px] font-bold shadow-md shadow-blue-200">
                             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414-1.414z" clip-rule="evenodd"/></svg>
                             当前会话
                         </span>
-                    </div>` : ''}
+                    </div>`
+                        : ""
+                    }
                 </div>
 
                 <div class="press-overlay absolute inset-0 bg-slate-900/80 backdrop-blur-[2px] rounded-2xl flex items-center justify-center opacity-0 transition-opacity duration-300 pointer-events-none z-20">
                      <div class="flex flex-col items-center text-white transform scale-90 transition-transform duration-300">
-                        <div class="w-14 h-14 ${isCurrent ? 'bg-slate-500' : 'bg-red-500'} rounded-full flex items-center justify-center mb-2 shadow-lg ${isCurrent ? 'shadow-slate-500/30' : 'shadow-red-500/30'} animate-pulse">
-                            ${isCurrent 
+                        <div class="w-14 h-14 ${
+                          isCurrent ? "bg-slate-500" : "bg-red-500"
+                        } rounded-full flex items-center justify-center mb-2 shadow-lg ${
+              isCurrent ? "shadow-slate-500/30" : "shadow-red-500/30"
+            } animate-pulse">
+                            ${
+                              isCurrent
                                 ? '<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>'
                                 : '<svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>'
                             }
                         </div>
-                        <span class="font-bold text-base tracking-wide">${isCurrent ? '当前会话无法删除' : '松手即删除'}</span>
+                        <span class="font-bold text-base tracking-wide">${
+                          isCurrent ? "当前会话无法删除" : "松手即删除"
+                        }</span>
                      </div>
                 </div>
             `;
@@ -15665,89 +15933,103 @@
             // 长按逻辑
             let timer = null;
             let isLongPress = false;
-            let startX = 0, startY = 0;
-            const overlay = itemDiv.querySelector('.press-overlay');
-            const overlayContent = overlay.querySelector('div');
+            let startX = 0,
+              startY = 0;
+            const overlay = itemDiv.querySelector(".press-overlay");
+            const overlayContent = overlay.querySelector("div");
 
             const startPress = (e) => {
-                // 当前会话不允许删除
-                // if(isCurrent) return; 
-                
-                isLongPress = false;
-                const touch = e.touches ? e.touches[0] : e;
-                startX = touch.clientX;
-                startY = touch.clientY;
-                
-                timer = setTimeout(() => {
-                    isLongPress = true;
-                    if(navigator.vibrate) navigator.vibrate(50);
-                    if(overlay) {
-                        overlay.classList.remove('opacity-0');
-                        overlayContent.classList.remove('scale-90');
-                        overlayContent.classList.add('scale-100');
-                    }
-                }, 500); // 500ms 长按触发
+              // 当前会话不允许删除
+              // if(isCurrent) return;
+
+              isLongPress = false;
+              const touch = e.touches ? e.touches[0] : e;
+              startX = touch.clientX;
+              startY = touch.clientY;
+
+              timer = setTimeout(() => {
+                isLongPress = true;
+                if (navigator.vibrate) navigator.vibrate(50);
+                if (overlay) {
+                  overlay.classList.remove("opacity-0");
+                  overlayContent.classList.remove("scale-90");
+                  overlayContent.classList.add("scale-100");
+                }
+              }, 500); // 500ms 长按触发
             };
 
             const movePress = (e) => {
-                if (!timer) return;
-                const touch = e.touches ? e.touches[0] : e;
-                // 如果移动超过一定距离，取消长按
-                if (Math.abs(touch.clientX - startX) > 10 || Math.abs(touch.clientY - startY) > 10) {
-                    clearTimeout(timer);
-                    timer = null;
-                    if(overlay) {
-                        overlay.classList.add('opacity-0');
-                        overlayContent.classList.add('scale-90');
-                        overlayContent.classList.remove('scale-100');
-                    }
+              if (!timer) return;
+              const touch = e.touches ? e.touches[0] : e;
+              // 如果移动超过一定距离，取消长按
+              if (
+                Math.abs(touch.clientX - startX) > 10 ||
+                Math.abs(touch.clientY - startY) > 10
+              ) {
+                clearTimeout(timer);
+                timer = null;
+                if (overlay) {
+                  overlay.classList.add("opacity-0");
+                  overlayContent.classList.add("scale-90");
+                  overlayContent.classList.remove("scale-100");
                 }
+              }
             };
 
             const endPress = (e) => {
-                if (timer) { clearTimeout(timer); timer = null; }
-                
-                if(overlay) {
-                    overlay.classList.add('opacity-0');
-                    overlayContent.classList.add('scale-90');
-                    overlayContent.classList.remove('scale-100');
-                }
+              if (timer) {
+                clearTimeout(timer);
+                timer = null;
+              }
 
-                if (isLongPress) {
-                    e.preventDefault();
-                    // 判断是否为当前会话
-                    if (isCurrent) {
-                        showModalAlert("当前会话处于活动状态，无法删除。\n如需删除，请先切换到其他会话。", "无法删除");
-                    } else {
-                        // 触发删除确认
-                        showMobileConfirm("删除会话", `确定要删除此会话（会话 UUID：${fullSessionId}）吗？\n`, () => deleteSessionFromPicker(session.session_id,false));
-                    }
+              if (overlay) {
+                overlay.classList.add("opacity-0");
+                overlayContent.classList.add("scale-90");
+                overlayContent.classList.remove("scale-100");
+              }
+
+              if (isLongPress) {
+                e.preventDefault();
+                // 判断是否为当前会话
+                if (isCurrent) {
+                  showModalAlert(
+                    "当前会话处于活动状态，无法删除。\n如需删除，请先切换到其他会话。",
+                    "无法删除"
+                  );
                 } else {
-                    // 短按：切换会话
-                    if(!isCurrent && !isLongPress) {
-                        selectSessionFromPicker(session.session_id);
-                    }
+                  // 触发删除确认
+                  showMobileConfirm(
+                    "删除会话",
+                    `确定要删除此会话（会话 UUID：${fullSessionId}）吗？\n`,
+                    () => deleteSessionFromPicker(session.session_id, false)
+                  );
                 }
-                isLongPress = false;
+              } else {
+                // 短按：切换会话
+                if (!isCurrent && !isLongPress) {
+                  selectSessionFromPicker(session.session_id);
+                }
+              }
+              isLongPress = false;
             };
 
-            itemDiv.addEventListener('touchstart', startPress, {passive: true});
-            itemDiv.addEventListener('touchmove', movePress, {passive: true});
-            itemDiv.addEventListener('touchend', endPress);
-            itemDiv.addEventListener('mousedown', startPress); // 兼容鼠标
-            itemDiv.addEventListener('mouseup', endPress);
+            itemDiv.addEventListener("touchstart", startPress, {
+              passive: true,
+            });
+            itemDiv.addEventListener("touchmove", movePress, { passive: true });
+            itemDiv.addEventListener("touchend", endPress);
+            itemDiv.addEventListener("mousedown", startPress); // 兼容鼠标
+            itemDiv.addEventListener("mouseup", endPress);
 
             listEl.appendChild(itemDiv);
           });
         } catch (error) {
           console.error("[Mobile] 加载会话列表失败:", error);
-          listEl.innerHTML = '<div class="flex flex-col items-center justify-center py-8 text-red-400 bg-red-50 rounded-xl border border-red-100 m-4"><svg class="w-8 h-8 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><p class="text-xs font-medium">加载失败，请检查网络</p></div>';
+          listEl.innerHTML =
+            '<div class="flex flex-col items-center justify-center py-8 text-red-400 bg-red-50 rounded-xl border border-red-100 m-4"><svg class="w-8 h-8 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><p class="text-xs font-medium">加载失败，请检查网络</p></div>';
         }
       }
 
-
-
-      
       function getUUIDFromURL() {
         const urlPath = window.location.pathname;
 
@@ -16420,14 +16702,18 @@
 
                 const title = document.createElement("h2");
                 title.textContent = "会话已失效";
-                title.style.cssText = "font-size: 24px; font-weight: bold; margin: 0 0 20px 0;";
+                title.style.cssText =
+                  "font-size: 24px; font-weight: bold; margin: 0 0 20px 0;";
 
                 const text = document.createElement("p");
-                text.textContent = "您的会话已过期或无效，为了安全起见请重新登录。";
-                text.style.cssText = "font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; opacity: 0.95;";
+                text.textContent =
+                  "您的会话已过期或无效，为了安全起见请重新登录。";
+                text.style.cssText =
+                  "font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; opacity: 0.95;";
 
                 const countdown = document.createElement("div");
-                countdown.style.cssText = "font-size: 24px; font-weight: bold; margin: 0 0 30px 0;";
+                countdown.style.cssText =
+                  "font-size: 24px; font-weight: bold; margin: 0 0 30px 0;";
 
                 const button = document.createElement("button");
                 button.textContent = "立即返回登录";
@@ -16435,8 +16721,15 @@
                   background: white; color: #667eea; border: none; padding: 12px 30px;
                   border-radius: 25px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s;
                 `;
-                button.onmouseover = () => { button.style.transform = "scale(1.05)"; button.style.boxShadow = "0 5px 15px rgba(255, 255, 255, 0.3)"; };
-                button.onmouseout = () => { button.style.transform = "scale(1)"; button.style.boxShadow = "none"; };
+                button.onmouseover = () => {
+                  button.style.transform = "scale(1.05)";
+                  button.style.boxShadow =
+                    "0 5px 15px rgba(255, 255, 255, 0.3)";
+                };
+                button.onmouseout = () => {
+                  button.style.transform = "scale(1)";
+                  button.style.boxShadow = "none";
+                };
 
                 modalContent.appendChild(icon);
                 modalContent.appendChild(title);
@@ -16448,12 +16741,12 @@
 
                 let remainingSeconds = 120; // 设置为120秒倒计时
                 const updateCountdown = () => {
-                const minutes = Math.floor(remainingSeconds / 60);
-                const seconds = remainingSeconds % 60;
-                countdown.textContent = `${minutes}:${seconds
-                  .toString()
-                  .padStart(2, "0")}`;
-              };
+                  const minutes = Math.floor(remainingSeconds / 60);
+                  const seconds = remainingSeconds % 60;
+                  countdown.textContent = `${minutes}:${seconds
+                    .toString()
+                    .padStart(2, "0")}`;
+                };
                 updateCountdown();
 
                 const countdownInterval = setInterval(() => {
@@ -23796,7 +24089,10 @@
       async function checkButtonPermission(buttonId, permissionName) {
         const hasPermission = await checkAdminPermission(permissionName);
         if (!hasPermission) {
-          showModalAlert(`您没有权限使用此功能，缺少 ${permissionName} 权限。`, "权限不足");
+          showModalAlert(
+            `您没有权限使用此功能，缺少 ${permissionName} 权限。`,
+            "权限不足"
+          );
           return false;
         }
         return true;
@@ -24569,11 +24865,10 @@
             }
 
             // 2. 新增：刷新移动端主面板列表
-            if (typeof loadMobileSessionsList === 'function') {
+            if (typeof loadMobileSessionsList === "function") {
               logMessage_Info("[会话删除] 正在刷新移动端主面板列表...");
               loadMobileSessionsList();
             }
-
           } else {
             showModalAlert("删除失败: " + result.message, "错误");
           }
@@ -26360,11 +26655,9 @@
       }
 
       function resetUI() {
-
         // 新增：重置UI时恢复显示退出应用按钮
         const exitBtn = $("exit-app-btn");
         if (exitBtn) exitBtn.classList.remove("hidden");
-
 
         $("main-app").classList.add("hidden");
         $("main-app").classList.remove("grid");
@@ -27492,11 +27785,9 @@
       async function switchToMultiMode() {
         $("multi-account-count").textContent = 0;
 
-
         // 新增：进入多账号模式时恢复显示退出应用按钮
         const exitBtn = $("exit-app-btn");
         if (exitBtn) exitBtn.classList.remove("hidden");
-
 
         const result = await callPythonAPI("enter_multi_account_mode");
         if (!result.success) return;
@@ -28794,9 +29085,14 @@
           } catch (error) {
             console.error("[多账号自动刷新] 轮询请求失败:", error);
             // 修正：检测到会话过期错误时，立即停止轮询，防止无限 401 循环
-            if (error.message && (error.message.includes("会话已过期") || error.message.includes("无效") || error.message.includes("401"))) {
-                console.warn("[多账号自动刷新] 检测到会话失效，自动停止轮询。");
-                stopMultiAccountAutoRefresh();
+            if (
+              error.message &&
+              (error.message.includes("会话已过期") ||
+                error.message.includes("无效") ||
+                error.message.includes("401"))
+            ) {
+              console.warn("[多账号自动刷新] 检测到会话失效，自动停止轮询。");
+              stopMultiAccountAutoRefresh();
             }
           }
         }, interval);
@@ -36883,7 +37179,9 @@
         });
         if (visibleTabs.length > 0) {
           // 修改：优先默认显示 'sessions' (会话列表)，如果该权限不可见则显示第一个
-          const defaultTabId = visibleTabs.find(t => t.id === 'sessions') ? 'sessions' : visibleTabs[0].id;
+          const defaultTabId = visibleTabs.find((t) => t.id === "sessions")
+            ? "sessions"
+            : visibleTabs[0].id;
           switchMobileAdminTab(defaultTabId, prefix);
         }
       }
@@ -37046,19 +37344,19 @@
           // 定义所有管理面板的ID列表
           // 这些面板会根据用户选择的标签页进行显示/隐藏切换
           const allMultiPanels = [
-            "mobile-multi-admin-users-panel",     // 用户管理面板
-            "mobile-multi-admin-groups-panel",    // 权限组管理面板
-            "mobile-multi-admin-logs-panel",      // 日志查看面板
-            "mobile-multi-admin-health-panel",    // 系统状态面板
-            "mobile-multi-admin-profile-panel",   // 个人信息面板
-            "mobile-multi-admin-sessions-panel",  // 会话管理面板
-            "mobile-multi-admin-messages-panel",  // 留言板面板
-            "mobile-multi-admin-ipban-panel",     // IP封禁面板
-            "mobile-multi-admin-sms-panel",       // 短信配置面板
-            "mobile-multi-admin-config-panel",    // 系统配置面板
-            "mobile-multi-admin-captcha-panel",   // 验证码管理面板
+            "mobile-multi-admin-users-panel", // 用户管理面板
+            "mobile-multi-admin-groups-panel", // 权限组管理面板
+            "mobile-multi-admin-logs-panel", // 日志查看面板
+            "mobile-multi-admin-health-panel", // 系统状态面板
+            "mobile-multi-admin-profile-panel", // 个人信息面板
+            "mobile-multi-admin-sessions-panel", // 会话管理面板
+            "mobile-multi-admin-messages-panel", // 留言板面板
+            "mobile-multi-admin-ipban-panel", // IP封禁面板
+            "mobile-multi-admin-sms-panel", // 短信配置面板
+            "mobile-multi-admin-config-panel", // 系统配置面板
+            "mobile-multi-admin-captcha-panel", // 验证码管理面板
             "mobile-multi-admin-reminders-panel", // 定时提醒面板
-            "mobile-multi-admin-ssl-panel",       // HTTPS设置面板
+            "mobile-multi-admin-ssl-panel", // HTTPS设置面板
           ];
 
           // 先隐藏所有面板，准备切换到目标面板
@@ -37075,7 +37373,9 @@
             targetMultiPanel.classList.remove("hidden");
           } else {
             // 如果找不到目标面板，输出警告日志便于调试
-            console.warn(`[移动端多账号管理面板] 找不到目标面板: ${targetMultiPanelId}`);
+            console.warn(
+              `[移动端多账号管理面板] 找不到目标面板: ${targetMultiPanelId}`
+            );
           }
 
           // 根据选中的标签页加载对应的数据
@@ -37381,56 +37681,56 @@
         // mobile: 多账号移动端管理面板中对应内容区域的元素ID
         const pcToMultiMobileMap = {
           users: {
-            pc: "admin-users-list_modal",           // PC端用户列表
+            pc: "admin-users-list_modal", // PC端用户列表
             mobile: "mobile-multi-admin-users-list", // 多账号移动端用户列表
           },
           groups: {
-            pc: "admin-groups-list_modal",           // PC端权限组列表
+            pc: "admin-groups-list_modal", // PC端权限组列表
             mobile: "mobile-multi-admin-groups-list", // 多账号移动端权限组列表
           },
           logs: {
-            pc: "admin-logs-content_modal",           // PC端日志内容
+            pc: "admin-logs-content_modal", // PC端日志内容
             mobile: "mobile-multi-admin-logs-content", // 多账号移动端日志内容
           },
           health: {
-            pc: "admin-health-content_modal",           // PC端系统状态内容
+            pc: "admin-health-content_modal", // PC端系统状态内容
             mobile: "mobile-multi-admin-health-content", // 多账号移动端系统状态
           },
           profile: {
-            pc: "admin-profile-content_modal",           // PC端个人信息内容
+            pc: "admin-profile-content_modal", // PC端个人信息内容
             mobile: "mobile-multi-admin-profile-content", // 多账号移动端个人信息
           },
           sessions: {
-            pc: "admin-sessions-list_modal",           // PC端会话列表
+            pc: "admin-sessions-list_modal", // PC端会话列表
             mobile: "mobile-multi-admin-sessions-list", // 多账号移动端会话列表
           },
           messages: {
-            pc: "admin-messages-list_modal",           // PC端留言列表
+            pc: "admin-messages-list_modal", // PC端留言列表
             mobile: "mobile-multi-admin-messages-list", // 多账号移动端留言列表
           },
           ipban: {
-            pc: "ip-ban-list",                         // PC端IP封禁列表
-            mobile: "mobile-multi-ip-ban-list",        // 多账号移动端IP封禁列表
+            pc: "ip-ban-list", // PC端IP封禁列表
+            mobile: "mobile-multi-ip-ban-list", // 多账号移动端IP封禁列表
           },
           sms: {
-            pc: "admin-sms-config-modal",              // PC端短信配置
-            mobile: "mobile-multi-admin-sms-content",  // 多账号移动端短信配置
+            pc: "admin-sms-config-modal", // PC端短信配置
+            mobile: "mobile-multi-admin-sms-content", // 多账号移动端短信配置
           },
           config: {
-            pc: "admin-config-panel_modal",            // PC端系统配置
+            pc: "admin-config-panel_modal", // PC端系统配置
             mobile: "mobile-multi-admin-config-content", // 多账号移动端系统配置
           },
           captcha: {
-            pc: "admin-captcha-list_modal",            // PC端验证码列表
+            pc: "admin-captcha-list_modal", // PC端验证码列表
             mobile: "mobile-multi-admin-captcha-list", // 多账号移动端验证码列表
           },
           reminders: {
-            pc: "admin-reminders-panel_modal",           // PC端定时提醒
+            pc: "admin-reminders-panel_modal", // PC端定时提醒
             mobile: "mobile-multi-admin-reminders-content", // 多账号移动端定时提醒
           },
           ssl: {
-            pc: "admin-ssl-panel_modal",               // PC端SSL配置
-            mobile: "mobile-multi-admin-ssl-content",  // 多账号移动端SSL配置
+            pc: "admin-ssl-panel_modal", // PC端SSL配置
+            mobile: "mobile-multi-admin-ssl-content", // 多账号移动端SSL配置
           },
         };
 
@@ -37438,7 +37738,9 @@
         const mapping = pcToMultiMobileMap[tabType];
         if (!mapping) {
           // 如果没有找到映射配置，输出错误日志
-          logMessage_Error(`[多账号移动端管理面板] 未定义的标签页类型: ${tabType}`);
+          logMessage_Error(
+            `[多账号移动端管理面板] 未定义的标签页类型: ${tabType}`
+          );
           return;
         }
 
