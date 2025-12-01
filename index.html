@@ -28123,41 +28123,96 @@
         }
       }
       async function clearCurrentPath(confirm = true) {
+        // 步骤1: 检查 currentRunData 中的 draft_coords 和 run_coords 是否同时为空或不存在
+        // 如果两者都没有数据，则提示用户"当前任务没有可清除的路径"并返回
+        const draftEmpty = !currentRunData?.draft_coords || currentRunData.draft_coords.length === 0; // 检查 draft_coords 是否为空或不存在
+        const runEmpty = !currentRunData?.run_coords || currentRunData.run_coords.length === 0; // 检查 run_coords 是否为空或不存在
+        if (draftEmpty && runEmpty) {
+          // 如果两者都为空，向用户显示提示信息
+          showModalAlert("当前任务没有可清除的路径");
+          return; // 提前返回，不执行后续清除逻辑
+        }
+
+        // 步骤2: 检查后台任务是否正在执行中
+        // 调用 /api/background_task/status API 获取任务状态
+        try {
+          const statusRes = await callPythonAPI_raw(
+            "/api/background_task/status", // 使用完整的API路径
+            "GET", // HTTP GET 请求
+            null // 无请求体
+          );
+          // 如果任务状态为 "running"，说明任务正在执行，无法清除路径
+          if (statusRes?.success && statusRes?.task_status?.status === "running") {
+            showModalAlert("任务正在执行中，无法清除路径"); // 提示用户任务正在执行
+            return; // 提前返回，不执行后续清除逻辑
+          }
+        } catch (e) {
+          // 如果获取任务状态失败，使用项目统一的日志函数记录错误
+          logMessage_Error("获取后台任务状态失败:", e);
+          // 这里选择继续执行清除逻辑，因为无法确定任务状态
+        }
+
+        // 步骤3: 如果需要用户确认，则弹出确认对话框
         if (confirm) {
           const userConfirmed = await jsShowConfirm(
             "确认操作",
             "确认清除当前任务已生成的路径吗？"
           );
-          if (!userConfirmed) return;
+          if (!userConfirmed) return; // 用户取消操作，提前返回
         }
+
+        // 步骤4: 调用后端API清除当前任务的草稿数据
         await callPythonAPI("clear_current_task_draft");
+
+        // 步骤5: 清除地图上的各种折线图层
         if (polylines.draft) {
-          map.remove(polylines.draft);
-          polylines.draft = null;
+          map.remove(polylines.draft); // 移除草稿路径折线
+          polylines.draft = null; // 将引用置为null
         }
         if (polylines.history) {
-          map.remove(polylines.history);
-          polylines.history = null;
+          map.remove(polylines.history); // 移除历史路径折线
+          polylines.history = null; // 将引用置为null
         }
         if (polylines.run) {
-          map.remove(polylines.run);
-          polylines.run = null;
+          map.remove(polylines.run); // 移除运行路径折线
+          polylines.run = null; // 将引用置为null
         }
+
+        // 步骤6: 删除地图上的当前位置标记（runnerMarker）
+        if (runnerMarker) {
+          map.remove(runnerMarker); // 移除跑步者位置标记
+          runnerMarker = null; // 将引用置为null
+        }
+
+        // 步骤7: 隐藏绘制信息标记（如果存在）
         if (drawingInfoMarker) drawingInfoMarker.hide();
-        draftPath = [];
-        draftPathLngLat = [];
-        draftTotalDist = 0;
+
+        // 步骤8: 调用 drawMarkers() 来恢复地图上的打卡点样式
+        drawMarkers();
+
+        // 步骤9: 重置本地草稿路径相关变量
+        draftPath = []; // 清空草稿路径数组
+        draftPathLngLat = []; // 清空草稿路径经纬度数组
+        draftTotalDist = 0; // 重置草稿总距离
+
+        // 步骤10: 重置 currentRunData 中的相关数据
         if (currentRunData) {
-          currentRunData.draft_coords = [];
-          currentRunData.run_coords = [];
-          currentRunData.total_run_distance_m = 0;
-          currentRunData.total_run_time_s = 0;
+          currentRunData.draft_coords = []; // 清空草稿坐标
+          currentRunData.run_coords = []; // 清空运行坐标
+          currentRunData.total_run_distance_m = 0; // 重置总运行距离
+          currentRunData.total_run_time_s = 0; // 重置总运行时间
         }
+
+        // 步骤11: 更新当前任务列表中对应任务的数据
         if (selectedTaskIndex !== -1 && currentTasks[selectedTaskIndex]) {
-          currentTasks[selectedTaskIndex].draft_coords = [];
-          currentTasks[selectedTaskIndex].run_coords = [];
+          currentTasks[selectedTaskIndex].draft_coords = []; // 清空任务的草稿坐标
+          currentTasks[selectedTaskIndex].run_coords = []; // 清空任务的运行坐标
         }
+
+        // 步骤12: 更新仪表盘显示
         updateDashboard();
+
+        // 步骤13: 重新渲染任务列表
         renderTaskList();
       }
       async function discardBlackDraftPolyline() {
