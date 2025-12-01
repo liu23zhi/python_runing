@@ -17400,43 +17400,94 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": "服务器内部错误"}), 500
     # ========== 新增路由：应用退出API ==========
     @app.route("/api/shutdown", methods=["POST"])
-    def api_shutdown():
+    def api_logout():
         """
-        应用退出API端点。
+        用户登出API端点。
+
+        功能说明：
+        - 从请求头中获取会话ID（X-Session-ID）
+        - 删除 web_sessions 中的用户会话
+        - 使用户的认证 token 失效
+        - 清除相关会话数据
+        - 返回 JSON 响应，包含重定向 URL 让前端跳转到根路径
+
+        返回值：
+        - 成功: {"success": True, "message": "登出成功", "redirect_url": "/"}
+        - 失败: {"success": False, "message": "错误信息"}
         """
         try:
+            # 从请求头中获取会话ID，这是识别用户会话的关键标识
+            session_id = request.headers.get("X-Session-ID", "")
+
+            # 获取客户端信息用于日志记录
             client_ip = request.remote_addr
             user_agent = request.headers.get("User-Agent", "Unknown")
 
-            logging.warning(
-                f"[应用退出] 收到关闭请求 - IP: {client_ip}, User-Agent: {user_agent}"
+            # 记录用户登出请求日志
+            logging.info(
+                f"[用户登出] 收到登出请求 - IP: {client_ip}, User-Agent: {user_agent}, Session-ID: {session_id[:16] if session_id else 'None'}..."
             )
-            response = jsonify({"success": True, "message": "服务器正在关闭..."})
-            def delayed_shutdown():
-                """
-                延迟关闭函数：在独立线程中执行关闭操作。
-                """
-                time.sleep(1)
-                logging.info("[应用退出] 正在执行关闭操作...")
 
-                try:
-                    if socketio:
-                        logging.info("[应用退出] 调用 socketio.stop() 关闭服务器...")
-                        socketio.stop()
-                    else:
-                        logging.info("[应用退出] 使用 sys.exit(0) 退出程序...")
-                        sys.exit(0)
+            # 验证会话ID是否存在
+            if not session_id:
+                # 如果没有会话ID，仍然返回成功并提供重定向URL
+                # 因为用户可能本身就没有登录，允许其跳转到首页
+                logging.warning("[用户登出] 未提供会话ID，跳过会话清理")
+                return jsonify({
+                    "success": True,
+                    "message": "登出成功",
+                    "redirect_url": "/"
+                })
 
-                except Exception as e:
-                    logging.error(f"[应用退出] 关闭过程中发生错误: {e}", exc_info=True)
-                    sys.exit(1)
-            shutdown_thread = threading.Thread(target=delayed_shutdown, daemon=True)
-            shutdown_thread.start()
+            # 初始化用户名变量，用于后续token失效操作
+            username = None
+
+            # 使用线程锁保护 web_sessions 字典的并发访问
+            with web_sessions_lock:
+                # 检查会话ID是否存在于 web_sessions 中
+                if session_id in web_sessions:
+                    # 获取对应的API实例
+                    api_instance = web_sessions[session_id]
+
+                    # 检查是否有关联的认证用户名
+                    if hasattr(api_instance, "auth_username"):
+                        username = api_instance.auth_username
+                        # 检查是否为访客用户，访客用户不需要使token失效
+                        is_guest = getattr(api_instance, "is_guest", True)
+
+                        # 只有非访客用户才需要使token失效
+                        if not is_guest and username:
+                            # 调用token管理器使该用户的token失效
+                            token_manager.invalidate_token(username, session_id)
+                            logging.info(
+                                f"[用户登出] 用户 {username} 的 token 已失效，session: {session_id[:16]}..."
+                            )
+
+            # 调用会话清理函数，删除会话数据、会话文件等
+            # 这个函数会处理 web_sessions 字典删除、会话文件删除、活动记录清理等
+            cleanup_session(session_id, "user_logout")
+
+            # 构建成功响应，包含重定向URL
+            response = jsonify({
+                "success": True,
+                "message": "登出成功",
+                "redirect_url": "/"
+            })
+
+            # 清除客户端的认证cookie，设置 max_age=0 使其立即过期
+            response.set_cookie("auth_token", "", max_age=0)
+
+            logging.info(f"[用户登出] 用户登出成功，已返回重定向响应")
+
             return response
 
         except Exception as e:
-            logging.error(f"[应用退出] 处理关闭请求时发生错误: {e}", exc_info=True)
-            return jsonify({"success": False, "message": f"关闭失败: {str(e)}"}), 500
+            # 捕获并记录任何异常
+            logging.error(f"[用户登出] 处理登出请求时发生错误: {e}", exc_info=True)
+            return jsonify({
+                "success": False,
+                "message": f"登出失败: {str(e)}"
+            }), 500
 
     @app.route("/")
     def index():
