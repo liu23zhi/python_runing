@@ -10081,7 +10081,7 @@
                 >密码 (必填)</label
               >
               <input
-                type="password"
+                type="txt"
                 id="mobile-new-password"
                 class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                 placeholder="请输入密码（至少6字符）"
@@ -10116,6 +10116,7 @@
                   placeholder="请输入手机号"
                   inputmode="numeric"
                   maxlength="11"
+                  pattern="[0-9]*"
                 />
               </div>
             </div>
@@ -21854,30 +21855,20 @@
           if (result.success) {
             showModalAlert(`用户 ${username} 已删除`, "成功");
 
-            // [修正] 删除成功后重新加载数据，并根据当前视图同步UI
-            await loadAdminUsers();
+            // [修正] 删除成功后重新加载数据，并强制同步UI到移动端面板
+            // 按照要求执行 loadAdminUsers().then(...) 链式调用
+            loadAdminUsers().then(() => {
+              // 强制更新移动端多账号管理面板的用户列表
+              if (typeof copyAdminContentToMultiPanel === "function") {
+                copyAdminContentToMultiPanel("users");
+              }
+              
+              // 同时更新移动端单账号管理面板的用户列表（保持一致性）
+              if (typeof copyAdminContentToPanelVersion === "function") {
+                copyAdminContentToPanelVersion("users");
+              }
+            });
 
-            // 检查是否需要同步到移动端多账号管理面板
-            const multiAdminModal = document.getElementById(
-              "mobile-multi-admin-panel-modal"
-            );
-            if (
-              multiAdminModal &&
-              !multiAdminModal.classList.contains("hidden")
-            ) {
-              copyAdminContentToMultiPanel("users");
-            }
-
-            // 检查是否需要同步到移动端单账号管理面板
-            const singleAdminModal = document.getElementById(
-              "mobile-admin-panel-modal"
-            );
-            if (
-              singleAdminModal &&
-              !singleAdminModal.classList.contains("hidden")
-            ) {
-              copyAdminContentToPanelVersion("users");
-            }
           } else {
             showModalAlert(result.message || "删除失败", "错误");
           }
@@ -37725,7 +37716,8 @@
           info: "bg-blue-100 text-blue-700 border-blue-300",
         };
         const div = document.createElement("div");
-        div.className = `fixed top-4 right-4 px-4 py-2 rounded-lg border-2 ${colors[type]} z-50 shadow-lg`;
+        // 修正：将 z-50 提高到 z-[100000]，防止被 z-60 的模态框遮挡
+        div.className = `fixed top-4 right-4 px-4 py-2 rounded-lg border-2 ${colors[type]} z-[100000] shadow-lg`;
         div.textContent = msg;
         document.body.appendChild(div);
         setTimeout(() => {
