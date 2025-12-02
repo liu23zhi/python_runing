@@ -10067,7 +10067,7 @@ def cleanup_expired_sessions():
 
 def restore_session_to_api_instance(api_instance, state):
     """
-        将保存的会话状态恢复到Api实例
+    将保存的会话状态恢复到Api实例
     """
     try:
         if "auth_username" in state:
