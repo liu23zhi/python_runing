@@ -6716,7 +6716,6 @@
               <div id="mobile-admin-users-panel-panel" class="space-y-3">
                 <h4 class="font-semibold text-sm">用户列表</h4>
                 <div class="flex justify-between items-center">
-                  
                   <div class="flex gap-2">
                     <button
                       id="mobile-admin-create-user-panel"
@@ -10024,6 +10023,123 @@
               onclick="confirmManualAccountAdd()"
             >
               添加
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="mobile-create-user-modal"
+        class="fixed inset-0 hidden mobile-modal z-[60]"
+        onclick="closeMobileCreateUserModal()"
+      >
+        <div class="absolute inset-0 bg-black/40"></div>
+        <div
+          class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto"
+          onclick="event.stopPropagation()"
+        >
+          <div class="flex justify-center mb-2">
+            <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+          </div>
+          <div
+            class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200"
+          >
+            <svg
+              class="w-6 h-6 text-blue-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+              />
+            </svg>
+            <h3 class="text-xl font-bold text-blue-600 text-center">
+              创建新用户
+            </h3>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-2"
+                >账号 (必填)</label
+              >
+              <input
+                type="text"
+                id="mobile-new-username"
+                class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                placeholder="请输入账号（3-20字符，不含中文）"
+                autocomplete="off"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-2"
+                >密码 (必填)</label
+              >
+              <input
+                type="password"
+                id="mobile-new-password"
+                class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                placeholder="请输入密码（至少6字符）"
+                autocomplete="new-password"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-2"
+                >昵称 (可选)</label
+              >
+              <input
+                type="text"
+                id="mobile-new-nickname"
+                class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                placeholder="请输入昵称"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-2"
+                >手机号 (可选)</label
+              >
+              <div
+                class="flex items-center w-full bg-slate-50 border border-slate-200 rounded-xl overflow-hidden"
+              >
+                <span class="pl-3 pr-2 text-slate-500 font-medium">+86</span>
+                <input
+                  type="tel"
+                  id="mobile-new-phone"
+                  class="flex-1 px-2 py-3 bg-transparent text-base outline-none"
+                  placeholder="请输入手机号"
+                  inputmode="numeric"
+                  maxlength="11"
+                />
+              </div>
+            </div>
+
+            <div
+              class="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700"
+            >
+              <p>💡 管理员创建用户无需短信验证。</p>
+            </div>
+          </div>
+
+          <div class="flex gap-3 pt-2">
+            <button
+              class="flex-1 py-3 px-4 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition"
+              onclick="closeMobileCreateUserModal()"
+            >
+              取消
+            </button>
+            <button
+              class="flex-1 py-3 px-4 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition shadow-md shadow-blue-200"
+              onclick="submitMobileCreateUser()"
+              id="mobile-new-user-confirm-btn"
+            >
+              立即创建
             </button>
           </div>
         </div>
@@ -19032,16 +19148,34 @@
 
           // [修正] 绑定移动端多账号管理面板的“新增用户”和“刷新用户”按钮
           const mobileMultiCreateUserBtn = $("mobile-multi-admin-create-user");
-          const mobileMultiRefreshUsersBtn = $("mobile-multi-admin-refresh-users");
+          const mobileMultiRefreshUsersBtn = $(
+            "mobile-multi-admin-refresh-users"
+          );
+
+          // 同时处理 单账号模式下 管理面板的新增按钮
+          const mobileSingleCreateUserBtn = $("mobile-admin-create-user-panel");
 
           if (mobileMultiCreateUserBtn) {
-            mobileMultiCreateUserBtn.addEventListener("click", showCreateUserModal);
+            // 修改：绑定到新的移动端专用模态框函数，而不是 PC 端的 showCreateUserModal
+            mobileMultiCreateUserBtn.addEventListener(
+              "click",
+              openMobileCreateUserModal
+            );
+          }
+
+          if (mobileSingleCreateUserBtn) {
+            mobileSingleCreateUserBtn.addEventListener(
+              "click",
+              openMobileCreateUserModal
+            );
           }
 
           if (mobileMultiRefreshUsersBtn) {
             mobileMultiRefreshUsersBtn.addEventListener("click", () => {
               // 加载数据并同步到多账号面板
-              loadAdminUsers().then(() => copyAdminContentToMultiPanel('users'));
+              loadAdminUsers().then(() =>
+                copyAdminContentToMultiPanel("users")
+              );
             });
           }
         });
@@ -20794,21 +20928,31 @@
                 if (typeof loadAdminUsers === "function") {
                   // [修正] 创建成功后加载数据并同步UI
                   await loadAdminUsers();
-                  
+
                   // 同步到移动端多账号面板
-                  const multiAdminModal = document.getElementById("mobile-multi-admin-panel-modal");
-                  if (multiAdminModal && !multiAdminModal.classList.contains("hidden")) {
-                      if (typeof copyAdminContentToMultiPanel === "function") {
-                          copyAdminContentToMultiPanel('users');
-                      }
+                  const multiAdminModal = document.getElementById(
+                    "mobile-multi-admin-panel-modal"
+                  );
+                  if (
+                    multiAdminModal &&
+                    !multiAdminModal.classList.contains("hidden")
+                  ) {
+                    if (typeof copyAdminContentToMultiPanel === "function") {
+                      copyAdminContentToMultiPanel("users");
+                    }
                   }
-                  
+
                   // 同步到移动端单账号面板
-                  const singleAdminModal = document.getElementById("mobile-admin-panel-modal");
-                  if (singleAdminModal && !singleAdminModal.classList.contains("hidden")) {
-                      if (typeof copyAdminContentToPanelVersion === "function") {
-                          copyAdminContentToPanelVersion('users');
-                      }
+                  const singleAdminModal = document.getElementById(
+                    "mobile-admin-panel-modal"
+                  );
+                  if (
+                    singleAdminModal &&
+                    !singleAdminModal.classList.contains("hidden")
+                  ) {
+                    if (typeof copyAdminContentToPanelVersion === "function") {
+                      copyAdminContentToPanelVersion("users");
+                    }
                   }
                 }
               } else {
@@ -21709,22 +21853,31 @@
           const result = await response.json();
           if (result.success) {
             showModalAlert(`用户 ${username} 已删除`, "成功");
-            
+
             // [修正] 删除成功后重新加载数据，并根据当前视图同步UI
-            await loadAdminUsers(); 
-            
+            await loadAdminUsers();
+
             // 检查是否需要同步到移动端多账号管理面板
-            const multiAdminModal = document.getElementById("mobile-multi-admin-panel-modal");
-            if (multiAdminModal && !multiAdminModal.classList.contains("hidden")) {
-                copyAdminContentToMultiPanel('users');
-            }
-            
-            // 检查是否需要同步到移动端单账号管理面板
-            const singleAdminModal = document.getElementById("mobile-admin-panel-modal");
-            if (singleAdminModal && !singleAdminModal.classList.contains("hidden")) {
-                copyAdminContentToPanelVersion('users');
+            const multiAdminModal = document.getElementById(
+              "mobile-multi-admin-panel-modal"
+            );
+            if (
+              multiAdminModal &&
+              !multiAdminModal.classList.contains("hidden")
+            ) {
+              copyAdminContentToMultiPanel("users");
             }
 
+            // 检查是否需要同步到移动端单账号管理面板
+            const singleAdminModal = document.getElementById(
+              "mobile-admin-panel-modal"
+            );
+            if (
+              singleAdminModal &&
+              !singleAdminModal.classList.contains("hidden")
+            ) {
+              copyAdminContentToPanelVersion("users");
+            }
           } else {
             showModalAlert(result.message || "删除失败", "错误");
           }
@@ -28750,6 +28903,119 @@
             $("newUserSmsGroup").style.display = "none";
           }
         };
+      }
+
+      // ============================================================
+      // 新增：移动端创建用户模态框逻辑
+      // ============================================================
+      function openMobileCreateUserModal() {
+        const modal = document.getElementById("mobile-create-user-modal");
+        if (!modal) return;
+
+        // 重置表单
+        document.getElementById("mobile-new-username").value = "";
+        document.getElementById("mobile-new-password").value = "";
+        document.getElementById("mobile-new-nickname").value = "";
+        document.getElementById("mobile-new-phone").value = "";
+
+        // 显示模态框 (模拟底部滑出效果)
+        modal.classList.remove("hidden");
+        // 这里利用 requestAnimationFrame 或 setTimeout 确保 transition 生效（如果有的话）
+        setTimeout(() => {
+          modal.classList.add("show");
+        }, 10);
+      }
+
+      function closeMobileCreateUserModal() {
+        const modal = document.getElementById("mobile-create-user-modal");
+        if (!modal) return;
+
+        modal.classList.remove("show");
+        setTimeout(() => {
+          modal.classList.add("hidden");
+        }, 300); // 与 CSS transition 时间匹配
+      }
+
+      async function submitMobileCreateUser() {
+        const username = document
+          .getElementById("mobile-new-username")
+          .value.trim();
+        const password = document.getElementById("mobile-new-password").value;
+        const nickname = document
+          .getElementById("mobile-new-nickname")
+          .value.trim();
+        const phone = document.getElementById("mobile-new-phone").value.trim();
+        const confirmBtn = document.getElementById(
+          "mobile-new-user-confirm-btn"
+        );
+
+        if (!username || !password) {
+          showTempMessage("账号和密码为必填项", "error");
+          return;
+        }
+        if (password.length < 6) {
+          showTempMessage("密码长度至少为6个字符", "error");
+          return;
+        }
+
+        // 禁用按钮防止重复提交
+        if (confirmBtn) {
+          confirmBtn.disabled = true;
+          confirmBtn.innerHTML =
+            '<span class="animate-spin inline-block mr-2">⏳</span>创建中...';
+        }
+
+        try {
+          // 复用后端的 create_user 接口
+          // 注意：这里我们不需要像注册那样传 captcha，因为是管理员创建
+          const response = await fetch("/auth/admin/create_user", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID,
+            },
+            body: JSON.stringify({
+              username: username,
+              password: password,
+              group: "user", // 默认为普通用户
+              // 扩展字段支持 (如果后端支持这些字段)
+              nickname: nickname,
+              phone: phone,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            showTempMessage("用户创建成功！", "success");
+            closeMobileCreateUserModal();
+
+            // 刷新列表
+            if (typeof loadAdminUsers === "function") {
+              await loadAdminUsers();
+              // 尝试同步到移动端面板
+              if (typeof copyAdminContentToMultiPanel === "function") {
+                copyAdminContentToMultiPanel("users");
+              }
+              if (typeof copyAdminContentToPanelVersion === "function") {
+                copyAdminContentToPanelVersion("users");
+              }
+            }
+          } else {
+            showTempMessage(
+              `创建失败: ${result.message || "未知错误"}`,
+              "error"
+            );
+          }
+        } catch (e) {
+          console.error("创建用户失败:", e);
+          showTempMessage(`请求出错: ${e.message}`, "error");
+        } finally {
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = "立即创建";
+          }
+        }
       }
 
       function closeNewUserModal() {
