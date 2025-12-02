@@ -38089,7 +38089,773 @@
             : visibleTabs[0].id;
           switchMobileAdminTab(defaultTabId, prefix);
         }
+        
+        // ========================================
+        // 【移动端多账号管理面板】绑定按钮事件
+        // ========================================
+        if (prefix === "mobile-admin-panel-unified") {
+          initMobileMultiAdminButtonEvents();
+        }
       }
+      
+      // ========================================
+      // 【移动端多账号管理面板】按钮事件初始化
+      // 修复问题：权限组、日志、健康状态、留言板等按钮无效
+      // ========================================
+      function initMobileMultiAdminButtonEvents() {
+        // ========== 权限组管理相关按钮 ==========
+        // 新增权限组按钮
+        const createGroupBtn = document.getElementById("mobile-multi-admin-create-group");
+        if (createGroupBtn) {
+          createGroupBtn.onclick = function() {
+            showMobileCreateGroupModal();
+          };
+        }
+        
+        // 刷新权限组按钮
+        const refreshGroupsBtn = document.getElementById("mobile-multi-admin-refresh-groups");
+        if (refreshGroupsBtn) {
+          refreshGroupsBtn.onclick = function() {
+            loadAdminGroups().then(() => copyAdminContentToMultiPanel("groups"));
+          };
+        }
+        
+        // ========== 日志查看相关控件 ==========
+        // 日志行数选择变化时重新加载
+        const logLimitSelect = document.getElementById("mobile-multi-log-limit-select");
+        if (logLimitSelect) {
+          logLimitSelect.onchange = function() {
+            loadMobileMultiAdminLogs(1);
+          };
+        }
+        
+        // 日志页码选择变化时跳转
+        const logPageSelect = document.getElementById("mobile-multi-log-page-select");
+        if (logPageSelect) {
+          logPageSelect.onchange = function() {
+            const newPage = parseInt(logPageSelect.value, 10);
+            if (!isNaN(newPage) && newPage > 0) {
+              loadMobileMultiAdminLogs(newPage);
+            }
+          };
+        }
+        
+        // 日志刷新按钮
+        const refreshLogsBtn = document.getElementById("mobile-multi-admin-refresh-logs");
+        if (refreshLogsBtn) {
+          refreshLogsBtn.onclick = function() {
+            loadMobileMultiAdminLogs(1);
+          };
+        }
+        
+        // 日志分页上一页/下一页按钮
+        const logPrevBtn = document.getElementById("mobile-multi-log-prev-page");
+        if (logPrevBtn) {
+          logPrevBtn.onclick = function() {
+            const pageSelect = document.getElementById("mobile-multi-log-page-select");
+            const currentPage = pageSelect ? parseInt(pageSelect.value, 10) : 1;
+            if (currentPage > 1) {
+              loadMobileMultiAdminLogs(currentPage - 1);
+            }
+          };
+        }
+        
+        const logNextBtn = document.getElementById("mobile-multi-log-next-page");
+        if (logNextBtn) {
+          logNextBtn.onclick = function() {
+            const pageSelect = document.getElementById("mobile-multi-log-page-select");
+            const totalPages = parseInt(pageSelect?.dataset.totalPages || "1", 10);
+            const currentPage = pageSelect ? parseInt(pageSelect.value, 10) : 1;
+            if (currentPage < totalPages) {
+              loadMobileMultiAdminLogs(currentPage + 1);
+            }
+          };
+        }
+        
+        // ========== 健康状态相关控件 ==========
+        // 自动刷新开关
+        const healthAutoRefreshToggle = document.getElementById("mobile-multi-health-auto-refresh-toggle");
+        if (healthAutoRefreshToggle) {
+          healthAutoRefreshToggle.onchange = function() {
+            if (healthAutoRefreshToggle.checked) {
+              startMobileMultiHealthAutoRefresh();
+            } else {
+              stopMobileMultiHealthAutoRefresh();
+            }
+          };
+          // 如果默认选中，启动自动刷新
+          if (healthAutoRefreshToggle.checked) {
+            startMobileMultiHealthAutoRefresh();
+          }
+        }
+        
+        // 手动刷新按钮
+        const refreshHealthBtn = document.getElementById("mobile-multi-admin-refresh-health");
+        if (refreshHealthBtn) {
+          refreshHealthBtn.onclick = function() {
+            loadMobileMultiHealthStatus();
+          };
+        }
+        
+        // ========== 留言板相关 ==========
+        // 刷新留言按钮
+        const refreshMessagesBtn = document.getElementById("mobile-multi-admin-refresh-messages");
+        if (refreshMessagesBtn) {
+          refreshMessagesBtn.onclick = function() {
+            loadMobileMultiMessages();
+          };
+        }
+        
+        // 发送留言按钮
+        const sendMessageBtn = document.getElementById("mobile-multi-post-message-btn");
+        if (sendMessageBtn) {
+          sendMessageBtn.onclick = function() {
+            submitMobileMultiMessage();
+          };
+        }
+        
+        // 留言内容字符计数
+        const messageContentInput = document.getElementById("mobile-multi-message-content");
+        const charCountDisplay = document.getElementById("mobile-multi-message-char-count");
+        if (messageContentInput && charCountDisplay) {
+          messageContentInput.oninput = function() {
+            charCountDisplay.textContent = messageContentInput.value.length;
+          };
+        }
+      }
+      
+      // ========================================
+      // 【移动端多账号】日志加载专用函数
+      // ========================================
+      let mobileMultiLogCurrentPage = 1;
+      
+      async function loadMobileMultiAdminLogs(newPage = 1) {
+        mobileMultiLogCurrentPage = newPage;
+        
+        const contentEl = document.getElementById("mobile-multi-admin-logs-content");
+        const limitSelect = document.getElementById("mobile-multi-log-limit-select");
+        const pageSelect = document.getElementById("mobile-multi-log-page-select");
+        const pageTotal = document.getElementById("mobile-multi-log-page-total");
+        const prevBtn = document.getElementById("mobile-multi-log-prev-page");
+        const nextBtn = document.getElementById("mobile-multi-log-next-page");
+        
+        if (!contentEl) {
+          console.error("[移动端日志] 找不到日志内容容器");
+          return;
+        }
+        
+        contentEl.textContent = "加载中...";
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
+        if (pageSelect) pageSelect.disabled = true;
+        
+        try {
+          const limit = limitSelect ? limitSelect.value : 100;
+          const response = await fetch(`/logs/view?page=${newPage}&limit=${limit}`, {
+            headers: { "X-Session-ID": sessionUUID }
+          });
+          const result = await response.json();
+          
+          if (!result.success) {
+            contentEl.textContent = `加载失败: ${result.message}`;
+            if (pageSelect) pageSelect.innerHTML = '<option value="1">第 1 / 1 页</option>';
+            if (pageTotal) pageTotal.textContent = "(加载失败)";
+            return;
+          }
+          
+          if (result.logs.length === 0) {
+            contentEl.textContent = "暂无日志";
+            if (pageSelect) pageSelect.innerHTML = '<option value="1">第 1 / 1 页</option>';
+            if (pageTotal) pageTotal.textContent = "(共 0 行)";
+            return;
+          }
+          
+          contentEl.textContent = result.logs.join("");
+          
+          const pagination = result.pagination;
+          if (pageTotal) pageTotal.textContent = `(共 ${pagination.total_lines} 行)`;
+          
+          if (pageSelect) {
+            pageSelect.innerHTML = "";
+            pageSelect.dataset.totalPages = pagination.total_pages;
+            for (let i = 1; i <= pagination.total_pages; i++) {
+              const option = document.createElement("option");
+              option.value = i;
+              option.textContent = `第 ${i} / ${pagination.total_pages} 页`;
+              if (i === pagination.current_page) {
+                option.selected = true;
+              }
+              pageSelect.appendChild(option);
+            }
+            pageSelect.disabled = false;
+          }
+          
+          if (prevBtn) prevBtn.disabled = pagination.current_page <= 1;
+          if (nextBtn) nextBtn.disabled = pagination.current_page >= pagination.total_pages;
+        } catch (e) {
+          console.error("[移动端日志] 加载失败:", e);
+          contentEl.textContent = `加载失败: ${e.message}`;
+          if (pageSelect) pageSelect.innerHTML = '<option value="1">1</option>';
+          if (pageTotal) pageTotal.textContent = "(加载失败)";
+        }
+      }
+      
+      // ========================================
+      // 【移动端多账号】健康状态自动刷新
+      // ========================================
+      let mobileMultiHealthAutoRefreshInterval = null;
+      let mobileMultiHealthCountdownInterval = null;
+      let mobileMultiHealthCountdownSeconds = 5;
+      
+      function startMobileMultiHealthAutoRefresh() {
+        stopMobileMultiHealthAutoRefresh();
+        
+        const autoRefreshToggle = document.getElementById("mobile-multi-health-auto-refresh-toggle");
+        if (!autoRefreshToggle || !autoRefreshToggle.checked) {
+          return;
+        }
+        
+        mobileMultiHealthCountdownSeconds = 5;
+        updateMobileMultiHealthCountdown();
+        
+        // 倒计时显示
+        mobileMultiHealthCountdownInterval = setInterval(() => {
+          mobileMultiHealthCountdownSeconds--;
+          updateMobileMultiHealthCountdown();
+          
+          if (mobileMultiHealthCountdownSeconds <= 0) {
+            mobileMultiHealthCountdownSeconds = 5;
+          }
+        }, 1000);
+        
+        // 自动刷新
+        mobileMultiHealthAutoRefreshInterval = setInterval(() => {
+          const toggle = document.getElementById("mobile-multi-health-auto-refresh-toggle");
+          if (toggle && toggle.checked) {
+            loadMobileMultiHealthStatus();
+            mobileMultiHealthCountdownSeconds = 5;
+          } else {
+            stopMobileMultiHealthAutoRefresh();
+          }
+        }, 5000);
+      }
+      
+      function updateMobileMultiHealthCountdown() {
+        const countdownDisplay = document.getElementById("mobile-multi-health-countdown-display");
+        if (countdownDisplay) {
+          if (mobileMultiHealthCountdownSeconds > 0) {
+            countdownDisplay.textContent = `(${mobileMultiHealthCountdownSeconds}s)`;
+          } else {
+            countdownDisplay.textContent = "(刷新中...)";
+          }
+        }
+      }
+      
+      function stopMobileMultiHealthAutoRefresh() {
+        if (mobileMultiHealthAutoRefreshInterval) {
+          clearInterval(mobileMultiHealthAutoRefreshInterval);
+          mobileMultiHealthAutoRefreshInterval = null;
+        }
+        if (mobileMultiHealthCountdownInterval) {
+          clearInterval(mobileMultiHealthCountdownInterval);
+          mobileMultiHealthCountdownInterval = null;
+        }
+        const countdownDisplay = document.getElementById("mobile-multi-health-countdown-display");
+        if (countdownDisplay) {
+          countdownDisplay.textContent = "";
+        }
+      }
+      
+      async function loadMobileMultiHealthStatus() {
+        const contentEl = document.getElementById("mobile-multi-admin-health-content");
+        
+        if (!contentEl) {
+          console.error("[移动端健康状态] 找不到内容容器");
+          return;
+        }
+        
+        contentEl.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">检测中...</p>';
+        
+        try {
+          const startTime = Date.now();
+          const response = await fetch("/health");
+          const responseTime = Date.now() - startTime;
+          const result = await response.json();
+          
+          const statusColor = result.status === "ok" ? "green" : "red";
+          const statusText = result.status === "ok" ? "运行正常" : "出现错误";
+          
+          contentEl.innerHTML = `
+            <div class="space-y-3">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-${statusColor}-500"></span>
+                <span class="text-sm font-semibold text-${statusColor}-600">${statusText}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="p-2 bg-slate-50 rounded">
+                  <div class="text-slate-500">响应时间</div>
+                  <div class="font-semibold">${responseTime}ms</div>
+                </div>
+                <div class="p-2 bg-slate-50 rounded">
+                  <div class="text-slate-500">服务器时间</div>
+                  <div class="font-semibold">${result.time || "N/A"}</div>
+                </div>
+                <div class="p-2 bg-slate-50 rounded">
+                  <div class="text-slate-500">运行时长</div>
+                  <div class="font-semibold">${result.uptime || "N/A"}</div>
+                </div>
+                <div class="p-2 bg-slate-50 rounded">
+                  <div class="text-slate-500">版本</div>
+                  <div class="font-semibold">${result.version || "N/A"}</div>
+                </div>
+              </div>
+            </div>
+          `;
+        } catch (e) {
+          console.error("[移动端健康状态] 加载失败:", e);
+          contentEl.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">检测失败: ${e.message}</p>`;
+        }
+      }
+      
+      // ========================================
+      // 【移动端多账号】留言板功能
+      // ========================================
+      async function loadMobileMultiMessages() {
+        const listEl = document.getElementById("mobile-multi-admin-messages-list");
+        if (!listEl) {
+          console.error("[移动端留言板] 找不到留言列表容器");
+          return;
+        }
+        
+        listEl.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+        
+        try {
+          const response = await fetch("/api/messages/list", {
+            headers: { "X-Session-ID": sessionUUID }
+          });
+          const result = await response.json();
+          
+          if (!result.success) {
+            listEl.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">${result.message}</p>`;
+            return;
+          }
+          
+          const messages = result.messages || [];
+          
+          if (messages.length === 0) {
+            listEl.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">暂无留言</p>';
+            return;
+          }
+          
+          const canDeleteAny = await checkAdminPermission("delete_any_messages");
+          const canDeleteOwn = await checkAdminPermission("delete_own_messages");
+          const currentUsername = currentAuthUsername;
+          
+          const html = messages.map((msg) => {
+            const isOwnMessage = !msg.is_guest && msg.auth_username === currentUsername;
+            const canDelete = canDeleteAny || (canDeleteOwn && isOwnMessage);
+            const displayName = msg.nickname || msg.username || msg.auth_username || "匿名";
+            const date = new Date(msg.timestamp * 1000);
+            const dateStr = date.toLocaleString("zh-CN");
+            
+            let avatarUrl = msg.avatar_url || "default_avatar.png";
+            if (!avatarUrl.startsWith("/api/avatar/")) {
+              avatarUrl = `/api/avatar/${avatarUrl}`;
+            }
+            if (sessionUUID) {
+              avatarUrl += avatarUrl.includes("?") ? `&session_id=${sessionUUID}` : `?session_id=${sessionUUID}`;
+            }
+            
+            return `
+              <div class="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
+                <div class="flex gap-2">
+                  <img src="${avatarUrl}" class="w-8 h-8 rounded-full object-cover flex-shrink-0" onerror="this.src='/api/avatar/default_avatar.png'">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-xs font-semibold text-slate-800 truncate">${escapeHtml(displayName)}</span>
+                      <span class="text-xs text-slate-400 flex-shrink-0">${dateStr}</span>
+                    </div>
+                    <p class="text-xs text-slate-600 mt-1 break-words">${escapeHtml(msg.content)}</p>
+                  </div>
+                </div>
+                ${canDelete ? `
+                  <div class="flex justify-end">
+                    <button onclick="deleteMobileMultiMessage('${msg.id}')" class="text-xs text-red-500 hover:text-red-700">删除</button>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join("");
+          
+          listEl.innerHTML = html;
+        } catch (e) {
+          console.error("[移动端留言板] 加载失败:", e);
+          listEl.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">加载失败: ${e.message}</p>`;
+        }
+      }
+      
+      async function submitMobileMultiMessage() {
+        const contentInput = document.getElementById("mobile-multi-message-content");
+        const nicknameInput = document.getElementById("mobile-multi-message-nickname");
+        
+        if (!contentInput || !contentInput.value.trim()) {
+          showModalAlert("请输入留言内容", "提示");
+          return;
+        }
+        
+        const content = contentInput.value.trim();
+        const nickname = nicknameInput ? nicknameInput.value.trim() : "";
+        
+        try {
+          const response = await fetch("/api/messages/add", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID
+            },
+            body: JSON.stringify({ content, nickname })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showModalAlert("留言发送成功", "成功");
+            contentInput.value = "";
+            if (nicknameInput) nicknameInput.value = "";
+            loadMobileMultiMessages();
+          } else {
+            showModalAlert(result.message || "发送失败", "错误");
+          }
+        } catch (e) {
+          console.error("[移动端留言板] 发送失败:", e);
+          showModalAlert("发送失败: " + e.message, "错误");
+        }
+      }
+      
+      async function deleteMobileMultiMessage(msgId) {
+        if (!confirm("确定要删除这条留言吗？")) return;
+        
+        try {
+          const response = await fetch("/api/messages/delete", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID
+            },
+            body: JSON.stringify({ message_id: msgId })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showModalAlert("删除成功", "成功");
+            loadMobileMultiMessages();
+          } else {
+            showModalAlert(result.message || "删除失败", "错误");
+          }
+        } catch (e) {
+          console.error("[移动端留言板] 删除失败:", e);
+          showModalAlert("删除失败: " + e.message, "错误");
+        }
+      }
+      
+      // ========================================
+      // 【移动端多账号】创建权限组模态框
+      // ========================================
+      async function showMobileCreateGroupModal() {
+        // 使用移动端专用模态框
+        let modal = document.getElementById("mobile-create-group-modal");
+        if (!modal) {
+          // 动态创建移动端权限组创建模态框
+          modal = document.createElement("div");
+          modal.id = "mobile-create-group-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) {
+            if (e.target === modal) closeMobileCreateGroupModal();
+          };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-sky-600 text-center">创建权限组</h3>
+              </div>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-2">权限组标识符 (英文)</label>
+                  <input type="text" id="mobile-new-group-key" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="例如: vip_user">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-2">权限组名称</label>
+                  <input type="text" id="mobile-new-group-name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="例如: VIP用户">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
+                  <div id="mobile-create-group-permissions" class="grid grid-cols-1 gap-1 max-h-[30vh] overflow-y-auto border border-slate-200 rounded-lg p-2"></div>
+                </div>
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileCreateGroupModal()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                <button onclick="submitMobileCreateGroup()" class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm">创建</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        // 清空输入
+        const keyInput = document.getElementById("mobile-new-group-key");
+        const nameInput = document.getElementById("mobile-new-group-name");
+        if (keyInput) keyInput.value = "";
+        if (nameInput) nameInput.value = "";
+        
+        // 加载权限列表
+        try {
+          const response = await fetch("/auth/admin/list_groups", {
+            headers: { "X-Session-ID": sessionUUID }
+          });
+          const result = await response.json();
+          
+          if (result.success && result.groups) {
+            const firstGroup = Object.values(result.groups)[0];
+            if (firstGroup && firstGroup.permissions) {
+              const permissionsContainer = document.getElementById("mobile-create-group-permissions");
+              if (permissionsContainer) {
+                permissionsContainer.innerHTML = Object.keys(firstGroup.permissions).map((perm) => `
+                  <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+                    <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}">
+                    <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
+                  </label>
+                `).join("");
+              }
+            }
+          }
+        } catch (e) {
+          console.error("[移动端创建权限组] 加载权限列表失败:", e);
+        }
+        
+        modal.classList.remove("hidden");
+      }
+      
+      function closeMobileCreateGroupModal() {
+        const modal = document.getElementById("mobile-create-group-modal");
+        if (modal) {
+          modal.classList.add("hidden");
+        }
+      }
+      
+      async function submitMobileCreateGroup() {
+        const keyInput = document.getElementById("mobile-new-group-key");
+        const nameInput = document.getElementById("mobile-new-group-name");
+        const permissionsContainer = document.getElementById("mobile-create-group-permissions");
+        
+        const groupKey = keyInput ? keyInput.value.trim() : "";
+        const groupName = nameInput ? nameInput.value.trim() : "";
+        
+        if (!groupKey || !groupName) {
+          showModalAlert("请填写权限组标识符和名称", "提示");
+          return;
+        }
+        
+        const permissions = {};
+        if (permissionsContainer) {
+          const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+          checkboxes.forEach((cb) => {
+            const perm = cb.getAttribute("data-permission");
+            permissions[perm] = cb.checked;
+          });
+        }
+        
+        try {
+          const response = await fetch("/auth/admin/create_group", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID
+            },
+            body: JSON.stringify({
+              group_key: groupKey,
+              name: groupName,
+              permissions: permissions
+            })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showModalAlert(`权限组 ${groupName} 创建成功`, "成功");
+            closeMobileCreateGroupModal();
+            loadAdminGroups().then(() => copyAdminContentToMultiPanel("groups"));
+          } else {
+            showModalAlert(result.message || "创建失败", "错误");
+          }
+        } catch (e) {
+          console.error("[移动端创建权限组] 失败:", e);
+          showModalAlert("创建失败: " + e.message, "错误");
+        }
+      }
+      
+      // ========================================
+      // 【移动端多账号】编辑权限组模态框
+      // ========================================
+      let mobileCurrentEditGroupKey = null;
+      
+      async function showMobileEditGroupModal(groupKey) {
+        mobileCurrentEditGroupKey = groupKey;
+        
+        let modal = document.getElementById("mobile-edit-group-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-edit-group-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) {
+            if (e.target === modal) closeMobileEditGroupModal();
+          };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-sky-600 text-center">编辑权限组</h3>
+              </div>
+              <div class="text-center text-sm text-slate-600" id="mobile-edit-group-name-display"></div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
+                <div id="mobile-edit-group-permissions" class="grid grid-cols-1 gap-1 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-2"></div>
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileEditGroupModal()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                <button onclick="submitMobileEditGroup()" class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm">保存</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        try {
+          const response = await fetch("/auth/admin/list_groups", {
+            headers: { "X-Session-ID": sessionUUID }
+          });
+          const result = await response.json();
+          
+          if (!result.success || !result.groups || !result.groups[groupKey]) {
+            showModalAlert("无法加载权限组信息", "错误");
+            return;
+          }
+          
+          const group = result.groups[groupKey];
+          
+          const nameDisplay = document.getElementById("mobile-edit-group-name-display");
+          if (nameDisplay) {
+            nameDisplay.textContent = `${group.name} (${groupKey})`;
+          }
+          
+          const permissionsContainer = document.getElementById("mobile-edit-group-permissions");
+          if (permissionsContainer && group.permissions) {
+            permissionsContainer.innerHTML = Object.keys(group.permissions).map((perm) => `
+              <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+                <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" ${group.permissions[perm] ? 'checked' : ''}>
+                <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
+              </label>
+            `).join("");
+          }
+          
+          modal.classList.remove("hidden");
+        } catch (e) {
+          console.error("[移动端编辑权限组] 加载失败:", e);
+          showModalAlert("加载失败: " + e.message, "错误");
+        }
+      }
+      
+      function closeMobileEditGroupModal() {
+        const modal = document.getElementById("mobile-edit-group-modal");
+        if (modal) {
+          modal.classList.add("hidden");
+        }
+        mobileCurrentEditGroupKey = null;
+      }
+      
+      async function submitMobileEditGroup() {
+        if (!mobileCurrentEditGroupKey) return;
+        
+        const permissionsContainer = document.getElementById("mobile-edit-group-permissions");
+        if (!permissionsContainer) return;
+        
+        const permissions = {};
+        const checkboxes = permissionsContainer.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach((cb) => {
+          const perm = cb.getAttribute("data-permission");
+          permissions[perm] = cb.checked;
+        });
+        
+        try {
+          const response = await fetch("/auth/admin/update_group", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID
+            },
+            body: JSON.stringify({
+              group_key: mobileCurrentEditGroupKey,
+              permissions: permissions
+            })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showModalAlert(`权限组 ${mobileCurrentEditGroupKey} 已更新`, "成功");
+            closeMobileEditGroupModal();
+            loadAdminGroups().then(() => copyAdminContentToMultiPanel("groups"));
+          } else {
+            showModalAlert(result.message || "更新失败", "错误");
+          }
+        } catch (e) {
+          console.error("[移动端编辑权限组] 更新失败:", e);
+          showModalAlert("更新失败: " + e.message, "错误");
+        }
+      }
+      
+      // ========================================
+      // 【移动端多账号】删除权限组
+      // ========================================
+      async function deleteMobileGroup(groupKey) {
+        if (!confirm(`确定要删除权限组 "${groupKey}" 吗？此操作不可撤销。`)) return;
+        
+        try {
+          const response = await fetch("/auth/admin/delete_group", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID
+            },
+            body: JSON.stringify({ group_key: groupKey })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showModalAlert(`权限组 ${groupKey} 已删除`, "成功");
+            loadAdminGroups().then(() => copyAdminContentToMultiPanel("groups"));
+          } else {
+            showModalAlert(result.message || "删除失败", "错误");
+          }
+        } catch (e) {
+          console.error("[移动端删除权限组] 失败:", e);
+          showModalAlert("删除失败: " + e.message, "错误");
+        }
+      }
+      
       function switchMobileAdminTab(tabId, prefix) {
         let tabsNavId, contentId;
         if (prefix === "mobile-multi-admin") {
@@ -38317,14 +39083,17 @@
               );
               break;
             case "logs":
-              // 加载系统日志，默认第1页
-              loadAdminLogs(1).then(() => copyAdminContentToMultiPanel("logs"));
+              // 【修改】使用移动端专用日志加载函数
+              loadMobileMultiAdminLogs(1);
               break;
             case "health":
-              // 加载系统健康状态信息
-              loadHealthStatus().then(() =>
-                copyAdminContentToMultiPanel("health")
-              );
+              // 【修改】使用移动端专用健康状态加载函数
+              loadMobileMultiHealthStatus();
+              // 检查是否需要启动自动刷新
+              const healthToggle = document.getElementById("mobile-multi-health-auto-refresh-toggle");
+              if (healthToggle && healthToggle.checked) {
+                startMobileMultiHealthAutoRefresh();
+              }
               break;
             case "profile":
               // 加载个人信息
@@ -38346,10 +39115,8 @@
               loadMobileAdminSessionsList();
               break;
             case "messages":
-              // 加载留言板内容
-              loadMessages().then(() =>
-                copyAdminContentToMultiPanel("messages")
-              );
+              // 【修改】使用移动端专用留言板加载函数
+              loadMobileMultiMessages();
               break;
             case "ipban":
               // 加载IP封禁规则列表
@@ -38697,7 +39464,29 @@
         }
 
         // 将PC端内容复制到移动端容器
-        mobileContainer.innerHTML = pcContainer.innerHTML;
+        let contentHtml = pcContainer.innerHTML;
+        
+        // 【特殊处理】权限组列表 - 替换PC端按钮事件为移动端专用函数
+        if (tabType === "groups") {
+          // 替换编辑权限组按钮事件
+          contentHtml = contentHtml.replace(/onclick="editGroupPermissions\('([^']+)'\)"/g, 
+            'onclick="showMobileEditGroupModal(\'$1\')"');
+          // 替换删除权限组按钮事件
+          contentHtml = contentHtml.replace(/onclick="deleteGroup\('([^']+)'\)"/g, 
+            'onclick="deleteMobileGroup(\'$1\')"');
+        }
+        
+        // 【特殊处理】个人信息面板 - 替换头像上传和手机号修改按钮
+        if (tabType === "profile") {
+          // 替换上传头像按钮 - 使用移动端兼容方式
+          contentHtml = contentHtml.replace(/onclick="document\.getElementById\('avatar-upload'\)\.click\(\)"/g, 
+            'onclick="triggerMobileAvatarUpload()"');
+          // 替换修改手机号按钮事件
+          contentHtml = contentHtml.replace(/onclick="openModifyPhoneModal\(\)"/g, 
+            'onclick="showMobileModifyPhoneModal()"');
+        }
+        
+        mobileContainer.innerHTML = contentHtml;
 
         // 调整按钮样式以适应移动端显示
         // 添加更小的字体、更紧凑的内边距
@@ -38717,6 +39506,343 @@
             input.classList.add("!text-xs");
           });
       }
+      
+      // ========================================
+      // 【移动端】头像上传触发函数
+      // ========================================
+      function triggerMobileAvatarUpload() {
+        let fileInput = document.getElementById("mobile-avatar-upload-input");
+        if (!fileInput) {
+          // 创建隐藏的文件输入
+          fileInput = document.createElement("input");
+          fileInput.type = "file";
+          fileInput.id = "mobile-avatar-upload-input";
+          fileInput.accept = "image/*";
+          fileInput.style.display = "none";
+          fileInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (file) {
+              handleMobileAvatarFile(file);
+            }
+          };
+          document.body.appendChild(fileInput);
+        }
+        fileInput.click();
+      }
+      
+      async function handleMobileAvatarFile(file) {
+        if (!file.type.startsWith("image/")) {
+          showModalAlert("请选择图片文件", "错误");
+          return;
+        }
+        
+        // 显示移动端头像裁剪模态框
+        showMobileAvatarCropModal(file);
+      }
+      
+      function showMobileAvatarCropModal(file) {
+        let modal = document.getElementById("mobile-avatar-crop-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-avatar-crop-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) {
+            if (e.target === modal) closeMobileAvatarCropModal();
+          };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/80"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <h3 class="text-xl font-bold text-sky-600 text-center">裁剪头像</h3>
+              <div class="max-h-80 overflow-hidden bg-slate-100 rounded-lg">
+                <img id="mobile-crop-image" src="" alt="待裁剪图片" style="max-width: 100%">
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileAvatarCropModal()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                <button onclick="confirmMobileAvatarCrop()" class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm">确认上传</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const cropImage = document.getElementById("mobile-crop-image");
+          if (cropImage) {
+            cropImage.src = e.target.result;
+            
+            // 销毁旧的 cropper
+            if (window.mobileAvatarCropper) {
+              window.mobileAvatarCropper.destroy();
+            }
+            
+            // 初始化 cropper
+            window.mobileAvatarCropper = new Cropper(cropImage, {
+              aspectRatio: 1,
+              viewMode: 1,
+              dragMode: 'move',
+              autoCropArea: 0.8,
+              restore: false,
+              guides: true,
+              center: true,
+              highlight: false,
+              cropBoxMovable: true,
+              cropBoxResizable: true,
+              toggleDragModeOnDblclick: false,
+            });
+          }
+          modal.classList.remove("hidden");
+        };
+        reader.readAsDataURL(file);
+      }
+      
+      function closeMobileAvatarCropModal() {
+        const modal = document.getElementById("mobile-avatar-crop-modal");
+        if (modal) {
+          modal.classList.add("hidden");
+        }
+        if (window.mobileAvatarCropper) {
+          window.mobileAvatarCropper.destroy();
+          window.mobileAvatarCropper = null;
+        }
+      }
+      
+      async function confirmMobileAvatarCrop() {
+        if (!window.mobileAvatarCropper) {
+          showModalAlert("裁剪器未初始化", "错误");
+          return;
+        }
+        
+        const canvas = window.mobileAvatarCropper.getCroppedCanvas({
+          width: 256,
+          height: 256,
+          imageSmoothingQuality: 'high'
+        });
+        
+        if (!canvas) {
+          showModalAlert("裁剪失败", "错误");
+          return;
+        }
+        
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            showModalAlert("生成图片失败", "错误");
+            return;
+          }
+          
+          const formData = new FormData();
+          formData.append("avatar", blob, "avatar.png");
+          
+          try {
+            const response = await fetch("/api/avatar/upload", {
+              method: "POST",
+              headers: { "X-Session-ID": sessionUUID },
+              body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              showModalAlert("头像上传成功", "成功");
+              closeMobileAvatarCropModal();
+              // 刷新个人信息
+              loadPersonalInfo().then(() => copyAdminContentToMultiPanel("profile"));
+            } else {
+              showModalAlert(result.message || "上传失败", "错误");
+            }
+          } catch (e) {
+            console.error("[移动端头像上传] 失败:", e);
+            showModalAlert("上传失败: " + e.message, "错误");
+          }
+        }, "image/png", 0.9);
+      }
+      
+      // ========================================
+      // 【移动端】修改手机号模态框
+      // ========================================
+      function showMobileModifyPhoneModal() {
+        let modal = document.getElementById("mobile-modify-phone-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-modify-phone-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) {
+            if (e.target === modal) closeMobileModifyPhoneModal();
+          };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-sky-600 text-center">修改绑定手机号</h3>
+              </div>
+              <div class="space-y-4">
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-2">当前手机号</label>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-slate-500">+86</span>
+                    <input type="tel" id="mobile-modify-phone-current" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50" readonly>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-2">新手机号</label>
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm text-slate-500">+86</span>
+                    <input type="tel" id="mobile-modify-phone-new" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="请输入新手机号" maxlength="11" inputmode="numeric" pattern="[0-9]*">
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-2">短信验证码</label>
+                  <div class="flex gap-2">
+                    <input type="text" id="mobile-modify-phone-code" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="请输入验证码" maxlength="6" inputmode="numeric">
+                    <button id="mobile-modify-phone-send-code" onclick="sendMobileModifyPhoneCode()" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm whitespace-nowrap">发送验证码</button>
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileModifyPhoneModal()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                <button onclick="submitMobileModifyPhone()" class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm">确认修改</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        // 填入当前手机号
+        const currentPhoneInput = document.getElementById("mobile-modify-phone-current");
+        if (currentPhoneInput && currentUserData && currentUserData.phone) {
+          currentPhoneInput.value = currentUserData.phone;
+        }
+        
+        // 清空其他输入
+        const newPhoneInput = document.getElementById("mobile-modify-phone-new");
+        const codeInput = document.getElementById("mobile-modify-phone-code");
+        if (newPhoneInput) newPhoneInput.value = "";
+        if (codeInput) codeInput.value = "";
+        
+        modal.classList.remove("hidden");
+      }
+      
+      function closeMobileModifyPhoneModal() {
+        const modal = document.getElementById("mobile-modify-phone-modal");
+        if (modal) {
+          modal.classList.add("hidden");
+        }
+      }
+      
+      let mobileModifyPhoneCooldown = 0;
+      
+      async function sendMobileModifyPhoneCode() {
+        if (mobileModifyPhoneCooldown > 0) {
+          showModalAlert(`请等待 ${mobileModifyPhoneCooldown} 秒后再发送`, "提示");
+          return;
+        }
+        
+        const newPhoneInput = document.getElementById("mobile-modify-phone-new");
+        const phone = newPhoneInput ? newPhoneInput.value.trim() : "";
+        
+        if (!phone || phone.length !== 11) {
+          showModalAlert("请输入正确的11位手机号", "提示");
+          return;
+        }
+        
+        const sendBtn = document.getElementById("mobile-modify-phone-send-code");
+        if (sendBtn) sendBtn.disabled = true;
+        
+        try {
+          const response = await fetch("/auth/send_modify_phone_code", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID
+            },
+            body: JSON.stringify({ phone })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showModalAlert("验证码已发送", "成功");
+            // 开始冷却倒计时
+            mobileModifyPhoneCooldown = 60;
+            const interval = setInterval(() => {
+              mobileModifyPhoneCooldown--;
+              if (sendBtn) {
+                sendBtn.textContent = `${mobileModifyPhoneCooldown}s`;
+              }
+              if (mobileModifyPhoneCooldown <= 0) {
+                clearInterval(interval);
+                if (sendBtn) {
+                  sendBtn.textContent = "发送验证码";
+                  sendBtn.disabled = false;
+                }
+              }
+            }, 1000);
+          } else {
+            showModalAlert(result.message || "发送失败", "错误");
+            if (sendBtn) sendBtn.disabled = false;
+          }
+        } catch (e) {
+          console.error("[移动端修改手机号] 发送验证码失败:", e);
+          showModalAlert("发送失败: " + e.message, "错误");
+          if (sendBtn) sendBtn.disabled = false;
+        }
+      }
+      
+      async function submitMobileModifyPhone() {
+        const newPhoneInput = document.getElementById("mobile-modify-phone-new");
+        const codeInput = document.getElementById("mobile-modify-phone-code");
+        
+        const phone = newPhoneInput ? newPhoneInput.value.trim() : "";
+        const code = codeInput ? codeInput.value.trim() : "";
+        
+        if (!phone || phone.length !== 11) {
+          showModalAlert("请输入正确的11位手机号", "提示");
+          return;
+        }
+        
+        if (!code || code.length !== 6) {
+          showModalAlert("请输入6位验证码", "提示");
+          return;
+        }
+        
+        try {
+          const response = await fetch("/auth/modify_phone", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID
+            },
+            body: JSON.stringify({ phone, code })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            showModalAlert("手机号修改成功", "成功");
+            closeMobileModifyPhoneModal();
+            // 刷新用户数据
+            if (currentUserData) {
+              currentUserData.phone = phone;
+            }
+            loadPersonalInfo().then(() => copyAdminContentToMultiPanel("profile"));
+          } else {
+            showModalAlert(result.message || "修改失败", "错误");
+          }
+        } catch (e) {
+          console.error("[移动端修改手机号] 失败:", e);
+          showModalAlert("修改失败: " + e.message, "错误");
+        }
+      }
+      
       function addMobileSelectedConfig() {
         const select = document.getElementById("multi-config-user-select");
         if (!select || !select.value) {
