@@ -5990,7 +5990,7 @@
 
             <div class="flex-none mt-4 pt-3 border-t border-gray-100">
               <button
-                onclick="renderMobileCheckpointsList(); showTempMessage('打卡点列表已刷新', 'success');"
+                onclick="renderMobileCheckpointsList(); showModalAlert('打卡点列表已刷新', '成功');"
                 class="w-full py-3 px-4 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition flex items-center justify-center gap-2"
               >
                 <svg
@@ -15305,7 +15305,7 @@
         );
 
         if (!enabledInput || !refreshInput || !radiusInput) {
-          showTempMessage("无法获取参数输入框", "error");
+          showModalAlert("无法获取参数输入框", "错误");
           return;
         }
 
@@ -15314,7 +15314,7 @@
         const radius = parseInt(radiusInput.value);
 
         if (isNaN(refresh) || refresh < 15) {
-          showTempMessage("刷新间隔不能小于15秒", "error");
+          showModalAlert("刷新间隔不能小于15秒", "错误");
           return;
         }
 
@@ -15341,13 +15341,13 @@
             pythonParams["attendance_user_radius_m"] = radius;
           }
 
-          showTempMessage("自动签到配置已保存", "success");
+          showModalAlert("自动签到配置已保存", "成功");
 
           if (enabled) {
           }
         } catch (e) {
           console.error("保存签到配置失败:", e);
-          showTempMessage("保存失败: " + e.message, "error");
+          showModalAlert("保存失败: " + e.message, "错误");
         }
       }
 
@@ -17983,13 +17983,13 @@
           logMessage_Error(
             "[验证码模态窗] 找不到captcha-verification-modal元素"
           );
-          showTempMessage("验证码模态框加载失败，请刷新页面重试", "error");
+          showModalAlert("验证码模态框加载失败，请刷新页面重试", "错误");
           return;
         }
 
         if (!input) {
           logMessage_Error("[验证码模态窗] 找不到captcha-modal-input输入框");
-          showTempMessage("验证码输入框加载失败，请刷新页面重试", "error");
+          showModalAlert("验证码输入框加载失败，请刷新页面重试", "错误");
           return;
         }
 
@@ -18012,7 +18012,7 @@
           }, 300);
         } catch (error) {
           logMessage_Error("[验证码模态窗] 打开模态框时发生错误:", error);
-          showTempMessage("打开验证码窗口时出错", "error");
+          showModalAlert("打开验证码窗口时出错", "错误");
         }
       }
 
@@ -22253,14 +22253,14 @@
           const result = await callPythonAPI("generate_new_ua");
           if (!result) {
             console.error("[学校账户管理] 生成UA失败：API返回空结果");
-            showTempMessage("生成失败：无法连接到服务器", "error");
+            showModalAlert("生成失败：无法连接到服务器", "错误");
             return;
           }
           const newUA = typeof result === "string" ? result : result.ua;
 
           if (!newUA) {
             console.error("[学校账户管理] 生成UA失败：返回的UA为空");
-            showTempMessage("生成失败：返回的User-Agent为空", "error");
+            showModalAlert("生成失败：返回的User-Agent为空", "错误");
             return;
           }
           const uaField = $("edit-school-account-ua");
@@ -22275,10 +22275,10 @@
           if (uaTextarea) {
             uaTextarea.value = newUA;
           }
-          showTempMessage("已生成随机User-Agent", "success");
+          showModalAlert("已生成随机User-Agent", "成功");
         } catch (error) {
           console.error("[学校账户管理] 生成UA时发生错误:", error);
-          showTempMessage("生成失败: " + error.message, "error");
+          showModalAlert("生成失败: " + error.message, "错误");
         }
       }
       function closeEditSchoolAccountModal() {
@@ -22612,7 +22612,7 @@
           if (result && result.success) {
             const expireMin = result.expire_minutes || 5;
             const retryAfter = result.retry_after || 180;
-            showTempMessage(`验证码已发送，${expireMin}分钟内有效`, "success");
+            showModalAlert(`验证码已发送，${expireMin}分钟内有效`, "成功");
 
             let countdown = retryAfter;
             const timer = setInterval(() => {
@@ -24572,7 +24572,7 @@
             if (resultDiv) {
               resultDiv.classList.remove("hidden");
             }
-            showTempMessage("测试短信发送成功！请检查手机是否收到", "success");
+            showModalAlert("测试短信发送成功！请检查手机是否收到", "成功");
             sendBtn.innerHTML = `
             <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -27126,7 +27126,7 @@
         const container = document.getElementById("mobile-params-container");
         if (!container) return;
 
-        showTempMessage("正在刷新参数...", "info");
+        showModalAlert("正在刷新参数...", "提示");
 
         try {
           const params = await callPythonAPI("get_params");
@@ -27140,20 +27140,20 @@
               setBaseColor(params.theme_base_color, params.theme_base_color);
             }
 
-            showTempMessage("参数已刷新", "success");
+            showModalAlert("参数已刷新", "成功");
           } else {
-            showTempMessage("刷新失败：未获取到数据", "error");
+            showModalAlert("刷新失败：未获取到数据", "错误");
           }
         } catch (e) {
           console.error("[移动端] 刷新参数失败:", e);
-          showTempMessage("刷新失败", "error");
+          showModalAlert("刷新失败", "错误");
         }
       }
       async function saveMobileSettings() {
         const container = document.getElementById("mobile-params-container");
         if (!container) return;
 
-        showTempMessage("正在保存设置...", "info");
+        showModalAlert("正在保存设置...", "提示");
 
         try {
           const inputs = container.querySelectorAll("input, select");
@@ -27175,10 +27175,10 @@
             savedCount++;
           }
 
-          showTempMessage("设置已保存", "success");
+          showModalAlert("设置已保存", "成功");
         } catch (e) {
           console.error("[移动端] 保存参数失败:", e);
-          showTempMessage("保存失败: " + e.message, "error");
+          showModalAlert("保存失败: " + e.message, "错误");
         }
       }
 
@@ -28173,7 +28173,7 @@
               statusRes.task_status.status === "running";
 
             if (isBackendRunning) {
-              showTempMessage("任务正在运行中，禁止切换任务！", "error");
+              showModalAlert("任务正在运行中，禁止切换任务！", "错误");
               mobileTaskRunning = true;
               updateMobileTaskUI("运行中", "任务执行中");
               return;
@@ -28270,9 +28270,9 @@
             if (window.map) {
               window.map.setCenter([lon, lat]);
               window.map.setZoom(16);
-              showTempMessage(`已定位到 ${name}`, "success");
+              showModalAlert(`已定位到 ${name}`, "成功");
             } else {
-              showTempMessage("地图未初始化", "error");
+              showModalAlert("地图未初始化", "错误");
             }
           });
           checkpointsListDiv.appendChild(item);
@@ -28941,11 +28941,11 @@
         );
 
         if (!username || !password) {
-          showTempMessage("账号和密码为必填项", "error");
+          showModalAlert("账号和密码为必填项", "错误");
           return;
         }
         if (password.length < 6) {
-          showTempMessage("密码长度至少为6个字符", "error");
+          showModalAlert("密码长度至少为6个字符", "错误");
           return;
         }
 
@@ -28978,7 +28978,7 @@
           const result = await response.json();
 
           if (result.success) {
-            showTempMessage("用户创建成功！", "success");
+            showModalAlert("用户创建成功！", "成功");
             closeMobileCreateUserModal();
 
             // 刷新列表
@@ -28993,14 +28993,14 @@
               }
             }
           } else {
-            showTempMessage(
+            showModalAlert(
               `创建失败: ${result.message || "未知错误"}`,
-              "error"
+              "错误"
             );
           }
         } catch (e) {
           console.error("创建用户失败:", e);
-          showTempMessage(`请求出错: ${e.message}`, "error");
+          showModalAlert(`请求出错: ${e.message}`, "错误");
         } finally {
           if (confirmBtn) {
             confirmBtn.disabled = false;
@@ -29087,7 +29087,7 @@
           if (result && result.success) {
             const expireMin = result.expire_minutes || 5;
             const retryAfter = result.retry_after || 180;
-            showTempMessage(`验证码已发送，${expireMin}分钟内有效`, "success");
+            showModalAlert(`验证码已发送，${expireMin}分钟内有效`, "成功");
 
             let countdown = retryAfter;
             const timer = setInterval(() => {
@@ -33655,7 +33655,7 @@
           updateMobileNotificationUI();
         } catch (error) {
           console.error("刷新通知失败:", error);
-          showTempMessage("刷新通知失败，请稍后重试", "error");
+          showModalAlert("刷新通知失败，请稍后重试", "错误");
         } finally {
           if (btn) {
             btn.disabled = false;
@@ -33898,7 +33898,7 @@
         const unreadNotices = notifications.filter((n) => !n.isRead);
 
         if (unreadNotices.length === 0) {
-          showTempMessage("没有未读通知", "info");
+          showModalAlert("没有未读通知", "提示");
           return;
         }
         try {
@@ -33908,10 +33908,10 @@
           await Promise.all(promises);
 
           await mobileRefreshNotifications();
-          showTempMessage("已全部标记为已读", "success");
+          showModalAlert("已全部标记为已读", "成功");
         } catch (error) {
           console.error("一键已读失败:", error);
-          showTempMessage("操作失败，请稍后重试", "error");
+          showModalAlert("操作失败，请稍后重试", "错误");
         }
       }
       function expandMobileNotifications() {
@@ -33922,14 +33922,14 @@
         const notice = notifications.find((n) => n.id === rollCallId);
 
         if (!notice) {
-          showTempMessage("未找到签到活动信息", "error");
+          showModalAlert("未找到签到活动信息", "错误");
           return;
         }
         try {
           const coordsStr = (notice.updateBy || "").trim();
           const [lat, lon] = coordsStr.split(",").map(Number);
           if (isNaN(lon) || isNaN(lat)) {
-            showTempMessage("签到坐标无效", "error");
+            showModalAlert("签到坐标无效", "错误");
             return;
           }
           const targetCoords = [lon, lat];
@@ -33942,24 +33942,24 @@
             false
           );
           if (result.success) {
-            showTempMessage("签到成功！", "success");
+            showModalAlert("签到成功！", "成功");
             await mobileRefreshNotifications();
           } else {
-            showTempMessage("签到失败: " + result.message, "error");
+            showModalAlert("签到失败: " + result.message, "错误");
           }
         } catch (error) {
           console.error("签到失败:", error);
-          showTempMessage("签到失败，请稍后重试", "error");
+          showModalAlert("签到失败，请稍后重试", "错误");
         }
       }
       async function mobileRefreshTasks() {
         try {
-          showTempMessage("正在刷新任务列表...", "info");
+          showModalAlert("正在刷新任务列表...", "提示");
           await refreshTasks();
-          showTempMessage("任务列表已刷新", "success");
+          showModalAlert("任务列表已刷新", "成功");
         } catch (error) {
           console.error("[移动端] 刷新任务列表失败:", error);
-          showTempMessage("刷新任务列表失败", "error");
+          showModalAlert("刷新任务列表失败", "错误");
         }
       }
       let mobileTaskRunning = false;
@@ -34038,14 +34038,14 @@
             mobileTaskRunning = true;
             mobileTaskPaused = false;
             updateMobileTaskUI("运行中", "后台已有任务在运行");
-            showTempMessage("后台已有任务在运行，无法启动新任务", "warning");
+            showModalAlert("后台已有任务在运行，无法启动新任务", "警告");
             if (!backgroundTaskPollInterval) {
               startBackgroundTaskPolling();
             }
             return;
           }
           if (mobileTaskRunning && !mobileTaskPaused) {
-            showTempMessage("任务正在运行中", "info");
+            showModalAlert("任务正在运行中", "提示");
             return;
           }
           updateMobileTaskUI("准备中", "正在启动任务...");
@@ -34066,14 +34066,14 @@
             mobileTaskPaused = false;
             updateMobileTaskUI("运行中", "任务执行中");
             updateMobileProgress(0, "0%");
-            showTempMessage("任务已启动", "success");
+            showModalAlert("任务已启动", "成功");
             setTimeout(() => startBackgroundTaskPolling(), 500);
           } else {
             const isRunning = await syncMobileBtnStateFromBackend();
             if (!isRunning) {
               updateMobileTaskUI("未启动", result?.message || "启动失败");
             }
-            showTempMessage(result?.message || "启动失败", "error");
+            showModalAlert(result?.message || "启动失败", "错误");
           }
         } catch (error) {
           console.error("[移动端] 启动任务失败:", error);
@@ -34081,7 +34081,7 @@
           if (!isRunning) {
             updateMobileTaskUI("错误", "启动失败");
           }
-          showTempMessage("启动任务时发生错误", "error");
+          showModalAlert("启动任务时发生错误", "错误");
         }
       }
       async function syncMobileBtnStateFromBackend() {
@@ -34125,7 +34125,7 @@
           if (!isBackendRunning) {
             mobileTaskRunning = false;
             updateMobileTaskUI("未启动", "没有正在运行的任务");
-            showTempMessage("没有正在运行的任务", "info");
+            showModalAlert("没有正在运行的任务", "提示");
             return;
           }
 
@@ -34141,7 +34141,7 @@
             mobileTaskRunning = false;
             mobileTaskPaused = false;
             updateMobileTaskUI("已停止", "任务已停止");
-            showTempMessage("任务已停止", "success");
+            showModalAlert("任务已停止", "成功");
             stopBackgroundTaskPolling();
           } else {
             const isRunning = await syncMobileBtnStateFromBackend();
@@ -34150,7 +34150,7 @@
             } else {
               updateMobileTaskUI("已停止", "任务已停止 (修正状态)");
             }
-            showTempMessage(result?.message || "停止失败", "error");
+            showModalAlert(result?.message || "停止失败", "错误");
           }
         } catch (error) {
           console.error("[移动端] 停止任务失败:", error);
@@ -34160,18 +34160,18 @@
           } else {
             updateMobileTaskUI("已停止", "连接异常 (假设已停)");
           }
-          showTempMessage("停止任务时发生错误", "error");
+          showModalAlert("停止任务时发生错误", "错误");
         }
       }
       async function mobilePauseTask() {
         try {
           if (!mobileTaskRunning) {
-            showTempMessage("没有正在运行的任务", "info");
+            showModalAlert("没有正在运行的任务", "提示");
             return;
           }
 
           if (mobileTaskPaused) {
-            showTempMessage("任务已暂停", "info");
+            showModalAlert("任务已暂停", "提示");
             return;
           }
 
@@ -34179,19 +34179,19 @@
           if (result && result.success) {
             mobileTaskPaused = true;
             updateMobileTaskUI("已暂停", "任务已暂停");
-            showTempMessage("任务已暂停", "success");
+            showModalAlert("任务已暂停", "成功");
           } else {
-            showTempMessage(result?.message || "暂停失败", "error");
+            showModalAlert(result?.message || "暂停失败", "错误");
           }
         } catch (error) {
           console.error("[移动端] 暂停任务失败:", error);
-          showTempMessage("暂停任务时发生错误", "error");
+          showModalAlert("暂停任务时发生错误", "错误");
         }
       }
       async function mobileResumeTask() {
         try {
           if (!mobileTaskPaused) {
-            showTempMessage("任务未暂停", "info");
+            showModalAlert("任务未暂停", "提示");
             return;
           }
 
@@ -34199,13 +34199,13 @@
           if (result && result.success) {
             mobileTaskPaused = false;
             updateMobileTaskUI("运行中", "任务继续执行");
-            showTempMessage("任务已继续", "success");
+            showModalAlert("任务已继续", "成功");
           } else {
-            showTempMessage(result?.message || "继续失败", "error");
+            showModalAlert(result?.message || "继续失败", "错误");
           }
         } catch (error) {
           console.error("[移动端] 继续任务失败:", error);
-          showTempMessage("继续任务时发生错误", "error");
+          showModalAlert("继续任务时发生错误", "错误");
         }
       }
       async function mobileResetTask() {
@@ -34220,15 +34220,15 @@
                 mobileTaskPaused = false;
                 updateMobileTaskUI("未启动", "任务已重置");
                 updateMobileProgress(0, "0%");
-                showTempMessage("任务已重置", "success");
+                showModalAlert("任务已重置", "成功");
               } else {
-                showTempMessage(result?.message || "重置失败", "error");
+                showModalAlert(result?.message || "重置失败", "错误");
               }
             }
           );
         } catch (error) {
           console.error("[移动端] 重置任务失败:", error);
-          showTempMessage("重置任务时发生错误", "error");
+          showModalAlert("重置任务时发生错误", "错误");
         }
       }
       async function exitMobileMultiAccount() {
@@ -34260,22 +34260,22 @@
                   performExitMobileMultiAccount();
                 } catch (error) {
                   console.error("[移动端] 停止任务失败:", error);
-                  showTempMessage(
+                  showModalAlert(
                     "停止任务时出错，但仍将退出多账号模式",
-                    "warning"
+                    "警告"
                   );
                   performExitMobileMultiAccount();
                 }
               },
               () => {
-                showTempMessage("已取消退出多账号模式", "info");
+                showModalAlert("已取消退出多账号模式", "提示");
               }
             );
             return;
           }
         } catch (error) {
           console.error("[移动端] 检查任务状态失败:", error);
-          showTempMessage("无法检查任务状态，将继续退出", "warning");
+          showModalAlert("无法检查任务状态，将继续退出", "警告");
         }
         performExitMobileMultiAccount();
       }
@@ -34299,9 +34299,9 @@
               "[移动端] 退出单账号模式失败:",
               result?.message || "未知错误"
             );
-            showTempMessage(
+            showModalAlert(
               "退出失败: " + (result?.message || "未知错误"),
-              "error"
+              "错误"
             );
             return;
           }
@@ -34330,11 +34330,11 @@
               console.warn("[移动端] 未找到 loadMobileSessionsList 函数");
             }
           }, 200);
-          showTempMessage("已退出单账号模式", "success");
+          showModalAlert("已退出单账号模式", "成功");
           console.log("[移动端] 退出单账号模式流程完成");
         } catch (error) {
           console.error("[移动端] 退出单账号模式时发生错误:", error);
-          showTempMessage("退出时发生错误: " + error.message, "error");
+          showModalAlert("退出时发生错误: " + error.message, "错误");
         }
       }
       async function exitMobileMultiAccountToSessions() {
@@ -34347,9 +34347,9 @@
               "[移动端] 退出多账号模式失败:",
               result?.message || "未知错误"
             );
-            showTempMessage(
+            showModalAlert(
               "退出失败: " + (result?.message || "未知错误"),
-              "error"
+              "错误"
             );
             return;
           }
@@ -34377,11 +34377,11 @@
               console.warn("[移动端] 未找到 loadMobileSessionsList 函数");
             }
           }, 200);
-          showTempMessage("已退出多账号模式", "success");
+          showModalAlert("已退出多账号模式", "成功");
           console.log("[移动端] 退出多账号模式流程完成");
         } catch (error) {
           console.error("[移动端] 退出多账号模式时发生错误:", error);
-          showTempMessage("退出时发生错误: " + error.message, "error");
+          showModalAlert("退出时发生错误: " + error.message, "错误");
         }
       }
       function mobileToggleSelectAllAccounts() {
@@ -34399,14 +34399,14 @@
             '#mobile-multi-account-list input[type="checkbox"]:checked'
           );
           if (selected.length === 0) {
-            showTempMessage("请先选择要启动的账号", "error");
+            showModalAlert("请先选择要启动的账号", "错误");
             return;
           }
           await multi_startSelected();
-          showTempMessage(`正在启动 ${selected.length} 个账号`, "success");
+          showModalAlert(`正在启动 ${selected.length} 个账号`, "成功");
         } catch (error) {
           console.error("[移动端] 启动选中账号失败:", error);
-          showTempMessage("启动选中账号失败", "error");
+          showModalAlert("启动选中账号失败", "错误");
         }
       }
       async function mobileStopSelectedAccounts() {
@@ -34415,14 +34415,14 @@
             '#mobile-multi-account-list input[type="checkbox"]:checked'
           );
           if (selected.length === 0) {
-            showTempMessage("请先选择要停止的账号", "error");
+            showModalAlert("请先选择要停止的账号", "错误");
             return;
           }
           await multi_stopSelected();
-          showTempMessage(`正在停止 ${selected.length} 个账号`, "success");
+          showModalAlert(`正在停止 ${selected.length} 个账号`, "成功");
         } catch (error) {
           console.error("[移动端] 停止选中账号失败:", error);
-          showTempMessage("停止选中账号失败", "error");
+          showModalAlert("停止选中账号失败", "错误");
         }
       }
       function mobileAddMultiAccount() {
@@ -34430,17 +34430,17 @@
           multi_addFromConfig();
         } catch (error) {
           console.error("[移动端] 添加账号失败:", error);
-          showTempMessage("添加账号失败", "error");
+          showModalAlert("添加账号失败", "错误");
         }
       }
       async function mobileRefreshMultiAccounts() {
         try {
-          showTempMessage("正在刷新账号列表...", "info");
+          showModalAlert("正在刷新账号列表...", "提示");
           await multi_refreshAll();
-          showTempMessage("账号列表已刷新", "success");
+          showModalAlert("账号列表已刷新", "成功");
         } catch (error) {
           console.error("[移动端] 刷新账号列表失败:", error);
-          showTempMessage("刷新账号列表失败", "error");
+          showModalAlert("刷新账号列表失败", "错误");
         }
       }
       async function mobileStartAllAccounts() {
@@ -34450,7 +34450,7 @@
             10
           );
           if (!count || count <= 0) {
-            showTempMessage("账号列表为空，无法启动", "error");
+            showModalAlert("账号列表为空，无法启动", "错误");
             return;
           }
           const randomDelayCheck = document.getElementById(
@@ -34466,7 +34466,7 @@
             ? onlyIncompleteCheck.checked
             : true;
 
-          showTempMessage(`正在启动全部 ${count} 个账号...`, "info");
+          showModalAlert(`正在启动全部 ${count} 个账号...`, "提示");
           const result = await callPythonAPI(
             "multi_start_all_accounts",
             min_delay,
@@ -34475,33 +34475,33 @@
             run_only_incomplete
           );
           if (!result || !result.success) {
-            showTempMessage(result?.message || "启动全部账号失败", "error");
+            showModalAlert(result?.message || "启动全部账号失败", "错误");
             return;
           }
 
-          showTempMessage("已发送全部启动指令", "success");
+          showModalAlert("已发送全部启动指令", "成功");
         } catch (error) {
           console.error("[移动端] 启动全部账号失败:", error);
-          showTempMessage("启动全部账号失败", "error");
+          showModalAlert("启动全部账号失败", "错误");
         }
       }
       async function mobileStopAllAccounts() {
         try {
           await multi_stopAll();
-          showTempMessage("已发送全部停止指令", "success");
+          showModalAlert("已发送全部停止指令", "成功");
         } catch (error) {
           console.error("[移动端] 停止全部账号失败:", error);
-          showTempMessage("停止全部账号失败", "error");
+          showModalAlert("停止全部账号失败", "错误");
         }
       }
       async function mobileRefreshAllAccounts() {
         try {
-          showTempMessage("正在刷新所有账号...", "info");
+          showModalAlert("正在刷新所有账号...", "提示");
           await multi_refreshAll();
-          showTempMessage("所有账号已刷新", "success");
+          showModalAlert("所有账号已刷新", "成功");
         } catch (error) {
           console.error("[移动端] 刷新所有账号失败:", error);
-          showTempMessage("刷新所有账号失败", "error");
+          showModalAlert("刷新所有账号失败", "错误");
         }
       }
       async function mobileRemoveSelectedAccounts() {
@@ -34510,7 +34510,7 @@
             '#mobile-multi-account-list input[type="checkbox"]:checked'
           );
           if (selected.length === 0) {
-            showTempMessage("请先选择要删除的账号", "error");
+            showModalAlert("请先选择要删除的账号", "错误");
             return;
           }
           showMobileConfirm(
@@ -34518,12 +34518,12 @@
             `确定要删除选中的 ${selected.length} 个账号吗？`,
             async () => {
               await multi_removeSelected();
-              showTempMessage(`已删除 ${selected.length} 个账号`, "success");
+              showModalAlert(`已删除 ${selected.length} 个账号`, "成功");
             }
           );
         } catch (error) {
           console.error("[移动端] 删除选中账号失败:", error);
-          showTempMessage("删除选中账号失败", "error");
+          showModalAlert("删除选中账号失败", "错误");
         }
       }
       function toggleMobileMoreMenu(show) {
@@ -34664,19 +34664,19 @@
                   performMobileLogout();
                 } catch (error) {
                   console.error("[移动端] 停止任务失败:", error);
-                  showTempMessage("停止任务时出错，但仍将退出登录", "warning");
+                  showModalAlert("停止任务时出错，但仍将退出登录", "警告");
                   performMobileLogout();
                 }
               },
               () => {
-                showTempMessage("已取消退出登录", "info");
+                showModalAlert("已取消退出登录", "提示");
               }
             );
             return;
           }
         } catch (error) {
           console.error("[移动端] 检查任务状态失败:", error);
-          showTempMessage("无法检查任务状态，将继续退出", "warning");
+          showModalAlert("无法检查任务状态，将继续退出", "警告");
         }
         performMobileLogout();
       }
@@ -34693,7 +34693,7 @@
             loginContainer.classList.remove("hidden");
           }
           updateMobileNavVisibility(false);
-          showTempMessage("已退出登录", "success");
+          showModalAlert("已退出登录", "成功");
         });
       }
       async function loadMobileUserDetails() {
@@ -34721,7 +34721,7 @@
             if (schoolDiv) schoolDiv.classList.add("hidden");
             if (loginDiv) loginDiv.classList.add("hidden");
             if (uaDiv) uaDiv.classList.add("hidden");
-            showTempMessage("请先登录", "warning");
+            showModalAlert("请先登录", "警告");
             return;
           }
           const user_data = currentUserData;
@@ -34826,10 +34826,10 @@
             const uaString = IS_OFFLINE ? "NULL" : currentSessionUA || "NULL";
             uaText.textContent = uaString;
           }
-          showTempMessage("用户详情加载成功", "success");
+          showModalAlert("用户详情加载成功", "成功");
         } catch (error) {
           console.error("加载用户详情失败:", error);
-          showTempMessage("加载用户详情失败: " + error.message, "error");
+          showModalAlert("加载用户详情失败: " + error.message, "错误");
         }
       }
       async function loadMobileProfile() {
@@ -34851,7 +34851,7 @@
           if (timeDiv) timeDiv.classList.add("hidden");
           if (pointsDiv) pointsDiv.classList.add("hidden");
           if (historyDiv) historyDiv.classList.add("hidden");
-          showTempMessage("请先在任务列表中选择一个任务", "warning");
+          showModalAlert("请先在任务列表中选择一个任务", "警告");
           return;
         }
         const emptyDiv = document.getElementById("mobile-task-details-empty");
@@ -34967,7 +34967,7 @@
               '<p class="text-slate-400 text-center py-4 text-sm">暂无历史记录</p>';
           }
         }
-        showTempMessage("任务详情加载成功", "success");
+        showModalAlert("任务详情加载成功", "成功");
       }
       function destroyMobileSingleMap() {
         try {
@@ -35857,7 +35857,7 @@
           updateParamInputs(container, "mobile-acc-param", result.params);
           if (saveBtn) {
             saveBtn.onclick = async () => {
-              showTempMessage("正在保存...", "info");
+              showModalAlert("正在保存...", "提示");
               const inputs = container.querySelectorAll("input, select");
               try {
                 for (const input of inputs) {
@@ -35872,10 +35872,10 @@
                     value
                   );
                 }
-                showTempMessage("设置已保存", "success");
+                showModalAlert("设置已保存", "成功");
                 closeMobileAccountParams();
               } catch (e) {
-                showTempMessage("保存失败: " + e.message, "error");
+                showModalAlert("保存失败: " + e.message, "错误");
               }
             };
           }
@@ -36155,7 +36155,7 @@
             const noChinese = value.replace(/[一-龥]/g, "");
             if (value !== noChinese) {
               e.target.value = noChinese;
-              showTempMessage("用户名不能包含中文字符", "warning");
+              showModalAlert("用户名不能包含中文字符", "警告");
             }
           });
         }
@@ -37506,11 +37506,11 @@
             }
             console.log("[SSL管理] SSL信息加载成功");
           } else {
-            showTempMessage(data.message || "SSL信息加载失败", "error");
+            showModalAlert(data.message || "SSL信息加载失败", "错误");
           }
         } catch (error) {
           console.error("[SSL管理] 加载SSL信息失败:", error);
-          showTempMessage("加载SSL信息失败", "error");
+          showModalAlert("加载SSL信息失败", "错误");
         }
       }
       function updateSSLStatusBadge(sslEnabled) {
@@ -37532,11 +37532,11 @@
         const keyFileInput = $("ssl-key-file-input");
         const uploadBtn = $("ssl-upload-btn");
         if (!certFileInput.files || certFileInput.files.length === 0) {
-          showTempMessage("请选择证书文件", "error");
+          showModalAlert("请选择证书文件", "错误");
           return;
         }
         if (!keyFileInput.files || keyFileInput.files.length === 0) {
-          showTempMessage("请选择密钥文件", "error");
+          showModalAlert("请选择密钥文件", "错误");
           return;
         }
         setButtonLoading(uploadBtn, true, "上传中...");
@@ -37553,16 +37553,16 @@
           });
           const data = await response.json();
           if (data.success) {
-            showTempMessage("证书上传成功", "success");
+            showModalAlert("证书上传成功", "成功");
             certFileInput.value = "";
             keyFileInput.value = "";
             await loadSSLInfo();
           } else {
-            showTempMessage(data.message || "证书上传失败", "error");
+            showModalAlert(data.message || "证书上传失败", "错误");
           }
         } catch (error) {
           console.error("[SSL管理] 上传证书失败:", error);
-          showTempMessage("上传失败: " + error.message, "error");
+          showModalAlert("上传失败: " + error.message, "错误");
         } finally {
           setButtonLoading(uploadBtn, false, "上传证书");
         }
@@ -38685,31 +38685,31 @@
       function addMobileSelectedConfig() {
         const select = document.getElementById("multi-config-user-select");
         if (!select || !select.value) {
-          showTempMessage("请先选择要添加的配置文件", "error");
+          showModalAlert("请先选择要添加的配置文件", "错误");
           return;
         }
         try {
           multi_addFromConfig();
-          showTempMessage("配置已添加", "success");
+          showModalAlert("配置已添加", "成功");
         } catch (error) {
           console.error("[移动端] 添加配置失败:", error);
-          showTempMessage("添加配置失败", "error");
+          showModalAlert("添加配置失败", "错误");
         }
       }
       async function addMobileAllConfigs() {
         const select = document.getElementById("multi-config-user-select");
         if (!select) {
-          showTempMessage("找不到配置文件选择器", "error");
+          showModalAlert("找不到配置文件选择器", "错误");
           return;
         }
         const options = Array.from(select.options).filter((opt) => opt.value);
         if (options.length === 0) {
-          showTempMessage("没有可添加的配置文件", "error");
+          showModalAlert("没有可添加的配置文件", "错误");
           return;
         }
 
         try {
-          showTempMessage(`正在添加 ${options.length} 个配置...`, "info");
+          showModalAlert(`正在添加 ${options.length} 个配置...`, "提示");
 
           for (const option of options) {
             select.value = option.value;
@@ -38717,11 +38717,11 @@
             await new Promise((resolve) => setTimeout(resolve, 200));
           }
 
-          showTempMessage(`已添加 ${options.length} 个配置`, "success");
+          showModalAlert(`已添加 ${options.length} 个配置`, "成功");
           await mobileRefreshMultiAccounts();
         } catch (error) {
           console.error("[移动端] 批量添加配置失败:", error);
-          showTempMessage("批量添加配置失败", "error");
+          showModalAlert("批量添加配置失败", "错误");
         }
       }
       function openManualAccountModal() {
@@ -38775,24 +38775,24 @@
           "manual-account-password"
         );
         if (!usernameInput || !passwordInput) {
-          showTempMessage("找不到输入框元素", "error");
+          showModalAlert("找不到输入框元素", "错误");
           return;
         }
         const username = usernameInput.value.trim();
         if (!username) {
-          showTempMessage("请输入用户名", "error");
+          showModalAlert("请输入用户名", "错误");
           usernameInput.focus();
           return;
         }
         const password = passwordInput.value;
         if (!password) {
-          showTempMessage("请输入密码", "error");
+          showModalAlert("请输入密码", "错误");
           passwordInput.focus();
           return;
         }
 
         try {
-          showTempMessage("正在添加账号...", "info");
+          showModalAlert("正在添加账号...", "提示");
           const result = await callPythonAPI("multi_add_account", {
             username: username,
             password: password,
@@ -38800,20 +38800,20 @@
           });
 
           if (result.success) {
-            showTempMessage("账号添加成功", "success");
+            showModalAlert("账号添加成功", "成功");
             closeManualAccountModal();
             await mobileRefreshMultiAccounts();
             console.log(`[移动端] 手动添加账号成功: ${username}`);
           } else {
-            showTempMessage(
+            showModalAlert(
               `添加失败: ${result.message || "未知错误"}`,
-              "error"
+              "错误"
             );
             console.error("[移动端] 手动添加账号失败:", result);
           }
         } catch (error) {
           console.error("[移动端] 手动添加账号异常:", error);
-          showTempMessage("添加账号时发生错误", "error");
+          showModalAlert("添加账号时发生错误", "错误");
         }
       }
       function importMobileAccountList() {
@@ -38821,26 +38821,26 @@
           if (typeof importMultiAccountList === "function") {
             importMultiAccountList();
           } else {
-            showTempMessage("导入功能未实现", "error");
+            showModalAlert("导入功能未实现", "错误");
             console.error("[移动端] importMultiAccountList函数未定义");
           }
         } catch (error) {
           console.error("[移动端] 导入账号列表失败:", error);
-          showTempMessage("导入失败: " + error.message, "error");
+          showModalAlert("导入失败: " + error.message, "错误");
         }
       }
       async function downloadMobileAccountTemplate() {
         try {
           if (typeof multi_downloadTemplate === "function") {
             await multi_downloadTemplate();
-            showTempMessage("模板下载成功", "success");
+            showModalAlert("模板下载成功", "成功");
           } else {
-            showTempMessage("下载模板功能未实现", "error");
+            showModalAlert("下载模板功能未实现", "错误");
             console.error("[移动端] multi_downloadTemplate函数未定义");
           }
         } catch (error) {
           console.error("[移动端] 下载模板失败:", error);
-          showTempMessage("下载模板失败: " + error.message, "error");
+          showModalAlert("下载模板失败: " + error.message, "错误");
         }
       }
       function exportMobileAccountList() {
@@ -38848,11 +38848,11 @@
           if (typeof exportMultiAccountList === "function") {
             exportMultiAccountList();
           } else {
-            showTempMessage("导出功能未实现", "error");
+            showModalAlert("导出功能未实现", "错误");
           }
         } catch (error) {
           console.error("[移动端] 导出账号列表失败:", error);
-          showTempMessage("导出失败", "error");
+          showModalAlert("导出失败", "错误");
         }
       }
       async function mobileRefreshSelectedAccounts() {
@@ -38861,19 +38861,19 @@
             '#mobile-multi-account-list input[type="checkbox"]:checked'
           );
           if (selected.length === 0) {
-            showTempMessage("请先选择要刷新的账号", "error");
+            showModalAlert("请先选择要刷新的账号", "错误");
             return;
           }
-          showTempMessage(`正在刷新 ${selected.length} 个账号...`, "info");
+          showModalAlert(`正在刷新 ${selected.length} 个账号...`, "提示");
           if (typeof multi_refreshSelected === "function") {
             await multi_refreshSelected();
-            showTempMessage("已刷新选中账号", "success");
+            showModalAlert("已刷新选中账号", "成功");
           } else {
-            showTempMessage("刷新功能未实现", "error");
+            showModalAlert("刷新功能未实现", "错误");
           }
         } catch (error) {
           console.error("[移动端] 刷新选中账号失败:", error);
-          showTempMessage("刷新失败", "error");
+          showModalAlert("刷新失败", "错误");
         }
       }
       async function deleteMobileSelectedAccounts() {
@@ -38882,7 +38882,7 @@
             '#mobile-multi-account-list input[type="checkbox"]:checked'
           );
           if (selected.length === 0) {
-            showTempMessage("请先选择要删除的账号", "error");
+            showModalAlert("请先选择要删除的账号", "错误");
             return;
           }
           showMobileConfirm(
@@ -38892,20 +38892,20 @@
               try {
                 if (typeof multi_removeSelected === "function") {
                   await multi_removeSelected(true);
-                  showTempMessage("已删除选中账号", "success");
+                  showModalAlert("已删除选中账号", "成功");
                   await mobileRefreshMultiAccounts();
                 } else {
-                  showTempMessage("删除功能未实现", "error");
+                  showModalAlert("删除功能未实现", "错误");
                 }
               } catch (error) {
                 console.error("[移动端] 删除选中账号失败:", error);
-                showTempMessage("删除失败", "error");
+                showModalAlert("删除失败", "错误");
               }
             }
           );
         } catch (error) {
           console.error("[移动端] 删除选中账号失败:", error);
-          showTempMessage("删除失败", "error");
+          showModalAlert("删除失败", "错误");
         }
       }
       async function deleteMobileAllAccounts() {
@@ -38917,20 +38917,20 @@
               try {
                 if (typeof multi_removeAll === "function") {
                   await multi_removeAll(true);
-                  showTempMessage("已删除所有账号", "success");
+                  showModalAlert("已删除所有账号", "成功");
                   await mobileRefreshMultiAccounts();
                 } else {
-                  showTempMessage("删除功能未实现", "error");
+                  showModalAlert("删除功能未实现", "错误");
                 }
               } catch (error) {
                 console.error("[移动端] 删除所有账号失败:", error);
-                showTempMessage("删除失败", "error");
+                showModalAlert("删除失败", "错误");
               }
             }
           );
         } catch (error) {
           console.error("[移动端] 删除所有账号失败:", error);
-          showTempMessage("删除失败", "error");
+          showModalAlert("删除失败", "错误");
         }
       }
       function saveMobileMultiGlobalSettings() {
@@ -38939,7 +38939,7 @@
             "mobile-multi-global-params-container"
           );
           if (!container) {
-            showTempMessage("找不到全局参数容器", "error");
+            showModalAlert("找不到全局参数容器", "错误");
             return;
           }
           const params = {};
@@ -38960,14 +38960,14 @@
             Object.keys(params).forEach((key) => {
               callPythonAPI("update_param", key, params[key]);
             });
-            showTempMessage("全局设置已保存", "success");
+            showModalAlert("全局设置已保存", "成功");
             console.log("[移动端] 全局参数已保存:", params);
           } else {
-            showTempMessage("API不可用", "error");
+            showModalAlert("API不可用", "错误");
           }
         } catch (error) {
           console.error("[移动端] 保存全局设置失败:", error);
-          showTempMessage("保存失败", "error");
+          showModalAlert("保存失败", "错误");
         }
       }
       function clearMobileMultiLog() {
@@ -38981,10 +38981,10 @@
             pcLog.value = "";
           }
 
-          showTempMessage("日志已清空", "success");
+          showModalAlert("日志已清空", "成功");
         } catch (error) {
           console.error("[移动端] 清空日志失败:", error);
-          showTempMessage("清空日志失败", "error");
+          showModalAlert("清空日志失败", "错误");
         }
       }
       function scrollMobileMultiLogToBottom() {
@@ -39221,7 +39221,7 @@
           }
         } catch (error) {
           console.error("加载路径失败:", error);
-          showTempMessage("加载路径失败: " + error.message, "error");
+          showModalAlert("加载路径失败: " + error.message, "错误");
         }
       }
       async function initMobileTrackMap() {
@@ -39320,7 +39320,7 @@
         }
         if (typeof AMap === "undefined") {
           console.error("[地图选点] 高德地图API未加载");
-          showTempMessage("地图加载失败，请刷新页面重试", "error");
+          showModalAlert("地图加载失败，请刷新页面重试", "错误");
           return;
         }
 
@@ -39407,7 +39407,7 @@
           console.log("[地图选点] 地图初始化完成，等待用户选点");
         } catch (error) {
           console.error("[地图选点] 地图初始化失败", error);
-          showTempMessage("地图初始化失败：" + error.message, "error");
+          showModalAlert("地图初始化失败：" + error.message, "错误");
         }
       }
       async function confirmMobileMapAttendance() {
@@ -39416,7 +39416,7 @@
           selected: mobileMapAttendanceSelected,
         });
         if (!mobileMapAttendanceSelected) {
-          showTempMessage("请先在地图上点击选择签到位置", "warning");
+          showModalAlert("请先在地图上点击选择签到位置", "警告");
           return;
         }
         const confirmBtn = document.getElementById(
@@ -39434,15 +39434,15 @@
           });
           console.log("[地图选点] 签到API返回", result);
           if (result.success) {
-            showTempMessage("✅ 签到成功！", "success");
+            showModalAlert("✅ 签到成功！", "成功");
             closeMobileMapAttendanceModal();
             setTimeout(() => {
               refreshNotificationsUI(true, true);
             }, 1000);
           } else {
-            showTempMessage(
+            showModalAlert(
               "❌ 签到失败：" + (result.message || "未知错误"),
-              "error"
+              "错误"
             );
             if (confirmBtn) {
               confirmBtn.disabled = false;
@@ -39458,7 +39458,7 @@
           }
         } catch (error) {
           console.error("[地图选点] 签到失败", error);
-          showTempMessage("签到失败：" + error.message, "error");
+          showModalAlert("签到失败：" + error.message, "错误");
 
           // 恢复按钮状态
           if (confirmBtn) {
