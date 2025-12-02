@@ -13743,7 +13743,8 @@ def start_web_server(args_param):
         session_file = get_session_file_path(check_uuid)
         file_exists = os.path.exists(session_file)
         logging.debug(
-            f"/auth/check_uuid_type: Checking UUID {check_uuid[:8]}..., File path: {session_file}, Exists: {file_exists}"
+            # f"/auth/check_uuid_type: Checking UUID {check_uuid[:8]}..., File path: {session_file}, Exists: {file_exists}"
+            f"正在检查UUID {check_uuid[:8]}...，文件路径: {session_file}，存在: {file_exists}"
         )
 
         if not file_exists:

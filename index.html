@@ -2154,6 +2154,7 @@
             inputmode="numeric"
             pattern="[0-9]*"
             class="input-field mt-1"
+            maxlength="11"
           />
         </div>
 
@@ -4607,6 +4608,7 @@
                     autocomplete="tel"
                     inputmode="numeric"
                     maxlength="11"
+                    pattern="[0-9]*"
                   />
                 </div>
               </div>
@@ -6712,8 +6714,9 @@
               class="relative text-sm flex-1 overflow-y-auto min-h-0 pr-1"
             >
               <div id="mobile-admin-users-panel-panel" class="space-y-3">
+                <h4 class="font-semibold text-sm">用户列表</h4>
                 <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">用户列表</h4>
+                  
                   <div class="flex gap-2">
                     <button
                       id="mobile-admin-create-user-panel"
@@ -8339,7 +8342,7 @@
                 <!-- 用户列表容器：限制最大高度并支持滚动 -->
                 <div
                   id="mobile-multi-admin-users-list"
-                  class="space-y-2 max-h-[50vh] overflow-y-auto"
+                  class="space-y-2 max-h-auto overflow-y-auto"
                 >
                   <!-- 加载占位提示 -->
                   <p class="text-slate-400 text-center py-10 text-xs">
@@ -8382,7 +8385,7 @@
                 <!-- 权限组列表容器 -->
                 <div
                   id="mobile-multi-admin-groups-list"
-                  class="space-y-2 max-h-[50vh] overflow-y-auto"
+                  class="space-y-2 max-h-auto overflow-y-auto"
                 >
                   <!-- 加载占位提示 -->
                   <p class="text-slate-400 text-center py-10 text-xs">
@@ -8396,7 +8399,10 @@
                    查看系统运行日志，支持分页和行数选择
                    默认隐藏，通过switchMobileAdminTab切换显示
                    ======================================== -->
-              <div id="mobile-multi-admin-logs-panel" class="hidden space-y-3">
+              <div
+                id="mobile-multi-admin-logs-panel"
+                class="hidden space-y-3 overflow-hidden"
+              >
                 <!-- 面板头部：包含标题和控制选项 -->
                 <div class="flex justify-between items-center">
                   <!-- 面板标题 -->
@@ -8598,53 +8604,96 @@
                    ======================================== -->
               <div
                 id="mobile-multi-admin-sessions-panel"
-                class="hidden space-y-3"
+                class="hidden space-y-4"
               >
-                <!-- 面板头部：包含标题、上帝模式和刷新按钮 -->
+                <h4 class="font-semibold text-sm" style="display: block">
+                  会话列表
+                </h4>
                 <div class="flex justify-between items-center">
-                  <!-- 面板标题 -->
-                  <h4 class="font-semibold text-sm">会话列表</h4>
-                  <!-- 控制选项组 -->
                   <div class="flex items-center gap-2">
-                    <!-- 上帝模式开关（仅超级管理员可见） -->
-                    <label
+                    <div
                       id="mobile-multi-god-mode-toggle"
-                      class="flex items-center gap-1 cursor-pointer"
+                      class="items-center gap-1 cursor-pointer flex items-center"
                       style="display: none"
                     >
-                      <!-- 上帝模式复选框 -->
                       <input
                         type="checkbox"
                         id="mobile-multi-god-mode-checkbox"
                         class="w-3 h-3 accent-red-600 rounded"
                       />
-                      <!-- 上帝模式文本 -->
                       <span class="text-xs font-semibold text-red-600"
-                        >上帝模式</span
+                        >查看系统中的所有会话</span
                       >
-                    </label>
-                    <!-- 会话数量显示 -->
+                    </div>
                     <div
                       id="mobile-multi-admin-session-count-display"
                       class="text-xs text-slate-600"
                     ></div>
-                    <!-- 刷新会话列表按钮 -->
                     <button
                       id="mobile-multi-admin-refresh-sessions"
                       class="btn btn-ghost !py-1 !px-2 text-xs"
+                      onclick="loadMobileAdminSessionsList()"
                     >
                       刷新
                     </button>
                   </div>
                 </div>
-                <!-- 会话列表容器 -->
+
+                <div
+                  id="mobile-multi-admin-create-session-container"
+                  class="p-3 bg-sky-50 border border-sky-200 rounded-lg"
+                >
+                  <p class="text-xs text-slate-700 mb-2">
+                    管理您的所有会话状态
+                  </p>
+                  <button
+                    class="w-full py-2 bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-lg text-xs font-bold shadow-sm active:scale-[0.98] transition-transform flex items-center justify-center gap-1"
+                    onclick="createNewSessionFromPicker()"
+                  >
+                    <svg
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 4v16m8-8H4"
+                      ></path>
+                    </svg>
+                    创建新会话
+                  </button>
+                </div>
+
                 <div
                   id="mobile-multi-admin-sessions-list"
-                  class="space-y-2 max-h-[50vh] overflow-y-auto"
+                  class="space-y-2 max-h-auto overflow-y-auto"
                 >
-                  <!-- 加载占位提示 -->
                   <p class="text-slate-400 text-center py-10 text-xs">
                     加载中...
+                  </p>
+                </div>
+
+                <div class="mt-2 pt-3 border-t border-slate-100 text-center">
+                  <p
+                    class="text-[10px] text-slate-400 flex items-center justify-center gap-1"
+                  >
+                    <svg
+                      class="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      ></path>
+                    </svg>
+                    长按会话可删除，点击即可切换
                   </p>
                 </div>
               </div>
@@ -8658,14 +8707,12 @@
                 id="mobile-multi-admin-messages-panel"
                 class="hidden space-y-3"
               >
-                <!-- 面板头部：包含标题和刷新按钮 -->
                 <div class="flex justify-between items-center">
-                  <!-- 面板标题 -->
                   <h4 class="font-semibold text-sm">留言板</h4>
-                  <!-- 刷新留言按钮 -->
                   <button
                     id="mobile-multi-admin-refresh-messages"
                     class="btn btn-ghost !py-1 !px-2 text-xs"
+                    onclick="switchMobileAdminTab('messages', 'mobile-admin-panel-unified')"
                   >
                     刷新
                   </button>
@@ -9635,12 +9682,20 @@
             <div id="mobile-multi-admin-users-panel" class="space-y-3">
               <div class="flex justify-between items-center">
                 <h4 class="font-semibold text-sm">用户列表</h4>
-                <button
-                  class="btn btn-ghost !py-1 !px-2 text-xs"
-                  onclick="switchMobileAdminTab('users', 'mobile-multi-admin-panel')"
-                >
-                  刷新
-                </button>
+                <div class="flex gap-2">
+                  <button
+                    id="mobile-multi-admin-create-user"
+                    class="btn btn-primary !py-1 !px-2 text-xs"
+                  >
+                    新增
+                  </button>
+                  <button
+                    id="mobile-multi-admin-refresh-users"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                  >
+                    刷新
+                  </button>
+                </div>
               </div>
               <div id="mobile-multi-admin-users-list" class="space-y-2">
                 <p class="text-slate-400 text-center py-10 text-xs">
@@ -14147,6 +14202,7 @@
             placeholder="请输入要测试的手机号（11位）"
             maxlength="11"
             inputmode="numeric"
+            pattern="[0-9]*"
           />
           <p class="text-xs text-slate-500">
             ⚠️ 请输入真实有效的手机号，确保能收到短信
@@ -15335,7 +15391,7 @@
             mobileAuthInputContainer.innerHTML = `
             <div class="phone-input-wrapper">
               <span class="phone-prefix">+86 </span>
-              <input type="tel" id="mobile-auth-username" class="input-field" placeholder="请输入手机号" autocomplete="tel" inputmode="numeric" maxlength="11" value="${
+              <input type="tel" id="mobile-auth-username" class="input-field" placeholder="请输入手机号" autocomplete="tel" inputmode="numeric" maxlength="11" pattern="[0-9]*" value="${
                 currentValue || ""
               }">
             </div>
@@ -15780,6 +15836,30 @@
           });
         }
 
+        // ========================================
+        // [修复] 为移动端上帝模式复选框绑定事件
+        // ========================================
+        const mobileMultiGodCheck = document.getElementById(
+          "mobile-multi-god-mode-checkbox"
+        );
+        if (mobileMultiGodCheck) {
+          mobileMultiGodCheck.addEventListener("change", function () {
+            console.log("[移动端UI] 切换多账号面板上帝模式 (触发刷新)");
+            loadMobileAdminSessionsList();
+          });
+        }
+
+        const mobileSingleGodCheck = document.getElementById(
+          "mobile-god-mode-checkbox-panel"
+        );
+        if (mobileSingleGodCheck) {
+          mobileSingleGodCheck.addEventListener("change", function () {
+            console.log("[移动端UI] 切换单账号面板上帝模式 (触发刷新)");
+            loadMobileAdminSessionsList();
+          });
+        }
+        // ========================================
+
         run_code_need_sessionuuid(() => {
           loadMobileUserCombo().catch((e) => {
             console.error("[Mobile UI] 移动端用户下拉框后台加载失败:", e);
@@ -15870,9 +15950,9 @@
           );
 
           validSessions.forEach((session) => {
-            // 格式化时间，只显示月-日 时:分
+            // 格式化时间，显示 年-月-日 时:分
             const dateObj = new Date(session.created_at * 1000);
-            const dateStr = `${(dateObj.getMonth() + 1)
+            const dateStr = `${dateObj.getFullYear()}-${(dateObj.getMonth() + 1)
               .toString()
               .padStart(2, "0")}-${dateObj
               .getDate()
@@ -18949,6 +19029,21 @@
             multiAddCancel.addEventListener("click", closeMultiAddUserModal);
           if (multiAddConfirm)
             multiAddConfirm.addEventListener("click", submitMultiAddUser);
+
+          // [修正] 绑定移动端多账号管理面板的“新增用户”和“刷新用户”按钮
+          const mobileMultiCreateUserBtn = $("mobile-multi-admin-create-user");
+          const mobileMultiRefreshUsersBtn = $("mobile-multi-admin-refresh-users");
+
+          if (mobileMultiCreateUserBtn) {
+            mobileMultiCreateUserBtn.addEventListener("click", showCreateUserModal);
+          }
+
+          if (mobileMultiRefreshUsersBtn) {
+            mobileMultiRefreshUsersBtn.addEventListener("click", () => {
+              // 加载数据并同步到多账号面板
+              loadAdminUsers().then(() => copyAdminContentToMultiPanel('users'));
+            });
+          }
         });
       }
 
@@ -20653,6 +20748,12 @@
         if (modal) {
           $("newUsername").value = "";
           $("newPassword").value = "";
+          $("newUserPhone").value = "";
+          $("newUserNickname").value = "";
+          $("newUserSmsCode").value = "";
+          $("newUserSmsGroup").style.display = "none";
+          $("newUserModal").style.display = "flex";
+          $("newPasswordConfirm").value = "";
           modal.style.display = "flex";
 
           const confirmBtn = $("newUserConfirm");
@@ -20691,7 +20792,24 @@
                 showModalAlert("用户创建成功！");
                 closeNewUserModal();
                 if (typeof loadAdminUsers === "function") {
-                  loadAdminUsers();
+                  // [修正] 创建成功后加载数据并同步UI
+                  await loadAdminUsers();
+                  
+                  // 同步到移动端多账号面板
+                  const multiAdminModal = document.getElementById("mobile-multi-admin-panel-modal");
+                  if (multiAdminModal && !multiAdminModal.classList.contains("hidden")) {
+                      if (typeof copyAdminContentToMultiPanel === "function") {
+                          copyAdminContentToMultiPanel('users');
+                      }
+                  }
+                  
+                  // 同步到移动端单账号面板
+                  const singleAdminModal = document.getElementById("mobile-admin-panel-modal");
+                  if (singleAdminModal && !singleAdminModal.classList.contains("hidden")) {
+                      if (typeof copyAdminContentToPanelVersion === "function") {
+                          copyAdminContentToPanelVersion('users');
+                      }
+                  }
                 }
               } else {
                 showModalAlert(`创建失败: ${result.message || "未知错误"}`);
@@ -21243,8 +21361,8 @@
 
               return `
         <div class="border border-slate-200 rounded-lg p-3 mb-2">
-          <div class="flex justify-between items-start gap-3">
-            <div class="flex items-start gap-3 flex-1">
+          <div class="flex flex-col md:flex-row justify-between items-start gap-3">
+            <div class="flex items-start gap-3 flex-1 w-full md:w-auto">
               <div id="avatar-${
                 user.auth_username
               }" class="flex-shrink-0 w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden border-2 border-slate-300">
@@ -21277,55 +21395,101 @@
               }</p>
               </div>
             </div>
-            <div class="flex flex-col items-end gap-1">
-              <span class="text-xs text-slate-600">权限组:</span>
-              ${groupSelect}
-              <div class="flex flex-col gap-1.5 mt-2" id="user-actions-${
+            
+            <div class="flex flex-col md:items-end gap-1 w-full md:w-auto mt-2 md:mt-0">
+              <div class="flex justify-between md:justify-end items-center w-full">
+                 <span class="text-xs text-slate-600 mr-2">权限组:</span>
+                 ${groupSelect}
+              </div>
+
+              <div class="flex flex-col gap-1.5 mt-2 w-full" id="user-actions-${
                 user.auth_username
               }">
-                <div class="flex gap-1 flex-wrap justify-end">
-                  <button class="btn btn-secondary !py-0.5 !px-2 !text-xs" onclick="showUserSchoolAccounts('${
-                    user.auth_username
-                  }')">账户密码</button>
-                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="showUserLogs('${
-                    user.auth_username
-                  }')">查看日志</button>
-                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="manageUserPermissions('${
-                    user.auth_username
-                  }')">权限</button>
-                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="setUserMaxSessions('${
-                    user.auth_username
-                  }', ${user.max_sessions || 1})">会话</button>
-                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserNickname('${
-                    user.auth_username
-                  }', '${escapeHtml(user.nickname || "")}')">修改昵称</button>
-                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="modifyUserPhone('${
-                    user.auth_username
-                  }', '${user.phone || ""}')">修改手机</button>
-                  <button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="resetUserPassword('${
-                    user.auth_username
-                  }')">重置密码</button>
-                  <button class="btn btn-warning !py-0.5 !px-2 !text-xs text-amber-700" onclick="forceLogoutUser('${
-                    user.auth_username
-                  }')">强制登出</button>
-                </div>
-                <div class="flex gap-1 flex-wrap justify-end">
+                <div class="grid grid-cols-3 md:grid-cols-6 gap-2 w-full p-2 bg-base-100 rounded-xl border border-base-200 shadow-sm">
+                  
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-indigo-100 border" 
+                          onclick="showUserSchoolAccounts('${
+                            user.auth_username
+                          }')">
+                    账户密码
+                  </button>
+                  
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-100 border" 
+                          onclick="showUserLogs('${user.auth_username}')">
+                    查看日志
+                  </button>
+
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-100 border" 
+                          onclick="setUserMaxSessions('${
+                            user.auth_username
+                          }', ${user.max_sessions || 1})">
+                    会话管理
+                  </button>
+
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100 border" 
+                          onclick="manageUserPermissions('${
+                            user.auth_username
+                          }')">
+                    权限设置
+                  </button>
+
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-teal-50 text-teal-600 hover:bg-teal-100 border-teal-100 border" 
+                          onclick="modifyUserNickname('${
+                            user.auth_username
+                          }', '${escapeHtml(user.nickname || "")}')">
+                    修改昵称
+                  </button>
+
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-teal-50 text-teal-600 hover:bg-teal-100 border-teal-100 border" 
+                          onclick="modifyUserPhone('${user.auth_username}', '${
+                user.phone || ""
+              }')">
+                    修改手机
+                  </button>
+
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-100 border" 
+                          onclick="resetUserPassword('${user.auth_username}')">
+                    重置密码
+                  </button>
+
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-amber-50 text-amber-600 hover:bg-amber-100 border-amber-100 border" 
+                          onclick="forceLogoutUser('${user.auth_username}')">
+                    强制登出
+                  </button>
+
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-rose-50 text-rose-600 hover:bg-rose-100 border-rose-100 border" 
+                          onclick="clearUserAvatar('${user.auth_username}')">
+                    清除头像
+                  </button>
+
                   ${
                     user["2fa_enabled"] || user.tfa_enabled
-                      ? `<button class="btn btn-ghost !py-0.5 !px-2 !text-xs" onclick="forceDisable2FA('${user.auth_username}')">关闭2FA</button>`
-                      : ""
+                      ? `<button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-orange-50 text-orange-600 hover:bg-orange-100 border-orange-100 border" 
+                            onclick="forceDisable2FA('${user.auth_username}')">
+                      关闭2FA
+                    </button>`
+                      : `<button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-slate-50 text-slate-300 border-slate-200 border cursor-not-allowed" disabled>
+                      2FA未启用
+                    </button>`
                   }
+
                   ${
                     isBanned
-                      ? `<button class="btn btn-success !py-0.5 !px-2 !text-xs" onclick="unbanUser('${user.auth_username}')">解封</button>`
-                      : `<button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="banUser('${user.auth_username}')">封禁</button>`
+                      ? `<button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-green-100 text-green-700 hover:bg-green-200 border-green-200 border font-bold" 
+                            onclick="unbanUser('${user.auth_username}')">
+                      解封用户
+                    </button>`
+                      : `<button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-red-100 text-red-700 hover:bg-red-200 border-red-200 border font-bold" 
+                            onclick="banUser('${user.auth_username}')">
+                      封禁用户
+                    </button>`
                   }
-                  <button class="btn btn-warning !py-0.5 !px-2 !text-xs" onclick="clearUserAvatar('${
-                    user.auth_username
-                  }')">清除头像</button>
-                  <button class="btn btn-danger !py-0.5 !px-2 !text-xs" onclick="deleteUser('${
-                    user.auth_username
-                  }')">删除</button>
+
+                  <button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-red-600 text-white hover:bg-red-700 border-red-600 border shadow-md" 
+                          onclick="deleteUser('${user.auth_username}')">
+                    彻底删除
+                  </button>
+
                 </div>
               </div>
           </div>
@@ -21545,7 +21709,22 @@
           const result = await response.json();
           if (result.success) {
             showModalAlert(`用户 ${username} 已删除`, "成功");
-            loadAdminUsers();
+            
+            // [修正] 删除成功后重新加载数据，并根据当前视图同步UI
+            await loadAdminUsers(); 
+            
+            // 检查是否需要同步到移动端多账号管理面板
+            const multiAdminModal = document.getElementById("mobile-multi-admin-panel-modal");
+            if (multiAdminModal && !multiAdminModal.classList.contains("hidden")) {
+                copyAdminContentToMultiPanel('users');
+            }
+            
+            // 检查是否需要同步到移动端单账号管理面板
+            const singleAdminModal = document.getElementById("mobile-admin-panel-modal");
+            if (singleAdminModal && !singleAdminModal.classList.contains("hidden")) {
+                copyAdminContentToPanelVersion('users');
+            }
+
           } else {
             showModalAlert(result.message || "删除失败", "错误");
           }
@@ -22875,7 +23054,46 @@
           const countElSingle = document.getElementById(
             "mobile-admin-session-count-display-panel"
           );
-          const countText = `共 ${validSessions.length} 个会话`;
+
+          // 新增：处理创建按钮显示状态
+          const createContainerMulti = document.getElementById(
+            "mobile-multi-admin-create-session-container"
+          );
+
+          // 计算显示文本
+          let countText = "";
+          const currentCount = validSessions.length;
+
+          if (isGodMode) {
+            // 上帝模式：只显示总数，隐藏创建按钮
+            countText = `系统总会话: ${currentCount}`;
+            if (createContainerMulti)
+              createContainerMulti.classList.add("hidden");
+          } else {
+            // 普通模式
+            const maxSessions =
+              result.max_sessions !== undefined ? result.max_sessions : -1;
+
+            if (
+              typeof currentUserIsGuest !== "undefined" &&
+              currentUserIsGuest
+            ) {
+              // 游客模式
+              countText = `会话: 1 / 1 (游客)`;
+              if (createContainerMulti)
+                createContainerMulti.classList.add("hidden");
+            } else {
+              // 注册用户
+              if (maxSessions === -1) {
+                countText = `会话: ${currentCount} / ∞`;
+              } else {
+                countText = `会话: ${currentCount} / ${maxSessions}`;
+              }
+              if (createContainerMulti)
+                createContainerMulti.classList.remove("hidden");
+            }
+          }
+
           if (countElMulti) countElMulti.textContent = countText;
           if (countElSingle) countElSingle.textContent = countText;
 
@@ -22894,8 +23112,9 @@
           );
 
           validSessions.forEach((session) => {
+            // ... (时间格式化代码保持不变) ...
             const dateObj = new Date(session.created_at * 1000);
-            const dateStr = `${(dateObj.getMonth() + 1)
+            const dateStr = `${dateObj.getFullYear()}-${(dateObj.getMonth() + 1)
               .toString()
               .padStart(2, "0")}-${dateObj
               .getDate()
@@ -22914,7 +23133,7 @@
             const isMulti = session.is_multi_account_mode;
             const loginStatus = session.login_success;
 
-            // 构建拥有者信息 (管理员特有)
+            // 构建拥有者信息
             let ownerBadge = "";
             if (session.username) {
               ownerBadge = `<div class="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full"><span class="font-bold">👤</span> ${escapeHtml(
@@ -22925,152 +23144,152 @@
             }
 
             const itemDiv = document.createElement("div");
-
-            // 样式逻辑：复用 mobile-sessions-list 的卡片样式
             const activeClass = isCurrent
               ? "border-blue-400/30 bg-gradient-to-br from-sky-50 via-white to-blue-50 shadow-md ring-1 ring-blue-200"
               : "border-slate-100 bg-white shadow-sm hover:border-slate-200 hover:shadow-md";
 
             itemDiv.className = `relative group rounded-2xl border p-4 mb-4 transition-all duration-300 active:scale-[0.98] touch-manipulation select-none ${activeClass}`;
 
+            // 统一使用带有 press-overlay 的 HTML 结构
             itemDiv.innerHTML = `
-                <div class="flex flex-col gap-3">
-                    <div class="flex justify-between items-start">
-                         ${ownerBadge}
-                         ${
-                           isCurrent
-                             ? '<span class="text-xs text-sky-600 font-bold px-2 py-0.5 bg-sky-100 rounded-full">当前</span>'
-                             : ""
-                         }
-                    </div>
-
-                    <div class="flex flex-col gap-1">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">会话 UUID</span>
-                        <div class="font-mono text-xs font-bold text-slate-700 break-all select-all bg-slate-50 px-2 py-2 rounded-lg border border-slate-100 group-hover:border-blue-200 transition-colors">
+                <div class="flex flex-col gap-2 relative z-10">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">会话 UUID</span>
+                        <div class="font-mono text-xs font-bold text-slate-700 break-all select-all bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
                             ${fullSessionId}
                         </div>
                     </div>
-
-                    <div class="flex items-center justify-between px-1 border-t border-slate-50 pt-2">
-                        <div class="flex items-center gap-1.5 text-xs text-slate-500 font-mono">
-                            <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            ${dateStr}
-                        </div>
+                    <div class="flex justify-between items-center border-b border-slate-50 pb-2 pt-1">
+                        <span class="text-xs text-slate-400 font-medium">创建时间</span>
+                        <span class="text-xs font-mono text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-100">${dateStr}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-slate-400 font-medium">登录状态</span>
                          ${
                            loginStatus
-                             ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100">
-                                 <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> 已登录
-                               </span>`
-                             : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-xs font-bold border border-slate-200">
-                                 <div class="w-1.5 h-1.5 rounded-full bg-slate-400"></div> 未登录
-                               </span>`
+                             ? `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-xs font-bold border border-emerald-100"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> 已登录</span>`
+                             : `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-500 text-xs font-bold border border-slate-200"><span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 未登录</span>`
                          }
                     </div>
-                    
-                    <div class="grid grid-cols-3 gap-2 mt-1">
-                        <button class="btn btn-ghost !py-1 !px-2 !text-xs bg-slate-50 hover:bg-sky-50 text-slate-600 border border-slate-200" onclick="selectSession('${fullSessionId}')">
-                           切换
-                        </button>
-                        <button class="btn btn-ghost !py-1 !px-2 !text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200" onclick="deleteSession('${fullSessionId}')">
-                           删除
-                        </button>
-                        ${
-                          isGodMode
-                            ? `<button class="btn btn-ghost !py-1 !px-2 !text-xs bg-slate-800 text-white hover:bg-slate-700 border border-slate-600" onclick="destroySession('${fullSessionId}')">
-                           销毁
-                        </button>`
-                            : ""
-                        }
-                    </div>
+                    ${
+                      session.username && isGodMode
+                        ? `<div class="flex justify-between items-center pt-2 mt-1 border-t border-red-50"><span class="text-xs font-medium text-red-300">创建者</span>${ownerBadge}</div>`
+                        : ""
+                    }
+                    ${
+                      isCurrent
+                        ? `<div class="mt-2 pt-2 border-t border-blue-50 flex justify-center"><span class="inline-flex items-center gap-1 px-4 py-1 rounded-full bg-gradient-to-r from-blue-500 to-sky-500 text-white text-xs font-bold shadow-sm">当前会话</span></div>`
+                        : ""
+                    }
                 </div>
 
-                ${
-                  !isCurrent
-                    ? `
-                <div class="press-overlay absolute inset-0 bg-slate-900/80 backdrop-blur-[2px] rounded-2xl flex items-center justify-center opacity-0 transition-opacity duration-300 pointer-events-none z-20">
-                     <div class="flex flex-col items-center text-white transform scale-90 transition-transform duration-300">
-                        <div class="w-14 h-14 bg-red-500 rounded-full flex items-center justify-center mb-2 shadow-lg shadow-red-500/30 animate-pulse">
-                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </div>
-                        <span class="font-bold text-base tracking-wide">松手即删除</span>
+                <div class="press-overlay absolute inset-0 bg-slate-800/90 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center opacity-0 transition-all duration-300 pointer-events-none z-20 scale-95">
+                     <div class="w-14 h-14 ${
+                       isCurrent ? "bg-slate-500" : "bg-red-500"
+                     } rounded-full flex items-center justify-center mb-3 shadow-lg animate-pulse">
+                        ${
+                          isCurrent
+                            ? '<svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>'
+                            : '<svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>'
+                        }
                      </div>
-                </div>`
-                    : ""
-                }
+                     <span class="font-bold text-white text-sm tracking-widest">${
+                       isCurrent ? "当前会话无法删除" : "松手即删除"
+                     }</span>
+                </div>
             `;
 
-            // 绑定长按删除逻辑 (仅非当前会话)
-            if (!isCurrent) {
-              let timer = null;
-              let isLongPress = false;
-              let startX = 0,
-                startY = 0;
-              const overlay = itemDiv.querySelector(".press-overlay");
-              const overlayContent = overlay.querySelector("div");
+            // 绑定交互逻辑 (支持长按)
+            let timer = null;
+            let isLongPress = false;
+            let startX = 0,
+              startY = 0;
+            const overlay = itemDiv.querySelector(".press-overlay");
+            const overlayContent = overlay
+              ? overlay.querySelector("div")
+              : null;
 
-              const startPress = (e) => {
-                isLongPress = false;
-                const touch = e.touches ? e.touches[0] : e;
-                startX = touch.clientX;
-                startY = touch.clientY;
+            const startPress = (e) => {
+              isLongPress = false;
+              const touch = e.touches ? e.touches[0] : e;
+              startX = touch.clientX;
+              startY = touch.clientY;
 
-                timer = setTimeout(() => {
-                  isLongPress = true;
-                  if (navigator.vibrate) navigator.vibrate(50);
-                  if (overlay) {
-                    overlay.classList.remove("opacity-0");
-                    overlayContent.classList.remove("scale-90");
+              timer = setTimeout(() => {
+                isLongPress = true;
+                if (navigator.vibrate) navigator.vibrate(50);
+                if (overlay) {
+                  overlay.classList.remove("opacity-0");
+                  if (overlayContent) {
+                    overlayContent.classList.remove("scale-95");
                     overlayContent.classList.add("scale-100");
                   }
-                }, 500);
-              };
-
-              const movePress = (e) => {
-                if (!timer) return;
-                const touch = e.touches ? e.touches[0] : e;
-                if (
-                  Math.abs(touch.clientX - startX) > 10 ||
-                  Math.abs(touch.clientY - startY) > 10
-                ) {
-                  clearTimeout(timer);
-                  timer = null;
-                  if (overlay) {
-                    overlay.classList.add("opacity-0");
-                    overlayContent.classList.add("scale-90");
-                    overlayContent.classList.remove("scale-100");
-                  }
                 }
-              };
+              }, 500);
+            };
 
-              const endPress = (e) => {
-                if (timer) {
-                  clearTimeout(timer);
-                  timer = null;
-                }
-                if (overlay) {
-                  overlay.classList.add("opacity-0");
-                  overlayContent.classList.add("scale-90");
+            const movePress = (e) => {
+              if (!timer) return;
+              const touch = e.touches ? e.touches[0] : e;
+              if (
+                Math.abs(touch.clientX - startX) > 10 ||
+                Math.abs(touch.clientY - startY) > 10
+              ) {
+                clearTimeout(timer);
+                timer = null;
+                if (overlay) overlay.classList.add("opacity-0");
+              }
+            };
+
+            const endPress = (e) => {
+              if (timer) {
+                clearTimeout(timer);
+                timer = null;
+              }
+              if (overlay) {
+                overlay.classList.add("opacity-0");
+                if (overlayContent) {
+                  overlayContent.classList.add("scale-95");
                   overlayContent.classList.remove("scale-100");
                 }
-                if (isLongPress) {
-                  e.preventDefault();
-                  showMobileConfirm(
-                    "删除会话",
-                    `确定要删除此会话吗？\nUUID: ${fullSessionId}`,
-                    () => deleteSession(fullSessionId)
-                  );
-                }
-                isLongPress = false;
-              };
+              }
 
-              itemDiv.addEventListener("touchstart", startPress, {
-                passive: true,
-              });
-              itemDiv.addEventListener("touchmove", movePress, {
-                passive: true,
-              });
-              itemDiv.addEventListener("touchend", endPress);
-            }
+              if (isLongPress) {
+                e.preventDefault();
+                if (isCurrent) {
+                  showModalAlert(
+                    "当前会话处于活动状态，无法删除。\n如需删除，请先切换到其他会话。",
+                    "操作受限"
+                  );
+                } else {
+                  const confirmText = isGodMode
+                    ? `确定要销毁此会话吗？\nUUID: ${fullSessionId}\n(上帝模式强制销毁)`
+                    : `确定要删除此会话吗？\nUUID: ${fullSessionId}`;
+
+                  showMobileConfirm("删除会话", confirmText, () => {
+                    if (isGodMode) {
+                      destroySession(session.session_id);
+                    } else {
+                      deleteSession(session.session_id);
+                    }
+                  });
+                }
+              } else {
+                // 短按切换
+                if (!isCurrent) {
+                  selectSessionFromPicker(session.session_id);
+                }
+              }
+              isLongPress = false;
+            };
+
+            itemDiv.addEventListener("touchstart", startPress, {
+              passive: true,
+            });
+            itemDiv.addEventListener("touchmove", movePress, { passive: true });
+            itemDiv.addEventListener("touchend", endPress);
+            itemDiv.addEventListener("mousedown", startPress);
+            itemDiv.addEventListener("mouseup", endPress);
 
             activeContainer.appendChild(itemDiv);
           });
@@ -23348,6 +23567,29 @@
           if (result.success) {
             showModalAlert("留言已删除", "成功");
             await loadMessages();
+
+            // [修复] 增加延时确保PC端列表DOM渲染完成后再同步到移动端
+            setTimeout(() => {
+              // 1. 同步多账号管理面板 (增加安全检查)
+              const multiModal = document.getElementById(
+                "mobile-multi-admin-panel-modal"
+              );
+              if (multiModal && !multiModal.classList.contains("hidden")) {
+                if (typeof copyAdminContentToMultiPanel === "function") {
+                  copyAdminContentToMultiPanel("messages");
+                }
+              }
+
+              // 2. 同步单账号管理面板 (增加安全检查)
+              const singleModal = document.getElementById(
+                "mobile-admin-panel-modal"
+              );
+              if (singleModal && !singleModal.classList.contains("hidden")) {
+                if (typeof copyAdminContentToPanelVersion === "function") {
+                  copyAdminContentToPanelVersion("messages");
+                }
+              }
+            }, 100); // 给予100ms缓冲时间
           } else {
             showModalAlert(result.message || "删除留言失败", "错误");
           }
@@ -24755,9 +24997,27 @@
 
           listEl.innerHTML = validSessions
             .map((session) => {
-              const createdDate = session.created_at
-                ? new Date(session.created_at * 1000).toLocaleString()
-                : "未知";
+              // 修改为使用 toLocaleString 的自定义格式，或者保持原样，
+              // 原代码使用的是 toLocaleString()，它本身就会包含年份 (如 2023/12/5 14:30:00)。
+              // 如果您希望这里也统一格式为 YYYY-MM-DD HH:mm，请使用以下代码：
+
+              let createdDate = "未知";
+              if (session.created_at) {
+                const d = new Date(session.created_at * 1000);
+                createdDate = `${d.getFullYear()}-${(d.getMonth() + 1)
+                  .toString()
+                  .padStart(2, "0")}-${d
+                  .getDate()
+                  .toString()
+                  .padStart(2, "0")} ${d
+                  .getHours()
+                  .toString()
+                  .padStart(2, "0")}:${d
+                  .getMinutes()
+                  .toString()
+                  .padStart(2, "0")}`;
+              }
+
               const isCurrent =
                 session.is_current || session.session_id === sessionUUID;
               const sessionHash =
@@ -28475,12 +28735,12 @@
       function openNewUserModal() {
         $("newUsername").value = "";
         $("newPassword").value = "";
-        $("newPasswordConfirm").value = "";
         $("newUserPhone").value = "";
         $("newUserNickname").value = "";
         $("newUserSmsCode").value = "";
         $("newUserSmsGroup").style.display = "none";
         $("newUserModal").style.display = "flex";
+        $("newPasswordConfirm").value = "";
         const phoneInput = $("newUserPhone");
         phoneInput.oninput = () => {
           const phone = phoneInput.value.trim();
@@ -28501,6 +28761,7 @@
       function openMultiAddUserModal() {
         $("multi-add-username").value = "";
         $("multi-add-password").value = "";
+        $("multi-add-password-confirm").value = "";
         $("multi-add-tag").value = "";
         $("multi-add-user-modal").style.display = "flex";
       }
@@ -33044,6 +33305,7 @@
                 inputmode="numeric"
                 pattern="[0-9]*"
                 style="min-height: 44px"
+                maxlength="11"
               />
             </div>
           </div>
@@ -35577,7 +35839,7 @@
               <div class="phone-input-wrapper mt-1">
                 <span class="phone-prefix">+86 </span>
                 <input type="tel" id="auth-username" class="input-field" 
-                       placeholder="请输入手机号" autocomplete="tel" inputmode="numeric" maxlength="11">
+                       placeholder="请输入手机号" autocomplete="tel" inputmode="numeric" maxlength="11" pattern="[0-9]*" >
               </div>
             `;
               document.getElementById("auth-username").value = currentValue;
@@ -37644,6 +37906,19 @@
               // [修改] 移动端会话管理：调用专用函数，不再从PC端复制
               // loadAdminSessions();
               // setTimeout(() => copyAdminContentToPanelVersion("sessions"), 500);
+
+              // 【修正】单账号面板：检查上帝模式权限
+              checkAdminPermission("god_mode").then((hasPermission) => {
+                const singleGodToggle = document.getElementById(
+                  "mobile-god-mode-toggle-panel"
+                );
+                if (singleGodToggle) {
+                  singleGodToggle.style.display = hasPermission
+                    ? "flex"
+                    : "none";
+                }
+              });
+
               loadMobileAdminSessionsList();
               break;
             case "messages":
@@ -37733,58 +38008,69 @@
 
           // 根据选中的标签页加载对应的数据
           // 并使用copyAdminContentToMultiPanel函数将PC端内容复制到移动端
+          // 根据选中的标签页加载对应的数据
+          // 并使用copyAdminContentToMultiPanel函数将PC端内容复制到移动端
           switch (tabId) {
             case "users":
-              // 加载用户列表数据
-              loadAdminUsers();
-              // 延迟复制以确保数据加载完成
-              setTimeout(() => copyAdminContentToMultiPanel("users"), 500);
+              // 加载用户列表数据，使用 .then 确保加载完成后再复制
+              loadAdminUsers().then(() =>
+                copyAdminContentToMultiPanel("users")
+              );
               break;
             case "groups":
               // 加载权限组列表数据
-              loadAdminGroups();
-              setTimeout(() => copyAdminContentToMultiPanel("groups"), 500);
+              loadAdminGroups().then(() =>
+                copyAdminContentToMultiPanel("groups")
+              );
               break;
             case "logs":
               // 加载系统日志，默认第1页
-              loadAdminLogs(1);
-              setTimeout(() => copyAdminContentToMultiPanel("logs"), 500);
+              loadAdminLogs(1).then(() => copyAdminContentToMultiPanel("logs"));
               break;
             case "health":
               // 加载系统健康状态信息
-              loadHealthStatus();
-              setTimeout(() => copyAdminContentToMultiPanel("health"), 500);
+              loadHealthStatus().then(() =>
+                copyAdminContentToMultiPanel("health")
+              );
               break;
             case "profile":
               // 加载个人信息
-              loadPersonalInfo();
-              setTimeout(() => copyAdminContentToMultiPanel("profile"), 500);
+              loadPersonalInfo().then(() =>
+                copyAdminContentToMultiPanel("profile")
+              );
               break;
             case "sessions":
-              // [修改] 多账号移动端会话列表：调用专用渲染函数
-              // loadAdminSessions();
-              // setTimeout(() => copyAdminContentToMultiPanel("sessions"), 500);
+              // 【修正】检查上帝模式权限并控制开关显示
+              checkAdminPermission("god_mode").then((hasPermission) => {
+                const godToggle = document.getElementById(
+                  "mobile-multi-god-mode-toggle"
+                );
+                if (godToggle) {
+                  godToggle.style.display = hasPermission ? "flex" : "none";
+                }
+              });
+
               loadMobileAdminSessionsList();
               break;
             case "messages":
-              // 加载留言板内容，延迟稍长以确保完整加载
-              loadMessages();
-              setTimeout(() => copyAdminContentToMultiPanel("messages"), 600);
+              // 加载留言板内容
+              loadMessages().then(() =>
+                copyAdminContentToMultiPanel("messages")
+              );
               break;
             case "ipban":
               // 加载IP封禁规则列表
-              loadIPBans();
-              setTimeout(() => copyAdminContentToMultiPanel("ipban"), 500);
+              loadIPBans().then(() => copyAdminContentToMultiPanel("ipban"));
               break;
             case "sms":
               // 加载短信服务配置
-              loadSMSConfig();
-              setTimeout(() => copyAdminContentToMultiPanel("sms"), 500);
+              loadSMSConfig().then(() => copyAdminContentToMultiPanel("sms"));
               break;
             case "config":
               // 加载系统配置
-              loadSystemConfig();
-              setTimeout(() => copyAdminContentToMultiPanel("config"), 500);
+              loadSystemConfig().then(() =>
+                copyAdminContentToMultiPanel("config")
+              );
               break;
             case "captcha":
               // 加载验证码设置
@@ -37796,18 +38082,19 @@
                 dateInputMulti.value = todayMulti;
               }
               // 加载验证码历史记录
-              loadCaptchaHistory();
-              setTimeout(() => copyAdminContentToMultiPanel("captcha"), 500);
+              loadCaptchaHistory().then(() =>
+                copyAdminContentToMultiPanel("captcha")
+              );
               break;
             case "reminders":
               // 加载定时提醒列表
-              loadReminders();
-              setTimeout(() => copyAdminContentToMultiPanel("reminders"), 500);
+              loadReminders().then(() =>
+                copyAdminContentToMultiPanel("reminders")
+              );
               break;
             case "ssl":
               // 加载SSL/HTTPS配置信息
-              loadSSLInfo();
-              setTimeout(() => copyAdminContentToMultiPanel("ssl"), 500);
+              loadSSLInfo().then(() => copyAdminContentToMultiPanel("ssl"));
               break;
           }
           // 处理完成后直接返回，不执行后续的通用处理逻辑
