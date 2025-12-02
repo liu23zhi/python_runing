@@ -14598,7 +14598,7 @@
         class="absolute inset-0 bg-black/60"
         onclick="closeCreateGroupModal()"
       ></div>
-      <div class="panel rounded-2xl p-6 w-[50rem] space-y-4 relative">
+      <div class="panel rounded-2xl p-6 w-full max-w-[50rem] mx-4 space-y-4 relative max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-xl font-bold text-sky-600">创建权限组</h3>
           <button
@@ -14670,7 +14670,7 @@
         onclick="closeEditGroupPermissionsModal()"
       ></div>
       <div
-        class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative"
+        class="panel rounded-2xl p-6 w-full max-w-[50rem] mx-4 max-h-[80vh] overflow-y-auto space-y-4 relative"
       >
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-xl font-bold text-sky-600">
@@ -14722,7 +14722,7 @@
         onclick="closeManageUserPermissionsModal()"
       ></div>
       <div
-        class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative"
+        class="panel rounded-2xl p-6 w-full max-w-[50rem] mx-4 max-h-[80vh] overflow-y-auto space-y-4 relative"
       >
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-xl font-bold text-sky-600">
@@ -14786,7 +14786,7 @@
       ></div>
 
       <div
-        class="panel rounded-2xl p-6 w-[50rem] max-h-[80vh] overflow-y-auto space-y-4 relative"
+        class="panel rounded-2xl p-6 w-full max-w-[50rem] mx-4 max-h-[80vh] overflow-y-auto space-y-4 relative"
       >
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-xl font-bold text-sky-600">
@@ -19153,8 +19153,18 @@
             "mobile-multi-admin-refresh-users"
           );
 
+          // --- 新增代码开始: 绑定权限组按钮 ---
+          const mobileMultiCreateGroupBtn = $("mobile-multi-admin-create-group");
+          const mobileMultiRefreshGroupsBtn = $("mobile-multi-admin-refresh-groups");
+          // --- 新增代码结束 ---
+
           // 同时处理 单账号模式下 管理面板的新增按钮
           const mobileSingleCreateUserBtn = $("mobile-admin-create-user-panel");
+          
+          // --- 新增代码开始: 单账号模式下的权限组按钮 (可选，保持一致性) ---
+          const mobileSingleCreateGroupBtn = $("mobile-admin-create-group-panel");
+          const mobileSingleRefreshGroupsBtn = $("mobile-admin-refresh-groups-panel");
+          // --- 新增代码结束 ---
 
           if (mobileMultiCreateUserBtn) {
             // 修改：绑定到新的移动端专用模态框函数，而不是 PC 端的 showCreateUserModal
@@ -19179,6 +19189,31 @@
               );
             });
           }
+
+          // --- 新增代码开始: 绑定权限组逻辑 ---
+          if (mobileMultiCreateGroupBtn) {
+            mobileMultiCreateGroupBtn.addEventListener("click", showCreateGroupModal);
+          }
+          
+          if (mobileMultiRefreshGroupsBtn) {
+            mobileMultiRefreshGroupsBtn.addEventListener("click", () => {
+               // 先加载数据，完成后同步到移动端面板
+               loadAdminGroups().then(() => 
+                 copyAdminContentToMultiPanel("groups")
+               );
+            });
+          }
+          
+          if (mobileSingleCreateGroupBtn) {
+             mobileSingleCreateGroupBtn.addEventListener("click", showCreateGroupModal);
+          }
+          
+          if (mobileSingleRefreshGroupsBtn) {
+             mobileSingleRefreshGroupsBtn.addEventListener("click", () => {
+                loadAdminGroups().then(() => copyAdminContentToPanelVersion("groups"));
+             });
+          }
+          // --- 新增代码结束 ---
         });
       }
 
@@ -21425,8 +21460,8 @@
               "X-Session-ID": sessionUUID,
             },
             body: JSON.stringify({
-              group_key: groupKey,
-              group_name: groupName,
+              group_name: groupKey,
+              display_name: groupName,
               permissions: permissions,
             }),
           });
