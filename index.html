@@ -212,9 +212,10 @@
       onerror="this.href='https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap'"
     />
 
+    <!-- 高德地图 loader.js - 使用本地缓存 -->
     <script
-      src="https://webapi.amap.com/loader.js"
-      onerror="handleCdnError()"
+      src="/api/cdn/amap-loader"
+      onerror="this.src='https://webapi.amap.com/loader.js'"
     ></script>
     <!-- 使用本地缓存的CDN文件，后端每小时自动从CDN更新 -->
     <script src="/api/cdn/sweetalert2" onerror="this.src='https://cdn.jsdelivr.net/npm/sweetalert2@11'"></script>

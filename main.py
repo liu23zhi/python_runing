@@ -12602,6 +12602,11 @@ def start_web_server(args_param):
             "url": "https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap",
             "filename": "google-fonts.css",
             "type": "css"
+        },
+        "amap-loader": {
+            "url": "https://webapi.amap.com/loader.js",
+            "filename": "amap-loader.js",
+            "type": "js"
         }
     }
     
@@ -17670,36 +17675,6 @@ def start_web_server(args_param):
             logging.error(f"[CDN缓存API] 返回文件时发生错误: {e}", exc_info=True)
             return jsonify({"success": False, "message": "服务器内部错误"}), 500
     
-    @app.route("/api/cdn/status")
-    def get_cdn_cache_status():
-        """
-        获取CDN缓存状态信息
-        
-        返回:
-            各文件的缓存状态和最后更新时间
-        """
-        try:
-            status = {}
-            with js_cache_lock:
-                for key, config in CDN_FILES.items():
-                    status[key] = {
-                        "filename": config["filename"],
-                        "type": config["type"],
-                        "cached": key in js_cache_storage,
-                        "last_update": js_cache_last_update.get(key, None),
-                        "last_update_time": datetime.datetime.fromtimestamp(
-                            js_cache_last_update[key]
-                        ).strftime("%Y-%m-%d %H:%M:%S") if key in js_cache_last_update else None
-                    }
-            return jsonify({
-                "success": True,
-                "cache_dir": JS_CACHE_DIR,
-                "files": status
-            })
-        except Exception as e:
-            logging.error(f"[CDN缓存API] 获取状态时发生错误: {e}", exc_info=True)
-            return jsonify({"success": False, "message": "服务器内部错误"}), 500
-    
     @app.route("/api/cdn/refresh", methods=["POST"])
     def refresh_cdn_cache():
         """
@@ -20472,6 +20447,20 @@ def start_web_server(args_param):
         if chrome_pool and hasattr(chrome_pool, "_contexts"):
             # 使用新的专用线程模式中的 _contexts 属性
             contexts_count = len(getattr(chrome_pool, "_contexts", {}))
+        # ========== 获取CDN缓存状态 ==========
+        cdn_cache_status = {}
+        try:
+            with js_cache_lock:
+                for key, config in CDN_FILES.items():
+                    cdn_cache_status[key] = {
+                        "type": config["type"],
+                        "cached": key in js_cache_storage,
+                        "last_update_time": datetime.datetime.fromtimestamp(
+                            js_cache_last_update[key]
+                        ).strftime("%Y-%m-%d %H:%M:%S") if key in js_cache_last_update else None
+                    }
+        except Exception as e:
+            logging.warning(f"[健康检查] 获取CDN缓存状态失败: {e}")
         # ========== 计算响应延迟 ==========
         request_end_time = time.time()
         response_time_ms = round((request_end_time - request_start_time) * 1000, 2)
@@ -20484,6 +20473,7 @@ def start_web_server(args_param):
                 "active_memory_sessions": active_sessions,
                 "active_background_tasks": active_tasks,
                 "current_thread_chrome_contexts": contexts_count,
+                "cdn_cache": cdn_cache_status,
                 "response_time_ms": response_time_ms,
             }
         )
