@@ -39465,54 +39465,108 @@
         }
 
         // 将PC端内容复制到移动端容器
-        let contentHtml = pcContainer.innerHTML;
+        mobileContainer.innerHTML = pcContainer.innerHTML;
         
-        // 【特殊处理】权限组列表 - 替换PC端按钮事件为移动端专用函数
-        if (tabType === "groups") {
-          // 替换编辑权限组按钮事件
-          contentHtml = contentHtml.replace(/onclick="editGroupPermissions\('([^']+)'\)"/g, 
-            'onclick="showMobileEditGroupModal(\'$1\')"');
-          // 替换删除权限组按钮事件
-          contentHtml = contentHtml.replace(/onclick="deleteGroup\('([^']+)'\)"/g, 
-            'onclick="deleteMobileGroup(\'$1\')"');
-        }
+        // 【特殊处理】使用DOM API直接修改按钮的onclick属性，避免正则表达式匹配失败
         
-        // 【特殊处理】个人信息面板 - 替换头像上传和手机号修改按钮
-        if (tabType === "profile") {
-          // 替换上传头像按钮 - 使用移动端兼容方式
-          contentHtml = contentHtml.replace(/onclick="document\.getElementById\('avatar-upload'\)\.click\(\)"/g, 
-            'onclick="triggerMobileAvatarUpload()"');
-          // 替换修改手机号按钮事件
-          contentHtml = contentHtml.replace(/onclick="openModifyPhoneModal\(\)"/g, 
-            'onclick="showMobileModifyPhoneModal()"');
-        }
-        
-        // 【特殊处理】用户列表 - 替换用户管理按钮为移动端专用函数
+        // 【用户列表】替换用户管理按钮为移动端专用函数
         if (tabType === "users") {
-          // 替换账户密码查看按钮
-          contentHtml = contentHtml.replace(/onclick="showUserSchoolAccounts\('([^']+)'\)"/g, 
-            'onclick="showMobileUserSchoolAccounts(\'$1\')"');
-          // 替换查看日志按钮
-          contentHtml = contentHtml.replace(/onclick="showUserLogs\('([^']+)'\)"/g, 
-            'onclick="showMobileUserLogs(\'$1\')"');
-          // 替换会话管理按钮
-          contentHtml = contentHtml.replace(/onclick="setUserMaxSessions\('([^']+)',\s*(\d+|-?\d+)\)"/g, 
-            'onclick="showMobileUserSessions(\'$1\', $2)"');
-          // 替换权限设置按钮
-          contentHtml = contentHtml.replace(/onclick="manageUserPermissions\('([^']+)'\)"/g, 
-            'onclick="showMobileUserPermissions(\'$1\')"');
-          // 替换修改昵称按钮
-          contentHtml = contentHtml.replace(/onclick="modifyUserNickname\('([^']+)',\s*'([^']*)'\)"/g, 
-            'onclick="showMobileModifyNickname(\'$1\', \'$2\')"');
-          // 替换修改手机按钮
-          contentHtml = contentHtml.replace(/onclick="modifyUserPhone\('([^']+)',\s*'([^']*)'\)"/g, 
-            'onclick="showMobileAdminModifyPhone(\'$1\', \'$2\')"');
-          // 替换重置密码按钮
-          contentHtml = contentHtml.replace(/onclick="resetUserPassword\('([^']+)'\)"/g, 
-            'onclick="showMobileResetPassword(\'$1\')"');
+          mobileContainer.querySelectorAll("button").forEach((btn) => {
+            const onclickAttr = btn.getAttribute("onclick");
+            if (!onclickAttr) return;
+            
+            // 账户密码查看
+            let match = onclickAttr.match(/showUserSchoolAccounts\(['"]([^'"]+)['"]\)/);
+            if (match) {
+              btn.setAttribute("onclick", `showMobileUserSchoolAccounts('${match[1]}')`);
+              return;
+            }
+            
+            // 查看日志
+            match = onclickAttr.match(/showUserLogs\(['"]([^'"]+)['"]\)/);
+            if (match) {
+              btn.setAttribute("onclick", `showMobileUserLogs('${match[1]}')`);
+              return;
+            }
+            
+            // 会话管理
+            match = onclickAttr.match(/setUserMaxSessions\(['"]([^'"]+)['"],\s*(-?\d+)\)/);
+            if (match) {
+              btn.setAttribute("onclick", `showMobileUserSessions('${match[1]}', ${match[2]})`);
+              return;
+            }
+            
+            // 权限设置
+            match = onclickAttr.match(/manageUserPermissions\(['"]([^'"]+)['"]\)/);
+            if (match) {
+              btn.setAttribute("onclick", `showMobileUserPermissions('${match[1]}')`);
+              return;
+            }
+            
+            // 修改昵称
+            match = onclickAttr.match(/modifyUserNickname\(['"]([^'"]+)['"],\s*['"]([^'"]*)['"]\)/);
+            if (match) {
+              btn.setAttribute("onclick", `showMobileModifyNickname('${match[1]}', '${match[2]}')`);
+              return;
+            }
+            
+            // 修改手机
+            match = onclickAttr.match(/modifyUserPhone\(['"]([^'"]+)['"],\s*['"]([^'"]*)['"]\)/);
+            if (match) {
+              btn.setAttribute("onclick", `showMobileAdminModifyPhone('${match[1]}', '${match[2]}')`);
+              return;
+            }
+            
+            // 重置密码
+            match = onclickAttr.match(/resetUserPassword\(['"]([^'"]+)['"]\)/);
+            if (match) {
+              btn.setAttribute("onclick", `showMobileResetPassword('${match[1]}')`);
+              return;
+            }
+          });
         }
         
-        mobileContainer.innerHTML = contentHtml;
+        // 【权限组列表】替换PC端按钮事件为移动端专用函数
+        if (tabType === "groups") {
+          mobileContainer.querySelectorAll("button").forEach((btn) => {
+            const onclickAttr = btn.getAttribute("onclick");
+            if (!onclickAttr) return;
+            
+            // 编辑权限组
+            let match = onclickAttr.match(/editGroupPermissions\(['"]([^'"]+)['"]\)/);
+            if (match) {
+              btn.setAttribute("onclick", `showMobileEditGroupModal('${match[1]}')`);
+              return;
+            }
+            
+            // 删除权限组
+            match = onclickAttr.match(/deleteGroup\(['"]([^'"]+)['"]\)/);
+            if (match) {
+              btn.setAttribute("onclick", `deleteMobileGroup('${match[1]}')`);
+              return;
+            }
+          });
+        }
+        
+        // 【个人信息面板】替换头像上传和手机号修改按钮
+        if (tabType === "profile") {
+          mobileContainer.querySelectorAll("button").forEach((btn) => {
+            const onclickAttr = btn.getAttribute("onclick");
+            if (!onclickAttr) return;
+            
+            // 上传头像
+            if (onclickAttr.includes("avatar-upload")) {
+              btn.setAttribute("onclick", "triggerMobileAvatarUpload()");
+              return;
+            }
+            
+            // 修改手机号
+            if (onclickAttr.includes("openModifyPhoneModal")) {
+              btn.setAttribute("onclick", "showMobileModifyPhoneModal()");
+              return;
+            }
+          });
+        }
 
         // 调整按钮样式以适应移动端显示
         // 添加更小的字体、更紧凑的内边距
