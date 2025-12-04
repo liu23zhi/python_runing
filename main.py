@@ -12586,6 +12586,22 @@ def start_web_server(args_param):
             "url": "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css",
             "filename": "cropper.min.css",
             "type": "css"
+        },
+        "tailwindcss": {
+            "url": "https://cdn.tailwindcss.com",
+            "filename": "tailwindcss.min.js",
+            "type": "js"
+        },
+        "socketio": {
+            "url": "https://cdn.socket.io/4.8.1/socket.io.min.js",  # 自动获取最新稳定版
+            "filename": "socket.io.min.js",
+            "type": "js",
+            "check_latest": True  # 标记需要检查最新版本
+        },
+        "google-fonts": {
+            "url": "https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap",
+            "filename": "google-fonts.css",
+            "type": "css"
         }
     }
     
@@ -12593,6 +12609,25 @@ def start_web_server(args_param):
     js_cache_storage = {}
     js_cache_lock = threading.Lock()
     js_cache_last_update = {}
+    
+    def get_latest_socketio_version():
+        """
+        获取socket.io的最新稳定版本号
+        """
+        try:
+            # 从npm registry获取最新版本
+            response = requests.get(
+                "https://registry.npmjs.org/socket.io-client/latest",
+                timeout=10
+            )
+            if response.status_code == 200:
+                data = response.json()
+                version = data.get("version", "4.8.1")
+                logging.info(f"[CDN缓存] Socket.IO 最新版本: {version}")
+                return version
+        except Exception as e:
+            logging.warning(f"[CDN缓存] 获取Socket.IO最新版本失败: {e}")
+        return "4.8.1"  # 默认版本
     
     def fetch_cdn_file(url, timeout=30):
         """
@@ -12645,6 +12680,12 @@ def start_web_server(args_param):
         """
         url = config["url"]
         filename = config["filename"]
+        
+        # 如果是socket.io且标记需要检查最新版本，则动态获取最新版本URL
+        if config.get("check_latest") and key == "socketio":
+            latest_version = get_latest_socketio_version()
+            url = f"https://cdn.socket.io/{latest_version}/socket.io.min.js"
+            logging.info(f"[CDN缓存] Socket.IO 使用最新版本: {latest_version}")
         
         logging.info(f"[CDN缓存] 正在获取: {key} ({url})")
         content = fetch_cdn_file(url)
