@@ -13776,6 +13776,18 @@
 
           <div>
             <label class="block text-sm font-semibold text-slate-700"
+              >当前昵称</label
+            >
+            <input
+              type="text"
+              id="admin-modify-nickname-current"
+              class="input-field mt-1"
+              readonly
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-700"
               >新昵称</label
             >
             <input
@@ -13861,6 +13873,7 @@
                 placeholder="请输入新手机号"
                 inputmode="numeric"
                 pattern="[0-9]*"
+                maxlength="11"
               />
             </div>
           </div>
@@ -22770,7 +22783,9 @@
 
       function modifyUserNickname(username, currentNickname) {
         $("admin-modify-nickname-username").value = username;
-        $("admin-modify-nickname-new").value = currentNickname || "";
+        $("admin-modify-nickname-current").value =
+          currentNickname || "未设置";
+        $("admin-modify-nickname-new").value =  "";
         $("admin-modify-nickname-modal").classList.remove("hidden");
       }
 
@@ -39962,7 +39977,12 @@
         
         document.getElementById("mobile-school-accounts-username").textContent = `用户: ${username}`;
         document.getElementById("mobile-school-accounts-list").innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+        
+        // [修正] 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
+        setTimeout(() => {
+          modal.classList.add("show");
+        }, 10);
         
         try {
           const response = await fetch(`/auth/admin/get_user_school_accounts?username=${encodeURIComponent(username)}`, {
@@ -40008,7 +40028,13 @@
       
       function closeMobileUserSchoolAccounts() {
         const modal = document.getElementById("mobile-user-school-accounts-modal");
-        if (modal) modal.classList.add("hidden");
+        if (modal) {
+            // [修正] 移除 show 类并等待动画结束
+            modal.classList.remove("show");
+            setTimeout(() => {
+                modal.classList.add("hidden");
+            }, 300);
+        }
       }
       
       // 【移动端】查看用户日志
@@ -40049,7 +40075,12 @@
         
         window.currentMobileLogUsername = username;
         document.getElementById("mobile-user-logs-username").textContent = `用户: ${username}`;
+        
+        // [修正] 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
+        setTimeout(() => {
+          modal.classList.add("show");
+        }, 10);
         
         // 默认显示登录日志
         switchMobileUserLogTab('login');
@@ -40057,7 +40088,13 @@
       
       function closeMobileUserLogs() {
         const modal = document.getElementById("mobile-user-logs-modal");
-        if (modal) modal.classList.add("hidden");
+        if (modal) {
+            // [修正] 移除 show 类并等待动画结束
+            modal.classList.remove("show");
+            setTimeout(() => {
+                modal.classList.add("hidden");
+            }, 300);
+        }
       }
       
       async function switchMobileUserLogTab(tab) {
@@ -40178,12 +40215,23 @@
         document.getElementById("mobile-sessions-username").textContent = username;
         document.getElementById("mobile-sessions-current").textContent = currentMax === -1 ? '无限制' : currentMax;
         document.getElementById("mobile-new-max-sessions").value = currentMax === -1 ? 0 : currentMax;
+        
+        // [修正] 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
+        setTimeout(() => {
+          modal.classList.add("show");
+        }, 10);
       }
       
       function closeMobileUserSessions() {
         const modal = document.getElementById("mobile-user-sessions-modal");
-        if (modal) modal.classList.add("hidden");
+        if (modal) {
+            // [修正] 移除 show 类并等待动画结束
+            modal.classList.remove("show");
+            setTimeout(() => {
+                modal.classList.add("hidden");
+            }, 300);
+        }
       }
       
       async function submitMobileUserSessions() {
@@ -40257,7 +40305,12 @@
         window.currentMobilePermissionsUsername = username;
         document.getElementById("mobile-permissions-username").textContent = username;
         document.getElementById("mobile-user-permissions-list").innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+        
+        // [修正] 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
+        setTimeout(() => {
+          modal.classList.add("show");
+        }, 10);
         
         try {
           const response = await fetch("/auth/admin/get_user_permissions", {
@@ -40308,7 +40361,13 @@
       
       function closeMobileUserPermissions() {
         const modal = document.getElementById("mobile-user-permissions-modal");
-        if (modal) modal.classList.add("hidden");
+        if (modal) {
+            // [修正] 移除 show 类并等待动画结束
+            modal.classList.remove("show");
+            setTimeout(() => {
+                modal.classList.add("hidden");
+            }, 300);
+        }
       }
       
       async function submitMobileUserPermissions() {
@@ -40331,7 +40390,7 @@
         });
         
         try {
-          const response = await fetch("/auth/admin/update_user_permissions", {
+          const response = await fetch("/auth/admin/set_user_permission", {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
             body: JSON.stringify({ username, added_permissions: addedPermissions, removed_permissions: removedPermissions })
@@ -40352,6 +40411,7 @@
       
       // 【移动端】修改昵称
       function showMobileModifyNickname(username, currentNickname) {
+        
         let modal = document.getElementById("mobile-modify-nickname-modal");
         if (!modal) {
           modal = document.createElement("div");
@@ -40372,6 +40432,10 @@
               </div>
               <div class="text-center text-sm text-slate-600">用户: <span id="mobile-nickname-username" class="font-semibold"></span></div>
               <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">当前昵称</label>
+                <input type="text" id="mobile-current-nickname" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" readonly value="${currentNickname || '当前无昵称'}">
+              </div>
+              <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-2">新昵称</label>
                 <input type="text" id="mobile-new-nickname" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="请输入新昵称">
               </div>
@@ -40386,13 +40450,25 @@
         
         window.currentMobileNicknameUsername = username;
         document.getElementById("mobile-nickname-username").textContent = username;
-        document.getElementById("mobile-new-nickname").value = currentNickname || '';
+        document.getElementById("mobile-current-nickname").value = currentNickname || '未设置';
+        document.getElementById("mobile-new-nickname").value = '';
+        
+        // [修正] 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
+        setTimeout(() => {
+          modal.classList.add("show");
+        }, 10);
       }
       
       function closeMobileModifyNickname() {
         const modal = document.getElementById("mobile-modify-nickname-modal");
-        if (modal) modal.classList.add("hidden");
+        if (modal) {
+            // [修正] 移除 show 类并等待动画结束
+            modal.classList.remove("show");
+            setTimeout(() => {
+                modal.classList.add("hidden");
+            }, 300);
+        }
       }
       
       async function submitMobileModifyNickname() {
@@ -40408,7 +40484,9 @@
           const response = await fetch("/auth/admin/update_user_nickname", {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
-            body: JSON.stringify({ username, nickname: newNickname })
+            body: JSON.stringify({ 
+              username: username,
+              nickname: newNickname })
           });
           
           const result = await response.json();
@@ -40474,12 +40552,23 @@
         document.getElementById("mobile-admin-phone-current").value = currentPhone || '未绑定';
         document.getElementById("mobile-admin-phone-new").value = '';
         document.getElementById("mobile-admin-phone-code").value = '';
+        
+        // [修正] 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
+        setTimeout(() => {
+          modal.classList.add("show");
+        }, 10);
       }
       
       function closeMobileAdminModifyPhone() {
         const modal = document.getElementById("mobile-admin-modify-phone-modal");
-        if (modal) modal.classList.add("hidden");
+        if (modal) {
+            // [修正] 移除 show 类并等待动画结束
+            modal.classList.remove("show");
+            setTimeout(() => {
+                modal.classList.add("hidden");
+            }, 300);
+        }
       }
       
       let mobileAdminPhoneCooldown = 0;
@@ -40601,12 +40690,23 @@
         window.currentMobileResetPasswordUsername = username;
         document.getElementById("mobile-reset-password-username").textContent = username;
         document.getElementById("mobile-new-password").value = '';
+        
+        // [修正] 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
+        setTimeout(() => {
+          modal.classList.add("show");
+        }, 10);
       }
       
       function closeMobileResetPassword() {
         const modal = document.getElementById("mobile-reset-password-modal");
-        if (modal) modal.classList.add("hidden");
+        if (modal) {
+            // [修正] 移除 show 类并等待动画结束
+            modal.classList.remove("show");
+            setTimeout(() => {
+                modal.classList.add("hidden");
+            }, 300);
+        }
       }
       
       async function submitMobileResetPassword() {
