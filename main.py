@@ -12560,6 +12560,175 @@ def start_web_server(args_param):
     app.config["SESSION_TYPE"] = "filesystem"
     app.config["PERMANENT_SESSION_LIFETIME"] = datetime.timedelta(days=7)
 
+    # ===== JS/CSS 文件本地缓存系统 =====
+    # 缓存目录配置
+    JS_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "cdn")
+    os.makedirs(JS_CACHE_DIR, exist_ok=True)
+    
+    # 需要缓存的CDN文件列表
+    CDN_FILES = {
+        "sweetalert2": {
+            "url": "https://cdn.jsdelivr.net/npm/sweetalert2@11",
+            "filename": "sweetalert2.min.js",
+            "type": "js"
+        },
+        "qrcode": {
+            "url": "https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js",
+            "filename": "qrcode.min.js",
+            "type": "js"
+        },
+        "cropperjs": {
+            "url": "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js",
+            "filename": "cropper.min.js",
+            "type": "js"
+        },
+        "cropperjs-css": {
+            "url": "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css",
+            "filename": "cropper.min.css",
+            "type": "css"
+        }
+    }
+    
+    # JS缓存存储
+    js_cache_storage = {}
+    js_cache_lock = threading.Lock()
+    js_cache_last_update = {}
+    
+    def fetch_cdn_file(url, timeout=30):
+        """
+        从CDN获取文件内容
+        """
+        try:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+            response = requests.get(url, headers=headers, timeout=timeout)
+            if response.status_code == 200:
+                return response.text
+            else:
+                logging.warning(f"[CDN缓存] 获取文件失败，状态码: {response.status_code}, URL: {url}")
+                return None
+        except Exception as e:
+            logging.error(f"[CDN缓存] 获取文件异常: {e}, URL: {url}")
+            return None
+    
+    def load_cached_file(filename):
+        """
+        从本地缓存文件加载内容
+        """
+        cache_path = os.path.join(JS_CACHE_DIR, filename)
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception as e:
+                logging.error(f"[CDN缓存] 读取缓存文件失败: {e}, 文件: {filename}")
+        return None
+    
+    def save_cached_file(filename, content):
+        """
+        保存内容到本地缓存文件
+        """
+        cache_path = os.path.join(JS_CACHE_DIR, filename)
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            logging.info(f"[CDN缓存] 已保存缓存文件: {filename}")
+            return True
+        except Exception as e:
+            logging.error(f"[CDN缓存] 保存缓存文件失败: {e}, 文件: {filename}")
+            return False
+    
+    def update_single_cdn_file(key, config):
+        """
+        更新单个CDN文件的缓存
+        """
+        url = config["url"]
+        filename = config["filename"]
+        
+        logging.info(f"[CDN缓存] 正在获取: {key} ({url})")
+        content = fetch_cdn_file(url)
+        
+        if content:
+            with js_cache_lock:
+                js_cache_storage[key] = content
+                js_cache_last_update[key] = time.time()
+            save_cached_file(filename, content)
+            logging.info(f"[CDN缓存] 成功更新: {key}")
+            return True
+        else:
+            # 获取失败，尝试使用本地缓存
+            cached = load_cached_file(filename)
+            if cached:
+                with js_cache_lock:
+                    if key not in js_cache_storage:
+                        js_cache_storage[key] = cached
+                logging.warning(f"[CDN缓存] 获取失败，使用本地缓存: {key}")
+                return False
+            else:
+                logging.error(f"[CDN缓存] 获取失败且无本地缓存: {key}")
+                return False
+    
+    def update_all_cdn_files():
+        """
+        更新所有CDN文件的缓存
+        """
+        logging.info("[CDN缓存] 开始更新所有CDN文件...")
+        success_count = 0
+        fail_count = 0
+        
+        for key, config in CDN_FILES.items():
+            if update_single_cdn_file(key, config):
+                success_count += 1
+            else:
+                fail_count += 1
+        
+        logging.info(f"[CDN缓存] 更新完成: 成功 {success_count}, 失败 {fail_count}")
+        return success_count, fail_count
+    
+    def init_cdn_cache():
+        """
+        初始化CDN缓存：先尝试加载本地缓存，如果没有则从CDN获取
+        """
+        logging.info("[CDN缓存] 正在初始化CDN文件缓存...")
+        
+        for key, config in CDN_FILES.items():
+            filename = config["filename"]
+            # 先尝试加载本地缓存
+            cached = load_cached_file(filename)
+            if cached:
+                with js_cache_lock:
+                    js_cache_storage[key] = cached
+                    js_cache_last_update[key] = os.path.getmtime(os.path.join(JS_CACHE_DIR, filename))
+                logging.info(f"[CDN缓存] 从本地加载: {key}")
+            else:
+                # 本地没有缓存，从CDN获取
+                update_single_cdn_file(key, config)
+        
+        logging.info(f"[CDN缓存] 初始化完成，已缓存 {len(js_cache_storage)} 个文件")
+    
+    def cdn_cache_update_worker():
+        """
+        CDN缓存定时更新工作线程（每小时检查一次）
+        """
+        UPDATE_INTERVAL = 3600  # 1小时
+        
+        while True:
+            try:
+                time.sleep(UPDATE_INTERVAL)
+                logging.info("[CDN缓存] 定时更新任务开始...")
+                update_all_cdn_files()
+            except Exception as e:
+                logging.error(f"[CDN缓存] 定时更新任务异常: {e}")
+    
+    # 初始化CDN缓存
+    init_cdn_cache()
+    
+    # 启动CDN缓存定时更新线程
+    cdn_update_thread = threading.Thread(target=cdn_cache_update_worker, daemon=True)
+    cdn_update_thread.start()
+    logging.info("[CDN缓存] 定时更新线程已启动（每小时检查一次）")
+
     # ===== 登录验证装饰器 =====
     def login_required(f):
         """
@@ -17423,6 +17592,112 @@ def start_web_server(args_param):
             "reg_verify_enabled": reg_verify_enabled,
             "enable_phone_modification": phone_modification_enabled,
         }
+
+    # ========== 新增路由：CDN缓存文件API ==========
+    @app.route("/api/cdn/<file_key>")
+    def get_cdn_cached_file(file_key):
+        """
+        返回本地缓存的CDN文件（JS/CSS）
+        
+        参数:
+            file_key: 文件标识符，如 sweetalert2, qrcode, cropperjs, cropperjs-css
+        
+        返回:
+            文件内容，并设置正确的Content-Type
+        """
+        try:
+            with js_cache_lock:
+                if file_key in js_cache_storage:
+                    content = js_cache_storage[file_key]
+                    file_config = CDN_FILES.get(file_key, {})
+                    file_type = file_config.get("type", "js")
+                    
+                    # 设置正确的Content-Type
+                    if file_type == "css":
+                        mimetype = "text/css"
+                    else:
+                        mimetype = "application/javascript"
+                    
+                    response = make_response(content)
+                    response.headers["Content-Type"] = mimetype
+                    response.headers["Cache-Control"] = "public, max-age=3600"  # 缓存1小时
+                    return response
+                else:
+                    logging.warning(f"[CDN缓存API] 请求的文件不存在: {file_key}")
+                    return jsonify({"success": False, "message": f"文件未找到: {file_key}"}), 404
+        except Exception as e:
+            logging.error(f"[CDN缓存API] 返回文件时发生错误: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "服务器内部错误"}), 500
+    
+    @app.route("/api/cdn/status")
+    def get_cdn_cache_status():
+        """
+        获取CDN缓存状态信息
+        
+        返回:
+            各文件的缓存状态和最后更新时间
+        """
+        try:
+            status = {}
+            with js_cache_lock:
+                for key, config in CDN_FILES.items():
+                    status[key] = {
+                        "filename": config["filename"],
+                        "type": config["type"],
+                        "cached": key in js_cache_storage,
+                        "last_update": js_cache_last_update.get(key, None),
+                        "last_update_time": datetime.datetime.fromtimestamp(
+                            js_cache_last_update[key]
+                        ).strftime("%Y-%m-%d %H:%M:%S") if key in js_cache_last_update else None
+                    }
+            return jsonify({
+                "success": True,
+                "cache_dir": JS_CACHE_DIR,
+                "files": status
+            })
+        except Exception as e:
+            logging.error(f"[CDN缓存API] 获取状态时发生错误: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "服务器内部错误"}), 500
+    
+    @app.route("/api/cdn/refresh", methods=["POST"])
+    def refresh_cdn_cache():
+        """
+        手动刷新CDN缓存（管理员功能）
+        """
+        try:
+            session_id = request.headers.get("X-Session-ID", "")
+            if not session_id:
+                return jsonify({"success": False, "message": "未授权"}), 401
+            
+            # 检查是否有管理员权限
+            api_instance = None
+            with web_sessions_lock:
+                if session_id in web_sessions:
+                    api_instance = web_sessions[session_id]
+            
+            if not api_instance:
+                return jsonify({"success": False, "message": "会话无效"}), 401
+            
+            auth_username = getattr(api_instance, "auth_username", None)
+            if not auth_username:
+                return jsonify({"success": False, "message": "未登录"}), 401
+            
+            # 检查管理员权限
+            if not auth_system.check_permission(auth_username, "admin_panel"):
+                return jsonify({"success": False, "message": "权限不足"}), 403
+            
+            # 执行刷新
+            success_count, fail_count = update_all_cdn_files()
+            
+            return jsonify({
+                "success": True,
+                "message": f"CDN缓存刷新完成: 成功 {success_count}, 失败 {fail_count}",
+                "success_count": success_count,
+                "fail_count": fail_count
+            })
+        except Exception as e:
+            logging.error(f"[CDN缓存API] 刷新缓存时发生错误: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "服务器内部错误"}), 500
 
     # ========== 新增路由：Favicon ==========
     @app.route("/favicon.ico")
