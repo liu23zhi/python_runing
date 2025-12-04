@@ -379,6 +379,7 @@ def initialize_global_variables():
     global web_sessions, web_sessions_lock, session_file_locks, session_file_locks_lock
     global session_activity, session_activity_lock
     global chrome_pool, background_task_manager
+    global MAX_MEMORY_SESSIONS  # <--- [修正] 添加这一行，声明为全局变量
 
     auth_system = AuthSystem()
     token_manager = TokenManager(TOKENS_STORAGE_DIR)
@@ -20617,6 +20618,7 @@ def start_web_server(args_param):
 
                             except Exception as e:
                                 logging.error(f"DualProtocolSocket accept error: {e}")
+                                time.sleep(0.1)  # [修正] 添加延时，防止错误死循环导致CPU占用100%和服务器卡死
                                 continue
 
                 server_socket = eventlet.listen((args.host, args.port))
