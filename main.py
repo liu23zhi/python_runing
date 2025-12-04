@@ -12615,6 +12615,106 @@ def start_web_server(args_param):
     js_cache_lock = threading.Lock()
     js_cache_last_update = {}
     
+    # 字体文件缓存存储（用于Google Fonts的TTF文件）
+    font_cache_storage = {}
+    font_cache_lock = threading.Lock()
+    
+    def parse_google_fonts_css(css_content):
+        """
+        解析Google Fonts CSS内容，提取所有字体文件URL
+        
+        参数:
+            css_content: CSS文件内容
+            
+        返回:
+            字体URL列表 [(url, font_name), ...]
+        """
+        import re
+        # 匹配 url(https://...) 格式的链接
+        pattern = r'url\((https://fonts\.gstatic\.com/[^)]+)\)'
+        urls = re.findall(pattern, css_content)
+        
+        # 为每个URL生成唯一的标识符（基于文件名）
+        font_urls = []
+        for url in urls:
+            # 从URL提取文件名作为标识符
+            # 例如: https://fonts.gstatic.com/s/notosanssc/v39/xxx.ttf -> notosanssc-xxx.ttf
+            parts = url.split('/')
+            if len(parts) >= 2:
+                font_family = parts[-3] if len(parts) >= 3 else "font"
+                font_file = parts[-1]
+                font_key = f"{font_family}-{font_file}"
+            else:
+                font_key = url.split('/')[-1]
+            font_urls.append((url, font_key))
+        
+        return font_urls
+    
+    def cache_google_fonts_with_ttf(css_content, key):
+        """
+        缓存Google Fonts CSS及其引用的所有TTF字体文件
+        
+        参数:
+            css_content: CSS文件内容
+            key: 缓存键名
+            
+        返回:
+            处理后的CSS内容（URL已替换为本地API地址）
+        """
+        import re
+        
+        # 解析CSS中的字体URL
+        font_urls = parse_google_fonts_css(css_content)
+        logging.info(f"[CDN缓存] 发现 {len(font_urls)} 个字体文件需要缓存")
+        
+        modified_css = css_content
+        
+        for original_url, font_key in font_urls:
+            # 下载字体文件（二进制模式）
+            logging.info(f"[CDN缓存] 正在下载字体: {font_key}")
+            font_content = fetch_cdn_file(original_url, timeout=60, binary=True)
+            
+            if font_content:
+                # 缓存字体文件（二进制）
+                with font_cache_lock:
+                    font_cache_storage[font_key] = font_content
+                
+                # 保存到本地文件
+                font_filename = font_key
+                save_cached_file(font_filename, font_content, binary=True)
+                
+                # 替换CSS中的URL为本地API地址
+                local_url = f"/api/cdn/font/{font_key}"
+                modified_css = modified_css.replace(original_url, local_url)
+                logging.info(f"[CDN缓存] 字体已缓存: {font_key}")
+            else:
+                logging.warning(f"[CDN缓存] 字体下载失败: {font_key}")
+        
+        return modified_css
+    
+    def load_cached_fonts():
+        """
+        从本地缓存加载所有字体文件
+        """
+        try:
+            fonts_dir = JS_CACHE_DIR
+            if not os.path.exists(fonts_dir):
+                return
+            
+            for filename in os.listdir(fonts_dir):
+                if filename.endswith('.ttf') or filename.endswith('.woff') or filename.endswith('.woff2'):
+                    filepath = os.path.join(fonts_dir, filename)
+                    try:
+                        with open(filepath, 'rb') as f:
+                            content = f.read()
+                        with font_cache_lock:
+                            font_cache_storage[filename] = content
+                        logging.info(f"[CDN缓存] 从本地加载字体: {filename}")
+                    except Exception as e:
+                        logging.warning(f"[CDN缓存] 加载字体文件失败 {filename}: {e}")
+        except Exception as e:
+            logging.warning(f"[CDN缓存] 扫描字体缓存目录失败: {e}")
+    
     def get_latest_socketio_version():
         """
         获取socket.io的最新稳定版本号
@@ -12634,9 +12734,14 @@ def start_web_server(args_param):
             logging.warning(f"[CDN缓存] 获取Socket.IO最新版本失败: {e}")
         return "4.8.1"  # 默认版本
     
-    def fetch_cdn_file(url, timeout=30):
+    def fetch_cdn_file(url, timeout=30, binary=False):
         """
         从CDN获取文件内容
+        
+        参数:
+            url: 文件URL
+            timeout: 超时时间（秒）
+            binary: 是否以二进制模式获取（用于字体文件等）
         """
         try:
             headers = {
@@ -12644,7 +12749,7 @@ def start_web_server(args_param):
             }
             response = requests.get(url, headers=headers, timeout=timeout)
             if response.status_code == 200:
-                return response.text
+                return response.content if binary else response.text
             else:
                 logging.warning(f"[CDN缓存] 获取文件失败，状态码: {response.status_code}, URL: {url}")
                 return None
@@ -12652,26 +12757,39 @@ def start_web_server(args_param):
             logging.error(f"[CDN缓存] 获取文件异常: {e}, URL: {url}")
             return None
     
-    def load_cached_file(filename):
+    def load_cached_file(filename, binary=False):
         """
         从本地缓存文件加载内容
+        
+        参数:
+            filename: 文件名
+            binary: 是否以二进制模式读取
         """
         cache_path = os.path.join(JS_CACHE_DIR, filename)
         if os.path.exists(cache_path):
             try:
-                with open(cache_path, "r", encoding="utf-8") as f:
+                mode = "rb" if binary else "r"
+                encoding = None if binary else "utf-8"
+                with open(cache_path, mode, encoding=encoding) as f:
                     return f.read()
             except Exception as e:
                 logging.error(f"[CDN缓存] 读取缓存文件失败: {e}, 文件: {filename}")
         return None
     
-    def save_cached_file(filename, content):
+    def save_cached_file(filename, content, binary=False):
         """
         保存内容到本地缓存文件
+        
+        参数:
+            filename: 文件名
+            content: 文件内容
+            binary: 是否以二进制模式写入
         """
         cache_path = os.path.join(JS_CACHE_DIR, filename)
         try:
-            with open(cache_path, "w", encoding="utf-8") as f:
+            mode = "wb" if binary else "w"
+            encoding = None if binary else "utf-8"
+            with open(cache_path, mode, encoding=encoding) as f:
                 f.write(content)
             logging.info(f"[CDN缓存] 已保存缓存文件: {filename}")
             return True
@@ -12696,6 +12814,11 @@ def start_web_server(args_param):
         content = fetch_cdn_file(url)
         
         if content:
+            # 如果是 Google Fonts，需要特殊处理：解析并缓存TTF字体文件
+            if key == "google-fonts":
+                logging.info(f"[CDN缓存] 正在解析Google Fonts CSS并缓存字体文件...")
+                content = cache_google_fonts_with_ttf(content, key)
+            
             with js_cache_lock:
                 js_cache_storage[key] = content
                 js_cache_last_update[key] = time.time()
@@ -12738,6 +12861,9 @@ def start_web_server(args_param):
         """
         logging.info("[CDN缓存] 正在初始化CDN文件缓存...")
         
+        # 先加载缓存的字体文件
+        load_cached_fonts()
+        
         for key, config in CDN_FILES.items():
             filename = config["filename"]
             # 先尝试加载本地缓存
@@ -12751,7 +12877,7 @@ def start_web_server(args_param):
                 # 本地没有缓存，从CDN获取
                 update_single_cdn_file(key, config)
         
-        logging.info(f"[CDN缓存] 初始化完成，已缓存 {len(js_cache_storage)} 个文件")
+        logging.info(f"[CDN缓存] 初始化完成，已缓存 {len(js_cache_storage)} 个JS/CSS文件, {len(font_cache_storage)} 个字体文件")
     
     def cdn_cache_update_worker():
         """
@@ -17673,6 +17799,44 @@ def start_web_server(args_param):
                     return jsonify({"success": False, "message": f"文件未找到: {file_key}"}), 404
         except Exception as e:
             logging.error(f"[CDN缓存API] 返回文件时发生错误: {e}", exc_info=True)
+            return jsonify({"success": False, "message": "服务器内部错误"}), 500
+    
+    @app.route("/api/cdn/font/<font_key>")
+    def get_cdn_cached_font(font_key):
+        """
+        返回本地缓存的字体文件（TTF/WOFF/WOFF2）
+        
+        参数:
+            font_key: 字体文件标识符，如 notosanssc-xxx.ttf
+        
+        返回:
+            字体文件内容，并设置正确的Content-Type
+        """
+        try:
+            with font_cache_lock:
+                if font_key in font_cache_storage:
+                    content = font_cache_storage[font_key]
+                    
+                    # 根据文件扩展名设置正确的Content-Type
+                    if font_key.endswith('.woff2'):
+                        mimetype = "font/woff2"
+                    elif font_key.endswith('.woff'):
+                        mimetype = "font/woff"
+                    elif font_key.endswith('.ttf'):
+                        mimetype = "font/ttf"
+                    else:
+                        mimetype = "application/octet-stream"
+                    
+                    response = make_response(content)
+                    response.headers["Content-Type"] = mimetype
+                    response.headers["Cache-Control"] = "public, max-age=31536000"  # 缓存1年（字体文件很少变化）
+                    response.headers["Access-Control-Allow-Origin"] = "*"  # 允许跨域访问字体
+                    return response
+                else:
+                    logging.warning(f"[CDN缓存API] 请求的字体文件不存在: {font_key}")
+                    return jsonify({"success": False, "message": f"字体文件未找到: {font_key}"}), 404
+        except Exception as e:
+            logging.error(f"[CDN缓存API] 返回字体文件时发生错误: {e}", exc_info=True)
             return jsonify({"success": False, "message": "服务器内部错误"}), 500
     
     @app.route("/api/cdn/refresh", methods=["POST"])
