@@ -39486,6 +39486,31 @@
             'onclick="showMobileModifyPhoneModal()"');
         }
         
+        // 【特殊处理】用户列表 - 替换用户管理按钮为移动端专用函数
+        if (tabType === "users") {
+          // 替换账户密码查看按钮
+          contentHtml = contentHtml.replace(/onclick="showUserSchoolAccounts\('([^']+)'\)"/g, 
+            'onclick="showMobileUserSchoolAccounts(\'$1\')"');
+          // 替换查看日志按钮
+          contentHtml = contentHtml.replace(/onclick="showUserLogs\('([^']+)'\)"/g, 
+            'onclick="showMobileUserLogs(\'$1\')"');
+          // 替换会话管理按钮
+          contentHtml = contentHtml.replace(/onclick="setUserMaxSessions\('([^']+)',\s*(\d+|-?\d+)\)"/g, 
+            'onclick="showMobileUserSessions(\'$1\', $2)"');
+          // 替换权限设置按钮
+          contentHtml = contentHtml.replace(/onclick="manageUserPermissions\('([^']+)'\)"/g, 
+            'onclick="showMobileUserPermissions(\'$1\')"');
+          // 替换修改昵称按钮
+          contentHtml = contentHtml.replace(/onclick="modifyUserNickname\('([^']+)',\s*'([^']*)'\)"/g, 
+            'onclick="showMobileModifyNickname(\'$1\', \'$2\')"');
+          // 替换修改手机按钮
+          contentHtml = contentHtml.replace(/onclick="modifyUserPhone\('([^']+)',\s*'([^']*)'\)"/g, 
+            'onclick="showMobileAdminModifyPhone(\'$1\', \'$2\')"');
+          // 替换重置密码按钮
+          contentHtml = contentHtml.replace(/onclick="resetUserPassword\('([^']+)'\)"/g, 
+            'onclick="showMobileResetPassword(\'$1\')"');
+        }
+        
         mobileContainer.innerHTML = contentHtml;
 
         // 调整按钮样式以适应移动端显示
@@ -39840,6 +39865,720 @@
         } catch (e) {
           console.error("[移动端修改手机号] 失败:", e);
           showModalAlert("修改失败: " + e.message, "错误");
+        }
+      }
+      
+      // ========================================
+      // 【移动端用户管理】专用模态框函数
+      // 为移动端用户列表中的操作按钮提供适配的UI
+      // ========================================
+      
+      // 【移动端】查看用户学校账户密码
+      async function showMobileUserSchoolAccounts(username) {
+        let modal = document.getElementById("mobile-user-school-accounts-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-user-school-accounts-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) { if (e.target === modal) closeMobileUserSchoolAccounts(); };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-indigo-600 text-center">学校账户密码</h3>
+              </div>
+              <div class="text-center text-sm text-slate-500" id="mobile-school-accounts-username"></div>
+              <div id="mobile-school-accounts-list" class="space-y-3 max-h-[50vh] overflow-y-auto">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileUserSchoolAccounts()" class="flex-1 py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm">关闭</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        document.getElementById("mobile-school-accounts-username").textContent = `用户: ${username}`;
+        document.getElementById("mobile-school-accounts-list").innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+        modal.classList.remove("hidden");
+        
+        try {
+          const response = await fetch(`/auth/admin/get_user_school_accounts?username=${encodeURIComponent(username)}`, {
+            headers: { "X-Session-ID": sessionUUID }
+          });
+          const result = await response.json();
+          
+          if (!result.success) {
+            document.getElementById("mobile-school-accounts-list").innerHTML = `<p class="text-red-500 text-center py-10 text-xs">${result.message || '加载失败'}</p>`;
+            return;
+          }
+          
+          const accounts = result.accounts || {};
+          const accountCount = Object.keys(accounts).length;
+          
+          if (accountCount === 0) {
+            document.getElementById("mobile-school-accounts-list").innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">该用户暂无学校账户</p>';
+            return;
+          }
+          
+          let html = '';
+          for (const [schoolUsername, accountData] of Object.entries(accounts)) {
+            let password = typeof accountData === 'string' ? accountData : (accountData?.password || '');
+            let ua = typeof accountData === 'object' ? (accountData?.ua || '') : '';
+            
+            html += `
+              <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                <div class="font-semibold text-slate-800 text-sm">${escapeHtml(schoolUsername)}</div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-500">密码:</span>
+                  <span class="font-mono text-xs text-slate-700 select-all bg-white px-2 py-1 rounded border">${escapeHtml(password)}</span>
+                </div>
+                ${ua ? `<div class="text-xs text-slate-500 truncate">UA: ${escapeHtml(ua.substring(0, 50))}...</div>` : ''}
+              </div>
+            `;
+          }
+          
+          document.getElementById("mobile-school-accounts-list").innerHTML = html;
+        } catch (e) {
+          document.getElementById("mobile-school-accounts-list").innerHTML = `<p class="text-red-500 text-center py-10 text-xs">加载失败: ${e.message}</p>`;
+        }
+      }
+      
+      function closeMobileUserSchoolAccounts() {
+        const modal = document.getElementById("mobile-user-school-accounts-modal");
+        if (modal) modal.classList.add("hidden");
+      }
+      
+      // 【移动端】查看用户日志
+      async function showMobileUserLogs(username) {
+        let modal = document.getElementById("mobile-user-logs-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-user-logs-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) { if (e.target === modal) closeMobileUserLogs(); };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-blue-600 text-center">用户日志</h3>
+              </div>
+              <div class="text-center text-sm text-slate-500" id="mobile-user-logs-username"></div>
+              <div class="flex gap-2 border-b border-slate-200">
+                <button id="mobile-log-tab-login" onclick="switchMobileUserLogTab('login')" class="flex-1 py-2 text-sm font-semibold text-sky-600 border-b-2 border-sky-600">登录日志</button>
+                <button id="mobile-log-tab-audit" onclick="switchMobileUserLogTab('audit')" class="flex-1 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent">审计日志</button>
+              </div>
+              <div id="mobile-user-logs-content" class="space-y-2 max-h-[45vh] overflow-y-auto">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileUserLogs()" class="flex-1 py-2 px-4 bg-slate-100 text-slate-600 rounded-lg text-sm">关闭</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        window.currentMobileLogUsername = username;
+        document.getElementById("mobile-user-logs-username").textContent = `用户: ${username}`;
+        modal.classList.remove("hidden");
+        
+        // 默认显示登录日志
+        switchMobileUserLogTab('login');
+      }
+      
+      function closeMobileUserLogs() {
+        const modal = document.getElementById("mobile-user-logs-modal");
+        if (modal) modal.classList.add("hidden");
+      }
+      
+      async function switchMobileUserLogTab(tab) {
+        const loginTab = document.getElementById("mobile-log-tab-login");
+        const auditTab = document.getElementById("mobile-log-tab-audit");
+        const content = document.getElementById("mobile-user-logs-content");
+        const username = window.currentMobileLogUsername;
+        
+        if (tab === 'login') {
+          loginTab.className = "flex-1 py-2 text-sm font-semibold text-sky-600 border-b-2 border-sky-600";
+          auditTab.className = "flex-1 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent";
+          await loadMobileUserLoginLogs(username);
+        } else {
+          auditTab.className = "flex-1 py-2 text-sm font-semibold text-sky-600 border-b-2 border-sky-600";
+          loginTab.className = "flex-1 py-2 text-sm font-semibold text-slate-400 border-b-2 border-transparent";
+          await loadMobileUserAuditLogs(username);
+        }
+      }
+      
+      async function loadMobileUserLoginLogs(username) {
+        const content = document.getElementById("mobile-user-logs-content");
+        content.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+        
+        try {
+          const response = await fetch(`/api/admin/logs/login_history?username=${encodeURIComponent(username)}`, {
+            headers: { "X-Session-ID": sessionUUID }
+          });
+          const data = await response.json();
+          
+          if (data.success && data.logs && data.logs.length > 0) {
+            content.innerHTML = data.logs.map(log => `
+              <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div class="flex justify-between items-start mb-2">
+                  <span class="text-xs text-slate-500">${(log.datetime || 'N/A').replace('T', ' ')}</span>
+                  ${log.success ? 
+                    '<span class="text-xs px-2 py-0.5 rounded bg-green-100 text-green-600">成功</span>' : 
+                    '<span class="text-xs px-2 py-0.5 rounded bg-red-100 text-red-600">失败</span>'}
+                </div>
+                <div class="text-xs text-slate-600">IP: ${log.ip_address || 'N/A'}</div>
+                ${log.location ? `<div class="text-xs text-slate-500">${log.location}</div>` : ''}
+              </div>
+            `).join('');
+          } else {
+            content.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">暂无登录日志</p>';
+          }
+        } catch (e) {
+          content.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">加载失败: ${e.message}</p>`;
+        }
+      }
+      
+      async function loadMobileUserAuditLogs(username) {
+        const content = document.getElementById("mobile-user-logs-content");
+        content.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+        
+        try {
+          const response = await fetch(`/api/admin/logs/audit?username=${encodeURIComponent(username)}`, {
+            headers: { "X-Session-ID": sessionUUID }
+          });
+          const data = await response.json();
+          
+          if (data.success && data.logs && data.logs.length > 0) {
+            content.innerHTML = data.logs.map(log => `
+              <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div class="flex justify-between items-start mb-2">
+                  <span class="text-xs text-slate-500">${(log.datetime || 'N/A').replace('T', ' ')}</span>
+                  <span class="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-600">${log.action || '操作'}</span>
+                </div>
+                <div class="text-xs text-slate-600">${log.details || '无详情'}</div>
+              </div>
+            `).join('');
+          } else {
+            content.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">暂无审计日志</p>';
+          }
+        } catch (e) {
+          content.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">加载失败: ${e.message}</p>`;
+        }
+      }
+      
+      // 【移动端】会话管理
+      function showMobileUserSessions(username, currentMax) {
+        let modal = document.getElementById("mobile-user-sessions-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-user-sessions-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) { if (e.target === modal) closeMobileUserSessions(); };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-blue-600 text-center">会话管理</h3>
+              </div>
+              <div class="space-y-4">
+                <div class="text-center text-sm text-slate-600">用户: <span id="mobile-sessions-username" class="font-semibold"></span></div>
+                <div class="text-center text-sm text-slate-500">当前最大会话数: <span id="mobile-sessions-current" class="font-semibold text-sky-600"></span></div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-2">新的最大会话数</label>
+                  <input type="number" id="mobile-new-max-sessions" min="0" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="0 表示无限制">
+                  <p class="text-xs text-slate-500 mt-1">输入 0 表示无限制</p>
+                </div>
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileUserSessions()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                <button onclick="submitMobileUserSessions()" class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm">保存</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        window.currentMobileSessionsUsername = username;
+        document.getElementById("mobile-sessions-username").textContent = username;
+        document.getElementById("mobile-sessions-current").textContent = currentMax === -1 ? '无限制' : currentMax;
+        document.getElementById("mobile-new-max-sessions").value = currentMax === -1 ? 0 : currentMax;
+        modal.classList.remove("hidden");
+      }
+      
+      function closeMobileUserSessions() {
+        const modal = document.getElementById("mobile-user-sessions-modal");
+        if (modal) modal.classList.add("hidden");
+      }
+      
+      async function submitMobileUserSessions() {
+        const username = window.currentMobileSessionsUsername;
+        const newMax = parseInt(document.getElementById("mobile-new-max-sessions").value);
+        
+        if (isNaN(newMax) || newMax < 0) {
+          showModalAlert("请输入有效的数字（0或更大）", "错误");
+          return;
+        }
+        
+        const maxSessions = newMax === 0 ? -1 : newMax;
+        
+        try {
+          const response = await fetch("/auth/admin/update_max_sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
+            body: JSON.stringify({ username, max_sessions: maxSessions })
+          });
+          
+          const result = await response.json();
+          if (result.success) {
+            showModalAlert(`已更新用户 ${username} 的最大会话数为: ${maxSessions === -1 ? '无限制' : maxSessions}`, "成功");
+            closeMobileUserSessions();
+            loadAdminUsers().then(() => copyAdminContentToMultiPanel("users"));
+          } else {
+            showModalAlert(result.message || "更新失败", "错误");
+          }
+        } catch (e) {
+          showModalAlert("操作失败: " + e.message, "错误");
+        }
+      }
+      
+      // 【移动端】权限设置
+      async function showMobileUserPermissions(username) {
+        let modal = document.getElementById("mobile-user-permissions-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-user-permissions-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) { if (e.target === modal) closeMobileUserPermissions(); };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-emerald-600 text-center">权限设置</h3>
+              </div>
+              <div class="text-center text-sm text-slate-600">用户: <span id="mobile-permissions-username" class="font-semibold"></span></div>
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p class="text-xs text-blue-700">权限组: <span id="mobile-user-base-group" class="font-mono font-semibold"></span></p>
+                <p class="text-xs text-slate-600 mt-1">💡 绿色表示新增权限，红色表示移除权限</p>
+              </div>
+              <div id="mobile-user-permissions-list" class="space-y-1 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-2">
+                <p class="text-slate-400 text-center py-10 text-xs">加载中...</p>
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileUserPermissions()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                <button onclick="submitMobileUserPermissions()" class="flex-1 py-2 px-4 bg-emerald-500 text-white rounded-lg text-sm">保存</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        window.currentMobilePermissionsUsername = username;
+        document.getElementById("mobile-permissions-username").textContent = username;
+        document.getElementById("mobile-user-permissions-list").innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+        modal.classList.remove("hidden");
+        
+        try {
+          const response = await fetch("/auth/admin/get_user_permissions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
+            body: JSON.stringify({ username })
+          });
+          const result = await response.json();
+          
+          if (!result.success) {
+            showModalAlert("无法加载用户权限信息", "错误");
+            return;
+          }
+          
+          document.getElementById("mobile-user-base-group").textContent = result.group || 'guest';
+          
+          if (result.all_permissions) {
+            const groupPerms = result.group_permissions || {};
+            const addedPerms = result.added_permissions || {};
+            const removedPerms = result.removed_permissions || {};
+            
+            const html = Object.keys(result.all_permissions).map(perm => {
+              const isAdded = addedPerms[perm] === true;
+              const isRemoved = removedPerms[perm] === true;
+              const currentValue = result.all_permissions[perm];
+              const groupValue = groupPerms[perm] || false;
+              
+              let statusClass = "";
+              if (isAdded) statusClass = "bg-green-50 border-green-200";
+              else if (isRemoved) statusClass = "bg-red-50 border-red-200";
+              
+              return `
+                <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer border ${statusClass}">
+                  <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" data-group-value="${groupValue}" ${currentValue ? 'checked' : ''}>
+                  <span class="text-xs text-slate-700 flex-1">${translatePermission(perm)}</span>
+                  ${isAdded ? '<span class="text-xs text-green-600">(新增)</span>' : ''}
+                  ${isRemoved ? '<span class="text-xs text-red-600">(移除)</span>' : ''}
+                </label>
+              `;
+            }).join('');
+            
+            document.getElementById("mobile-user-permissions-list").innerHTML = html;
+          }
+        } catch (e) {
+          showModalAlert("加载失败: " + e.message, "错误");
+        }
+      }
+      
+      function closeMobileUserPermissions() {
+        const modal = document.getElementById("mobile-user-permissions-modal");
+        if (modal) modal.classList.add("hidden");
+      }
+      
+      async function submitMobileUserPermissions() {
+        const username = window.currentMobilePermissionsUsername;
+        const container = document.getElementById("mobile-user-permissions-list");
+        
+        const addedPermissions = {};
+        const removedPermissions = {};
+        
+        container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          const perm = cb.getAttribute("data-permission");
+          const groupValue = cb.getAttribute("data-group-value") === "true";
+          const currentValue = cb.checked;
+          
+          if (currentValue && !groupValue) {
+            addedPermissions[perm] = true;
+          } else if (!currentValue && groupValue) {
+            removedPermissions[perm] = true;
+          }
+        });
+        
+        try {
+          const response = await fetch("/auth/admin/update_user_permissions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
+            body: JSON.stringify({ username, added_permissions: addedPermissions, removed_permissions: removedPermissions })
+          });
+          
+          const result = await response.json();
+          if (result.success) {
+            showModalAlert(`用户 ${username} 的权限已更新`, "成功");
+            closeMobileUserPermissions();
+            loadAdminUsers().then(() => copyAdminContentToMultiPanel("users"));
+          } else {
+            showModalAlert(result.message || "更新失败", "错误");
+          }
+        } catch (e) {
+          showModalAlert("操作失败: " + e.message, "错误");
+        }
+      }
+      
+      // 【移动端】修改昵称
+      function showMobileModifyNickname(username, currentNickname) {
+        let modal = document.getElementById("mobile-modify-nickname-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-modify-nickname-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) { if (e.target === modal) closeMobileModifyNickname(); };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-teal-600 text-center">修改昵称</h3>
+              </div>
+              <div class="text-center text-sm text-slate-600">用户: <span id="mobile-nickname-username" class="font-semibold"></span></div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">新昵称</label>
+                <input type="text" id="mobile-new-nickname" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="请输入新昵称">
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileModifyNickname()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                <button onclick="submitMobileModifyNickname()" class="flex-1 py-2 px-4 bg-teal-500 text-white rounded-lg text-sm">保存</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        window.currentMobileNicknameUsername = username;
+        document.getElementById("mobile-nickname-username").textContent = username;
+        document.getElementById("mobile-new-nickname").value = currentNickname || '';
+        modal.classList.remove("hidden");
+      }
+      
+      function closeMobileModifyNickname() {
+        const modal = document.getElementById("mobile-modify-nickname-modal");
+        if (modal) modal.classList.add("hidden");
+      }
+      
+      async function submitMobileModifyNickname() {
+        const username = window.currentMobileNicknameUsername;
+        const newNickname = document.getElementById("mobile-new-nickname").value.trim();
+        
+        if (!newNickname) {
+          showModalAlert("请输入新昵称", "提示");
+          return;
+        }
+        
+        try {
+          const response = await fetch("/auth/admin/update_user_nickname", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
+            body: JSON.stringify({ username, nickname: newNickname })
+          });
+          
+          const result = await response.json();
+          if (result.success) {
+            showModalAlert(`用户 ${username} 的昵称已更新`, "成功");
+            closeMobileModifyNickname();
+            loadAdminUsers().then(() => copyAdminContentToMultiPanel("users"));
+          } else {
+            showModalAlert(result.message || "更新失败", "错误");
+          }
+        } catch (e) {
+          showModalAlert("操作失败: " + e.message, "错误");
+        }
+      }
+      
+      // 【移动端】管理员修改用户手机号
+      function showMobileAdminModifyPhone(username, currentPhone) {
+        let modal = document.getElementById("mobile-admin-modify-phone-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-admin-modify-phone-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) { if (e.target === modal) closeMobileAdminModifyPhone(); };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-teal-600 text-center">修改手机号</h3>
+              </div>
+              <div class="text-center text-sm text-slate-600">用户: <span id="mobile-admin-phone-username" class="font-semibold"></span></div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">当前手机号</label>
+                <input type="tel" id="mobile-admin-phone-current" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50" readonly>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">新手机号</label>
+                <input type="tel" id="mobile-admin-phone-new" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="请输入新手机号" maxlength="11" inputmode="numeric">
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">短信验证码</label>
+                <div class="flex gap-2">
+                  <input type="text" id="mobile-admin-phone-code" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="验证码" maxlength="6" inputmode="numeric">
+                  <button id="mobile-admin-phone-send-btn" onclick="sendMobileAdminPhoneCode()" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm whitespace-nowrap">发送</button>
+                </div>
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileAdminModifyPhone()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                <button onclick="submitMobileAdminModifyPhone()" class="flex-1 py-2 px-4 bg-teal-500 text-white rounded-lg text-sm">确认</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        window.currentMobileAdminPhoneUsername = username;
+        document.getElementById("mobile-admin-phone-username").textContent = username;
+        document.getElementById("mobile-admin-phone-current").value = currentPhone || '未绑定';
+        document.getElementById("mobile-admin-phone-new").value = '';
+        document.getElementById("mobile-admin-phone-code").value = '';
+        modal.classList.remove("hidden");
+      }
+      
+      function closeMobileAdminModifyPhone() {
+        const modal = document.getElementById("mobile-admin-modify-phone-modal");
+        if (modal) modal.classList.add("hidden");
+      }
+      
+      let mobileAdminPhoneCooldown = 0;
+      
+      async function sendMobileAdminPhoneCode() {
+        if (mobileAdminPhoneCooldown > 0) {
+          showModalAlert(`请等待 ${mobileAdminPhoneCooldown} 秒后再发送`, "提示");
+          return;
+        }
+        
+        const newPhone = document.getElementById("mobile-admin-phone-new").value.trim();
+        if (!newPhone || !/^1[3-9]\d{9}$/.test(newPhone)) {
+          showModalAlert("请输入正确的手机号", "提示");
+          return;
+        }
+        
+        const sendBtn = document.getElementById("mobile-admin-phone-send-btn");
+        sendBtn.disabled = true;
+        
+        try {
+          const response = await fetch("/api/sms/send_code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
+            body: JSON.stringify({ phone: newPhone, scene: "modify" })
+          });
+          const result = await response.json();
+          
+          if (result && result.success) {
+            showModalAlert(`验证码已发送，${result.expire_minutes || 5}分钟内有效`, "成功");
+            mobileAdminPhoneCooldown = result.retry_after || 180;
+            const interval = setInterval(() => {
+              mobileAdminPhoneCooldown--;
+              sendBtn.textContent = `${mobileAdminPhoneCooldown}s`;
+              if (mobileAdminPhoneCooldown <= 0) {
+                clearInterval(interval);
+                sendBtn.textContent = "发送";
+                sendBtn.disabled = false;
+              }
+            }, 1000);
+          } else {
+            showModalAlert(result?.message || "发送失败", "错误");
+            sendBtn.disabled = false;
+          }
+        } catch (e) {
+          showModalAlert("发送失败: " + e.message, "错误");
+          sendBtn.disabled = false;
+        }
+      }
+      
+      async function submitMobileAdminModifyPhone() {
+        const username = window.currentMobileAdminPhoneUsername;
+        const newPhone = document.getElementById("mobile-admin-phone-new").value.trim();
+        const code = document.getElementById("mobile-admin-phone-code").value.trim();
+        
+        if (!newPhone) {
+          showModalAlert("请输入新手机号", "提示");
+          return;
+        }
+        
+        if (!/^1[3-9]\d{9}$/.test(newPhone)) {
+          showModalAlert("请输入正确的手机号格式", "提示");
+          return;
+        }
+        
+        try {
+          const response = await fetch("/auth/admin/update_user_phone", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
+            body: JSON.stringify({ username, phone: newPhone, code: code || null })
+          });
+          
+          const result = await response.json();
+          if (result.success) {
+            showModalAlert(`用户 ${username} 的手机号已更新`, "成功");
+            closeMobileAdminModifyPhone();
+            loadAdminUsers().then(() => copyAdminContentToMultiPanel("users"));
+          } else {
+            showModalAlert(result.message || "更新失败", "错误");
+          }
+        } catch (e) {
+          showModalAlert("操作失败: " + e.message, "错误");
+        }
+      }
+      
+      // 【移动端】重置密码
+      function showMobileResetPassword(username) {
+        let modal = document.getElementById("mobile-reset-password-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.id = "mobile-reset-password-modal";
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          modal.onclick = function(e) { if (e.target === modal) closeMobileResetPassword(); };
+          modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                <svg class="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                </svg>
+                <h3 class="text-xl font-bold text-purple-600 text-center">重置密码</h3>
+              </div>
+              <div class="text-center text-sm text-slate-600">用户: <span id="mobile-reset-password-username" class="font-semibold"></span></div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">新密码（至少6位）</label>
+                <input type="password" id="mobile-new-password" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="请输入新密码">
+              </div>
+              <div class="flex gap-3 pt-4 border-t border-slate-100">
+                <button onclick="closeMobileResetPassword()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                <button onclick="submitMobileResetPassword()" class="flex-1 py-2 px-4 bg-purple-500 text-white rounded-lg text-sm">确认重置</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+        }
+        
+        window.currentMobileResetPasswordUsername = username;
+        document.getElementById("mobile-reset-password-username").textContent = username;
+        document.getElementById("mobile-new-password").value = '';
+        modal.classList.remove("hidden");
+      }
+      
+      function closeMobileResetPassword() {
+        const modal = document.getElementById("mobile-reset-password-modal");
+        if (modal) modal.classList.add("hidden");
+      }
+      
+      async function submitMobileResetPassword() {
+        const username = window.currentMobileResetPasswordUsername;
+        const newPassword = document.getElementById("mobile-new-password").value;
+        
+        if (!newPassword || newPassword.length < 6) {
+          showModalAlert("密码长度至少为6个字符", "错误");
+          return;
+        }
+        
+        try {
+          const response = await fetch("/auth/admin/force_reset_password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
+            body: JSON.stringify({ target_username: username, new_password: newPassword })
+          });
+          
+          const result = await response.json();
+          if (result.success) {
+            showModalAlert(`用户 ${username} 的密码已重置`, "成功");
+            closeMobileResetPassword();
+          } else {
+            showModalAlert(result.message || "重置失败", "错误");
+          }
+        } catch (e) {
+          showModalAlert("操作失败: " + e.message, "错误");
         }
       }
       
