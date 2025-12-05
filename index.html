@@ -9713,12 +9713,22 @@
             <div id="mobile-multi-admin-groups-panel" class="hidden space-y-3">
               <div class="flex justify-between items-center">
                 <h4 class="font-semibold text-sm">权限组列表</h4>
-                <button
-                  class="btn btn-ghost !py-1 !px-2 text-xs"
-                  onclick="switchMobileAdminTab('groups', 'mobile-multi-admin-panel')"
-                >
-                  刷新
-                </button>
+                <div class="flex gap-2">
+                  <button
+                    id="mobile-multi-admin-create-group"
+                    class="btn btn-primary !py-1 !px-2 text-xs"
+                    onclick="showMobileCreateGroupModal()"
+                  >
+                    新增
+                  </button>
+                  <button
+                    id="mobile-multi-admin-refresh-groups"
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                    onclick="switchMobileAdminTab('groups', 'mobile-multi-admin-panel')"
+                  >
+                    刷新
+                  </button>
+                </div>
               </div>
               <div id="mobile-multi-admin-groups-list" class="space-y-2">
                 <p class="text-slate-400 text-center py-10 text-xs">
@@ -19200,7 +19210,7 @@
           );
 
           // --- 新增代码开始: 绑定权限组按钮 ---
-          const mobileMultiCreateGroupBtn = $("mobile-multi-admin-create-group");
+          // const mobileMultiCreateGroupBtn = $("mobile-multi-admin-create-group");
           const mobileMultiRefreshGroupsBtn = $("mobile-multi-admin-refresh-groups");
           // --- 新增代码结束 ---
 
@@ -19237,9 +19247,9 @@
           }
 
           // --- 新增代码开始: 绑定权限组逻辑 ---
-          if (mobileMultiCreateGroupBtn) {
-            mobileMultiCreateGroupBtn.addEventListener("click", showCreateGroupModal);
-          }
+          // if (mobileMultiCreateGroupBtn) {
+          //   mobileMultiCreateGroupBtn.addEventListener("click", showCreateGroupModal);
+          // }
           
           if (mobileMultiRefreshGroupsBtn) {
             mobileMultiRefreshGroupsBtn.addEventListener("click", () => {
@@ -20350,37 +20360,50 @@
         }
       }
 
-      async function loadAvatarWithAuth(avatarUrl, imgElement) {
+      async function loadAvatarWithAuth(avatarUrl, imgElement, retryCount = 0) {
+        const defaultSvg = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E";
+        
         try {
-          logMessage_Info("[loadAvatarWithAuth] Fetching avatar:", avatarUrl);
-          const response = await fetch(avatarUrl, {
+          logMessage_Info(`[loadAvatarWithAuth] Fetching avatar (Attempt ${retryCount + 1}): ${avatarUrl}`);
+          
+          // 增加时间戳防止缓存
+          const urlWithTs = avatarUrl.includes('?') ? `${avatarUrl}&t=${Date.now()}` : `${avatarUrl}?t=${Date.now()}`;
+          
+          const response = await fetch(urlWithTs, {
             headers: {
               "X-Session-ID": sessionUUID,
             },
           });
 
           if (!response.ok) {
-            logMessage_Error(
-              "[loadAvatarWithAuth] Failed to fetch avatar:",
-              response.status
-            );
-            imgElement.src =
-              "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E";
-            return;
+            throw new Error(`HTTP Status ${response.status}`);
           }
 
           const blob = await response.blob();
+          if (blob.size === 0) throw new Error("Empty blob received");
 
-          const reader = new FileReader();
-          reader.onloadend = function () {
-            logMessage_Info("[loadAvatarWithAuth] Avatar loaded successfully");
-            imgElement.src = reader.result;
+          const url = URL.createObjectURL(blob);
+          imgElement.onload = () => {
+             URL.revokeObjectURL(url); // 释放内存
+             logMessage_Info("[loadAvatarWithAuth] Avatar loaded successfully");
           };
-          reader.readAsDataURL(blob);
+          imgElement.onerror = () => {
+             logMessage_Error("[loadAvatarWithAuth] Blob image failed to render");
+             imgElement.src = defaultSvg;
+          };
+          imgElement.src = url;
+
         } catch (e) {
-          logMessage_Error("[loadAvatarWithAuth] Error loading avatar:", e);
-          imgElement.src =
-            "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E";
+          logMessage_Error(`[loadAvatarWithAuth] Error loading avatar: ${e.message}`);
+          
+          // 重试机制：最多重试2次
+          if (retryCount < 2) {
+             setTimeout(() => {
+                 loadAvatarWithAuth(avatarUrl, imgElement, retryCount + 1);
+             }, 1000 * (retryCount + 1)); // 延迟 1s, 2s
+          } else {
+             imgElement.src = defaultSvg;
+          }
         }
       }
 
@@ -20668,10 +20691,6 @@
           showModalAlert("网络错误，请稍后重试", "错误");
         }
       }
-      async function modifyPhone() {
-        showModalAlert("修改手机号功能需要短信验证，当前版本暂未开放", "提示");
-      }
-
       async function updatePassword() {
         const confirmed = await jsShowConfirm(
           "确认修改密码",
@@ -38462,29 +38481,19 @@
           const statusText = result.status === "ok" ? "运行正常" : "出现错误";
           
           contentEl.innerHTML = `
-            <div class="space-y-3">
-              <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full bg-${statusColor}-500"></span>
-                <span class="text-sm font-semibold text-${statusColor}-600">${statusText}</span>
+            <div class="grid grid-cols-2 gap-2 mb-3">
+              <div class="bg-${statusColor}-50 border border-${statusColor}-200 rounded-lg p-3">
+                <h5 class="font-semibold text-${statusColor}-800 text-xs mb-1">服务器状态</h5>
+                <p class="text-lg font-bold text-${statusColor}-600">${statusText}</p>
               </div>
-              <div class="grid grid-cols-2 gap-2 text-xs">
-                <div class="p-2 bg-slate-50 rounded">
-                  <div class="text-slate-500">响应时间</div>
-                  <div class="font-semibold">${responseTime}ms</div>
-                </div>
-                <div class="p-2 bg-slate-50 rounded">
-                  <div class="text-slate-500">服务器时间</div>
-                  <div class="font-semibold">${result.time || "N/A"}</div>
-                </div>
-                <div class="p-2 bg-slate-50 rounded">
-                  <div class="text-slate-500">运行时长</div>
-                  <div class="font-semibold">${result.uptime || "N/A"}</div>
-                </div>
-                <div class="p-2 bg-slate-50 rounded">
-                  <div class="text-slate-500">版本</div>
-                  <div class="font-semibold">${result.version || "N/A"}</div>
-                </div>
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h5 class="font-semibold text-blue-800 text-xs mb-1">响应时间</h5>
+                <p class="text-lg font-bold text-blue-600">${responseTime}ms</p>
               </div>
+            </div>
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+              <h5 class="font-semibold text-slate-800 text-xs mb-2">系统信息</h5>
+              <pre class="text-[10px] text-slate-600 whitespace-pre-wrap font-mono overflow-x-auto">${JSON.stringify(result, null, 2)}</pre>
             </div>
           `;
         } catch (e) {
@@ -38640,6 +38649,8 @@
       // ========================================
       async function showMobileCreateGroupModal() {
         // 使用移动端专用模态框
+        // [修正] 移除此处的 classList.add("show")，因为它在元素创建前执行会导致第一次点击无效
+        
         let modal = document.getElementById("mobile-create-group-modal");
         if (!modal) {
           // 动态创建移动端权限组创建模态框
@@ -38715,13 +38726,18 @@
           console.error("[移动端创建权限组] 加载权限列表失败:", e);
         }
         
+        // [修正] 确保元素存在后再显示，并添加 show 类触发动画
         modal.classList.remove("hidden");
+        setTimeout(() => {
+            modal.classList.add("show");
+        }, 10);
       }
       
       function closeMobileCreateGroupModal() {
         const modal = document.getElementById("mobile-create-group-modal");
         if (modal) {
           modal.classList.add("hidden");
+          modal.classList.remove("show");
         }
       }
       
@@ -38755,9 +38771,9 @@
               "X-Session-ID": sessionUUID
             },
             body: JSON.stringify({
-              group_key: groupKey,
-              name: groupName,
-              permissions: permissions
+              group_name: groupKey,
+              display_name: groupName,
+              permissions: permissions,
             })
           });
           
@@ -38780,83 +38796,92 @@
       // 【移动端多账号】编辑权限组模态框
       // ========================================
       let mobileCurrentEditGroupKey = null;
-      
+            
       async function showMobileEditGroupModal(groupKey) {
-        mobileCurrentEditGroupKey = groupKey;
-        
-        let modal = document.getElementById("mobile-edit-group-modal");
-        if (!modal) {
-          modal = document.createElement("div");
-          modal.id = "mobile-edit-group-modal";
-          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
-          modal.onclick = function(e) {
-            if (e.target === modal) closeMobileEditGroupModal();
-          };
-          modal.innerHTML = `
-            <div class="absolute inset-0 bg-black/40"></div>
-            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
-              <div class="flex justify-center mb-2">
-                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
-              </div>
-              <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
-                <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                </svg>
-                <h3 class="text-xl font-bold text-sky-600 text-center">编辑权限组</h3>
-              </div>
-              <div class="text-center text-sm text-slate-600" id="mobile-edit-group-name-display"></div>
-              <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
-                <div id="mobile-edit-group-permissions" class="grid grid-cols-1 gap-1 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-2"></div>
-              </div>
-              <div class="flex gap-3 pt-4 border-t border-slate-100">
-                <button onclick="closeMobileEditGroupModal()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
-                <button onclick="submitMobileEditGroup()" class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm">保存</button>
-              </div>
-            </div>
-          `;
-          document.body.appendChild(modal);
-        }
-        
-        try {
-          const response = await fetch("/auth/admin/list_groups", {
-            headers: { "X-Session-ID": sessionUUID }
-          });
-          const result = await response.json();
+          mobileCurrentEditGroupKey = groupKey;
           
-          if (!result.success || !result.groups || !result.groups[groupKey]) {
-            showModalAlert("无法加载权限组信息", "错误");
-            return;
+          let modal = document.getElementById("mobile-edit-group-modal");
+          if (!modal) {
+            // 修正：移除错误的 classList 调用，先创建元素
+            modal = document.createElement("div");
+            modal.id = "mobile-edit-group-modal";
+            modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+            modal.onclick = function(e) {
+              if (e.target === modal) closeMobileEditGroupModal();
+            };
+            modal.innerHTML = `
+              <div class="absolute inset-0 bg-black/40"></div>
+              <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+                <div class="flex justify-center mb-2">
+                  <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+                </div>
+                <div class="flex items-center justify-center gap-2 pb-3 border-b border-slate-200">
+                  <svg class="w-6 h-6 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                  </svg>
+                  <h3 class="text-xl font-bold text-sky-600 text-center">编辑权限组</h3>
+                </div>
+                <div class="text-center text-sm text-slate-600" id="mobile-edit-group-name-display"></div>
+                <div>
+                  <label class="block text-sm font-semibold text-slate-700 mb-2">权限设置</label>
+                  <div id="mobile-edit-group-permissions" class="grid grid-cols-1 gap-1 max-h-[40vh] overflow-y-auto border border-slate-200 rounded-lg p-2"></div>
+                </div>
+                <div class="flex gap-3 pt-4 border-t border-slate-100">
+                  <button onclick="closeMobileEditGroupModal()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
+                  <button onclick="submitMobileEditGroup()" class="flex-1 py-2 px-4 bg-sky-500 text-white rounded-lg text-sm">保存</button>
+                </div>
+              </div>
+            `;
+            document.body.appendChild(modal);
           }
           
-          const group = result.groups[groupKey];
-          
-          const nameDisplay = document.getElementById("mobile-edit-group-name-display");
-          if (nameDisplay) {
-            nameDisplay.textContent = `${group.name} (${groupKey})`;
+          try {
+                const response = await fetch("/auth/admin/list_groups", {
+                  headers: { "X-Session-ID": sessionUUID }
+                });
+                const result = await response.json();
+                
+                if (!result.success || !result.groups || !result.groups[groupKey]) {
+                  showModalAlert("无法加载权限组信息", "错误");
+                  return;
+                }
+                
+                const group = result.groups[groupKey];
+                
+                const nameDisplay = document.getElementById("mobile-edit-group-name-display");
+                if (nameDisplay) {
+                  nameDisplay.textContent = `${group.name} (${groupKey})`;
+                }
+                
+                const permissionsContainer = document.getElementById("mobile-edit-group-permissions");
+                if (permissionsContainer && group.permissions) {
+                  permissionsContainer.innerHTML = Object.keys(group.permissions).map((perm) => `
+                    <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
+                      <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" ${group.permissions[perm] ? 'checked' : ''}>
+                      <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
+                    </label>
+                  `).join("");
+                }
+
+            // 显示模态框
+            modal.classList.remove("hidden");
+            // 修正：添加动画类，并增加微小延时以触发 CSS transition
+            setTimeout(() => {
+                modal.classList.add("show");
+            }, 10);
+            
+          } catch (e) {
+            console.error("[移动端编辑权限组] 加载失败:", e);
+            showModalAlert("加载失败: " + e.message, "错误");
           }
-          
-          const permissionsContainer = document.getElementById("mobile-edit-group-permissions");
-          if (permissionsContainer && group.permissions) {
-            permissionsContainer.innerHTML = Object.keys(group.permissions).map((perm) => `
-              <label class="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer">
-                <input type="checkbox" class="w-4 h-4 rounded" data-permission="${perm}" ${group.permissions[perm] ? 'checked' : ''}>
-                <span class="text-sm text-slate-700">${translatePermission(perm)}</span>
-              </label>
-            `).join("");
-          }
-          
-          modal.classList.remove("hidden");
-        } catch (e) {
-          console.error("[移动端编辑权限组] 加载失败:", e);
-          showModalAlert("加载失败: " + e.message, "错误");
-        }
       }
-      
+
+
       function closeMobileEditGroupModal() {
         const modal = document.getElementById("mobile-edit-group-modal");
         if (modal) {
           modal.classList.add("hidden");
+          modal.classList.remove("show");
         }
         mobileCurrentEditGroupKey = null;
       }
@@ -39603,6 +39628,7 @@
         
         // 【权限组列表】替换PC端按钮事件为移动端专用函数
         if (tabType === "groups") {
+          // 1. 处理列表项中的编辑/删除按钮
           mobileContainer.querySelectorAll("button").forEach((btn) => {
             const onclickAttr = btn.getAttribute("onclick");
             if (!onclickAttr) return;
@@ -39621,6 +39647,20 @@
               return;
             }
           });
+
+          // 2. 【修复】手动查找并绑定 "新增权限组" 和 "刷新" 按钮
+          // 这些按钮从PC端复制过来后失去了事件监听器，需要重新绑定
+          const createGroupBtn = mobileContainer.querySelector('[id="admin-create-group_modal"]');
+          if (createGroupBtn) {
+              // 移除可能存在的旧ID避免冲突（可选），并绑定移动端新增函数
+              createGroupBtn.setAttribute("onclick", "showMobileCreateGroupModal()");
+          }
+
+          const refreshGroupBtn = mobileContainer.querySelector('[id="admin-refresh-groups_modal"]');
+          if (refreshGroupBtn) {
+              // 绑定刷新逻辑：加载数据 -> 再次同步到移动端
+              refreshGroupBtn.setAttribute("onclick", "loadAdminGroups().then(() => copyAdminContentToMultiPanel('groups'))");
+          }
         }
         
         // 【个人信息面板】替换头像上传和手机号修改按钮
@@ -40707,7 +40747,7 @@
           const response = await fetch("/auth/admin/update_user_phone", {
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
-            body: JSON.stringify({ username, phone: newPhone, code: code || null })
+            body: JSON.stringify({ username: username, pnew_phone: newPhone, sms_code: code || null })
           });
           
           const result = await response.json();
