@@ -14353,7 +14353,16 @@ def start_web_server(args_param):
 
     @app.route("/auth/admin/create_user", methods=["POST"])
     def auth_admin_create_user():
-        """管理员：创建新用户"""
+        """管理员：创建新用户
+        
+        请求参数：
+        - username: 用户名（必填）
+        - password: 密码（必填）
+        - group: 用户组（可选，默认 user）
+        - phone: 手机号（可选）
+        - nickname: 昵称（可选）
+        - sms_code: 短信验证码（可选，如非空则进行校验）
+        """
         session_id = request.headers.get("X-Session-ID", "")
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
@@ -14367,17 +14376,56 @@ def start_web_server(args_param):
         new_username = data.get("username", "")
         password = data.get("password", "")
         group = data.get("group", "user")
+        phone = data.get("phone", "").strip()
+        nickname = data.get("nickname", "").strip()
+        sms_code = data.get("sms_code", "").strip()
 
         if not new_username or not password:
             return jsonify({"success": False, "message": "用户名和密码不能为空"})
 
+        # 如果填写了手机号，验证格式
+        if phone:
+            import re
+            if not re.match(r'^1[3-9]\d{9}$', phone):
+                return jsonify({"success": False, "message": "手机号格式不正确"})
+        
+        # 如果填写了验证码，进行校验（验证码非空时必须校验）
+        if sms_code and phone:
+            # 调用短信验证码校验逻辑
+            if hasattr(auth_system, 'sms_codes') and phone in auth_system.sms_codes:
+                stored = auth_system.sms_codes[phone]
+                import time
+                if stored.get('code') != sms_code:
+                    return jsonify({"success": False, "message": "验证码错误"})
+                if time.time() > stored.get('expire_at', 0):
+                    return jsonify({"success": False, "message": "验证码已过期"})
+                # 验证成功，删除已使用的验证码
+                del auth_system.sms_codes[phone]
+            else:
+                return jsonify({"success": False, "message": "验证码不存在或已过期"})
+
         result = auth_system.register_user(new_username, password, group)
         if result.get("success"):
             ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
+            
+            # 如果提供了手机号，绑定到新用户
+            if phone:
+                try:
+                    auth_system.update_user_phone(new_username, phone)
+                except Exception as e:
+                    print(f"[警告] 绑定手机号失败: {e}")
+            
+            # 如果提供了昵称，更新昵称
+            if nickname:
+                try:
+                    auth_system.update_user_nickname(new_username, nickname)
+                except Exception as e:
+                    print(f"[警告] 更新昵称失败: {e}")
+            
             auth_system.log_audit(
                 auth_username,
                 "create_user",
-                f"创建新用户: {new_username} (组: {group})",
+                f"创建新用户: {new_username} (组: {group})" + (f", 手机: {phone}" if phone else ""),
                 ip_address,
                 session_id,
             )
@@ -14719,7 +14767,12 @@ def start_web_server(args_param):
     @app.route("/auth/admin/update_user_phone", methods=["POST"])
     def auth_admin_update_user_phone():
         """
-        问题4修复：管理员更新用户手机号
+        管理员更新用户手机号
+        
+        请求参数：
+        - username: 目标用户名（必填）
+        - new_phone: 新手机号（必填）
+        - sms_code: 短信验证码（可选，如非空则进行校验）
         """
         session_id = request.headers.get("X-Session-ID", "")
         if not session_id or session_id not in web_sessions:
@@ -14745,6 +14798,20 @@ def start_web_server(args_param):
         if not re.match(r"^1[3-9]\d{9}$", new_phone):
             return jsonify({"success": False, "message": "手机号格式不正确"}), 400
 
+        # 如果填写了验证码，进行校验（验证码非空时必须校验）
+        if sms_code:
+            import time
+            if hasattr(auth_system, 'sms_codes') and new_phone in auth_system.sms_codes:
+                stored = auth_system.sms_codes[new_phone]
+                if stored.get('code') != sms_code:
+                    return jsonify({"success": False, "message": "验证码错误"}), 400
+                if time.time() > stored.get('expire_at', 0):
+                    return jsonify({"success": False, "message": "验证码已过期"}), 400
+                # 验证成功，删除已使用的验证码
+                del auth_system.sms_codes[new_phone]
+            else:
+                return jsonify({"success": False, "message": "验证码不存在或已过期"}), 400
+
         try:
             user_file_path = auth_system.get_user_file_path(username)
             if not os.path.exists(user_file_path):
@@ -14760,7 +14827,7 @@ def start_web_server(args_param):
             auth_system.log_audit(
                 current_username,
                 "admin_update_phone",
-                f"管理员 {current_username} 更新了用户 {username} 的手机号为: {new_phone}",
+                f"管理员 {current_username} 更新了用户 {username} 的手机号为: {new_phone}" + (f" (已验证)" if sms_code else " (未验证)"),
                 ip_address,
                 session_id,
             )

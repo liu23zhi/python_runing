@@ -10128,10 +10128,36 @@
               </div>
             </div>
 
+            <!-- 验证码输入区域（仅在输入手机号后显示） -->
+            <div id="mobile-new-sms-group" style="display: none">
+              <label class="block text-sm font-semibold text-slate-700 mb-2"
+                >验证码 (可选)</label
+              >
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  id="mobile-new-sms-code"
+                  class="flex-1 px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="请输入验证码"
+                  inputmode="numeric"
+                  maxlength="6"
+                  pattern="[0-9]*"
+                />
+                <button
+                  type="button"
+                  id="mobile-new-send-code-btn"
+                  onclick="sendMobileNewUserCode()"
+                  class="px-4 py-3 bg-sky-500 text-white rounded-xl text-sm font-bold whitespace-nowrap"
+                >
+                  发送
+                </button>
+              </div>
+            </div>
+
             <div
               class="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700"
             >
-              <p>💡 管理员创建用户无需短信验证。</p>
+              <p>💡 管理员创建用户时验证码为可选项，如填写验证码将进行校验。</p>
             </div>
           </div>
 
@@ -13910,7 +13936,7 @@
               class="text-xs text-slate-500 mt-1"
               id="admin-modify-phone-sms-hint"
             >
-              管理员修改手机号不强制要求验证码
+              管理员修改手机号不强制要求验证码，如填写将进行校验
             </p>
           </div>
         </div>
@@ -20945,11 +20971,21 @@
           $("newUserModal").style.display = "flex";
           $("newPasswordConfirm").value = "";
           modal.style.display = "flex";
+          
+          // 监听手机号输入，显示/隐藏验证码区域
+          const phoneInput = $("newUserPhone");
+          phoneInput.oninput = () => {
+            const phone = phoneInput.value.trim();
+            $("newUserSmsGroup").style.display = phone ? "block" : "none";
+          };
 
           const confirmBtn = $("newUserConfirm");
           confirmBtn.onclick = async () => {
             const inputUsername = $("newUsername").value.trim();
             const inputPassword = $("newPassword").value;
+            const inputPhone = $("newUserPhone").value.trim();
+            const inputNickname = $("newUserNickname").value.trim();
+            const inputSmsCode = $("newUserSmsCode").value.trim();
 
             if (!inputUsername || !inputPassword) {
               showModalAlert("账号和密码均不能为空");
@@ -20959,10 +20995,16 @@
               showModalAlert("密码长度至少为6个字符", "错误");
               return;
             }
+            // 如果填了手机号，验证格式
+            if (inputPhone && !/^1[3-9]\d{9}$/.test(inputPhone)) {
+              showModalAlert("请输入正确的手机号格式", "错误");
+              return;
+            }
             const group = "user";
             setButtonLoading("newUserConfirm", true, "创建中...");
 
             try {
+              // 管理员创建用户时验证码为可选项，如填写将进行校验
               const response = await fetch("/auth/admin/create_user", {
                 method: "POST",
                 headers: {
@@ -20973,6 +21015,9 @@
                   username: inputUsername,
                   password: inputPassword,
                   group: group,
+                  phone: inputPhone || "",
+                  nickname: inputNickname || "",
+                  sms_code: inputSmsCode || "",  // 验证码可选，如非空则校验
                 }),
               });
 
@@ -28966,6 +29011,23 @@
         document.getElementById("mobile-new-password").value = "";
         document.getElementById("mobile-new-nickname").value = "";
         document.getElementById("mobile-new-phone").value = "";
+        
+        // 重置验证码相关
+        const smsGroup = document.getElementById("mobile-new-sms-group");
+        const smsCode = document.getElementById("mobile-new-sms-code");
+        if (smsGroup) smsGroup.style.display = "none";
+        if (smsCode) smsCode.value = "";
+        
+        // 监听手机号输入，显示/隐藏验证码区域
+        const phoneInput = document.getElementById("mobile-new-phone");
+        if (phoneInput) {
+          phoneInput.oninput = () => {
+            const phone = phoneInput.value.trim();
+            if (smsGroup) {
+              smsGroup.style.display = phone ? "block" : "none";
+            }
+          };
+        }
 
         // 显示模态框 (模拟底部滑出效果)
         modal.classList.remove("hidden");
@@ -28973,6 +29035,32 @@
         setTimeout(() => {
           modal.classList.add("show");
         }, 10);
+      }
+      
+      // 移动端创建用户 - 发送验证码
+      let mobileNewUserCodeCooldown = 0;
+      async function sendMobileNewUserCode() {
+        if (mobileNewUserCodeCooldown > 0) {
+          showModalAlert(`请等待 ${mobileNewUserCodeCooldown} 秒后再发送`, "提示");
+          return;
+        }
+        
+        const phone = document.getElementById("mobile-new-phone").value.trim();
+        if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
+          showModalAlert("请输入正确的手机号", "提示");
+          return;
+        }
+        
+        const sendBtn = document.getElementById("mobile-new-send-code-btn");
+        const originalText = "发送";
+        
+        // 打开图形验证码模态框
+        openCaptchaModal({
+          phone: phone,
+          button: sendBtn,
+          originalText: originalText,
+          scene: "register"
+        });
       }
 
       function closeMobileCreateUserModal() {
@@ -28994,6 +29082,9 @@
           .getElementById("mobile-new-nickname")
           .value.trim();
         const phone = document.getElementById("mobile-new-phone").value.trim();
+        // 获取验证码（可选）
+        const smsCodeEl = document.getElementById("mobile-new-sms-code");
+        const smsCode = smsCodeEl ? smsCodeEl.value.trim() : "";
         const confirmBtn = document.getElementById(
           "mobile-new-user-confirm-btn"
         );
@@ -29006,6 +29097,12 @@
           showModalAlert("密码长度至少为6个字符", "错误");
           return;
         }
+        
+        // 如果填了手机号，验证格式
+        if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+          showModalAlert("请输入正确的手机号格式", "错误");
+          return;
+        }
 
         // 禁用按钮防止重复提交
         if (confirmBtn) {
@@ -29016,7 +29113,7 @@
 
         try {
           // 复用后端的 create_user 接口
-          // 注意：这里我们不需要像注册那样传 captcha，因为是管理员创建
+          // 管理员创建用户时验证码为可选项，如填写将进行校验
           const response = await fetch("/auth/admin/create_user", {
             method: "POST",
             headers: {
@@ -29029,7 +29126,8 @@
               group: "user", // 默认为普通用户
               // 扩展字段支持 (如果后端支持这些字段)
               nickname: nickname,
-              phone: phone,
+              phone: phone || "",
+              sms_code: smsCode || "",  // 验证码可选，如非空则校验
             }),
           });
 
@@ -29125,60 +29223,15 @@
         }
 
         const sendCodeBtn = $("newUserSendCode");
-        sendCodeBtn.disabled = true;
         const originalText = sendCodeBtn.textContent;
 
-        try {
-          const response = await fetch("/api/sms/send_code", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Session-ID": sessionUUID,
-            },
-            body: JSON.stringify({
-              phone: phone,
-              scene: "register",
-            }),
-          });
-          const result = await response.json();
-
-          if (result && result.success) {
-            const expireMin = result.expire_minutes || 5;
-            const retryAfter = result.retry_after || 180;
-            showModalAlert(`验证码已发送，${expireMin}分钟内有效`, "成功");
-
-            let countdown = retryAfter;
-            const timer = setInterval(() => {
-              countdown--;
-              sendCodeBtn.textContent = `${countdown}秒后重试`;
-              if (countdown <= 0) {
-                clearInterval(timer);
-                sendCodeBtn.disabled = false;
-                sendCodeBtn.textContent = originalText;
-              }
-            }, 1000);
-          } else {
-            if (result?.retry_after) {
-              let countdown = result.retry_after;
-              sendCodeBtn.textContent = `${countdown}秒后重试`;
-              const timer = setInterval(() => {
-                countdown--;
-                sendCodeBtn.textContent = `${countdown}秒后重试`;
-                if (countdown <= 0) {
-                  clearInterval(timer);
-                  sendCodeBtn.disabled = false;
-                  sendCodeBtn.textContent = originalText;
-                }
-              }, 1000);
-            } else {
-              sendCodeBtn.disabled = false;
-            }
-            showModalAlert(result?.message || "发送失败");
-          }
-        } catch (error) {
-          sendCodeBtn.disabled = false;
-          showModalAlert("发送失败: " + error.message);
-        }
+        // 打开图形验证码模态框发送短信
+        openCaptchaModal({
+          phone: phone,
+          button: sendCodeBtn,
+          originalText: originalText,
+          scene: "register"
+        });
       };
 
       async function multi_addFromConfig() {
@@ -40564,11 +40617,12 @@
                 <input type="tel" id="mobile-admin-phone-new" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="请输入新手机号" maxlength="11" inputmode="numeric">
               </div>
               <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-2">短信验证码</label>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">短信验证码（可选）</label>
                 <div class="flex gap-2">
                   <input type="text" id="mobile-admin-phone-code" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="验证码" maxlength="6" inputmode="numeric">
                   <button id="mobile-admin-phone-send-btn" onclick="sendMobileAdminPhoneCode()" class="px-4 py-2 bg-sky-500 text-white rounded-lg text-sm whitespace-nowrap">发送</button>
                 </div>
+                <p class="text-xs text-slate-500 mt-1">管理员修改手机号不强制要求验证码，如填写将进行校验</p>
               </div>
               <div class="flex gap-3 pt-4 border-t border-slate-100">
                 <button onclick="closeMobileAdminModifyPhone()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
