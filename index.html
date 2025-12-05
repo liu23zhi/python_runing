@@ -21668,7 +21668,9 @@
                             onclick="forceDisable2FA('${user.auth_username}')">
                       关闭2FA
                     </button>`
-                      : `<button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-slate-50 text-slate-300 border-slate-200 border cursor-not-allowed" disabled>
+                      : `<button class="btn !btn-xs !h-7 !min-h-0 !text-xs flex-1 bg-slate-50 text-slate-300 border-slate-200 border cursor-not-allowed" disabled
+                        onclick="forceDisable2FA('${user.auth_username}')"
+                      >
                       2FA未启用
                     </button>`
                   }
@@ -21699,9 +21701,12 @@
             })
             .join("");
 
-          result.users.forEach((user) => {
-            loadUserAvatar(user.auth_username);
-          });
+          // [修复] 使用 Promise.all 等待所有头像加载完成
+          // 这样确保 loadAdminUsers 返回时，DOM 中的头像 img 标签已经生成
+          // 后续的 copyAdminContentToMultiPanel 才能复制到正确的图片，而不是占位符
+          const avatarPromises = result.users.map(user => loadUserAvatar(user.auth_username));
+          await Promise.all(avatarPromises);
+
         } catch (e) {
           $(
             "admin-users-list"
@@ -21728,11 +21733,17 @@
             logMessage_Info(`用户 ${username} 的权限组已更新为 ${newGroup}`);
           } else {
             showModalAlert(`更新失败: ${result.message}`, "操作失败");
-            loadAdminUsers();
+            // [修正] 等待PC端列表刷新完成后，同步到移动端，实现回退效果
+            await loadAdminUsers();
+            if (typeof copyAdminContentToMultiPanel === "function") copyAdminContentToMultiPanel("users");
+            if (typeof copyAdminContentToPanelVersion === "function") copyAdminContentToPanelVersion("users");
           }
         } catch (e) {
           showModalAlert(`更新失败: ${e.message}`, "网络错误");
-          loadAdminUsers();
+          // [修正] 等待PC端列表刷新完成后，同步到移动端，实现回退效果
+          await loadAdminUsers();
+          if (typeof copyAdminContentToMultiPanel === "function") copyAdminContentToMultiPanel("users");
+          if (typeof copyAdminContentToPanelVersion === "function") copyAdminContentToPanelVersion("users");
         }
       }
 
@@ -21759,7 +21770,18 @@
           const result = await response.json();
           if (result.success) {
             showModalAlert(`用户 ${username} 已被封禁`, "成功");
-            loadAdminUsers();
+            
+            // [修正] 统一调用一次刷新，避免并发竞争导致头像丢失
+            loadAdminUsers().then(() => {
+              // 同步到移动端多账号面板
+              if (typeof copyAdminContentToMultiPanel === "function") {
+                copyAdminContentToMultiPanel("users");
+              }
+              // 同步到移动端单账号面板
+              if (typeof copyAdminContentToPanelVersion === "function") {
+                copyAdminContentToPanelVersion("users");
+              }
+            });
           } else {
             showModalAlert(result.message || "封禁失败", "错误");
           }
@@ -21788,7 +21810,18 @@
           const result = await response.json();
           if (result.success) {
             showModalAlert(`用户 ${username} 已解封`, "成功");
-            loadAdminUsers();
+            
+            // [修正] 统一调用一次刷新，避免并发竞争导致头像丢失
+            loadAdminUsers().then(() => {
+              // 同步到移动端多账号面板
+              if (typeof copyAdminContentToMultiPanel === "function") {
+                copyAdminContentToMultiPanel("users");
+              }
+              // 同步到移动端单账号面板
+              if (typeof copyAdminContentToPanelVersion === "function") {
+                copyAdminContentToPanelVersion("users");
+              }
+            });
           } else {
             showModalAlert(result.message || "解封失败", "错误");
           }
@@ -21819,7 +21852,14 @@
           const result = await response.json();
           if (result.success) {
             showModalAlert(`用户 ${username} 的2FA已关闭`, "成功");
-            loadAdminUsers();
+            loadAdminUsers().then(() => {
+              if (typeof copyAdminContentToMultiPanel === "function") {
+                copyAdminContentToMultiPanel("users");
+              }
+              if (typeof copyAdminContentToPanelVersion === "function") {
+                copyAdminContentToPanelVersion("users");
+              }
+            });
           } else {
             showModalAlert(result.message || "操作失败", "错误");
           }
@@ -21981,16 +22021,21 @@
           );
 
           const result = await response.json();
-          const avatarDiv = document.getElementById(`avatar-${username}`);
+          
+          // [修复] 使用 querySelectorAll 获取所有匹配的头像容器
+          // 解决 PC 端和移动端面板同时存在相同 ID 导致的更新错位问题
+          const avatarDivs = document.querySelectorAll(`[id='avatar-${username}']`);
 
-          if (!avatarDiv) return;
+          if (avatarDivs.length === 0) return;
 
-          if (result.success && result.avatar_url) {
-            const avatarUrlWithSession = `${result.avatar_url}?session_id=${sessionUUID}`;
-            avatarDiv.innerHTML = `<img src="${avatarUrlWithSession}" alt="${username}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><span class="text-2xl text-slate-400" style="display:none;">👤</span>`;
-          } else {
-            avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
-          }
+          avatarDivs.forEach(avatarDiv => {
+              if (result.success && result.avatar_url) {
+                const avatarUrlWithSession = `${result.avatar_url}?session_id=${sessionUUID}`;
+                avatarDiv.innerHTML = `<img src="${avatarUrlWithSession}" alt="${username}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><span class="text-2xl text-slate-400" style="display:none;">👤</span>`;
+              } else {
+                avatarDiv.innerHTML = `<span class="text-2xl text-slate-400">👤</span>`;
+              }
+          });
         } catch (e) {
           logMessage_Error(`加载用户头像失败 ${username}:`, e);
         }
@@ -22647,60 +22692,16 @@
         }
 
         const sendBtn = $("admin-modify-phone-send-btn");
-        sendBtn.disabled = true;
-        const originalText = sendBtn.textContent;
+        // 注意：这里不再立即禁用按钮，而是由 openCaptchaModal 处理后续流程
+        const originalText = "发送验证码"; 
 
-        try {
-          const response = await fetch("/api/sms/send_code", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Session-ID": sessionUUID,
-            },
-            body: JSON.stringify({
-              phone: newPhone,
-              scene: "modify",
-            }),
-          });
-          const result = await response.json();
-
-          if (result && result.success) {
-            const expireMin = result.expire_minutes || 5;
-            const retryAfter = result.retry_after || 180;
-            showModalAlert(`验证码已发送，${expireMin}分钟内有效`, "成功");
-
-            let countdown = retryAfter;
-            const timer = setInterval(() => {
-              countdown--;
-              sendBtn.textContent = `${countdown}秒后重试`;
-              if (countdown <= 0) {
-                clearInterval(timer);
-                sendBtn.disabled = false;
-                sendBtn.textContent = originalText;
-              }
-            }, 1000);
-          } else {
-            if (result?.retry_after) {
-              let countdown = result.retry_after;
-              sendBtn.textContent = `${countdown}秒后重试`;
-              const timer = setInterval(() => {
-                countdown--;
-                sendBtn.textContent = `${countdown}秒后重试`;
-                if (countdown <= 0) {
-                  clearInterval(timer);
-                  sendBtn.disabled = false;
-                  sendBtn.textContent = originalText;
-                }
-              }, 1000);
-            } else {
-              sendBtn.disabled = false;
-            }
-            showModalAlert(result?.message || "发送失败");
-          }
-        } catch (error) {
-          sendBtn.disabled = false;
-          showModalAlert("发送失败: " + error.message);
-        }
+        // 调用通用验证码模态框，它会自动处理图形验证和短信发送
+        openCaptchaModal({
+          phone: newPhone,
+          button: sendBtn,
+          originalText: originalText,
+          scene: "modify" // 保持与旧代码一致的场景标识
+        });
       }
 
       async function submitAdminModifyPhone() {
@@ -40041,7 +40042,7 @@
                     </svg>
                     <div class="text-xs text-slate-500 font-medium">User Agent</div>
                   </div>
-                  ${ua ? `<div class="text-xs text-slate-600 break-words bg-slate-100 px-3 py-2 rounded-md border max-h-20 overflow-y-auto">${escapeHtml(ua)}</div>` : '<div class="text-xs text-slate-400 italic text-center py-2">无UA信息</div>'}
+                  ${ua ? `<div class="text-xs text-slate-600 break-words bg-slate-100 px-3 py-2 rounded-md border max-h-auto overflow-y-hidden">${escapeHtml(ua)}</div>` : '<div class="text-xs text-slate-400 italic text-center py-2">无UA信息</div>'}
                 </div>
               </div>
             `;
@@ -40464,7 +40465,7 @@
               </div>
               <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-2">新昵称</label>
-                <input type="text" id="mobile-new-nickname" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="请输入新昵称">
+                <input type="text" id="mobile-modify-new-nickname" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="请输入新昵称">
               </div>
               <div class="flex gap-3 pt-4 border-t border-slate-100">
                 <button onclick="closeMobileModifyNickname()" class="flex-1 py-2 px-4 border border-slate-300 rounded-lg text-sm text-slate-600">取消</button>
@@ -40478,7 +40479,8 @@
         window.currentMobileNicknameUsername = username;
         document.getElementById("mobile-nickname-username").textContent = username;
         document.getElementById("mobile-current-nickname").value = currentNickname || '未设置';
-        document.getElementById("mobile-new-nickname").value = '';
+        // [修复] 使用新的 ID 清空输入框
+        document.getElementById("mobile-modify-new-nickname").value = '';
         
         // [修正] 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
@@ -40500,7 +40502,10 @@
       
       async function submitMobileModifyNickname() {
         const username = window.currentMobileNicknameUsername;
-        const newNickname = document.getElementById("mobile-new-nickname").value.trim();
+        // [修复] 获取新的唯一 ID 的值
+        const newNickname = document.getElementById("mobile-modify-new-nickname").value.trim();
+
+        logMessage_Info("提交新昵称: " + newNickname);
         
         if (!newNickname) {
           showModalAlert("请输入新昵称", "提示");
@@ -40601,6 +40606,7 @@
       let mobileAdminPhoneCooldown = 0;
       
       async function sendMobileAdminPhoneCode() {
+        // 检查冷却时间（虽然 openCaptchaModal 内部也会处理，但这里保留检查体验更好）
         if (mobileAdminPhoneCooldown > 0) {
           showModalAlert(`请等待 ${mobileAdminPhoneCooldown} 秒后再发送`, "提示");
           return;
@@ -40613,36 +40619,19 @@
         }
         
         const sendBtn = document.getElementById("mobile-admin-phone-send-btn");
-        sendBtn.disabled = true;
+        const originalText = "发送"; // 或者 sendBtn.textContent
+
+        // 【修正点】：不再直接 fetch，而是打开图形验证码模态框
+        // 模态框确认后会自动调用后端接口，并携带 captcha_id 和 code
+        openCaptchaModal({
+          phone: newPhone,
+          button: sendBtn,
+          originalText: originalText,
+          scene: "modify" // 场景标识，与后端对应
+        });
         
-        try {
-          const response = await fetch("/api/sms/send_code", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Session-ID": sessionUUID },
-            body: JSON.stringify({ phone: newPhone, scene: "modify" })
-          });
-          const result = await response.json();
-          
-          if (result && result.success) {
-            showModalAlert(`验证码已发送，${result.expire_minutes || 5}分钟内有效`, "成功");
-            mobileAdminPhoneCooldown = result.retry_after || 180;
-            const interval = setInterval(() => {
-              mobileAdminPhoneCooldown--;
-              sendBtn.textContent = `${mobileAdminPhoneCooldown}s`;
-              if (mobileAdminPhoneCooldown <= 0) {
-                clearInterval(interval);
-                sendBtn.textContent = "发送";
-                sendBtn.disabled = false;
-              }
-            }, 1000);
-          } else {
-            showModalAlert(result?.message || "发送失败", "错误");
-            sendBtn.disabled = false;
-          }
-        } catch (e) {
-          showModalAlert("发送失败: " + e.message, "错误");
-          sendBtn.disabled = false;
-        }
+        // 记录日志
+        console.log("[管理员修改手机] 已打开图形验证码模态框");
       }
       
       async function submitMobileAdminModifyPhone() {

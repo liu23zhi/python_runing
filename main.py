@@ -1672,7 +1672,8 @@ class AuthSystem:
 
     def get_user_file_path(self, auth_username):
         """获取用户文件路径"""
-        user_hash = hashlib.sha256(auth_username.encode()).hexdigest()
+        # 修复: 强制转换为字符串，防止传入 int 类型导致 'int' object has no attribute 'encode'
+        user_hash = hashlib.sha256(str(auth_username).encode()).hexdigest()
         file_path = os.path.join(SYSTEM_ACCOUNTS_DIR, f"{user_hash}.json")
         logging.debug(
             f"get_user_file_path: 用户 {auth_username} 的文件路径: {file_path}"
@@ -2497,6 +2498,26 @@ class AuthSystem:
 
             logging.info(f"管理员重置密码: {auth_username}")
             return {"success": True, "message": "密码已重置"}
+
+    def force_disable_2fa(self, auth_username):
+        """强制关闭指定用户的2FA（管理员功能）"""
+        with self.lock:
+            user_file = self.get_user_file_path(auth_username)
+            if not os.path.exists(user_file):
+                return {"success": False, "message": "用户不存在"}
+
+            with open(user_file, "r", encoding="utf-8") as f:
+                user_data = json.load(f)
+
+            user_data["2fa_enabled"] = False
+            # 可选：是否重置secret，通常保留secret以便用户重新开启时无需重新绑定，
+            # 或者清空secret强制用户重新绑定。这里选择仅禁用。
+            
+            with open(user_file, "w", encoding="utf-8") as f:
+                json.dump(user_data, f, indent=2, ensure_ascii=False)
+
+            logging.info(f"管理员强制关闭2FA: {auth_username}")
+            return {"success": True, "message": "2FA已强制关闭"}
 
     def update_user_avatar(self, auth_username, avatar_url):
         """更新用户头像"""
@@ -14446,6 +14467,117 @@ def start_web_server(args_param):
             )
 
         return jsonify(result)
+
+    @app.route("/auth/admin/force_disable_2fa", methods=["POST"])
+    def auth_admin_force_disable_2fa():
+        """管理员：强制关闭用户2FA"""
+        session_id = request.headers.get("X-Session-ID", "")
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, "auth_username", "")
+        
+        # 检查权限：需要 'manage_users' 权限
+        if not auth_system.check_permission(auth_username, "manage_users"):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+
+        data = request.json
+        # 修复: 强制转换为字符串并去除空格，处理纯数字用户名的情况
+        target_username = str(data.get("target_username", "")).strip()
+
+        if not target_username:
+            return jsonify({"success": False, "message": "用户名不能为空"}), 400
+
+        result = auth_system.force_disable_2fa(target_username)
+        
+        if result.get("success"):
+            ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
+            auth_system.log_audit(
+                auth_username,
+                "force_disable_2fa",
+                f"强制关闭用户 {target_username} 的2FA",
+                ip_address,
+                session_id,
+            )
+            
+        return jsonify(result)
+
+    # ============================================================
+    # 【修复】添加缺失的强制登出API路由
+    # ============================================================
+    @app.route("/auth/admin/force_logout_user", methods=["POST"])
+    def auth_admin_force_logout_user():
+        """管理员：强制登出指定用户"""
+        session_id = request.headers.get("X-Session-ID", "")
+        if not session_id or session_id not in web_sessions:
+            return jsonify({"success": False, "message": "未登录"}), 401
+
+        api_instance = web_sessions[session_id]
+        auth_username = getattr(api_instance, "auth_username", "")
+        
+        # 检查权限：需要 'force_logout_users' 权限
+        if not auth_system.check_permission(auth_username, "force_logout_users"):
+            return jsonify({"success": False, "message": "权限不足"}), 403
+
+        data = request.json
+        target_username = data.get("username", "")
+
+        if not target_username:
+            return jsonify({"success": False, "message": "用户名不能为空"}), 400
+
+        # 1. 使 Token 失效 (删除 token 文件)
+        token_manager.invalidate_token(target_username)
+        
+        # 2. 查找并清理所有内存中的活跃会话
+        sessions_to_kill = []
+        with web_sessions_lock:
+            for sid, api in web_sessions.items():
+                if getattr(api, "auth_username", "") == target_username:
+                    sessions_to_kill.append(sid)
+        
+        # 3. 查找用户文件记录的会话 (包括可能不在内存中但持久化的)
+        try:
+            stored_sessions = auth_system.get_user_sessions(target_username)
+            for sid in stored_sessions:
+                if sid not in sessions_to_kill:
+                    sessions_to_kill.append(sid)
+        except Exception as e:
+            logging.warning(f"获取用户存储会话失败: {e}")
+
+        cleaned_count = 0
+        for sid in sessions_to_kill:
+            # 调用全局清理函数，清理内存、文件和索引
+            cleanup_session(sid, reason="admin_force_logout")
+            cleaned_count += 1
+            
+        # 4. 清空用户配置文件中的会话列表
+        try:
+            user_file = auth_system.get_user_file_path(target_username)
+            if os.path.exists(user_file):
+                with auth_system.lock:
+                    with open(user_file, "r", encoding="utf-8") as f:
+                        user_data = json.load(f)
+                    
+                    user_data["session_ids"] = []
+                    
+                    with open(user_file, "w", encoding="utf-8") as f:
+                        json.dump(user_data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logging.error(f"强制登出清理用户文件失败: {e}")
+
+        # 5. 记录审计日志
+        ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
+        auth_system.log_audit(
+            auth_username,
+            "force_logout_user",
+            f"强制登出用户: {target_username} (清理了 {cleaned_count} 个会话)",
+            ip_address,
+            session_id,
+        )
+
+        logging.info(f"管理员 {auth_username} 强制登出了用户 {target_username}")
+        return jsonify({"success": True, "message": f"用户 {target_username} 已强制登出，清理了 {cleaned_count} 个会话"})
 
     @app.route("/auth/admin/force_reset_password", methods=["POST"])
     def auth_admin_force_reset_password():
