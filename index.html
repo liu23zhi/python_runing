@@ -1068,9 +1068,23 @@
         transform: translateY(-50%);
       }
 
+      /* 修复问题4：Swal显示时Body不添加padding-right，防止登录框位移 */
       html.swal2-shown,
       body.swal2-shown:not(.swal2-toast-shown) {
-        padding-right: 0;
+        padding-right: 0 !important;
+        overflow-y: auto !important; /* 保持滚动条，避免消失造成的跳动 */
+      }
+
+      /* 修复问题3：提升Swal层级，确保在移动端容器(z-10000)之上显示 */
+      .swal2-container {
+        z-index: 20005 !important;
+      }
+
+      /* 修复问题1：提升通用模态框层级，确保在移动端可见 */
+      #sms-history-modal,
+      #verification-codes-modal,
+      #sms-test-modal {
+        z-index: 20002 !important;
       }
 
       /* ============================================================ */
@@ -9107,16 +9121,19 @@
                     添加规则
                   </h5>
                   <!-- 功能说明提示 -->
-                  <p class="text-xs text-blue-700 mb-2 bg-blue-100/50 p-2 rounded">
-                    💡 <strong>提示：</strong>
-                    <br />• 单个IP格式：192.168.1.1
-                    <br />• IP范围格式：192.168.1.1-192.168.1.100
-                    <br />• 封禁后，该IP将无法访问对应功能
+                  <p
+                    class="text-xs text-blue-700 mb-2 bg-blue-100/50 p-2 rounded"
+                  >
+                    💡 <strong>提示：</strong> <br />• 单个IP格式：192.168.1.1
+                    <br />• IP范围格式：192.168.1.1-192.168.1.100 <br />•
+                    封禁后，该IP将无法访问对应功能
                   </p>
                   <!-- 添加规则表单 -->
                   <div class="space-y-2">
                     <!-- 封禁类型选择下拉框 -->
-                    <label class="block text-xs font-medium text-blue-800">封禁类型</label>
+                    <label class="block text-xs font-medium text-blue-800"
+                      >封禁类型</label
+                    >
                     <select
                       id="mobile-multi-ban-type"
                       class="select-field text-xs"
@@ -9126,7 +9143,9 @@
                       <option value="range">IP范围</option>
                     </select>
                     <!-- 封禁目标输入框 -->
-                    <label class="block text-xs font-medium text-blue-800">封禁目标</label>
+                    <label class="block text-xs font-medium text-blue-800"
+                      >封禁目标</label
+                    >
                     <input
                       type="text"
                       id="mobile-multi-ban-target"
@@ -9135,12 +9154,20 @@
                       oninput="mobileValidateIPBanTarget()"
                     />
                     <!-- 输入提示和错误信息 -->
-                    <p id="mobile-multi-ban-target-hint" class="text-xs text-slate-500">
+                    <p
+                      id="mobile-multi-ban-target-hint"
+                      class="text-xs text-slate-500"
+                    >
                       示例: 192.168.1.1
                     </p>
-                    <p id="mobile-multi-ban-target-error" class="hidden text-xs text-red-600 font-semibold"></p>
+                    <p
+                      id="mobile-multi-ban-target-error"
+                      class="hidden text-xs text-red-600 font-semibold"
+                    ></p>
                     <!-- 封禁范围选择下拉框 -->
-                    <label class="block text-xs font-medium text-blue-800">封禁范围</label>
+                    <label class="block text-xs font-medium text-blue-800"
+                      >封禁范围</label
+                    >
                     <select
                       id="mobile-multi-ban-scope"
                       class="select-field text-xs"
@@ -9242,13 +9269,16 @@
                 </div>
                 <!-- 验证码说明提示 -->
                 <p class="text-xs text-blue-700 bg-blue-50 p-2 rounded">
-                  💡 <strong>本地验证码生成器：</strong>使用 MicroPixelCaptcha 生成像素风格验证码，无需第三方API，更稳定安全。
+                  💡 <strong>本地验证码生成器：</strong>使用 MicroPixelCaptcha
+                  生成像素风格验证码，无需第三方API，更稳定安全。
                 </p>
                 <!-- 验证码设置表单 -->
                 <div id="mobile-multi-admin-captcha-list" class="space-y-3">
                   <!-- 验证码长度设置 -->
                   <div class="bg-white border border-slate-200 rounded-lg p-3">
-                    <label class="block text-xs font-semibold text-slate-700 mb-2">
+                    <label
+                      class="block text-xs font-semibold text-slate-700 mb-2"
+                    >
                       验证码长度（3-6字符）
                     </label>
                     <input
@@ -9264,7 +9294,9 @@
                   </div>
                   <!-- 细分倍数设置 -->
                   <div class="bg-white border border-slate-200 rounded-lg p-3">
-                    <label class="block text-xs font-semibold text-slate-700 mb-2">
+                    <label
+                      class="block text-xs font-semibold text-slate-700 mb-2"
+                    >
                       细分倍数（2-4）
                     </label>
                     <input
@@ -9280,7 +9312,9 @@
                   </div>
                   <!-- 噪点比例设置 -->
                   <div class="bg-white border border-slate-200 rounded-lg p-3">
-                    <label class="block text-xs font-semibold text-slate-700 mb-2">
+                    <label
+                      class="block text-xs font-semibold text-slate-700 mb-2"
+                    >
                       噪点比例（0.00-0.30）
                     </label>
                     <input
@@ -9295,20 +9329,28 @@
                     />
                   </div>
                   <!-- 操作按钮组 -->
-                  <div class="flex gap-2">
+                  <div class="flex flex-col gap-2">
+                    <div class="flex gap-2">
+                      <button
+                        id="mobile-save-captcha-settings-btn"
+                        class="btn btn-primary flex-1 !py-2 text-sm min-h-[44px]"
+                        onclick="mobileSaveCaptchaSettings()"
+                      >
+                        💾 保存设置
+                      </button>
+                      <button
+                        id="mobile-test-captcha-btn"
+                        class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]"
+                        onclick="mobileTestCaptcha()"
+                      >
+                        🔄 测试生成
+                      </button>
+                    </div>
                     <button
-                      id="mobile-save-captcha-settings-btn"
-                      class="btn btn-primary flex-1 !py-2 text-sm min-h-[44px]"
-                      onclick="mobileSaveCaptchaSettings()"
+                      onclick="toggleMobileCaptchaView('history')"
+                      class="btn btn-secondary w-full !py-2 text-sm min-h-[44px]"
                     >
-                      💾 保存设置
-                    </button>
-                    <button
-                      id="mobile-test-captcha-btn"
-                      class="btn btn-ghost flex-1 !py-2 text-sm min-h-[44px]"
-                      onclick="mobileTestCaptcha()"
-                    >
-                      🔄 测试生成
+                      📜 查看历史记录
                     </button>
                   </div>
                   <!-- 验证码预览区域 -->
@@ -9316,10 +9358,18 @@
                     id="mobile-captcha-test-preview"
                     class="hidden bg-white border border-slate-200 rounded-lg p-3 text-center"
                   >
-                    <p class="text-xs font-semibold text-slate-700 mb-2">预览效果：</p>
-                    <div id="mobile-captcha-preview-display" class="flex justify-center my-3"></div>
+                    <p class="text-xs font-semibold text-slate-700 mb-2">
+                      预览效果：
+                    </p>
+                    <div
+                      id="mobile-captcha-preview-display"
+                      class="flex justify-center my-3"
+                    ></div>
                     <p class="text-xs text-slate-500">
-                      验证码答案：<span id="mobile-captcha-preview-answer" class="font-mono font-bold text-slate-900"></span>
+                      验证码答案：<span
+                        id="mobile-captcha-preview-answer"
+                        class="font-mono font-bold text-slate-900"
+                      ></span>
                     </p>
                   </div>
                 </div>
@@ -9360,21 +9410,38 @@
                 </div>
                 <!-- 功能说明提示 -->
                 <p class="text-xs text-blue-700 bg-blue-50 p-2 rounded">
-                  💡 <strong>功能说明：</strong>定时提醒会在设定时间范围内自动弹出提示，支持跨天时间设置。
+                  💡
+                  <strong>功能说明：</strong
+                  >定时提醒会在设定时间范围内自动弹出提示，支持跨天时间设置。
                 </p>
                 <!-- 提醒统计信息 -->
                 <div class="grid grid-cols-3 gap-2 text-center text-xs">
                   <div class="p-2 bg-slate-100 rounded">
                     <div class="text-slate-600">总计</div>
-                    <div id="mobile-reminder-stat-total" class="text-base font-semibold">0</div>
+                    <div
+                      id="mobile-reminder-stat-total"
+                      class="text-base font-semibold"
+                    >
+                      0
+                    </div>
                   </div>
                   <div class="p-2 bg-green-100 rounded">
                     <div class="text-green-700">启用</div>
-                    <div id="mobile-reminder-stat-enabled" class="text-base font-semibold text-green-700">0</div>
+                    <div
+                      id="mobile-reminder-stat-enabled"
+                      class="text-base font-semibold text-green-700"
+                    >
+                      0
+                    </div>
                   </div>
                   <div class="p-2 bg-slate-100 rounded">
                     <div class="text-slate-600">禁用</div>
-                    <div id="mobile-reminder-stat-disabled" class="text-base font-semibold text-slate-600">0</div>
+                    <div
+                      id="mobile-reminder-stat-disabled"
+                      class="text-base font-semibold text-slate-600"
+                    >
+                      0
+                    </div>
                   </div>
                 </div>
                 <!-- 定时提醒列表容器 -->
@@ -10305,19 +10372,79 @@
             </div>
 
             <div id="mobile-multi-admin-captcha-panel" class="hidden space-y-3">
-              <div class="flex justify-between items-center">
-                <h4 class="font-semibold text-sm">验证码设置</h4>
-                <button
-                  class="btn btn-ghost !py-1 !px-2 text-xs"
-                  onclick="switchMobileAdminTab('captcha', 'mobile-multi-admin-panel')"
-                >
-                  刷新
-                </button>
+              <div id="mobile-captcha-settings-view">
+                <div class="flex justify-between items-center">
+                  <h4 class="font-semibold text-sm">验证码设置</h4>
+                  <button
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                    onclick="mobileLoadCaptchaSettings()"
+                  >
+                    刷新
+                  </button>
+                </div>
+                <div id="mobile-multi-admin-captcha-list" class="space-y-2">
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
               </div>
-              <div id="mobile-multi-admin-captcha-list" class="space-y-2">
-                <p class="text-slate-400 text-center py-10 text-xs">
-                  加载中...
-                </p>
+
+              <div id="mobile-captcha-history-view" class="hidden space-y-3">
+                <div class="flex justify-between items-center">
+                  <div class="flex items-center gap-2">
+                    <button
+                      onclick="toggleMobileCaptchaView('settings')"
+                      class="p-1 rounded hover:bg-slate-100 text-slate-500"
+                    >
+                      <svg
+                        class="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M15 19l-7-7 7-7"
+                        ></path>
+                      </svg>
+                    </button>
+                    <h4 class="font-semibold text-sm">历史记录</h4>
+                  </div>
+                  <button
+                    class="btn btn-ghost !py-1 !px-2 text-xs"
+                    onclick="mobileLoadCaptchaHistory()"
+                  >
+                    刷新
+                  </button>
+                </div>
+
+                <div class="flex gap-2">
+                  <input
+                    type="date"
+                    id="mobile-captcha-date"
+                    class="input-field text-xs flex-1 !py-1"
+                  />
+                  <select
+                    id="mobile-captcha-status"
+                    class="select-field text-xs flex-1 !py-1"
+                  >
+                    <option value="">全部状态</option>
+                    <option value="verified_success">成功</option>
+                    <option value="verified_failed">失败</option>
+                    <option value="test_generated">测试</option>
+                  </select>
+                </div>
+
+                <div
+                  id="mobile-captcha-history-list"
+                  class="space-y-2 max-h-[50vh] overflow-y-auto"
+                >
+                  <p class="text-slate-400 text-center py-10 text-xs">
+                    加载中...
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -38854,6 +38981,20 @@
             charCountDisplay.textContent = messageContentInput.value.length;
           };
         }
+
+        // ========== 验证码管理相关 (修复无法点击问题) ==========
+        const saveCaptchaBtn = document.getElementById("mobile-save-captcha-settings-btn");
+        if (saveCaptchaBtn) {
+          saveCaptchaBtn.onclick = function() { mobileSaveCaptchaSettings(); };
+        }
+
+        const testCaptchaBtn = document.getElementById("mobile-test-captcha-btn");
+        if (testCaptchaBtn) {
+          testCaptchaBtn.onclick = function() { mobileTestCaptcha(); };
+        }
+        
+        // 确保切换视图的按钮也能正常工作 (虽然HTML中有inline onclick，但这里增强健壮性)
+        // 这里的逻辑是：如果是在JS中动态绑定的，确保函数全局可用
       }
 
       // ========================================
@@ -43589,8 +43730,12 @@
       function mobileUpdateBanTargetHint() {
         // 获取封禁类型选择框和目标输入框
         const banTypeSelect = document.getElementById("mobile-multi-ban-type");
-        const banTargetInput = document.getElementById("mobile-multi-ban-target");
-        const banTargetHint = document.getElementById("mobile-multi-ban-target-hint");
+        const banTargetInput = document.getElementById(
+          "mobile-multi-ban-target"
+        );
+        const banTargetHint = document.getElementById(
+          "mobile-multi-ban-target-hint"
+        );
 
         // 如果元素不存在则直接返回
         if (!banTypeSelect || !banTargetInput || !banTargetHint) return;
@@ -43620,8 +43765,12 @@
       function mobileValidateIPBanTarget() {
         // 获取相关DOM元素
         const banTypeSelect = document.getElementById("mobile-multi-ban-type");
-        const banTargetInput = document.getElementById("mobile-multi-ban-target");
-        const banTargetError = document.getElementById("mobile-multi-ban-target-error");
+        const banTargetInput = document.getElementById(
+          "mobile-multi-ban-target"
+        );
+        const banTargetError = document.getElementById(
+          "mobile-multi-ban-target-error"
+        );
 
         // 如果元素不存在则返回false
         if (!banTypeSelect || !banTargetInput || !banTargetError) {
@@ -43646,7 +43795,8 @@
 
         // 验证单个IP格式
         if (type === "ip" && !ipRegex.test(target)) {
-          banTargetError.textContent = "格式错误，请输入有效的IP地址（例如: 192.168.1.1）";
+          banTargetError.textContent =
+            "格式错误，请输入有效的IP地址（例如: 192.168.1.1）";
           banTargetError.classList.remove("hidden");
           banTargetInput.classList.add("border-red-500");
           return false;
@@ -43655,8 +43805,13 @@
         // 验证IP范围格式
         if (type === "range") {
           const parts = target.split("-");
-          if (parts.length !== 2 || !ipRegex.test(parts[0].trim()) || !ipRegex.test(parts[1].trim())) {
-            banTargetError.textContent = "格式错误，请输入有效的IP范围（例如: 192.168.1.1-192.168.1.100）";
+          if (
+            parts.length !== 2 ||
+            !ipRegex.test(parts[0].trim()) ||
+            !ipRegex.test(parts[1].trim())
+          ) {
+            banTargetError.textContent =
+              "格式错误，请输入有效的IP范围（例如: 192.168.1.1-192.168.1.100）";
             banTargetError.classList.remove("hidden");
             banTargetInput.classList.add("border-red-500");
             return false;
@@ -43676,9 +43831,10 @@
       async function mobileAddIPBan() {
         // 获取封禁类型用于生成更具体的错误消息
         const type = document.getElementById("mobile-multi-ban-type").value;
-        const formatHint = type === "ip" 
-          ? "单个IP格式：192.168.1.1" 
-          : "IP范围格式：192.168.1.1-192.168.1.100";
+        const formatHint =
+          type === "ip"
+            ? "单个IP格式：192.168.1.1"
+            : "IP范围格式：192.168.1.1-192.168.1.100";
 
         // 验证输入格式
         if (!mobileValidateIPBanTarget()) {
@@ -43687,7 +43843,9 @@
         }
 
         // 获取表单数据
-        const target = document.getElementById("mobile-multi-ban-target").value.trim();
+        const target = document
+          .getElementById("mobile-multi-ban-target")
+          .value.trim();
         const scope = document.getElementById("mobile-multi-ban-scope").value;
 
         try {
@@ -43708,10 +43866,15 @@
             document.getElementById("mobile-multi-ban-target").value = "";
 
             // 清除错误提示状态
-            const banTargetError = document.getElementById("mobile-multi-ban-target-error");
-            const banTargetInput = document.getElementById("mobile-multi-ban-target");
+            const banTargetError = document.getElementById(
+              "mobile-multi-ban-target-error"
+            );
+            const banTargetInput = document.getElementById(
+              "mobile-multi-ban-target"
+            );
             if (banTargetError) banTargetError.classList.add("hidden");
-            if (banTargetInput) banTargetInput.classList.remove("border-red-500");
+            if (banTargetInput)
+              banTargetInput.classList.remove("border-red-500");
 
             // 刷新PC端和移动端的IP封禁列表
             loadIPBans();
@@ -43738,7 +43901,8 @@
         }
 
         // 显示加载状态
-        listEl.innerHTML = '<p class="text-slate-400 text-center py-6 text-xs">加载中...</p>';
+        listEl.innerHTML =
+          '<p class="text-slate-400 text-center py-6 text-xs">加载中...</p>';
 
         try {
           // 调用后端API获取IP封禁列表
@@ -43754,10 +43918,16 @@
                 (ban) => `
                   <div class="bg-white border border-slate-200 rounded-lg p-3 flex justify-between items-center">
                     <div class="flex-1">
-                      <span class="font-semibold text-sm text-slate-800">${escapeHtml(ban.target)}</span>
+                      <span class="font-semibold text-sm text-slate-800">${escapeHtml(
+                        ban.target
+                      )}</span>
                       <div class="flex gap-2 mt-1">
-                        <span class="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">${ban.type === 'ip' ? '单个IP' : 'IP范围'}</span>
-                        <span class="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">${ban.scope === 'all' ? '全部功能' : '仅留言板'}</span>
+                        <span class="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">${
+                          ban.type === "ip" ? "单个IP" : "IP范围"
+                        }</span>
+                        <span class="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">${
+                          ban.scope === "all" ? "全部功能" : "仅留言板"
+                        }</span>
                       </div>
                     </div>
                     <button
@@ -43772,7 +43942,8 @@
               .join("");
           } else {
             // 没有封禁规则时显示提示
-            listEl.innerHTML = '<p class="text-slate-400 text-center py-6 text-xs">暂无封禁规则</p>';
+            listEl.innerHTML =
+              '<p class="text-slate-400 text-center py-6 text-xs">暂无封禁规则</p>';
           }
 
           console.log("[移动端IP封禁] 列表已刷新");
@@ -43825,7 +43996,7 @@
       function showMobileConfirmAsync(title, message) {
         return new Promise((resolve) => {
           // 优先使用Swal如果可用
-          if (typeof Swal !== 'undefined') {
+          if (typeof Swal !== "undefined") {
             Swal.fire({
               title: title,
               text: message,
@@ -43855,14 +44026,17 @@
        */
       async function mobileLoadSMSConfig() {
         // 获取移动端短信配置内容容器
-        const contentEl = document.getElementById("mobile-multi-admin-sms-content");
+        const contentEl = document.getElementById(
+          "mobile-multi-admin-sms-content"
+        );
         if (!contentEl) {
           console.error("[移动端短信配置] 找不到内容容器");
           return;
         }
 
         // 显示加载状态
-        contentEl.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+        contentEl.innerHTML =
+          '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
 
         try {
           // 调用后端API获取短信配置
@@ -43883,7 +44057,9 @@
                     <p class="text-xs text-slate-500">开启后可使用短信验证功能</p>
                   </div>
                   <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="mobile-sms-enabled" class="sr-only peer" ${config.enable_sms_service ? 'checked' : ''} onchange="mobileHandleSmsMainSwitch()">
+                    <input type="checkbox" id="mobile-sms-enabled" class="sr-only peer" ${
+                      config.enable_sms_service ? "checked" : ""
+                    } onchange="mobileHandleSmsMainSwitch()">
                     <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
                 </div>
@@ -43895,17 +44071,23 @@
                 
                 <div class="flex items-center justify-between py-2 border-b border-slate-100">
                   <span class="text-xs text-slate-600">允许手机号绑定/修改</span>
-                  <input type="checkbox" id="mobile-sms-enable-phone-modification" class="w-4 h-4 rounded" ${config.enable_phone_modification ? 'checked' : ''}>
+                  <input type="checkbox" id="mobile-sms-enable-phone-modification" class="w-4 h-4 rounded" ${
+                    config.enable_phone_modification ? "checked" : ""
+                  }>
                 </div>
                 
                 <div class="flex items-center justify-between py-2 border-b border-slate-100">
                   <span class="text-xs text-slate-600">允许手机号登录</span>
-                  <input type="checkbox" id="mobile-sms-enable-phone-login" class="w-4 h-4 rounded" ${config.enable_phone_login ? 'checked' : ''}>
+                  <input type="checkbox" id="mobile-sms-enable-phone-login" class="w-4 h-4 rounded" ${
+                    config.enable_phone_login ? "checked" : ""
+                  }>
                 </div>
                 
                 <div class="flex items-center justify-between py-2">
                   <span class="text-xs text-slate-600">注册时强制手机验证</span>
-                  <input type="checkbox" id="mobile-sms-enable-phone-registration-verify" class="w-4 h-4 rounded" ${config.enable_phone_registration_verify ? 'checked' : ''}>
+                  <input type="checkbox" id="mobile-sms-enable-phone-registration-verify" class="w-4 h-4 rounded" ${
+                    config.enable_phone_registration_verify ? "checked" : ""
+                  }>
                 </div>
               </div>
 
@@ -43915,22 +44097,30 @@
                 
                 <div>
                   <label class="block text-xs text-slate-600 mb-1">用户名/账号</label>
-                  <input type="text" id="mobile-sms-username" value="${config.username || ''}" class="input-field text-xs w-full" placeholder="短信服务商账号">
+                  <input type="text" id="mobile-sms-username" value="${
+                    config.username || ""
+                  }" class="input-field text-xs w-full" placeholder="短信服务商账号">
                 </div>
                 
                 <div>
                   <label class="block text-xs text-slate-600 mb-1">API Key</label>
-                  <input type="password" id="mobile-sms-apikey" value="${config.api_key || ''}" class="input-field text-xs w-full" placeholder="短信服务商API密钥">
+                  <input type="password" id="mobile-sms-apikey" value="${
+                    config.api_key || ""
+                  }" class="input-field text-xs w-full" placeholder="短信服务商API密钥">
                 </div>
                 
                 <div>
                   <label class="block text-xs text-slate-600 mb-1">签名</label>
-                  <input type="text" id="mobile-sms-signature" value="${config.signature || ''}" class="input-field text-xs w-full" placeholder="短信签名">
+                  <input type="text" id="mobile-sms-signature" value="${
+                    config.signature || ""
+                  }" class="input-field text-xs w-full" placeholder="短信签名">
                 </div>
                 
                 <div>
                   <label class="block text-xs text-slate-600 mb-1">模板ID</label>
-                  <input type="text" id="mobile-sms-template" value="${config.template_register || ''}" class="input-field text-xs w-full" placeholder="验证码模板ID">
+                  <input type="text" id="mobile-sms-template" value="${
+                    config.template_register || ""
+                  }" class="input-field text-xs w-full" placeholder="验证码模板ID">
                 </div>
               </div>
 
@@ -43941,37 +44131,62 @@
                 <div class="grid grid-cols-2 gap-2">
                   <div>
                     <label class="block text-xs text-slate-600 mb-1">验证码有效期(分钟)</label>
-                    <input type="number" id="mobile-sms-code-expire" value="${config.code_expire_minutes || 5}" class="input-field text-xs w-full" min="1" max="30">
+                    <input type="number" id="mobile-sms-code-expire" value="${
+                      config.code_expire_minutes || 5
+                    }" class="input-field text-xs w-full" min="1" max="30">
                   </div>
                   <div>
                     <label class="block text-xs text-slate-600 mb-1">账号日限额</label>
-                    <input type="number" id="mobile-sms-limit-account" value="${config.rate_limit_per_account_day || 10}" class="input-field text-xs w-full" min="1">
+                    <input type="number" id="mobile-sms-limit-account" value="${
+                      config.rate_limit_per_account_day || 10
+                    }" class="input-field text-xs w-full" min="1">
                   </div>
                   <div>
                     <label class="block text-xs text-slate-600 mb-1">IP日限额</label>
-                    <input type="number" id="mobile-sms-limit-ip" value="${config.rate_limit_per_ip_day || 20}" class="input-field text-xs w-full" min="1">
+                    <input type="number" id="mobile-sms-limit-ip" value="${
+                      config.rate_limit_per_ip_day || 20
+                    }" class="input-field text-xs w-full" min="1">
                   </div>
                   <div>
                     <label class="block text-xs text-slate-600 mb-1">手机号日限额</label>
-                    <input type="number" id="mobile-sms-limit-phone" value="${config.rate_limit_per_phone_day || 5}" class="input-field text-xs w-full" min="1">
+                    <input type="number" id="mobile-sms-limit-phone" value="${
+                      config.rate_limit_per_phone_day || 5
+                    }" class="input-field text-xs w-full" min="1">
                   </div>
                 </div>
               </div>
 
               <!-- 操作按钮 -->
-              <div class="flex gap-2">
-                <button onclick="mobileSaveSMSConfig()" class="btn btn-primary flex-1 !py-2 text-sm min-h-[44px]">
-                  💾 保存配置
-                </button>
-                <button onclick="mobileCheckSMSBalance()" class="btn btn-ghost flex-1 !py-2 text-sm min-h-[44px]">
-                  💰 查询余额
+              <div class="flex flex-col gap-2">
+                <div class="flex gap-2">
+                    <button onclick="mobileSaveSMSConfig()" class="btn btn-primary flex-1 !py-2 text-sm min-h-[44px]">
+                      💾 保存配置
+                    </button>
+                    <button onclick="mobileCheckSMSBalance()" class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]">
+                      💰 查询余额
+                    </button>
+                </div>
+                
+                <div class="flex gap-2">
+                    <button onclick="openSMSHistoryModal()" class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]">
+                      📋 发送历史
+                    </button>
+                    <button onclick="openVerificationCodesModal()" class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]">
+                      🔑 验证码管理
+                    </button>
+                </div>
+                
+                <button onclick="openSMSTestModal()" class="btn btn-success w-full !py-2 text-sm min-h-[44px]">
+                  🧪 测试发送
                 </button>
               </div>
             `;
 
             console.log("[移动端短信配置] 配置已加载");
           } else {
-            contentEl.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">加载失败: ${result.message || '未知错误'}</p>`;
+            contentEl.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">加载失败: ${
+              result.message || "未知错误"
+            }</p>`;
           }
         } catch (e) {
           console.error("[移动端短信配置] 加载失败:", e);
@@ -43989,10 +44204,16 @@
 
         // 如果主开关关闭，同时关闭所有子功能
         if (!mainSwitch.checked) {
-          const phoneModification = document.getElementById("mobile-sms-enable-phone-modification");
-          const phoneLogin = document.getElementById("mobile-sms-enable-phone-login");
-          const phoneRegistrationVerify = document.getElementById("mobile-sms-enable-phone-registration-verify");
-          
+          const phoneModification = document.getElementById(
+            "mobile-sms-enable-phone-modification"
+          );
+          const phoneLogin = document.getElementById(
+            "mobile-sms-enable-phone-login"
+          );
+          const phoneRegistrationVerify = document.getElementById(
+            "mobile-sms-enable-phone-registration-verify"
+          );
+
           if (phoneModification) phoneModification.checked = false;
           if (phoneLogin) phoneLogin.checked = false;
           if (phoneRegistrationVerify) phoneRegistrationVerify.checked = false;
@@ -44005,18 +44226,41 @@
       async function mobileSaveSMSConfig() {
         // 收集表单数据
         const config = {
-          enable_sms_service: document.getElementById("mobile-sms-enabled")?.checked || false,
-          enable_phone_modification: document.getElementById("mobile-sms-enable-phone-modification")?.checked || false,
-          enable_phone_login: document.getElementById("mobile-sms-enable-phone-login")?.checked || false,
-          enable_phone_registration_verify: document.getElementById("mobile-sms-enable-phone-registration-verify")?.checked || false,
-          username: document.getElementById("mobile-sms-username")?.value.trim() || "",
-          api_key: document.getElementById("mobile-sms-apikey")?.value.trim() || "",
-          signature: document.getElementById("mobile-sms-signature")?.value.trim() || "",
-          template_register: document.getElementById("mobile-sms-template")?.value.trim() || "",
-          code_expire_minutes: parseInt(document.getElementById("mobile-sms-code-expire")?.value) || 5,
-          rate_limit_per_account_day: parseInt(document.getElementById("mobile-sms-limit-account")?.value) || 10,
-          rate_limit_per_ip_day: parseInt(document.getElementById("mobile-sms-limit-ip")?.value) || 20,
-          rate_limit_per_phone_day: parseInt(document.getElementById("mobile-sms-limit-phone")?.value) || 5,
+          enable_sms_service:
+            document.getElementById("mobile-sms-enabled")?.checked || false,
+          enable_phone_modification:
+            document.getElementById("mobile-sms-enable-phone-modification")
+              ?.checked || false,
+          enable_phone_login:
+            document.getElementById("mobile-sms-enable-phone-login")?.checked ||
+            false,
+          enable_phone_registration_verify:
+            document.getElementById(
+              "mobile-sms-enable-phone-registration-verify"
+            )?.checked || false,
+          username:
+            document.getElementById("mobile-sms-username")?.value.trim() || "",
+          api_key:
+            document.getElementById("mobile-sms-apikey")?.value.trim() || "",
+          signature:
+            document.getElementById("mobile-sms-signature")?.value.trim() || "",
+          template_register:
+            document.getElementById("mobile-sms-template")?.value.trim() || "",
+          code_expire_minutes:
+            parseInt(
+              document.getElementById("mobile-sms-code-expire")?.value
+            ) || 5,
+          rate_limit_per_account_day:
+            parseInt(
+              document.getElementById("mobile-sms-limit-account")?.value
+            ) || 10,
+          rate_limit_per_ip_day:
+            parseInt(document.getElementById("mobile-sms-limit-ip")?.value) ||
+            20,
+          rate_limit_per_phone_day:
+            parseInt(
+              document.getElementById("mobile-sms-limit-phone")?.value
+            ) || 5,
         };
 
         try {
@@ -44030,11 +44274,11 @@
             body: JSON.stringify(config),
           });
           const result = await response.json();
-          
+
           if (result.success) {
             showModalAlert("短信配置已保存", "成功");
             // 同步更新PC端配置（如果存在）
-            if (typeof loadSMSConfig === 'function') {
+            if (typeof loadSMSConfig === "function") {
               loadSMSConfig();
             }
           } else {
@@ -44052,14 +44296,17 @@
       async function mobileCheckSMSBalance() {
         try {
           showModalAlert("正在查询余额...", "提示");
-          
+
           const response = await fetch("/api/admin/sms/check_balance", {
             headers: { "X-Session-ID": sessionUUID },
           });
           const result = await response.json();
 
           if (result.success) {
-            showModalAlert(`当前余额: ${result.balance || '未知'} 条`, "余额查询");
+            showModalAlert(
+              `当前余额: ${result.balance || "未知"} 条`,
+              "余额查询"
+            );
           } else {
             showModalAlert(result.message || "查询失败", "错误");
           }
@@ -44091,10 +44338,17 @@
             const response = await callPythonAPI("get_initial_data");
             if (response && response.captcha_settings) {
               mobileUpdateCaptchaForm(response.captcha_settings);
-              console.log("[移动端验证码] 已从API加载配置:", response.captcha_settings);
+              console.log(
+                "[移动端验证码] 已从API加载配置:",
+                response.captcha_settings
+              );
             } else {
               console.warn("[移动端验证码] 未能获取配置，使用默认值");
-              mobileUpdateCaptchaForm({ length: 4, scale_factor: 2, noise_level: 0.08 });
+              mobileUpdateCaptchaForm({
+                length: 4,
+                scale_factor: 2,
+                noise_level: 0.08,
+              });
             }
           }
         } catch (error) {
@@ -44109,8 +44363,12 @@
        */
       function mobileUpdateCaptchaForm(settings) {
         const lengthInput = document.getElementById("mobile-captcha-length");
-        const scaleInput = document.getElementById("mobile-captcha-scale-factor");
-        const noiseInput = document.getElementById("mobile-captcha-noise-level");
+        const scaleInput = document.getElementById(
+          "mobile-captcha-scale-factor"
+        );
+        const noiseInput = document.getElementById(
+          "mobile-captcha-noise-level"
+        );
 
         if (lengthInput) lengthInput.value = settings.length || 4;
         if (scaleInput) scaleInput.value = settings.scale_factor || 2;
@@ -44125,9 +44383,15 @@
           console.log("[移动端验证码] 开始保存验证码配置...");
 
           // 获取表单数据
-          const length = parseInt(document.getElementById("mobile-captcha-length")?.value);
-          const scale_factor = parseInt(document.getElementById("mobile-captcha-scale-factor")?.value);
-          const noise_level = parseFloat(document.getElementById("mobile-captcha-noise-level")?.value);
+          const length = parseInt(
+            document.getElementById("mobile-captcha-length")?.value
+          );
+          const scale_factor = parseInt(
+            document.getElementById("mobile-captcha-scale-factor")?.value
+          );
+          const noise_level = parseFloat(
+            document.getElementById("mobile-captcha-noise-level")?.value
+          );
 
           // 参数验证
           if (isNaN(length) || length < 3 || length > 6) {
@@ -44176,9 +44440,17 @@
           console.log("[移动端验证码] 测试生成验证码...");
 
           // 获取当前表单配置
-          const length = parseInt(document.getElementById("mobile-captcha-length")?.value) || 4;
-          const scale_factor = parseInt(document.getElementById("mobile-captcha-scale-factor")?.value) || 2;
-          const noise_level = parseFloat(document.getElementById("mobile-captcha-noise-level")?.value) || 0.08;
+          const length =
+            parseInt(document.getElementById("mobile-captcha-length")?.value) ||
+            4;
+          const scale_factor =
+            parseInt(
+              document.getElementById("mobile-captcha-scale-factor")?.value
+            ) || 2;
+          const noise_level =
+            parseFloat(
+              document.getElementById("mobile-captcha-noise-level")?.value
+            ) || 0.08;
 
           // 调用后端API生成验证码
           const result = await callPythonAPI("generate_test_captcha", {
@@ -44188,9 +44460,15 @@
           });
 
           // 显示预览区域
-          const previewContainer = document.getElementById("mobile-captcha-test-preview");
-          const previewDisplay = document.getElementById("mobile-captcha-preview-display");
-          const previewAnswer = document.getElementById("mobile-captcha-preview-answer");
+          const previewContainer = document.getElementById(
+            "mobile-captcha-test-preview"
+          );
+          const previewDisplay = document.getElementById(
+            "mobile-captcha-preview-display"
+          );
+          const previewAnswer = document.getElementById(
+            "mobile-captcha-preview-answer"
+          );
 
           if (previewContainer && previewDisplay && previewAnswer) {
             previewContainer.classList.remove("hidden");
@@ -44199,13 +44477,131 @@
               previewDisplay.innerHTML = `<img src="data:image/png;base64,${result.image_base64}" alt="验证码预览" class="border border-slate-200 rounded">`;
               previewAnswer.textContent = result.code || "未知";
             } else {
-              previewDisplay.innerHTML = '<p class="text-red-500 text-xs">生成失败</p>';
+              previewDisplay.innerHTML =
+                '<p class="text-red-500 text-xs">生成失败</p>';
               previewAnswer.textContent = "-";
             }
           }
         } catch (error) {
           console.error("[移动端验证码] 测试失败:", error);
           showModalAlert("生成验证码失败: " + error.message, "错误");
+        }
+      }
+
+      // 切换移动端验证码面板视图 (设置 <-> 历史)
+      function toggleMobileCaptchaView(view) {
+        const settingsView = document.getElementById(
+          "mobile-captcha-settings-view"
+        );
+        const historyView = document.getElementById(
+          "mobile-captcha-history-view"
+        );
+
+        if (view === "history") {
+          if (settingsView) settingsView.classList.add("hidden");
+          if (historyView) {
+            historyView.classList.remove("hidden");
+            // 初始化日期
+            const dateInput = document.getElementById("mobile-captcha-date");
+            if (dateInput && !dateInput.value) {
+              dateInput.value = new Date().toISOString().split("T")[0];
+            }
+            mobileLoadCaptchaHistory();
+          }
+        } else {
+          if (historyView) historyView.classList.add("hidden");
+          if (settingsView) settingsView.classList.remove("hidden");
+        }
+      }
+
+      // 加载移动端验证码历史
+      async function mobileLoadCaptchaHistory() {
+        const listContainer = document.getElementById(
+          "mobile-captcha-history-list"
+        );
+        const dateInput = document.getElementById("mobile-captcha-date");
+        const statusSelect = document.getElementById("mobile-captcha-status");
+
+        if (!listContainer || !dateInput) return;
+
+        listContainer.innerHTML =
+          '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+
+        try {
+          const date = dateInput.value.replace(/-/g, "");
+          const status = statusSelect ? statusSelect.value : "";
+          const params = new URLSearchParams({ date });
+          if (status) params.append("status", status);
+
+          const response = await fetch(`/api/captcha/history?${params}`, {
+            headers: { "X-Session-ID": sessionUUID },
+          });
+          const result = await response.json();
+
+          if (!result.success) {
+            listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">${result.message}</p>`;
+            return;
+          }
+
+          const records = result.data || [];
+          if (records.length === 0) {
+            listContainer.innerHTML =
+              '<p class="text-slate-400 text-center py-10 text-xs">该日期没有记录</p>';
+            return;
+          }
+
+          listContainer.innerHTML = records
+            .map((record) => {
+              const statusClass =
+                {
+                  created: "bg-yellow-100 text-yellow-800",
+                  verified_success: "bg-green-100 text-green-800",
+                  verified_failed: "bg-red-100 text-red-800",
+                  expired: "bg-gray-100 text-gray-800",
+                  test_generated: "bg-blue-100 text-blue-800",
+                }[record.status] || "bg-gray-100 text-gray-800";
+
+              const statusText =
+                {
+                  created: "待验证",
+                  verified_success: "成功",
+                  verified_failed: "失败",
+                  expired: "过期",
+                  test_generated: "测试",
+                }[record.status] || record.status;
+
+              return `
+                <div class="bg-white border border-slate-200 rounded-lg p-3">
+                    <div class="flex justify-between items-start mb-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono font-bold text-slate-700">${
+                              record.code
+                            }</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded ${statusClass}">${statusText}</span>
+                        </div>
+                        <span class="text-xs text-slate-400">${
+                          record.timestamp_readable.split(" ")[1]
+                        }</span>
+                    </div>
+                    <div class="text-xs text-slate-500 flex justify-between">
+                        <span>IP: ${record.client_ip || "N/A"}</span>
+                        ${
+                          record.verified_input
+                            ? `<span class="${
+                                record.status === "verified_success"
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }">输入: ${record.verified_input}</span>`
+                            : ""
+                        }
+                    </div>
+                </div>
+                `;
+            })
+            .join("");
+        } catch (e) {
+          console.error("[移动端验证码] 加载历史失败:", e);
+          listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">加载失败</p>`;
         }
       }
 
@@ -44218,14 +44614,17 @@
        */
       async function mobileRefreshReminders() {
         // 获取移动端提醒列表容器
-        const listContainer = document.getElementById("mobile-multi-admin-reminders-content");
+        const listContainer = document.getElementById(
+          "mobile-multi-admin-reminders-content"
+        );
         if (!listContainer) {
           console.error("[移动端提醒] 找不到列表容器");
           return;
         }
 
         // 显示加载状态
-        listContainer.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
+        listContainer.innerHTML =
+          '<p class="text-slate-400 text-center py-10 text-xs">加载中...</p>';
 
         try {
           // 调用后端API获取提醒列表
@@ -44236,26 +44635,35 @@
           const result = await response.json();
 
           if (!result.success) {
-            listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">${result.message || '加载失败'}</p>`;
+            listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">${
+              result.message || "加载失败"
+            }</p>`;
             return;
           }
 
           const reminders = result.reminders || [];
           const total = reminders.length;
-          const enabled = reminders.filter(r => r.enabled).length;
+          const enabled = reminders.filter((r) => r.enabled).length;
           const disabled = total - enabled;
 
           // 更新移动端统计数据
-          const statTotal = document.getElementById("mobile-reminder-stat-total");
-          const statEnabled = document.getElementById("mobile-reminder-stat-enabled");
-          const statDisabled = document.getElementById("mobile-reminder-stat-disabled");
+          const statTotal = document.getElementById(
+            "mobile-reminder-stat-total"
+          );
+          const statEnabled = document.getElementById(
+            "mobile-reminder-stat-enabled"
+          );
+          const statDisabled = document.getElementById(
+            "mobile-reminder-stat-disabled"
+          );
           if (statTotal) statTotal.textContent = total;
           if (statEnabled) statEnabled.textContent = enabled;
           if (statDisabled) statDisabled.textContent = disabled;
 
           // 渲染提醒列表
           if (reminders.length === 0) {
-            listContainer.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs">暂无提醒，点击"添加"创建新提醒</p>';
+            listContainer.innerHTML =
+              '<p class="text-slate-400 text-center py-10 text-xs">暂无提醒，点击"添加"创建新提醒</p>';
             return;
           }
 
@@ -44266,32 +44674,55 @@
             const isCrossDay = reminder.start_time > reminder.end_time;
             const timeIcon = isCrossDay ? "🌙" : "☀️";
             const timeHint = isCrossDay ? "(跨天)" : "";
-            
-            itemDiv.className = "bg-white border border-slate-200 rounded-lg p-3";
+
+            itemDiv.className =
+              "bg-white border border-slate-200 rounded-lg p-3";
             itemDiv.innerHTML = `
               <div class="flex justify-between items-start gap-2">
                 <div class="flex-1 min-w-0">
                   <!-- 标题和状态 -->
                   <div class="flex items-center gap-2 mb-1">
-                    <h5 class="font-semibold text-sm text-slate-800 truncate">${escapeHtml(reminder.title)}</h5>
-                    <span class="text-xs px-1.5 py-0.5 rounded ${reminder.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}">${reminder.enabled ? '启用' : '禁用'}</span>
+                    <h5 class="font-semibold text-sm text-slate-800 truncate">${escapeHtml(
+                      reminder.title
+                    )}</h5>
+                    <span class="text-xs px-1.5 py-0.5 rounded ${
+                      reminder.enabled
+                        ? "bg-green-100 text-green-700"
+                        : "bg-slate-100 text-slate-600"
+                    }">${reminder.enabled ? "启用" : "禁用"}</span>
                   </div>
                   <!-- 提醒内容 -->
-                  <p class="text-xs text-slate-600 mb-2 line-clamp-2">${escapeHtml(reminder.message)}</p>
+                  <p class="text-xs text-slate-600 mb-2 line-clamp-2">${escapeHtml(
+                    reminder.message
+                  )}</p>
                   <!-- 时间范围 -->
-                  <div class="flex items-center gap-1 text-xs ${isCrossDay ? 'text-purple-600' : 'text-blue-600'}">
-                    <span>${timeIcon} ${reminder.start_time} - ${reminder.end_time} ${timeHint}</span>
+                  <div class="flex items-center gap-1 text-xs ${
+                    isCrossDay ? "text-purple-600" : "text-blue-600"
+                  }">
+                    <span>${timeIcon} ${reminder.start_time} - ${
+              reminder.end_time
+            } ${timeHint}</span>
                   </div>
                 </div>
                 <!-- 操作按钮 -->
                 <div class="flex flex-col gap-1 flex-shrink-0">
-                  <button onclick="openMobileReminderEditModal('${reminder.id}')" class="btn btn-ghost !py-1 !px-2 text-xs min-h-[32px]">
+                  <button onclick="openMobileReminderEditModal('${
+                    reminder.id
+                  }')" class="btn btn-ghost !py-1 !px-2 text-xs min-h-[32px]">
                     编辑
                   </button>
-                  <button onclick="mobileToggleReminderEnabled('${reminder.id}', ${!reminder.enabled})" class="btn btn-ghost !py-1 !px-2 text-xs min-h-[32px] ${reminder.enabled ? 'text-yellow-600' : 'text-green-600'}">
-                    ${reminder.enabled ? '禁用' : '启用'}
+                  <button onclick="mobileToggleReminderEnabled('${
+                    reminder.id
+                  }', ${!reminder.enabled})" class="btn btn-ghost !py-1 !px-2 text-xs min-h-[32px] ${
+              reminder.enabled ? "text-yellow-600" : "text-green-600"
+            }">
+                    ${reminder.enabled ? "禁用" : "启用"}
                   </button>
-                  <button onclick="deleteMobileReminder('${reminder.id}', '${escapeHtml(reminder.title)}')" class="btn btn-ghost !py-1 !px-2 text-xs min-h-[32px] text-red-600">
+                  <button onclick="deleteMobileReminder('${
+                    reminder.id
+                  }', '${escapeHtml(
+              reminder.title
+            )}')" class="btn btn-ghost !py-1 !px-2 text-xs min-h-[32px] text-red-600">
                     删除
                   </button>
                 </div>
@@ -44319,7 +44750,7 @@
           modal = document.createElement("div");
           modal.id = "mobile-reminder-edit-modal";
           modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
-          modal.onclick = function(e) {
+          modal.onclick = function (e) {
             if (e.target === modal) closeMobileReminderEditModal();
           };
           modal.innerHTML = `
@@ -44381,11 +44812,21 @@
         // 获取表单元素
         const title = document.getElementById("mobile-reminder-modal-title");
         const idField = document.getElementById("mobile-reminder-id-field");
-        const titleField = document.getElementById("mobile-reminder-title-field");
-        const messageField = document.getElementById("mobile-reminder-message-field");
-        const startTimeField = document.getElementById("mobile-reminder-start-time-field");
-        const endTimeField = document.getElementById("mobile-reminder-end-time-field");
-        const enabledField = document.getElementById("mobile-reminder-enabled-field");
+        const titleField = document.getElementById(
+          "mobile-reminder-title-field"
+        );
+        const messageField = document.getElementById(
+          "mobile-reminder-message-field"
+        );
+        const startTimeField = document.getElementById(
+          "mobile-reminder-start-time-field"
+        );
+        const endTimeField = document.getElementById(
+          "mobile-reminder-end-time-field"
+        );
+        const enabledField = document.getElementById(
+          "mobile-reminder-enabled-field"
+        );
 
         // 如果是编辑模式，加载现有数据
         if (reminderId) {
@@ -44397,7 +44838,9 @@
             });
             const result = await response.json();
             if (result.success) {
-              const reminder = result.reminders.find(r => r.id === reminderId);
+              const reminder = result.reminders.find(
+                (r) => r.id === reminderId
+              );
               if (reminder) {
                 if (idField) idField.value = reminder.id;
                 if (titleField) titleField.value = reminder.title;
@@ -44454,12 +44897,26 @@
        */
       async function saveMobileReminder() {
         // 获取表单数据
-        const id = document.getElementById("mobile-reminder-id-field")?.value.trim() || "";
-        const title = document.getElementById("mobile-reminder-title-field")?.value.trim() || "";
-        const message = document.getElementById("mobile-reminder-message-field")?.value.trim() || "";
-        const startTime = document.getElementById("mobile-reminder-start-time-field")?.value || "";
-        const endTime = document.getElementById("mobile-reminder-end-time-field")?.value || "";
-        const enabled = document.getElementById("mobile-reminder-enabled-field")?.checked || false;
+        const id =
+          document.getElementById("mobile-reminder-id-field")?.value.trim() ||
+          "";
+        const title =
+          document
+            .getElementById("mobile-reminder-title-field")
+            ?.value.trim() || "";
+        const message =
+          document
+            .getElementById("mobile-reminder-message-field")
+            ?.value.trim() || "";
+        const startTime =
+          document.getElementById("mobile-reminder-start-time-field")?.value ||
+          "";
+        const endTime =
+          document.getElementById("mobile-reminder-end-time-field")?.value ||
+          "";
+        const enabled =
+          document.getElementById("mobile-reminder-enabled-field")?.checked ||
+          false;
 
         // 表单验证
         if (!title) {
@@ -44492,7 +44949,9 @@
 
         try {
           const isUpdate = !!id;
-          const apiUrl = isUpdate ? "/api/reminders/update" : "/api/reminders/add";
+          const apiUrl = isUpdate
+            ? "/api/reminders/update"
+            : "/api/reminders/add";
           const requestData = {
             title: title,
             message: message,
@@ -44519,7 +44978,7 @@
             closeMobileReminderEditModal();
             // 刷新移动端和PC端提醒列表
             mobileRefreshReminders();
-            if (typeof loadReminders === 'function') {
+            if (typeof loadReminders === "function") {
               loadReminders();
             }
           } else {
@@ -44553,10 +45012,12 @@
           const result = await response.json();
 
           if (result.success) {
-            console.log(`[移动端提醒] 提醒状态已更新: ID=${reminderId}, enabled=${newEnabledState}`);
+            console.log(
+              `[移动端提醒] 提醒状态已更新: ID=${reminderId}, enabled=${newEnabledState}`
+            );
             // 刷新移动端和PC端提醒列表
             mobileRefreshReminders();
-            if (typeof loadReminders === 'function') {
+            if (typeof loadReminders === "function") {
               loadReminders();
             }
           } else {
@@ -44596,7 +45057,7 @@
             showModalAlert("提醒已删除", "成功");
             // 刷新移动端和PC端提醒列表
             mobileRefreshReminders();
-            if (typeof loadReminders === 'function') {
+            if (typeof loadReminders === "function") {
               loadReminders();
             }
           } else {

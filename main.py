@@ -983,17 +983,22 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# ========================================\n\n")
 
         # [修复] 写入 [Config] 节，确保 theme_style 等全局参数被持久化
-        if config_obj.has_section("Config") or config_obj.has_option("Config", "theme_style"):
+        if config_obj.has_section("Config") or config_obj.has_option(
+            "Config", "theme_style"
+        ):
             f.write("[Config]\n")
             f.write("# 全局配置参数 (主题、自动签到等)\n")
-            
+
             # 优先写入已知的重要参数
             known_keys = [
-                "LastUser", "theme_base_color", "theme_style", 
-                "auto_attendance_enabled", "auto_attendance_refresh_s", 
-                "attendance_user_radius_m"
+                "LastUser",
+                "theme_base_color",
+                "theme_style",
+                "auto_attendance_enabled",
+                "auto_attendance_refresh_s",
+                "attendance_user_radius_m",
             ]
-            
+
             # 如果config_obj中有这些节，则写入
             if config_obj.has_section("Config"):
                 for key, value in config_obj.items("Config"):
@@ -2530,7 +2535,7 @@ class AuthSystem:
             user_data["2fa_enabled"] = False
             # 可选：是否重置secret，通常保留secret以便用户重新开启时无需重新绑定，
             # 或者清空secret强制用户重新绑定。这里选择仅禁用。
-            
+
             with open(user_file, "w", encoding="utf-8") as f:
                 json.dump(user_data, f, indent=2, ensure_ascii=False)
 
@@ -4128,22 +4133,30 @@ class Api:
                     logging.info("已将AmapJsKey从旧版[System]迁移到新版[Map]")
 
             self.global_params["amap_js_key"] = amap_key
-            
+
             # [修正] 加载全局主题配置 (仅当配置文件中存在时才覆盖内存中的值)
             if cfg.has_option("Config", "theme_base_color"):
-                self.global_params["theme_base_color"] = cfg.get("Config", "theme_base_color")
-            
+                self.global_params["theme_base_color"] = cfg.get(
+                    "Config", "theme_base_color"
+                )
+
             if cfg.has_option("Config", "theme_style"):
                 self.global_params["theme_style"] = cfg.get("Config", "theme_style")
 
             if cfg.has_option("Config", "auto_attendance_enabled"):
-                self.global_params["auto_attendance_enabled"] = cfg.getboolean("Config", "auto_attendance_enabled")
-                
+                self.global_params["auto_attendance_enabled"] = cfg.getboolean(
+                    "Config", "auto_attendance_enabled"
+                )
+
             if cfg.has_option("Config", "auto_attendance_refresh_s"):
-                self.global_params["auto_attendance_refresh_s"] = cfg.getint("Config", "auto_attendance_refresh_s")
-                
+                self.global_params["auto_attendance_refresh_s"] = cfg.getint(
+                    "Config", "auto_attendance_refresh_s"
+                )
+
             if cfg.has_option("Config", "attendance_user_radius_m"):
-                self.global_params["attendance_user_radius_m"] = cfg.getint("Config", "attendance_user_radius_m")
+                self.global_params["attendance_user_radius_m"] = cfg.getint(
+                    "Config", "attendance_user_radius_m"
+                )
 
             logging.info(
                 f"Loaded global config: AmapKey={'Yes' if amap_key else 'No'}, Theme={self.global_params.get('theme_base_color')}"
@@ -6340,19 +6353,25 @@ class Api:
                     target_params[key] = original_type(value)
 
                 # [修正] 如果是全局配置项，立即保存到 config.ini
-                global_keys = ["theme_base_color", "theme_style", "auto_attendance_enabled", "auto_attendance_refresh_s", "attendance_user_radius_m"]
+                global_keys = [
+                    "theme_base_color",
+                    "theme_style",
+                    "auto_attendance_enabled",
+                    "auto_attendance_refresh_s",
+                    "attendance_user_radius_m",
+                ]
                 if key in global_keys:
                     try:
                         main_cfg = configparser.RawConfigParser()
                         main_cfg.optionxform = str
                         if os.path.exists(self.config_path):
                             main_cfg.read(self.config_path, encoding="utf-8")
-                        
+
                         if not main_cfg.has_section("Config"):
                             main_cfg.add_section("Config")
-                        
+
                         main_cfg.set("Config", key, str(target_params[key]))
-                        
+
                         _write_config_with_comments(main_cfg, self.config_path)
                         logging.debug(f"已将全局参数 {key} 保存到 config.ini")
                     except Exception as e:
@@ -12637,136 +12656,139 @@ def start_web_server(args_param):
 
     # ===== JS/CSS 文件本地缓存系统 =====
     # 缓存目录配置
-    JS_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "cdn")
+    JS_CACHE_DIR = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "cache", "cdn"
+    )
     os.makedirs(JS_CACHE_DIR, exist_ok=True)
-    
+
     # 需要缓存的CDN文件列表
     CDN_FILES = {
         "sweetalert2": {
             "url": "https://cdn.jsdelivr.net/npm/sweetalert2@11",
             "filename": "sweetalert2.min.js",
-            "type": "js"
+            "type": "js",
         },
         "qrcode": {
             "url": "https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js",
             "filename": "qrcode.min.js",
-            "type": "js"
+            "type": "js",
         },
         "cropperjs": {
             "url": "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js",
             "filename": "cropper.min.js",
-            "type": "js"
+            "type": "js",
         },
         "cropperjs-css": {
             "url": "https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css",
             "filename": "cropper.min.css",
-            "type": "css"
+            "type": "css",
         },
         "tailwindcss": {
             "url": "https://cdn.tailwindcss.com",
             "filename": "tailwindcss.min.js",
-            "type": "js"
+            "type": "js",
         },
         "socketio": {
             "url": "https://cdn.socket.io/4.8.1/socket.io.min.js",  # 自动获取最新稳定版
             "filename": "socket.io.min.js",
             "type": "js",
-            "check_latest": True  # 标记需要检查最新版本
+            "check_latest": True,  # 标记需要检查最新版本
         },
         "google-fonts": {
             "url": "https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@600;700&family=Noto+Sans+SC:wght@400;600;700&display=swap",
             "filename": "google-fonts.css",
-            "type": "css"
+            "type": "css",
         },
         "amap-loader": {
             "url": "https://webapi.amap.com/loader.js",
             "filename": "amap-loader.js",
-            "type": "js"
-        }
+            "type": "js",
+        },
     }
-    
+
     # JS缓存存储
     js_cache_storage = {}
     js_cache_lock = threading.Lock()
     js_cache_last_update = {}
-    
+
     # 字体文件缓存存储（用于Google Fonts的TTF文件）
     font_cache_storage = {}
     font_cache_lock = threading.Lock()
-    
+
     def parse_google_fonts_css(css_content):
         """
         解析Google Fonts CSS内容，提取所有字体文件URL
-        
+
         参数:
             css_content: CSS文件内容
-            
+
         返回:
             字体URL列表 [(url, font_name), ...]
         """
         import re
+
         # 匹配 url(https://...) 格式的链接
-        pattern = r'url\((https://fonts\.gstatic\.com/[^)]+)\)'
+        pattern = r"url\((https://fonts\.gstatic\.com/[^)]+)\)"
         urls = re.findall(pattern, css_content)
-        
+
         # 为每个URL生成唯一的标识符（基于文件名）
         font_urls = []
         for url in urls:
             # 从URL提取文件名作为标识符
             # 例如: https://fonts.gstatic.com/s/notosanssc/v39/xxx.ttf -> notosanssc-xxx.ttf
-            parts = url.split('/')
+            parts = url.split("/")
             if len(parts) >= 2:
                 font_family = parts[-3] if len(parts) >= 3 else "font"
                 font_file = parts[-1]
                 font_key = f"{font_family}-{font_file}"
             else:
-                font_key = url.split('/')[-1]
+                font_key = url.split("/")[-1]
             font_urls.append((url, font_key))
-        
+
         return font_urls
-    
+
     def cache_google_fonts_with_ttf(css_content, key):
         """
         缓存Google Fonts CSS及其引用的所有TTF字体文件
-        
+
         参数:
             css_content: CSS文件内容
             key: 缓存键名
-            
+
         返回:
             处理后的CSS内容（URL已替换为本地API地址）
         """
         import re
-        
+
         # 解析CSS中的字体URL
         font_urls = parse_google_fonts_css(css_content)
         logging.info(f"[CDN缓存] 发现 {len(font_urls)} 个字体文件需要缓存")
-        
+
         modified_css = css_content
-        
+
         for original_url, font_key in font_urls:
             # 下载字体文件（二进制模式）
             logging.info(f"[CDN缓存] 正在下载字体: {font_key}")
             font_content = fetch_cdn_file(original_url, timeout=60, binary=True)
-            
+
             if font_content:
                 # 缓存字体文件（二进制）
                 with font_cache_lock:
                     font_cache_storage[font_key] = font_content
-                
+
                 # 保存到本地文件
                 font_filename = font_key
                 save_cached_file(font_filename, font_content, binary=True)
-                
+
                 # 替换CSS中的URL为本地API地址
                 local_url = f"/api/cdn/font/{font_key}"
                 modified_css = modified_css.replace(original_url, local_url)
                 logging.info(f"[CDN缓存] 字体已缓存: {font_key}")
             else:
                 logging.warning(f"[CDN缓存] 字体下载失败: {font_key}")
-        
+
         return modified_css
-    
+
     def load_cached_fonts():
         """
         从本地缓存加载所有字体文件
@@ -12775,12 +12797,16 @@ def start_web_server(args_param):
             fonts_dir = JS_CACHE_DIR
             if not os.path.exists(fonts_dir):
                 return
-            
+
             for filename in os.listdir(fonts_dir):
-                if filename.endswith('.ttf') or filename.endswith('.woff') or filename.endswith('.woff2'):
+                if (
+                    filename.endswith(".ttf")
+                    or filename.endswith(".woff")
+                    or filename.endswith(".woff2")
+                ):
                     filepath = os.path.join(fonts_dir, filename)
                     try:
-                        with open(filepath, 'rb') as f:
+                        with open(filepath, "rb") as f:
                             content = f.read()
                         with font_cache_lock:
                             font_cache_storage[filename] = content
@@ -12789,7 +12815,7 @@ def start_web_server(args_param):
                         logging.warning(f"[CDN缓存] 加载字体文件失败 {filename}: {e}")
         except Exception as e:
             logging.warning(f"[CDN缓存] 扫描字体缓存目录失败: {e}")
-    
+
     def get_latest_socketio_version():
         """
         获取socket.io的最新稳定版本号
@@ -12797,8 +12823,7 @@ def start_web_server(args_param):
         try:
             # 从npm registry获取最新版本
             response = requests.get(
-                "https://registry.npmjs.org/socket.io-client/latest",
-                timeout=10
+                "https://registry.npmjs.org/socket.io-client/latest", timeout=10
             )
             if response.status_code == 200:
                 data = response.json()
@@ -12808,11 +12833,11 @@ def start_web_server(args_param):
         except Exception as e:
             logging.warning(f"[CDN缓存] 获取Socket.IO最新版本失败: {e}")
         return "4.8.1"  # 默认版本
-    
+
     def fetch_cdn_file(url, timeout=30, binary=False):
         """
         从CDN获取文件内容
-        
+
         参数:
             url: 文件URL
             timeout: 超时时间（秒）
@@ -12826,16 +12851,18 @@ def start_web_server(args_param):
             if response.status_code == 200:
                 return response.content if binary else response.text
             else:
-                logging.warning(f"[CDN缓存] 获取文件失败，状态码: {response.status_code}, URL: {url}")
+                logging.warning(
+                    f"[CDN缓存] 获取文件失败，状态码: {response.status_code}, URL: {url}"
+                )
                 return None
         except Exception as e:
             logging.error(f"[CDN缓存] 获取文件异常: {e}, URL: {url}")
             return None
-    
+
     def load_cached_file(filename, binary=False):
         """
         从本地缓存文件加载内容
-        
+
         参数:
             filename: 文件名
             binary: 是否以二进制模式读取
@@ -12850,11 +12877,11 @@ def start_web_server(args_param):
             except Exception as e:
                 logging.error(f"[CDN缓存] 读取缓存文件失败: {e}, 文件: {filename}")
         return None
-    
+
     def save_cached_file(filename, content, binary=False):
         """
         保存内容到本地缓存文件
-        
+
         参数:
             filename: 文件名
             content: 文件内容
@@ -12871,29 +12898,29 @@ def start_web_server(args_param):
         except Exception as e:
             logging.error(f"[CDN缓存] 保存缓存文件失败: {e}, 文件: {filename}")
             return False
-    
+
     def update_single_cdn_file(key, config):
         """
         更新单个CDN文件的缓存
         """
         url = config["url"]
         filename = config["filename"]
-        
+
         # 如果是socket.io且标记需要检查最新版本，则动态获取最新版本URL
         if config.get("check_latest") and key == "socketio":
             latest_version = get_latest_socketio_version()
             url = f"https://cdn.socket.io/{latest_version}/socket.io.min.js"
             logging.info(f"[CDN缓存] Socket.IO 使用最新版本: {latest_version}")
-        
+
         logging.info(f"[CDN缓存] 正在获取: {key} ({url})")
         content = fetch_cdn_file(url)
-        
+
         if content:
             # 如果是 Google Fonts，需要特殊处理：解析并缓存TTF字体文件
             if key == "google-fonts":
                 logging.info(f"[CDN缓存] 正在解析Google Fonts CSS并缓存字体文件...")
                 content = cache_google_fonts_with_ttf(content, key)
-            
+
             with js_cache_lock:
                 js_cache_storage[key] = content
                 js_cache_last_update[key] = time.time()
@@ -12912,7 +12939,7 @@ def start_web_server(args_param):
             else:
                 logging.error(f"[CDN缓存] 获取失败且无本地缓存: {key}")
                 return False
-    
+
     def update_all_cdn_files():
         """
         更新所有CDN文件的缓存
@@ -12920,25 +12947,25 @@ def start_web_server(args_param):
         logging.info("[CDN缓存] 开始更新所有CDN文件...")
         success_count = 0
         fail_count = 0
-        
+
         for key, config in CDN_FILES.items():
             if update_single_cdn_file(key, config):
                 success_count += 1
             else:
                 fail_count += 1
-        
+
         logging.info(f"[CDN缓存] 更新完成: 成功 {success_count}, 失败 {fail_count}")
         return success_count, fail_count
-    
+
     def init_cdn_cache():
         """
         初始化CDN缓存：先尝试加载本地缓存，如果没有则从CDN获取
         """
         logging.info("[CDN缓存] 正在初始化CDN文件缓存...")
-        
+
         # 先加载缓存的字体文件
         load_cached_fonts()
-        
+
         for key, config in CDN_FILES.items():
             filename = config["filename"]
             # 先尝试加载本地缓存
@@ -12946,20 +12973,24 @@ def start_web_server(args_param):
             if cached:
                 with js_cache_lock:
                     js_cache_storage[key] = cached
-                    js_cache_last_update[key] = os.path.getmtime(os.path.join(JS_CACHE_DIR, filename))
+                    js_cache_last_update[key] = os.path.getmtime(
+                        os.path.join(JS_CACHE_DIR, filename)
+                    )
                 logging.info(f"[CDN缓存] 从本地加载: {key}")
             else:
                 # 本地没有缓存，从CDN获取
                 update_single_cdn_file(key, config)
-        
-        logging.info(f"[CDN缓存] 初始化完成，已缓存 {len(js_cache_storage)} 个JS/CSS文件, {len(font_cache_storage)} 个字体文件")
-    
+
+        logging.info(
+            f"[CDN缓存] 初始化完成，已缓存 {len(js_cache_storage)} 个JS/CSS文件, {len(font_cache_storage)} 个字体文件"
+        )
+
     def cdn_cache_update_worker():
         """
         CDN缓存定时更新工作线程（每小时检查一次）
         """
         UPDATE_INTERVAL = 3600  # 1小时
-        
+
         while True:
             try:
                 time.sleep(UPDATE_INTERVAL)
@@ -12967,10 +12998,10 @@ def start_web_server(args_param):
                 update_all_cdn_files()
             except Exception as e:
                 logging.error(f"[CDN缓存] 定时更新任务异常: {e}")
-    
+
     # 初始化CDN缓存
     init_cdn_cache()
-    
+
     # 启动CDN缓存定时更新线程
     cdn_update_thread = threading.Thread(target=cdn_cache_update_worker, daemon=True)
     cdn_update_thread.start()
@@ -14408,7 +14439,7 @@ def start_web_server(args_param):
     @app.route("/auth/admin/create_user", methods=["POST"])
     def auth_admin_create_user():
         """管理员：创建新用户
-        
+
         请求参数：
         - username: 用户名（必填）
         - password: 密码（必填）
@@ -14440,18 +14471,20 @@ def start_web_server(args_param):
         # 如果填写了手机号，验证格式
         if phone:
             import re
-            if not re.match(r'^1[3-9]\d{9}$', phone):
+
+            if not re.match(r"^1[3-9]\d{9}$", phone):
                 return jsonify({"success": False, "message": "手机号格式不正确"})
-        
+
         # 如果填写了验证码，进行校验（验证码非空时必须校验）
         if sms_code and phone:
             # 调用短信验证码校验逻辑
-            if hasattr(auth_system, 'sms_codes') and phone in auth_system.sms_codes:
+            if hasattr(auth_system, "sms_codes") and phone in auth_system.sms_codes:
                 stored = auth_system.sms_codes[phone]
                 import time
-                if stored.get('code') != sms_code:
+
+                if stored.get("code") != sms_code:
                     return jsonify({"success": False, "message": "验证码错误"})
-                if time.time() > stored.get('expire_at', 0):
+                if time.time() > stored.get("expire_at", 0):
                     return jsonify({"success": False, "message": "验证码已过期"})
                 # 验证成功，删除已使用的验证码
                 del auth_system.sms_codes[phone]
@@ -14461,25 +14494,26 @@ def start_web_server(args_param):
         result = auth_system.register_user(new_username, password, group)
         if result.get("success"):
             ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
-            
+
             # 如果提供了手机号，绑定到新用户
             if phone:
                 try:
                     auth_system.update_user_phone(new_username, phone)
                 except Exception as e:
                     print(f"[警告] 绑定手机号失败: {e}")
-            
+
             # 如果提供了昵称，更新昵称
             if nickname:
                 try:
                     auth_system.update_user_nickname(new_username, nickname)
                 except Exception as e:
                     print(f"[警告] 更新昵称失败: {e}")
-            
+
             auth_system.log_audit(
                 auth_username,
                 "create_user",
-                f"创建新用户: {new_username} (组: {group})" + (f", 手机: {phone}" if phone else ""),
+                f"创建新用户: {new_username} (组: {group})"
+                + (f", 手机: {phone}" if phone else ""),
                 ip_address,
                 session_id,
             )
@@ -14579,7 +14613,7 @@ def start_web_server(args_param):
 
         api_instance = web_sessions[session_id]
         auth_username = getattr(api_instance, "auth_username", "")
-        
+
         # 检查权限：需要 'manage_users' 权限
         if not auth_system.check_permission(auth_username, "manage_users"):
             return jsonify({"success": False, "message": "权限不足"}), 403
@@ -14592,7 +14626,7 @@ def start_web_server(args_param):
             return jsonify({"success": False, "message": "用户名不能为空"}), 400
 
         result = auth_system.force_disable_2fa(target_username)
-        
+
         if result.get("success"):
             ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
             auth_system.log_audit(
@@ -14602,7 +14636,7 @@ def start_web_server(args_param):
                 ip_address,
                 session_id,
             )
-            
+
         return jsonify(result)
 
     # ============================================================
@@ -14617,7 +14651,7 @@ def start_web_server(args_param):
 
         api_instance = web_sessions[session_id]
         auth_username = getattr(api_instance, "auth_username", "")
-        
+
         # 检查权限：需要 'force_logout_users' 权限
         if not auth_system.check_permission(auth_username, "force_logout_users"):
             return jsonify({"success": False, "message": "权限不足"}), 403
@@ -14630,14 +14664,14 @@ def start_web_server(args_param):
 
         # 1. 使 Token 失效 (删除 token 文件)
         token_manager.invalidate_token(target_username)
-        
+
         # 2. 查找并清理所有内存中的活跃会话
         sessions_to_kill = []
         with web_sessions_lock:
             for sid, api in web_sessions.items():
                 if getattr(api, "auth_username", "") == target_username:
                     sessions_to_kill.append(sid)
-        
+
         # 3. 查找用户文件记录的会话 (包括可能不在内存中但持久化的)
         try:
             stored_sessions = auth_system.get_user_sessions(target_username)
@@ -14652,7 +14686,7 @@ def start_web_server(args_param):
             # 调用全局清理函数，清理内存、文件和索引
             cleanup_session(sid, reason="admin_force_logout")
             cleaned_count += 1
-            
+
         # 4. 清空用户配置文件中的会话列表
         try:
             user_file = auth_system.get_user_file_path(target_username)
@@ -14660,9 +14694,9 @@ def start_web_server(args_param):
                 with auth_system.lock:
                     with open(user_file, "r", encoding="utf-8") as f:
                         user_data = json.load(f)
-                    
+
                     user_data["session_ids"] = []
-                    
+
                     with open(user_file, "w", encoding="utf-8") as f:
                         json.dump(user_data, f, indent=2, ensure_ascii=False)
         except Exception as e:
@@ -14679,7 +14713,12 @@ def start_web_server(args_param):
         )
 
         logging.info(f"管理员 {auth_username} 强制登出了用户 {target_username}")
-        return jsonify({"success": True, "message": f"用户 {target_username} 已强制登出，清理了 {cleaned_count} 个会话"})
+        return jsonify(
+            {
+                "success": True,
+                "message": f"用户 {target_username} 已强制登出，清理了 {cleaned_count} 个会话",
+            }
+        )
 
     @app.route("/auth/admin/force_reset_password", methods=["POST"])
     def auth_admin_force_reset_password():
@@ -14822,7 +14861,7 @@ def start_web_server(args_param):
     def auth_admin_update_user_phone():
         """
         管理员更新用户手机号
-        
+
         请求参数：
         - username: 目标用户名（必填）
         - new_phone: 新手机号（必填）
@@ -14855,16 +14894,20 @@ def start_web_server(args_param):
         # 如果填写了验证码，进行校验（验证码非空时必须校验）
         if sms_code:
             import time
-            if hasattr(auth_system, 'sms_codes') and new_phone in auth_system.sms_codes:
+
+            if hasattr(auth_system, "sms_codes") and new_phone in auth_system.sms_codes:
                 stored = auth_system.sms_codes[new_phone]
-                if stored.get('code') != sms_code:
+                if stored.get("code") != sms_code:
                     return jsonify({"success": False, "message": "验证码错误"}), 400
-                if time.time() > stored.get('expire_at', 0):
+                if time.time() > stored.get("expire_at", 0):
                     return jsonify({"success": False, "message": "验证码已过期"}), 400
                 # 验证成功，删除已使用的验证码
                 del auth_system.sms_codes[new_phone]
             else:
-                return jsonify({"success": False, "message": "验证码不存在或已过期"}), 400
+                return (
+                    jsonify({"success": False, "message": "验证码不存在或已过期"}),
+                    400,
+                )
 
         try:
             user_file_path = auth_system.get_user_file_path(username)
@@ -14881,7 +14924,8 @@ def start_web_server(args_param):
             auth_system.log_audit(
                 current_username,
                 "admin_update_phone",
-                f"管理员 {current_username} 更新了用户 {username} 的手机号为: {new_phone}" + (f" (已验证)" if sms_code else " (未验证)"),
+                f"管理员 {current_username} 更新了用户 {username} 的手机号为: {new_phone}"
+                + (f" (已验证)" if sms_code else " (未验证)"),
                 ip_address,
                 session_id,
             )
@@ -18023,10 +18067,10 @@ def start_web_server(args_param):
     def get_cdn_cached_file(file_key):
         """
         返回本地缓存的CDN文件（JS/CSS）
-        
+
         参数:
             file_key: 文件标识符，如 sweetalert2, qrcode, cropperjs, cropperjs-css
-        
+
         返回:
             文件内容，并设置正确的Content-Type
         """
@@ -18036,32 +18080,39 @@ def start_web_server(args_param):
                     content = js_cache_storage[file_key]
                     file_config = CDN_FILES.get(file_key, {})
                     file_type = file_config.get("type", "js")
-                    
+
                     # 设置正确的Content-Type
                     if file_type == "css":
                         mimetype = "text/css"
                     else:
                         mimetype = "application/javascript"
-                    
+
                     response = make_response(content)
                     response.headers["Content-Type"] = mimetype
-                    response.headers["Cache-Control"] = "public, max-age=3600"  # 缓存1小时
+                    response.headers["Cache-Control"] = (
+                        "public, max-age=3600"  # 缓存1小时
+                    )
                     return response
                 else:
                     logging.warning(f"[CDN缓存API] 请求的文件不存在: {file_key}")
-                    return jsonify({"success": False, "message": f"文件未找到: {file_key}"}), 404
+                    return (
+                        jsonify(
+                            {"success": False, "message": f"文件未找到: {file_key}"}
+                        ),
+                        404,
+                    )
         except Exception as e:
             logging.error(f"[CDN缓存API] 返回文件时发生错误: {e}", exc_info=True)
             return jsonify({"success": False, "message": "服务器内部错误"}), 500
-    
+
     @app.route("/api/cdn/font/<font_key>")
     def get_cdn_cached_font(font_key):
         """
         返回本地缓存的字体文件（TTF/WOFF/WOFF2）
-        
+
         参数:
             font_key: 字体文件标识符，如 notosanssc-xxx.ttf
-        
+
         返回:
             字体文件内容，并设置正确的Content-Type
         """
@@ -18069,29 +18120,38 @@ def start_web_server(args_param):
             with font_cache_lock:
                 if font_key in font_cache_storage:
                     content = font_cache_storage[font_key]
-                    
+
                     # 根据文件扩展名设置正确的Content-Type
-                    if font_key.endswith('.woff2'):
+                    if font_key.endswith(".woff2"):
                         mimetype = "font/woff2"
-                    elif font_key.endswith('.woff'):
+                    elif font_key.endswith(".woff"):
                         mimetype = "font/woff"
-                    elif font_key.endswith('.ttf'):
+                    elif font_key.endswith(".ttf"):
                         mimetype = "font/ttf"
                     else:
                         mimetype = "application/octet-stream"
-                    
+
                     response = make_response(content)
                     response.headers["Content-Type"] = mimetype
-                    response.headers["Cache-Control"] = "public, max-age=31536000"  # 缓存1年（字体文件很少变化）
-                    response.headers["Access-Control-Allow-Origin"] = "*"  # 允许跨域访问字体
+                    response.headers["Cache-Control"] = (
+                        "public, max-age=31536000"  # 缓存1年（字体文件很少变化）
+                    )
+                    response.headers["Access-Control-Allow-Origin"] = (
+                        "*"  # 允许跨域访问字体
+                    )
                     return response
                 else:
                     logging.warning(f"[CDN缓存API] 请求的字体文件不存在: {font_key}")
-                    return jsonify({"success": False, "message": f"字体文件未找到: {font_key}"}), 404
+                    return (
+                        jsonify(
+                            {"success": False, "message": f"字体文件未找到: {font_key}"}
+                        ),
+                        404,
+                    )
         except Exception as e:
             logging.error(f"[CDN缓存API] 返回字体文件时发生错误: {e}", exc_info=True)
             return jsonify({"success": False, "message": "服务器内部错误"}), 500
-    
+
     @app.route("/api/cdn/refresh", methods=["POST"])
     def refresh_cdn_cache():
         """
@@ -18101,33 +18161,35 @@ def start_web_server(args_param):
             session_id = request.headers.get("X-Session-ID", "")
             if not session_id:
                 return jsonify({"success": False, "message": "未授权"}), 401
-            
+
             # 检查是否有管理员权限
             api_instance = None
             with web_sessions_lock:
                 if session_id in web_sessions:
                     api_instance = web_sessions[session_id]
-            
+
             if not api_instance:
                 return jsonify({"success": False, "message": "会话无效"}), 401
-            
+
             auth_username = getattr(api_instance, "auth_username", None)
             if not auth_username:
                 return jsonify({"success": False, "message": "未登录"}), 401
-            
+
             # 检查管理员权限
             if not auth_system.check_permission(auth_username, "admin_panel"):
                 return jsonify({"success": False, "message": "权限不足"}), 403
-            
+
             # 执行刷新
             success_count, fail_count = update_all_cdn_files()
-            
-            return jsonify({
-                "success": True,
-                "message": f"CDN缓存刷新完成: 成功 {success_count}, 失败 {fail_count}",
-                "success_count": success_count,
-                "fail_count": fail_count
-            })
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"CDN缓存刷新完成: 成功 {success_count}, 失败 {fail_count}",
+                    "success_count": success_count,
+                    "fail_count": fail_count,
+                }
+            )
         except Exception as e:
             logging.error(f"[CDN缓存API] 刷新缓存时发生错误: {e}", exc_info=True)
             return jsonify({"success": False, "message": "服务器内部错误"}), 500
@@ -20872,9 +20934,13 @@ def start_web_server(args_param):
                     cdn_cache_status[key] = {
                         "type": config["type"],
                         "cached": key in js_cache_storage,
-                        "last_update_time": datetime.datetime.fromtimestamp(
-                            js_cache_last_update[key]
-                        ).strftime("%Y-%m-%d %H:%M:%S") if key in js_cache_last_update else None
+                        "last_update_time": (
+                            datetime.datetime.fromtimestamp(
+                                js_cache_last_update[key]
+                            ).strftime("%Y-%m-%d %H:%M:%S")
+                            if key in js_cache_last_update
+                            else None
+                        ),
                     }
         except Exception as e:
             logging.warning(f"[健康检查] 获取CDN缓存状态失败: {e}")
@@ -21341,7 +21407,9 @@ def start_web_server(args_param):
 
                             except Exception as e:
                                 logging.error(f"DualProtocolSocket accept error: {e}")
-                                time.sleep(0.1)  # [修正] 添加延时，防止错误死循环导致CPU占用100%和服务器卡死
+                                time.sleep(
+                                    0.1
+                                )  # [修正] 添加延时，防止错误死循环导致CPU占用100%和服务器卡死
                                 continue
 
                 server_socket = eventlet.listen((args.host, args.port))
