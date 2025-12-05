@@ -20566,19 +20566,32 @@
               avatarUrl
             );
             if (avatarUrl) {
-              if (avatarUrl.startsWith("/api/avatar/")) {
-                loadAvatarWithAuth(avatarUrl, avatarDisplay);
-              } else {
-                const timestamp = new Date().getTime();
-                const urlWithTimestamp = avatarUrl.includes("?")
-                  ? `${avatarUrl}&t=${timestamp}`
-                  : `${avatarUrl}?t=${timestamp}`;
-                logMessage_Info(
-                  "[loadPersonalInfo] Setting avatar display src to:",
-                  urlWithTimestamp
-                );
-                avatarDisplay.src = urlWithTimestamp;
+              // [修正] 改为直接拼接 session_id，不再使用 loadAvatarWithAuth (Blob方式)
+              // 这种方式更稳定，避免了 Fetch Blob 过程中的潜在错误
+              let finalUrl = avatarUrl;
+              if (
+                finalUrl.startsWith("/api/avatar/") &&
+                typeof sessionUUID !== "undefined" &&
+                sessionUUID
+              ) {
+                // 只有当是本地API且未包含session_id时才添加
+                if (!finalUrl.includes("session_id=")) {
+                  finalUrl = finalUrl.includes("?")
+                    ? `${finalUrl}&session_id=${sessionUUID}`
+                    : `${finalUrl}?session_id=${sessionUUID}`;
+                }
               }
+
+              const timestamp = new Date().getTime();
+              const urlWithTimestamp = finalUrl.includes("?")
+                ? `${finalUrl}&t=${timestamp}`
+                : `${finalUrl}?t=${timestamp}`;
+
+              logMessage_Info(
+                "[loadPersonalInfo] Setting avatar display src to:",
+                urlWithTimestamp
+              );
+              avatarDisplay.src = urlWithTimestamp;
             } else {
               logMessage_Info(
                 "[loadPersonalInfo] No avatar URL, using default icon"
