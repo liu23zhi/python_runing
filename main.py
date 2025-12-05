@@ -982,6 +982,24 @@ def _write_config_with_comments(config_obj, filepath):
         f.write("# 说明：修改配置后需要重启程序生效\n")
         f.write("# ========================================\n\n")
 
+        # [修复] 写入 [Config] 节，确保 theme_style 等全局参数被持久化
+        if config_obj.has_section("Config") or config_obj.has_option("Config", "theme_style"):
+            f.write("[Config]\n")
+            f.write("# 全局配置参数 (主题、自动签到等)\n")
+            
+            # 优先写入已知的重要参数
+            known_keys = [
+                "LastUser", "theme_base_color", "theme_style", 
+                "auto_attendance_enabled", "auto_attendance_refresh_s", 
+                "attendance_user_radius_m"
+            ]
+            
+            # 如果config_obj中有这些节，则写入
+            if config_obj.has_section("Config"):
+                for key, value in config_obj.items("Config"):
+                    f.write(f"{key} = {value}\n")
+            f.write("\n")
+
         f.write("[Admin]\n")
         f.write("# 超级管理员账号名称（有且只有一个）\n")
         f.write("# 注意：super_admin 只能在此配置文件中设置，不能在界面创建\n")
@@ -4110,8 +4128,25 @@ class Api:
                     logging.info("已将AmapJsKey从旧版[System]迁移到新版[Map]")
 
             self.global_params["amap_js_key"] = amap_key
+            
+            # [修正] 加载全局主题配置 (仅当配置文件中存在时才覆盖内存中的值)
+            if cfg.has_option("Config", "theme_base_color"):
+                self.global_params["theme_base_color"] = cfg.get("Config", "theme_base_color")
+            
+            if cfg.has_option("Config", "theme_style"):
+                self.global_params["theme_style"] = cfg.get("Config", "theme_style")
+
+            if cfg.has_option("Config", "auto_attendance_enabled"):
+                self.global_params["auto_attendance_enabled"] = cfg.getboolean("Config", "auto_attendance_enabled")
+                
+            if cfg.has_option("Config", "auto_attendance_refresh_s"):
+                self.global_params["auto_attendance_refresh_s"] = cfg.getint("Config", "auto_attendance_refresh_s")
+                
+            if cfg.has_option("Config", "attendance_user_radius_m"):
+                self.global_params["attendance_user_radius_m"] = cfg.getint("Config", "attendance_user_radius_m")
+
             logging.info(
-                f"Loaded global Amap JS Key: {amap_key if amap_key else '(empty)'}"
+                f"Loaded global config: AmapKey={'Yes' if amap_key else 'No'}, Theme={self.global_params.get('theme_base_color')}"
             )
         except Exception as e:
             logging.error(
@@ -6303,6 +6338,25 @@ class Api:
                     )
                 else:
                     target_params[key] = original_type(value)
+
+                # [修正] 如果是全局配置项，立即保存到 config.ini
+                global_keys = ["theme_base_color", "theme_style", "auto_attendance_enabled", "auto_attendance_refresh_s", "attendance_user_radius_m"]
+                if key in global_keys:
+                    try:
+                        main_cfg = configparser.RawConfigParser()
+                        main_cfg.optionxform = str
+                        if os.path.exists(self.config_path):
+                            main_cfg.read(self.config_path, encoding="utf-8")
+                        
+                        if not main_cfg.has_section("Config"):
+                            main_cfg.add_section("Config")
+                        
+                        main_cfg.set("Config", key, str(target_params[key]))
+                        
+                        _write_config_with_comments(main_cfg, self.config_path)
+                        logging.debug(f"已将全局参数 {key} 保存到 config.ini")
+                    except Exception as e:
+                        logging.error(f"保存全局参数到 config.ini 失败: {e}")
 
                 if self.is_multi_account_mode:
                     for acc in self.accounts.values():

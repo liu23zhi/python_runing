@@ -8612,10 +8612,15 @@
                   <div
                     class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2"
                   >
-                    <h5 class="font-semibold text-slate-700 text-xs">基本信息</h5>
+                    <h5 class="font-semibold text-slate-700 text-xs">
+                      基本信息
+                    </h5>
                     <div class="space-y-2">
                       <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">昵称</label>
+                        <label
+                          class="block text-xs font-medium text-slate-600 mb-1"
+                          >昵称</label
+                        >
                         <input
                           type="text"
                           id="mobile-unified-profile-nickname"
@@ -8624,7 +8629,10 @@
                         />
                       </div>
                       <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">手机号</label>
+                        <label
+                          class="block text-xs font-medium text-slate-600 mb-1"
+                          >手机号</label
+                        >
                         <div class="flex gap-2">
                           <div class="phone-input-wrapper flex-1">
                             <span class="phone-prefix">+86 </span>
@@ -8645,10 +8653,15 @@
                             修改手机号
                           </button>
                         </div>
-                        <p class="text-xs text-slate-500 mt-1">💡 修改手机号需要短信验证</p>
+                        <p class="text-xs text-slate-500 mt-1">
+                          💡 修改手机号需要短信验证
+                        </p>
                       </div>
                       <div class="flex justify-end">
-                        <button onclick="updateMobileUnifiedBasicInfo()" class="btn btn-primary !py-1 !px-3 text-xs">
+                        <button
+                          onclick="updateMobileUnifiedBasicInfo()"
+                          class="btn btn-primary !py-1 !px-3 text-xs"
+                        >
                           保存基本信息
                         </button>
                       </div>
@@ -8658,10 +8671,15 @@
                   <div
                     class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2"
                   >
-                    <h5 class="font-semibold text-slate-700 text-xs">修改密码</h5>
+                    <h5 class="font-semibold text-slate-700 text-xs">
+                      修改密码
+                    </h5>
                     <div class="space-y-2">
                       <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">当前密码</label>
+                        <label
+                          class="block text-xs font-medium text-slate-600 mb-1"
+                          >当前密码</label
+                        >
                         <input
                           type="password"
                           id="mobile-unified-current-password"
@@ -8670,7 +8688,10 @@
                         />
                       </div>
                       <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">新密码</label>
+                        <label
+                          class="block text-xs font-medium text-slate-600 mb-1"
+                          >新密码</label
+                        >
                         <input
                           type="password"
                           id="mobile-unified-new-password"
@@ -8679,7 +8700,10 @@
                         />
                       </div>
                       <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">确认新密码</label>
+                        <label
+                          class="block text-xs font-medium text-slate-600 mb-1"
+                          >确认新密码</label
+                        >
                         <input
                           type="password"
                           id="mobile-unified-confirm-password"
@@ -8688,8 +8712,167 @@
                         />
                       </div>
                       <div class="flex justify-end">
-                        <button onclick="updateMobileUnifiedPassword()" class="btn btn-primary !py-1 !px-3 text-xs">
+                        <button
+                          onclick="updateMobileUnifiedPassword()"
+                          class="btn btn-primary !py-1 !px-3 text-xs"
+                        >
                           修改密码
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2"
+                  >
+                    <h5 class="font-semibold text-slate-700 text-xs">
+                      双因素认证(2FA)
+                    </h5>
+                    <div class="mb-2">
+                      <p class="text-xs text-slate-600">
+                        状态:
+                        <span id="mobile-unified-2fa-status">检测中...</span>
+                      </p>
+                    </div>
+
+                    <div id="mobile-unified-2fa-setup" class="space-y-2 hidden">
+                      <div
+                        class="bg-white border border-slate-200 rounded p-2 text-center"
+                      >
+                        <canvas
+                          id="mobile-unified-2fa-qr"
+                          class="mx-auto"
+                        ></canvas>
+                        <p class="text-[10px] text-slate-500 mt-1 break-all">
+                          密钥:
+                          <span
+                            id="mobile-unified-2fa-secret"
+                            class="font-mono font-bold"
+                          ></span>
+                        </p>
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          id="mobile-unified-2fa-code"
+                          class="input-field !text-xs !py-1.5"
+                          placeholder="输入6位验证码"
+                          maxlength="6"
+                        />
+                      </div>
+                      <div class="flex justify-end">
+                        <button
+                          onclick="enableMobileUnified2FA()"
+                          class="btn btn-primary !py-1 !px-3 text-xs"
+                        >
+                          启用2FA
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      id="mobile-unified-2fa-actions"
+                      class="flex justify-end"
+                    >
+                      <button
+                        onclick="generateMobileUnified2FA()"
+                        class="btn btn-primary !py-1 !px-3 text-xs"
+                      >
+                        生成2FA密钥
+                      </button>
+                    </div>
+
+                    <div
+                      id="mobile-unified-2fa-enabled-actions"
+                      class="hidden flex justify-end gap-2"
+                    >
+                      <button
+                        onclick="disableMobileUnified2FA()"
+                        class="btn btn-ghost border border-red-200 text-red-600 !py-1 !px-3 text-xs"
+                      >
+                        关闭2FA
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2"
+                  >
+                    <h5 class="font-semibold text-slate-700 text-xs">
+                      主题设置
+                    </h5>
+
+                    <div class="space-y-1">
+                      <label class="block text-xs font-medium text-slate-600"
+                        >主题风格</label
+                      >
+                      <select
+                        id="mobile-unified-theme-select"
+                        onchange="updateMobileUnifiedTheme()"
+                        class="select-field !text-xs !py-1.5"
+                      >
+                        <option value="light">浅色主题</option>
+                        <option value="dark">深色主题</option>
+                      </select>
+                    </div>
+
+                    <div
+                      class="space-y-1"
+                      id="mobile-unified-theme-style-presets"
+                    >
+                      <label class="block text-xs font-medium text-slate-600"
+                        >样式预设</label
+                      >
+                      <div class="grid grid-cols-3 gap-2">
+                        <button
+                          onclick="setMobileUnifiedThemeStyle('default')"
+                          class="btn btn-ghost border border-slate-300 !py-1 !px-1 text-[10px]"
+                        >
+                          默认
+                        </button>
+                        <button
+                          onclick="setMobileUnifiedThemeStyle('theme-anime')"
+                          class="btn btn-ghost border border-slate-300 !py-1 !px-1 text-[10px]"
+                        >
+                          二次元
+                        </button>
+                        <button
+                          onclick="setMobileUnifiedThemeStyle('theme-minimalist')"
+                          class="btn btn-ghost border border-slate-300 !py-1 !px-1 text-[10px]"
+                        >
+                          简约
+                        </button>
+                      </div>
+                    </div>
+
+                    <div class="space-y-1">
+                      <label class="block text-xs font-medium text-slate-600"
+                        >基础颜色</label
+                      >
+                      <div class="flex gap-2 items-center">
+                        <input
+                          type="color"
+                          id="mobile-unified-theme_base_color-picker"
+                          value="#7dd3fc"
+                          class="w-20 h-20 border border-slate-300 rounded cursor-pointer p-0.5 bg-white shadow-sm"
+                          onchange="document.getElementById('mobile-unified-theme_base_color').value = this.value; onColorPicked(this.value); callPythonAPI('update_param', 'theme_base_color', this.value);"
+                        />
+
+                        <input
+                          type="text"
+                          id="mobile-unified-theme_base_color"
+                          value="#7dd3fc"
+                          class="input-field !text-xs !py-1.5 flex-1 font-mono uppercase shadow-inner"
+                          placeholder="#7DD3FC"
+                          maxlength="7"
+                          onchange="if(/^#[0-9A-F]{6}$/i.test(this.value)){ document.getElementById('mobile-unified-theme_base_color-picker').value = this.value; onColorPicked(this.value); callPythonAPI('update_param', 'theme_base_color', this.value); }"
+                        />
+
+                        <button
+                          onclick="resetBaseColorToDefault('mobile-unified')"
+                          class="btn btn-ghost border border-slate-300 !py-1 !px-2 text-xs ml-auto whitespace-nowrap hover:bg-slate-100"
+                        >
+                          恢复默认
                         </button>
                       </div>
                     </div>
@@ -8860,6 +9043,7 @@
                   <button
                     id="mobile-multi-post-message-btn"
                     class="btn btn-primary w-full !py-1 text-xs"
+                    onclick="submitMobileMultiMessage()"
                   >
                     发表
                   </button>
@@ -8867,7 +9051,7 @@
                 <!-- 留言列表容器 -->
                 <div
                   id="mobile-multi-admin-messages-list"
-                  class="space-y-2 max-h-[40vh] overflow-y-auto"
+                  class="space-y-2 max-h-auto overflow-y-auto"
                 >
                   <!-- 加载占位提示 -->
                   <p class="text-slate-400 text-center py-10 text-xs">
@@ -8912,7 +9096,10 @@
                   </div>
                 </div>
                 <!-- 添加封禁规则区域 -->
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div
+                  class="bg-blue-50 border border-blue-200 rounded-lg p-3"
+                  id="mobile-banip-basicopentic"
+                >
                   <!-- 添加规则标题 -->
                   <h5 class="font-semibold text-blue-900 text-xs mb-2">
                     添加规则
@@ -12276,6 +12463,7 @@
                       id="profile-2fa-code"
                       class="input-field"
                       placeholder="输入6位验证码"
+                      maxlength="6"
                     />
                   </div>
                   <div class="flex justify-end">
@@ -12360,7 +12548,7 @@
                       id="profile-theme_base_color-picker"
                       value="#7dd3fc"
                       class="w-12 h-10 border border-slate-300 rounded cursor-pointer"
-                      onchange="onColorPicked(this.value); updateParam('theme_base_color', this.value);"
+                      onchange="document.getElementById('profile-theme_base_color').value = this.value; onColorPicked(this.value); callPythonAPI('update_param', 'theme_base_color', this.value);"
                       title="点击选择颜色"
                     />
 
@@ -12370,7 +12558,7 @@
                       value="#7dd3fc"
                       class="input-field flex-1 font-mono text-sm"
                       placeholder="#7dd3fc"
-                      onchange="onColorPicked(this.value); updateParam('theme_base_color', this.value);"
+                      onchange="if(/^#[0-9A-Fa-f]{6}$/i.test(this.value)){ document.getElementById('profile-theme_base_color-picker').value = this.value; onColorPicked(this.value); callPythonAPI('update_param', 'theme_base_color', this.value); }"
                       pattern="^#[0-9A-Fa-f]{6}$"
                       title="输入16进制颜色值，如 #7dd3fc"
                     />
@@ -17729,7 +17917,8 @@
         }
       }
 
-      function setThemeStyle(styleName) {
+      function setThemeStyle(styleName, save = true) {
+        // [修改] 增加 save 参数
         document.body.classList.remove("theme-anime", "theme-minimalist");
 
         if (styleName !== "default") {
@@ -17748,8 +17937,11 @@
           }
         });
 
-        callPythonAPI("update_param", "theme_style", styleName);
-        logMessage_Info(`主题样式已切换为: ${styleName}`);
+        // [修改] 仅当 save 为 true 时调用 API
+        if (save) {
+          callPythonAPI("update_param", "theme_style", styleName);
+          logMessage_Info(`主题样式已切换为: ${styleName}`);
+        }
       }
 
       function applyAndSaveTheme(theme) {
@@ -17803,11 +17995,15 @@
         logMessage_Info("主题颜色已恢复为默认。");
       }
 
-      function setBaseColor(c, deep) {
+      function setBaseColor(c, deep, save = true) {
+        // [修改] 增加 save 参数
         document.documentElement.style.setProperty("--base-color", c);
         document.documentElement.style.setProperty("--base-color-600", deep);
         document.documentElement.style.setProperty("--base-color-300", c);
-        callPythonAPI("update_param", "theme_base_color", c);
+        // [修改] 仅当 save 为 true 时调用 API
+        if (save) {
+          callPythonAPI("update_param", "theme_base_color", c);
+        }
         if ($("base-color-input")) $("base-color-input").value = c;
       }
       function onColorPicked(val) {
@@ -18177,6 +18373,16 @@
           modal.classList.add("hidden");
 
           if (input) input.value = "";
+
+          // 修复：如果存在挂起的上下文（说明流程被取消），恢复来源按钮状态
+          if (pendingSMSContext && pendingSMSContext.button) {
+            pendingSMSContext.button.disabled = false;
+            if (pendingSMSContext.originalText) {
+              pendingSMSContext.button.textContent =
+                pendingSMSContext.originalText;
+            }
+          }
+
           pendingSMSContext = null;
         }
       }
@@ -18209,6 +18415,9 @@
             pendingSMSContext.originalText,
             pendingSMSContext.scene
           );
+
+          // 修复：发送成功后清除上下文，防止 closeCaptchaModal 错误地重置倒计时按钮
+          pendingSMSContext = null;
 
           closeCaptchaModal();
         } catch (error) {
@@ -23656,9 +23865,11 @@
 
                   showMobileConfirm("删除会话", confirmText, () => {
                     if (isGodMode) {
-                      destroySession(session.session_id);
+                      // 传入 false 以跳过 destroySession 内部的二次确认
+                      destroySession(session.session_id, false);
                     } else {
-                      deleteSession(session.session_id);
+                      // 传入 false 以跳过 deleteSession 内部的二次确认
+                      deleteSession(session.session_id, false);
                     }
                   });
                 }
@@ -25099,13 +25310,16 @@
       // ====================
       // 上帝模式：销毁会话
       // ====================
-      async function destroySession(sessionId) {
+      // 增加 confirm 参数，默认为 true
+      async function destroySession(sessionId, confirm = true) {
         const sessionHash = sessionId.substring(0, 16);
-        const confirmed = await jsShowConfirm(
-          "确认销毁",
-          `确定要销毁会话\n${sessionHash}...\n吗？\n此操作将强制终止该会话！`
-        );
-        if (!confirmed) return;
+        if (confirm) {
+          const confirmed = await jsShowConfirm(
+            "确认销毁",
+            `确定要销毁会话\n${sessionHash}...\n吗？\n此操作将强制终止该会话！`
+          );
+          if (!confirmed) return;
+        }
 
         try {
           const response = await fetch("/auth/admin/destroy_session", {
@@ -25244,25 +25458,28 @@
         }
       }
 
-      async function deleteSession(sessionId) {
-        const confirmed = await jsShowConfirm(
-          "确认删除",
-          `确定要删除会话\n ${sessionId} \n吗？\n此操作不可恢复！`
-        );
+      // 增加 confirm 参数，默认为 true
+      async function deleteSession(sessionId, confirm = true) {
+        if (confirm) {
+          const confirmed = await jsShowConfirm(
+            "确认删除",
+            `确定要删除会话\n ${sessionId} \n吗？\n此操作不可恢复！`
+          );
 
-        if (!confirmed) {
-          logMessage_Info("[会话删除] 用户取消操作。");
-          return;
+          if (!confirmed) {
+            logMessage_Info("[会话删除] 用户取消操作。");
+            return;
+          }
         }
-
-        Swal.fire({
-          title: "正在删除会话...",
-          text: "请稍候",
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
+        title: "正在删除会话...",
+          Swal.fire({
+            title: "正在删除会话...",
+            text: "请稍候",
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            },
+          });
 
         logMessage_Info(`[会话删除] 准备删除会话 ${sessionId}...`);
 
@@ -25295,6 +25512,11 @@
                 loadAdminSessions();
               } else {
                 loadAdminSessions_inline();
+              }
+
+              // [修正] 刷新移动端会话列表 (包含 mobile-multi-admin-sessions-list)
+              if (typeof loadMobileAdminSessionsList === "function") {
+                loadMobileAdminSessionsList();
               }
             });
           } else {
@@ -25805,6 +26027,7 @@
       }
 
       async function deleteSessionFromPicker(sessionId, confirm = true) {
+        // 如果 confirm 为 true，则显示内部确认框；否则直接执行
         if (confirm) {
           const confirmed = await jsShowConfirm(
             "确认删除",
@@ -26735,7 +26958,13 @@
             }, 100);
 
             const base = pythonParams.theme_base_color || "#7dd3fc";
-            setBaseColor(base, base);
+            setBaseColor(base, base, false); // [修改] 传入 false，不触发 API 保存
+
+            // [新增] 显式恢复主题样式
+            if (pythonParams.theme_style) {
+              setThemeStyle(pythonParams.theme_style, false);
+            }
+
             startMultiAccountAutoRefresh(500);
 
             hideLoadingOverlays();
@@ -26798,7 +27027,7 @@
               logMessage_Warning("检查后台任务失败:", err);
             }
             const base = pythonParams.theme_base_color || "#7dd3fc";
-            setBaseColor(base, base);
+            setBaseColor(base, base, false); // [修改] 传入 false，不触发 API 保存
             setTimeout(async () => {
               try {
                 await initializeInlineAdminPanel();
@@ -26900,7 +27129,7 @@
           }
 
           if (pythonParams.theme_style) {
-            setThemeStyle(pythonParams.theme_style);
+            setThemeStyle(pythonParams.theme_style, false); // [修改] 传入 false
           }
           await refreshUserList();
 
@@ -27381,7 +27610,11 @@
               updateParamInputs(container, "mobile-param", pythonParams);
             }
             if (params.theme_base_color) {
-              setBaseColor(params.theme_base_color, params.theme_base_color);
+              setBaseColor(
+                params.theme_base_color,
+                params.theme_base_color,
+                false
+              ); // [修改] 传入 false
             }
 
             showModalAlert("参数已刷新", "成功");
@@ -28034,10 +28267,10 @@
           updateParamInputs($("params-container"), "param", pythonParams);
 
           const base = pythonParams.theme_base_color || "#7dd3fc";
-          setBaseColor(base, base);
+          setBaseColor(base, base, false); // [修改] 传入 false，不保存
 
           const style = pythonParams.theme_style || "default";
-          setThemeStyle(style);
+          setThemeStyle(style, false); // [修改] 传入 false，不保存
 
           if (sessionUUID && currentAuthUsername) {
             try {
@@ -38697,9 +38930,26 @@
         const listEl = document.getElementById(
           "mobile-multi-admin-messages-list"
         );
+        // [新增] 获取游客输入框容器
+        const guestFields = document.getElementById(
+          "mobile-multi-message-guest-fields"
+        );
+
         if (!listEl) {
           console.error("[移动端留言板] 找不到留言列表容器");
           return;
+        }
+
+        // [新增] 根据当前登录状态显示/隐藏游客输入框
+        if (guestFields) {
+          // 使用全局变量 currentUserIsGuest 判断
+          const isGuest =
+            typeof currentUserIsGuest !== "undefined"
+              ? currentUserIsGuest
+              : true;
+          guestFields.style.display = isGuest ? "block" : "none";
+          if (!isGuest) guestFields.classList.add("hidden"); // 确保样式一致性
+          else guestFields.classList.remove("hidden");
         }
 
         listEl.innerHTML =
@@ -38741,6 +38991,7 @@
                 msg.nickname || msg.username || msg.auth_username || "匿名";
               const date = new Date(msg.timestamp * 1000);
               const dateStr = date.toLocaleString("zh-CN");
+              const ipCity = msg.ip_city || "";
 
               let avatarUrl = msg.avatar_url || "default_avatar.png";
               if (!avatarUrl.startsWith("/api/avatar/")) {
@@ -38753,30 +39004,56 @@
               }
 
               return `
-              <div class="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
-                <div class="flex gap-2">
-                  <img src="${avatarUrl}" class="w-8 h-8 rounded-full object-cover flex-shrink-0" onerror="this.src='/api/avatar/default_avatar.png'">
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center justify-between gap-2">
-                      <span class="text-xs font-semibold text-slate-800 truncate">${escapeHtml(
-                        displayName
-                      )}</span>
-                      <span class="text-xs text-slate-400 flex-shrink-0">${dateStr}</span>
+              <div class="bg-gradient-to-br from-white to-slate-50 border border-slate-200 rounded-xl p-5 space-y-3 shadow-lg hover:shadow-xl transition-shadow duration-200 ease-in-out">
+                <div class="flex justify-between items-start gap-4">
+                  <div class="flex gap-4 flex-1 min-w-0">
+                    <div class="flex-shrink-0 w-14 h-14 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 overflow-hidden border-2 border-slate-400 shadow-sm">
+                      <img src="${avatarUrl}" alt="头像" class="w-full h-full object-cover"
+                        onerror="const p = this.parentElement; p.innerHTML='<span class=\\'text-3xl text-slate-500\\'>👤</span>'; p.classList.add('flex', 'items-center', 'justify-center');">
                     </div>
-                    <p class="text-xs text-slate-600 mt-1 break-words">${escapeHtml(
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap mb-1">
+                        <span class="font-bold text-slate-800 text-base truncate">${escapeHtml(
+                          displayName
+                        )}</span>
+                        ${
+                          msg.is_guest
+                            ? '<span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full flex-shrink-0 font-medium">游客</span>'
+                            : ""
+                        }
+                        ${
+                          ipCity
+                            ? `<span class="text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded-full flex-shrink-0">📍 ${escapeHtml(
+                                ipCity
+                              )}</span>`
+                            : ""
+                        }
+                      </div>
+                      ${
+                        msg.email
+                          ? `<p class="text-xs text-slate-600 truncate mb-1">${escapeHtml(
+                              msg.email
+                            )}</p>`
+                          : ""
+                      }
+                      <p class="text-xs text-slate-500">${dateStr}</p>
+                    </div>
+                  </div>
+                  
+                  ${
+                    canDelete
+                      ? `
+                    <button class="btn btn-ghost min-h-[44px] py-2 px-4 text-red-600 hover:bg-red-50 active:bg-red-100 text-sm flex-shrink-0 border border-red-300 rounded-lg shadow-sm transition-all duration-150 ease-in-out active:scale-95" 
+                      onclick="deleteMobileMultiMessage('${msg.id}')">删除</button>
+                  `
+                      : ""
+                  }
+                </div>
+                <div class="pt-2 border-t border-slate-100">
+                    <p class="text-base text-slate-800 whitespace-pre-wrap break-words leading-relaxed">${escapeHtml(
                       msg.content
                     )}</p>
-                  </div>
                 </div>
-                ${
-                  canDelete
-                    ? `
-                  <div class="flex justify-end">
-                    <button onclick="deleteMobileMultiMessage('${msg.id}')" class="text-xs text-red-500 hover:text-red-700">删除</button>
-                  </div>
-                `
-                    : ""
-                }
               </div>
             `;
             })
@@ -38790,37 +39067,92 @@
       }
 
       async function submitMobileMultiMessage() {
+        // 1. 获取DOM元素
         const contentInput = document.getElementById(
           "mobile-multi-message-content"
         );
         const nicknameInput = document.getElementById(
           "mobile-multi-message-nickname"
         );
+        const emailInput = document.getElementById(
+          "mobile-multi-message-email"
+        );
+        const postBtn = document.getElementById(
+          "mobile-multi-post-message-btn"
+        );
+        const charCount = document.getElementById(
+          "mobile-multi-message-char-count"
+        );
 
-        if (!contentInput || !contentInput.value.trim()) {
+        if (!contentInput) return;
+
+        // 2. 获取输入值
+        const content = contentInput.value.trim();
+        const nickname = nicknameInput ? nicknameInput.value.trim() : "";
+        const email = emailInput ? emailInput.value.trim() : "";
+
+        // 3. 基础验证
+        if (!content) {
           showModalAlert("请输入留言内容", "提示");
           return;
         }
 
-        const content = contentInput.value.trim();
-        const nickname = nicknameInput ? nicknameInput.value.trim() : "";
+        if (content.length > 1000) {
+          showModalAlert("留言内容不能超过1000字", "提示");
+          return;
+        }
+
+        // 4. 游客身份验证 (参照 postMessage 逻辑)
+        // 使用全局变量或从 currentUserData 获取
+        const isGuest =
+          typeof currentUserIsGuest !== "undefined" ? currentUserIsGuest : true;
+
+        if (isGuest) {
+          if (!nickname) {
+            showModalAlert("游客必须填写昵称", "提示");
+            return;
+          }
+          if (!email) {
+            showModalAlert("游客必须填写邮箱", "提示");
+            return;
+          }
+          const emailPattern =
+            /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+          if (!emailPattern.test(email)) {
+            showModalAlert("邮箱格式不正确", "提示");
+            return;
+          }
+        }
+
+        // 5. 设置按钮加载状态
+        if (postBtn) {
+          postBtn.disabled = true;
+          postBtn.textContent = "发表中...";
+        }
 
         try {
-          const response = await fetch("/api/messages/add", {
+          // 6. 发送请求
+          const response = await fetch("/api/messages/post", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Session-ID": sessionUUID,
             },
-            body: JSON.stringify({ content, nickname }),
+            // [修正] 补全 email 字段
+            body: JSON.stringify({ content, nickname, email }),
           });
 
           const result = await response.json();
 
           if (result.success) {
             showModalAlert("留言发送成功", "成功");
+            // 清空输入
             contentInput.value = "";
             if (nicknameInput) nicknameInput.value = "";
+            if (emailInput) emailInput.value = "";
+            if (charCount) charCount.textContent = "0";
+
+            // 刷新列表
             loadMobileMultiMessages();
           } else {
             showModalAlert(result.message || "发送失败", "错误");
@@ -38828,6 +39160,12 @@
         } catch (e) {
           console.error("[移动端留言板] 发送失败:", e);
           showModalAlert("发送失败: " + e.message, "错误");
+        } finally {
+          // 7. 恢复按钮状态
+          if (postBtn) {
+            postBtn.disabled = false;
+            postBtn.textContent = "发表";
+          }
         }
       }
 
@@ -40139,7 +40477,8 @@
             formData.append("avatar", blob, "avatar.png");
 
             try {
-              const response = await fetch("/api/avatar/upload", {
+              const response = await fetch("/auth/user/upload_avatar", {
+                // 修正为后端定义的正确路径
                 method: "POST",
                 headers: { "X-Session-ID": sessionUUID },
                 body: formData,
@@ -40380,29 +40719,55 @@
       // 【移动端统一面板】加载个人信息
       async function loadMobileUnifiedProfile() {
         try {
-          const response = await fetch("/auth/get_profile", {
+          // 修正：将错误的 /auth/get_profile 替换为后端已存在的 /auth/user/details
+          const response = await fetch("/auth/user/details", {
             headers: { "X-Session-ID": sessionUUID },
           });
           const result = await response.json();
-          
+
           if (result.success) {
-            const data = result.data;
-            
+            // 修正：后端返回的键名为 'user' 而不是 'data'
+            const data = result.user;
+
             // 更新头像
-            const avatarDisplay = document.getElementById("mobile-unified-profile-avatar-display");
+            const avatarDisplay = document.getElementById(
+              "mobile-unified-profile-avatar-display"
+            );
             if (avatarDisplay) {
-              const avatarUrl = data.avatar_url || "/api/avatar/default";
-              avatarDisplay.src = avatarUrl + "?t=" + Date.now();
+              let avatarUrl = data.avatar_url || "default_avatar.png";
+
+              // 如果路径不包含 / 且不是默认头像，说明是纯文件名，补全API路径
+              if (
+                !avatarUrl.includes("/") &&
+                avatarUrl !== "default_avatar.png"
+              ) {
+                avatarUrl = `/api/avatar/${avatarUrl}`;
+              }
+
+              // 关键修正：拼接 session_id 用于后端鉴权（img标签无法带header）
+              if (typeof sessionUUID !== "undefined" && sessionUUID) {
+                const separator = avatarUrl.includes("?") ? "&" : "?";
+                avatarUrl += `${separator}session_id=${sessionUUID}`;
+              }
+
+              // 添加时间戳防止缓存
+              const finalSeparator = avatarUrl.includes("?") ? "&" : "?";
+              avatarDisplay.src =
+                avatarUrl + finalSeparator + "t=" + Date.now();
             }
-            
+
             // 更新昵称
-            const nicknameInput = document.getElementById("mobile-unified-profile-nickname");
+            const nicknameInput = document.getElementById(
+              "mobile-unified-profile-nickname"
+            );
             if (nicknameInput) {
               nicknameInput.value = data.nickname || "";
             }
-            
+
             // 更新手机号
-            const phoneInput = document.getElementById("mobile-unified-profile-phone");
+            const phoneInput = document.getElementById(
+              "mobile-unified-profile-phone"
+            );
             if (phoneInput) {
               phoneInput.value = data.phone || "未绑定";
               // 处理手机号显示
@@ -40414,6 +40779,76 @@
                   prefix.style.display = isUnbound ? "none" : "inline";
                 }
                 phoneWrapper.classList.toggle("prefix-hidden", isUnbound);
+              }
+              // --- 新增：更新 2FA 状态 ---
+              const tfaStatus = document.getElementById(
+                "mobile-unified-2fa-status"
+              );
+              const tfaActions = document.getElementById(
+                "mobile-unified-2fa-actions"
+              );
+              const tfaEnabledActions = document.getElementById(
+                "mobile-unified-2fa-enabled-actions"
+              );
+              const tfaSetup = document.getElementById(
+                "mobile-unified-2fa-setup"
+              );
+
+              const tfaEnabled =
+                data["2fa_enabled"] || data.tfa_enabled || false;
+
+              if (tfaStatus) {
+                tfaStatus.textContent = tfaEnabled ? "已启用" : "未启用";
+                tfaStatus.className = tfaEnabled
+                  ? "font-bold text-green-600"
+                  : "text-slate-500";
+              }
+
+              if (tfaEnabled) {
+                if (tfaActions) tfaActions.classList.add("hidden");
+                if (tfaSetup) tfaSetup.classList.add("hidden");
+                if (tfaEnabledActions)
+                  tfaEnabledActions.classList.remove("hidden");
+              } else {
+                if (tfaActions) tfaActions.classList.remove("hidden");
+                if (tfaEnabledActions)
+                  tfaEnabledActions.classList.add("hidden");
+                if (tfaSetup) tfaSetup.classList.add("hidden");
+              }
+
+              // --- 新增：更新主题设置 ---
+              const themeSelect = document.getElementById(
+                "mobile-unified-theme-select"
+              );
+              if (themeSelect && data.theme) {
+                themeSelect.value = data.theme;
+              }
+
+              // 加载全局参数中的颜色
+              try {
+                const paramsResult = await callPythonAPI("get_params");
+                if (paramsResult) {
+                  if (paramsResult.theme_base_color) {
+                    // 修正：同步更新取色器和文本框，使用新ID
+                    const colorPicker = document.getElementById(
+                      "mobile-unified-theme_base_color-picker"
+                    );
+                    const colorText = document.getElementById(
+                      "mobile-unified-theme_base_color"
+                    );
+                    if (colorPicker)
+                      colorPicker.value = paramsResult.theme_base_color;
+                    if (colorText)
+                      colorText.value = paramsResult.theme_base_color;
+                  }
+                  // 新增：初始化时自动高亮当前选中的样式按钮
+                  if (paramsResult.theme_style) {
+                    setMobileUnifiedThemeStyle(paramsResult.theme_style);
+                  }
+                }
+              } catch (e) {
+                console.error("[移动端统一面板-个人信息] 加载全局参数失败:", e);
+                showModalAlert("加载全局参数失败: " + e.message, "错误");
               }
             }
           } else {
@@ -40428,12 +40863,12 @@
       // 【移动端统一面板】处理头像文件选择
       async function handleMobileUnifiedAvatarFile(file) {
         if (!file) return;
-        
+
         if (!file.type.startsWith("image/")) {
           showModalAlert("请选择图片文件", "错误");
           return;
         }
-        
+
         // 显示移动端头像裁剪模态框
         showMobileUnifiedAvatarCropModal(file);
       }
@@ -40469,7 +40904,9 @@
 
         const reader = new FileReader();
         reader.onload = function (e) {
-          const cropImage = document.getElementById("mobile-unified-crop-image");
+          const cropImage = document.getElementById(
+            "mobile-unified-crop-image"
+          );
           if (cropImage) {
             cropImage.src = e.target.result;
 
@@ -40503,7 +40940,9 @@
       }
 
       function closeMobileUnifiedAvatarCropModal() {
-        const modal = document.getElementById("mobile-unified-avatar-crop-modal");
+        const modal = document.getElementById(
+          "mobile-unified-avatar-crop-modal"
+        );
         if (modal) {
           modal.classList.remove("show");
           setTimeout(() => {
@@ -40544,7 +40983,7 @@
             formData.append("avatar", blob, "avatar.png");
 
             try {
-              const response = await fetch("/api/avatar/upload", {
+              const response = await fetch("/auth/user/upload_avatar", {
                 method: "POST",
                 headers: { "X-Session-ID": sessionUUID },
                 body: formData,
@@ -40572,7 +41011,9 @@
 
       // 【移动端统一面板】修改手机号模态框
       function showMobileUnifiedModifyPhoneModal() {
-        let modal = document.getElementById("mobile-unified-modify-phone-modal");
+        let modal = document.getElementById(
+          "mobile-unified-modify-phone-modal"
+        );
         if (!modal) {
           modal = document.createElement("div");
           modal.id = "mobile-unified-modify-phone-modal";
@@ -40651,15 +41092,22 @@
         }
 
         // 填充当前手机号
-        const currentPhone = document.getElementById("mobile-unified-profile-phone");
-        const currentPhoneModal = document.getElementById("mobile-unified-modify-phone-current");
+        const currentPhone = document.getElementById(
+          "mobile-unified-profile-phone"
+        );
+        const currentPhoneModal = document.getElementById(
+          "mobile-unified-modify-phone-current"
+        );
         if (currentPhoneModal && currentPhone) {
           currentPhoneModal.value = currentPhone.value || "";
           // 处理手机号显示
-          const phoneWrapper = currentPhoneModal.closest(".phone-input-wrapper");
+          const phoneWrapper = currentPhoneModal.closest(
+            ".phone-input-wrapper"
+          );
           if (phoneWrapper) {
             const prefix = phoneWrapper.querySelector(".phone-prefix");
-            const isUnbound = !currentPhone.value || currentPhone.value === "未绑定";
+            const isUnbound =
+              !currentPhone.value || currentPhone.value === "未绑定";
             if (prefix) {
               prefix.style.display = isUnbound ? "none" : "inline";
             }
@@ -40668,8 +41116,12 @@
         }
 
         // 清空新手机号和验证码
-        const newPhoneInput = document.getElementById("mobile-unified-modify-phone-new");
-        const codeInput = document.getElementById("mobile-unified-modify-phone-code");
+        const newPhoneInput = document.getElementById(
+          "mobile-unified-modify-phone-new"
+        );
+        const codeInput = document.getElementById(
+          "mobile-unified-modify-phone-code"
+        );
         if (newPhoneInput) newPhoneInput.value = "";
         if (codeInput) codeInput.value = "";
 
@@ -40681,7 +41133,9 @@
       }
 
       function closeMobileUnifiedModifyPhoneModal() {
-        const modal = document.getElementById("mobile-unified-modify-phone-modal");
+        const modal = document.getElementById(
+          "mobile-unified-modify-phone-modal"
+        );
         if (modal) {
           modal.classList.remove("show");
           setTimeout(() => {
@@ -40694,11 +41148,16 @@
 
       async function sendMobileUnifiedModifyPhoneCode() {
         if (mobileUnifiedModifyPhoneCooldown > 0) {
-          showModalAlert(`请等待 ${mobileUnifiedModifyPhoneCooldown} 秒后再发送`, "提示");
+          showModalAlert(
+            `请等待 ${mobileUnifiedModifyPhoneCooldown} 秒后再发送`,
+            "提示"
+          );
           return;
         }
 
-        const newPhoneInput = document.getElementById("mobile-unified-modify-phone-new");
+        const newPhoneInput = document.getElementById(
+          "mobile-unified-modify-phone-new"
+        );
         const phone = newPhoneInput ? newPhoneInput.value.trim() : "";
 
         if (!phone || phone.length !== 11) {
@@ -40706,7 +41165,9 @@
           return;
         }
 
-        const sendBtn = document.getElementById("mobile-unified-modify-phone-send-code");
+        const sendBtn = document.getElementById(
+          "mobile-unified-modify-phone-send-code"
+        );
         if (sendBtn) sendBtn.disabled = true;
 
         // 打开图形验证码模态框
@@ -40719,8 +41180,12 @@
       }
 
       async function confirmMobileUnifiedModifyPhone() {
-        const newPhone = document.getElementById("mobile-unified-modify-phone-new").value.trim();
-        const code = document.getElementById("mobile-unified-modify-phone-code").value.trim();
+        const newPhone = document
+          .getElementById("mobile-unified-modify-phone-new")
+          .value.trim();
+        const code = document
+          .getElementById("mobile-unified-modify-phone-code")
+          .value.trim();
 
         if (!newPhone || newPhone.length !== 11) {
           showModalAlert("请输入正确的11位手机号", "提示");
@@ -40760,17 +41225,31 @@
 
       // 【移动端统一面板】更新基本信息
       async function updateMobileUnifiedBasicInfo() {
-        const nickname = document.getElementById("mobile-unified-profile-nickname").value.trim();
+        const nickname = document
+          .getElementById("mobile-unified-profile-nickname")
+          .value.trim();
+
+        // 新增：确保获取到当前用户名 (全局变量 currentAuthUsername 在 initializeApp/loadPersonalInfo 中赋值)
+        if (!currentAuthUsername) {
+          showModalAlert("无法获取当前用户信息，请刷新页面", "错误");
+          return;
+        }
 
         try {
-          const response = await fetch("/auth/update_profile", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Session-ID": sessionUUID,
-            },
-            body: JSON.stringify({ nickname: nickname }),
-          });
+          // 修正：参考 updateBasicInfo，使用正确的后端接口和 PUT 方法
+          const response = await fetch(
+            "/api/admin/users/" +
+              encodeURIComponent(currentAuthUsername) +
+              "/basic_info",
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Session-ID": sessionUUID,
+              },
+              body: JSON.stringify({ nickname: nickname }),
+            }
+          );
 
           const result = await response.json();
 
@@ -40789,9 +41268,25 @@
 
       // 【移动端统一面板】修改密码
       async function updateMobileUnifiedPassword() {
-        const currentPassword = document.getElementById("mobile-unified-current-password").value;
-        const newPassword = document.getElementById("mobile-unified-new-password").value;
-        const confirmPassword = document.getElementById("mobile-unified-confirm-password").value;
+        const currentPasswordInput = document.getElementById(
+          "mobile-unified-current-password"
+        );
+        const newPasswordInput = document.getElementById(
+          "mobile-unified-new-password"
+        );
+        const confirmPasswordInput = document.getElementById(
+          "mobile-unified-confirm-password"
+        );
+
+        const currentPassword = currentPasswordInput.value;
+        const newPassword = newPasswordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
+
+        // 校验用户信息
+        if (!currentAuthUsername) {
+          showModalAlert("无法获取当前用户信息，请刷新页面", "错误");
+          return;
+        }
 
         if (!currentPassword) {
           showModalAlert("请输入当前密码", "提示");
@@ -40814,15 +41309,17 @@
         }
 
         try {
-          const response = await fetch("/auth/change_password", {
+          // 修正：使用与 updatePassword() 一致的正确API接口
+          const response = await fetch("/auth/admin/reset_password", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Session-ID": sessionUUID,
             },
             body: JSON.stringify({
-              current_password: currentPassword,
-              new_password: newPassword,
+              username: currentAuthUsername, // 必填：当前用户名
+              old_password: currentPassword, // 必填：旧密码用于验证
+              new_password: newPassword, // 必填：新密码
             }),
           });
 
@@ -40831,15 +41328,217 @@
           if (result.success) {
             showModalAlert("密码修改成功", "成功");
             // 清空密码输入框
-            document.getElementById("mobile-unified-current-password").value = "";
-            document.getElementById("mobile-unified-new-password").value = "";
-            document.getElementById("mobile-unified-confirm-password").value = "";
+            currentPasswordInput.value = "";
+            newPasswordInput.value = "";
+            confirmPasswordInput.value = "";
           } else {
             showModalAlert(result.message || "修改失败", "错误");
           }
         } catch (e) {
           console.error("[移动端统一面板-修改密码] 失败:", e);
           showModalAlert("修改失败: " + e.message, "错误");
+        }
+      }
+
+      // ========================================
+      // 【移动端统一面板】功能补全：2FA、主题、样式
+      // ========================================
+
+      // 1. 生成 2FA 密钥
+      async function generateMobileUnified2FA() {
+        try {
+          const response = await fetch("/auth/2fa/generate", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID,
+            },
+          });
+          const result = await response.json();
+
+          if (!result.success) {
+            showModalAlert(`生成2FA失败: ${result.message}`, "错误");
+            return;
+          }
+
+          // 更新UI显示
+          const setupDiv = document.getElementById("mobile-unified-2fa-setup");
+          const actionsDiv = document.getElementById(
+            "mobile-unified-2fa-actions"
+          );
+          if (setupDiv) setupDiv.classList.remove("hidden");
+          if (actionsDiv) actionsDiv.classList.add("hidden");
+
+          // 显示密钥
+          const secretSpan = document.getElementById(
+            "mobile-unified-2fa-secret"
+          );
+          if (secretSpan && result.secret) {
+            secretSpan.textContent = result.secret;
+          }
+
+          // 生成二维码
+          const qrCanvas = document.getElementById("mobile-unified-2fa-qr");
+          if (qrCanvas && result.qr_uri) {
+            if (typeof QRCode !== "undefined") {
+              // 清除旧内容
+              const ctx = qrCanvas.getContext("2d");
+              ctx.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
+
+              QRCode.toCanvas(
+                qrCanvas,
+                result.qr_uri,
+                { width: 160, margin: 2 },
+                function (error) {
+                  if (error) {
+                    console.error("QR Code generation error:", error);
+                    showModalAlert("二维码生成失败", "错误");
+                  }
+                }
+              );
+            } else {
+              showModalAlert("QRCode库未加载，请刷新页面重试", "错误");
+            }
+          }
+        } catch (e) {
+          console.error("生成2FA失败:", e);
+          showModalAlert(`生成失败: ${e.message}`, "错误");
+        }
+      }
+
+      // 2. 启用 2FA
+      async function enableMobileUnified2FA() {
+        const codeInput = document.getElementById("mobile-unified-2fa-code");
+        if (!codeInput || !codeInput.value) {
+          showModalAlert("请输入验证码", "提示");
+          return;
+        }
+
+        try {
+          const response = await fetch("/auth/2fa/enable", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID,
+            },
+            body: JSON.stringify({
+              code: codeInput.value,
+            }),
+          });
+          const result = await response.json();
+
+          if (result.success) {
+            showModalAlert("2FA启用成功！", "成功");
+            // 刷新个人信息面板以更新状态
+            loadMobileUnifiedProfile();
+          } else {
+            showModalAlert(`启用失败: ${result.message}`, "错误");
+          }
+        } catch (e) {
+          console.error("启用2FA失败:", e);
+          showModalAlert(`启用失败: ${e.message}`, "错误");
+        }
+      }
+
+      // 3. 关闭 2FA
+      async function disableMobileUnified2FA() {
+        const confirmed = await jsShowConfirm(
+          "确认关闭2FA",
+          "关闭双因素认证后，账号安全性将降低。确定要继续吗？"
+        );
+        if (!confirmed) return;
+
+        try {
+          const response = await fetch("/auth/2fa/disable", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID,
+            },
+          });
+          const result = await response.json();
+
+          if (result.success) {
+            showModalAlert("2FA已关闭", "成功");
+            loadMobileUnifiedProfile();
+          } else {
+            showModalAlert(`关闭失败: ${result.message}`, "错误");
+          }
+        } catch (e) {
+          console.error("关闭2FA失败:", e);
+          showModalAlert(`关闭失败: ${e.message}`, "错误");
+        }
+      }
+
+      // 4. 更新主题 (Light/Dark)
+      async function updateMobileUnifiedTheme() {
+        const select = document.getElementById("mobile-unified-theme-select");
+        if (!select) return;
+
+        const selectedTheme = select.value;
+
+        // 调用全局应用主题函数 (main.py/index.html 中已存在)
+        if (typeof applyAndSaveTheme === "function") {
+          applyAndSaveTheme(selectedTheme);
+        }
+
+        // 同时调用后端API持久化保存
+        try {
+          const response = await fetch("/auth/user/update_theme", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID,
+            },
+            body: JSON.stringify({
+              theme: selectedTheme,
+            }),
+          });
+        } catch (e) {
+          console.error("更新主题失败:", e);
+        }
+      }
+
+      // 5. 设置主题样式 (默认/二次元/简约)
+      function setMobileUnifiedThemeStyle(styleName) {
+        // 调用全局设置函数 (setThemeStyle 内部已经包含了 update_param 的 API 调用)
+        if (typeof setThemeStyle === "function") {
+          setThemeStyle(styleName);
+        }
+
+        // 更新移动端面板内的按钮高亮状态
+        // 修正：直接定位到样式预设的容器 ID
+        const container = document.getElementById(
+          "mobile-unified-theme-style-presets"
+        );
+        if (container) {
+          const buttons = container.querySelectorAll("button");
+          buttons.forEach((btn) => {
+            const onclickAttr = btn.getAttribute("onclick");
+            if (onclickAttr && onclickAttr.includes(`'${styleName}'`)) {
+              // 选中状态：高亮显示 (天蓝色背景+边框+加粗)
+              btn.classList.remove("border-slate-300", "text-[10px]");
+              btn.classList.add(
+                "border-sky-500",
+                "bg-sky-50",
+                "text-sky-600",
+                "font-bold",
+                "text-xs",
+                "shadow-sm"
+              );
+            } else {
+              // 未选中状态：恢复默认灰边
+              btn.classList.remove(
+                "border-sky-500",
+                "bg-sky-50",
+                "text-sky-600",
+                "font-bold",
+                "text-xs",
+                "shadow-sm"
+              );
+              btn.classList.add("border-slate-300", "text-[10px]");
+            }
+          });
         }
       }
 
