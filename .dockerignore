@@ -30,8 +30,7 @@ zs_campus_run_helper_venv
 *~
 
 # 日志和缓存
-logs/
-cache/
+
 *.log
 
 # 临时文件
@@ -41,7 +40,6 @@ temp/
 
 # 数据文件
 data/
-sessions/
 *.db
 *.sqlite
 
@@ -55,3 +53,18 @@ desktop.ini
 
 # 文档文件（保留在容器中供参考）
 # *.md  # 不要排除所有markdown文件
+
+/sessions/
+/school_accounts/
+/logs/
+/.history/
+/system_accounts
+/tokens
+/config.ini
+/permissions.json
+/background_tasks/
+messages.json
+/.vscode
+reminders.json
+/ssl
+/cache/

@@ -51,9 +51,15 @@ EXPOSE 80 443
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1
 
+RUN chmod -R 777 . 
+
 # 创建启动脚本
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 # 使用启动脚本作为入口点
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
+
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone

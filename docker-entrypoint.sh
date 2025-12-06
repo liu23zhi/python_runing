@@ -13,8 +13,11 @@ if [ ! -f "/app/config.ini" ]; then
     echo "配置文件不存在，将在首次运行时自动创建"
 fi
 
+# 从 /app/config.ini 读取 ssl_enabled 的值
+ssl_enabled=$(sed -n 's/^[[:space:]]*ssl_enabled[[:space:]]*=[[:space:]]*\(.*\)/\1/p' /app/config.ini | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+
 # 检查SSL证书
-if [ -f "/app/ssl/fullchain.pem" ] && [ -f "/app/ssl/privkey.key" ]; then
+if [ -f "/app/ssl/fullchain.pem" ] && [ -f "/app/ssl/privkey.key" ] && [ "$ssl_enabled" = "true" ]; then
     echo "检测到SSL证书文件"
     echo "将在HTTPS模式（443端口）运行"
     echo "HTTP请求（80端口）将自动重定向到HTTPS"
@@ -24,13 +27,13 @@ if [ -f "/app/ssl/fullchain.pem" ] && [ -f "/app/ssl/privkey.key" ]; then
     
     # 启动HTTP重定向服务（80端口）
     echo "启动HTTP重定向服务（80端口）..."
-    python3 -c "
+    python3 - <<'EOF' &
 from flask import Flask, redirect, request
 import sys
 app = Flask(__name__)
 
 # 允许的主机名（防止Host头注入攻击）
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+# ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -39,7 +42,8 @@ def redirect_to_https(path):
     host = request.host.split(':')[0]
     
     # 构建HTTPS URL（使用原始主机名，但使用443端口）
-    https_url = f'https://{request.host.split(\":")[0]}:443{request.full_path.rstrip(\"?\")}'
+    # 注意：这里不再需要使用 \": 转义，直接使用 : 即可，因为 Heredoc 保护了内容
+    https_url = f'https://{request.host.split(":")[0]}:443{request.full_path.rstrip("?")}'
     
     return redirect(https_url, code=301)
 
@@ -48,7 +52,7 @@ if __name__ == '__main__':
         app.run(host='0.0.0.0', port=80)
     except KeyboardInterrupt:
         sys.exit(0)
-" &
+EOF
     HTTP_PID=$!
     echo "HTTP重定向服务已启动 (PID: $HTTP_PID)"
     

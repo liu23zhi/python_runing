@@ -3608,38 +3608,50 @@ class Api:
 
         self._init_state_variables()
 
-        self._submission_queue: queue.Queue | None = getattr(
-            self, "_submission_queue", None
-        )
-        # [修改] 将单个线程变量改为线程列表，以支持并发队列消费
-        self._submission_worker_threads: list[threading.Thread] = getattr(
-            self, "_submission_worker_threads", []
-        )
-        self._submission_worker_stop: threading.Event | None = getattr(
-            self, "_submission_worker_stop", None
-        )
-        if self._submission_queue is None:
-            self._submission_queue = queue.Queue()
-        if self._submission_worker_stop is None:
-            self._submission_worker_stop = threading.Event()
+        # [优化] 将提交队列和线程池提升为类级别(Api._xxx)，实现全局单例
+        # 避免每次实例化 Api (如读取配置时) 都重复创建 20 个线程
         
-        # [修改] 清理已死亡的线程
-        self._submission_worker_threads = [t for t in self._submission_worker_threads if t.is_alive()]
-        
-        # [修改] 确保启动 20 个并发工作线程来处理提交队列
-        MAX_SUBMISSION_CONCURRENCY = 20
-        current_threads = len(self._submission_worker_threads)
-        
-        if current_threads < MAX_SUBMISSION_CONCURRENCY:
-            for i in range(MAX_SUBMISSION_CONCURRENCY - current_threads):
-                t = threading.Thread(
-                    target=self._submission_worker_loop,
-                    name=f"SubmissionWorker-{len(self._submission_worker_threads) + 1}",
-                    daemon=True,
-                )
-                t.start()
-                self._submission_worker_threads.append(t)
-            logging.info(f"已启动 {len(self._submission_worker_threads)} 个数据提交工作线程")
+        # 初始化类级别的锁，防止并发初始化冲突
+        if not hasattr(Api, "_submission_init_lock"):
+            Api._submission_init_lock = threading.Lock()
+
+        with Api._submission_init_lock:
+            # 1. 初始化类级别的队列和事件
+            if not hasattr(Api, "_static_submission_queue") or Api._static_submission_queue is None:
+                Api._static_submission_queue = queue.Queue()
+            
+            if not hasattr(Api, "_static_submission_stop") or Api._static_submission_stop is None:
+                Api._static_submission_stop = threading.Event()
+
+            if not hasattr(Api, "_static_submission_threads"):
+                Api._static_submission_threads = []
+
+            # 2. 将当前实例的属性指向类级别的对象 (实现复用)
+            self._submission_queue = Api._static_submission_queue
+            self._submission_worker_stop = Api._static_submission_stop
+            self._submission_worker_threads = Api._static_submission_threads
+
+            # 3. 清理已死亡的线程
+            Api._static_submission_threads[:] = [t for t in Api._static_submission_threads if t.is_alive()]
+            
+            # 4. 检查并补充线程 (全局只维护 20 个)
+            MAX_SUBMISSION_CONCURRENCY = 20
+            current_threads = len(Api._static_submission_threads)
+            
+            if current_threads < MAX_SUBMISSION_CONCURRENCY:
+                threads_to_start = MAX_SUBMISSION_CONCURRENCY - current_threads
+                # 仅在确实需要启动新线程时才记录日志，避免刷屏
+                if threads_to_start > 0:
+                    for i in range(threads_to_start):
+                        t = threading.Thread(
+                            target=Api._submission_worker_static,  # [修正] 使用静态方法，不绑定self
+                            args=(Api._static_submission_queue, Api._static_submission_stop), # [修正] 显式传递参数
+                            name=f"SubmissionWorker-{len(Api._static_submission_threads) + 1}",
+                            daemon=True,
+                        )
+                        t.start()
+                        Api._static_submission_threads.append(t)
+                    logging.info(f"已启动 {threads_to_start} 个数据提交工作线程 (全局池共 {len(Api._static_submission_threads)} 个)")
 
     def _init_state_variables(self):
         """初始化或重置应用的所有状态变量"""
@@ -5682,41 +5694,58 @@ class Api:
         return success
 
     # ===================== 提交队列：串行化所有数据包提交 =====================
-    def _submission_worker_loop(self):
-        """后台工作线程：从队列取出提交任务并串行执行。"""
-        logging.info("[SubmissionWorker] 提交队列工作线程已启动")
-        while not getattr(self, "_submission_worker_stop", threading.Event()).is_set():
+    @staticmethod
+    def _submission_worker_static(submission_queue, stop_event):
+        """后台工作线程：从队列取出提交任务并串行执行。(静态方法，防止绑定实例)"""
+        logging.debug("[SubmissionWorker] 提交队列工作线程已启动")  # [修正] 改为DEBUG级别，防止启动时刷屏
+        
+        while not stop_event.is_set():
             try:
-                task = self._submission_queue.get(timeout=0.5)
-            except Exception:
-                continue
-            try:
-                logging.debug("[SubmissionWorker] 正在处理一个提交任务...")
-
-                client: ApiClient = task.get("client")
-                payload_str: str = task.get("payload")
-                resp = client.submit_run_track(payload_str)
-                task["response"] = resp
-
-                logging.debug(
-                    f"[SubmissionWorker] 提交任务完成，结果: {bool(resp and resp.get('success'))}"
-                )
-            except Exception as e:
-                logging.error(
-                    f"[SubmissionWorker] 提交任务执行异常: {e}", exc_info=True
-                )
-                task["response"] = None
-            finally:
+                # 1. 获取任务
                 try:
-                    task["event"].set()
-                except Exception:
-                    pass
-                try:
-                    self._submission_queue.task_done()
-                except Exception:
-                    pass
+                    task = submission_queue.get(timeout=1.0)
+                except queue.Empty: # 使用 queue.Empty 捕获超时
+                    continue
+                except Exception as e:
+                    logging.warning(f"[SubmissionWorker] 队列获取异常: {e}")
+                    time.sleep(1)
+                    continue
 
-            time.sleep(0.01)
+                # 2. 执行任务
+                try:
+                    # logging.debug("[SubmissionWorker] 正在处理一个提交任务...") # 减少日志噪音
+                    
+                    client = task.get("client")
+                    payload_str = task.get("payload")
+                    
+                    if client and payload_str:
+                        resp = client.submit_run_track(payload_str)
+                        task["response"] = resp
+                        # logging.debug(f"[SubmissionWorker] 提交完成: {bool(resp and resp.get('success'))}")
+                    else:
+                        task["response"] = {"success": False, "message": "Invalid task data"}
+
+                except Exception as e:
+                    logging.error(f"[SubmissionWorker] 任务执行内部错误: {e}", exc_info=True)
+                    task["response"] = None
+                finally:
+                    # 3. 通知完成
+                    try:
+                        if "event" in task and task["event"]:
+                            task["event"].set()
+                    except Exception:
+                        pass
+                    try:
+                        submission_queue.task_done()
+                    except Exception:
+                        pass
+                
+                # 避免CPU空转，虽有队列阻塞，但保留微小延时更稳健
+                time.sleep(0.01)
+
+            except Exception as outer_e:
+                logging.critical(f"[SubmissionWorker] 线程主循环发生未捕获异常: {outer_e}", exc_info=True)
+                time.sleep(5) # 出错后冷却，防止死循环刷日志
 
     def _enqueue_submission(
         self, client: ApiClient, payload_str: str, wait_timeout: float = 30.0
@@ -21497,57 +21526,62 @@ def start_web_server(args_param):
 
         if not is_valid:
             print(f"\n{'='*60}")
-            print(f"错误: SSL证书验证失败")
+            print(f"警告: SSL证书验证失败")
             print(f"")
             print(f"原因: {error_msg}")
             print(f"")
-            print(f"请检查以下内容：")
-            print(f"  1. 证书文件路径是否正确")
-            print(f"  2. 证书文件是否存在且可读")
-            print(f"  3. 证书文件格式是否为PEM格式")
-            print(f"  4. 证书和密钥是否匹配")
-            print(f"")
-            print(f"配置文件位置: config.ini")
-            print(f"证书路径: {ssl_config['ssl_cert_path']}")
-            print(f"密钥路径: {ssl_config['ssl_key_path']}")
+            print(f"系统将自动禁用SSL并切换回HTTP模式运行，以免影响服务使用。")
+            print(f"配置文件 config.ini 中的 ssl_enabled 已被自动关闭。")
             print(f"{'='*60}\n")
-            logging.error(f"SSL证书验证失败，程序退出: {error_msg}")
-            sys.exit(1)
-        try:
-            import ssl as ssl_module
+            logging.error(f"SSL证书验证失败: {error_msg}")
+            logging.info("正在自动关闭SSL配置并切换到HTTP模式...")
 
-            ssl_context = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_SERVER)
-            cert_path = ssl_config["ssl_cert_path"]
-            key_path = ssl_config["ssl_key_path"]
+            # 自动关闭SSL
+            ssl_config["ssl_enabled"] = False
+            ssl_config["https_only"] = False
+            save_ssl_config(ssl_config)
+            
+        # 只有当验证通过且配置仍然启用时，才尝试创建上下文
+        if ssl_config["ssl_enabled"]:
+            try:
+                import ssl as ssl_module
 
-            if not os.path.isabs(cert_path):
-                cert_path = os.path.join(os.path.dirname(__file__), cert_path)
-            if not os.path.isabs(key_path):
-                key_path = os.path.join(os.path.dirname(__file__), key_path)
-            ssl_context.load_cert_chain(cert_path, key_path)
-            ssl_context.options |= ssl_module.OP_NO_SSLv2
-            ssl_context.options |= ssl_module.OP_NO_SSLv3
-            logging.info(f"SSL上下文创建成功，使用证书: {cert_path}")
-            print(f"✓ SSL/HTTPS 已启用")
-            print(f"  证书文件: {cert_path}")
-            print(f"  密钥文件: {key_path}")
-            if ssl_config["https_only"]:
-                print(f"  ⚠ 仅HTTPS模式: 已启用（HTTP请求将被重定向）")
-        except Exception as e:
-            print(f"\n{'='*60}")
-            print(f"错误: 创建SSL上下文失败")
-            print(f"")
-            print(f"详细信息: {e}")
-            print(f"")
-            print(f"可能的原因：")
-            print(f"  1. 证书和密钥不匹配")
-            print(f"  2. 证书或密钥文件损坏")
-            print(f"  3. Python SSL模块配置问题")
-            print(f"{'='*60}\n")
-            logging.error(f"创建SSL上下文失败: {e}", exc_info=True)
-            sys.exit(1)
-    else:
-        logging.info("SSL未启用，服务器将以HTTP模式运行")
+                ssl_context = ssl_module.SSLContext(ssl_module.PROTOCOL_TLS_SERVER)
+                cert_path = ssl_config["ssl_cert_path"]
+                key_path = ssl_config["ssl_key_path"]
+
+                if not os.path.isabs(cert_path):
+                    cert_path = os.path.join(os.path.dirname(__file__), cert_path)
+                if not os.path.isabs(key_path):
+                    key_path = os.path.join(os.path.dirname(__file__), key_path)
+                ssl_context.load_cert_chain(cert_path, key_path)
+                ssl_context.options |= ssl_module.OP_NO_SSLv2
+                ssl_context.options |= ssl_module.OP_NO_SSLv3
+                logging.info(f"SSL上下文创建成功，使用证书: {cert_path}")
+                print(f"✓ SSL/HTTPS 已启用")
+                print(f"  证书文件: {cert_path}")
+                print(f"  密钥文件: {key_path}")
+                if ssl_config["https_only"]:
+                    print(f"  ⚠ 仅HTTPS模式: 已启用（HTTP请求将被重定向）")
+            except Exception as e:
+                print(f"\n{'='*60}")
+                print(f"警告: 创建SSL上下文失败")
+                print(f"")
+                print(f"详细信息: {e}")
+                print(f"")
+                print(f"系统将自动禁用SSL并切换回HTTP模式运行。")
+                print(f"{'='*60}\n")
+                logging.error(f"创建SSL上下文失败: {e}", exc_info=True)
+                
+                # 自动关闭SSL
+                ssl_config["ssl_enabled"] = False
+                ssl_config["https_only"] = False
+                save_ssl_config(ssl_config)
+                ssl_context = None
+    
+    # 二次检查：如果刚才因为错误禁用了SSL，这里会打印日志
+    if not ssl_config.get("ssl_enabled", False):
+         logging.info("SSL未启用（或已自动禁用），服务器将以HTTP模式运行")
 
     # ============================================================================
     # 添加请求钩子：处理X-Forwarded-*头和HTTPS重定向
