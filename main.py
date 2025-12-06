@@ -7222,18 +7222,23 @@ class Api:
                     acc, respect_global_stop=False, ignore_all_stops=True
                 )
                 if not login_resp or not login_resp.get("success"):
+                    # 获取实际的错误信息，而不是假设密码错误
+                    fail_msg = login_resp.get("message", "未知错误") if login_resp else "网络请求无响应"
+                    
                     if not acc.is_first_login_verified:
                         acc.is_verifying = False
                         acc.is_first_login_verified = False
                         if not preserve_now:
+                            # 显示具体的错误信息
                             self._update_account_status_js(
-                                acc, status_text="验证失败(密码错误)"
+                                acc, status_text=f"验证失败: {fail_msg}"
                             )
-                        acc.log(f"首次登录验证失败，密码可能不正确。")
+                        acc.log(f"首次登录验证失败: {fail_msg}")
                     else:
                         if not preserve_now:
+                            # 已验证过的账号刷新失败，也显示具体原因
                             self._update_account_status_js(
-                                acc, status_text="刷新失败(登录错误)"
+                                acc, status_text=f"刷新失败: {fail_msg}"
                             )
                     return
 
