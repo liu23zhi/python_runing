@@ -25566,6 +25566,368 @@
         }
       }
 
+      // ==================== 移动端验证码管理功能 ====================
+      // 移动端验证码管理倒计时定时器引用，用于在关闭模态框时清理
+      let mobileVerificationCodesCountdownInterval = null;
+
+      /**
+       * 更新移动端验证码倒计时显示
+       * 此函数会遍历所有带有 .mobile-verification-code-countdown 类的元素，
+       * 并根据其 data-expires-at 属性计算并显示剩余时间
+       */
+      function updateMobileVerificationCodeCountdowns() {
+        // 获取所有移动端验证码倒计时元素
+        const countdownElements = document.querySelectorAll(
+          ".mobile-verification-code-countdown"
+        );
+        // 如果没有任何倒计时元素，停止定时器以节省资源
+        if (countdownElements.length === 0) {
+          stopMobileVerificationCodesCountdown();
+          return;
+        }
+
+        // 获取当前的Unix时间戳（秒）
+        const now = Math.floor(Date.now() / 1000);
+
+        // 遍历每个倒计时元素并更新显示
+        countdownElements.forEach((el) => {
+          // 从 data-expires-at 属性获取过期时间戳
+          const expiresAt = parseInt(el.dataset.expiresAt, 10);
+          // 检查过期时间戳是否有效
+          if (isNaN(expiresAt)) {
+            el.textContent = "已失效";
+            return;
+          }
+
+          // 计算剩余时间（秒），确保不为负数
+          const expiresIn = Math.max(0, expiresAt - now);
+          // 将秒数转换为分钟和秒
+          const minutes = Math.floor(expiresIn / 60);
+          const seconds = expiresIn % 60;
+
+          // 更新显示文本
+          el.textContent = `${minutes}分${seconds}秒`;
+
+          // 根据剩余时间调整样式
+          if (expiresIn <= 0) {
+            // 已过期：显示红色并加粗
+            el.textContent = "已失效";
+            el.classList.add("text-red-600", "font-semibold");
+          } else if (expiresIn < 120) {
+            // 剩余时间少于2分钟：显示红色警告
+            el.classList.add("text-red-600", "font-semibold");
+            el.classList.remove("text-slate-600");
+          }
+        });
+      }
+
+      /**
+       * 启动移动端验证码倒计时
+       * 首次更新并设置每秒更新一次的定时器
+       */
+      function startMobileVerificationCodesCountdown() {
+        // 先停止任何已存在的定时器，避免重复
+        stopMobileVerificationCodesCountdown();
+        // 立即执行一次更新
+        updateMobileVerificationCodeCountdowns();
+        // 设置每秒更新一次的定时器
+        mobileVerificationCodesCountdownInterval = setInterval(
+          updateMobileVerificationCodeCountdowns,
+          1000
+        );
+      }
+
+      /**
+       * 停止移动端验证码倒计时
+       * 清理定时器资源
+       */
+      function stopMobileVerificationCodesCountdown() {
+        if (mobileVerificationCodesCountdownInterval) {
+          clearInterval(mobileVerificationCodesCountdownInterval);
+          mobileVerificationCodesCountdownInterval = null;
+        }
+      }
+
+      /**
+       * 打开移动端验证码管理模态框
+       * 如果模态框不存在，则动态创建；然后显示模态框并加载验证码列表
+       */
+      function openMobileVerificationCodesModal() {
+        // 尝试获取已存在的移动端验证码模态框
+        let modal = document.getElementById("mobile-verification-codes-modal");
+        // 如果模态框不存在，则动态创建
+        if (!modal) {
+          // 创建模态框容器元素
+          modal = document.createElement("div");
+          modal.id = "mobile-verification-codes-modal";
+          // 设置移动端模态框的基本样式类
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          // 点击背景区域时关闭模态框
+          modal.onclick = function (e) {
+            if (e.target === modal) closeMobileVerificationCodesModal();
+          };
+          // 设置模态框的HTML内容
+          modal.innerHTML = `
+            <!-- 半透明黑色背景遮罩 -->
+            <div class="absolute inset-0 bg-black/40"></div>
+            <!-- 模态框内容区域，底部弹出样式 -->
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <!-- 拖拽手柄，符合移动端设计规范 -->
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <!-- 模态框标题区域 -->
+              <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h3 class="text-xl font-bold text-sky-600">🔑 验证码管理</h3>
+                <!-- 关闭按钮 -->
+                <button onclick="closeMobileVerificationCodesModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+              </div>
+
+              <!-- 手动添加验证码区域 -->
+              <div class="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+                <h5 class="font-semibold text-green-900 text-sm">➕ 手动添加验证码</h5>
+                <!-- 手机号输入框 -->
+                <div class="phone-input-wrapper">
+                  <span class="phone-prefix">+86 </span>
+                  <input type="tel" id="mobile-manual-code-phone" class="input-field text-sm" placeholder="手机号" pattern="[0-9]*" maxlength="11">
+                </div>
+                <!-- 验证码输入框 -->
+                <input type="text" id="mobile-manual-code-value" class="input-field text-sm w-full" placeholder="验证码（6位数字，留空自动生成）" maxlength="6" pattern="[0-9]{6}">
+                <!-- 添加按钮 -->
+                <button onclick="addMobileManualVerificationCode()" class="btn btn-primary w-full !py-2 text-sm min-h-[44px]">添加验证码</button>
+                <p class="text-xs text-slate-600">💡 此功能用于测试或紧急情况下手动添加验证码，不会实际发送短信</p>
+              </div>
+
+              <!-- 刷新按钮 -->
+              <div class="flex justify-end">
+                <button onclick="loadMobileVerificationCodes()" class="btn btn-ghost text-sm">🔄 刷新列表</button>
+              </div>
+
+              <!-- 验证码列表容器 -->
+              <div id="mobile-verification-codes-list" class="space-y-3 max-h-[40vh] overflow-y-auto">
+                <p class="text-slate-400 text-center py-10 text-sm">加载中...</p>
+              </div>
+
+              <!-- 底部操作按钮 -->
+              <div class="flex justify-end pt-3 border-t border-slate-100">
+                <button onclick="closeMobileVerificationCodesModal()" class="btn btn-ghost border border-slate-300 !py-2 text-sm min-h-[44px]">关闭</button>
+              </div>
+            </div>
+          `;
+          // 将模态框添加到文档body中
+          document.body.appendChild(modal);
+        }
+
+        // 显示模态框：添加show类并移除hidden类
+        modal.classList.add("show");
+        modal.classList.remove("hidden");
+        // 加载验证码列表数据
+        loadMobileVerificationCodes();
+        // 记录日志
+        console.log("[移动端验证码管理] 模态框已打开");
+      }
+
+      /**
+       * 关闭移动端验证码管理模态框
+       * 隐藏模态框并停止倒计时定时器
+       */
+      function closeMobileVerificationCodesModal() {
+        // 获取模态框元素
+        const modal = document.getElementById("mobile-verification-codes-modal");
+        if (modal) {
+          // 隐藏模态框：移除show类并添加hidden类
+          modal.classList.remove("show");
+          modal.classList.add("hidden");
+        }
+        // 停止倒计时定时器以释放资源
+        stopMobileVerificationCodesCountdown();
+        // 记录日志
+        console.log("[移动端验证码管理] 模态框已关闭");
+      }
+
+      /**
+       * 加载移动端验证码列表
+       * 从后端API获取当前有效的验证码列表并渲染到界面上
+       */
+      async function loadMobileVerificationCodes() {
+        try {
+          // 调用后端API获取验证码列表
+          const response = await fetch("/api/admin/sms/verification_codes", {
+            headers: { "X-Session-ID": sessionUUID },
+          });
+          // 解析JSON响应
+          const result = await response.json();
+
+          // 获取验证码列表容器元素
+          const listContainer = document.getElementById("mobile-verification-codes-list");
+
+          // 检查请求是否成功且有数据
+          if (result.success && result.codes && result.codes.length > 0) {
+            // 使用map生成每个验证码项的HTML，然后join拼接
+            listContainer.innerHTML = result.codes
+              .map((item) => {
+                // 计算剩余分钟数和秒数
+                const expiresIn = Math.max(0, Math.floor(item.expires_in / 60));
+                const expiresSec = Math.max(0, item.expires_in % 60);
+                // 返回单个验证码项的HTML结构
+                return `
+                  <div class="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
+                    <!-- 验证码信息区域 -->
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                      <!-- 手机号显示 -->
+                      <div>
+                        <span class="text-xs text-slate-500">📱 手机号</span>
+                        <p class="font-semibold text-slate-700 text-sm">+86 ${item.phone}</p>
+                      </div>
+                      <!-- 验证码显示 -->
+                      <div>
+                        <span class="text-xs text-slate-500">🔢 验证码</span>
+                        <p class="font-mono text-lg font-bold text-sky-600">${item.code}</p>
+                      </div>
+                      <!-- 剩余时间显示，使用特殊类名用于倒计时更新 -->
+                      <div>
+                        <span class="text-xs text-slate-500">⏰ 剩余时间</span>
+                        <p class="mobile-verification-code-countdown text-sm ${
+                          expiresIn < 2
+                            ? "text-red-600 font-semibold"
+                            : "text-slate-600"
+                        }"
+                           data-expires-at="${item.expires_at}">
+                          ${expiresIn}分${expiresSec}秒
+                        </p>
+                      </div>
+                    </div>
+                    <!-- 操作按钮 -->
+                    <button onclick="invalidateMobileVerificationCode('${item.phone}')" 
+                      class="btn btn-ghost border border-red-300 text-red-600 w-full !py-2 text-sm min-h-[40px]">
+                      ❌ 使验证码失效
+                    </button>
+                  </div>
+                `;
+              })
+              .join("");
+          } else {
+            // 无数据时显示提示信息
+            listContainer.innerHTML =
+              '<p class="text-slate-400 text-center py-10 text-sm">当前没有有效的验证码</p>';
+          }
+
+          // 启动倒计时更新
+          startMobileVerificationCodesCountdown();
+          // 记录日志
+          console.log("[移动端验证码管理] 验证码列表已加载，共", result.codes?.length || 0, "条");
+        } catch (e) {
+          // 错误处理：显示错误提示
+          console.error("[移动端验证码管理] 加载失败:", e);
+          showModalAlert("加载验证码列表失败: " + e.message);
+          // 停止倒计时
+          stopMobileVerificationCodesCountdown();
+        }
+      }
+
+      /**
+       * 移动端使验证码失效
+       * @param {string} phone - 要使验证码失效的手机号
+       */
+      async function invalidateMobileVerificationCode(phone) {
+        // 弹出确认对话框
+        const confirmed = await jsShowConfirm(
+          "确认失效",
+          `确定要使手机号 +86 ${phone} 的验证码失效吗？`
+        );
+        // 用户取消则直接返回
+        if (!confirmed) {
+          return;
+        }
+
+        try {
+          // 调用后端API使验证码失效
+          const response = await fetch("/api/admin/sms/invalidate_code", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID,
+            },
+            body: JSON.stringify({ phone: phone }),
+          });
+          // 解析响应
+          const result = await response.json();
+
+          // 根据结果显示相应提示
+          if (result.success) {
+            showModalAlert("验证码已失效", "成功");
+            // 重新加载验证码列表
+            loadMobileVerificationCodes();
+          } else {
+            showModalAlert(result.message || "操作失败");
+          }
+        } catch (e) {
+          // 错误处理
+          console.error("[移动端验证码管理] 使验证码失效失败:", e);
+          showModalAlert("操作失败: " + e.message);
+        }
+      }
+
+      /**
+       * 移动端手动添加验证码
+       * 用于测试或紧急情况下手动添加验证码（不会实际发送短信）
+       */
+      async function addMobileManualVerificationCode() {
+        // 获取手机号输入框的值
+        const phone = document.getElementById("mobile-manual-code-phone").value.trim();
+        // 获取验证码输入框的值
+        let code = document.getElementById("mobile-manual-code-value").value.trim();
+
+        // 如果验证码为空，自动生成6位随机数字
+        if (!code) {
+          code = Math.floor(100000 + Math.random() * 900000).toString();
+          document.getElementById("mobile-manual-code-value").value = code;
+        } else if (!/^\d{6}$/.test(code)) {
+          // 验证码格式校验：必须是6位数字
+          showModalAlert("验证码必须是6位数字");
+          return;
+        }
+
+        // 再次校验验证码格式（防止自动生成的也出问题）
+        if (!code || !/^\d{6}$/.test(code)) {
+          showModalAlert("请输入6位数字验证码");
+          return;
+        }
+
+        try {
+          // 调用后端API添加验证码
+          const response = await fetch("/api/admin/sms/add_manual_code", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID,
+            },
+            body: JSON.stringify({
+              phone: phone,
+              code: code,
+            }),
+          });
+          // 解析响应
+          const result = await response.json();
+
+          // 根据结果显示相应提示
+          if (result.success) {
+            showModalAlert("验证码已添加", "成功");
+            // 清空输入框
+            document.getElementById("mobile-manual-code-phone").value = "";
+            document.getElementById("mobile-manual-code-value").value = "";
+            // 重新加载验证码列表
+            loadMobileVerificationCodes();
+          } else {
+            showModalAlert(result.message || "添加失败");
+          }
+        } catch (e) {
+          // 错误处理
+          console.error("[移动端验证码管理] 添加验证码失败:", e);
+          showModalAlert("操作失败: " + e.message);
+        }
+      }
+
       function escapeHtml(unsafe) {
         return unsafe
           .replace(/&/g, "&amp;")
@@ -44199,7 +44561,7 @@
                     <button onclick="openSMSHistoryModal()" class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]">
                       📋 发送历史
                     </button>
-                    <button onclick="openVerificationCodesModal()" class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]">
+                    <button onclick="openMobileVerificationCodesModal()" class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]">
                       🔑 验证码管理
                     </button>
                 </div>
