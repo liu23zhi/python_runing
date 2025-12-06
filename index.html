@@ -1080,6 +1080,35 @@
         z-index: 20005 !important;
       }
 
+      /* ============================================================ */
+      /* 任务11：修复swal2弹窗导致auth-login-container偏移的问题 */
+      /* ============================================================ */
+      /* 
+       * 问题说明：
+       * 当SweetAlert2弹窗（swal2-container）显示时，会自动给body添加
+       * overflow:hidden和padding-right来补偿滚动条消失后的空间。
+       * 这会导致使用position:fixed或absolute的auth-login-container
+       * 出现不必要的偏移，影响用户体验。
+       * 
+       * 解决方案：
+       * 1. body的padding-right已在上方（修复问题4）中处理
+       * 2. 确保auth-login-container和mobile-auth-login-container
+       *    在弹窗显示时保持原有位置不变
+       */
+      
+      /* 修复auth-login-container在swal2弹窗显示时的偏移问题 */
+      body.swal2-shown #auth-login-container,
+      body.swal2-shown #mobile-auth-login-container {
+        /* 防止因滚动条补偿导致的内边距偏移 */
+        padding-right: 0 !important;
+        /* 防止因滚动条补偿导致的外边距偏移 */
+        margin-right: 0 !important;
+        /* 确保不应用任何可能导致偏移的变换 */
+        transform: none !important;
+        /* 确保右侧位置不受影响 */
+        right: auto !important;
+      }
+
       /* 修复问题1：提升通用模态框层级，确保在移动端可见 */
       #sms-history-modal,
       #verification-codes-modal,
@@ -8227,6 +8256,71 @@
               <h3 class="text-xl font-bold text-teal-700">全局参数</h3>
             </div>
 
+            <!-- ========================================
+               【自动签到设置区域】
+               用于配置多账号模式下的自动签到相关参数
+               包含：开启开关、刷新间隔、随机半径
+               ======================================== -->
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 space-y-3">
+              <!-- 标题区域：图标 + 标题文字 -->
+              <div class="flex items-center gap-2">
+                <!-- 时钟图标：代表自动签到的定时特性 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <h4 class="font-semibold text-amber-800 text-sm">自动签到设置</h4>
+              </div>
+              
+              <!-- 开启自动签到开关：使用滑动开关样式 -->
+              <div class="flex items-center justify-between">
+                <label class="text-sm text-slate-700">开启自动签到</label>
+                <!-- 滑动开关容器 -->
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <!-- 隐藏的checkbox，用于存储实际值 -->
+                  <input 
+                    type="checkbox" 
+                    id="mobile-multi-auto_attendance_enabled"
+                    data-key="auto_attendance_enabled"
+                    class="sr-only peer"
+                  />
+                  <!-- 滑动开关的视觉样式，使用Tailwind的peer修饰符实现状态切换效果 -->
+                  <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+              </div>
+              
+              <!-- 刷新间隔设置：控制自动刷新通知的时间间隔 -->
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">刷新间隔（秒）</label>
+                <input
+                  type="number"
+                  id="mobile-multi-auto_attendance_refresh_s"
+                  data-key="auto_attendance_refresh_s"
+                  class="input-field !text-xs !py-1.5 w-full"
+                  placeholder="推荐值：60秒以上"
+                  min="30"
+                  step="30"
+                />
+                <!-- 说明文字：帮助用户理解参数含义 -->
+                <p class="text-[10px] text-slate-400 mt-1">自动刷新通知的间隔时间，建议不低于60秒</p>
+              </div>
+              
+              <!-- 随机半径设置：控制签到位置的随机偏移范围 -->
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">随机半径（米）</label>
+                <input
+                  type="number"
+                  id="mobile-multi-attendance_user_radius_m"
+                  data-key="attendance_user_radius_m"
+                  class="input-field !text-xs !py-1.5 w-full"
+                  placeholder="0表示精确签到"
+                  min="0"
+                  step="1"
+                />
+                <!-- 说明文字：解释随机半径的用途 -->
+                <p class="text-[10px] text-slate-400 mt-1">签到位置的随机偏移半径，0为精确签到</p>
+              </div>
+            </div>
+
             <div
               id="mobile-multi-global-params-container"
               class="space-y-3 max-h-[60vh] overflow-y-auto"
@@ -8689,7 +8783,8 @@
                       修改密码
                     </h5>
                     <div class="space-y-2">
-                      <div>
+                      <!-- 当前密码输入区域（密码验证模式） -->
+                      <div id="mobile-password-verify-section">
                         <label
                           class="block text-xs font-medium text-slate-600 mb-1"
                           >当前密码</label
@@ -8700,6 +8795,36 @@
                           class="input-field !text-xs !py-1.5"
                           placeholder="输入当前密码"
                         />
+                        <!-- 提示用户可以使用短信验证 -->
+                        <p class="text-xs text-slate-500 mt-1">
+                          忘记原密码？<button type="button" onclick="toggleSmsVerifyMode('mobile')" class="text-sky-600 hover:underline" id="mobile-sms-toggle-btn">使用短信验证</button>
+                        </p>
+                      </div>
+                      <!-- 短信验证模式区域（默认隐藏） -->
+                      <div id="mobile-sms-verify-section" class="hidden space-y-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-xs text-blue-700">📱 验证码将发送到您绑定的手机号</p>
+                        <div>
+                          <label class="block text-xs font-medium text-slate-600 mb-1">短信验证码</label>
+                          <div class="flex gap-2">
+                            <input
+                              type="text"
+                              id="mobile-password-sms-code"
+                              class="input-field !text-xs !py-1.5 flex-1"
+                              placeholder="请输入验证码"
+                              maxlength="6"
+                              inputmode="numeric"
+                            />
+                            <button
+                              type="button"
+                              onclick="sendPasswordResetSmsCode('mobile')"
+                              id="mobile-send-sms-btn"
+                              class="btn btn-primary !py-1 !px-2 text-xs whitespace-nowrap"
+                            >
+                              发送验证码
+                            </button>
+                          </div>
+                        </div>
+                        <button type="button" onclick="toggleSmsVerifyMode('mobile')" class="text-xs text-slate-500 hover:underline">← 返回密码验证</button>
                       </div>
                       <div>
                         <label
@@ -8869,7 +8994,7 @@
                           id="mobile-unified-theme_base_color-picker"
                           value="#7dd3fc"
                           class="w-20 h-20 border border-slate-300 rounded cursor-pointer p-0.5 bg-white shadow-sm"
-                          onchange="document.getElementById('mobile-unified-theme_base_color').value = this.value; onColorPicked(this.value); callPythonAPI('update_param', 'theme_base_color', this.value);"
+                          onchange="document.getElementById('mobile-unified-theme_base_color').value = this.value; onColorPicked(this.value); saveUnifiedThemeColor(this.value);"
                         />
 
                         <input
@@ -8879,7 +9004,7 @@
                           class="input-field !text-xs !py-1.5 flex-1 font-mono uppercase shadow-inner"
                           placeholder="#7DD3FC"
                           maxlength="7"
-                          onchange="if(/^#[0-9A-F]{6}$/i.test(this.value)){ document.getElementById('mobile-unified-theme_base_color-picker').value = this.value; onColorPicked(this.value); callPythonAPI('update_param', 'theme_base_color', this.value); }"
+                          onchange="if(/^#[0-9A-F]{6}$/i.test(this.value)){ document.getElementById('mobile-unified-theme_base_color-picker').value = this.value; onColorPicked(this.value); saveUnifiedThemeColor(this.value); }"
                         />
 
                         <button
@@ -9063,14 +9188,27 @@
                   </button>
                 </div>
                 <!-- 留言列表容器 -->
+                <!-- 美化后的移动端留言列表：添加背景色、圆角、边框、阴影等视觉效果 -->
+                <!-- 使用 max-h-[50vh] 限制最大高度为视口的50%，确保不会占用过多屏幕空间 -->
+                <!-- scroll-smooth 提供平滑滚动体验，提升用户交互感受 -->
                 <div
                   id="mobile-multi-admin-messages-list"
-                  class="space-y-2 max-h-auto overflow-y-auto"
+                  class="space-y-2 max-h-[50vh] overflow-y-auto bg-slate-50 rounded-lg p-3 border border-slate-200 shadow-sm scroll-smooth"
                 >
                   <!-- 加载占位提示 -->
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
+                  <!-- 使用 animate-pulse 添加脉冲动画效果，让加载状态更生动 -->
+                  <!-- 添加 flex 布局使加载图标和文字居中对齐 -->
+                  <div class="flex flex-col items-center justify-center py-10 space-y-2">
+                    <!-- 加载动画图标：使用 SVG 旋转动画 -->
+                    <svg class="animate-spin h-6 w-6 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <!-- 加载文字提示 -->
+                    <p class="text-slate-400 text-center text-xs animate-pulse">
+                      加载中...
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -9347,7 +9485,7 @@
                       </button>
                     </div>
                     <button
-                      onclick="toggleMobileCaptchaView('history')"
+                      onclick="openMobileCaptchaHistoryModal()"
                       class="btn btn-secondary w-full !py-2 text-sm min-h-[44px]"
                     >
                       📜 查看历史记录
@@ -9445,14 +9583,27 @@
                   </div>
                 </div>
                 <!-- 定时提醒列表容器 -->
+                <!-- 美化后的移动端定时提醒列表：添加背景色、圆角、边框、阴影等视觉效果 -->
+                <!-- 使用 max-h-[50vh] 限制最大高度为视口的50%，确保不会占用过多屏幕空间 -->
+                <!-- scroll-smooth 提供平滑滚动体验，提升用户交互感受 -->
                 <div
                   id="mobile-multi-admin-reminders-content"
-                  class="space-y-2 max-h-[50vh] overflow-y-auto"
+                  class="space-y-2 max-h-[50vh] overflow-y-auto bg-slate-50 rounded-lg p-3 border border-slate-200 shadow-sm scroll-smooth"
                 >
                   <!-- 加载占位提示 -->
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
+                  <!-- 使用 animate-pulse 添加脉冲动画效果，让加载状态更生动 -->
+                  <!-- 添加 flex 布局使加载图标和文字居中对齐 -->
+                  <div class="flex flex-col items-center justify-center py-10 space-y-2">
+                    <!-- 加载动画图标：使用 SVG 旋转动画 -->
+                    <svg class="animate-spin h-6 w-6 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <!-- 加载文字提示 -->
+                    <p class="text-slate-400 text-center text-xs animate-pulse">
+                      加载中...
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -9961,6 +10112,84 @@
         </div>
       </div>
 
+      <!-- ========================================
+         【移动端验证码历史记录模态框】
+         专用于移动端查看验证码生成和验证历史
+         ======================================== -->
+      <div
+        id="mobile-captcha-history-modal"
+        class="fixed inset-0 hidden mobile-modal z-50"
+        onclick="closeMobileCaptchaHistoryModal()"
+      >
+        <!-- 半透明背景遮罩 -->
+        <div class="absolute inset-0 bg-black/40"></div>
+        <!-- 模态框内容区域 -->
+        <div
+          class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto"
+          onclick="event.stopPropagation()"
+        >
+          <!-- 顶部拖动指示器 -->
+          <div class="flex justify-center mb-2">
+            <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+          </div>
+          <!-- 标题栏 -->
+          <div
+            class="flex items-center justify-between pb-3 border-b border-slate-200"
+          >
+            <h3 class="text-xl font-bold text-purple-600">📜 验证码历史记录</h3>
+            <button
+              class="py-1 px-3 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium hover:bg-purple-100 transition"
+              onclick="loadMobileCaptchaHistoryModal()"
+            >
+              🔄 刷新
+            </button>
+          </div>
+          <!-- 筛选条件区域 -->
+          <div class="flex gap-2 items-center">
+            <div class="flex-1">
+              <label class="block text-xs text-slate-500 mb-1">选择日期</label>
+              <input
+                type="date"
+                id="mobile-captcha-history-modal-date"
+                class="input-field text-sm w-full !py-2"
+              />
+            </div>
+            <div class="flex-1">
+              <label class="block text-xs text-slate-500 mb-1">状态筛选</label>
+              <select
+                id="mobile-captcha-history-modal-status"
+                class="select-field text-sm w-full !py-2"
+              >
+                <option value="">全部状态</option>
+                <option value="verified_success">✅ 验证成功</option>
+                <option value="verified_failed">❌ 验证失败</option>
+                <option value="test_generated">🧪 测试生成</option>
+                <option value="created">⏳ 待验证</option>
+                <option value="expired">⏰ 已过期</option>
+              </select>
+            </div>
+          </div>
+          <!-- 历史记录列表 -->
+          <div
+            id="mobile-captcha-history-modal-list"
+            class="space-y-2 max-h-[50vh] overflow-y-auto"
+          >
+            <p class="text-slate-400 text-center py-10 text-sm">
+              点击刷新加载数据...
+            </p>
+          </div>
+          <!-- 底部按钮 -->
+          <div class="flex justify-end pt-2 border-t border-slate-200">
+            <button
+              class="mobile-primary-btn"
+              onclick="closeMobileCaptchaHistoryModal()"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div
         id="mobile-notifications-modal"
         class="fixed inset-0 hidden mobile-modal z-50"
@@ -10308,10 +10537,25 @@
                   刷新
                 </button>
               </div>
-              <div id="mobile-multi-admin-messages-list" class="space-y-2">
-                <p class="text-slate-400 text-center py-10 text-xs">
-                  加载中...
-                </p>
+              <!-- 留言列表容器 -->
+              <!-- 美化后的移动端留言列表：添加背景色、圆角、边框、阴影等视觉效果 -->
+              <!-- 使用 max-h-[50vh] 限制最大高度为视口的50%，确保不会占用过多屏幕空间 -->
+              <!-- scroll-smooth 提供平滑滚动体验，提升用户交互感受 -->
+              <div id="mobile-multi-admin-messages-list" class="space-y-2 max-h-[50vh] overflow-y-auto bg-slate-50 rounded-lg p-3 border border-slate-200 shadow-sm scroll-smooth">
+                <!-- 加载占位提示 -->
+                <!-- 使用 animate-pulse 添加脉冲动画效果，让加载状态更生动 -->
+                <!-- 添加 flex 布局使加载图标和文字居中对齐 -->
+                <div class="flex flex-col items-center justify-center py-10 space-y-2">
+                  <!-- 加载动画图标：使用 SVG 旋转动画 -->
+                  <svg class="animate-spin h-6 w-6 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <!-- 加载文字提示 -->
+                  <p class="text-slate-400 text-center text-xs animate-pulse">
+                    加载中...
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -10461,10 +10705,25 @@
                   刷新
                 </button>
               </div>
-              <div id="mobile-multi-admin-reminders-content" class="space-y-3">
-                <p class="text-slate-400 text-center py-10 text-xs">
-                  加载中...
-                </p>
+              <!-- 定时提醒列表容器 -->
+              <!-- 美化后的移动端定时提醒列表：添加背景色、圆角、边框、阴影等视觉效果 -->
+              <!-- 使用 max-h-[50vh] 限制最大高度为视口的50%，确保不会占用过多屏幕空间 -->
+              <!-- scroll-smooth 提供平滑滚动体验，提升用户交互感受 -->
+              <div id="mobile-multi-admin-reminders-content" class="space-y-2 max-h-[50vh] overflow-y-auto bg-slate-50 rounded-lg p-3 border border-slate-200 shadow-sm scroll-smooth">
+                <!-- 加载占位提示 -->
+                <!-- 使用 animate-pulse 添加脉冲动画效果，让加载状态更生动 -->
+                <!-- 添加 flex 布局使加载图标和文字居中对齐 -->
+                <div class="flex flex-col items-center justify-center py-10 space-y-2">
+                  <!-- 加载动画图标：使用 SVG 旋转动画 -->
+                  <svg class="animate-spin h-6 w-6 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <!-- 加载文字提示 -->
+                  <p class="text-slate-400 text-center text-xs animate-pulse">
+                    加载中...
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -10773,7 +11032,7 @@
 
             <button
               class="w-full flex items-center gap-3 p-4 bg-slate-50 hover:bg-slate-100 rounded-xl transition"
-              onclick="toggleMobileMoreMenu(false); toggleMobileAdminPanel(true);"
+              onclick="toggleMobileMoreMenu(false); openMobileAdminPanelUnified('single');"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -11065,7 +11324,7 @@
           href="#"
           class="mobile-nav-btn"
           data-nav="admin"
-          onclick="toggleMobileAdminPanel(true)"
+          onclick="openMobileAdminPanelUnified('single')"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -11226,7 +11485,7 @@
           href="#"
           class="mobile-nav-btn"
           data-nav="admin"
-          onclick="toggleMobileAdminPanel(true)"
+          onclick="openMobileAdminPanelUnified('multi')"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -11512,7 +11771,7 @@
           <a
             href="#"
             class="mobile-sidebar-item"
-            onclick="switchMobileSinglePanel('mobile-admin-panel'); closeMobileSidebar(); return false;"
+            onclick="openMobileAdminPanelUnified('single'); closeMobileSidebar(); return false;"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -11692,7 +11951,7 @@
           <a
             href="#"
             class="mobile-sidebar-item"
-            onclick="switchMobilePanel('mobile-admin-panel-unified', 'multi'); closeMobileSidebar(); return false;"
+            onclick="openMobileAdminPanelUnified('multi'); closeMobileSidebar(); return false;"
             id="mobile_multi_admin_panel_bnt"
           >
             <svg
@@ -12643,7 +12902,8 @@
               >
                 <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
                 <div class="space-y-3">
-                  <div>
+                  <!-- 当前密码输入区域（密码验证模式） -->
+                  <div id="pc-password-verify-section">
                     <label
                       class="block text-sm font-semibold text-slate-700 mb-1"
                       >当前密码</label
@@ -12654,6 +12914,36 @@
                       class="input-field"
                       placeholder="输入当前密码"
                     />
+                    <!-- 提示用户可以使用短信验证 -->
+                    <p class="text-xs text-slate-500 mt-1">
+                      忘记原密码？<button type="button" onclick="toggleSmsVerifyMode('pc')" class="text-sky-600 hover:underline" id="pc-sms-toggle-btn">使用短信验证</button>
+                    </p>
+                  </div>
+                  <!-- 短信验证模式区域（默认隐藏） -->
+                  <div id="pc-sms-verify-section" class="hidden space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p class="text-xs text-blue-700">📱 短信验证模式：验证码将发送到您绑定的手机号</p>
+                    <div>
+                      <label class="block text-sm font-semibold text-slate-700 mb-1">短信验证码</label>
+                      <div class="flex gap-2">
+                        <input
+                          type="text"
+                          id="pc-password-sms-code"
+                          class="input-field flex-1"
+                          placeholder="请输入验证码"
+                          maxlength="6"
+                          inputmode="numeric"
+                        />
+                        <button
+                          type="button"
+                          onclick="sendPasswordResetSmsCode('pc')"
+                          id="pc-send-sms-btn"
+                          class="btn btn-primary whitespace-nowrap"
+                        >
+                          发送验证码
+                        </button>
+                      </div>
+                    </div>
+                    <button type="button" onclick="toggleSmsVerifyMode('pc')" class="text-xs text-slate-500 hover:underline">← 返回密码验证</button>
                   </div>
                   <div>
                     <label
@@ -16504,7 +16794,10 @@
         if (mobileMenuBtn) {
           mobileMenuBtn.addEventListener("click", function () {
             console.log("[移动端UI] 菜单按钮点击");
-            toggleMobileAdminPanel(true);
+            // 【任务7】根据当前会话模式决定打开哪个管理面板
+            // 检查是否在多账号模式下
+            const isMultiMode = sessionModeInfo && sessionModeInfo.multi_account_mode === true;
+            openMobileAdminPanelUnified(isMultiMode ? 'multi' : 'single');
           });
         }
 
@@ -18266,6 +18559,41 @@
       }
       function onColorPicked(val) {
         setBaseColor(val, val);
+      }
+
+      /**
+       * 【任务7】统一管理面板主题颜色保存函数
+       * 该函数用于处理 mobile-admin-panel-unified 中的主题颜色保存
+       * 
+       * @description
+       *   根据 window.mobileAdminPanelMode 判断当前是单账号还是多账号模式：
+       *   - 单账号模式('single')：调用 callPythonAPI('update_param', ...) 写入 params
+       *   - 多账号模式('multi')：同样调用 update_param，因为全局参数对所有账号生效
+       * 
+       * @param {string} value - 主题颜色值（如 '#7dd3fc'）
+       */
+      function saveUnifiedThemeColor(value) {
+        // 获取当前模式，默认为多账号模式
+        const mode = window.mobileAdminPanelMode || 'multi';
+        // 记录日志，便于调试
+        console.log(`[统一管理面板] 保存主题颜色: ${value}, 模式: ${mode}`);
+        
+        // 更新本地参数对象
+        if (typeof pythonParams !== 'undefined') {
+          pythonParams.theme_base_color = value;
+        }
+        
+        // 无论是单账号还是多账号模式，都调用 update_param API
+        // 因为单账号模式下参数存储在 sessions 的 params 中
+        // 多账号模式下参数存储在 sessions 的 global_params 中
+        // 后端会根据当前会话模式自动写入正确的位置
+        callPythonAPI('update_param', 'theme_base_color', value);
+        
+        // 同时更新颜色选择器和输入框的同步
+        const colorPicker = document.getElementById('mobile-unified-theme_base_color-picker');
+        const colorInput = document.getElementById('mobile-unified-theme_base_color');
+        if (colorPicker) colorPicker.value = value;
+        if (colorInput) colorInput.value = value;
       }
 
       async function checkAuthStatus() {
@@ -21288,72 +21616,285 @@
           showModalAlert("网络错误，请稍后重试", "错误");
         }
       }
+      // ========================================
+      // 【密码修改】短信验证模式相关全局状态和函数
+      // ========================================
+
+      // 全局状态：当前验证模式 ('password' 或 'sms')
+      // PC端密码验证模式状态，默认为'password'（使用原密码验证）
+      let pcPasswordVerifyMode = 'password';
+      // 移动端密码验证模式状态，默认为'password'（使用原密码验证）
+      let mobilePasswordVerifyMode = 'password';
+
+      /**
+       * 切换密码验证模式（密码验证 <-> 短信验证）
+       * 该函数用于在修改密码时切换使用原密码验证还是短信验证码验证
+       *
+       * @param {string} platform - 平台标识，'pc' 或 'mobile'
+       */
+      function toggleSmsVerifyMode(platform) {
+        // 根据平台选择对应的DOM元素和状态变量
+        if (platform === 'pc') {
+          // 获取PC端的密码输入区域
+          const passwordSection = document.getElementById('pc-password-verify-section');
+          // 获取PC端的短信验证区域
+          const smsSection = document.getElementById('pc-sms-verify-section');
+          // 获取切换按钮
+          const toggleBtn = document.getElementById('pc-sms-toggle-btn');
+
+          // 判断当前模式并切换
+          if (pcPasswordVerifyMode === 'password') {
+            // 从密码验证模式切换到短信验证模式
+            passwordSection.classList.add('hidden');       // 隐藏密码输入区域
+            smsSection.classList.remove('hidden');         // 显示短信验证区域
+            toggleBtn.textContent = '返回密码验证';         // 更新按钮文字
+            pcPasswordVerifyMode = 'sms';                  // 更新状态为短信验证模式
+            logMessage_Info('[密码修改] PC端切换到短信验证模式');
+          } else {
+            // 从短信验证模式切换回密码验证模式
+            passwordSection.classList.remove('hidden');    // 显示密码输入区域
+            smsSection.classList.add('hidden');            // 隐藏短信验证区域
+            toggleBtn.textContent = '使用短信验证';         // 更新按钮文字
+            pcPasswordVerifyMode = 'password';             // 更新状态为密码验证模式
+            // 清空短信验证码输入框
+            const smsCodeInput = document.getElementById('pc-password-sms-code');
+            if (smsCodeInput) smsCodeInput.value = '';
+            logMessage_Info('[密码修改] PC端切换到密码验证模式');
+          }
+        } else if (platform === 'mobile') {
+          // 获取移动端的密码输入区域
+          const passwordSection = document.getElementById('mobile-password-verify-section');
+          // 获取移动端的短信验证区域
+          const smsSection = document.getElementById('mobile-sms-verify-section');
+          // 获取切换按钮
+          const toggleBtn = document.getElementById('mobile-sms-toggle-btn');
+
+          // 判断当前模式并切换
+          if (mobilePasswordVerifyMode === 'password') {
+            // 从密码验证模式切换到短信验证模式
+            passwordSection.classList.add('hidden');       // 隐藏密码输入区域
+            smsSection.classList.remove('hidden');         // 显示短信验证区域
+            toggleBtn.textContent = '返回密码验证';         // 更新按钮文字
+            mobilePasswordVerifyMode = 'sms';              // 更新状态为短信验证模式
+            logMessage_Info('[密码修改] 移动端切换到短信验证模式');
+          } else {
+            // 从短信验证模式切换回密码验证模式
+            passwordSection.classList.remove('hidden');    // 显示密码输入区域
+            smsSection.classList.add('hidden');            // 隐藏短信验证区域
+            toggleBtn.textContent = '使用短信验证';         // 更新按钮文字
+            mobilePasswordVerifyMode = 'password';         // 更新状态为密码验证模式
+            // 清空短信验证码输入框
+            const smsCodeInput = document.getElementById('mobile-password-sms-code');
+            if (smsCodeInput) smsCodeInput.value = '';
+            logMessage_Info('[密码修改] 移动端切换到密码验证模式');
+          }
+        }
+      }
+
+      /**
+       * 发送密码重置短信验证码
+       * 该函数用于在短信验证模式下发送验证码到用户绑定的手机号
+       *
+       * @param {string} platform - 平台标识，'pc' 或 'mobile'
+       */
+      async function sendPasswordResetSmsCode(platform) {
+        // 根据平台获取对应的发送按钮
+        const btn = document.getElementById(platform === 'pc' ? 'pc-send-sms-btn' : 'mobile-send-sms-btn');
+
+        try {
+          // 首先获取当前用户的绑定手机号
+          // 通过API获取用户资料信息
+          const response = await callPythonAPI_raw('/api/user/profile', 'GET');
+
+          // 检查API响应是否成功
+          if (!response.success) {
+            showModalAlert('获取用户信息失败，请稍后重试', '错误');
+            return;
+          }
+
+          // 检查用户是否已绑定手机号
+          if (!response.phone) {
+            showModalAlert('您尚未绑定手机号，无法使用短信验证。\n请先在"安全设置"中绑定手机号。', '提示');
+            return;
+          }
+
+          // 调用验证码模态框，发送短信验证码到绑定的手机号
+          // openCaptchaModal 会弹出图形验证码窗口，验证通过后发送短信
+          openCaptchaModal({
+            phone: response.phone,          // 用户绑定的手机号
+            button: btn,                    // 触发按钮，用于显示倒计时
+            originalText: '发送验证码',      // 按钮原始文字，倒计时结束后恢复
+            scene: 'password_reset',        // 场景标识，后端可据此做不同处理
+          });
+
+          logMessage_Info(`[密码修改] ${platform}端请求发送短信验证码到手机: ${response.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}`);
+
+        } catch (e) {
+          // 捕获网络错误或其他异常
+          logMessage_Error('[密码修改] 获取手机号失败:', e);
+          showModalAlert('获取手机号失败: ' + e.message, '错误');
+        }
+      }
+
+      /**
+       * 重置密码修改面板的验证模式到默认状态
+       * 当面板关闭或需要重置时调用
+       *
+       * @param {string} platform - 平台标识，'pc'、'mobile' 或 'all'
+       */
+      function resetPasswordVerifyMode(platform) {
+        // 重置PC端
+        if (platform === 'pc' || platform === 'all') {
+          pcPasswordVerifyMode = 'password';
+          const pcPasswordSection = document.getElementById('pc-password-verify-section');
+          const pcSmsSection = document.getElementById('pc-sms-verify-section');
+          const pcToggleBtn = document.getElementById('pc-sms-toggle-btn');
+          const pcSmsCodeInput = document.getElementById('pc-password-sms-code');
+
+          if (pcPasswordSection) pcPasswordSection.classList.remove('hidden');
+          if (pcSmsSection) pcSmsSection.classList.add('hidden');
+          if (pcToggleBtn) pcToggleBtn.textContent = '使用短信验证';
+          if (pcSmsCodeInput) pcSmsCodeInput.value = '';
+        }
+
+        // 重置移动端
+        if (platform === 'mobile' || platform === 'all') {
+          mobilePasswordVerifyMode = 'password';
+          const mobilePasswordSection = document.getElementById('mobile-password-verify-section');
+          const mobileSmsSection = document.getElementById('mobile-sms-verify-section');
+          const mobileToggleBtn = document.getElementById('mobile-sms-toggle-btn');
+          const mobileSmsCodeInput = document.getElementById('mobile-password-sms-code');
+
+          if (mobilePasswordSection) mobilePasswordSection.classList.remove('hidden');
+          if (mobileSmsSection) mobileSmsSection.classList.add('hidden');
+          if (mobileToggleBtn) mobileToggleBtn.textContent = '使用短信验证';
+          if (mobileSmsCodeInput) mobileSmsCodeInput.value = '';
+        }
+      }
+
+      /**
+       * PC端修改密码函数
+       * 支持两种验证模式：原密码验证 或 短信验证码验证
+       */
       async function updatePassword() {
+        // 弹出确认对话框，询问用户是否确认修改密码
         const confirmed = await jsShowConfirm(
           "确认修改密码",
           "您确定要修改您的登录密码吗？\n\n修改后需要使用新密码重新登录。"
         );
+        // 如果用户取消操作，则直接返回
         if (!confirmed) {
           logMessage_Info("[修改密码] 用户取消了密码修改操作");
           return;
         }
-        const currentPassword = $("profile-current-password");
-        const newPassword = $("profile-new-password");
-        const confirmPassword = $("profile-confirm-password");
 
-        if (!currentPassword || !newPassword || !confirmPassword) return;
+        // 获取各个密码输入框的DOM元素
+        const currentPassword = $("profile-current-password");    // 当前密码输入框
+        const newPassword = $("profile-new-password");            // 新密码输入框
+        const confirmPassword = $("profile-confirm-password");    // 确认新密码输入框
 
-        if (
-          !currentPassword.value ||
-          !newPassword.value ||
-          !confirmPassword.value
-        ) {
-          showModalAlert("请填写所有密码字段", "提示");
+        // 检查必要的DOM元素是否存在
+        if (!newPassword || !confirmPassword) return;
+
+        // 判断当前是否使用短信验证模式
+        const useSmsVerify = pcPasswordVerifyMode === 'sms';
+        // 如果是短信验证模式，获取短信验证码
+        const smsCode = useSmsVerify ? document.getElementById('pc-password-sms-code')?.value?.trim() : null;
+
+        // 根据验证模式进行不同的校验
+        if (!useSmsVerify) {
+          // 密码验证模式：检查原密码是否填写
+          if (!currentPassword || !currentPassword.value) {
+            showModalAlert("请填写当前密码，或点击\"使用短信验证\"通过短信验证码修改密码", "提示");
+            return;
+          }
+        } else {
+          // 短信验证模式：检查验证码是否填写
+          if (!smsCode) {
+            showModalAlert("请填写短信验证码", "提示");
+            return;
+          }
+          // 验证码格式校验（6位数字）
+          if (!/^\d{6}$/.test(smsCode)) {
+            showModalAlert("短信验证码格式不正确，请输入6位数字", "提示");
+            return;
+          }
+        }
+
+        // 检查新密码是否填写
+        if (!newPassword.value || !confirmPassword.value) {
+          showModalAlert("请填写新密码和确认新密码", "提示");
           return;
         }
 
+        // 检查两次输入的新密码是否一致
         if (newPassword.value !== confirmPassword.value) {
           showModalAlert("两次输入的密码不一致", "错误");
           return;
         }
 
+        // 检查新密码长度是否符合要求（最少6位）
         if (newPassword.value.length < 6) {
           showModalAlert("密码长度至少为6个字符", "错误");
           return;
         }
 
+        // 检查当前用户信息是否可用
         if (!currentAuthUsername) {
           showModalAlert("无法获取当前用户信息，请重新加载个人信息", "错误");
           return;
         }
 
         try {
+          // 构建API请求体
+          const requestBody = {
+            username: currentAuthUsername,                                    // 当前用户名
+            new_password: newPassword.value,                                  // 新密码
+          };
+
+          // 根据验证模式添加不同的验证字段
+          if (useSmsVerify) {
+            // 短信验证模式：传递短信验证码，原密码设为null
+            requestBody.sms_code = smsCode;
+            requestBody.old_password = null;
+            logMessage_Info('[密码修改] PC端使用短信验证模式提交');
+          } else {
+            // 密码验证模式：传递原密码
+            requestBody.old_password = currentPassword.value;
+            logMessage_Info('[密码修改] PC端使用密码验证模式提交');
+          }
+
+          // 发送密码修改请求到后端API
           const response = await fetch("/auth/admin/reset_password", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Session-ID": sessionUUID,
             },
-            body: JSON.stringify({
-              username: currentAuthUsername,
-              old_password: currentPassword.value,
-              new_password: newPassword.value,
-            }),
+            body: JSON.stringify(requestBody),
           });
+
+          // 解析API响应
           const result = await response.json();
 
           if (result.success) {
+            // 密码修改成功
             showModalAlert("密码修改成功！", "成功");
-            currentPassword.value = "";
+            // 清空所有输入框
+            if (currentPassword) currentPassword.value = "";
             newPassword.value = "";
             confirmPassword.value = "";
+            // 重置验证模式到默认状态（密码验证）
+            resetPasswordVerifyMode('pc');
           } else {
-            showModalAlert(
-              `修改失败: ${result.message || "请检查当前密码是否正确"}`,
-              "错误"
-            );
+            // 密码修改失败，显示错误信息
+            const errorMsg = useSmsVerify 
+              ? (result.message || "请检查短信验证码是否正确") 
+              : (result.message || "请检查当前密码是否正确");
+            showModalAlert(`修改失败: ${errorMsg}`, "错误");
           }
         } catch (e) {
+          // 捕获网络错误或其他异常
           logMessage_Error("修改密码失败:", e);
           showModalAlert(`修改失败: ${e.message}`, "错误");
         }
@@ -25538,6 +26079,368 @@
         }
       }
 
+      // ==================== 移动端验证码管理功能 ====================
+      // 移动端验证码管理倒计时定时器引用，用于在关闭模态框时清理
+      let mobileVerificationCodesCountdownInterval = null;
+
+      /**
+       * 更新移动端验证码倒计时显示
+       * 此函数会遍历所有带有 .mobile-verification-code-countdown 类的元素，
+       * 并根据其 data-expires-at 属性计算并显示剩余时间
+       */
+      function updateMobileVerificationCodeCountdowns() {
+        // 获取所有移动端验证码倒计时元素
+        const countdownElements = document.querySelectorAll(
+          ".mobile-verification-code-countdown"
+        );
+        // 如果没有任何倒计时元素，停止定时器以节省资源
+        if (countdownElements.length === 0) {
+          stopMobileVerificationCodesCountdown();
+          return;
+        }
+
+        // 获取当前的Unix时间戳（秒）
+        const now = Math.floor(Date.now() / 1000);
+
+        // 遍历每个倒计时元素并更新显示
+        countdownElements.forEach((el) => {
+          // 从 data-expires-at 属性获取过期时间戳
+          const expiresAt = parseInt(el.dataset.expiresAt, 10);
+          // 检查过期时间戳是否有效
+          if (isNaN(expiresAt)) {
+            el.textContent = "已失效";
+            return;
+          }
+
+          // 计算剩余时间（秒），确保不为负数
+          const expiresIn = Math.max(0, expiresAt - now);
+          // 将秒数转换为分钟和秒
+          const minutes = Math.floor(expiresIn / 60);
+          const seconds = expiresIn % 60;
+
+          // 更新显示文本
+          el.textContent = `${minutes}分${seconds}秒`;
+
+          // 根据剩余时间调整样式
+          if (expiresIn <= 0) {
+            // 已过期：显示红色并加粗
+            el.textContent = "已失效";
+            el.classList.add("text-red-600", "font-semibold");
+          } else if (expiresIn < 120) {
+            // 剩余时间少于2分钟：显示红色警告
+            el.classList.add("text-red-600", "font-semibold");
+            el.classList.remove("text-slate-600");
+          }
+        });
+      }
+
+      /**
+       * 启动移动端验证码倒计时
+       * 首次更新并设置每秒更新一次的定时器
+       */
+      function startMobileVerificationCodesCountdown() {
+        // 先停止任何已存在的定时器，避免重复
+        stopMobileVerificationCodesCountdown();
+        // 立即执行一次更新
+        updateMobileVerificationCodeCountdowns();
+        // 设置每秒更新一次的定时器
+        mobileVerificationCodesCountdownInterval = setInterval(
+          updateMobileVerificationCodeCountdowns,
+          1000
+        );
+      }
+
+      /**
+       * 停止移动端验证码倒计时
+       * 清理定时器资源
+       */
+      function stopMobileVerificationCodesCountdown() {
+        if (mobileVerificationCodesCountdownInterval) {
+          clearInterval(mobileVerificationCodesCountdownInterval);
+          mobileVerificationCodesCountdownInterval = null;
+        }
+      }
+
+      /**
+       * 打开移动端验证码管理模态框
+       * 如果模态框不存在，则动态创建；然后显示模态框并加载验证码列表
+       */
+      function openMobileVerificationCodesModal() {
+        // 尝试获取已存在的移动端验证码模态框
+        let modal = document.getElementById("mobile-verification-codes-modal");
+        // 如果模态框不存在，则动态创建
+        if (!modal) {
+          // 创建模态框容器元素
+          modal = document.createElement("div");
+          modal.id = "mobile-verification-codes-modal";
+          // 设置移动端模态框的基本样式类
+          modal.className = "fixed inset-0 hidden mobile-modal z-[60]";
+          // 点击背景区域时关闭模态框
+          modal.onclick = function (e) {
+            if (e.target === modal) closeMobileVerificationCodesModal();
+          };
+          // 设置模态框的HTML内容
+          modal.innerHTML = `
+            <!-- 半透明黑色背景遮罩 -->
+            <div class="absolute inset-0 bg-black/40"></div>
+            <!-- 模态框内容区域，底部弹出样式 -->
+            <div class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+              <!-- 拖拽手柄，符合移动端设计规范 -->
+              <div class="flex justify-center mb-2">
+                <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+              </div>
+              <!-- 模态框标题区域 -->
+              <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h3 class="text-xl font-bold text-sky-600">🔑 验证码管理</h3>
+                <!-- 关闭按钮 -->
+                <button onclick="closeMobileVerificationCodesModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+              </div>
+
+              <!-- 手动添加验证码区域 -->
+              <div class="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+                <h5 class="font-semibold text-green-900 text-sm">➕ 手动添加验证码</h5>
+                <!-- 手机号输入框 -->
+                <div class="phone-input-wrapper">
+                  <span class="phone-prefix">+86 </span>
+                  <input type="tel" id="mobile-manual-code-phone" class="input-field text-sm" placeholder="手机号" pattern="[0-9]*" maxlength="11">
+                </div>
+                <!-- 验证码输入框 -->
+                <input type="text" id="mobile-manual-code-value" class="input-field text-sm w-full" placeholder="验证码（6位数字，留空自动生成）" maxlength="6" pattern="[0-9]{6}">
+                <!-- 添加按钮 -->
+                <button onclick="addMobileManualVerificationCode()" class="btn btn-primary w-full !py-2 text-sm min-h-[44px]">添加验证码</button>
+                <p class="text-xs text-slate-600">💡 此功能用于测试或紧急情况下手动添加验证码，不会实际发送短信</p>
+              </div>
+
+              <!-- 刷新按钮 -->
+              <div class="flex justify-end">
+                <button onclick="loadMobileVerificationCodes()" class="btn btn-ghost text-sm">🔄 刷新列表</button>
+              </div>
+
+              <!-- 验证码列表容器 -->
+              <div id="mobile-verification-codes-list" class="space-y-3 max-h-[40vh] overflow-y-auto">
+                <p class="text-slate-400 text-center py-10 text-sm">加载中...</p>
+              </div>
+
+              <!-- 底部操作按钮 -->
+              <div class="flex justify-end pt-3 border-t border-slate-100">
+                <button onclick="closeMobileVerificationCodesModal()" class="btn btn-ghost border border-slate-300 !py-2 text-sm min-h-[44px]">关闭</button>
+              </div>
+            </div>
+          `;
+          // 将模态框添加到文档body中
+          document.body.appendChild(modal);
+        }
+
+        // 显示模态框：添加show类并移除hidden类
+        modal.classList.add("show");
+        modal.classList.remove("hidden");
+        // 加载验证码列表数据
+        loadMobileVerificationCodes();
+        // 记录日志
+        console.log("[移动端验证码管理] 模态框已打开");
+      }
+
+      /**
+       * 关闭移动端验证码管理模态框
+       * 隐藏模态框并停止倒计时定时器
+       */
+      function closeMobileVerificationCodesModal() {
+        // 获取模态框元素
+        const modal = document.getElementById("mobile-verification-codes-modal");
+        if (modal) {
+          // 隐藏模态框：移除show类并添加hidden类
+          modal.classList.remove("show");
+          modal.classList.add("hidden");
+        }
+        // 停止倒计时定时器以释放资源
+        stopMobileVerificationCodesCountdown();
+        // 记录日志
+        console.log("[移动端验证码管理] 模态框已关闭");
+      }
+
+      /**
+       * 加载移动端验证码列表
+       * 从后端API获取当前有效的验证码列表并渲染到界面上
+       */
+      async function loadMobileVerificationCodes() {
+        try {
+          // 调用后端API获取验证码列表
+          const response = await fetch("/api/admin/sms/verification_codes", {
+            headers: { "X-Session-ID": sessionUUID },
+          });
+          // 解析JSON响应
+          const result = await response.json();
+
+          // 获取验证码列表容器元素
+          const listContainer = document.getElementById("mobile-verification-codes-list");
+
+          // 检查请求是否成功且有数据
+          if (result.success && result.codes && result.codes.length > 0) {
+            // 使用map生成每个验证码项的HTML，然后join拼接
+            listContainer.innerHTML = result.codes
+              .map((item) => {
+                // 计算剩余分钟数和秒数
+                const expiresIn = Math.max(0, Math.floor(item.expires_in / 60));
+                const expiresSec = Math.max(0, item.expires_in % 60);
+                // 返回单个验证码项的HTML结构
+                return `
+                  <div class="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
+                    <!-- 验证码信息区域 -->
+                    <div class="grid grid-cols-3 gap-2 mb-3">
+                      <!-- 手机号显示 -->
+                      <div>
+                        <span class="text-xs text-slate-500">📱 手机号</span>
+                        <p class="font-semibold text-slate-700 text-sm">+86 ${item.phone}</p>
+                      </div>
+                      <!-- 验证码显示 -->
+                      <div>
+                        <span class="text-xs text-slate-500">🔢 验证码</span>
+                        <p class="font-mono text-lg font-bold text-sky-600">${item.code}</p>
+                      </div>
+                      <!-- 剩余时间显示，使用特殊类名用于倒计时更新 -->
+                      <div>
+                        <span class="text-xs text-slate-500">⏰ 剩余时间</span>
+                        <p class="mobile-verification-code-countdown text-sm ${
+                          expiresIn < 2
+                            ? "text-red-600 font-semibold"
+                            : "text-slate-600"
+                        }"
+                           data-expires-at="${item.expires_at}">
+                          ${expiresIn}分${expiresSec}秒
+                        </p>
+                      </div>
+                    </div>
+                    <!-- 操作按钮 -->
+                    <button onclick="invalidateMobileVerificationCode('${item.phone}')" 
+                      class="btn btn-ghost border border-red-300 text-red-600 w-full !py-2 text-sm min-h-[40px]">
+                      ❌ 使验证码失效
+                    </button>
+                  </div>
+                `;
+              })
+              .join("");
+          } else {
+            // 无数据时显示提示信息
+            listContainer.innerHTML =
+              '<p class="text-slate-400 text-center py-10 text-sm">当前没有有效的验证码</p>';
+          }
+
+          // 启动倒计时更新
+          startMobileVerificationCodesCountdown();
+          // 记录日志
+          console.log("[移动端验证码管理] 验证码列表已加载，共", result.codes?.length || 0, "条");
+        } catch (e) {
+          // 错误处理：显示错误提示
+          console.error("[移动端验证码管理] 加载失败:", e);
+          showModalAlert("加载验证码列表失败: " + e.message);
+          // 停止倒计时
+          stopMobileVerificationCodesCountdown();
+        }
+      }
+
+      /**
+       * 移动端使验证码失效
+       * @param {string} phone - 要使验证码失效的手机号
+       */
+      async function invalidateMobileVerificationCode(phone) {
+        // 弹出确认对话框
+        const confirmed = await jsShowConfirm(
+          "确认失效",
+          `确定要使手机号 +86 ${phone} 的验证码失效吗？`
+        );
+        // 用户取消则直接返回
+        if (!confirmed) {
+          return;
+        }
+
+        try {
+          // 调用后端API使验证码失效
+          const response = await fetch("/api/admin/sms/invalidate_code", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID,
+            },
+            body: JSON.stringify({ phone: phone }),
+          });
+          // 解析响应
+          const result = await response.json();
+
+          // 根据结果显示相应提示
+          if (result.success) {
+            showModalAlert("验证码已失效", "成功");
+            // 重新加载验证码列表
+            loadMobileVerificationCodes();
+          } else {
+            showModalAlert(result.message || "操作失败");
+          }
+        } catch (e) {
+          // 错误处理
+          console.error("[移动端验证码管理] 使验证码失效失败:", e);
+          showModalAlert("操作失败: " + e.message);
+        }
+      }
+
+      /**
+       * 移动端手动添加验证码
+       * 用于测试或紧急情况下手动添加验证码（不会实际发送短信）
+       */
+      async function addMobileManualVerificationCode() {
+        // 获取手机号输入框的值
+        const phone = document.getElementById("mobile-manual-code-phone").value.trim();
+        // 获取验证码输入框的值
+        let code = document.getElementById("mobile-manual-code-value").value.trim();
+
+        // 如果验证码为空，自动生成6位随机数字
+        if (!code) {
+          code = Math.floor(100000 + Math.random() * 900000).toString();
+          document.getElementById("mobile-manual-code-value").value = code;
+        } else if (!/^\d{6}$/.test(code)) {
+          // 验证码格式校验：必须是6位数字
+          showModalAlert("验证码必须是6位数字");
+          return;
+        }
+
+        // 再次校验验证码格式（防止自动生成的也出问题）
+        if (!code || !/^\d{6}$/.test(code)) {
+          showModalAlert("请输入6位数字验证码");
+          return;
+        }
+
+        try {
+          // 调用后端API添加验证码
+          const response = await fetch("/api/admin/sms/add_manual_code", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Session-ID": sessionUUID,
+            },
+            body: JSON.stringify({
+              phone: phone,
+              code: code,
+            }),
+          });
+          // 解析响应
+          const result = await response.json();
+
+          // 根据结果显示相应提示
+          if (result.success) {
+            showModalAlert("验证码已添加", "成功");
+            // 清空输入框
+            document.getElementById("mobile-manual-code-phone").value = "";
+            document.getElementById("mobile-manual-code-value").value = "";
+            // 重新加载验证码列表
+            loadMobileVerificationCodes();
+          } else {
+            showModalAlert(result.message || "添加失败");
+          }
+        } catch (e) {
+          // 错误处理
+          console.error("[移动端验证码管理] 添加验证码失败:", e);
+          showModalAlert("操作失败: " + e.message);
+        }
+      }
+
       function escapeHtml(unsafe) {
         return unsafe
           .replace(/&/g, "&amp;")
@@ -27869,66 +28772,162 @@
           logMessage_Warning("forceProjectionRefresh warning:", e);
         }
       }
+      /**
+       * 【任务9】移动端单账号设置面板参数刷新函数
+       * 
+       * @description
+       *   此函数用于从后端刷新 mobile-settings-panel 中的参数配置
+       *   mobile-settings-panel 是移动端单账号模式的专属设置面板
+       *   参数从 sessions 持久化文件的 `params` 字段读取
+       *   而不是多账号模式使用的 `multi_global_params` 字段
+       * 
+       * @workflow
+       *   1. 调用后端 get_params API 获取当前参数
+       *   2. 后端根据 is_multi_account_mode 状态返回正确的参数
+       *   3. 单账号模式下返回 params，多账号模式下返回 global_params
+       *   4. 更新前端参数缓存和界面显示
+       */
       async function refreshMobileSettings() {
+        // 获取移动端参数容器元素
+        // mobile-params-container 是单账号模式设置面板的参数输入区域
         const container = document.getElementById("mobile-params-container");
+        // 如果容器不存在，则直接返回，不执行任何操作
         if (!container) return;
 
+        // 显示正在刷新的提示信息
         showModalAlert("正在刷新参数...", "提示");
 
+        // 记录日志：开始刷新单账号模式参数
+        console.log("[移动端单账号] 开始刷新设置面板参数，来源: params (单账号模式)");
+
         try {
+          // 调用后端 API 获取参数
+          // get_params API 会根据后端 is_multi_account_mode 状态返回对应的参数：
+          //   - 单账号模式 (is_multi_account_mode=false): 返回 params
+          //   - 多账号模式 (is_multi_account_mode=true): 返回 global_params
+          // mobile-settings-panel 专属于单账号模式，因此获取的是 params
           const params = await callPythonAPI("get_params");
 
+          // 检查是否成功获取到参数
           if (params) {
+            // 更新前端本地参数缓存
             pythonParams = params;
+            
+            // 如果 updateParamInputs 函数存在，则更新界面上的参数输入控件
             if (typeof updateParamInputs === "function") {
               updateParamInputs(container, "mobile-param", pythonParams);
             }
+            
+            // 如果参数中包含主题颜色，则同步更新主题
             if (params.theme_base_color) {
+              // 调用 setBaseColor 更新界面主题颜色
+              // 第三个参数 false 表示不触发保存操作，仅更新显示
               setBaseColor(
                 params.theme_base_color,
                 params.theme_base_color,
                 false
-              ); // [修改] 传入 false
+              );
             }
 
+            // 记录刷新成功日志
+            console.log("[移动端单账号] 设置面板参数刷新完成，来源: params");
+            
+            // 显示刷新成功提示
             showModalAlert("参数已刷新", "成功");
           } else {
+            // 未获取到数据，显示错误提示
             showModalAlert("刷新失败：未获取到数据", "错误");
           }
         } catch (e) {
-          console.error("[移动端] 刷新参数失败:", e);
+          // 捕获刷新过程中的错误
+          console.error("[移动端单账号] 刷新参数失败:", e);
+          // 显示错误提示
           showModalAlert("刷新失败", "错误");
         }
       }
+      /**
+       * 【任务9】移动端单账号设置面板参数保存函数
+       * 
+       * @description
+       *   此函数用于保存 mobile-settings-panel 中的所有参数配置
+       *   mobile-settings-panel 是移动端单账号模式的专属设置面板
+       *   参数应该被写入 sessions 持久化文件的 `params` 字段
+       *   而不是多账号模式使用的 `multi_global_params` 字段
+       * 
+       * @workflow
+       *   1. 获取参数容器中的所有输入元素
+       *   2. 遍历并收集每个参数的键值对
+       *   3. 调用后端 update_param API 保存参数
+       *   4. 后端会根据 is_multi_account_mode 状态自动写入正确位置
+       *   5. 单账号模式下 is_multi_account_mode=false，参数写入 params
+       */
       async function saveMobileSettings() {
+        // 获取移动端参数容器元素
+        // mobile-params-container 是单账号模式设置面板的参数输入区域
         const container = document.getElementById("mobile-params-container");
+        // 如果容器不存在，则直接返回，不执行任何操作
         if (!container) return;
 
+        // 显示正在保存的提示信息
         showModalAlert("正在保存设置...", "提示");
 
+        // 记录日志：开始保存单账号模式参数
+        console.log("[移动端单账号] 开始保存设置面板参数，目标: params (单账号模式)");
+
         try {
+          // 查询容器内所有的 input 和 select 元素
+          // 这些元素包含用户配置的参数值
           const inputs = container.querySelectorAll("input, select");
+          // 初始化保存计数器，用于统计成功保存的参数数量
           let savedCount = 0;
+          
+          // 遍历每个输入元素，收集并保存参数
           for (const input of inputs) {
+            // 从元素的 data-key 属性获取参数键名
             const key = input.dataset.key;
+            // 如果没有 data-key 属性，跳过该元素
             if (!key) continue;
 
+            // 根据输入元素的类型，获取对应的值
             let value;
             if (input.type === "checkbox") {
+              // 复选框类型：获取选中状态（布尔值）
               value = input.checked;
             } else if (input.type === "number") {
+              // 数字类型：解析为浮点数，无效值默认为 0
               value = parseFloat(input.value) || 0;
             } else {
+              // 其他类型（文本、下拉框等）：直接获取字符串值
               value = input.value;
             }
+            
+            // 更新前端本地参数缓存
+            // pythonParams 是前端保存的参数副本，用于界面显示
             pythonParams[key] = value;
+            
+            // 调用后端 API 保存参数
+            // update_param API 会根据后端 is_multi_account_mode 状态决定写入位置：
+            //   - 单账号模式 (is_multi_account_mode=false): 写入 params
+            //   - 多账号模式 (is_multi_account_mode=true): 写入 global_params
+            // mobile-settings-panel 专属于单账号模式，因此参数会写入 params
             await callPythonAPI("update_param", key, value);
+            
+            // 增加保存成功计数
             savedCount++;
+            
+            // 记录每个参数的保存日志
+            console.log(`[移动端单账号] 参数已保存: ${key} = ${value}`);
           }
 
+          // 记录保存完成日志
+          console.log(`[移动端单账号] 设置保存完成，共保存 ${savedCount} 个参数到 params`);
+          
+          // 显示保存成功提示
           showModalAlert("设置已保存", "成功");
         } catch (e) {
-          console.error("[移动端] 保存参数失败:", e);
+          // 捕获保存过程中的错误
+          console.error("[移动端单账号] 保存参数失败:", e);
+          // 显示错误提示，包含错误信息
           showModalAlert("保存失败: " + e.message, "错误");
         }
       }
@@ -34308,6 +35307,16 @@
             </div>
           </div>
           <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">验证原密码 <span class="text-red-500">*</span></label>
+            <input
+              type="password"
+              id="modify-phone-password"
+              class="input-field w-full"
+              placeholder="请输入当前账号密码进行验证"
+              style="min-height: 44px"
+            />
+          </div>
+          <div>
             <label class="block text-sm font-semibold text-slate-700 mb-2"
               >新手机号</label
             >
@@ -36088,7 +37097,57 @@
           listContainer.innerHTML = `<p class="text-red-500 text-center py-8 text-sm">加载失败: ${e.message}</p>`;
         }
       }
+
+      /**
+       * 【任务7】打开统一的移动端管理面板
+       * 该函数用于统一处理单账号和多账号模式下的管理面板打开逻辑
+       * 
+       * @description 
+       *   - 单账号模式('single')：复用 mobile-admin-panel-unified，主题设置写入 params
+       *   - 多账号模式('multi')：使用 mobile-admin-panel-unified，主题设置写入 multi_global_params
+       * 
+       * @param {string} mode - 'single' 或 'multi'，区分单账号和多账号模式
+       */
+      function openMobileAdminPanelUnified(mode) {
+        // 【第一步】记录日志，便于调试
+        console.log(`[移动端管理面板] 打开统一面板，模式: ${mode}`);
+        
+        // 【第二步】保存当前模式到全局变量
+        // 该变量供主题保存等功能判断应该写入 params 还是 multi_global_params
+        window.mobileAdminPanelMode = mode;
+        
+        // 【第三步】更新面板状态显示
+        // 在面板顶部显示当前是"单账号管理"还是"多账号管理"
+        const statusEl = document.getElementById('mobile-admin-panel-unified-status');
+        if (statusEl) {
+          // 根据模式显示对应的中文标签
+          statusEl.textContent = mode === 'single' ? '单账号管理' : '多账号管理';
+        }
+        
+        // 【第四步】调用对应模式的面板切换逻辑
+        if (mode === 'single') {
+          // 单账号模式：使用 switchMobileSinglePanel 切换到统一管理面板
+          // 这会隐藏其他单账号面板，并显示 mobile-admin-panel-unified
+          switchMobileSinglePanel('mobile-admin-panel-unified');
+        } else {
+          // 多账号模式：使用 switchMobilePanel 进行切换
+          // switchMobilePanel 内部会处理多账号模式的面板切换逻辑
+          switchMobilePanel('mobile-admin-panel-unified', 'multi');
+        }
+        
+        // 【第五步】初始化管理面板
+        // 调用 initMobileAdminPanel 来初始化管理面板的标签页和内容
+        // 注意：switchMobileSinglePanel 内部已经会调用初始化，这里作为备用
+        if (typeof initMobileAdminPanel === 'function') {
+          // 延迟调用，确保面板已显示
+          setTimeout(() => {
+            initMobileAdminPanel('mobile-admin-panel-unified');
+          }, 100);
+        }
+      }
+
       function switchMobileSinglePanel(panelId) {
+        // 【任务7修复】单账号模式面板数组，添加 mobile-admin-panel-unified 以支持复用多账号管理面板
         const singleModePanels = [
           "mobile-control-panel",
           "mobile-map-panel",
@@ -36099,6 +37158,7 @@
           "mobile-checkpoints-panel",
           "mobile-attendance-panel",
           "mobile-admin-panel",
+          "mobile-admin-panel-unified", // 【任务7】新增：统一管理面板（单账号模式复用）
           "mobile-settings-panel",
           "mobile-profile-panel",
           "mobile-task-history-panel",
@@ -36282,6 +37342,27 @@
             }
           }
 
+          // 【任务7】统一管理面板（mobile-admin-panel-unified）在单账号模式下的激活处理
+          // 单账号模式复用多账号管理面板，但需要设置正确的模式标识
+          if (panelId === "mobile-admin-panel-unified") {
+            logMessage_Info("[移动端单账号] 激活统一管理面板（复用多账号面板），开始初始化...");
+            // 设置当前模式为单账号，供主题保存等功能判断
+            window.mobileAdminPanelMode = 'single';
+            // 更新面板状态显示为单账号管理
+            const statusEl = document.getElementById('mobile-admin-panel-unified-status');
+            if (statusEl) {
+              statusEl.textContent = '单账号管理';
+            }
+            // 调用 initMobileAdminPanel 函数初始化管理面板
+            if (typeof initMobileAdminPanel === "function") {
+              initMobileAdminPanel("mobile-admin-panel-unified");
+            } else {
+              logMessage_Warning(
+                "[移动端单账号] initMobileAdminPanel函数未定义"
+              );
+            }
+          }
+
           // 【通知面板】激活时自动刷新
           if (panelId === "mobile-notification-panel") {
             logMessage_Info("[移动端单账号] 激活通知面板，自动刷新...");
@@ -36427,20 +37508,62 @@
           }
           if (panelId === "mobile-multi-settings-panel") {
             console.log("[移动端] 激活多账号全局设置面板，开始加载配置...");
+            // 获取全局参数容器元素
             const mobileMultiParamsContainer = document.getElementById(
               "mobile-multi-global-params-container"
             );
+            // 检查必要的容器和函数是否存在
             if (
               mobileMultiParamsContainer &&
               typeof pythonParams !== "undefined" &&
               typeof updateParamInputs === "function"
             ) {
+              // 使用 updateParamInputs 函数更新全局参数容器中的输入值
               updateParamInputs(
                 mobileMultiParamsContainer,
                 "mobile-multi-param",
                 pythonParams
               );
               console.log("[移动端] 多账号全局设置面板配置已自动加载");
+            }
+            
+            /**
+             * 【自动签到设置区域初始化】
+             * 为自动签到相关的输入元素填充当前配置值
+             * 这些元素的 ID 使用 mobile-multi- 前缀，需要单独初始化
+             */
+            if (typeof pythonParams !== "undefined") {
+              // 初始化自动签到开关 (checkbox)
+              const autoAttendanceEnabled = document.getElementById(
+                "mobile-multi-auto_attendance_enabled"
+              );
+              if (autoAttendanceEnabled) {
+                // 设置 checked 状态为 pythonParams 中的值，默认为 false
+                autoAttendanceEnabled.checked = 
+                  pythonParams["auto_attendance_enabled"] || false;
+              }
+              
+              // 初始化刷新间隔输入框 (number)
+              const autoAttendanceRefresh = document.getElementById(
+                "mobile-multi-auto_attendance_refresh_s"
+              );
+              if (autoAttendanceRefresh) {
+                // 设置值为 pythonParams 中的值，默认为空字符串
+                autoAttendanceRefresh.value = 
+                  pythonParams["auto_attendance_refresh_s"] || "";
+              }
+              
+              // 初始化随机半径输入框 (number)
+              const attendanceRadius = document.getElementById(
+                "mobile-multi-attendance_user_radius_m"
+              );
+              if (attendanceRadius) {
+                // 设置值为 pythonParams 中的值，默认为空字符串
+                attendanceRadius.value = 
+                  pythonParams["attendance_user_radius_m"] || "";
+              }
+              
+              console.log("[移动端] 自动签到设置已初始化");
             }
           }
           if (panelId === "mobile-multi-map-panel") {
@@ -36457,6 +37580,13 @@
           }
           if (panelId === "mobile-admin-panel-unified") {
             console.log("[移动端] 激活多账号管理面板，开始初始化...");
+            // 【任务7】设置当前模式为多账号，供主题保存等功能判断
+            window.mobileAdminPanelMode = 'multi';
+            // 更新面板状态显示为多账号管理
+            const statusEl = document.getElementById('mobile-admin-panel-unified-status');
+            if (statusEl) {
+              statusEl.textContent = '多账号管理';
+            }
             if (typeof initMobileAdminPanel === "function") {
               initMobileAdminPanel("mobile-admin-panel-unified");
             } else {
@@ -36494,6 +37624,8 @@
           "mobile-notification-panel": "notifications",
           "mobile-attendance-panel": "attendance",
           "mobile-settings-panel": "settings",
+          "mobile-admin-panel": "admin",
+          "mobile-admin-panel-unified": "admin", // 【任务7】添加统一管理面板的导航映射
           "mobile-multi-account-panel": "accounts",
           "mobile-multi-control-panel": "control",
           "mobile-multi-map-panel": "map",
@@ -36544,12 +37676,22 @@
           });
           return;
         }
+        // 【修复任务10】判断应该更新哪个侧边栏的高亮状态
+        // 原逻辑仅通过 panelId.includes("multi") 判断，但 mobile-admin-panel-unified 不包含 "multi"
+        // 因此需要额外处理：当面板是 mobile-admin-panel-unified 时，根据 window.mobileAdminPanelMode 判断
         let targetSidebar;
-        if (panelId.includes("multi")) {
+        // 判断是否为多账号模式：
+        // 1. panelId 包含 "multi" 字符串（如 mobile-multi-control-panel）
+        // 2. 或者 panelId 是 mobile-admin-panel-unified 且当前模式为 'multi'
+        const isMultiAccountMode = panelId.includes("multi") || 
+          (panelId === "mobile-admin-panel-unified" && window.mobileAdminPanelMode === "multi");
+        if (isMultiAccountMode) {
+          // 多账号模式：选择多账号侧边栏
           targetSidebar = document.getElementById(
             "mobile-sidebar-multi-account"
           );
         } else {
+          // 单账号模式：选择单账号侧边栏
           targetSidebar = document.getElementById(
             "mobile-sidebar-single-account"
           );
@@ -36999,6 +38141,7 @@
         document.getElementById("modify-phone-new").value = "";
         document.getElementById("modify-phone-code").value = "";
         document.getElementById("modify-phone-modal").style.display = "flex";
+        document.getElementById("modify-phone-password").value = "";
         document.body.classList.add("modal-visible");
 
         const currentPhoneInput = document.getElementById(
@@ -37038,6 +38181,13 @@
         logMessage_Info("[修改手机号] 已打开图形验证码模态框");
       }
       async function confirmModifyPhone() {
+        // 获取用户输入的原密码，用于身份验证
+        const password = document.getElementById("modify-phone-password").value;
+        // 验证原密码是否已填写，这是安全验证的必要步骤
+        if (!password) {
+          showModalAlert("请输入原密码进行验证");
+          return;
+        }
         const newPhone = document.getElementById("modify-phone-new").value;
         const code = document.getElementById("modify-phone-code").value;
         if (!/^1[3-9]\d{9}$/.test(newPhone)) {
@@ -37094,6 +38244,7 @@
             {
               new_phone: newPhone,
               sms_code: code,
+              password: password,  // 添加原密码参数用于身份验证
             }
           );
           if (result && result.success) {
@@ -37562,14 +38713,17 @@
             return;
           }
           listContainer.innerHTML = "";
+          // 遍历所有验证码记录并渲染到列表中
           records.forEach((record) => {
+            // 根据验证状态设置不同的背景色和文字颜色
             const statusClass =
               {
-                created: "bg-yellow-100 text-yellow-800",
-                verified_success: "bg-green-100 text-green-800",
-                verified_failed: "bg-red-100 text-red-800",
-                expired: "bg-gray-100 text-gray-800",
+                created: "bg-yellow-100 text-yellow-800",        // 待验证 - 黄色
+                verified_success: "bg-green-100 text-green-800", // 成功 - 绿色
+                verified_failed: "bg-red-100 text-red-800",      // 失败 - 红色
+                expired: "bg-gray-100 text-gray-800",            // 过期 - 灰色
               }[record.status] || "bg-gray-100 text-gray-800";
+            // 根据验证状态设置显示的中文文本
             const statusText =
               {
                 created: "待验证",
@@ -37578,6 +38732,10 @@
                 expired: "已过期",
                 test_generated: "测试生成",
               }[record.status] || record.status;
+            // 获取验证码显示值
+            // 优先使用 code 字段，其次尝试 captcha_code（兼容旧数据），最后显示 "N/A"
+            const captchaCode = record.code || record.captcha_code || "N/A";
+            // 创建列表项元素
             const itemDiv = document.createElement("div");
             itemDiv.className =
               "p-3 bg-white border border-slate-200 rounded-lg hover:shadow-md transition-shadow mb-2";
@@ -37591,9 +38749,7 @@
                   <span class="px-2 py-0.5 text-xs rounded ${statusClass}">${statusText}</span>
                 </div>
                 <div class="text-xs text-slate-500 space-y-0.5">
-                  <div>验证码: <span class="font-semibold text-slate-700 font-mono">${
-                    record.code
-                  }</span></div>
+                  <div>验证码: <span class="font-semibold text-slate-700 font-mono">${captchaCode}</span></div>
                   <div>创建时间: ${
                     record.timestamp_readable ||
                     new Date(record.timestamp * 1000).toLocaleString("zh-CN")
@@ -38604,21 +39760,28 @@
       });
       document.addEventListener("DOMContentLoaded", function () {
         console.log("[移动端] 开始初始化Phase 4d全局设置面板...");
+        // 获取多账号全局参数容器元素
         const mobileMultiGlobalParamsContainer = document.getElementById(
           "mobile-multi-global-params-container"
         );
+        // 检查容器和创建函数是否存在
         if (
           mobileMultiGlobalParamsContainer &&
           typeof createParamInputs === "function"
         ) {
+          // 定义要排除的参数组（主题设置由其他组件处理）
           const excludeGroups = ["主题设置"];
+          // 创建参数输入元素，并绑定变更回调
           createParamInputs(
             mobileMultiGlobalParamsContainer,
             "mobile-multi-param",
             function (e) {
+              // 获取触发事件的输入元素
               const input = e.target;
+              // 获取参数键名
               const key = input.dataset.key;
               let value;
+              // 根据输入类型获取值
               if (input.type === "checkbox") {
                 value = input.checked;
               } else if (input.type === "number") {
@@ -38626,6 +39789,7 @@
               } else {
                 value = input.value;
               }
+              // 调用 API 保存参数
               if (typeof callPythonAPI === "function") {
                 callPythonAPI("update_param", key, value);
                 console.log(`[移动端多账号] 全局参数已更新: ${key} = ${value}`);
@@ -38633,10 +39797,12 @@
             },
             excludeGroups
           );
+          // 检查是否可以自动填充配置值
           if (
             typeof pythonParams !== "undefined" &&
             typeof updateParamInputs === "function"
           ) {
+            // 使用 updateParamInputs 函数填充全局参数容器
             updateParamInputs(
               mobileMultiGlobalParamsContainer,
               "mobile-multi-param",
@@ -38651,6 +39817,70 @@
 
           console.log("[移动端] 多账号全局参数面板已初始化");
         }
+        
+        /**
+         * 【自动签到设置区域初始化】
+         * 在 DOMContentLoaded 时为自动签到设置元素填充初始值
+         * 并绑定 change 事件处理器，实现实时保存
+         */
+        if (typeof pythonParams !== "undefined") {
+          // 初始化自动签到开关的值
+          const autoAttendanceEnabled = document.getElementById(
+            "mobile-multi-auto_attendance_enabled"
+          );
+          if (autoAttendanceEnabled) {
+            // 设置复选框的选中状态
+            autoAttendanceEnabled.checked = 
+              pythonParams["auto_attendance_enabled"] || false;
+            // 绑定 change 事件，实现实时保存
+            autoAttendanceEnabled.addEventListener("change", function() {
+              if (typeof callPythonAPI === "function") {
+                callPythonAPI("update_param", "auto_attendance_enabled", this.checked);
+                console.log(`[移动端多账号] 自动签到开关已更新: ${this.checked}`);
+              }
+            });
+          }
+          
+          // 初始化刷新间隔输入框的值
+          const autoAttendanceRefresh = document.getElementById(
+            "mobile-multi-auto_attendance_refresh_s"
+          );
+          if (autoAttendanceRefresh) {
+            // 设置输入框的值
+            autoAttendanceRefresh.value = 
+              pythonParams["auto_attendance_refresh_s"] || "";
+            // 绑定 change 事件，实现实时保存
+            autoAttendanceRefresh.addEventListener("change", function() {
+              if (typeof callPythonAPI === "function") {
+                const value = parseFloat(this.value) || 0;
+                callPythonAPI("update_param", "auto_attendance_refresh_s", value);
+                console.log(`[移动端多账号] 刷新间隔已更新: ${value}`);
+              }
+            });
+          }
+          
+          // 初始化随机半径输入框的值
+          const attendanceRadius = document.getElementById(
+            "mobile-multi-attendance_user_radius_m"
+          );
+          if (attendanceRadius) {
+            // 设置输入框的值
+            attendanceRadius.value = 
+              pythonParams["attendance_user_radius_m"] || "";
+            // 绑定 change 事件，实现实时保存
+            attendanceRadius.addEventListener("change", function() {
+              if (typeof callPythonAPI === "function") {
+                const value = parseFloat(this.value) || 0;
+                callPythonAPI("update_param", "attendance_user_radius_m", value);
+                console.log(`[移动端多账号] 随机半径已更新: ${value}`);
+              }
+            });
+          }
+          
+          console.log("[移动端] 自动签到设置区域已初始化并绑定事件");
+        }
+        
+        // 获取配置文件选择器元素
         const configSelect = document.getElementById(
           "multi-config-user-select"
         );
@@ -40945,6 +42175,7 @@
 
         const phone = newPhoneInput ? newPhoneInput.value.trim() : "";
         const code = codeInput ? codeInput.value.trim() : "";
+        
 
         if (!phone || phone.length !== 11) {
           showModalAlert("请输入正确的11位手机号", "提示");
@@ -41324,6 +42555,15 @@
                   </div>
                 </div>
                 <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">验证原密码 <span class="text-red-500">*</span></label>
+                  <input
+                    type="password"
+                    id="mobile-unified-modify-phone-password"
+                    class="input-field !text-xs !py-1.5 w-full"
+                    placeholder="请输入当前账号密码进行验证"
+                  />
+                </div>
+                <div>
                   <label class="block text-xs font-medium text-slate-600 mb-1">新手机号</label>
                   <div class="phone-input-wrapper">
                     <span class="phone-prefix">+86 </span>
@@ -41400,6 +42640,7 @@
         );
         if (newPhoneInput) newPhoneInput.value = "";
         if (codeInput) codeInput.value = "";
+        document.getElementById("mobile-unified-modify-phone-password").value = "";
 
         // 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
@@ -41456,6 +42697,15 @@
       }
 
       async function confirmMobileUnifiedModifyPhone() {
+        // 获取用户输入的原密码，用于身份验证
+        const password = document
+          .getElementById("mobile-unified-modify-phone-password")
+          .value.trim();
+        // 验证原密码是否已填写，这是安全验证的必要步骤
+        if (!password) {
+          showModalAlert("请输入原密码进行验证", "提示");
+          return;
+        }
         const newPhone = document
           .getElementById("mobile-unified-modify-phone-new")
           .value.trim();
@@ -41474,13 +42724,13 @@
         }
 
         try {
-          const response = await fetch("/auth/verify_modify_phone", {
+          const response = await fetch("/api/user/update_phone", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Session-ID": sessionUUID,
             },
-            body: JSON.stringify({ phone: newPhone, code: code }),
+            body: JSON.stringify({ new_phone: newPhone, sms_code: code, password: password }),  // 添加原密码参数用于身份验证
           });
 
           const result = await response.json();
@@ -41543,74 +42793,125 @@
       }
 
       // 【移动端统一面板】修改密码
+      // 支持两种验证模式：原密码验证 或 短信验证码验证
       async function updateMobileUnifiedPassword() {
+        // 获取当前密码输入框DOM元素
         const currentPasswordInput = document.getElementById(
           "mobile-unified-current-password"
         );
+        // 获取新密码输入框DOM元素
         const newPasswordInput = document.getElementById(
           "mobile-unified-new-password"
         );
+        // 获取确认新密码输入框DOM元素
         const confirmPasswordInput = document.getElementById(
           "mobile-unified-confirm-password"
         );
 
-        const currentPassword = currentPasswordInput.value;
-        const newPassword = newPasswordInput.value;
-        const confirmPassword = confirmPasswordInput.value;
+        // 获取输入框的值
+        const currentPassword = currentPasswordInput ? currentPasswordInput.value : '';
+        const newPassword = newPasswordInput ? newPasswordInput.value : '';
+        const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : '';
 
-        // 校验用户信息
+        // 判断当前是否使用短信验证模式
+        const useSmsVerify = mobilePasswordVerifyMode === 'sms';
+        // 如果是短信验证模式，获取短信验证码
+        const smsCode = useSmsVerify ? document.getElementById('mobile-password-sms-code')?.value?.trim() : null;
+
+        // 校验用户信息是否可用
         if (!currentAuthUsername) {
           showModalAlert("无法获取当前用户信息，请刷新页面", "错误");
           return;
         }
 
-        if (!currentPassword) {
-          showModalAlert("请输入当前密码", "提示");
-          return;
+        // 根据验证模式进行不同的校验
+        if (!useSmsVerify) {
+          // 密码验证模式：检查原密码是否填写
+          if (!currentPassword) {
+            showModalAlert("请输入当前密码，或点击\"使用短信验证\"通过短信验证码修改密码", "提示");
+            return;
+          }
+        } else {
+          // 短信验证模式：检查验证码是否填写
+          if (!smsCode) {
+            showModalAlert("请填写短信验证码", "提示");
+            return;
+          }
+          // 验证码格式校验（6位数字）
+          if (!/^\d{6}$/.test(smsCode)) {
+            showModalAlert("短信验证码格式不正确，请输入6位数字", "提示");
+            return;
+          }
         }
 
+        // 检查新密码是否填写
         if (!newPassword) {
           showModalAlert("请输入新密码", "提示");
           return;
         }
 
+        // 检查两次输入的新密码是否一致
         if (newPassword !== confirmPassword) {
           showModalAlert("两次输入的新密码不一致", "提示");
           return;
         }
 
+        // 检查新密码长度是否符合要求（最少6位）
         if (newPassword.length < 6) {
           showModalAlert("新密码长度至少为6位", "提示");
           return;
         }
 
         try {
-          // 修正：使用与 updatePassword() 一致的正确API接口
+          // 构建API请求体
+          const requestBody = {
+            username: currentAuthUsername,     // 必填：当前用户名
+            new_password: newPassword,         // 必填：新密码
+          };
+
+          // 根据验证模式添加不同的验证字段
+          if (useSmsVerify) {
+            // 短信验证模式：传递短信验证码，原密码设为null
+            requestBody.sms_code = smsCode;
+            requestBody.old_password = null;
+            console.log('[移动端统一面板-修改密码] 使用短信验证模式提交');
+          } else {
+            // 密码验证模式：传递原密码
+            requestBody.old_password = currentPassword;
+            console.log('[移动端统一面板-修改密码] 使用密码验证模式提交');
+          }
+
+          // 发送密码修改请求到后端API
           const response = await fetch("/auth/admin/reset_password", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Session-ID": sessionUUID,
             },
-            body: JSON.stringify({
-              username: currentAuthUsername, // 必填：当前用户名
-              old_password: currentPassword, // 必填：旧密码用于验证
-              new_password: newPassword, // 必填：新密码
-            }),
+            body: JSON.stringify(requestBody),
           });
 
+          // 解析API响应
           const result = await response.json();
 
           if (result.success) {
+            // 密码修改成功
             showModalAlert("密码修改成功", "成功");
             // 清空密码输入框
-            currentPasswordInput.value = "";
-            newPasswordInput.value = "";
-            confirmPasswordInput.value = "";
+            if (currentPasswordInput) currentPasswordInput.value = "";
+            if (newPasswordInput) newPasswordInput.value = "";
+            if (confirmPasswordInput) confirmPasswordInput.value = "";
+            // 重置验证模式到默认状态（密码验证）
+            resetPasswordVerifyMode('mobile');
           } else {
-            showModalAlert(result.message || "修改失败", "错误");
+            // 密码修改失败，显示错误信息
+            const errorMsg = useSmsVerify 
+              ? (result.message || "请检查短信验证码是否正确") 
+              : (result.message || "修改失败");
+            showModalAlert(errorMsg, "错误");
           }
         } catch (e) {
+          // 捕获网络错误或其他异常
           console.error("[移动端统一面板-修改密码] 失败:", e);
           showModalAlert("修改失败: " + e.message, "错误");
         }
@@ -43048,39 +44349,90 @@
           showModalAlert("删除失败", "错误");
         }
       }
+      /**
+       * saveMobileMultiGlobalSettings - 保存移动端多账号模式的全局设置
+       * 
+       * 功能说明：
+       * 1. 收集 mobile-multi-settings-panel 面板中所有带有 data-key 属性的输入元素
+       * 2. 包括 mobile-multi-global-params-container 容器内的参数
+       * 3. 包括自动签到设置区域 (mobile-multi-auto_attendance_*) 的参数
+       * 4. 将收集到的参数通过 callPythonAPI('update_param', ...) 保存到 multi_global_params
+       */
       function saveMobileMultiGlobalSettings() {
         try {
+          // 获取整个设置面板容器，以便收集所有参数（包括自动签到设置区域）
+          const settingsPanel = document.getElementById(
+            "mobile-multi-settings-panel"
+          );
+          // 同时获取原有的全局参数容器，用于向后兼容
           const container = document.getElementById(
             "mobile-multi-global-params-container"
           );
-          if (!container) {
+          
+          // 如果两个容器都不存在，则显示错误提示并返回
+          if (!settingsPanel && !container) {
             showModalAlert("找不到全局参数容器", "错误");
             return;
           }
+          
+          // 初始化参数对象，用于存储收集到的所有键值对
           const params = {};
-          container
-            .querySelectorAll("input, select, textarea")
-            .forEach((input) => {
-              const key = input.dataset.key;
-              if (!key) return;
-              if (input.type === "checkbox") {
-                params[key] = input.checked;
-              } else if (input.type === "number") {
-                params[key] = parseFloat(input.value) || 0;
-              } else {
-                params[key] = input.value;
-              }
-            });
+          
+          /**
+           * collectInputs - 辅助函数，用于从指定容器中收集输入元素的值
+           * @param {HTMLElement} containerEl - 要收集输入的容器元素
+           * 
+           * 处理逻辑：
+           * - checkbox 类型：获取 checked 布尔值
+           * - number 类型：解析为浮点数，无效值默认为 0
+           * - 其他类型：获取 value 字符串值
+           */
+          function collectInputs(containerEl) {
+            // 如果容器不存在，直接返回
+            if (!containerEl) return;
+            // 遍历容器内所有的 input, select, textarea 元素
+            containerEl
+              .querySelectorAll("input, select, textarea")
+              .forEach((input) => {
+                // 获取 data-key 属性，这是参数的键名
+                const key = input.dataset.key;
+                // 如果没有 data-key 属性，跳过该元素
+                if (!key) return;
+                // 根据输入类型获取对应的值
+                if (input.type === "checkbox") {
+                  // 复选框：获取 checked 状态（布尔值）
+                  params[key] = input.checked;
+                } else if (input.type === "number") {
+                  // 数字输入框：解析为浮点数，无效值默认为 0
+                  params[key] = parseFloat(input.value) || 0;
+                } else {
+                  // 其他类型（文本、选择框等）：获取字符串值
+                  params[key] = input.value;
+                }
+              });
+          }
+          
+          // 从整个设置面板收集参数（包括自动签到设置区域）
+          collectInputs(settingsPanel);
+          // 从全局参数容器收集参数（保持向后兼容）
+          collectInputs(container);
+          
+          // 检查 callPythonAPI 函数是否可用
           if (typeof callPythonAPI === "function") {
+            // 遍历所有收集到的参数，逐个调用 API 保存
             Object.keys(params).forEach((key) => {
               callPythonAPI("update_param", key, params[key]);
             });
+            // 显示保存成功提示
             showModalAlert("全局设置已保存", "成功");
+            // 在控制台输出保存的参数，方便调试
             console.log("[移动端] 全局参数已保存:", params);
           } else {
+            // API 不可用时显示错误提示
             showModalAlert("API不可用", "错误");
           }
         } catch (error) {
+          // 捕获并记录任何异常
           console.error("[移动端] 保存全局设置失败:", error);
           showModalAlert("保存失败", "错误");
         }
@@ -44171,7 +45523,7 @@
                     <button onclick="openSMSHistoryModal()" class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]">
                       📋 发送历史
                     </button>
-                    <button onclick="openVerificationCodesModal()" class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]">
+                    <button onclick="openMobileVerificationCodesModal()" class="btn btn-ghost border border-slate-300 flex-1 !py-2 text-sm min-h-[44px]">
                       🔑 验证码管理
                     </button>
                 </div>
@@ -44407,8 +45759,8 @@
             return;
           }
 
-          // 调用后端API保存配置
-          const result = await callPythonAPI("update_captcha_settings", {
+          // 调用后端API保存配置 - 使用正确的 API 端点 /api/captcha/save_settings
+          const result = await callPythonAPI_raw("/api/captcha/save_settings", "POST", {
             length: length,
             scale_factor: scale_factor,
             noise_level: noise_level,
@@ -44452,8 +45804,8 @@
               document.getElementById("mobile-captcha-noise-level")?.value
             ) || 0.08;
 
-          // 调用后端API生成验证码
-          const result = await callPythonAPI("generate_test_captcha", {
+          // 调用后端API生成验证码 - 使用正确的 API 端点 /api/captcha/test_generate
+          const result = await callPythonAPI_raw("/api/captcha/test_generate", "POST", {
             length: length,
             scale_factor: scale_factor,
             noise_level: noise_level,
@@ -44473,12 +45825,29 @@
           if (previewContainer && previewDisplay && previewAnswer) {
             previewContainer.classList.remove("hidden");
 
-            if (result && result.success && result.image_base64) {
-              previewDisplay.innerHTML = `<img src="data:image/png;base64,${result.image_base64}" alt="验证码预览" class="border border-slate-200 rounded">`;
-              previewAnswer.textContent = result.code || "未知";
+            // 检查后端返回结果是否成功
+            if (result && result.success) {
+              // 判断后端返回的验证码格式类型
+              if (result.html) {
+                // 后端返回HTML格式验证码（像素风格）
+                // 使用内联块元素包裹HTML验证码，并添加边框和圆角样式
+                previewDisplay.innerHTML = `<div class="inline-block border border-slate-200 rounded p-1 bg-white">${result.html}</div>`;
+                // 显示验证码的正确答案，如果没有则显示"未知"
+                previewAnswer.textContent = result.code || "未知";
+              } else if (result.image_base64) {
+                // 后端返回base64图片格式
+                // 将base64数据转换为可显示的图片标签
+                previewDisplay.innerHTML = `<img src="data:image/png;base64,${result.image_base64}" alt="验证码预览" class="border border-slate-200 rounded">`;
+                // 显示验证码的正确答案，如果没有则显示"未知"
+                previewAnswer.textContent = result.code || "未知";
+              } else {
+                // 后端返回成功但没有任何验证码数据
+                previewDisplay.innerHTML = '<p class="text-red-500 text-xs">生成失败：未返回验证码数据</p>';
+                previewAnswer.textContent = "-";
+              }
             } else {
-              previewDisplay.innerHTML =
-                '<p class="text-red-500 text-xs">生成失败</p>';
+              // 后端返回失败或结果无效，显示错误信息
+              previewDisplay.innerHTML = `<p class="text-red-500 text-xs">生成失败: ${result?.message || "未知错误"}</p>`;
               previewAnswer.textContent = "-";
             }
           }
@@ -44550,17 +45919,20 @@
             return;
           }
 
+          // 渲染验证码历史记录列表
           listContainer.innerHTML = records
             .map((record) => {
+              // 根据验证状态设置不同的背景色和文字颜色
               const statusClass =
                 {
-                  created: "bg-yellow-100 text-yellow-800",
-                  verified_success: "bg-green-100 text-green-800",
-                  verified_failed: "bg-red-100 text-red-800",
-                  expired: "bg-gray-100 text-gray-800",
-                  test_generated: "bg-blue-100 text-blue-800",
+                  created: "bg-yellow-100 text-yellow-800",        // 待验证 - 黄色
+                  verified_success: "bg-green-100 text-green-800", // 成功 - 绿色
+                  verified_failed: "bg-red-100 text-red-800",      // 失败 - 红色
+                  expired: "bg-gray-100 text-gray-800",            // 过期 - 灰色
+                  test_generated: "bg-blue-100 text-blue-800",     // 测试 - 蓝色
                 }[record.status] || "bg-gray-100 text-gray-800";
 
+              // 根据验证状态设置显示的中文文本
               const statusText =
                 {
                   created: "待验证",
@@ -44570,17 +45942,20 @@
                   test_generated: "测试",
                 }[record.status] || record.status;
 
+              // 获取验证码显示值
+              // 优先使用 code 字段，其次尝试 captcha_code（兼容旧数据），最后显示 "N/A"
+              const captchaCode = record.code || record.captcha_code || "N/A";
+
+              // 返回单条记录的HTML模板
               return `
                 <div class="bg-white border border-slate-200 rounded-lg p-3">
                     <div class="flex justify-between items-start mb-1">
                         <div class="flex items-center gap-2">
-                            <span class="font-mono font-bold text-slate-700">${
-                              record.code
-                            }</span>
+                            <span class="font-mono font-bold text-slate-700">${captchaCode}</span>
                             <span class="text-[10px] px-1.5 py-0.5 rounded ${statusClass}">${statusText}</span>
                         </div>
                         <span class="text-xs text-slate-400">${
-                          record.timestamp_readable.split(" ")[1]
+                          record.timestamp_readable ? record.timestamp_readable.split(" ")[1] : "N/A"
                         }</span>
                     </div>
                     <div class="text-xs text-slate-500 flex justify-between">
@@ -44602,6 +45977,188 @@
         } catch (e) {
           console.error("[移动端验证码] 加载历史失败:", e);
           listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">加载失败</p>`;
+        }
+      }
+
+      // =============================================
+      // 【3.5】移动端验证码历史记录模态框专用函数
+      // =============================================
+
+      /**
+       * 打开移动端验证码历史记录模态框
+       * 初始化日期选择器并加载历史数据
+       */
+      function openMobileCaptchaHistoryModal() {
+        // 获取模态框元素
+        const modal = document.getElementById("mobile-captcha-history-modal");
+        if (!modal) {
+          console.error("[移动端验证码历史] 找不到模态框元素");
+          return;
+        }
+
+        // 初始化日期选择器为当天日期
+        const dateInput = document.getElementById("mobile-captcha-history-modal-date");
+        if (dateInput && !dateInput.value) {
+          // 设置日期为今天，格式为 YYYY-MM-DD
+          dateInput.value = new Date().toISOString().split("T")[0];
+        }
+
+        // 重置状态筛选为全部
+        const statusSelect = document.getElementById("mobile-captcha-history-modal-status");
+        if (statusSelect) {
+          statusSelect.value = "";
+        }
+
+        // 显示模态框 - 添加 show 类实现动画效果
+        modal.classList.remove("hidden");
+        // 使用 requestAnimationFrame 确保动画生效
+        requestAnimationFrame(() => {
+          modal.classList.add("show");
+        });
+
+        // 自动加载历史数据
+        loadMobileCaptchaHistoryModal();
+
+        console.log("[移动端验证码历史] 模态框已打开");
+      }
+
+      /**
+       * 关闭移动端验证码历史记录模态框
+       */
+      function closeMobileCaptchaHistoryModal() {
+        // 获取模态框元素
+        const modal = document.getElementById("mobile-captcha-history-modal");
+        if (!modal) return;
+
+        // 移除 show 类，触发关闭动画
+        modal.classList.remove("show");
+        
+        // 等待动画完成后隐藏模态框
+        setTimeout(() => {
+          modal.classList.add("hidden");
+        }, 300); // 动画持续时间
+
+        console.log("[移动端验证码历史] 模态框已关闭");
+      }
+
+      /**
+       * 加载移动端验证码历史记录模态框中的数据
+       * 根据选择的日期和状态筛选条件从后端获取数据
+       */
+      async function loadMobileCaptchaHistoryModal() {
+        // 获取列表容器元素
+        const listContainer = document.getElementById("mobile-captcha-history-modal-list");
+        // 获取日期输入框
+        const dateInput = document.getElementById("mobile-captcha-history-modal-date");
+        // 获取状态筛选下拉框
+        const statusSelect = document.getElementById("mobile-captcha-history-modal-status");
+
+        // 检查必要元素是否存在
+        if (!listContainer || !dateInput) {
+          console.error("[移动端验证码历史] 找不到必要的DOM元素");
+          return;
+        }
+
+        // 显示加载状态
+        listContainer.innerHTML = '<p class="text-slate-400 text-center py-10 text-sm">⏳ 加载中...</p>';
+
+        try {
+          // 获取日期值并转换为后端需要的格式（YYYYMMDD）
+          const date = dateInput.value.replace(/-/g, "");
+          // 获取状态筛选值
+          const status = statusSelect ? statusSelect.value : "";
+          
+          // 构建查询参数
+          const params = new URLSearchParams({ date });
+          if (status) {
+            params.append("status", status);
+          }
+
+          // 调用后端API获取验证码历史记录
+          const response = await fetch(`/api/captcha/history?${params}`, {
+            method: "GET",
+            headers: { "X-Session-ID": sessionUUID },
+          });
+          const result = await response.json();
+
+          // 检查请求是否成功
+          if (!result.success) {
+            listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-sm">❌ ${result.message || "加载失败"}</p>`;
+            return;
+          }
+
+          // 获取记录数据
+          const records = result.data || [];
+          
+          // 处理空数据情况
+          if (records.length === 0) {
+            listContainer.innerHTML = '<p class="text-slate-400 text-center py-10 text-sm">📭 该日期没有验证码记录</p>';
+            return;
+          }
+
+          // 调试日志：输出第一条记录的完整结构，便于排查字段命名问题
+          // 这里输出所有字段，帮助开发者确认 code 字段是否存在
+          console.log("[移动端验证码历史] 收到记录:", records[0]);
+          // 额外调试：检查 code 字段是否存在
+          if (records[0]) {
+            console.log("[移动端验证码历史] 记录字段列表:", Object.keys(records[0]));
+            console.log("[移动端验证码历史] code字段值:", records[0].code);
+          }
+
+          // 渲染历史记录列表
+          listContainer.innerHTML = records.map((record) => {
+            // 根据状态设置不同的样式类
+            // 每种状态对应不同的背景色和文字颜色
+            const statusClass = {
+              created: "bg-yellow-100 text-yellow-800",       // 待验证 - 黄色
+              verified_success: "bg-green-100 text-green-800", // 成功 - 绿色
+              verified_failed: "bg-red-100 text-red-800",      // 失败 - 红色
+              expired: "bg-gray-100 text-gray-800",            // 过期 - 灰色
+              test_generated: "bg-blue-100 text-blue-800",     // 测试 - 蓝色
+            }[record.status] || "bg-gray-100 text-gray-800";
+
+            // 根据状态设置显示文本和图标
+            // 每种状态对应不同的 emoji 和中文描述
+            const statusText = {
+              created: "⏳ 待验证",
+              verified_success: "✅ 成功",
+              verified_failed: "❌ 失败",
+              expired: "⏰ 过期",
+              test_generated: "🧪 测试",
+            }[record.status] || record.status;
+
+            // 获取验证码显示值
+            // 优先使用 code 字段，其次尝试 captcha_code（兼容旧数据），最后显示 "N/A"
+            const captchaCode = record.code || record.captcha_code || "N/A";
+
+            // 返回单条记录的HTML
+            return `
+              <div class="bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
+                <div class="flex justify-between items-start mb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono font-bold text-lg text-slate-700">${captchaCode}</span>
+                    <span class="text-xs px-2 py-1 rounded-full ${statusClass}">${statusText}</span>
+                  </div>
+                  <span class="text-xs text-slate-400">${record.timestamp_readable ? record.timestamp_readable.split(" ")[1] : "N/A"}</span>
+                </div>
+                <div class="text-xs text-slate-500 flex flex-col gap-1">
+                  <div class="flex justify-between">
+                    <span>🌐 IP: ${record.client_ip || "N/A"}</span>
+                    ${record.verified_input ? `<span class="${record.status === "verified_success" ? "text-green-600" : "text-red-600"}">📝 输入: ${record.verified_input}</span>` : ""}
+                  </div>
+                  ${record.timestamp_readable ? `<span class="text-slate-400">📅 ${record.timestamp_readable}</span>` : ""}
+                </div>
+              </div>
+            `;
+          }).join("");
+
+          // 输出加载完成的日志
+          console.log(`[移动端验证码历史] 加载完成，共 ${records.length} 条记录`);
+
+        } catch (error) {
+          // 捕获并处理异常
+          console.error("[移动端验证码历史] 加载失败:", error);
+          listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-sm">❌ 加载失败: ${error.message}</p>`;
         }
       }
 

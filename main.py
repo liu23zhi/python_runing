@@ -15340,44 +15340,138 @@ def start_web_server(args_param):
 
     @app.route("/auth/admin/reset_password", methods=["POST"])
     def auth_admin_reset_password():
-        """重置用户密码（管理员）或修改自己的密码"""
+        """
+        重置用户密码（管理员）或修改自己的密码。
+        
+        支持两种身份验证方式：
+        1. 原密码验证（old_password参数）
+        2. 短信验证码验证（sms_code参数）
+        
+        修改自己密码时，至少需要提供其中一种验证方式。
+        管理员重置他人密码时，需要拥有reset_user_password权限。
+        """
+        # 获取请求头中的会话ID，用于验证用户登录状态
         session_id = request.headers.get("X-Session-ID", "")
+        # 检查会话ID是否存在且有效
         if not session_id or session_id not in web_sessions:
+            # 会话无效，返回401未授权错误
             return jsonify({"success": False, "message": "未登录"}), 401
 
+        # 从会话中获取API实例
         api_instance = web_sessions[session_id]
+        # 获取当前登录用户的用户名
         auth_username = getattr(api_instance, "auth_username", "")
+        # 获取当前登录用户的用户组，默认为guest
         auth_group = getattr(api_instance, "auth_group", "guest")
 
+        # 解析请求体JSON数据
         data = request.json
+        # 获取目标用户名（要重置密码的用户）
         target_username = data.get("username", "")
+        # 获取新密码
         new_password = data.get("new_password", "")
+        # 获取旧密码（用于原密码验证方式）
         old_password = data.get("old_password", "")
+        # 新增：获取短信验证码参数（用于短信验证码验证方式）
+        sms_code = data.get("sms_code", "")
 
+        # 验证必填参数：目标用户名和新密码
         if not target_username or not new_password:
             return jsonify({"success": False, "message": "参数缺失"})
+        
+        # 判断是否是修改自己的密码
         is_self_change = target_username == auth_username
 
         if is_self_change:
-            if not old_password:
-                return jsonify({"success": False, "message": "请提供当前密码"})
+            # ========== 修改自己的密码，需要验证身份 ==========
+            # 支持两种验证方式：原密码 或 短信验证码
+            # 至少需要提供其中一种验证方式
+            # 注意：如果同时提供了两种验证方式，优先使用短信验证码
+            if not old_password and not sms_code:
+                return jsonify({"success": False, "message": "请提供当前密码或短信验证码"})
+            
+            # 获取用户信息文件路径
             user_file = auth_system.get_user_file_path(auth_username)
+            # 检查用户文件是否存在
             if not os.path.exists(user_file):
                 return jsonify({"success": False, "message": "用户不存在"}), 404
 
             try:
+                # 读取用户信息文件
                 with open(user_file, "r", encoding="utf-8") as f:
                     user_data = json.load(f)
+                # 获取存储的密码哈希值
                 stored_password = user_data.get("password")
+                # 获取用户绑定的手机号（用于短信验证）
+                user_phone = user_data.get("phone", "")
             except Exception as e:
-                logging.error(f"读取用户 {auth_username} 密码失败: {e}")
-                return jsonify({"success": False, "message": "无法验证密码"}), 500
+                # 读取用户信息失败，记录错误日志
+                logging.error(f"读取用户 {auth_username} 信息失败: {e}")
+                return jsonify({"success": False, "message": "无法验证身份"}), 500
+            
+            # ========== 开始身份验证 ==========
+            # 用于记录是否使用了短信验证码，以便在密码重置成功后删除验证码
+            sms_verified_phone = None
+            
+            if sms_code:
+                # ===== 方式一：使用短信验证码验证（优先级更高） =====
+                # 当同时提供了短信验证码和原密码时，优先使用短信验证码
+                # 检查用户是否已绑定手机号
+                if not user_phone:
+                    return jsonify({"success": False, "message": "您未绑定手机号，无法使用短信验证"}), 400
+                
+                # 声明使用全局的短信验证码存储字典
+                global sms_verification_codes
+                # 从存储中获取该手机号对应的验证码信息
+                stored_code_info = sms_verification_codes.get(user_phone)
+                
+                # 检查是否存在该手机号的验证码
+                if not stored_code_info:
+                    return jsonify({"success": False, "message": "请先获取短信验证码"}), 400
+                
+                # 解构验证码信息：验证码内容和过期时间
+                stored_code, expires_at = stored_code_info
+                
+                # 检查验证码是否已过期
+                if time.time() > expires_at:
+                    # 验证码已过期，删除已过期的验证码
+                    del sms_verification_codes[user_phone]
+                    return jsonify({"success": False, "message": "验证码已过期，请重新获取"}), 400
+                
+                # 验证输入的验证码是否正确
+                if stored_code != sms_code:
+                    return jsonify({"success": False, "message": "短信验证码错误"}), 400
+                
+                # 记录短信验证成功，但暂不删除验证码
+                # 验证码将在密码重置成功后删除，确保操作原子性
+                sms_verified_phone = user_phone
+                # 记录验证成功日志
+                logging.info(f"用户 {auth_username} 使用短信验证码成功验证身份")
+            else:
+                # ===== 方式二：使用原密码验证 =====
+                # 调用密码验证方法，比较输入的旧密码与存储的密码哈希值
                 if not auth_system._verify_password(old_password, stored_password):
+                    # 密码验证失败
                     return jsonify({"success": False, "message": "当前密码错误"}), 401
         else:
+            # ========== 管理员重置他人密码 ==========
+            # 检查当前用户是否拥有重置他人密码的权限
             if not auth_system.check_permission(auth_username, "reset_user_password"):
                 return jsonify({"success": False, "message": "权限不足"}), 403
+            # 管理员重置他人密码不使用短信验证
+            sms_verified_phone = None
+        
+        # 调用auth_system的方法重置密码
         result = auth_system.reset_user_password(target_username, new_password)
+        
+        # 密码重置成功后，删除已使用的短信验证码（如果使用了短信验证）
+        # 放在此处确保只有在密码重置成功后才删除验证码
+        # 如果重置失败，验证码仍然有效，用户可以重试
+        if sms_verified_phone and result.get("success"):
+            if sms_verified_phone in sms_verification_codes:
+                del sms_verification_codes[sms_verified_phone]
+        
+        # 返回操作结果
         return jsonify(result)
 
     @app.route("/auth/user/update_avatar", methods=["POST"])
@@ -15670,6 +15764,33 @@ def start_web_server(args_param):
 
         result = auth_system.update_user_theme(auth_username, theme)
         return jsonify(result)
+
+    @app.route("/api/user/profile", methods=["GET"])
+    @login_required
+    def api_user_profile():
+        """
+        获取当前用户信息 (修复前端调用 404 问题)
+        """
+        try:
+            # 从全局对象 g 中获取当前登录的用户名
+            current_username = g.user
+            # 使用 auth_system 获取详细信息
+            user_details = auth_system.get_user_details(current_username)
+            
+            if user_details:
+                return jsonify({
+                    "success": True,
+                    "username": user_details.get("auth_username"),
+                    "phone": user_details.get("phone"),
+                    "nickname": user_details.get("nickname"),
+                    "avatar_url": user_details.get("avatar_url"),
+                    "email": user_details.get("email", ""), # 部分前端逻辑可能需要email
+                    "data": user_details # 包含完整的用户数据
+                })
+            return jsonify({"success": False, "message": "用户数据不存在"}), 404
+        except Exception as e:
+            logging.error(f"[API] 获取用户资料失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"获取资料失败: {str(e)}"}), 500
 
     @app.route("/auth/user/details", methods=["GET"])
     def auth_user_details():
@@ -17148,62 +17269,128 @@ def start_web_server(args_param):
     def user_update_phone():
         """
         用户修改自己的手机号。
+        
+        需要同时验证密码和短信验证码才能修改手机号。
+        
+        参数:
+        - password: 当前账户密码（用于身份验证）
+        - new_phone: 新的手机号码
+        - sms_code: 发送到新手机号的短信验证码
         """
         try:
+            # 读取系统配置文件
             config = configparser.ConfigParser()
             config.read(CONFIG_FILE, encoding="utf-8")
+            # 检查系统是否开启了手机号修改功能
             if (
                 config.get(
                     "Features", "enable_phone_modification", fallback="false"
                 ).lower()
                 != "true"
             ):
+                # 功能未开启，返回错误提示
                 return jsonify(
                     {"success": False, "message": "系统未开启手机号修改功能"}
                 )
+            
+            # 解析请求体JSON数据
             data = request.get_json() or {}
+            # 获取新手机号并去除首尾空格
             new_phone = data.get("new_phone", "").strip()
+            # 获取短信验证码并去除首尾空格
             sms_code = data.get("sms_code", "").strip()
+            # 新增：获取密码参数并去除首尾空格
+            password = data.get("password", "").strip()
 
+            # ========== 验证新手机号格式 ==========
+            # 使用正则表达式验证手机号格式（中国大陆手机号：1开头，第二位3-9，共11位）
             if not new_phone or not re.match(r"^1[3-9]\d{9}$", new_phone):
                 return jsonify({"success": False, "message": "新手机号格式不正确"})
 
+            # ========== 验证短信验证码不能为空 ==========
             if not sms_code:
                 return jsonify({"success": False, "message": "请输入短信验证码"})
+            
+            # ========== 新增：验证密码不能为空 ==========
+            if not password:
+                return jsonify({"success": False, "message": "请输入当前密码进行验证"})
+            
+            # 获取当前登录用户的用户名
+            current_username = g.user
+            
+            # ========== 新增：获取用户信息并验证密码 ==========
+            # 获取用户信息文件路径
+            user_file_path = auth_system.get_user_file_path(current_username)
+            # 检查用户文件是否存在
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "当前用户文件不存在"}), 404
+            
+            # 读取用户信息以验证密码
+            with open(user_file_path, "r", encoding="utf-8") as f:
+                user_data = json.load(f)
+            
+            # 获取存储的密码哈希值
+            stored_password = user_data.get("password", "")
+            # 验证输入的密码是否正确
+            if not auth_system._verify_password(password, stored_password):
+                # 密码验证失败
+                return jsonify({"success": False, "message": "密码错误，请重新输入"})
+            
+            # ========== 验证短信验证码 ==========
+            # 声明使用全局的短信验证码存储字典
             global sms_verification_codes
+            # 从存储中获取新手机号对应的验证码信息
             stored_code_info = sms_verification_codes.get(new_phone)
 
+            # 检查是否存在该手机号的验证码
             if not stored_code_info:
                 return jsonify({"success": False, "message": "请先获取验证码"})
 
+            # 解构验证码信息：验证码内容和过期时间
             stored_code, expires_at = stored_code_info
 
+            # 检查验证码是否已过期
             if time.time() > expires_at:
+                # 验证码已过期，删除已过期的验证码
                 del sms_verification_codes[new_phone]
                 return jsonify(
                     {"success": False, "message": "验证码已过期，请重新获取"}
                 )
 
+            # 验证输入的验证码是否正确
             if stored_code != sms_code:
                 return jsonify({"success": False, "message": "验证码错误"})
-            del sms_verification_codes[new_phone]
-            current_username = g.user
+            
+            # ========== 更新手机号 ==========
+            # 注意：将验证码删除操作移到所有数据库操作成功之后
+            # 这样可以确保在操作失败时，用户不需要重新获取验证码
+            
+            # 解绑其他用户绑定的相同手机号（确保手机号唯一性）
             auth_system.unbind_phone_from_user(
                 new_phone, except_username=current_username
             )
-            user_file_path = auth_system.get_user_file_path(current_username)
-            if not os.path.exists(user_file_path):
-                return jsonify({"success": False, "message": "当前用户文件不存在"}), 404
-
+            
+            # 使用锁保护文件读写操作，防止并发冲突
             with auth_system.lock:
+                # 重新读取用户信息文件（防止锁等待期间数据被修改）
                 with open(user_file_path, "r", encoding="utf-8") as f:
                     user_data = json.load(f)
 
+                # 更新手机号字段
                 user_data["phone"] = new_phone
 
+                # 将更新后的用户信息写回文件
                 with open(user_file_path, "w", encoding="utf-8") as f:
                     json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            # 手机号更新成功后，删除已使用的验证码（一次性使用）
+            # 放在此处确保只有在所有操作成功后才删除验证码
+            # 如果前面的操作失败，验证码仍然有效，用户可以重试
+            del sms_verification_codes[new_phone]
+            
+            # 获取客户端IP地址，优先使用X-Forwarded-For头（代理场景）
             ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
+            # 记录审计日志
             auth_system.log_audit(
                 current_username,
                 "user_update_phone",
@@ -17212,12 +17399,15 @@ def start_web_server(args_param):
                 g.api_instance._web_session_id,
             )
 
+            # 返回成功响应
             return jsonify(
                 {"success": True, "message": "手机号修改成功", "new_phone": new_phone}
             )
 
         except Exception as e:
+            # 捕获所有异常，记录错误日志
             app.logger.error(f"[用户修改手机号] 失败：{str(e)}", exc_info=True)
+            # 返回错误响应
             return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
 
     IP_BANS_FILE = os.path.join("logs", "ip_bans.json")
@@ -18035,8 +18225,27 @@ def start_web_server(args_param):
 
     def get_frontend_config():
         """辅助函数：读取前端需要的功能开关配置"""
-        config = configparser.ConfigParser()
-        config.read(CONFIG_FILE, encoding="utf-8")
+        # [修正] 使用 strict=False 允许读取包含重复项的配置文件（保留最后一个值）
+        # 同时设置 optionxform=str 保持大小写敏感，防止 LastUser/lastuser 冲突
+        config = configparser.ConfigParser(strict=False)
+        config.optionxform = str 
+        
+        try:
+            config.read(CONFIG_FILE, encoding="utf-8")
+            
+            # [修正] 读取成功后，回写配置文件以清除重复项
+            # 这会利用 ConfigParser 的特性，将重复键合并为最后一个值，并重写文件
+            # 注意：这依赖于全局的 _write_config_with_comments 函数
+            try:
+                _write_config_with_comments(config, CONFIG_FILE)
+                logging.info("[配置] 已自动修复并清理配置文件中的重复项")
+            except Exception as write_err:
+                logging.error(f"[配置] 尝试自动修复配置文件失败: {write_err}")
+                
+        except Exception as e:
+            logging.error(f"[配置] 读取配置文件失败 (get_frontend_config): {e}")
+            # 如果读取失败，尝试使用默认配置继续，避免崩馈
+            config = _get_default_config()
 
         sms_enabled = (
             config.get("Features", "enable_sms_service", fallback="false").lower()
@@ -20471,6 +20680,24 @@ def start_web_server(args_param):
                 records.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
             total = total_matched
             records = records[:limit]
+            # 调试日志：检查返回记录中是否包含 code 字段
+            # 这有助于排查"验证码内容不显示"的问题
+            # 仅在 DEBUG 级别日志启用时执行统计，避免影响生产环境性能
+            if records and logging.getLogger().isEnabledFor(logging.DEBUG):
+                # 统计有 code 字段的记录数量
+                # 使用 'code' in r 检查字段是否存在，而不是检查值是否为真
+                records_with_code = sum(1 for r in records if "code" in r and r["code"])
+                # 统计 code 字段为空或不存在的记录数量
+                records_without_code = len(records) - records_with_code
+                # 输出调试信息
+                logging.debug(
+                    f"[验证码历史] 字段检查: 有code={records_with_code}, 无code={records_without_code}"
+                )
+                # 如果存在没有 code 字段的记录，输出警告
+                if records_without_code > 0:
+                    logging.warning(
+                        f"[验证码历史] 发现 {records_without_code} 条记录缺少code字段"
+                    )
             logging.info(
                 f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条 (总计={total}条)"
             )
