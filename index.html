@@ -1393,8 +1393,22 @@
 
       .mobile-mode .mobile-content {
         padding-top: 56px;
-        padding-bottom: 80px;
+        padding-bottom: 120px; /* 增加底部内边距，防止内容被底部导航栏遮挡 */
         min-height: 100vh;
+      }
+
+      /* 新增：为全屏面板内的滚动列表强制添加底部内边距 */
+      .mobile-mode #mobile-task-list,
+      .mobile-mode #mobile-all-notifications-list,
+      .mobile-mode #mobile-attendance-notifications-list,
+      .mobile-mode #mobile-multi-account-list,
+      .mobile-mode #mobile-admin-panel-content,
+      .mobile-mode #mobile-multi-admin-panel-content,
+      .mobile-mode #mobile-checkpoints-list,
+      .mobile-mode #mobile-task-history-list,
+      .mobile-mode #mobile-admin-panel-content-panel,
+      .mobile-mode #mobile-multi-admin-content-panel {
+          padding-bottom: 120px !important;
       }
 
       .mobile-mode .mobile-bottom-nav {
@@ -1981,9 +1995,11 @@
       }
 
       .mobile-mode .mobile-card-fullscreen {
-        height: calc(100vh - 60px);
+        height: calc(100vh - 60px); /* 保持原有高度计算 */
         margin: 0;
         border-radius: 0;
+        /* 确保全屏卡片本身也有底部内边距，防止最底部按钮贴边 */
+        padding-bottom: 100px !important;
         border: none;
         box-shadow: none;
         padding: 16px;
@@ -8872,7 +8888,7 @@
               </div>
 
               <select
-                id="multi-config-user-select"
+                id="mobile-multi-config-user-select"
                 class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all mb-3 shadow-sm"
               >
                 <option value="">-- 请选择配置文件 --</option>
@@ -8974,7 +8990,7 @@
 
             <div
               id="mobile-multi-account-list"
-              class="space-y-3 max-h-[50vh] overflow-y-auto pr-2 mb-5"
+              class="space-y-3 max-h-[100vh] overflow-y-auto pr-2 mb-5"
             >
               <div class="text-center py-12">
                 <svg
@@ -28100,19 +28116,25 @@
           });
 
           const multiConfigUserSelect = $("multi-config-user-select");
-          if (multiConfigUserSelect) {
-            multiConfigUserSelect.innerHTML =
-              '<option value="">(新用户/手动输入)</option>';
-            initialData.users.forEach((user) => {
-              const option = document.createElement("option");
-              option.value = option.textContent = user;
-              option.title = user;
-              multiConfigUserSelect.appendChild(option);
-            });
-            logMessage_Info(
+          const mobileMultiConfigUserSelect = $("mobile-multi-config-user-select");
+          
+          const populateUserSelect = (sel, users) => {
+             if(!sel) return;
+             sel.innerHTML = '<option value="">(新用户/手动输入)</option>';
+             users.forEach((user) => {
+               const option = document.createElement("option");
+               option.value = option.textContent = user;
+               option.title = user;
+               sel.appendChild(option);
+             });
+          };
+
+          if (multiConfigUserSelect) populateUserSelect(multiConfigUserSelect, initialData.users);
+          if (mobileMultiConfigUserSelect) populateUserSelect(mobileMultiConfigUserSelect, initialData.users);
+          
+          logMessage_Info(
               `[初始化] multi-config-user-select 已更新，用户数: ${initialData.users.length}`
-            );
-          }
+          );
 
           createParamInputs($("params-container"), "param", onParamChange);
           if (initialData.lastUser) userCombo.value = initialData.lastUser;
@@ -29614,6 +29636,7 @@
       function bindImmediateRefreshForUserSelects() {
         const loginSelect = $("user-combo");
         const multiSelect = $("multi-config-user-select");
+        const mobileMultiSelect = $("mobile-multi-config-user-select");
 
         if (loginSelect && !loginSelect._refreshBound) {
           loginSelect.addEventListener("focus", refreshUserList);
@@ -29625,6 +29648,12 @@
           multiSelect.addEventListener("focus", refreshUserList);
           multiSelect.addEventListener("click", refreshUserList);
           multiSelect._refreshBound = true;
+        }
+        
+        if (mobileMultiSelect && !mobileMultiSelect._refreshBound) {
+          mobileMultiSelect.addEventListener("focus", refreshUserList);
+          mobileMultiSelect.addEventListener("click", refreshUserList);
+          mobileMultiSelect._refreshBound = true;
         }
       }
       async function multi_downloadTemplate() {
@@ -29678,6 +29707,9 @@
           const multiSelect = document.getElementById(
             "multi-config-user-select"
           );
+          const mobileMultiSelect = document.getElementById(
+            "mobile-multi-config-user-select"
+          );
           function updateSelect(selectElem, users) {
             if (!selectElem) return;
             const previousValue = selectElem.value;
@@ -29705,6 +29737,7 @@
 
           updateSelect(select, users);
           updateSelect(multiSelect, users);
+          updateSelect(mobileMultiSelect, users);
         } catch (err) {
           logMessage_Error("刷新用户列表失败", err);
         }
@@ -30606,12 +30639,20 @@
 
         const configUsers = await callPythonAPI("multi_get_all_config_users");
         const select = $("multi-config-user-select");
-        select.innerHTML = '<option value="">(新用户/手动输入)</option>';
-        configUsers.users.forEach((u) => {
-          const opt = document.createElement("option");
-          opt.value = opt.textContent = u;
-          select.appendChild(opt);
-        });
+        const mobileSelect = $("mobile-multi-config-user-select");
+        
+        const populateConfigUsers = (sel) => {
+            if(!sel) return;
+            sel.innerHTML = '<option value="">(新用户/手动输入)</option>';
+            configUsers.users.forEach((u) => {
+              const opt = document.createElement("option");
+              opt.value = opt.textContent = u;
+              sel.appendChild(opt);
+            });
+        };
+        
+        populateConfigUsers(select);
+        populateConfigUsers(mobileSelect);
         const container = $("multi-global-params-container");
         container.innerHTML = "";
         createParamInputs(container, "multi-param", onGlobalParamChange);
@@ -40284,7 +40325,7 @@
 
         // 获取配置文件选择器元素
         const configSelect = document.getElementById(
-          "multi-config-user-select"
+          "mobile-multi-config-user-select"
         );
         if (configSelect) {
           if (!configSelect._refreshBound) {
@@ -44525,7 +44566,7 @@
       }
 
       function addMobileSelectedConfig() {
-        const select = document.getElementById("multi-config-user-select");
+        const select = document.getElementById("mobile-multi-config-user-select");
         if (!select || !select.value) {
           showModalAlert("请先选择要添加的配置文件", "错误");
           return;
@@ -44539,7 +44580,7 @@
         }
       }
       async function addMobileAllConfigs() {
-        const select = document.getElementById("multi-config-user-select");
+        const select = document.getElementById("mobile-multi-config-user-select");
         if (!select) {
           showModalAlert("找不到配置文件选择器", "错误");
           return;
