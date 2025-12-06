@@ -28743,66 +28743,162 @@
           logMessage_Warning("forceProjectionRefresh warning:", e);
         }
       }
+      /**
+       * 【任务9】移动端单账号设置面板参数刷新函数
+       * 
+       * @description
+       *   此函数用于从后端刷新 mobile-settings-panel 中的参数配置
+       *   mobile-settings-panel 是移动端单账号模式的专属设置面板
+       *   参数从 sessions 持久化文件的 `params` 字段读取
+       *   而不是多账号模式使用的 `multi_global_params` 字段
+       * 
+       * @workflow
+       *   1. 调用后端 get_params API 获取当前参数
+       *   2. 后端根据 is_multi_account_mode 状态返回正确的参数
+       *   3. 单账号模式下返回 params，多账号模式下返回 global_params
+       *   4. 更新前端参数缓存和界面显示
+       */
       async function refreshMobileSettings() {
+        // 获取移动端参数容器元素
+        // mobile-params-container 是单账号模式设置面板的参数输入区域
         const container = document.getElementById("mobile-params-container");
+        // 如果容器不存在，则直接返回，不执行任何操作
         if (!container) return;
 
+        // 显示正在刷新的提示信息
         showModalAlert("正在刷新参数...", "提示");
 
+        // 记录日志：开始刷新单账号模式参数
+        console.log("[移动端单账号] 开始刷新设置面板参数，来源: params (单账号模式)");
+
         try {
+          // 调用后端 API 获取参数
+          // get_params API 会根据后端 is_multi_account_mode 状态返回对应的参数：
+          //   - 单账号模式 (is_multi_account_mode=false): 返回 params
+          //   - 多账号模式 (is_multi_account_mode=true): 返回 global_params
+          // mobile-settings-panel 专属于单账号模式，因此获取的是 params
           const params = await callPythonAPI("get_params");
 
+          // 检查是否成功获取到参数
           if (params) {
+            // 更新前端本地参数缓存
             pythonParams = params;
+            
+            // 如果 updateParamInputs 函数存在，则更新界面上的参数输入控件
             if (typeof updateParamInputs === "function") {
               updateParamInputs(container, "mobile-param", pythonParams);
             }
+            
+            // 如果参数中包含主题颜色，则同步更新主题
             if (params.theme_base_color) {
+              // 调用 setBaseColor 更新界面主题颜色
+              // 第三个参数 false 表示不触发保存操作，仅更新显示
               setBaseColor(
                 params.theme_base_color,
                 params.theme_base_color,
                 false
-              ); // [修改] 传入 false
+              );
             }
 
+            // 记录刷新成功日志
+            console.log("[移动端单账号] 设置面板参数刷新完成，来源: params");
+            
+            // 显示刷新成功提示
             showModalAlert("参数已刷新", "成功");
           } else {
+            // 未获取到数据，显示错误提示
             showModalAlert("刷新失败：未获取到数据", "错误");
           }
         } catch (e) {
-          console.error("[移动端] 刷新参数失败:", e);
+          // 捕获刷新过程中的错误
+          console.error("[移动端单账号] 刷新参数失败:", e);
+          // 显示错误提示
           showModalAlert("刷新失败", "错误");
         }
       }
+      /**
+       * 【任务9】移动端单账号设置面板参数保存函数
+       * 
+       * @description
+       *   此函数用于保存 mobile-settings-panel 中的所有参数配置
+       *   mobile-settings-panel 是移动端单账号模式的专属设置面板
+       *   参数应该被写入 sessions 持久化文件的 `params` 字段
+       *   而不是多账号模式使用的 `multi_global_params` 字段
+       * 
+       * @workflow
+       *   1. 获取参数容器中的所有输入元素
+       *   2. 遍历并收集每个参数的键值对
+       *   3. 调用后端 update_param API 保存参数
+       *   4. 后端会根据 is_multi_account_mode 状态自动写入正确位置
+       *   5. 单账号模式下 is_multi_account_mode=false，参数写入 params
+       */
       async function saveMobileSettings() {
+        // 获取移动端参数容器元素
+        // mobile-params-container 是单账号模式设置面板的参数输入区域
         const container = document.getElementById("mobile-params-container");
+        // 如果容器不存在，则直接返回，不执行任何操作
         if (!container) return;
 
+        // 显示正在保存的提示信息
         showModalAlert("正在保存设置...", "提示");
 
+        // 记录日志：开始保存单账号模式参数
+        console.log("[移动端单账号] 开始保存设置面板参数，目标: params (单账号模式)");
+
         try {
+          // 查询容器内所有的 input 和 select 元素
+          // 这些元素包含用户配置的参数值
           const inputs = container.querySelectorAll("input, select");
+          // 初始化保存计数器，用于统计成功保存的参数数量
           let savedCount = 0;
+          
+          // 遍历每个输入元素，收集并保存参数
           for (const input of inputs) {
+            // 从元素的 data-key 属性获取参数键名
             const key = input.dataset.key;
+            // 如果没有 data-key 属性，跳过该元素
             if (!key) continue;
 
+            // 根据输入元素的类型，获取对应的值
             let value;
             if (input.type === "checkbox") {
+              // 复选框类型：获取选中状态（布尔值）
               value = input.checked;
             } else if (input.type === "number") {
+              // 数字类型：解析为浮点数，无效值默认为 0
               value = parseFloat(input.value) || 0;
             } else {
+              // 其他类型（文本、下拉框等）：直接获取字符串值
               value = input.value;
             }
+            
+            // 更新前端本地参数缓存
+            // pythonParams 是前端保存的参数副本，用于界面显示
             pythonParams[key] = value;
+            
+            // 调用后端 API 保存参数
+            // update_param API 会根据后端 is_multi_account_mode 状态决定写入位置：
+            //   - 单账号模式 (is_multi_account_mode=false): 写入 params
+            //   - 多账号模式 (is_multi_account_mode=true): 写入 global_params
+            // mobile-settings-panel 专属于单账号模式，因此参数会写入 params
             await callPythonAPI("update_param", key, value);
+            
+            // 增加保存成功计数
             savedCount++;
+            
+            // 记录每个参数的保存日志
+            console.log(`[移动端单账号] 参数已保存: ${key} = ${value}`);
           }
 
+          // 记录保存完成日志
+          console.log(`[移动端单账号] 设置保存完成，共保存 ${savedCount} 个参数到 params`);
+          
+          // 显示保存成功提示
           showModalAlert("设置已保存", "成功");
         } catch (e) {
-          console.error("[移动端] 保存参数失败:", e);
+          // 捕获保存过程中的错误
+          console.error("[移动端单账号] 保存参数失败:", e);
+          // 显示错误提示，包含错误信息
           showModalAlert("保存失败: " + e.message, "错误");
         }
       }
