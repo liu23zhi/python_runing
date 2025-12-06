@@ -8900,7 +8900,7 @@
                           id="mobile-unified-theme_base_color-picker"
                           value="#7dd3fc"
                           class="w-20 h-20 border border-slate-300 rounded cursor-pointer p-0.5 bg-white shadow-sm"
-                          onchange="document.getElementById('mobile-unified-theme_base_color').value = this.value; onColorPicked(this.value); callPythonAPI('update_param', 'theme_base_color', this.value);"
+                          onchange="document.getElementById('mobile-unified-theme_base_color').value = this.value; onColorPicked(this.value); saveUnifiedThemeColor(this.value);"
                         />
 
                         <input
@@ -8910,7 +8910,7 @@
                           class="input-field !text-xs !py-1.5 flex-1 font-mono uppercase shadow-inner"
                           placeholder="#7DD3FC"
                           maxlength="7"
-                          onchange="if(/^#[0-9A-F]{6}$/i.test(this.value)){ document.getElementById('mobile-unified-theme_base_color-picker').value = this.value; onColorPicked(this.value); callPythonAPI('update_param', 'theme_base_color', this.value); }"
+                          onchange="if(/^#[0-9A-F]{6}$/i.test(this.value)){ document.getElementById('mobile-unified-theme_base_color-picker').value = this.value; onColorPicked(this.value); saveUnifiedThemeColor(this.value); }"
                         />
 
                         <button
@@ -10938,7 +10938,7 @@
 
             <button
               class="w-full flex items-center gap-3 p-4 bg-slate-50 hover:bg-slate-100 rounded-xl transition"
-              onclick="toggleMobileMoreMenu(false); toggleMobileAdminPanel(true);"
+              onclick="toggleMobileMoreMenu(false); openMobileAdminPanelUnified('single');"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -11230,7 +11230,7 @@
           href="#"
           class="mobile-nav-btn"
           data-nav="admin"
-          onclick="toggleMobileAdminPanel(true)"
+          onclick="openMobileAdminPanelUnified('single')"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -11391,7 +11391,7 @@
           href="#"
           class="mobile-nav-btn"
           data-nav="admin"
-          onclick="toggleMobileAdminPanel(true)"
+          onclick="openMobileAdminPanelUnified('multi')"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -11677,7 +11677,7 @@
           <a
             href="#"
             class="mobile-sidebar-item"
-            onclick="switchMobileSinglePanel('mobile-admin-panel'); closeMobileSidebar(); return false;"
+            onclick="openMobileAdminPanelUnified('single'); closeMobileSidebar(); return false;"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -11857,7 +11857,7 @@
           <a
             href="#"
             class="mobile-sidebar-item"
-            onclick="switchMobilePanel('mobile-admin-panel-unified', 'multi'); closeMobileSidebar(); return false;"
+            onclick="openMobileAdminPanelUnified('multi'); closeMobileSidebar(); return false;"
             id="mobile_multi_admin_panel_bnt"
           >
             <svg
@@ -16700,7 +16700,10 @@
         if (mobileMenuBtn) {
           mobileMenuBtn.addEventListener("click", function () {
             console.log("[移动端UI] 菜单按钮点击");
-            toggleMobileAdminPanel(true);
+            // 【任务7】根据当前会话模式决定打开哪个管理面板
+            // 检查是否在多账号模式下
+            const isMultiMode = sessionModeInfo && sessionModeInfo.multi_account_mode === true;
+            openMobileAdminPanelUnified(isMultiMode ? 'multi' : 'single');
           });
         }
 
@@ -18462,6 +18465,41 @@
       }
       function onColorPicked(val) {
         setBaseColor(val, val);
+      }
+
+      /**
+       * 【任务7】统一管理面板主题颜色保存函数
+       * 该函数用于处理 mobile-admin-panel-unified 中的主题颜色保存
+       * 
+       * @description
+       *   根据 window.mobileAdminPanelMode 判断当前是单账号还是多账号模式：
+       *   - 单账号模式('single')：调用 callPythonAPI('update_param', ...) 写入 params
+       *   - 多账号模式('multi')：同样调用 update_param，因为全局参数对所有账号生效
+       * 
+       * @param {string} value - 主题颜色值（如 '#7dd3fc'）
+       */
+      function saveUnifiedThemeColor(value) {
+        // 获取当前模式，默认为多账号模式
+        const mode = window.mobileAdminPanelMode || 'multi';
+        // 记录日志，便于调试
+        console.log(`[统一管理面板] 保存主题颜色: ${value}, 模式: ${mode}`);
+        
+        // 更新本地参数对象
+        if (typeof pythonParams !== 'undefined') {
+          pythonParams.theme_base_color = value;
+        }
+        
+        // 无论是单账号还是多账号模式，都调用 update_param API
+        // 因为单账号模式下参数存储在 sessions 的 params 中
+        // 多账号模式下参数存储在 sessions 的 global_params 中
+        // 后端会根据当前会话模式自动写入正确的位置
+        callPythonAPI('update_param', 'theme_base_color', value);
+        
+        // 同时更新颜色选择器和输入框的同步
+        const colorPicker = document.getElementById('mobile-unified-theme_base_color-picker');
+        const colorInput = document.getElementById('mobile-unified-theme_base_color');
+        if (colorPicker) colorPicker.value = value;
+        if (colorInput) colorInput.value = value;
       }
 
       async function checkAuthStatus() {
@@ -36869,7 +36907,57 @@
           listContainer.innerHTML = `<p class="text-red-500 text-center py-8 text-sm">加载失败: ${e.message}</p>`;
         }
       }
+
+      /**
+       * 【任务7】打开统一的移动端管理面板
+       * 该函数用于统一处理单账号和多账号模式下的管理面板打开逻辑
+       * 
+       * @description 
+       *   - 单账号模式('single')：复用 mobile-admin-panel-unified，主题设置写入 params
+       *   - 多账号模式('multi')：使用 mobile-admin-panel-unified，主题设置写入 multi_global_params
+       * 
+       * @param {string} mode - 'single' 或 'multi'，区分单账号和多账号模式
+       */
+      function openMobileAdminPanelUnified(mode) {
+        // 【第一步】记录日志，便于调试
+        console.log(`[移动端管理面板] 打开统一面板，模式: ${mode}`);
+        
+        // 【第二步】保存当前模式到全局变量
+        // 该变量供主题保存等功能判断应该写入 params 还是 multi_global_params
+        window.mobileAdminPanelMode = mode;
+        
+        // 【第三步】更新面板状态显示
+        // 在面板顶部显示当前是"单账号管理"还是"多账号管理"
+        const statusEl = document.getElementById('mobile-admin-panel-unified-status');
+        if (statusEl) {
+          // 根据模式显示对应的中文标签
+          statusEl.textContent = mode === 'single' ? '单账号管理' : '多账号管理';
+        }
+        
+        // 【第四步】调用对应模式的面板切换逻辑
+        if (mode === 'single') {
+          // 单账号模式：使用 switchMobileSinglePanel 切换到统一管理面板
+          // 这会隐藏其他单账号面板，并显示 mobile-admin-panel-unified
+          switchMobileSinglePanel('mobile-admin-panel-unified');
+        } else {
+          // 多账号模式：使用 switchMobilePanel 进行切换
+          // switchMobilePanel 内部会处理多账号模式的面板切换逻辑
+          switchMobilePanel('mobile-admin-panel-unified', 'multi');
+        }
+        
+        // 【第五步】初始化管理面板
+        // 调用 initMobileAdminPanel 来初始化管理面板的标签页和内容
+        // 注意：switchMobileSinglePanel 内部已经会调用初始化，这里作为备用
+        if (typeof initMobileAdminPanel === 'function') {
+          // 延迟调用，确保面板已显示
+          setTimeout(() => {
+            initMobileAdminPanel('mobile-admin-panel-unified');
+          }, 100);
+        }
+      }
+
       function switchMobileSinglePanel(panelId) {
+        // 【任务7修复】单账号模式面板数组，添加 mobile-admin-panel-unified 以支持复用多账号管理面板
         const singleModePanels = [
           "mobile-control-panel",
           "mobile-map-panel",
@@ -36880,6 +36968,7 @@
           "mobile-checkpoints-panel",
           "mobile-attendance-panel",
           "mobile-admin-panel",
+          "mobile-admin-panel-unified", // 【任务7】新增：统一管理面板（单账号模式复用）
           "mobile-settings-panel",
           "mobile-profile-panel",
           "mobile-task-history-panel",
@@ -37063,6 +37152,27 @@
             }
           }
 
+          // 【任务7】统一管理面板（mobile-admin-panel-unified）在单账号模式下的激活处理
+          // 单账号模式复用多账号管理面板，但需要设置正确的模式标识
+          if (panelId === "mobile-admin-panel-unified") {
+            logMessage_Info("[移动端单账号] 激活统一管理面板（复用多账号面板），开始初始化...");
+            // 设置当前模式为单账号，供主题保存等功能判断
+            window.mobileAdminPanelMode = 'single';
+            // 更新面板状态显示为单账号管理
+            const statusEl = document.getElementById('mobile-admin-panel-unified-status');
+            if (statusEl) {
+              statusEl.textContent = '单账号管理';
+            }
+            // 调用 initMobileAdminPanel 函数初始化管理面板
+            if (typeof initMobileAdminPanel === "function") {
+              initMobileAdminPanel("mobile-admin-panel-unified");
+            } else {
+              logMessage_Warning(
+                "[移动端单账号] initMobileAdminPanel函数未定义"
+              );
+            }
+          }
+
           // 【通知面板】激活时自动刷新
           if (panelId === "mobile-notification-panel") {
             logMessage_Info("[移动端单账号] 激活通知面板，自动刷新...");
@@ -37238,6 +37348,13 @@
           }
           if (panelId === "mobile-admin-panel-unified") {
             console.log("[移动端] 激活多账号管理面板，开始初始化...");
+            // 【任务7】设置当前模式为多账号，供主题保存等功能判断
+            window.mobileAdminPanelMode = 'multi';
+            // 更新面板状态显示为多账号管理
+            const statusEl = document.getElementById('mobile-admin-panel-unified-status');
+            if (statusEl) {
+              statusEl.textContent = '多账号管理';
+            }
             if (typeof initMobileAdminPanel === "function") {
               initMobileAdminPanel("mobile-admin-panel-unified");
             } else {
@@ -37275,6 +37392,8 @@
           "mobile-notification-panel": "notifications",
           "mobile-attendance-panel": "attendance",
           "mobile-settings-panel": "settings",
+          "mobile-admin-panel": "admin",
+          "mobile-admin-panel-unified": "admin", // 【任务7】添加统一管理面板的导航映射
           "mobile-multi-account-panel": "accounts",
           "mobile-multi-control-panel": "control",
           "mobile-multi-map-panel": "map",
