@@ -38713,14 +38713,17 @@
             return;
           }
           listContainer.innerHTML = "";
+          // 遍历所有验证码记录并渲染到列表中
           records.forEach((record) => {
+            // 根据验证状态设置不同的背景色和文字颜色
             const statusClass =
               {
-                created: "bg-yellow-100 text-yellow-800",
-                verified_success: "bg-green-100 text-green-800",
-                verified_failed: "bg-red-100 text-red-800",
-                expired: "bg-gray-100 text-gray-800",
+                created: "bg-yellow-100 text-yellow-800",        // 待验证 - 黄色
+                verified_success: "bg-green-100 text-green-800", // 成功 - 绿色
+                verified_failed: "bg-red-100 text-red-800",      // 失败 - 红色
+                expired: "bg-gray-100 text-gray-800",            // 过期 - 灰色
               }[record.status] || "bg-gray-100 text-gray-800";
+            // 根据验证状态设置显示的中文文本
             const statusText =
               {
                 created: "待验证",
@@ -38729,6 +38732,10 @@
                 expired: "已过期",
                 test_generated: "测试生成",
               }[record.status] || record.status;
+            // 获取验证码显示值
+            // 优先使用 code 字段，其次尝试 captcha_code（兼容旧数据），最后显示 "N/A"
+            const captchaCode = record.code || record.captcha_code || "N/A";
+            // 创建列表项元素
             const itemDiv = document.createElement("div");
             itemDiv.className =
               "p-3 bg-white border border-slate-200 rounded-lg hover:shadow-md transition-shadow mb-2";
@@ -38742,9 +38749,7 @@
                   <span class="px-2 py-0.5 text-xs rounded ${statusClass}">${statusText}</span>
                 </div>
                 <div class="text-xs text-slate-500 space-y-0.5">
-                  <div>验证码: <span class="font-semibold text-slate-700 font-mono">${
-                    record.code
-                  }</span></div>
+                  <div>验证码: <span class="font-semibold text-slate-700 font-mono">${captchaCode}</span></div>
                   <div>创建时间: ${
                     record.timestamp_readable ||
                     new Date(record.timestamp * 1000).toLocaleString("zh-CN")
@@ -45914,17 +45919,20 @@
             return;
           }
 
+          // 渲染验证码历史记录列表
           listContainer.innerHTML = records
             .map((record) => {
+              // 根据验证状态设置不同的背景色和文字颜色
               const statusClass =
                 {
-                  created: "bg-yellow-100 text-yellow-800",
-                  verified_success: "bg-green-100 text-green-800",
-                  verified_failed: "bg-red-100 text-red-800",
-                  expired: "bg-gray-100 text-gray-800",
-                  test_generated: "bg-blue-100 text-blue-800",
+                  created: "bg-yellow-100 text-yellow-800",        // 待验证 - 黄色
+                  verified_success: "bg-green-100 text-green-800", // 成功 - 绿色
+                  verified_failed: "bg-red-100 text-red-800",      // 失败 - 红色
+                  expired: "bg-gray-100 text-gray-800",            // 过期 - 灰色
+                  test_generated: "bg-blue-100 text-blue-800",     // 测试 - 蓝色
                 }[record.status] || "bg-gray-100 text-gray-800";
 
+              // 根据验证状态设置显示的中文文本
               const statusText =
                 {
                   created: "待验证",
@@ -45934,17 +45942,20 @@
                   test_generated: "测试",
                 }[record.status] || record.status;
 
+              // 获取验证码显示值
+              // 优先使用 code 字段，其次尝试 captcha_code（兼容旧数据），最后显示 "N/A"
+              const captchaCode = record.code || record.captcha_code || "N/A";
+
+              // 返回单条记录的HTML模板
               return `
                 <div class="bg-white border border-slate-200 rounded-lg p-3">
                     <div class="flex justify-between items-start mb-1">
                         <div class="flex items-center gap-2">
-                            <span class="font-mono font-bold text-slate-700">${
-                              record.code
-                            }</span>
+                            <span class="font-mono font-bold text-slate-700">${captchaCode}</span>
                             <span class="text-[10px] px-1.5 py-0.5 rounded ${statusClass}">${statusText}</span>
                         </div>
                         <span class="text-xs text-slate-400">${
-                          record.timestamp_readable.split(" ")[1]
+                          record.timestamp_readable ? record.timestamp_readable.split(" ")[1] : "N/A"
                         }</span>
                     </div>
                     <div class="text-xs text-slate-500 flex justify-between">
@@ -46085,21 +46096,29 @@
             return;
           }
 
-          // 调试日志：输出第一条记录的结构，便于排查字段命名问题
+          // 调试日志：输出第一条记录的完整结构，便于排查字段命名问题
+          // 这里输出所有字段，帮助开发者确认 code 字段是否存在
           console.log("[移动端验证码历史] 收到记录:", records[0]);
+          // 额外调试：检查 code 字段是否存在
+          if (records[0]) {
+            console.log("[移动端验证码历史] 记录字段列表:", Object.keys(records[0]));
+            console.log("[移动端验证码历史] code字段值:", records[0].code);
+          }
 
           // 渲染历史记录列表
           listContainer.innerHTML = records.map((record) => {
             // 根据状态设置不同的样式类
+            // 每种状态对应不同的背景色和文字颜色
             const statusClass = {
-              created: "bg-yellow-100 text-yellow-800",
-              verified_success: "bg-green-100 text-green-800",
-              verified_failed: "bg-red-100 text-red-800",
-              expired: "bg-gray-100 text-gray-800",
-              test_generated: "bg-blue-100 text-blue-800",
+              created: "bg-yellow-100 text-yellow-800",       // 待验证 - 黄色
+              verified_success: "bg-green-100 text-green-800", // 成功 - 绿色
+              verified_failed: "bg-red-100 text-red-800",      // 失败 - 红色
+              expired: "bg-gray-100 text-gray-800",            // 过期 - 灰色
+              test_generated: "bg-blue-100 text-blue-800",     // 测试 - 蓝色
             }[record.status] || "bg-gray-100 text-gray-800";
 
             // 根据状态设置显示文本和图标
+            // 每种状态对应不同的 emoji 和中文描述
             const statusText = {
               created: "⏳ 待验证",
               verified_success: "✅ 成功",
@@ -46108,12 +46127,16 @@
               test_generated: "🧪 测试",
             }[record.status] || record.status;
 
+            // 获取验证码显示值
+            // 优先使用 code 字段，其次尝试 captcha_code（兼容旧数据），最后显示 "N/A"
+            const captchaCode = record.code || record.captcha_code || "N/A";
+
             // 返回单条记录的HTML
             return `
               <div class="bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
                 <div class="flex justify-between items-start mb-2">
                   <div class="flex items-center gap-2">
-                    <span class="font-mono font-bold text-lg text-slate-700">${record.code || record.captcha_code || "N/A"}</span>
+                    <span class="font-mono font-bold text-lg text-slate-700">${captchaCode}</span>
                     <span class="text-xs px-2 py-1 rounded-full ${statusClass}">${statusText}</span>
                   </div>
                   <span class="text-xs text-slate-400">${record.timestamp_readable ? record.timestamp_readable.split(" ")[1] : "N/A"}</span>
@@ -46129,6 +46152,7 @@
             `;
           }).join("");
 
+          // 输出加载完成的日志
           console.log(`[移动端验证码历史] 加载完成，共 ${records.length} 条记录`);
 
         } catch (error) {

@@ -20680,6 +20680,24 @@ def start_web_server(args_param):
                 records.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
             total = total_matched
             records = records[:limit]
+            # 调试日志：检查返回记录中是否包含 code 字段
+            # 这有助于排查"验证码内容不显示"的问题
+            # 仅在 DEBUG 级别日志启用时执行统计，避免影响生产环境性能
+            if records and logging.getLogger().isEnabledFor(logging.DEBUG):
+                # 统计有 code 字段的记录数量
+                # 使用 'code' in r 检查字段是否存在，而不是检查值是否为真
+                records_with_code = sum(1 for r in records if "code" in r and r["code"])
+                # 统计 code 字段为空或不存在的记录数量
+                records_without_code = len(records) - records_with_code
+                # 输出调试信息
+                logging.debug(
+                    f"[验证码历史] 字段检查: 有code={records_with_code}, 无code={records_without_code}"
+                )
+                # 如果存在没有 code 字段的记录，输出警告
+                if records_without_code > 0:
+                    logging.warning(
+                        f"[验证码历史] 发现 {records_without_code} 条记录缺少code字段"
+                    )
             logging.info(
                 f"[验证码历史] 管理员 {username} 查询验证码历史: 日期={date_str}, 返回={len(records)}条 (总计={total}条)"
             )
