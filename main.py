@@ -297,7 +297,7 @@ def check_and_import_dependencies():
     dependencies = [
         (
             "Flask Web框架",
-            "from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g, send_file",
+            "from flask import Flask, render_template_string, session, redirect, url_for, request, jsonify, make_response, g, send_file, send_from_directory",
             "Flask",
         ),
         ("Flask CORS", "from flask_cors import CORS", "flask-cors"),
@@ -18506,6 +18506,45 @@ def start_web_server(args_param):
             logging.error(f"[CDN缓存API] 刷新缓存时发生错误: {e}", exc_info=True)
             return jsonify({"success": False, "message": "服务器内部错误"}), 500
 
+    # ========== 新增路由：静态资源 (Scripts & Styles) ==========
+    @app.route("/scripts/<path:filename>")
+    def serve_scripts(filename):
+        """
+        服务 ./scripts 目录下的静态文件
+        """
+        try:
+            # 获取 main.py 所在目录
+            base_dir = os.path.dirname(__file__)
+            script_dir = os.path.join(base_dir, 'scripts')
+            # 确保目录存在
+            if not os.path.exists(script_dir):
+                 logging.warning(f"请求 scripts 文件但目录不存在: {script_dir}")
+                 return jsonify({"success": False, "message": f"Scripts 文件 {filename} 未找到！"}), 404
+            
+            return send_from_directory(script_dir, filename)
+        except Exception as e:
+            logging.error(f"Serving script error: {e}")
+            return jsonify({"success": False, "message": "File not found"}), 404
+
+    @app.route("/styles/<path:filename>")
+    def serve_styles(filename):
+        """
+        服务 ./styles 目录下的静态文件
+        """
+        try:
+            # 获取 main.py 所在目录
+            base_dir = os.path.dirname(__file__)
+            style_dir = os.path.join(base_dir, 'styles')
+            # 确保目录存在
+            if not os.path.exists(style_dir):
+                 logging.warning(f"请求 styles 文件但目录不存在: {style_dir}")
+                 return jsonify({"success": False, "message": f"Styles 文件 {filename} 未找到！"}), 404
+
+            return send_from_directory(style_dir, filename)
+        except Exception as e:
+            logging.error(f"Serving style error: {e}")
+            return jsonify({"success": False, "message": "File not found"}), 404
+
     # ========== 新增路由：Favicon ==========
     @app.route("/favicon.ico")
     def favicon():
@@ -18669,483 +18708,483 @@ def start_web_server(args_param):
         modified_html = html_content.replace("</body>", f"{config_script}</body>")
         return render_template_string(modified_html)
 
-    @app.route("/JavaScript/<path:function_path>.js", methods=["GET"])
-    def serve_javascript(function_path):
-        """
-        JavaScript 函数动态加载 API 端点
-        """
-        if function_path == "JavaScript_globals":
-            return redirect("/JavaScript_globals.js")
-        try:
-            js_file_path = os.path.join(os.path.dirname(__file__), "JavaScript.js")
-            if not os.path.exists(js_file_path):
-                logging.error(f"JavaScript.js 文件不存在: {js_file_path}")
-                return jsonify({"error": "JavaScript file not found"}), 404
-            with open(js_file_path, "r", encoding="utf-8") as f:
-                full_content = f.read()
-            function_name = function_path.replace("/", "_")
-            pattern = rf"(?:^|\n)(\s*(?:(?:async\s+)?function\s+{function_name}\s*\([^)]*\)|(?:const|let|var)\s+{function_name}\s*=\s*(?:function\s*\([^)]*\)|(?:async\s+)?function\s*\([^)]*\)|\([^)]*\)\s*=>))\s*{{)"
+#     @app.route("/JavaScript/<path:function_path>.js", methods=["GET"])
+#     def serve_javascript(function_path):
+#         """
+#         JavaScript 函数动态加载 API 端点
+#         """
+#         if function_path == "JavaScript_globals":
+#             return redirect("/JavaScript_globals.js")
+#         try:
+#             js_file_path = os.path.join(os.path.dirname(__file__), "JavaScript.js")
+#             if not os.path.exists(js_file_path):
+#                 logging.error(f"JavaScript.js 文件不存在: {js_file_path}")
+#                 return jsonify({"error": "JavaScript file not found"}), 404
+#             with open(js_file_path, "r", encoding="utf-8") as f:
+#                 full_content = f.read()
+#             function_name = function_path.replace("/", "_")
+#             pattern = rf"(?:^|\n)(\s*(?:(?:async\s+)?function\s+{function_name}\s*\([^)]*\)|(?:const|let|var)\s+{function_name}\s*=\s*(?:function\s*\([^)]*\)|(?:async\s+)?function\s*\([^)]*\)|\([^)]*\)\s*=>))\s*{{)"
 
-            match = re.search(pattern, full_content, re.MULTILINE)
+#             match = re.search(pattern, full_content, re.MULTILINE)
 
-            if not match:
-                logging.warning(
-                    f"未找到精确匹配的函数 '{function_name}'，尝试模糊搜索..."
-                )
-                fuzzy_pattern = rf"(?:^|\n)(\s*(?:function\s+\w*{function_name}\w*\s*\([^)]*\)|(?:const|let|var)\s+\w*{function_name}\w*\s*=))"
-                fuzzy_matches = re.finditer(
-                    fuzzy_pattern, full_content, re.MULTILINE | re.IGNORECASE
-                )
-                found_functions = []
-                for m in fuzzy_matches:
-                    func_line = m.group(0).strip()
-                    found_functions.append(func_line[:50])
+#             if not match:
+#                 logging.warning(
+#                     f"未找到精确匹配的函数 '{function_name}'，尝试模糊搜索..."
+#                 )
+#                 fuzzy_pattern = rf"(?:^|\n)(\s*(?:function\s+\w*{function_name}\w*\s*\([^)]*\)|(?:const|let|var)\s+\w*{function_name}\w*\s*=))"
+#                 fuzzy_matches = re.finditer(
+#                     fuzzy_pattern, full_content, re.MULTILINE | re.IGNORECASE
+#                 )
+#                 found_functions = []
+#                 for m in fuzzy_matches:
+#                     func_line = m.group(0).strip()
+#                     found_functions.append(func_line[:50])
 
-                if found_functions:
-                    suggestions = "\n".join(found_functions)
-                    logging.info(f"找到相似的函数定义:\n{suggestions}")
-                    return (
-                        jsonify(
-                            {
-                                "error": f"Function '{function_name}' not found",
-                                "suggestions": found_functions[:5],
-                            }
-                        ),
-                        404,
-                    )
-                else:
-                    logging.error(f"未找到任何与 '{function_name}' 相关的函数")
-                    return (
-                        jsonify({"error": f"Function '{function_name}' not found"}),
-                        404,
-                    )
-            func_start = match.start()
-            brace_count = 0
-            in_function = False
-            func_end = func_start
+#                 if found_functions:
+#                     suggestions = "\n".join(found_functions)
+#                     logging.info(f"找到相似的函数定义:\n{suggestions}")
+#                     return (
+#                         jsonify(
+#                             {
+#                                 "error": f"Function '{function_name}' not found",
+#                                 "suggestions": found_functions[:5],
+#                             }
+#                         ),
+#                         404,
+#                     )
+#                 else:
+#                     logging.error(f"未找到任何与 '{function_name}' 相关的函数")
+#                     return (
+#                         jsonify({"error": f"Function '{function_name}' not found"}),
+#                         404,
+#                     )
+#             func_start = match.start()
+#             brace_count = 0
+#             in_function = False
+#             func_end = func_start
 
-            for i in range(func_start, len(full_content)):
-                char = full_content[i]
+#             for i in range(func_start, len(full_content)):
+#                 char = full_content[i]
 
-                if char == "{":
-                    brace_count += 1
-                    in_function = True
-                elif char == "}":
-                    brace_count -= 1
-                    if in_function and brace_count == 0:
-                        func_end = i + 1
-                        break
-            function_code = full_content[func_start:func_end]
-            comments_start = func_start
-            lines_before = full_content[:func_start].split("\n")
-            comment_lines = []
+#                 if char == "{":
+#                     brace_count += 1
+#                     in_function = True
+#                 elif char == "}":
+#                     brace_count -= 1
+#                     if in_function and brace_count == 0:
+#                         func_end = i + 1
+#                         break
+#             function_code = full_content[func_start:func_end]
+#             comments_start = func_start
+#             lines_before = full_content[:func_start].split("\n")
+#             comment_lines = []
 
-            for line in reversed(lines_before):
-                stripped = line.strip()
-                if (
-                    stripped.startswith("//")
-                    or stripped.startswith("/*")
-                    or stripped.startswith("*")
-                    or stripped.startswith("*/")
-                ):
-                    comment_lines.insert(0, line)
-                elif stripped == "":
-                    comment_lines.insert(0, line)
-                else:
-                    break
-            if comment_lines:
-                comments = "\n".join(comment_lines)
-                function_code = comments + "\n" + function_code
-            response_content = f"""// ==============================================================================
-// 动态加载的 JavaScript 函数: {function_name}
-// 从 JavaScript.js 文件中提取
-// ==============================================================================
+#             for line in reversed(lines_before):
+#                 stripped = line.strip()
+#                 if (
+#                     stripped.startswith("//")
+#                     or stripped.startswith("/*")
+#                     or stripped.startswith("*")
+#                     or stripped.startswith("*/")
+#                 ):
+#                     comment_lines.insert(0, line)
+#                 elif stripped == "":
+#                     comment_lines.insert(0, line)
+#                 else:
+#                     break
+#             if comment_lines:
+#                 comments = "\n".join(comment_lines)
+#                 function_code = comments + "\n" + function_code
+#             response_content = f"""// ==============================================================================
+# // 动态加载的 JavaScript 函数: {function_name}
+# // 从 JavaScript.js 文件中提取
+# // ==============================================================================
 
-{function_code}
-"""
+# {function_code}
+# """
 
-            response = make_response(response_content)
-            response.headers["Content-Type"] = "application/javascript; charset=utf-8"
+#             response = make_response(response_content)
+#             response.headers["Content-Type"] = "application/javascript; charset=utf-8"
 
-            response.headers["Cache-Control"] = "public, max-age=3600"
-            file_mtime = os.path.getmtime(js_file_path)
-            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
-                "%a, %d %b %Y %H:%M:%S GMT"
-            )
-            response.headers["Last-Modified"] = last_modified
-            etag = hashlib.md5(function_code.encode("utf-8")).hexdigest()
-            response.headers["ETag"] = f'"{etag}"'
-            if_modified_since = request.headers.get("If-Modified-Since")
-            if_none_match = request.headers.get("If-None-Match")
-            if (if_modified_since == last_modified) or (if_none_match == f'"{etag}"'):
-                logging.debug(f"JavaScript 函数 '{function_name}' 使用缓存版本 (304)")
-                return "", 304
+#             response.headers["Cache-Control"] = "public, max-age=3600"
+#             file_mtime = os.path.getmtime(js_file_path)
+#             last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
+#                 "%a, %d %b %Y %H:%M:%S GMT"
+#             )
+#             response.headers["Last-Modified"] = last_modified
+#             etag = hashlib.md5(function_code.encode("utf-8")).hexdigest()
+#             response.headers["ETag"] = f'"{etag}"'
+#             if_modified_since = request.headers.get("If-Modified-Since")
+#             if_none_match = request.headers.get("If-None-Match")
+#             if (if_modified_since == last_modified) or (if_none_match == f'"{etag}"'):
+#                 logging.debug(f"JavaScript 函数 '{function_name}' 使用缓存版本 (304)")
+#                 return "", 304
 
-            logging.info(
-                f"成功返回 JavaScript 函数: {function_name} ({len(function_code)} 字符)"
-            )
-            return response
+#             logging.info(
+#                 f"成功返回 JavaScript 函数: {function_name} ({len(function_code)} 字符)"
+#             )
+#             return response
 
-        except FileNotFoundError as e:
-            logging.error(f"JavaScript.js 文件未找到: {e}")
-            return jsonify({"error": "JavaScript file not found"}), 404
-        except Exception as e:
-            logging.error(f"加载 JavaScript 函数时发生错误: {e}", exc_info=True)
-            return jsonify({"error": "Internal server error"}), 500
+#         except FileNotFoundError as e:
+#             logging.error(f"JavaScript.js 文件未找到: {e}")
+#             return jsonify({"error": "JavaScript file not found"}), 404
+#         except Exception as e:
+#             logging.error(f"加载 JavaScript 函数时发生错误: {e}", exc_info=True)
+#             return jsonify({"error": "Internal server error"}), 500
 
-    @app.route("/JavaScript_globals.js", methods=["GET"])
-    def serve_javascript_globals():
-        """
-        返回 JavaScript 全局变量文件（优先加载）
-        """
-        try:
-            js_globals_file = os.path.join(
-                os.path.dirname(__file__), "JavaScript_globals.js"
-            )
+    # @app.route("/JavaScript_globals.js", methods=["GET"])
+    # def serve_javascript_globals():
+    #     """
+    #     返回 JavaScript 全局变量文件（优先加载）
+    #     """
+    #     try:
+    #         js_globals_file = os.path.join(
+    #             os.path.dirname(__file__), "JavaScript_globals.js"
+    #         )
 
-            if not os.path.exists(js_globals_file):
-                logging.error(f"JavaScript 全局变量文件不存在: {js_globals_file}")
-                return jsonify({"error": "JavaScript globals file not found"}), 404
-            with open(js_globals_file, "r", encoding="utf-8") as f:
-                original_content = f.read()
-            minify_param = request.args.get("minify", "true").lower()
-            should_minify = minify_param in ["true", "1", "yes", ""]
-            if should_minify:
-                content = original_content
-                content_type_suffix = " (original, compression disabled)"
-                logging.info(
-                    f"JavaScript_globals.js 压缩功能已禁用，返回原始大小: {len(original_content)} 字节"
-                )
-            else:
-                content = original_content
-                content_type_suffix = " (original)"
-            file_mtime = os.path.getmtime(js_globals_file)
-            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
-                "%a, %d %b %Y %H:%M:%S GMT"
-            )
+    #         if not os.path.exists(js_globals_file):
+    #             logging.error(f"JavaScript 全局变量文件不存在: {js_globals_file}")
+    #             return jsonify({"error": "JavaScript globals file not found"}), 404
+    #         with open(js_globals_file, "r", encoding="utf-8") as f:
+    #             original_content = f.read()
+    #         minify_param = request.args.get("minify", "true").lower()
+    #         should_minify = minify_param in ["true", "1", "yes", ""]
+    #         if should_minify:
+    #             content = original_content
+    #             content_type_suffix = " (original, compression disabled)"
+    #             logging.info(
+    #                 f"JavaScript_globals.js 压缩功能已禁用，返回原始大小: {len(original_content)} 字节"
+    #             )
+    #         else:
+    #             content = original_content
+    #             content_type_suffix = " (original)"
+    #         file_mtime = os.path.getmtime(js_globals_file)
+    #         last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
+    #             "%a, %d %b %Y %H:%M:%S GMT"
+    #         )
 
-            etag_base = hashlib.md5(content.encode("utf-8")).hexdigest()
-            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
-            if_modified_since = request.headers.get("If-Modified-Since")
-            if_none_match = request.headers.get("If-None-Match")
+    #         etag_base = hashlib.md5(content.encode("utf-8")).hexdigest()
+    #         etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+    #         if_modified_since = request.headers.get("If-Modified-Since")
+    #         if_none_match = request.headers.get("If-None-Match")
 
-            if (if_modified_since == last_modified) or (if_none_match == etag):
-                logging.debug(
-                    f"JavaScript_globals.js 使用缓存版本 (304){content_type_suffix}"
-                )
-                return "", 304
+    #         if (if_modified_since == last_modified) or (if_none_match == etag):
+    #             logging.debug(
+    #                 f"JavaScript_globals.js 使用缓存版本 (304){content_type_suffix}"
+    #             )
+    #             return "", 304
 
-            response = make_response(content)
-            response.headers["Content-Type"] = "application/javascript; charset=utf-8"
-            response.headers["Cache-Control"] = "public, max-age=3600"
-            response.headers["Last-Modified"] = last_modified
-            response.headers["ETag"] = etag
-            response.headers["X-Minified"] = "true" if should_minify else "false"
+    #         response = make_response(content)
+    #         response.headers["Content-Type"] = "application/javascript; charset=utf-8"
+    #         response.headers["Cache-Control"] = "public, max-age=3600"
+    #         response.headers["Last-Modified"] = last_modified
+    #         response.headers["ETag"] = etag
+    #         response.headers["X-Minified"] = "true" if should_minify else "false"
 
-            logging.info(
-                f"成功返回 JavaScript_globals.js{content_type_suffix} ({len(content)} 字符)"
-            )
-            return response
+    #         logging.info(
+    #             f"成功返回 JavaScript_globals.js{content_type_suffix} ({len(content)} 字符)"
+    #         )
+    #         return response
 
-        except Exception as e:
-            logging.error(f"加载 JavaScript_globals.js 时发生错误: {e}", exc_info=True)
-            return jsonify({"error": "Internal server error"}), 500
+    #     except Exception as e:
+    #         logging.error(f"加载 JavaScript_globals.js 时发生错误: {e}", exc_info=True)
+    #         return jsonify({"error": "Internal server error"}), 500
 
-    @app.route("/Cascading_Style_Sheets_Web_animation.css", methods=["GET"])
-    def serve_css_animation():
-        """
-        返回 CSS 动画文件（优先加载）
-        """
-        try:
-            css_animation_file = os.path.join(
-                os.path.dirname(__file__), "Cascading_Style_Sheets_Web_animation.css"
-            )
+    # @app.route("/Cascading_Style_Sheets_Web_animation.css", methods=["GET"])
+    # def serve_css_animation():
+    #     """
+    #     返回 CSS 动画文件（优先加载）
+    #     """
+    #     try:
+    #         css_animation_file = os.path.join(
+    #             os.path.dirname(__file__), "Cascading_Style_Sheets_Web_animation.css"
+    #         )
 
-            if not os.path.exists(css_animation_file):
-                logging.error(f"CSS 动画文件不存在: {css_animation_file}")
-                return jsonify({"error": "CSS animation file not found"}), 404
-            with open(css_animation_file, "r", encoding="utf-8") as f:
-                original_content = f.read()
-            minify_param = request.args.get("minify", "true").lower()
-            should_minify = minify_param in ["true", "1", "yes", ""]
-            if should_minify:
-                content = original_content
-                content_type_suffix = " (original, compression disabled)"
-                logging.info(
-                    f"Cascading_Style_Sheets_Web_animation.css 压缩功能已禁用，返回原始大小: {len(original_content)} 字节"
-                )
-            else:
-                content = original_content
-                content_type_suffix = " (original)"
-            file_mtime = os.path.getmtime(css_animation_file)
-            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
-                "%a, %d %b %Y %H:%M:%S GMT"
-            )
+    #         if not os.path.exists(css_animation_file):
+    #             logging.error(f"CSS 动画文件不存在: {css_animation_file}")
+    #             return jsonify({"error": "CSS animation file not found"}), 404
+    #         with open(css_animation_file, "r", encoding="utf-8") as f:
+    #             original_content = f.read()
+    #         minify_param = request.args.get("minify", "true").lower()
+    #         should_minify = minify_param in ["true", "1", "yes", ""]
+    #         if should_minify:
+    #             content = original_content
+    #             content_type_suffix = " (original, compression disabled)"
+    #             logging.info(
+    #                 f"Cascading_Style_Sheets_Web_animation.css 压缩功能已禁用，返回原始大小: {len(original_content)} 字节"
+    #             )
+    #         else:
+    #             content = original_content
+    #             content_type_suffix = " (original)"
+    #         file_mtime = os.path.getmtime(css_animation_file)
+    #         last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
+    #             "%a, %d %b %Y %H:%M:%S GMT"
+    #         )
 
-            etag_base = hashlib.md5(content.encode("utf-8")).hexdigest()
-            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
-            if_modified_since = request.headers.get("If-Modified-Since")
-            if_none_match = request.headers.get("If-None-Match")
+    #         etag_base = hashlib.md5(content.encode("utf-8")).hexdigest()
+    #         etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+    #         if_modified_since = request.headers.get("If-Modified-Since")
+    #         if_none_match = request.headers.get("If-None-Match")
 
-            if (if_modified_since == last_modified) or (if_none_match == etag):
-                logging.debug(
-                    f"Cascading_Style_Sheets_Web_animation.css 使用缓存版本 (304){content_type_suffix}"
-                )
-                return "", 304
+    #         if (if_modified_since == last_modified) or (if_none_match == etag):
+    #             logging.debug(
+    #                 f"Cascading_Style_Sheets_Web_animation.css 使用缓存版本 (304){content_type_suffix}"
+    #             )
+    #             return "", 304
 
-            response = make_response(content)
-            response.headers["Content-Type"] = "text/css; charset=utf-8"
-            response.headers["Cache-Control"] = "public, max-age=3600"
-            response.headers["Last-Modified"] = last_modified
-            response.headers["ETag"] = etag
-            response.headers["X-Minified"] = "true" if should_minify else "false"
+    #         response = make_response(content)
+    #         response.headers["Content-Type"] = "text/css; charset=utf-8"
+    #         response.headers["Cache-Control"] = "public, max-age=3600"
+    #         response.headers["Last-Modified"] = last_modified
+    #         response.headers["ETag"] = etag
+    #         response.headers["X-Minified"] = "true" if should_minify else "false"
 
-            logging.info(
-                f"成功返回 Cascading_Style_Sheets_Web_animation.css{content_type_suffix} ({len(content)} 字符)"
-            )
-            return response
+    #         logging.info(
+    #             f"成功返回 Cascading_Style_Sheets_Web_animation.css{content_type_suffix} ({len(content)} 字符)"
+    #         )
+    #         return response
 
-        except Exception as e:
-            logging.error(
-                f"加载 Cascading_Style_Sheets_Web_animation.css 时发生错误: {e}",
-                exc_info=True,
-            )
-            return jsonify({"error": "Internal server error"}), 500
+    #     except Exception as e:
+    #         logging.error(
+    #             f"加载 Cascading_Style_Sheets_Web_animation.css 时发生错误: {e}",
+    #             exc_info=True,
+    #         )
+    #         return jsonify({"error": "Internal server error"}), 500
 
-    def get_parsed_stylesheet(css_file_path):
-        """
-        获取解析后的 CSS 样式表。
-        """
-        if not os.path.exists(css_file_path):
-            logging.error(f"CSS 文件不存在: {css_file_path}")
-            return None, None
+    # def get_parsed_stylesheet(css_file_path):
+    #     """
+    #     获取解析后的 CSS 样式表。
+    #     """
+    #     if not os.path.exists(css_file_path):
+    #         logging.error(f"CSS 文件不存在: {css_file_path}")
+    #         return None, None
 
-        try:
-            logging.info(f"正在实时解析 CSS 文件: {css_file_path}")
-            cssutils.ser.prefs.useDefaults()
-            cssutils.log.setLevel(logging.CRITICAL)
-            parser = cssutils.CSSParser(validate=False)
-            stylesheet = parser.parseFile(css_file_path, encoding="utf-8")
-            selectors = set()
-            for rule in stylesheet:
-                if rule.type == cssutils.css.CSSRule.STYLE_RULE:
-                    for selector in rule.selectorList:
-                        selectors.add(selector.selectorText.strip())
-            sorted_selectors = sorted(list(selectors))
-            return stylesheet, sorted_selectors
+    #     try:
+    #         logging.info(f"正在实时解析 CSS 文件: {css_file_path}")
+    #         cssutils.ser.prefs.useDefaults()
+    #         cssutils.log.setLevel(logging.CRITICAL)
+    #         parser = cssutils.CSSParser(validate=False)
+    #         stylesheet = parser.parseFile(css_file_path, encoding="utf-8")
+    #         selectors = set()
+    #         for rule in stylesheet:
+    #             if rule.type == cssutils.css.CSSRule.STYLE_RULE:
+    #                 for selector in rule.selectorList:
+    #                     selectors.add(selector.selectorText.strip())
+    #         sorted_selectors = sorted(list(selectors))
+    #         return stylesheet, sorted_selectors
 
-        except Exception as e:
-            logging.error(f"解析 CSS 文件时出错: {e}", exc_info=True)
-            return None, None
+    #     except Exception as e:
+    #         logging.error(f"解析 CSS 文件时出错: {e}", exc_info=True)
+    #         return None, None
 
-    @app.route("/css/available-selectors.list", methods=["GET"])
-    def get_available_css_selectors():
-        """
-        返回 Cascading_Style_Sheets.css 文件中所有可用的 CSS 选择器列表。
-        """
-        try:
-            CURRENT_DIR = os.path.dirname(__file__)
-        except NameError:
-            CURRENT_DIR = os.getcwd()
+    # @app.route("/css/available-selectors.list", methods=["GET"])
+    # def get_available_css_selectors():
+    #     """
+    #     返回 Cascading_Style_Sheets.css 文件中所有可用的 CSS 选择器列表。
+    #     """
+    #     try:
+    #         CURRENT_DIR = os.path.dirname(__file__)
+    #     except NameError:
+    #         CURRENT_DIR = os.getcwd()
 
-        CSS_FILE_PATH = os.path.join(CURRENT_DIR, "Cascading_Style_Sheets.css")
-        try:
-            if not os.path.exists(CSS_FILE_PATH):
-                return jsonify({"错误": "找不到 CSS 文件"}), 500
+    #     CSS_FILE_PATH = os.path.join(CURRENT_DIR, "Cascading_Style_Sheets.css")
+    #     try:
+    #         if not os.path.exists(CSS_FILE_PATH):
+    #             return jsonify({"错误": "找不到 CSS 文件"}), 500
 
-            stylesheet, selectors = get_parsed_stylesheet(CSS_FILE_PATH)
+    #         stylesheet, selectors = get_parsed_stylesheet(CSS_FILE_PATH)
 
-            if not stylesheet:
-                return jsonify({"错误": "解析 CSS 文件失败"}), 500
-            file_mtime = os.path.getmtime(CSS_FILE_PATH)
-            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
-                "%a, %d %b %Y %H:%M:%S GMT"
-            )
-            etag = f'"{hashlib.md5(str(selectors).encode("utf-8")).hexdigest()}"'
-            if (request.headers.get("If-Modified-Since") == last_modified) or (
-                request.headers.get("If-None-Match") == etag
-            ):
-                return "", 304
+    #         if not stylesheet:
+    #             return jsonify({"错误": "解析 CSS 文件失败"}), 500
+    #         file_mtime = os.path.getmtime(CSS_FILE_PATH)
+    #         last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
+    #             "%a, %d %b %Y %H:%M:%S GMT"
+    #         )
+    #         etag = f'"{hashlib.md5(str(selectors).encode("utf-8")).hexdigest()}"'
+    #         if (request.headers.get("If-Modified-Since") == last_modified) or (
+    #             request.headers.get("If-None-Match") == etag
+    #         ):
+    #             return "", 304
 
-            response = make_response(jsonify(selectors))
-            response.headers["Cache-Control"] = "public, max-age=3600"
-            response.headers["Last-Modified"] = last_modified
-            response.headers["ETag"] = etag
+    #         response = make_response(jsonify(selectors))
+    #         response.headers["Cache-Control"] = "public, max-age=3600"
+    #         response.headers["Last-Modified"] = last_modified
+    #         response.headers["ETag"] = etag
 
-            logging.info(f"成功返回 {len(selectors)} 个 CSS 选择器。")
-            return response
+    #         logging.info(f"成功返回 {len(selectors)} 个 CSS 选择器。")
+    #         return response
 
-        except Exception as e:
-            logging.error(f"获取 CSS 选择器列表时发生错误: {e}", exc_info=True)
-            return jsonify({"error": "Internal server error"}), 500
+    #     except Exception as e:
+    #         logging.error(f"获取 CSS 选择器列表时发生错误: {e}", exc_info=True)
+    #         return jsonify({"error": "Internal server error"}), 500
 
-    @app.route("/css/<path:css_path>", methods=["GET"])
-    def serve_css(css_path):
-        """
-        CSS 样式分段动态加载 API 端点
-        """
-        try:
-            CURRENT_DIR = os.path.dirname(__file__)
-        except NameError:
-            CURRENT_DIR = os.getcwd()
+    # @app.route("/css/<path:css_path>", methods=["GET"])
+    # def serve_css(css_path):
+    #     """
+    #     CSS 样式分段动态加载 API 端点
+    #     """
+    #     try:
+    #         CURRENT_DIR = os.path.dirname(__file__)
+    #     except NameError:
+    #         CURRENT_DIR = os.getcwd()
 
-        CSS_FILE_PATH = os.path.join(CURRENT_DIR, "Cascading_Style_Sheets.css")
-        try:
-            if not css_path or not css_path.endswith(".css"):
-                logging.warning(f"无效的 CSS 请求路径: {css_path}")
-                return jsonify({"error": "Invalid path. Must end with .css"}), 404
-            requested_selector_raw = css_path[:-4]
-            if not os.path.exists(CSS_FILE_PATH):
-                logging.error(f"CSS 文件不存在: {CSS_FILE_PATH}")
-                return jsonify({"error": "CSS file not found"}), 500
-            stylesheet, _ = get_parsed_stylesheet(CSS_FILE_PATH)
+    #     CSS_FILE_PATH = os.path.join(CURRENT_DIR, "Cascading_Style_Sheets.css")
+    #     try:
+    #         if not css_path or not css_path.endswith(".css"):
+    #             logging.warning(f"无效的 CSS 请求路径: {css_path}")
+    #             return jsonify({"error": "Invalid path. Must end with .css"}), 404
+    #         requested_selector_raw = css_path[:-4]
+    #         if not os.path.exists(CSS_FILE_PATH):
+    #             logging.error(f"CSS 文件不存在: {CSS_FILE_PATH}")
+    #             return jsonify({"error": "CSS file not found"}), 500
+    #         stylesheet, _ = get_parsed_stylesheet(CSS_FILE_PATH)
 
-            if not stylesheet:
-                return jsonify({"error": "Failed to parse CSS file"}), 500
-            minify_param = request.args.get("minify", "true").lower()
-            should_minify = minify_param in ["true", "1", "yes", ""]
-            if should_minify:
-                cssutils.ser.prefs.useMinified()
-                content_type_suffix = " (minified)"
-            else:
-                cssutils.ser.prefs.useDefaults()
-                content_type_suffix = " (original)"
-            try:
-                requested_selector_decoded = requested_selector_raw.replace(
-                    "+~+", " ~ "
-                )
-                requested_selector_decoded = requested_selector_decoded.replace(
-                    "+>+", " > "
-                )
-                requested_selector = requested_selector_decoded.replace("+", " ")
+    #         if not stylesheet:
+    #             return jsonify({"error": "Failed to parse CSS file"}), 500
+    #         minify_param = request.args.get("minify", "true").lower()
+    #         should_minify = minify_param in ["true", "1", "yes", ""]
+    #         if should_minify:
+    #             cssutils.ser.prefs.useMinified()
+    #             content_type_suffix = " (minified)"
+    #         else:
+    #             cssutils.ser.prefs.useDefaults()
+    #             content_type_suffix = " (original)"
+    #         try:
+    #             requested_selector_decoded = requested_selector_raw.replace(
+    #                 "+~+", " ~ "
+    #             )
+    #             requested_selector_decoded = requested_selector_decoded.replace(
+    #                 "+>+", " > "
+    #             )
+    #             requested_selector = requested_selector_decoded.replace("+", " ")
 
-                if requested_selector_raw != requested_selector:
-                    logging.debug(
-                        f"CSS 选择器解码: '{requested_selector_raw}' -> '{requested_selector}'"
-                    )
+    #             if requested_selector_raw != requested_selector:
+    #                 logging.debug(
+    #                     f"CSS 选择器解码: '{requested_selector_raw}' -> '{requested_selector}'"
+    #                 )
 
-            except Exception as decode_err:
-                logging.warning(
-                    f"CSS 选择器解码失败: {decode_err}，将使用原始请求字符串"
-                )
-                requested_selector = requested_selector_raw
+    #         except Exception as decode_err:
+    #             logging.warning(
+    #                 f"CSS 选择器解码失败: {decode_err}，将使用原始请求字符串"
+    #             )
+    #             requested_selector = requested_selector_raw
 
-            if requested_selector == "Web_animation":
-                return redirect("/Cascading_Style_Sheets_Web_animation.css")
-            found_css_text = []
-            for rule in stylesheet:
-                if rule.type == cssutils.css.CSSRule.STYLE_RULE:
-                    for selector in rule.selectorList:
-                        if selector.selectorText.strip() == requested_selector:
-                            found_css_text.append(rule.cssText)
-                            break
-            if not found_css_text:
-                logging.warning(
-                    f"CSS 规则未找到: {requested_selector} (原始请求: {css_path})"
-                )
-                return (
-                    jsonify({"error": f"CSS rule '{requested_selector}' not found"}),
-                    404,
-                )
-            content = "\n".join(found_css_text)
-            file_mtime = os.path.getmtime(CSS_FILE_PATH)
-            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
-                "%a, %d %b %Y %H:%M:%S GMT"
-            )
-            etag_base = hashlib.md5(content.encode("utf-8")).hexdigest()
-            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
-            if_modified_since = request.headers.get("If-Modified-Since")
-            if_none_match = request.headers.get("If-None-Match")
+    #         if requested_selector == "Web_animation":
+    #             return redirect("/Cascading_Style_Sheets_Web_animation.css")
+    #         found_css_text = []
+    #         for rule in stylesheet:
+    #             if rule.type == cssutils.css.CSSRule.STYLE_RULE:
+    #                 for selector in rule.selectorList:
+    #                     if selector.selectorText.strip() == requested_selector:
+    #                         found_css_text.append(rule.cssText)
+    #                         break
+    #         if not found_css_text:
+    #             logging.warning(
+    #                 f"CSS 规则未找到: {requested_selector} (原始请求: {css_path})"
+    #             )
+    #             return (
+    #                 jsonify({"error": f"CSS rule '{requested_selector}' not found"}),
+    #                 404,
+    #             )
+    #         content = "\n".join(found_css_text)
+    #         file_mtime = os.path.getmtime(CSS_FILE_PATH)
+    #         last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
+    #             "%a, %d %b %Y %H:%M:%S GMT"
+    #         )
+    #         etag_base = hashlib.md5(content.encode("utf-8")).hexdigest()
+    #         etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+    #         if_modified_since = request.headers.get("If-Modified-Since")
+    #         if_none_match = request.headers.get("If-None-Match")
 
-            if (if_none_match == etag) or (
-                not if_none_match and if_modified_since == last_modified
-            ):
-                logging.debug(f"CSS 使用缓存版本 (304){content_type_suffix}")
-                return "", 304
+    #         if (if_none_match == etag) or (
+    #             not if_none_match and if_modified_since == last_modified
+    #         ):
+    #             logging.debug(f"CSS 使用缓存版本 (304){content_type_suffix}")
+    #             return "", 304
 
-            response = make_response(content)
-            response.headers["Content-Type"] = "text/css; charset=utf-8"
-            response.headers["Cache-Control"] = "public, max-age=3600"
-            response.headers["Last-Modified"] = last_modified
-            response.headers["ETag"] = etag
-            response.headers["X-Minified"] = "true" if should_minify else "false"
+    #         response = make_response(content)
+    #         response.headers["Content-Type"] = "text/css; charset=utf-8"
+    #         response.headers["Cache-Control"] = "public, max-age=3600"
+    #         response.headers["Last-Modified"] = last_modified
+    #         response.headers["ETag"] = etag
+    #         response.headers["X-Minified"] = "true" if should_minify else "false"
 
-            logging.info(
-                f"成功返回 CSS{content_type_suffix} ({len(content)} 字符) for: {requested_selector}"
-            )
-            return response
+    #         logging.info(
+    #             f"成功返回 CSS{content_type_suffix} ({len(content)} 字符) for: {requested_selector}"
+    #         )
+    #         return response
 
-        except Exception as e:
-            logging.error(f"加载 CSS 时发生错误: {e}", exc_info=True)
-            return jsonify({"error": "Internal server error"}), 500
+    #     except Exception as e:
+    #         logging.error(f"加载 CSS 时发生错误: {e}", exc_info=True)
+    #         return jsonify({"error": "Internal server error"}), 500
 
-    @app.route("/html/<path:fragment_name>.json", methods=["GET"])
-    def serve_html_fragment(fragment_name):
-        """
-        HTML 片段动态加载 API 端点（支持自动压缩，从统一文件读取）
-        """
-        try:
-            fragments_file = os.path.join(
-                os.path.dirname(__file__), "html_fragments.html"
-            )
-            if not os.path.exists(fragments_file):
-                logging.error(f"HTML 片段文件不存在: {fragments_file}")
-                return jsonify({"error": "HTML fragments file not found"}), 500
-            with open(fragments_file, "r", encoding="utf-8") as f:
-                fragments_content = f.read()
-            pattern = rf"<!-- 段落开始： {re.escape(fragment_name)} -->\s*(.*?)\s*<!-- 段落结束： {re.escape(fragment_name)} -->"
-            match = re.search(pattern, fragments_content, re.DOTALL)
+    # @app.route("/html/<path:fragment_name>.json", methods=["GET"])
+    # def serve_html_fragment(fragment_name):
+    #     """
+    #     HTML 片段动态加载 API 端点（支持自动压缩，从统一文件读取）
+    #     """
+    #     try:
+    #         fragments_file = os.path.join(
+    #             os.path.dirname(__file__), "html_fragments.html"
+    #         )
+    #         if not os.path.exists(fragments_file):
+    #             logging.error(f"HTML 片段文件不存在: {fragments_file}")
+    #             return jsonify({"error": "HTML fragments file not found"}), 500
+    #         with open(fragments_file, "r", encoding="utf-8") as f:
+    #             fragments_content = f.read()
+    #         pattern = rf"<!-- 段落开始： {re.escape(fragment_name)} -->\s*(.*?)\s*<!-- 段落结束： {re.escape(fragment_name)} -->"
+    #         match = re.search(pattern, fragments_content, re.DOTALL)
 
-            if not match:
-                logging.error(f"HTML 片段未找到: {fragment_name}")
-                return (
-                    jsonify({"error": f"HTML fragment '{fragment_name}' not found"}),
-                    404,
-                )
-            original_content = match.group(1).strip()
-            minify_param = request.args.get("minify", "true").lower()
-            should_minify = minify_param in ["true", "1", "yes", ""]
-            if should_minify:
-                content = original_content
-                content_type_suffix = " (original, compression disabled)"
-                logging.info(
-                    f"HTML 片段 {fragment_name} 压缩功能已禁用，返回原始大小: {len(original_content)} 字节"
-                )
-            else:
-                content = original_content
-                content_type_suffix = " (original)"
-                logging.info(
-                    f"HTML 片段 {fragment_name} 返回原始版本：{len(content)} 字节"
-                )
-            file_mtime = os.path.getmtime(fragments_file)
-            last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
-                "%a, %d %b %Y %H:%M:%S GMT"
-            )
-            etag_base = hashlib.md5(content.encode("utf-8")).hexdigest()
-            etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
-            if_modified_since = request.headers.get("If-Modified-Since")
-            if_none_match = request.headers.get("If-None-Match")
+    #         if not match:
+    #             logging.error(f"HTML 片段未找到: {fragment_name}")
+    #             return (
+    #                 jsonify({"error": f"HTML fragment '{fragment_name}' not found"}),
+    #                 404,
+    #             )
+    #         original_content = match.group(1).strip()
+    #         minify_param = request.args.get("minify", "true").lower()
+    #         should_minify = minify_param in ["true", "1", "yes", ""]
+    #         if should_minify:
+    #             content = original_content
+    #             content_type_suffix = " (original, compression disabled)"
+    #             logging.info(
+    #                 f"HTML 片段 {fragment_name} 压缩功能已禁用，返回原始大小: {len(original_content)} 字节"
+    #             )
+    #         else:
+    #             content = original_content
+    #             content_type_suffix = " (original)"
+    #             logging.info(
+    #                 f"HTML 片段 {fragment_name} 返回原始版本：{len(content)} 字节"
+    #             )
+    #         file_mtime = os.path.getmtime(fragments_file)
+    #         last_modified = datetime.datetime.fromtimestamp(file_mtime).strftime(
+    #             "%a, %d %b %Y %H:%M:%S GMT"
+    #         )
+    #         etag_base = hashlib.md5(content.encode("utf-8")).hexdigest()
+    #         etag = f'"{etag_base}-{"min" if should_minify else "orig"}"'
+    #         if_modified_since = request.headers.get("If-Modified-Since")
+    #         if_none_match = request.headers.get("If-None-Match")
 
-            if (if_modified_since == last_modified) or (if_none_match == etag):
-                logging.debug(
-                    f"HTML 片段 {fragment_name} 使用缓存版本 (304){content_type_suffix}"
-                )
-                return "", 304
-            response = make_response(content)
-            response.headers["Content-Type"] = "text/html; charset=utf-8"
-            response.headers["Cache-Control"] = "public, max-age=3600"
-            response.headers["Last-Modified"] = last_modified
-            response.headers["ETag"] = etag
-            response.headers["X-Minified"] = "true" if should_minify else "false"
+    #         if (if_modified_since == last_modified) or (if_none_match == etag):
+    #             logging.debug(
+    #                 f"HTML 片段 {fragment_name} 使用缓存版本 (304){content_type_suffix}"
+    #             )
+    #             return "", 304
+    #         response = make_response(content)
+    #         response.headers["Content-Type"] = "text/html; charset=utf-8"
+    #         response.headers["Cache-Control"] = "public, max-age=3600"
+    #         response.headers["Last-Modified"] = last_modified
+    #         response.headers["ETag"] = etag
+    #         response.headers["X-Minified"] = "true" if should_minify else "false"
 
-            logging.info(
-                f"成功返回 HTML 片段 {fragment_name}{content_type_suffix} ({len(content)} 字符)"
-            )
-            return response
+    #         logging.info(
+    #             f"成功返回 HTML 片段 {fragment_name}{content_type_suffix} ({len(content)} 字符)"
+    #         )
+    #         return response
 
-        except Exception as e:
-            logging.error(f"加载 HTML 片段时发生错误: {e}", exc_info=True)
-            return jsonify({"error": "Internal server error"}), 500
+    #     except Exception as e:
+    #         logging.error(f"加载 HTML 片段时发生错误: {e}", exc_info=True)
+    #         return jsonify({"error": "Internal server error"}), 500
 
     @app.route("/api/<path:method>", methods=["GET", "POST"])
     def api_call(method):

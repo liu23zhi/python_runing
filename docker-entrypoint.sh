@@ -15,6 +15,8 @@ fi
 
 # 从 /app/config.ini 读取 ssl_enabled 的值
 ssl_enabled=$(sed -n 's/^[[:space:]]*ssl_enabled[[:space:]]*=[[:space:]]*\(.*\)/\1/p' /app/config.ini | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+# 从 /app/config.ini 读取 https_only 的值
+https_only=$(sed -n 's/^[[:space:]]*https_only[[:space:]]*=[[:space:]]*\(.*\)/\1/p' /app/config.ini | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
 
 # 创建supervisor配置
 cat > /etc/supervisor/conf.d/python-running.conf <<'SUPERVISOR_EOF'
@@ -36,75 +38,19 @@ command=python3 /app/main.py --host 127.0.0.1 --port 5000
 directory=/app
 autostart=true
 autorestart=true
-stdout_logfile=/var/log/supervisor/flask-stdout.log
-stderr_logfile=/var/log/supervisor/flask-stderr.log
+# 修改：将日志重定向到标准输出/错误，以便 docker logs 可以捕获
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
 priority=10
 SUPERVISOR_EOF
 
-# 检查SSL证书
-if [ -f "/app/ssl/fullchain.pem" ] && [ -f "/app/ssl/privkey.key" ] && [ "$ssl_enabled" = "true" ]; then
-    echo "检测到SSL证书文件"
-    echo "将同时启用HTTP（80端口）和HTTPS（443端口）"
-    echo "Nginx将处理HTTP到HTTPS的重定向"
-    
-    # 修改nginx配置，添加HTTP到HTTPS的重定向
-    cat > /etc/nginx/nginx.conf <<'NGINX_EOF'
-user  www-data;
-worker_processes  auto;
-error_log  /var/log/nginx/error.log warn;
-pid        /var/run/nginx.pid;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-
-    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
-                      '$status $body_bytes_sent "$http_referer" '
-                      '"$http_user_agent" "$http_x_forwarded_for"';
-
-    access_log  /var/log/nginx/access.log  main;
-
-    sendfile        on;
-    tcp_nopush      on;
-    tcp_nodelay     on;
-    keepalive_timeout  65;
-    types_hash_max_size 2048;
-
-    gzip  on;
-    gzip_vary on;
-    gzip_proxied any;
-    gzip_comp_level 6;
-    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
-
-    # HTTP服务器 - 重定向到HTTPS
-    server {
-        listen 80;
-        server_name _;
-
-        # 重定向所有HTTP请求到HTTPS
-        return 301 https://$host$request_uri;
-    }
-
-    # HTTPS服务器 - 端口443
-    server {
-        listen 443 ssl http2;
-        server_name _;
-
-        # SSL证书配置
-        ssl_certificate /app/ssl/fullchain.pem;
-        ssl_certificate_key /app/ssl/privkey.key;
-
-        # SSL安全配置
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
-        ssl_prefer_server_ciphers off;
-        ssl_session_cache shared:SSL:10m;
-        ssl_session_timeout 10m;
-
+# ==========================================
+# 1. 生成通用的 Nginx Location 配置
+#    (避免代码重复，供 HTTP 和 HTTPS 共同引用)
+# ==========================================
+cat > /etc/nginx/app_locations.conf <<'LOCATIONS_EOF'
         # 静态文件根目录
         root /app;
 
@@ -178,21 +124,134 @@ http {
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
         }
+LOCATIONS_EOF
+
+# ==========================================
+# 2. 生成主 Nginx 配置
+# ==========================================
+
+# 检查SSL证书和启用状态
+if [ -f "/app/ssl/fullchain.pem" ] && [ -f "/app/ssl/privkey.key" ] && [ "$ssl_enabled" = "true" ]; then
+    echo "检测到SSL证书文件且SSL已启用"
+    
+    # 开始写入 nginx.conf 头部
+    cat > /etc/nginx/nginx.conf <<'HEAD_EOF'
+user  www-data;
+worker_processes  auto;
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log  /var/log/nginx/access.log  main;
+    sendfile        on;
+    tcp_nopush      on;
+    tcp_nodelay     on;
+    keepalive_timeout  65;
+    types_hash_max_size 2048;
+    gzip  on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+HEAD_EOF
+
+    # 根据 https_only 配置端口 80 的行为
+    if [ "$https_only" = "true" ]; then
+        echo "HTTPS Only 模式: 开启，Port 80 将重定向到 HTTPS"
+        cat >> /etc/nginx/nginx.conf <<'EOF_80_REDIRECT'
+    # HTTP服务器 - 强制重定向到HTTPS
+    server {
+        listen 80;
+        server_name _;
+        return 301 https://$host$request_uri;
+    }
+EOF_80_REDIRECT
+    else
+        echo "HTTPS Only 模式: 关闭，Port 80 将正常提供服务 (HTTP + HTTPS 并存)"
+        cat >> /etc/nginx/nginx.conf <<'EOF_80_NORMAL'
+    # HTTP服务器 - 正常服务
+    server {
+        listen 80;
+        server_name _;
+        include /etc/nginx/app_locations.conf;
+    }
+EOF_80_NORMAL
+    fi
+
+    # 配置端口 443 (HTTPS)
+    cat >> /etc/nginx/nginx.conf <<'EOF_443'
+    # HTTPS服务器 - 端口443
+    server {
+        listen 443 ssl http2;
+        server_name _;
+
+        # SSL证书配置
+        ssl_certificate /app/ssl/fullchain.pem;
+        ssl_certificate_key /app/ssl/privkey.key;
+
+        # SSL安全配置
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
+        ssl_prefer_server_ciphers off;
+        ssl_session_cache shared:SSL:10m;
+        ssl_session_timeout 10m;
+        
+        # 引用通用Location配置
+        include /etc/nginx/app_locations.conf;
     }
 }
-NGINX_EOF
-    
-    echo "已配置HTTPS模式的nginx"
+EOF_443
+
 else
-    echo "未检测到SSL证书文件或SSL未启用"
-    echo "将在HTTP模式（80端口）运行"
-    echo "如需启用HTTPS，请将证书文件放置在 ./ssl/ 目录下："
-    echo "  - ./ssl/fullchain.pem (证书文件)"
-    echo "  - ./ssl/privkey.key (私钥文件)"
-    echo "并在config.ini中设置 ssl_enabled=true"
+    echo "SSL未启用或证书缺失，仅启用HTTP模式（80端口）"
     
-    # 使用HTTP模式的nginx配置（已经在/etc/nginx/nginx.conf中）
-    echo "已配置HTTP模式的nginx"
+    # 写入完整的 HTTP-Only 配置
+    cat > /etc/nginx/nginx.conf <<'HTTP_ONLY_EOF'
+user  www-data;
+worker_processes  auto;
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log  /var/log/nginx/access.log  main;
+    sendfile        on;
+    tcp_nopush      on;
+    tcp_nodelay     on;
+    keepalive_timeout  65;
+    types_hash_max_size 2048;
+    gzip  on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+
+    # HTTP服务器 - 端口80
+    server {
+        listen 80;
+        server_name _;
+        include /etc/nginx/app_locations.conf;
+    }
+}
+HTTP_ONLY_EOF
 fi
 
 # 创建日志目录
