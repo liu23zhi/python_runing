@@ -53,7 +53,5 @@ desktop.ini
 # MacOS相关
 .DS_Store
 
-# 其他
-README.md
-LICENSE
-*.md
+# 文档文件（保留在容器中供参考）
+# *.md  # 不要排除所有markdown文件

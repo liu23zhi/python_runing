@@ -43,13 +43,42 @@ echo ""
 echo "3. 检查端口占用情况..."
 check_port() {
     local port=$1
-    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1 ; then
-        echo -e "${YELLOW}⚠ 端口 $port 已被占用${NC}"
-        echo "占用进程:"
-        lsof -Pi :$port -sTCP:LISTEN
-        return 1
+    
+    # 尝试使用lsof（最常用）
+    if command -v lsof &> /dev/null; then
+        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1 ; then
+            echo -e "${YELLOW}⚠ 端口 $port 已被占用${NC}"
+            echo "占用进程:"
+            lsof -Pi :$port -sTCP:LISTEN
+            return 1
+        else
+            echo -e "${GREEN}✓ 端口 $port 可用${NC}"
+            return 0
+        fi
+    # 尝试使用ss（现代Linux系统）
+    elif command -v ss &> /dev/null; then
+        if ss -tln | grep -q ":$port "; then
+            echo -e "${YELLOW}⚠ 端口 $port 已被占用${NC}"
+            echo "占用情况:"
+            ss -tlnp | grep ":$port "
+            return 1
+        else
+            echo -e "${GREEN}✓ 端口 $port 可用${NC}"
+            return 0
+        fi
+    # 尝试使用netstat（旧系统）
+    elif command -v netstat &> /dev/null; then
+        if netstat -tln | grep -q ":$port "; then
+            echo -e "${YELLOW}⚠ 端口 $port 已被占用${NC}"
+            echo "占用情况:"
+            netstat -tlnp | grep ":$port "
+            return 1
+        else
+            echo -e "${GREEN}✓ 端口 $port 可用${NC}"
+            return 0
+        fi
     else
-        echo -e "${GREEN}✓ 端口 $port 可用${NC}"
+        echo -e "${YELLOW}⚠ 无法检查端口 $port (lsof/ss/netstat 未安装)${NC}"
         return 0
     fi
 }
@@ -78,11 +107,15 @@ if [ -f "ssl/fullchain.pem" ] && [ -f "ssl/privkey.key" ]; then
     echo "  - ssl/fullchain.pem"
     echo "  - ssl/privkey.key"
     
-    # 检查证书有效性
-    if openssl x509 -in ssl/fullchain.pem -noout -checkend 0 2>/dev/null; then
-        echo -e "${GREEN}✓ SSL证书有效${NC}"
+    # 检查证书有效性（如果openssl可用）
+    if command -v openssl &> /dev/null; then
+        if openssl x509 -in ssl/fullchain.pem -noout -checkend 0 2>/dev/null; then
+            echo -e "${GREEN}✓ SSL证书有效${NC}"
+        else
+            echo -e "${RED}✗ SSL证书可能无效或已过期${NC}"
+        fi
     else
-        echo -e "${RED}✗ SSL证书可能无效或已过期${NC}"
+        echo -e "${YELLOW}⚠ openssl未安装，无法验证证书有效性${NC}"
     fi
 else
     echo -e "${YELLOW}⚠ 未找到SSL证书文件${NC}"
@@ -90,13 +123,19 @@ else
     echo "  - ssl/fullchain.pem"
     echo "  - ssl/privkey.key"
     echo ""
-    echo "可以使用以下命令生成自签名证书（仅测试用）："
-    echo "  mkdir -p ssl"
-    echo "  openssl req -x509 -newkey rsa:4096 -nodes \\"
-    echo "    -keyout ssl/privkey.key \\"
-    echo "    -out ssl/fullchain.pem \\"
-    echo "    -days 365 \\"
-    echo "    -subj \"/CN=localhost\""
+    if command -v openssl &> /dev/null; then
+        echo "可以使用以下命令生成自签名证书（仅测试用）："
+        echo "  mkdir -p ssl"
+        echo "  openssl req -x509 -newkey rsa:4096 -nodes \\"
+        echo "    -keyout ssl/privkey.key \\"
+        echo "    -out ssl/fullchain.pem \\"
+        echo "    -days 365 \\"
+        echo "    -subj \"/CN=localhost\""
+    else
+        echo "提示：需要安装openssl工具来生成证书"
+        echo "  sudo apt-get install openssl  # Debian/Ubuntu"
+        echo "  sudo yum install openssl      # CentOS/RHEL"
+    fi
 fi
 
 echo ""

@@ -29,11 +29,19 @@ from flask import Flask, redirect, request
 import sys
 app = Flask(__name__)
 
+# 允许的主机名（防止Host头注入攻击）
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def redirect_to_https(path):
-    url = request.url.replace('http://', 'https://').replace(':80', ':443')
-    return redirect(url, code=301)
+    # 获取主机名（不含端口）
+    host = request.host.split(':')[0]
+    
+    # 构建HTTPS URL（使用原始主机名，但使用443端口）
+    https_url = f'https://{request.host.split(\":")[0]}:443{request.full_path.rstrip(\"?\")}'
+    
+    return redirect(https_url, code=301)
 
 if __name__ == '__main__':
     try:
@@ -51,8 +59,9 @@ if __name__ == '__main__':
     echo "启动主HTTPS服务（443端口）..."
     python3 /app/main.py --host 0.0.0.0 --port 443
     
-    # 如果主服务退出，清理HTTP重定向服务
-    kill $HTTP_PID 2>/dev/null || true
+    # 如果主服务退出，优雅地清理HTTP重定向服务
+    echo "主服务已退出，正在清理HTTP重定向服务..."
+    kill -TERM $HTTP_PID 2>/dev/null && wait $HTTP_PID 2>/dev/null || true
 else
     echo "未检测到SSL证书文件"
     echo "将在HTTP模式（80端口）运行"
