@@ -8227,6 +8227,71 @@
               <h3 class="text-xl font-bold text-teal-700">全局参数</h3>
             </div>
 
+            <!-- ========================================
+               【自动签到设置区域】
+               用于配置多账号模式下的自动签到相关参数
+               包含：开启开关、刷新间隔、随机半径
+               ======================================== -->
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 space-y-3">
+              <!-- 标题区域：图标 + 标题文字 -->
+              <div class="flex items-center gap-2">
+                <!-- 时钟图标：代表自动签到的定时特性 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <h4 class="font-semibold text-amber-800 text-sm">自动签到设置</h4>
+              </div>
+              
+              <!-- 开启自动签到开关：使用滑动开关样式 -->
+              <div class="flex items-center justify-between">
+                <label class="text-sm text-slate-700">开启自动签到</label>
+                <!-- 滑动开关容器 -->
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <!-- 隐藏的checkbox，用于存储实际值 -->
+                  <input 
+                    type="checkbox" 
+                    id="mobile-multi-auto_attendance_enabled"
+                    data-key="auto_attendance_enabled"
+                    class="sr-only peer"
+                  />
+                  <!-- 滑动开关的视觉样式，使用Tailwind的peer修饰符实现状态切换效果 -->
+                  <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+              </div>
+              
+              <!-- 刷新间隔设置：控制自动刷新通知的时间间隔 -->
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">刷新间隔（秒）</label>
+                <input
+                  type="number"
+                  id="mobile-multi-auto_attendance_refresh_s"
+                  data-key="auto_attendance_refresh_s"
+                  class="input-field !text-xs !py-1.5 w-full"
+                  placeholder="推荐值：60秒以上"
+                  min="30"
+                  step="30"
+                />
+                <!-- 说明文字：帮助用户理解参数含义 -->
+                <p class="text-[10px] text-slate-400 mt-1">自动刷新通知的间隔时间，建议不低于60秒</p>
+              </div>
+              
+              <!-- 随机半径设置：控制签到位置的随机偏移范围 -->
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">随机半径（米）</label>
+                <input
+                  type="number"
+                  id="mobile-multi-attendance_user_radius_m"
+                  data-key="attendance_user_radius_m"
+                  class="input-field !text-xs !py-1.5 w-full"
+                  placeholder="0表示精确签到"
+                  min="0"
+                  step="1"
+                />
+                <!-- 说明文字：解释随机半径的用途 -->
+                <p class="text-[10px] text-slate-400 mt-1">签到位置的随机偏移半径，0为精确签到</p>
+              </div>
+            </div>
+
             <div
               id="mobile-multi-global-params-container"
               class="space-y-3 max-h-[60vh] overflow-y-auto"
@@ -37318,20 +37383,62 @@
           }
           if (panelId === "mobile-multi-settings-panel") {
             console.log("[移动端] 激活多账号全局设置面板，开始加载配置...");
+            // 获取全局参数容器元素
             const mobileMultiParamsContainer = document.getElementById(
               "mobile-multi-global-params-container"
             );
+            // 检查必要的容器和函数是否存在
             if (
               mobileMultiParamsContainer &&
               typeof pythonParams !== "undefined" &&
               typeof updateParamInputs === "function"
             ) {
+              // 使用 updateParamInputs 函数更新全局参数容器中的输入值
               updateParamInputs(
                 mobileMultiParamsContainer,
                 "mobile-multi-param",
                 pythonParams
               );
               console.log("[移动端] 多账号全局设置面板配置已自动加载");
+            }
+            
+            /**
+             * 【自动签到设置区域初始化】
+             * 为自动签到相关的输入元素填充当前配置值
+             * 这些元素的 ID 使用 mobile-multi- 前缀，需要单独初始化
+             */
+            if (typeof pythonParams !== "undefined") {
+              // 初始化自动签到开关 (checkbox)
+              const autoAttendanceEnabled = document.getElementById(
+                "mobile-multi-auto_attendance_enabled"
+              );
+              if (autoAttendanceEnabled) {
+                // 设置 checked 状态为 pythonParams 中的值，默认为 false
+                autoAttendanceEnabled.checked = 
+                  pythonParams["auto_attendance_enabled"] || false;
+              }
+              
+              // 初始化刷新间隔输入框 (number)
+              const autoAttendanceRefresh = document.getElementById(
+                "mobile-multi-auto_attendance_refresh_s"
+              );
+              if (autoAttendanceRefresh) {
+                // 设置值为 pythonParams 中的值，默认为空字符串
+                autoAttendanceRefresh.value = 
+                  pythonParams["auto_attendance_refresh_s"] || "";
+              }
+              
+              // 初始化随机半径输入框 (number)
+              const attendanceRadius = document.getElementById(
+                "mobile-multi-attendance_user_radius_m"
+              );
+              if (attendanceRadius) {
+                // 设置值为 pythonParams 中的值，默认为空字符串
+                attendanceRadius.value = 
+                  pythonParams["attendance_user_radius_m"] || "";
+              }
+              
+              console.log("[移动端] 自动签到设置已初始化");
             }
           }
           if (panelId === "mobile-multi-map-panel") {
@@ -39512,21 +39619,28 @@
       });
       document.addEventListener("DOMContentLoaded", function () {
         console.log("[移动端] 开始初始化Phase 4d全局设置面板...");
+        // 获取多账号全局参数容器元素
         const mobileMultiGlobalParamsContainer = document.getElementById(
           "mobile-multi-global-params-container"
         );
+        // 检查容器和创建函数是否存在
         if (
           mobileMultiGlobalParamsContainer &&
           typeof createParamInputs === "function"
         ) {
+          // 定义要排除的参数组（主题设置由其他组件处理）
           const excludeGroups = ["主题设置"];
+          // 创建参数输入元素，并绑定变更回调
           createParamInputs(
             mobileMultiGlobalParamsContainer,
             "mobile-multi-param",
             function (e) {
+              // 获取触发事件的输入元素
               const input = e.target;
+              // 获取参数键名
               const key = input.dataset.key;
               let value;
+              // 根据输入类型获取值
               if (input.type === "checkbox") {
                 value = input.checked;
               } else if (input.type === "number") {
@@ -39534,6 +39648,7 @@
               } else {
                 value = input.value;
               }
+              // 调用 API 保存参数
               if (typeof callPythonAPI === "function") {
                 callPythonAPI("update_param", key, value);
                 console.log(`[移动端多账号] 全局参数已更新: ${key} = ${value}`);
@@ -39541,10 +39656,12 @@
             },
             excludeGroups
           );
+          // 检查是否可以自动填充配置值
           if (
             typeof pythonParams !== "undefined" &&
             typeof updateParamInputs === "function"
           ) {
+            // 使用 updateParamInputs 函数填充全局参数容器
             updateParamInputs(
               mobileMultiGlobalParamsContainer,
               "mobile-multi-param",
@@ -39559,6 +39676,70 @@
 
           console.log("[移动端] 多账号全局参数面板已初始化");
         }
+        
+        /**
+         * 【自动签到设置区域初始化】
+         * 在 DOMContentLoaded 时为自动签到设置元素填充初始值
+         * 并绑定 change 事件处理器，实现实时保存
+         */
+        if (typeof pythonParams !== "undefined") {
+          // 初始化自动签到开关的值
+          const autoAttendanceEnabled = document.getElementById(
+            "mobile-multi-auto_attendance_enabled"
+          );
+          if (autoAttendanceEnabled) {
+            // 设置复选框的选中状态
+            autoAttendanceEnabled.checked = 
+              pythonParams["auto_attendance_enabled"] || false;
+            // 绑定 change 事件，实现实时保存
+            autoAttendanceEnabled.addEventListener("change", function() {
+              if (typeof callPythonAPI === "function") {
+                callPythonAPI("update_param", "auto_attendance_enabled", this.checked);
+                console.log(`[移动端多账号] 自动签到开关已更新: ${this.checked}`);
+              }
+            });
+          }
+          
+          // 初始化刷新间隔输入框的值
+          const autoAttendanceRefresh = document.getElementById(
+            "mobile-multi-auto_attendance_refresh_s"
+          );
+          if (autoAttendanceRefresh) {
+            // 设置输入框的值
+            autoAttendanceRefresh.value = 
+              pythonParams["auto_attendance_refresh_s"] || "";
+            // 绑定 change 事件，实现实时保存
+            autoAttendanceRefresh.addEventListener("change", function() {
+              if (typeof callPythonAPI === "function") {
+                const value = parseFloat(this.value) || 0;
+                callPythonAPI("update_param", "auto_attendance_refresh_s", value);
+                console.log(`[移动端多账号] 刷新间隔已更新: ${value}`);
+              }
+            });
+          }
+          
+          // 初始化随机半径输入框的值
+          const attendanceRadius = document.getElementById(
+            "mobile-multi-attendance_user_radius_m"
+          );
+          if (attendanceRadius) {
+            // 设置输入框的值
+            attendanceRadius.value = 
+              pythonParams["attendance_user_radius_m"] || "";
+            // 绑定 change 事件，实现实时保存
+            attendanceRadius.addEventListener("change", function() {
+              if (typeof callPythonAPI === "function") {
+                const value = parseFloat(this.value) || 0;
+                callPythonAPI("update_param", "attendance_user_radius_m", value);
+                console.log(`[移动端多账号] 随机半径已更新: ${value}`);
+              }
+            });
+          }
+          
+          console.log("[移动端] 自动签到设置区域已初始化并绑定事件");
+        }
+        
+        // 获取配置文件选择器元素
         const configSelect = document.getElementById(
           "multi-config-user-select"
         );
@@ -44025,39 +44206,90 @@
           showModalAlert("删除失败", "错误");
         }
       }
+      /**
+       * saveMobileMultiGlobalSettings - 保存移动端多账号模式的全局设置
+       * 
+       * 功能说明：
+       * 1. 收集 mobile-multi-settings-panel 面板中所有带有 data-key 属性的输入元素
+       * 2. 包括 mobile-multi-global-params-container 容器内的参数
+       * 3. 包括自动签到设置区域 (mobile-multi-auto_attendance_*) 的参数
+       * 4. 将收集到的参数通过 callPythonAPI('update_param', ...) 保存到 multi_global_params
+       */
       function saveMobileMultiGlobalSettings() {
         try {
+          // 获取整个设置面板容器，以便收集所有参数（包括自动签到设置区域）
+          const settingsPanel = document.getElementById(
+            "mobile-multi-settings-panel"
+          );
+          // 同时获取原有的全局参数容器，用于向后兼容
           const container = document.getElementById(
             "mobile-multi-global-params-container"
           );
-          if (!container) {
+          
+          // 如果两个容器都不存在，则显示错误提示并返回
+          if (!settingsPanel && !container) {
             showModalAlert("找不到全局参数容器", "错误");
             return;
           }
+          
+          // 初始化参数对象，用于存储收集到的所有键值对
           const params = {};
-          container
-            .querySelectorAll("input, select, textarea")
-            .forEach((input) => {
-              const key = input.dataset.key;
-              if (!key) return;
-              if (input.type === "checkbox") {
-                params[key] = input.checked;
-              } else if (input.type === "number") {
-                params[key] = parseFloat(input.value) || 0;
-              } else {
-                params[key] = input.value;
-              }
-            });
+          
+          /**
+           * collectInputs - 辅助函数，用于从指定容器中收集输入元素的值
+           * @param {HTMLElement} containerEl - 要收集输入的容器元素
+           * 
+           * 处理逻辑：
+           * - checkbox 类型：获取 checked 布尔值
+           * - number 类型：解析为浮点数，无效值默认为 0
+           * - 其他类型：获取 value 字符串值
+           */
+          function collectInputs(containerEl) {
+            // 如果容器不存在，直接返回
+            if (!containerEl) return;
+            // 遍历容器内所有的 input, select, textarea 元素
+            containerEl
+              .querySelectorAll("input, select, textarea")
+              .forEach((input) => {
+                // 获取 data-key 属性，这是参数的键名
+                const key = input.dataset.key;
+                // 如果没有 data-key 属性，跳过该元素
+                if (!key) return;
+                // 根据输入类型获取对应的值
+                if (input.type === "checkbox") {
+                  // 复选框：获取 checked 状态（布尔值）
+                  params[key] = input.checked;
+                } else if (input.type === "number") {
+                  // 数字输入框：解析为浮点数，无效值默认为 0
+                  params[key] = parseFloat(input.value) || 0;
+                } else {
+                  // 其他类型（文本、选择框等）：获取字符串值
+                  params[key] = input.value;
+                }
+              });
+          }
+          
+          // 从整个设置面板收集参数（包括自动签到设置区域）
+          collectInputs(settingsPanel);
+          // 从全局参数容器收集参数（保持向后兼容）
+          collectInputs(container);
+          
+          // 检查 callPythonAPI 函数是否可用
           if (typeof callPythonAPI === "function") {
+            // 遍历所有收集到的参数，逐个调用 API 保存
             Object.keys(params).forEach((key) => {
               callPythonAPI("update_param", key, params[key]);
             });
+            // 显示保存成功提示
             showModalAlert("全局设置已保存", "成功");
+            // 在控制台输出保存的参数，方便调试
             console.log("[移动端] 全局参数已保存:", params);
           } else {
+            // API 不可用时显示错误提示
             showModalAlert("API不可用", "错误");
           }
         } catch (error) {
+          // 捕获并记录任何异常
           console.error("[移动端] 保存全局设置失败:", error);
           showModalAlert("保存失败", "错误");
         }
