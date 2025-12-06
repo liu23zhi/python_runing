@@ -9063,14 +9063,33 @@
                   </button>
                 </div>
                 <!-- 留言列表容器 -->
+                <!-- 美化说明：
+                     - max-h-[50vh]: 最大高度约为视口50%，防止列表过长占满页面
+                     - overflow-y-auto: 当内容超出高度时显示垂直滚动条
+                     - bg-slate-50: 添加浅灰色背景与其他面板保持一致
+                     - border border-slate-200: 柔和边框增强视觉层次
+                     - rounded-lg: 圆角设计符合现代移动端UI风格
+                     - p-3: 内边距让内容呼吸空间更好
+                     - scrollbar-width: thin: Firefox下显示细滚动条
+                     - -webkit-overflow-scrolling: touch: iOS设备触摸滚动优化
+                -->
                 <div
                   id="mobile-multi-admin-messages-list"
-                  class="space-y-2 max-h-auto overflow-y-auto"
+                  class="space-y-2 max-h-[50vh] overflow-y-auto bg-slate-50 border border-slate-200 rounded-lg p-3 pr-1"
+                  style="scrollbar-width: thin; -webkit-overflow-scrolling: touch"
                 >
                   <!-- 加载占位提示 -->
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
+                  <!-- 美化说明：使用旋转动画加载指示器，与其他移动端组件保持一致风格 -->
+                  <div
+                    class="flex flex-col items-center justify-center py-10 text-slate-400"
+                  >
+                    <!-- 旋转加载动画：使用border制作圆环，animate-spin实现旋转 -->
+                    <div
+                      class="w-6 h-6 border-3 border-sky-100 border-t-sky-500 rounded-full animate-spin mb-2"
+                    ></div>
+                    <!-- 加载提示文字 -->
+                    <span class="text-xs font-medium">加载中...</span>
+                  </div>
                 </div>
               </div>
 
@@ -10308,10 +10327,31 @@
                   刷新
                 </button>
               </div>
-              <div id="mobile-multi-admin-messages-list" class="space-y-2">
-                <p class="text-slate-400 text-center py-10 text-xs">
-                  加载中...
-                </p>
+              <!-- 留言列表容器（第二实例）-->
+              <!-- 美化说明：与第一实例保持一致风格
+                   - max-h-[50vh]: 最大高度约为视口50%
+                   - bg-slate-50: 浅灰色背景
+                   - border border-slate-200: 柔和边框
+                   - rounded-lg: 圆角设计
+                   - scrollbar-width: thin: Firefox细滚动条
+                   - -webkit-overflow-scrolling: touch: iOS触摸滚动优化
+              -->
+              <div
+                id="mobile-multi-admin-messages-list"
+                class="space-y-2 max-h-[50vh] overflow-y-auto bg-slate-50 border border-slate-200 rounded-lg p-3 pr-1"
+                style="scrollbar-width: thin; -webkit-overflow-scrolling: touch"
+              >
+                <!-- 加载占位提示（使用旋转动画加载指示器）-->
+                <div
+                  class="flex flex-col items-center justify-center py-10 text-slate-400"
+                >
+                  <!-- 旋转加载动画 -->
+                  <div
+                    class="w-6 h-6 border-3 border-sky-100 border-t-sky-500 rounded-full animate-spin mb-2"
+                  ></div>
+                  <!-- 加载提示文字 -->
+                  <span class="text-xs font-medium">加载中...</span>
+                </div>
               </div>
             </div>
 
