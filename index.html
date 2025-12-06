@@ -6698,552 +6698,6 @@
             </div>
           </div>
           <!-- ========================================
-             【管理面板】单账号模式
-             复用 mobile-admin-panel-unified 的设计语言
-             ======================================== -->
-          <div
-            class="mobile-card mobile-card-fullscreen hidden relative overflow-hidden !p-5"
-            id="mobile-admin-panel"
-          >
-            <!-- 装饰性渐变背景圆圈：右上角天蓝色渐变 -->
-            <div
-              class="absolute -top-10 -right-10 w-40 h-40 bg-gradient-to-br from-sky-100/50 to-blue-100/50 rounded-full blur-3xl pointer-events-none"
-            ></div>
-            <!-- 装饰性渐变背景圆圈：左下角紫色渐变 -->
-            <div
-              class="absolute -bottom-10 -left-10 w-32 h-32 bg-gradient-to-tr from-indigo-100/50 to-purple-100/50 rounded-full blur-3xl pointer-events-none"
-            ></div>
-
-            <!-- 面板头部区域：包含图标、标题 -->
-            <div
-              class="relative flex items-center justify-between mb-6 flex-shrink-0"
-            >
-              <!-- 左侧：图标和标题组合 -->
-              <div class="flex items-center gap-3">
-                <!-- 管理面板图标容器：白色背景圆角方形 -->
-                <div
-                  class="w-12 h-12 rounded-2xl bg-white shadow-md border border-slate-100 flex items-center justify-center text-sky-600"
-                >
-                  <!-- 齿轮图标：表示管理/设置功能 -->
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="w-6 h-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37 1 .608 2.296.07 2.572-1.065z"
-                    />
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                </div>
-                <!-- 标题 -->
-                <div>
-                  <h3 class="text-xl font-bold text-slate-800 tracking-tight">
-                    管理面板
-                  </h3>
-                  <div
-                    id="mobile-admin-panel-single-status"
-                    class="text-xs font-medium mt-0.5 text-slate-500"
-                  >
-                    单账号管理
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 标签导航区域：水平滚动的标签按钮 -->
-            <div
-              id="mobile-admin-tabs-nav-panel"
-              class="relative flex border-b-2 border-slate-200 overflow-x-auto gap-1 pb-0 mb-4 flex-shrink-0"
-              style="scrollbar-width: none; -webkit-overflow-scrolling: touch"
-            ></div>
-
-            <div
-              id="mobile-admin-panel-content-panel"
-              class="relative text-sm flex-1 overflow-y-auto min-h-0 pr-1"
-            >
-              <div id="mobile-admin-users-panel-panel" class="space-y-3">
-                <h4 class="font-semibold text-sm">用户列表</h4>
-                <div class="flex justify-between items-center">
-                  <div class="flex gap-2">
-                    <button
-                      id="mobile-admin-create-user-panel"
-                      class="btn btn-primary !py-1 !px-2 text-xs"
-                    >
-                      新增
-                    </button>
-                    <button
-                      id="mobile-admin-refresh-users-panel"
-                      class="btn btn-ghost !py-1 !px-2 text-xs"
-                    >
-                      刷新
-                    </button>
-                  </div>
-                </div>
-                <div
-                  id="mobile-admin-users-list-panel"
-                  class="space-y-2 max-h-[50vh] overflow-y-auto"
-                >
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
-                </div>
-              </div>
-
-              <div
-                id="mobile-admin-groups-panel-panel"
-                class="hidden space-y-3"
-              >
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">权限组列表</h4>
-                  <div class="flex gap-2">
-                    <button
-                      id="mobile-admin-create-group-panel"
-                      class="btn btn-primary !py-1 !px-2 text-xs"
-                    >
-                      新增
-                    </button>
-                    <button
-                      id="mobile-admin-refresh-groups-panel"
-                      class="btn btn-ghost !py-1 !px-2 text-xs"
-                    >
-                      刷新
-                    </button>
-                  </div>
-                </div>
-                <div
-                  id="mobile-admin-groups-list-panel"
-                  class="space-y-2 max-h-[50vh] overflow-y-auto"
-                >
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
-                </div>
-              </div>
-
-              <div id="mobile-admin-logs-panel-panel" class="hidden space-y-3">
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">系统日志</h4>
-                  <div class="flex gap-2">
-                    <select
-                      id="mobile-log-limit-select-panel"
-                      class="text-xs border border-slate-300 rounded px-2 py-1"
-                    >
-                      <option value="100">100行</option>
-                      <option value="200">200行</option>
-                      <option value="500">500行</option>
-                    </select>
-                    <button
-                      id="mobile-admin-refresh-logs-panel"
-                      class="btn btn-ghost !py-1 !px-2 text-xs"
-                    >
-                      刷新
-                    </button>
-                  </div>
-                </div>
-                <div
-                  class="bg-slate-900 text-green-400 rounded-lg p-3 font-mono text-xs overflow-auto max-h-[45vh]"
-                >
-                  <pre
-                    id="mobile-admin-logs-content-panel"
-                    class="whitespace-pre-wrap"
-                  >
-加载中...</pre
-                  >
-                </div>
-                <div
-                  id="mobile-admin-logs-pagination-panel"
-                  class="flex justify-between items-center text-xs text-slate-600 pt-2 border-t border-slate-200"
-                >
-                  <button
-                    id="mobile-log-prev-page-panel"
-                    class="btn btn-ghost !py-1 !px-2 text-xs"
-                  >
-                    上一页
-                  </button>
-                  <div class="flex items-center gap-2">
-                    <select
-                      id="mobile-log-page-select-panel"
-                      class="text-xs border border-slate-300 rounded px-2 py-1"
-                    >
-                      <option value="1">第 1 / 1 页</option>
-                    </select>
-                    <span
-                      id="mobile-log-page-total-panel"
-                      class="text-xs text-slate-500"
-                      >(共 0 行)</span
-                    >
-                  </div>
-                  <button
-                    id="mobile-log-next-page-panel"
-                    class="btn btn-ghost !py-1 !px-2 text-xs"
-                  >
-                    下一页
-                  </button>
-                </div>
-              </div>
-
-              <div
-                id="mobile-admin-health-panel-panel"
-                class="hidden space-y-3"
-              >
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">系统状态</h4>
-                  <div class="flex items-center gap-2">
-                    <label class="flex items-center gap-1 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        id="mobile-health-auto-refresh-toggle-panel"
-                        class="w-3 h-3 accent-sky-600 rounded"
-                        checked
-                      />
-                      <span class="text-xs text-slate-600"
-                        >自动刷新
-                        <span
-                          id="mobile-health-countdown-display-panel"
-                          class="font-semibold text-sky-600"
-                        ></span>
-                      </span>
-                    </label>
-                    <button
-                      id="mobile-admin-refresh-health-panel"
-                      class="btn btn-ghost !py-1 !px-2 text-xs"
-                    >
-                      刷新
-                    </button>
-                  </div>
-                </div>
-                <div id="mobile-admin-health-content-panel" class="space-y-3">
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
-                </div>
-              </div>
-
-              <div
-                id="mobile-admin-profile-panel-panel"
-                class="hidden space-y-3"
-              >
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">个人信息</h4>
-                  <button
-                    id="mobile-admin-refresh-profile-panel"
-                    class="btn btn-ghost !py-1 !px-2 text-xs"
-                  >
-                    刷新
-                  </button>
-                </div>
-                <div
-                  id="mobile-admin-profile-content-panel"
-                  class="space-y-3 text-slate-800"
-                >
-                  <div
-                    class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2"
-                  >
-                    <h5 class="font-semibold text-slate-700 text-xs">头像</h5>
-                    <div class="flex items-center gap-3">
-                      <img
-                        id="mobile-profile-avatar-display-panel"
-                        src=""
-                        alt="用户头像"
-                        class="w-16 h-16 rounded-full border-2 border-slate-200"
-                        onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'"
-                      />
-                      <div class="flex-1">
-                        <input
-                          type="file"
-                          id="mobile-profile-avatar-file-panel"
-                          accept="image/*"
-                          class="hidden"
-                        />
-                        <button
-                          class="btn btn-ghost border border-slate-300 !py-1 !px-2 text-xs"
-                          onclick="document.getElementById('mobile-profile-avatar-file-panel').click();"
-                        >
-                          选择图片
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    id="mobile-profile-details-panel"
-                    class="space-y-2"
-                  ></div>
-                </div>
-              </div>
-
-              <div
-                id="mobile-admin-sessions-panel-panel"
-                class="hidden space-y-3"
-              >
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">会话列表</h4>
-                  <div class="flex items-center gap-2">
-                    <label
-                      id="mobile-god-mode-toggle-panel"
-                      class="flex items-center gap-1 cursor-pointer"
-                      style="display: none"
-                    >
-                      <input
-                        type="checkbox"
-                        id="mobile-god-mode-checkbox-panel"
-                        class="w-3 h-3 accent-red-600 rounded"
-                      />
-                      <span class="text-xs font-semibold text-red-600"
-                        >上帝模式</span
-                      >
-                    </label>
-                    <div
-                      id="mobile-admin-session-count-display-panel"
-                      class="text-xs text-slate-600"
-                    ></div>
-                    <button
-                      id="mobile-admin-refresh-sessions-panel"
-                      class="btn btn-ghost !py-1 !px-2 text-xs"
-                      onclick="loadMobileAdminSessionsList()"
-                    >
-                      刷新
-                    </button>
-                  </div>
-                </div>
-                <div
-                  id="mobile-admin-sessions-list-panel"
-                  class="space-y-2 max-h-[50vh] overflow-y-auto"
-                >
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
-                </div>
-              </div>
-
-              <div
-                id="mobile-admin-messages-panel-panel"
-                class="hidden space-y-3"
-              >
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">留言板</h4>
-                  <button
-                    id="mobile-admin-refresh-messages-panel"
-                    class="btn btn-ghost !py-1 !px-2 text-xs"
-                  >
-                    刷新
-                  </button>
-                </div>
-                <div
-                  class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2"
-                >
-                  <h5 class="font-semibold text-slate-700 text-xs">发表留言</h5>
-                  <div
-                    id="mobile-message-guest-fields-panel"
-                    class="space-y-2 hidden"
-                  >
-                    <input
-                      type="text"
-                      id="mobile-message-nickname-panel"
-                      class="input-field text-xs"
-                      placeholder="昵称"
-                      maxlength="50"
-                    />
-                    <input
-                      type="email"
-                      id="mobile-message-email-panel"
-                      class="input-field text-xs"
-                      placeholder="邮箱"
-                    />
-                  </div>
-                  <textarea
-                    id="mobile-message-content-panel"
-                    class="input-field text-xs"
-                    rows="3"
-                    placeholder="留言内容（最多1000字）"
-                    maxlength="1000"
-                  ></textarea>
-                  <div class="text-xs text-slate-500 text-right">
-                    <span id="mobile-message-char-count-panel">0</span> / 1000
-                  </div>
-                  <button
-                    id="mobile-post-message-btn-panel"
-                    class="btn btn-primary w-full !py-1 text-xs"
-                  >
-                    发表
-                  </button>
-                </div>
-                <div
-                  id="mobile-admin-messages-list-panel"
-                  class="space-y-2 max-h-[40vh] overflow-y-auto"
-                >
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
-                </div>
-              </div>
-
-              <div id="mobile-admin-ipban-panel-panel" class="hidden space-y-3">
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">IP封禁</h4>
-                  <button
-                    id="mobile-admin-refresh-ipban-panel"
-                    class="btn btn-ghost !py-1 !px-2 text-xs"
-                  >
-                    刷新
-                  </button>
-                </div>
-                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                  <h5 class="font-semibold text-slate-700 text-xs mb-2">
-                    现有规则
-                  </h5>
-                  <div
-                    id="mobile-ip-ban-list-panel"
-                    class="space-y-2 max-h-[30vh] overflow-y-auto"
-                  >
-                    <p class="text-slate-400 text-center py-6 text-xs">
-                      加载中...
-                    </p>
-                  </div>
-                </div>
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <h5 class="font-semibold text-blue-900 text-xs mb-2">
-                    添加规则
-                  </h5>
-                  <div class="space-y-2">
-                    <select
-                      id="mobile-ban-type-panel"
-                      class="select-field text-xs"
-                    >
-                      <option value="ip">单个IP</option>
-                      <option value="range">IP范围</option>
-                    </select>
-                    <input
-                      type="text"
-                      id="mobile-ban-target-panel"
-                      class="input-field text-xs"
-                      placeholder="IP地址"
-                    />
-                    <select
-                      id="mobile-ban-scope-panel"
-                      class="select-field text-xs"
-                    >
-                      <option value="all">封禁所有功能</option>
-                      <option value="messages_only">仅封禁留言板</option>
-                    </select>
-                    <button
-                      id="mobile-add-ipban-btn-panel"
-                      class="btn btn-primary w-full !py-1 text-xs"
-                    >
-                      添加
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div id="mobile-admin-sms-panel-panel" class="hidden space-y-3">
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">短信配置</h4>
-                  <button
-                    id="mobile-admin-refresh-sms-panel"
-                    class="btn btn-ghost !py-1 !px-2 text-xs"
-                  >
-                    刷新
-                  </button>
-                </div>
-                <div id="mobile-admin-sms-content-panel" class="space-y-3">
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
-                </div>
-              </div>
-
-              <div
-                id="mobile-admin-config-panel-panel"
-                class="hidden space-y-3"
-              >
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">系统配置</h4>
-                  <button
-                    id="mobile-admin-refresh-config-panel"
-                    class="btn btn-ghost !py-1 !px-2 text-xs"
-                  >
-                    刷新
-                  </button>
-                </div>
-                <div id="mobile-admin-config-content-panel" class="space-y-3">
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
-                </div>
-              </div>
-
-              <div
-                id="mobile-admin-captcha-panel-panel"
-                class="hidden space-y-3"
-              >
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">⚙️ 验证码设置</h4>
-                </div>
-                <p class="text-xs text-slate-500 bg-sky-50 p-2 rounded">
-                  💡
-                  使用本地验证码生成器，无需第三方API。请在桌面端控制面板中调整详细参数。
-                </p>
-                <div id="mobile-admin-captcha-list-panel" class="space-y-2">
-                  <p class="text-slate-400 text-center py-4 text-xs">
-                    请在桌面端查看和修改验证码设置
-                  </p>
-                </div>
-              </div>
-
-              <div
-                id="mobile-admin-reminders-panel-panel"
-                class="hidden space-y-3"
-              >
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">定时提醒</h4>
-                  <button
-                    id="mobile-admin-refresh-reminders-panel"
-                    class="btn btn-ghost !py-1 !px-2 text-xs"
-                  >
-                    刷新
-                  </button>
-                </div>
-                <div
-                  id="mobile-admin-reminders-content-panel"
-                  class="space-y-3"
-                >
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
-                </div>
-              </div>
-
-              <div id="mobile-admin-ssl-panel-panel" class="hidden space-y-3">
-                <div class="flex justify-between items-center">
-                  <h4 class="font-semibold text-sm">HTTPS设置</h4>
-                  <button
-                    id="mobile-admin-refresh-ssl-panel"
-                    class="btn btn-ghost !py-1 !px-2 text-xs"
-                  >
-                    刷新
-                  </button>
-                </div>
-                <div id="mobile-admin-ssl-content-panel" class="space-y-3">
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- ========================================
              我的资料面板
              ======================================== -->
           <div
@@ -37157,8 +36611,7 @@
           "mobile-log-panel",
           "mobile-checkpoints-panel",
           "mobile-attendance-panel",
-          "mobile-admin-panel",
-          "mobile-admin-panel-unified", // 【任务7】新增：统一管理面板（单账号模式复用）
+          "mobile-admin-panel-unified", // 【任务7】统一管理面板（单账号模式复用），已移除废弃的 mobile-admin-panel
           "mobile-settings-panel",
           "mobile-profile-panel",
           "mobile-task-history-panel",
@@ -37326,24 +36779,9 @@
             }, 50);
           }
 
-          // 【管理面板】激活时初始化
-          // 当用户切换到管理面板时，自动初始化管理面板的标签页和内容
-          // 原因：管理面板包含多个标签页（用户管理、角色管理等），需要根据用户权限动态创建
-          if (panelId === "mobile-admin-panel") {
-            logMessage_Info("[移动端单账号] 激活管理面板，开始初始化...");
-            // 调用 initMobileAdminPanel 函数初始化管理面板
-            // 参数 'mobile-admin-panel' 是前缀，用于区分单账号和多账号的管理面板
-            if (typeof initMobileAdminPanel === "function") {
-              initMobileAdminPanel("mobile-admin-panel");
-            } else {
-              logMessage_Warning(
-                "[移动端单账号] initMobileAdminPanel函数未定义"
-              );
-            }
-          }
-
           // 【任务7】统一管理面板（mobile-admin-panel-unified）在单账号模式下的激活处理
           // 单账号模式复用多账号管理面板，但需要设置正确的模式标识
+          // 注：已移除废弃的 mobile-admin-panel，统一使用 mobile-admin-panel-unified
           if (panelId === "mobile-admin-panel-unified") {
             logMessage_Info("[移动端单账号] 激活统一管理面板（复用多账号面板），开始初始化...");
             // 设置当前模式为单账号，供主题保存等功能判断
@@ -37443,9 +36881,9 @@
           "mobile-log-panel", // 新增：日志面板
           "mobile-checkpoints-panel", // 【问题6修复】新增：打卡点面板
           "mobile-attendance-panel",
-          "mobile-admin-panel", // 【问题15&18修复】新增：管理面板
           "mobile-settings-panel",
           "mobile-profile-panel", // 新增：我的资料面板
+          // 注：已移除废弃的 mobile-admin-panel，单账号管理面板统一使用 mobile-admin-panel-unified
         ];
 
         const multiModePanels = [
@@ -37570,14 +37008,7 @@
             console.log("[移动端] 激活多账号地图面板，初始化地图...");
             setTimeout(() => {}, 100);
           }
-          if (panelId === "mobile-admin-panel") {
-            console.log("[移动端] 激活管理面板，开始初始化...");
-            if (typeof initMobileAdminPanel === "function") {
-              initMobileAdminPanel("mobile-admin-panel");
-            } else {
-              console.warn("[移动端] initMobileAdminPanel函数未定义");
-            }
-          }
+          // 注：已移除废弃的 mobile-admin-panel 处理代码，统一使用 mobile-admin-panel-unified
           if (panelId === "mobile-admin-panel-unified") {
             console.log("[移动端] 激活多账号管理面板，开始初始化...");
             // 【任务7】设置当前模式为多账号，供主题保存等功能判断
@@ -37624,8 +37055,8 @@
           "mobile-notification-panel": "notifications",
           "mobile-attendance-panel": "attendance",
           "mobile-settings-panel": "settings",
-          "mobile-admin-panel": "admin",
-          "mobile-admin-panel-unified": "admin", // 【任务7】添加统一管理面板的导航映射
+          // 注：已移除废弃的 mobile-admin-panel，统一使用 mobile-admin-panel-unified
+          "mobile-admin-panel-unified": "admin", // 【任务7】统一管理面板的导航映射
           "mobile-multi-account-panel": "accounts",
           "mobile-multi-control-panel": "control",
           "mobile-multi-map-panel": "map",
@@ -37650,7 +37081,7 @@
           "mobile-log-panel": "日志",
           "mobile-checkpoints-panel": "打卡点",
           "mobile-attendance-panel": "签到",
-          "mobile-admin-panel": "管理",
+          // 注：已移除废弃的 mobile-admin-panel，统一使用 mobile-admin-panel-unified
           "mobile-settings-panel": "设置",
           "mobile-profile-panel": "我的",
           "mobile-task-details-panel": "任务详情",
@@ -39918,17 +39349,15 @@
           tabsNavId = "mobile-multi-admin-tabs-nav";
           contentId = "mobile-multi-admin-panel-content";
         } else if (prefix === "mobile-admin-panel-unified") {
-          // 统一移动端管理面板
+          // 统一移动端管理面板（同时支持单账号和多账号模式）
           tabsNavId = "mobile-multi-admin-tabs-nav-panel";
           contentId = "mobile-multi-admin-content-panel";
-        } else if (prefix === "mobile-admin-panel") {
-          // 单账号模式管理面板，复用统一面板的标签导航
-          tabsNavId = "mobile-admin-tabs-nav-panel";
-          contentId = "mobile-admin-panel-content-panel";
         } else {
+          // 默认情况（保持兼容性）
           tabsNavId = "mobile-admin-tabs-nav";
           contentId = "mobile-admin-panel-content";
         }
+        // 注：已移除废弃的 mobile-admin-panel 分支，单账号模式现在使用 mobile-admin-panel-unified
         const tabsNav = document.getElementById(tabsNavId);
         if (!tabsNav) {
           console.error(`[移动端管理面板] 找不到标签页导航容器: ${tabsNavId}`);
@@ -41075,16 +40504,15 @@
           tabsNavId = "mobile-multi-admin-tabs-nav";
           contentId = "mobile-multi-admin-panel-content";
         } else if (prefix === "mobile-admin-panel-unified") {
-          // 统一移动端管理面板
+          // 统一移动端管理面板（同时支持单账号和多账号模式）
           tabsNavId = "mobile-multi-admin-tabs-nav-panel";
           contentId = "mobile-multi-admin-content-panel";
-        } else if (prefix === "mobile-admin-panel") {
-          tabsNavId = "mobile-admin-tabs-nav-panel";
-          contentId = "mobile-admin-panel-content-panel";
         } else {
+          // 默认情况（保持兼容性）
           tabsNavId = "mobile-admin-tabs-nav";
           contentId = "mobile-admin-panel-content";
         }
+        // 注：已移除废弃的 mobile-admin-panel 分支，单账号模式现在使用 mobile-admin-panel-unified
         const tabsNav = document.getElementById(tabsNavId);
         const content = document.getElementById(contentId);
 
@@ -41120,123 +40548,11 @@
               "px-4 py-2 font-semibold text-xs whitespace-nowrap rounded-lg transition text-slate-400 hover:text-slate-600 hover:bg-slate-50";
           }
         });
-        if (prefix === "mobile-admin-panel") {
-          const allPanels = [
-            "mobile-admin-users-panel-panel",
-            "mobile-admin-groups-panel-panel",
-            "mobile-admin-logs-panel-panel",
-            "mobile-admin-health-panel-panel",
-            "mobile-admin-profile-panel-panel",
-            "mobile-admin-sessions-panel-panel",
-            "mobile-admin-messages-panel-panel",
-            "mobile-admin-ipban-panel-panel",
-            "mobile-admin-sms-panel-panel",
-            "mobile-admin-config-panel-panel",
-            "mobile-admin-captcha-panel-panel",
-            "mobile-admin-reminders-panel-panel",
-            "mobile-admin-ssl-panel-panel",
-          ];
-
-          allPanels.forEach((panelId) => {
-            const panel = document.getElementById(panelId);
-            if (panel) panel.classList.add("hidden");
-          });
-          const captchaHistoryPanelMobile = document.getElementById(
-            "admin-captcha-history-panel_modal"
-          );
-          if (captchaHistoryPanelMobile)
-            captchaHistoryPanelMobile.classList.add("hidden");
-          const targetPanelId = `mobile-admin-${tabId}-panel-panel`;
-          const targetPanel = document.getElementById(targetPanelId);
-          if (targetPanel) {
-            targetPanel.classList.remove("hidden");
-          } else {
-            console.warn(`[移动端管理面板] 找不到目标面板: ${targetPanelId}`);
-          }
-          switch (tabId) {
-            case "users":
-              loadAdminUsers();
-              setTimeout(() => copyAdminContentToPanelVersion("users"), 500);
-              break;
-            case "groups":
-              loadAdminGroups();
-              setTimeout(() => copyAdminContentToPanelVersion("groups"), 500);
-              break;
-            case "logs":
-              loadAdminLogs(1);
-              setTimeout(() => copyAdminContentToPanelVersion("logs"), 500);
-              break;
-            case "health":
-              loadHealthStatus();
-              setTimeout(() => copyAdminContentToPanelVersion("health"), 500);
-              break;
-            case "profile":
-              loadPersonalInfo();
-              setTimeout(() => copyAdminContentToPanelVersion("profile"), 500);
-              break;
-            case "sessions":
-              // [修改] 移动端会话管理：调用专用函数，不再从PC端复制
-              // loadAdminSessions();
-              // setTimeout(() => copyAdminContentToPanelVersion("sessions"), 500);
-
-              // 【修正】单账号面板：检查上帝模式权限
-              checkAdminPermission("god_mode").then((hasPermission) => {
-                const singleGodToggle = document.getElementById(
-                  "mobile-god-mode-toggle-panel"
-                );
-                if (singleGodToggle) {
-                  singleGodToggle.style.display = hasPermission
-                    ? "flex"
-                    : "none";
-                }
-              });
-
-              loadMobileAdminSessionsList();
-              break;
-            case "messages":
-              loadMessages();
-              setTimeout(() => copyAdminContentToPanelVersion("messages"), 600);
-              break;
-            case "ipban":
-              loadIPBans();
-              setTimeout(() => copyAdminContentToPanelVersion("ipban"), 500);
-              break;
-            case "sms":
-              loadSMSConfig();
-              setTimeout(() => copyAdminContentToPanelVersion("sms"), 500);
-              break;
-            case "config":
-              loadSystemConfig();
-              setTimeout(() => copyAdminContentToPanelVersion("config"), 500);
-              break;
-            case "captcha":
-              loadCaptchaSettings();
-              const dateInput = $("captcha-history-date");
-              if (dateInput) {
-                const today = new Date().toISOString().split("T")[0];
-                dateInput.value = today;
-              }
-              loadCaptchaHistory();
-              setTimeout(() => copyAdminContentToPanelVersion("captcha"), 500);
-              break;
-            case "reminders":
-              loadReminders();
-              setTimeout(
-                () => copyAdminContentToPanelVersion("reminders"),
-                500
-              );
-              break;
-            case "ssl":
-              loadSSLInfo();
-              setTimeout(() => copyAdminContentToPanelVersion("ssl"), 500);
-              break;
-          }
-          return;
-        }
+        // 注：已移除废弃的 mobile-admin-panel 分支代码，单账号模式现在使用 mobile-admin-panel-unified
 
         // ========================================
         // 处理 mobile-admin-panel-unified 前缀
-        // 这个前缀用于多账号模式下的统一管理面板
+        // 这个前缀用于统一管理面板（同时支持单账号和多账号模式）
         // 面板ID命名规则：mobile-multi-admin-{tabId}-panel
         // 内容列表ID命名规则：mobile-multi-admin-{tabId}-list
         // ========================================
