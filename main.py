@@ -6799,37 +6799,37 @@ class Api:
         self.log("进入单账号模式。")
         return {"success": True}
 
-    def exit_single_account_mode(self):
-        """
-        退出单账号模式
-        """
-        try:
-            if hasattr(self, "stop_event"):
-                self.stop_event.set()
+    # def exit_single_account_mode(self):
+    #     """
+    #     退出单账号模式
+    #     """
+    #     try:
+    #         if hasattr(self, "stop_event"):
+    #             self.stop_event.set()
 
-            if (
-                hasattr(self, "worker_thread")
-                and self.worker_thread
-                and self.worker_thread.is_alive()
-            ):
-                self.worker_thread.join(timeout=1.0)
+    #         if (
+    #             hasattr(self, "worker_thread")
+    #             and self.worker_thread
+    #             and self.worker_thread.is_alive()
+    #         ):
+    #             self.worker_thread.join(timeout=1.0)
 
-            if hasattr(self, "path_gen_callbacks"):
-                for key, (path_result, completion_event) in list(
-                    self.path_gen_callbacks.items()
-                ):
-                    path_result["error"] = "退出单账号模式已取消"
-                    try:
-                        completion_event.set()
-                    except Exception:
-                        pass
-                self.path_gen_callbacks.clear()
+    #         if hasattr(self, "path_gen_callbacks"):
+    #             for key, (path_result, completion_event) in list(
+    #                 self.path_gen_callbacks.items()
+    #             ):
+    #                 path_result["error"] = "退出单账号模式已取消"
+    #                 try:
+    #                     completion_event.set()
+    #                 except Exception:
+    #                     pass
+    #             self.path_gen_callbacks.clear()
 
-            self.log("已退出单账号模式")
-            return {"success": True}
-        except Exception as e:
-            logging.error(f"退出单账号模式失败: {e}", exc_info=True)
-            return {"success": False, "message": f"退出失败: {str(e)}"}
+    #         self.log("已退出单账号模式")
+    #         return {"success": True}
+    #     except Exception as e:
+    #         logging.error(f"退出单账号模式失败: {e}", exc_info=True)
+    #         return {"success": False, "message": f"退出失败: {str(e)}"}
 
     def get_session_mode_info(self):
         """获取会话模式信息（单账号/多账号），用于页面刷新时恢复状态"""
