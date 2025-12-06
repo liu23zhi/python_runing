@@ -9360,7 +9360,7 @@
                       </button>
                     </div>
                     <button
-                      onclick="toggleMobileCaptchaView('history')"
+                      onclick="openMobileCaptchaHistoryModal()"
                       class="btn btn-secondary w-full !py-2 text-sm min-h-[44px]"
                     >
                       📜 查看历史记录
@@ -9969,6 +9969,84 @@
                 </svg>
                 确认签到
               </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+         【移动端验证码历史记录模态框】
+         专用于移动端查看验证码生成和验证历史
+         ======================================== -->
+      <div
+        id="mobile-captcha-history-modal"
+        class="fixed inset-0 hidden mobile-modal z-50"
+        onclick="closeMobileCaptchaHistoryModal()"
+      >
+        <!-- 半透明背景遮罩 -->
+        <div class="absolute inset-0 bg-black/40"></div>
+        <!-- 模态框内容区域 -->
+        <div
+          class="mobile-modal-content bg-white rounded-t-3xl p-6 space-y-4 max-h-[85vh] overflow-y-auto"
+          onclick="event.stopPropagation()"
+        >
+          <!-- 顶部拖动指示器 -->
+          <div class="flex justify-center mb-2">
+            <div class="w-12 h-1.5 bg-slate-300 rounded-full"></div>
+          </div>
+          <!-- 标题栏 -->
+          <div
+            class="flex items-center justify-between pb-3 border-b border-slate-200"
+          >
+            <h3 class="text-xl font-bold text-purple-600">📜 验证码历史记录</h3>
+            <button
+              class="py-1 px-3 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium hover:bg-purple-100 transition"
+              onclick="loadMobileCaptchaHistoryModal()"
+            >
+              🔄 刷新
+            </button>
+          </div>
+          <!-- 筛选条件区域 -->
+          <div class="flex gap-2 items-center">
+            <div class="flex-1">
+              <label class="block text-xs text-slate-500 mb-1">选择日期</label>
+              <input
+                type="date"
+                id="mobile-captcha-history-modal-date"
+                class="input-field text-sm w-full !py-2"
+              />
+            </div>
+            <div class="flex-1">
+              <label class="block text-xs text-slate-500 mb-1">状态筛选</label>
+              <select
+                id="mobile-captcha-history-modal-status"
+                class="select-field text-sm w-full !py-2"
+              >
+                <option value="">全部状态</option>
+                <option value="verified_success">✅ 验证成功</option>
+                <option value="verified_failed">❌ 验证失败</option>
+                <option value="test_generated">🧪 测试生成</option>
+                <option value="created">⏳ 待验证</option>
+                <option value="expired">⏰ 已过期</option>
+              </select>
+            </div>
+          </div>
+          <!-- 历史记录列表 -->
+          <div
+            id="mobile-captcha-history-modal-list"
+            class="space-y-2 max-h-[50vh] overflow-y-auto"
+          >
+            <p class="text-slate-400 text-center py-10 text-sm">
+              点击刷新加载数据...
+            </p>
+          </div>
+          <!-- 底部按钮 -->
+          <div class="flex justify-end pt-2 border-t border-slate-200">
+            <button
+              class="mobile-primary-btn"
+              onclick="closeMobileCaptchaHistoryModal()"
+            >
+              关闭
             </button>
           </div>
         </div>
@@ -44797,8 +44875,8 @@
             return;
           }
 
-          // 调用后端API保存配置
-          const result = await callPythonAPI("update_captcha_settings", {
+          // 调用后端API保存配置 - 使用正确的 API 端点 /api/captcha/save_settings
+          const result = await callPythonAPI_raw("/api/captcha/save_settings", "POST", {
             length: length,
             scale_factor: scale_factor,
             noise_level: noise_level,
@@ -44842,8 +44920,8 @@
               document.getElementById("mobile-captcha-noise-level")?.value
             ) || 0.08;
 
-          // 调用后端API生成验证码
-          const result = await callPythonAPI("generate_test_captcha", {
+          // 调用后端API生成验证码 - 使用正确的 API 端点 /api/captcha/test_generate
+          const result = await callPythonAPI_raw("/api/captcha/test_generate", "POST", {
             length: length,
             scale_factor: scale_factor,
             noise_level: noise_level,
@@ -44992,6 +45070,172 @@
         } catch (e) {
           console.error("[移动端验证码] 加载历史失败:", e);
           listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-xs">加载失败</p>`;
+        }
+      }
+
+      // =============================================
+      // 【3.5】移动端验证码历史记录模态框专用函数
+      // =============================================
+
+      /**
+       * 打开移动端验证码历史记录模态框
+       * 初始化日期选择器并加载历史数据
+       */
+      function openMobileCaptchaHistoryModal() {
+        // 获取模态框元素
+        const modal = document.getElementById("mobile-captcha-history-modal");
+        if (!modal) {
+          console.error("[移动端验证码历史] 找不到模态框元素");
+          return;
+        }
+
+        // 初始化日期选择器为当天日期
+        const dateInput = document.getElementById("mobile-captcha-history-modal-date");
+        if (dateInput && !dateInput.value) {
+          // 设置日期为今天，格式为 YYYY-MM-DD
+          dateInput.value = new Date().toISOString().split("T")[0];
+        }
+
+        // 重置状态筛选为全部
+        const statusSelect = document.getElementById("mobile-captcha-history-modal-status");
+        if (statusSelect) {
+          statusSelect.value = "";
+        }
+
+        // 显示模态框 - 添加 show 类实现动画效果
+        modal.classList.remove("hidden");
+        // 使用 requestAnimationFrame 确保动画生效
+        requestAnimationFrame(() => {
+          modal.classList.add("show");
+        });
+
+        // 自动加载历史数据
+        loadMobileCaptchaHistoryModal();
+
+        console.log("[移动端验证码历史] 模态框已打开");
+      }
+
+      /**
+       * 关闭移动端验证码历史记录模态框
+       */
+      function closeMobileCaptchaHistoryModal() {
+        // 获取模态框元素
+        const modal = document.getElementById("mobile-captcha-history-modal");
+        if (!modal) return;
+
+        // 移除 show 类，触发关闭动画
+        modal.classList.remove("show");
+        
+        // 等待动画完成后隐藏模态框
+        setTimeout(() => {
+          modal.classList.add("hidden");
+        }, 300); // 动画持续时间
+
+        console.log("[移动端验证码历史] 模态框已关闭");
+      }
+
+      /**
+       * 加载移动端验证码历史记录模态框中的数据
+       * 根据选择的日期和状态筛选条件从后端获取数据
+       */
+      async function loadMobileCaptchaHistoryModal() {
+        // 获取列表容器元素
+        const listContainer = document.getElementById("mobile-captcha-history-modal-list");
+        // 获取日期输入框
+        const dateInput = document.getElementById("mobile-captcha-history-modal-date");
+        // 获取状态筛选下拉框
+        const statusSelect = document.getElementById("mobile-captcha-history-modal-status");
+
+        // 检查必要元素是否存在
+        if (!listContainer || !dateInput) {
+          console.error("[移动端验证码历史] 找不到必要的DOM元素");
+          return;
+        }
+
+        // 显示加载状态
+        listContainer.innerHTML = '<p class="text-slate-400 text-center py-10 text-sm">⏳ 加载中...</p>';
+
+        try {
+          // 获取日期值并转换为后端需要的格式（YYYYMMDD）
+          const date = dateInput.value.replace(/-/g, "");
+          // 获取状态筛选值
+          const status = statusSelect ? statusSelect.value : "";
+          
+          // 构建查询参数
+          const params = new URLSearchParams({ date });
+          if (status) {
+            params.append("status", status);
+          }
+
+          // 调用后端API获取验证码历史记录
+          const response = await fetch(`/api/captcha/history?${params}`, {
+            method: "GET",
+            headers: { "X-Session-ID": sessionUUID },
+          });
+          const result = await response.json();
+
+          // 检查请求是否成功
+          if (!result.success) {
+            listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-sm">❌ ${result.message || "加载失败"}</p>`;
+            return;
+          }
+
+          // 获取记录数据
+          const records = result.data || [];
+          
+          // 处理空数据情况
+          if (records.length === 0) {
+            listContainer.innerHTML = '<p class="text-slate-400 text-center py-10 text-sm">📭 该日期没有验证码记录</p>';
+            return;
+          }
+
+          // 渲染历史记录列表
+          listContainer.innerHTML = records.map((record) => {
+            // 根据状态设置不同的样式类
+            const statusClass = {
+              created: "bg-yellow-100 text-yellow-800",
+              verified_success: "bg-green-100 text-green-800",
+              verified_failed: "bg-red-100 text-red-800",
+              expired: "bg-gray-100 text-gray-800",
+              test_generated: "bg-blue-100 text-blue-800",
+            }[record.status] || "bg-gray-100 text-gray-800";
+
+            // 根据状态设置显示文本和图标
+            const statusText = {
+              created: "⏳ 待验证",
+              verified_success: "✅ 成功",
+              verified_failed: "❌ 失败",
+              expired: "⏰ 过期",
+              test_generated: "🧪 测试",
+            }[record.status] || record.status;
+
+            // 返回单条记录的HTML
+            return `
+              <div class="bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
+                <div class="flex justify-between items-start mb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono font-bold text-lg text-slate-700">${record.code}</span>
+                    <span class="text-xs px-2 py-1 rounded-full ${statusClass}">${statusText}</span>
+                  </div>
+                  <span class="text-xs text-slate-400">${record.timestamp_readable ? record.timestamp_readable.split(" ")[1] : "N/A"}</span>
+                </div>
+                <div class="text-xs text-slate-500 flex flex-col gap-1">
+                  <div class="flex justify-between">
+                    <span>🌐 IP: ${record.client_ip || "N/A"}</span>
+                    ${record.verified_input ? `<span class="${record.status === "verified_success" ? "text-green-600" : "text-red-600"}">📝 输入: ${record.verified_input}</span>` : ""}
+                  </div>
+                  ${record.timestamp_readable ? `<span class="text-slate-400">📅 ${record.timestamp_readable}</span>` : ""}
+                </div>
+              </div>
+            `;
+          }).join("");
+
+          console.log(`[移动端验证码历史] 加载完成，共 ${records.length} 条记录`);
+
+        } catch (error) {
+          // 捕获并处理异常
+          console.error("[移动端验证码历史] 加载失败:", error);
+          listContainer.innerHTML = `<p class="text-red-500 text-center py-10 text-sm">❌ 加载失败: ${error.message}</p>`;
         }
       }
 
