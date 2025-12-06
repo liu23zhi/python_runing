@@ -37647,12 +37647,22 @@
           });
           return;
         }
+        // 【修复任务10】判断应该更新哪个侧边栏的高亮状态
+        // 原逻辑仅通过 panelId.includes("multi") 判断，但 mobile-admin-panel-unified 不包含 "multi"
+        // 因此需要额外处理：当面板是 mobile-admin-panel-unified 时，根据 window.mobileAdminPanelMode 判断
         let targetSidebar;
-        if (panelId.includes("multi")) {
+        // 判断是否为多账号模式：
+        // 1. panelId 包含 "multi" 字符串（如 mobile-multi-control-panel）
+        // 2. 或者 panelId 是 mobile-admin-panel-unified 且当前模式为 'multi'
+        const isMultiAccountMode = panelId.includes("multi") || 
+          (panelId === "mobile-admin-panel-unified" && window.mobileAdminPanelMode === "multi");
+        if (isMultiAccountMode) {
+          // 多账号模式：选择多账号侧边栏
           targetSidebar = document.getElementById(
             "mobile-sidebar-multi-account"
           );
         } else {
+          // 单账号模式：选择单账号侧边栏
           targetSidebar = document.getElementById(
             "mobile-sidebar-single-account"
           );
