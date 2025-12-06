@@ -15671,6 +15671,33 @@ def start_web_server(args_param):
         result = auth_system.update_user_theme(auth_username, theme)
         return jsonify(result)
 
+    @app.route("/api/user/profile", methods=["GET"])
+    @login_required
+    def api_user_profile():
+        """
+        获取当前用户信息 (修复前端调用 404 问题)
+        """
+        try:
+            # 从全局对象 g 中获取当前登录的用户名
+            current_username = g.user
+            # 使用 auth_system 获取详细信息
+            user_details = auth_system.get_user_details(current_username)
+            
+            if user_details:
+                return jsonify({
+                    "success": True,
+                    "username": user_details.get("auth_username"),
+                    "phone": user_details.get("phone"),
+                    "nickname": user_details.get("nickname"),
+                    "avatar_url": user_details.get("avatar_url"),
+                    "email": user_details.get("email", ""), # 部分前端逻辑可能需要email
+                    "data": user_details # 包含完整的用户数据
+                })
+            return jsonify({"success": False, "message": "用户数据不存在"}), 404
+        except Exception as e:
+            logging.error(f"[API] 获取用户资料失败: {e}", exc_info=True)
+            return jsonify({"success": False, "message": f"获取资料失败: {str(e)}"}), 500
+
     @app.route("/auth/user/details", methods=["GET"])
     def auth_user_details():
         """获取用户详细信息"""
@@ -18035,8 +18062,27 @@ def start_web_server(args_param):
 
     def get_frontend_config():
         """辅助函数：读取前端需要的功能开关配置"""
-        config = configparser.ConfigParser()
-        config.read(CONFIG_FILE, encoding="utf-8")
+        # [修正] 使用 strict=False 允许读取包含重复项的配置文件（保留最后一个值）
+        # 同时设置 optionxform=str 保持大小写敏感，防止 LastUser/lastuser 冲突
+        config = configparser.ConfigParser(strict=False)
+        config.optionxform = str 
+        
+        try:
+            config.read(CONFIG_FILE, encoding="utf-8")
+            
+            # [修正] 读取成功后，回写配置文件以清除重复项
+            # 这会利用 ConfigParser 的特性，将重复键合并为最后一个值，并重写文件
+            # 注意：这依赖于全局的 _write_config_with_comments 函数
+            try:
+                _write_config_with_comments(config, CONFIG_FILE)
+                logging.info("[配置] 已自动修复并清理配置文件中的重复项")
+            except Exception as write_err:
+                logging.error(f"[配置] 尝试自动修复配置文件失败: {write_err}")
+                
+        except Exception as e:
+            logging.error(f"[配置] 读取配置文件失败 (get_frontend_config): {e}")
+            # 如果读取失败，尝试使用默认配置继续，避免崩馈
+            config = _get_default_config()
 
         sms_enabled = (
             config.get("Features", "enable_sms_service", fallback="false").lower()

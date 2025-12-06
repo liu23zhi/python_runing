@@ -21805,7 +21805,7 @@
         if (!useSmsVerify) {
           // 密码验证模式：检查原密码是否填写
           if (!currentPassword || !currentPassword.value) {
-            showModalAlert("请填写当前密码，或点击"使用短信验证"通过短信验证码修改密码", "提示");
+            showModalAlert("请填写当前密码，或点击\"使用短信验证\"通过短信验证码修改密码", "提示");
             return;
           }
         } else {
@@ -38141,6 +38141,7 @@
         document.getElementById("modify-phone-new").value = "";
         document.getElementById("modify-phone-code").value = "";
         document.getElementById("modify-phone-modal").style.display = "flex";
+        document.getElementById("modify-phone-password").value = "";
         document.body.classList.add("modal-visible");
 
         const currentPhoneInput = document.getElementById(
@@ -42169,6 +42170,7 @@
 
         const phone = newPhoneInput ? newPhoneInput.value.trim() : "";
         const code = codeInput ? codeInput.value.trim() : "";
+        
 
         if (!phone || phone.length !== 11) {
           showModalAlert("请输入正确的11位手机号", "提示");
@@ -42633,6 +42635,7 @@
         );
         if (newPhoneInput) newPhoneInput.value = "";
         if (codeInput) codeInput.value = "";
+        document.getElementById("mobile-unified-modify-phone-password").value = "";
 
         // 添加 show 类以触发显示动画
         modal.classList.remove("hidden");
@@ -42716,13 +42719,13 @@
         }
 
         try {
-          const response = await fetch("/auth/verify_modify_phone", {
+          const response = await fetch("/api/user/update_phone", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Session-ID": sessionUUID,
             },
-            body: JSON.stringify({ phone: newPhone, code: code, password: password }),  // 添加原密码参数用于身份验证
+            body: JSON.stringify({ new_phone: newPhone, sms_code: code, password: password }),  // 添加原密码参数用于身份验证
           });
 
           const result = await response.json();
@@ -42820,7 +42823,7 @@
         if (!useSmsVerify) {
           // 密码验证模式：检查原密码是否填写
           if (!currentPassword) {
-            showModalAlert("请输入当前密码，或点击"使用短信验证"通过短信验证码修改密码", "提示");
+            showModalAlert("请输入当前密码，或点击\"使用短信验证\"通过短信验证码修改密码", "提示");
             return;
           }
         } else {
