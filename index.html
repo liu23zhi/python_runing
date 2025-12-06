@@ -8681,14 +8681,28 @@
                       </div>
                     </div>
                   </div>
-                  <!-- 修改密码区域 -->
+                  <!-- 移动端修改密码区域 -->
                   <div
                     class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2"
                   >
                     <h5 class="font-semibold text-slate-700 text-xs">
                       修改密码
                     </h5>
-                    <div class="space-y-2">
+                    
+                    <!-- 移动端验证方式切换按钮区域 -->
+                    <div id="mobile-unified-password-method-toggle" class="text-right mb-1">
+                      <button
+                        type="button"
+                        onclick="toggleMobilePasswordResetMethod()"
+                        class="text-[10px] text-sky-600 hover:text-sky-800 underline"
+                        id="mobile-unified-toggle-password-method-btn"
+                      >
+                        忘记密码？使用短信验证
+                      </button>
+                    </div>
+
+                    <!-- 移动端原密码验证区域（默认显示） -->
+                    <div id="mobile-unified-password-method-password" class="space-y-2">
                       <div>
                         <label
                           class="block text-xs font-medium text-slate-600 mb-1"
@@ -8701,6 +8715,52 @@
                           placeholder="输入当前密码"
                         />
                       </div>
+                    </div>
+
+                    <!-- 移动端短信验证区域（默认隐藏） -->
+                    <div id="mobile-unified-password-method-sms" class="space-y-2 hidden">
+                      <div>
+                        <label
+                          class="block text-xs font-medium text-slate-600 mb-1"
+                          >绑定的手机号</label
+                        >
+                        <input
+                          type="tel"
+                          id="mobile-unified-profile-reset-phone"
+                          class="input-field !text-xs !py-1.5"
+                          placeholder="请输入绑定的手机号"
+                          maxlength="11"
+                          inputmode="numeric"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          class="block text-xs font-medium text-slate-600 mb-1"
+                          >短信验证码</label
+                        >
+                        <div class="flex gap-2">
+                          <input
+                            type="text"
+                            id="mobile-unified-profile-reset-sms-code"
+                            class="input-field !text-xs !py-1.5 flex-1"
+                            placeholder="请输入6位验证码"
+                            maxlength="6"
+                            inputmode="numeric"
+                          />
+                          <button
+                            type="button"
+                            id="mobile-unified-profile-reset-send-code"
+                            onclick="sendMobilePasswordResetCode()"
+                            class="btn btn-ghost border border-slate-300 !py-1 !px-2 text-[10px] whitespace-nowrap"
+                          >
+                            发送验证码
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 移动端新密码输入区域（两种验证方式共用） -->
+                    <div class="space-y-2">
                       <div>
                         <label
                           class="block text-xs font-medium text-slate-600 mb-1"
@@ -12790,11 +12850,26 @@
                 </div>
               </div>
 
+              <!-- PC端修改密码区域 -->
               <div
                 class="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3"
               >
                 <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
-                <div class="space-y-3">
+                
+                <!-- 验证方式切换按钮区域 -->
+                <div id="password-method-toggle" class="text-right mb-2">
+                  <button
+                    type="button"
+                    onclick="togglePasswordResetMethod()"
+                    class="text-xs text-sky-600 hover:text-sky-800 underline"
+                    id="toggle-password-method-btn"
+                  >
+                    忘记密码？使用短信验证
+                  </button>
+                </div>
+
+                <!-- 原密码验证区域（默认显示） -->
+                <div id="password-method-password" class="space-y-3">
                   <div>
                     <label
                       class="block text-sm font-semibold text-slate-700 mb-1"
@@ -12807,6 +12882,52 @@
                       placeholder="输入当前密码"
                     />
                   </div>
+                </div>
+
+                <!-- 短信验证区域（默认隐藏） -->
+                <div id="password-method-sms" class="space-y-3 hidden">
+                  <div>
+                    <label
+                      class="block text-sm font-semibold text-slate-700 mb-1"
+                      >绑定的手机号</label
+                    >
+                    <input
+                      type="tel"
+                      id="profile-reset-phone"
+                      class="input-field"
+                      placeholder="请输入绑定的手机号"
+                      maxlength="11"
+                      inputmode="numeric"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="block text-sm font-semibold text-slate-700 mb-1"
+                      >短信验证码</label
+                    >
+                    <div class="flex gap-2">
+                      <input
+                        type="text"
+                        id="profile-reset-sms-code"
+                        class="input-field flex-1"
+                        placeholder="请输入6位验证码"
+                        maxlength="6"
+                        inputmode="numeric"
+                      />
+                      <button
+                        type="button"
+                        id="profile-reset-send-code"
+                        onclick="sendPasswordResetCode()"
+                        class="btn btn-ghost border border-slate-300 !py-1.5 !px-3 text-sm whitespace-nowrap"
+                      >
+                        发送验证码
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 新密码输入区域（两种验证方式共用） -->
+                <div class="space-y-3">
                   <div>
                     <label
                       class="block text-sm font-semibold text-slate-700 mb-1"
@@ -21440,75 +21561,229 @@
           showModalAlert("网络错误，请稍后重试", "错误");
         }
       }
+      /**
+       * PC端修改密码函数
+       * 支持两种验证方式：
+       * 1. 原密码验证（默认方式）
+       * 2. 短信验证码验证（忘记密码时使用）
+       */
       async function updatePassword() {
+        // 弹出确认对话框，询问用户是否确认修改密码
         const confirmed = await jsShowConfirm(
           "确认修改密码",
           "您确定要修改您的登录密码吗？\n\n修改后需要使用新密码重新登录。"
         );
+        // 如果用户取消，记录日志并返回
         if (!confirmed) {
           logMessage_Info("[修改密码] 用户取消了密码修改操作");
           return;
         }
-        const currentPassword = $("profile-current-password");
-        const newPassword = $("profile-new-password");
-        const confirmPassword = $("profile-confirm-password");
 
-        if (!currentPassword || !newPassword || !confirmPassword) return;
+        // 获取各输入框的DOM元素引用
+        const currentPassword = $("profile-current-password"); // 当前密码输入框
+        const newPassword = $("profile-new-password"); // 新密码输入框
+        const confirmPassword = $("profile-confirm-password"); // 确认新密码输入框
+        const resetPhone = $("profile-reset-phone"); // 短信验证方式的手机号输入框
+        const resetSmsCode = $("profile-reset-sms-code"); // 短信验证码输入框
+        const passwordMethodSms = $("password-method-sms"); // 短信验证区域容器
 
-        if (
-          !currentPassword.value ||
-          !newPassword.value ||
-          !confirmPassword.value
-        ) {
-          showModalAlert("请填写所有密码字段", "提示");
+        // 检查必要的DOM元素是否存在
+        if (!newPassword || !confirmPassword) return;
+
+        // 判断当前使用的验证方式：检查短信验证区域是否可见
+        const useSmsVerification = passwordMethodSms && !passwordMethodSms.classList.contains("hidden");
+
+        // 根据验证方式进行不同的输入验证
+        if (useSmsVerification) {
+          // 短信验证码方式：验证手机号和验证码是否已填写
+          if (!resetPhone || !resetPhone.value.trim()) {
+            showModalAlert("请输入绑定的手机号", "提示");
+            return;
+          }
+          // 验证手机号格式（中国大陆手机号：1开头，第二位3-9，共11位）
+          if (!/^1[3-9]\d{9}$/.test(resetPhone.value.trim())) {
+            showModalAlert("请输入正确的手机号格式", "错误");
+            return;
+          }
+          if (!resetSmsCode || !resetSmsCode.value.trim()) {
+            showModalAlert("请输入短信验证码", "提示");
+            return;
+          }
+          // 验证验证码格式（6位数字）
+          if (!/^\d{6}$/.test(resetSmsCode.value.trim())) {
+            showModalAlert("验证码应为6位数字", "错误");
+            return;
+          }
+        } else {
+          // 原密码验证方式：验证当前密码是否已填写
+          if (!currentPassword || !currentPassword.value) {
+            showModalAlert("请输入当前密码", "提示");
+            return;
+          }
+        }
+
+        // 验证新密码相关字段
+        if (!newPassword.value || !confirmPassword.value) {
+          showModalAlert("请填写新密码和确认密码", "提示");
           return;
         }
 
+        // 验证两次输入的新密码是否一致
         if (newPassword.value !== confirmPassword.value) {
           showModalAlert("两次输入的密码不一致", "错误");
           return;
         }
 
+        // 验证新密码长度至少为6个字符
         if (newPassword.value.length < 6) {
           showModalAlert("密码长度至少为6个字符", "错误");
           return;
         }
 
+        // 验证当前用户信息是否有效
         if (!currentAuthUsername) {
           showModalAlert("无法获取当前用户信息，请重新加载个人信息", "错误");
           return;
         }
 
         try {
+          // 构建请求体，根据验证方式添加不同的参数
+          const requestBody = {
+            username: currentAuthUsername, // 当前登录的用户名
+            new_password: newPassword.value, // 新密码
+          };
+
+          if (useSmsVerification) {
+            // 短信验证码方式：添加短信验证相关参数
+            requestBody.verification_type = "sms"; // 验证类型为短信
+            requestBody.phone = resetPhone.value.trim(); // 用户输入的手机号
+            requestBody.sms_code = resetSmsCode.value.trim(); // 短信验证码
+          } else {
+            // 原密码验证方式：添加原密码参数
+            requestBody.verification_type = "password"; // 验证类型为密码
+            requestBody.old_password = currentPassword.value; // 当前密码
+          }
+
+          // 发送修改密码请求到后端API
           const response = await fetch("/auth/admin/reset_password", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "X-Session-ID": sessionUUID,
+              "X-Session-ID": sessionUUID, // 会话标识
             },
-            body: JSON.stringify({
-              username: currentAuthUsername,
-              old_password: currentPassword.value,
-              new_password: newPassword.value,
-            }),
+            body: JSON.stringify(requestBody),
           });
           const result = await response.json();
 
           if (result.success) {
+            // 密码修改成功
             showModalAlert("密码修改成功！", "成功");
-            currentPassword.value = "";
+            // 清空所有输入框
+            if (currentPassword) currentPassword.value = "";
             newPassword.value = "";
             confirmPassword.value = "";
+            if (resetPhone) resetPhone.value = "";
+            if (resetSmsCode) resetSmsCode.value = "";
+            // 重置验证方式为默认的原密码验证
+            resetPasswordMethodToDefault();
           } else {
+            // 密码修改失败，显示错误信息
             showModalAlert(
-              `修改失败: ${result.message || "请检查当前密码是否正确"}`,
+              `修改失败: ${result.message || "请检查验证信息是否正确"}`,
               "错误"
             );
           }
         } catch (e) {
+          // 捕获异常，记录错误日志并显示错误提示
           logMessage_Error("修改密码失败:", e);
           showModalAlert(`修改失败: ${e.message}`, "错误");
         }
+      }
+
+      /**
+       * PC端切换密码重置验证方式
+       * 在原密码验证和短信验证码验证之间切换
+       */
+      function togglePasswordResetMethod() {
+        // 获取各区域的DOM元素引用
+        const passwordMethod = $("password-method-password"); // 原密码验证区域
+        const smsMethod = $("password-method-sms"); // 短信验证区域
+        const toggleBtn = $("toggle-password-method-btn"); // 切换按钮
+
+        // 检查元素是否存在
+        if (!passwordMethod || !smsMethod || !toggleBtn) {
+          logMessage_Error("[修改密码] 找不到验证方式切换相关元素");
+          return;
+        }
+
+        // 判断当前显示的是哪种验证方式，然后切换到另一种
+        if (passwordMethod.classList.contains("hidden")) {
+          // 当前是短信验证方式，切换到原密码验证方式
+          passwordMethod.classList.remove("hidden"); // 显示原密码区域
+          smsMethod.classList.add("hidden"); // 隐藏短信验证区域
+          toggleBtn.textContent = "忘记密码？使用短信验证"; // 更新按钮文字
+          logMessage_Info("[修改密码] 切换到原密码验证方式");
+        } else {
+          // 当前是原密码验证方式，切换到短信验证方式
+          passwordMethod.classList.add("hidden"); // 隐藏原密码区域
+          smsMethod.classList.remove("hidden"); // 显示短信验证区域
+          toggleBtn.textContent = "使用原密码验证"; // 更新按钮文字
+          logMessage_Info("[修改密码] 切换到短信验证码方式");
+        }
+      }
+
+      /**
+       * PC端发送密码重置短信验证码
+       * 使用通用的验证码模态框发送短信验证码
+       */
+      function sendPasswordResetCode() {
+        // 获取手机号输入框
+        const phoneInput = $("profile-reset-phone");
+        const sendBtn = $("profile-reset-send-code");
+        
+        if (!phoneInput) {
+          showModalAlert("找不到手机号输入框", "错误");
+          return;
+        }
+
+        const phone = phoneInput.value.trim();
+        
+        // 验证手机号是否已输入
+        if (!phone) {
+          showModalAlert("请输入绑定的手机号", "提示");
+          return;
+        }
+
+        // 验证手机号格式
+        if (!/^1[3-9]\d{9}$/.test(phone)) {
+          showModalAlert("请输入正确的手机号格式", "错误");
+          return;
+        }
+
+        // 调用通用验证码模态框发送短信验证码
+        // 使用 "password_reset" 场景标识，后端可据此记录日志
+        openCaptchaModal({
+          phone: phone,
+          button: sendBtn,
+          originalText: "发送验证码",
+          scene: "password_reset", // 密码重置场景
+        });
+      }
+
+      /**
+       * PC端重置密码验证方式为默认状态（原密码验证）
+       * 在密码修改成功后调用，恢复默认的验证方式
+       */
+      function resetPasswordMethodToDefault() {
+        // 获取各区域的DOM元素引用
+        const passwordMethod = $("password-method-password");
+        const smsMethod = $("password-method-sms");
+        const toggleBtn = $("toggle-password-method-btn");
+
+        // 如果元素存在，将验证方式重置为原密码验证
+        if (passwordMethod) passwordMethod.classList.remove("hidden");
+        if (smsMethod) smsMethod.classList.add("hidden");
+        if (toggleBtn) toggleBtn.textContent = "忘记密码？使用短信验证";
       }
 
       async function generate2FA() {
@@ -41772,77 +42047,238 @@
       }
 
       // 【移动端统一面板】修改密码
+      /**
+       * 移动端修改密码函数
+       * 支持两种验证方式：
+       * 1. 原密码验证（默认方式）
+       * 2. 短信验证码验证（忘记密码时使用）
+       */
       async function updateMobileUnifiedPassword() {
+        // 获取当前密码输入框的DOM元素引用
         const currentPasswordInput = document.getElementById(
           "mobile-unified-current-password"
         );
+        // 获取新密码输入框的DOM元素引用
         const newPasswordInput = document.getElementById(
           "mobile-unified-new-password"
         );
+        // 获取确认新密码输入框的DOM元素引用
         const confirmPasswordInput = document.getElementById(
           "mobile-unified-confirm-password"
         );
+        // 获取短信验证方式的手机号输入框
+        const resetPhoneInput = document.getElementById(
+          "mobile-unified-profile-reset-phone"
+        );
+        // 获取短信验证码输入框
+        const resetSmsCodeInput = document.getElementById(
+          "mobile-unified-profile-reset-sms-code"
+        );
+        // 获取短信验证区域容器，用于判断当前验证方式
+        const smsMethodArea = document.getElementById(
+          "mobile-unified-password-method-sms"
+        );
 
-        const currentPassword = currentPasswordInput.value;
-        const newPassword = newPasswordInput.value;
-        const confirmPassword = confirmPasswordInput.value;
+        // 获取各输入框的值
+        const currentPassword = currentPasswordInput ? currentPasswordInput.value : "";
+        const newPassword = newPasswordInput ? newPasswordInput.value : "";
+        const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : "";
+        const resetPhone = resetPhoneInput ? resetPhoneInput.value.trim() : "";
+        const resetSmsCode = resetSmsCodeInput ? resetSmsCodeInput.value.trim() : "";
 
-        // 校验用户信息
+        // 判断当前使用的验证方式：检查短信验证区域是否可见
+        const useSmsVerification = smsMethodArea && !smsMethodArea.classList.contains("hidden");
+
+        // 校验用户信息是否有效
         if (!currentAuthUsername) {
           showModalAlert("无法获取当前用户信息，请刷新页面", "错误");
           return;
         }
 
-        if (!currentPassword) {
-          showModalAlert("请输入当前密码", "提示");
-          return;
+        // 根据验证方式进行不同的输入验证
+        if (useSmsVerification) {
+          // 短信验证码方式：验证手机号是否已填写
+          if (!resetPhone) {
+            showModalAlert("请输入绑定的手机号", "提示");
+            return;
+          }
+          // 验证手机号格式（中国大陆手机号：1开头，第二位3-9，共11位）
+          if (!/^1[3-9]\d{9}$/.test(resetPhone)) {
+            showModalAlert("请输入正确的手机号格式", "错误");
+            return;
+          }
+          // 验证短信验证码是否已填写
+          if (!resetSmsCode) {
+            showModalAlert("请输入短信验证码", "提示");
+            return;
+          }
+          // 验证验证码格式（6位数字）
+          if (!/^\d{6}$/.test(resetSmsCode)) {
+            showModalAlert("验证码应为6位数字", "错误");
+            return;
+          }
+        } else {
+          // 原密码验证方式：验证当前密码是否已填写
+          if (!currentPassword) {
+            showModalAlert("请输入当前密码", "提示");
+            return;
+          }
         }
 
+        // 验证新密码是否已填写
         if (!newPassword) {
           showModalAlert("请输入新密码", "提示");
           return;
         }
 
+        // 验证两次输入的新密码是否一致
         if (newPassword !== confirmPassword) {
           showModalAlert("两次输入的新密码不一致", "提示");
           return;
         }
 
+        // 验证新密码长度至少为6位
         if (newPassword.length < 6) {
           showModalAlert("新密码长度至少为6位", "提示");
           return;
         }
 
         try {
-          // 修正：使用与 updatePassword() 一致的正确API接口
+          // 构建请求体，根据验证方式添加不同的参数
+          const requestBody = {
+            username: currentAuthUsername, // 当前登录的用户名
+            new_password: newPassword, // 新密码
+          };
+
+          if (useSmsVerification) {
+            // 短信验证码方式：添加短信验证相关参数
+            requestBody.verification_type = "sms"; // 验证类型为短信
+            requestBody.phone = resetPhone; // 用户输入的手机号
+            requestBody.sms_code = resetSmsCode; // 短信验证码
+          } else {
+            // 原密码验证方式：添加原密码参数
+            requestBody.verification_type = "password"; // 验证类型为密码
+            requestBody.old_password = currentPassword; // 当前密码
+          }
+
+          // 发送修改密码请求到后端API
           const response = await fetch("/auth/admin/reset_password", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "X-Session-ID": sessionUUID,
+              "X-Session-ID": sessionUUID, // 会话标识
             },
-            body: JSON.stringify({
-              username: currentAuthUsername, // 必填：当前用户名
-              old_password: currentPassword, // 必填：旧密码用于验证
-              new_password: newPassword, // 必填：新密码
-            }),
+            body: JSON.stringify(requestBody),
           });
 
           const result = await response.json();
 
           if (result.success) {
+            // 密码修改成功
             showModalAlert("密码修改成功", "成功");
-            // 清空密码输入框
-            currentPasswordInput.value = "";
-            newPasswordInput.value = "";
-            confirmPasswordInput.value = "";
+            // 清空所有密码输入框
+            if (currentPasswordInput) currentPasswordInput.value = "";
+            if (newPasswordInput) newPasswordInput.value = "";
+            if (confirmPasswordInput) confirmPasswordInput.value = "";
+            if (resetPhoneInput) resetPhoneInput.value = "";
+            if (resetSmsCodeInput) resetSmsCodeInput.value = "";
+            // 重置验证方式为默认的原密码验证
+            resetMobilePasswordMethodToDefault();
           } else {
+            // 密码修改失败，显示错误信息
             showModalAlert(result.message || "修改失败", "错误");
           }
         } catch (e) {
+          // 捕获异常，记录错误日志并显示错误提示
           console.error("[移动端统一面板-修改密码] 失败:", e);
           showModalAlert("修改失败: " + e.message, "错误");
         }
+      }
+
+      /**
+       * 移动端切换密码重置验证方式
+       * 在原密码验证和短信验证码验证之间切换
+       */
+      function toggleMobilePasswordResetMethod() {
+        // 获取各区域的DOM元素引用
+        const passwordMethod = document.getElementById("mobile-unified-password-method-password"); // 原密码验证区域
+        const smsMethod = document.getElementById("mobile-unified-password-method-sms"); // 短信验证区域
+        const toggleBtn = document.getElementById("mobile-unified-toggle-password-method-btn"); // 切换按钮
+
+        // 检查元素是否存在
+        if (!passwordMethod || !smsMethod || !toggleBtn) {
+          console.error("[移动端修改密码] 找不到验证方式切换相关元素");
+          return;
+        }
+
+        // 判断当前显示的是哪种验证方式，然后切换到另一种
+        if (passwordMethod.classList.contains("hidden")) {
+          // 当前是短信验证方式，切换到原密码验证方式
+          passwordMethod.classList.remove("hidden"); // 显示原密码区域
+          smsMethod.classList.add("hidden"); // 隐藏短信验证区域
+          toggleBtn.textContent = "忘记密码？使用短信验证"; // 更新按钮文字
+          console.log("[移动端修改密码] 切换到原密码验证方式");
+        } else {
+          // 当前是原密码验证方式，切换到短信验证方式
+          passwordMethod.classList.add("hidden"); // 隐藏原密码区域
+          smsMethod.classList.remove("hidden"); // 显示短信验证区域
+          toggleBtn.textContent = "使用原密码验证"; // 更新按钮文字
+          console.log("[移动端修改密码] 切换到短信验证码方式");
+        }
+      }
+
+      /**
+       * 移动端发送密码重置短信验证码
+       * 使用通用的验证码模态框发送短信验证码
+       */
+      function sendMobilePasswordResetCode() {
+        // 获取手机号输入框
+        const phoneInput = document.getElementById("mobile-unified-profile-reset-phone");
+        const sendBtn = document.getElementById("mobile-unified-profile-reset-send-code");
+
+        if (!phoneInput) {
+          showModalAlert("找不到手机号输入框", "错误");
+          return;
+        }
+
+        const phone = phoneInput.value.trim();
+
+        // 验证手机号是否已输入
+        if (!phone) {
+          showModalAlert("请输入绑定的手机号", "提示");
+          return;
+        }
+
+        // 验证手机号格式（中国大陆手机号格式）
+        if (!/^1[3-9]\d{9}$/.test(phone)) {
+          showModalAlert("请输入正确的手机号格式", "错误");
+          return;
+        }
+
+        // 调用通用验证码模态框发送短信验证码
+        // 使用 "password_reset" 场景标识，后端可据此记录日志
+        openCaptchaModal({
+          phone: phone,
+          button: sendBtn,
+          originalText: "发送验证码",
+          scene: "password_reset", // 密码重置场景
+        });
+      }
+
+      /**
+       * 移动端重置密码验证方式为默认状态（原密码验证）
+       * 在密码修改成功后调用，恢复默认的验证方式
+       */
+      function resetMobilePasswordMethodToDefault() {
+        // 获取各区域的DOM元素引用
+        const passwordMethod = document.getElementById("mobile-unified-password-method-password");
+        const smsMethod = document.getElementById("mobile-unified-password-method-sms");
+        const toggleBtn = document.getElementById("mobile-unified-toggle-password-method-btn");
+
+        // 如果元素存在，将验证方式重置为原密码验证
+        if (passwordMethod) passwordMethod.classList.remove("hidden");
+        if (smsMethod) smsMethod.classList.add("hidden");
+        if (toggleBtn) toggleBtn.textContent = "忘记密码？使用短信验证";
       }
 
       // ========================================

@@ -15340,43 +15340,137 @@ def start_web_server(args_param):
 
     @app.route("/auth/admin/reset_password", methods=["POST"])
     def auth_admin_reset_password():
-        """重置用户密码（管理员）或修改自己的密码"""
+        """
+        重置用户密码（管理员）或修改自己的密码
+        
+        支持两种验证方式：
+        1. 原密码验证（verification_type = "password"，默认方式）
+        2. 短信验证码验证（verification_type = "sms"，忘记密码时使用）
+        
+        请求参数：
+        - username: 目标用户名（必填）
+        - new_password: 新密码（必填）
+        - verification_type: 验证方式，"password" 或 "sms"（可选，默认为 "password"）
+        - old_password: 当前密码（verification_type = "password" 时必填）
+        - phone: 绑定的手机号（verification_type = "sms" 时必填）
+        - sms_code: 短信验证码（verification_type = "sms" 时必填）
+        """
+        # 验证会话ID是否有效
         session_id = request.headers.get("X-Session-ID", "")
         if not session_id or session_id not in web_sessions:
             return jsonify({"success": False, "message": "未登录"}), 401
 
+        # 获取当前登录用户的信息
         api_instance = web_sessions[session_id]
-        auth_username = getattr(api_instance, "auth_username", "")
-        auth_group = getattr(api_instance, "auth_group", "guest")
+        auth_username = getattr(api_instance, "auth_username", "")  # 当前登录的用户名
+        auth_group = getattr(api_instance, "auth_group", "guest")  # 当前用户的权限组
 
+        # 解析请求数据
         data = request.json
-        target_username = data.get("username", "")
-        new_password = data.get("new_password", "")
-        old_password = data.get("old_password", "")
+        target_username = data.get("username", "")  # 目标用户名
+        new_password = data.get("new_password", "")  # 新密码
+        old_password = data.get("old_password", "")  # 原密码（密码验证方式使用）
+        verification_type = data.get("verification_type", "password")  # 验证方式：password 或 sms
+        phone = data.get("phone", "").strip()  # 手机号（短信验证方式使用）
+        sms_code = data.get("sms_code", "").strip()  # 短信验证码（短信验证方式使用）
 
+        # 验证必填参数
         if not target_username or not new_password:
             return jsonify({"success": False, "message": "参数缺失"})
+        
+        # 判断是否是修改自己的密码
         is_self_change = target_username == auth_username
 
         if is_self_change:
-            if not old_password:
-                return jsonify({"success": False, "message": "请提供当前密码"})
-            user_file = auth_system.get_user_file_path(auth_username)
-            if not os.path.exists(user_file):
-                return jsonify({"success": False, "message": "用户不存在"}), 404
+            # 用户修改自己的密码，需要进行身份验证
+            
+            if verification_type == "sms":
+                # === 短信验证码验证方式 ===
+                # 验证手机号和验证码是否提供
+                if not phone:
+                    return jsonify({"success": False, "message": "请提供绑定的手机号"})
+                if not sms_code:
+                    return jsonify({"success": False, "message": "请提供短信验证码"})
+                
+                # 验证手机号格式
+                if not re.match(r"^1[3-9]\d{9}$", phone):
+                    return jsonify({"success": False, "message": "手机号格式不正确"})
+                
+                # 获取用户数据，验证手机号是否属于当前用户
+                user_file = auth_system.get_user_file_path(auth_username)
+                if not os.path.exists(user_file):
+                    return jsonify({"success": False, "message": "用户不存在"}), 404
+                
+                try:
+                    with open(user_file, "r", encoding="utf-8") as f:
+                        user_data = json.load(f)
+                    user_phone = user_data.get("phone", "")  # 用户绑定的手机号
+                except Exception as e:
+                    logging.error(f"读取用户 {auth_username} 数据失败: {e}")
+                    return jsonify({"success": False, "message": "无法验证手机号"}), 500
+                
+                # 验证手机号是否属于当前用户
+                if not user_phone:
+                    return jsonify({"success": False, "message": "您尚未绑定手机号，无法使用短信验证方式"})
+                if user_phone != phone:
+                    return jsonify({"success": False, "message": "手机号与绑定的手机号不一致"})
+                
+                # 验证短信验证码是否正确
+                # 引用全局变量 sms_verification_codes
+                global sms_verification_codes
+                stored_code_info = sms_verification_codes.get(phone)
+                
+                # 检查验证码是否存在
+                if not stored_code_info:
+                    return jsonify({"success": False, "message": "请先获取验证码"})
+                
+                stored_code, expires_at = stored_code_info
+                
+                # 检查验证码是否过期
+                if time.time() > expires_at:
+                    # 验证码已过期，删除并提示用户重新获取
+                    del sms_verification_codes[phone]
+                    return jsonify({"success": False, "message": "验证码已过期，请重新获取"})
+                
+                # 检查验证码是否正确
+                if stored_code != sms_code:
+                    return jsonify({"success": False, "message": "验证码错误"})
+                
+                # 验证码验证通过，删除已使用的验证码
+                del sms_verification_codes[phone]
+                logging.info(f"[修改密码] 用户 {auth_username} 通过短信验证码方式修改密码")
+                
+            else:
+                # === 原密码验证方式（默认） ===
+                if not old_password:
+                    return jsonify({"success": False, "message": "请提供当前密码"})
+                
+                # 获取用户数据文件路径
+                user_file = auth_system.get_user_file_path(auth_username)
+                if not os.path.exists(user_file):
+                    return jsonify({"success": False, "message": "用户不存在"}), 404
 
-            try:
-                with open(user_file, "r", encoding="utf-8") as f:
-                    user_data = json.load(f)
-                stored_password = user_data.get("password")
-            except Exception as e:
-                logging.error(f"读取用户 {auth_username} 密码失败: {e}")
-                return jsonify({"success": False, "message": "无法验证密码"}), 500
+                try:
+                    # 读取用户数据
+                    with open(user_file, "r", encoding="utf-8") as f:
+                        user_data = json.load(f)
+                    stored_password = user_data.get("password")  # 存储的密码哈希
+                except Exception as e:
+                    logging.error(f"读取用户 {auth_username} 密码失败: {e}")
+                    return jsonify({"success": False, "message": "无法验证密码"}), 500
+                
+                # 验证原密码是否正确
                 if not auth_system._verify_password(old_password, stored_password):
                     return jsonify({"success": False, "message": "当前密码错误"}), 401
+                
+                logging.info(f"[修改密码] 用户 {auth_username} 通过原密码方式修改密码")
         else:
+            # 管理员修改其他用户的密码，需要检查权限
             if not auth_system.check_permission(auth_username, "reset_user_password"):
                 return jsonify({"success": False, "message": "权限不足"}), 403
+            logging.info(f"[修改密码] 管理员 {auth_username} 修改用户 {target_username} 的密码")
+        
+        # 执行密码重置操作
         result = auth_system.reset_user_password(target_username, new_password)
         return jsonify(result)
 
