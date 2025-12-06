@@ -17148,10 +17148,21 @@ def start_web_server(args_param):
     def user_update_phone():
         """
         用户修改自己的手机号。
+        增强安全性：需要验证原密码后才能修改手机号。
+        
+        请求参数:
+            new_phone (str): 新手机号
+            password (str): 用户当前登录密码（用于身份验证）
+            sms_code (str): 发送到新手机号的短信验证码
+            
+        返回值:
+            JSON响应，包含success状态和message消息
         """
         try:
+            # 读取系统配置，检查是否启用手机号修改功能
             config = configparser.ConfigParser()
             config.read(CONFIG_FILE, encoding="utf-8")
+            # 如果系统未开启手机号修改功能，则直接返回错误
             if (
                 config.get(
                     "Features", "enable_phone_modification", fallback="false"
@@ -17161,49 +17172,101 @@ def start_web_server(args_param):
                 return jsonify(
                     {"success": False, "message": "系统未开启手机号修改功能"}
                 )
+            
+            # 从请求中获取JSON数据
             data = request.get_json() or {}
+            # 获取并清理新手机号
             new_phone = data.get("new_phone", "").strip()
+            # 获取并清理原密码（用于身份验证）
+            password = data.get("password", "").strip()
+            # 获取并清理短信验证码
             sms_code = data.get("sms_code", "").strip()
 
+            # 验证新手机号格式：必须以1开头，第二位是3-9，后面跟9位数字
             if not new_phone or not re.match(r"^1[3-9]\d{9}$", new_phone):
                 return jsonify({"success": False, "message": "新手机号格式不正确"})
 
+            # 验证原密码不能为空（安全性检查）
+            if not password:
+                return jsonify({"success": False, "message": "请输入原密码"})
+
+            # 获取当前登录的用户名
+            current_username = g.user
+            
+            # ========== 新增：验证原密码是否正确 ==========
+            # 获取用户文件路径
+            user_file_path = auth_system.get_user_file_path(current_username)
+            # 检查用户文件是否存在
+            if not os.path.exists(user_file_path):
+                return jsonify({"success": False, "message": "当前用户文件不存在"}), 404
+            
+            # 读取用户数据以获取存储的密码哈希
+            try:
+                with open(user_file_path, "r", encoding="utf-8") as f:
+                    user_data = json.load(f)
+                # 获取存储的密码哈希值
+                stored_password = user_data.get("password")
+            except Exception as e:
+                # 如果读取用户文件失败，记录错误并返回
+                logging.error(f"读取用户 {current_username} 密码失败: {e}")
+                return jsonify({"success": False, "message": "无法验证密码"}), 500
+            
+            # 验证用户输入的原密码是否与存储的密码匹配
+            if not auth_system._verify_password(password, stored_password):
+                return jsonify({"success": False, "message": "原密码错误"})
+            # ========== 原密码验证结束 ==========
+
+            # 验证短信验证码不能为空
             if not sms_code:
                 return jsonify({"success": False, "message": "请输入短信验证码"})
+            
+            # 获取存储的短信验证码信息
             global sms_verification_codes
             stored_code_info = sms_verification_codes.get(new_phone)
 
+            # 如果没有找到该手机号对应的验证码，提示用户先获取验证码
             if not stored_code_info:
                 return jsonify({"success": False, "message": "请先获取验证码"})
 
+            # 解析存储的验证码和过期时间
             stored_code, expires_at = stored_code_info
 
+            # 检查验证码是否已过期
             if time.time() > expires_at:
+                # 如果已过期，删除该验证码并返回错误
                 del sms_verification_codes[new_phone]
                 return jsonify(
                     {"success": False, "message": "验证码已过期，请重新获取"}
                 )
 
+            # 验证用户输入的验证码是否正确
             if stored_code != sms_code:
                 return jsonify({"success": False, "message": "验证码错误"})
+            
+            # 验证码验证成功后，删除已使用的验证码
             del sms_verification_codes[new_phone]
-            current_username = g.user
+            
+            # 解绑新手机号与其他用户的关联（如果存在）
             auth_system.unbind_phone_from_user(
                 new_phone, except_username=current_username
             )
-            user_file_path = auth_system.get_user_file_path(current_username)
-            if not os.path.exists(user_file_path):
-                return jsonify({"success": False, "message": "当前用户文件不存在"}), 404
 
+            # 更新用户的手机号信息
             with auth_system.lock:
+                # 重新读取用户数据（确保数据是最新的）
                 with open(user_file_path, "r", encoding="utf-8") as f:
                     user_data = json.load(f)
 
+                # 更新手机号
                 user_data["phone"] = new_phone
 
+                # 将更新后的数据写回文件
                 with open(user_file_path, "w", encoding="utf-8") as f:
                     json.dump(user_data, f, indent=2, ensure_ascii=False)
+            
+            # 获取客户端IP地址用于审计日志
             ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
+            # 记录审计日志
             auth_system.log_audit(
                 current_username,
                 "user_update_phone",
@@ -17212,11 +17275,13 @@ def start_web_server(args_param):
                 g.api_instance._web_session_id,
             )
 
+            # 返回成功响应
             return jsonify(
                 {"success": True, "message": "手机号修改成功", "new_phone": new_phone}
             )
 
         except Exception as e:
+            # 捕获所有异常并记录错误日志
             app.logger.error(f"[用户修改手机号] 失败：{str(e)}", exc_info=True)
             return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
 
