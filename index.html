@@ -1080,6 +1080,35 @@
         z-index: 20005 !important;
       }
 
+      /* ============================================================ */
+      /* 任务11：修复swal2弹窗导致auth-login-container偏移的问题 */
+      /* ============================================================ */
+      /* 
+       * 问题说明：
+       * 当SweetAlert2弹窗（swal2-container）显示时，会自动给body添加
+       * overflow:hidden和padding-right来补偿滚动条消失后的空间。
+       * 这会导致使用position:fixed或absolute的auth-login-container
+       * 出现不必要的偏移，影响用户体验。
+       * 
+       * 解决方案：
+       * 1. body的padding-right已在上方（修复问题4）中处理
+       * 2. 确保auth-login-container和mobile-auth-login-container
+       *    在弹窗显示时保持原有位置不变
+       */
+      
+      /* 修复auth-login-container在swal2弹窗显示时的偏移问题 */
+      body.swal2-shown #auth-login-container,
+      body.swal2-shown #mobile-auth-login-container {
+        /* 防止因滚动条补偿导致的内边距偏移 */
+        padding-right: 0 !important;
+        /* 防止因滚动条补偿导致的外边距偏移 */
+        margin-right: 0 !important;
+        /* 确保不应用任何可能导致偏移的变换 */
+        transform: none !important;
+        /* 确保右侧位置不受影响 */
+        right: auto !important;
+      }
+
       /* 修复问题1：提升通用模态框层级，确保在移动端可见 */
       #sms-history-modal,
       #verification-codes-modal,
