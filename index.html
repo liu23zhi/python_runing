@@ -45820,12 +45820,29 @@
           if (previewContainer && previewDisplay && previewAnswer) {
             previewContainer.classList.remove("hidden");
 
-            if (result && result.success && result.image_base64) {
-              previewDisplay.innerHTML = `<img src="data:image/png;base64,${result.image_base64}" alt="验证码预览" class="border border-slate-200 rounded">`;
-              previewAnswer.textContent = result.code || "未知";
+            // 检查后端返回结果是否成功
+            if (result && result.success) {
+              // 判断后端返回的验证码格式类型
+              if (result.html) {
+                // 后端返回HTML格式验证码（像素风格）
+                // 使用内联块元素包裹HTML验证码，并添加边框和圆角样式
+                previewDisplay.innerHTML = `<div class="inline-block border border-slate-200 rounded p-1 bg-white">${result.html}</div>`;
+                // 显示验证码的正确答案，如果没有则显示"未知"
+                previewAnswer.textContent = result.code || "未知";
+              } else if (result.image_base64) {
+                // 后端返回base64图片格式
+                // 将base64数据转换为可显示的图片标签
+                previewDisplay.innerHTML = `<img src="data:image/png;base64,${result.image_base64}" alt="验证码预览" class="border border-slate-200 rounded">`;
+                // 显示验证码的正确答案，如果没有则显示"未知"
+                previewAnswer.textContent = result.code || "未知";
+              } else {
+                // 后端返回成功但没有任何验证码数据
+                previewDisplay.innerHTML = '<p class="text-red-500 text-xs">生成失败：未返回验证码数据</p>';
+                previewAnswer.textContent = "-";
+              }
             } else {
-              previewDisplay.innerHTML =
-                '<p class="text-red-500 text-xs">生成失败</p>';
+              // 后端返回失败或结果无效，显示错误信息
+              previewDisplay.innerHTML = `<p class="text-red-500 text-xs">生成失败: ${result?.message || "未知错误"}</p>`;
               previewAnswer.textContent = "-";
             }
           }
@@ -46068,6 +46085,9 @@
             return;
           }
 
+          // 调试日志：输出第一条记录的结构，便于排查字段命名问题
+          console.log("[移动端验证码历史] 收到记录:", records[0]);
+
           // 渲染历史记录列表
           listContainer.innerHTML = records.map((record) => {
             // 根据状态设置不同的样式类
@@ -46093,7 +46113,7 @@
               <div class="bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
                 <div class="flex justify-between items-start mb-2">
                   <div class="flex items-center gap-2">
-                    <span class="font-mono font-bold text-lg text-slate-700">${record.code}</span>
+                    <span class="font-mono font-bold text-lg text-slate-700">${record.code || record.captcha_code || "N/A"}</span>
                     <span class="text-xs px-2 py-1 rounded-full ${statusClass}">${statusText}</span>
                   </div>
                   <span class="text-xs text-slate-400">${record.timestamp_readable ? record.timestamp_readable.split(" ")[1] : "N/A"}</span>
