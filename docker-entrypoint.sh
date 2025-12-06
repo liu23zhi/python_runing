@@ -1,0 +1,66 @@
+#!/bin/bash
+# Docker启动脚本 - 处理HTTP和HTTPS端口监听
+
+set -e
+
+# 打印启动信息
+echo "================================================="
+echo "  跑步助手 Docker 容器启动"
+echo "================================================="
+
+# 检查config.ini是否存在，如果不存在则创建
+if [ ! -f "/app/config.ini" ]; then
+    echo "配置文件不存在，将在首次运行时自动创建"
+fi
+
+# 检查SSL证书
+if [ -f "/app/ssl/fullchain.pem" ] && [ -f "/app/ssl/privkey.key" ]; then
+    echo "检测到SSL证书文件"
+    echo "将在HTTPS模式（443端口）运行"
+    echo "HTTP请求（80端口）将自动重定向到HTTPS"
+    
+    # 使用supervisord或类似工具运行双进程，或使用nginx反向代理
+    # 这里我们使用简单的后台进程方式
+    
+    # 启动HTTP重定向服务（80端口）
+    echo "启动HTTP重定向服务（80端口）..."
+    python3 -c "
+from flask import Flask, redirect, request
+import sys
+app = Flask(__name__)
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def redirect_to_https(path):
+    url = request.url.replace('http://', 'https://').replace(':80', ':443')
+    return redirect(url, code=301)
+
+if __name__ == '__main__':
+    try:
+        app.run(host='0.0.0.0', port=80)
+    except KeyboardInterrupt:
+        sys.exit(0)
+" &
+    HTTP_PID=$!
+    echo "HTTP重定向服务已启动 (PID: $HTTP_PID)"
+    
+    # 等待HTTP服务启动
+    sleep 2
+    
+    # 启动主HTTPS服务（443端口）
+    echo "启动主HTTPS服务（443端口）..."
+    python3 /app/main.py --host 0.0.0.0 --port 443
+    
+    # 如果主服务退出，清理HTTP重定向服务
+    kill $HTTP_PID 2>/dev/null || true
+else
+    echo "未检测到SSL证书文件"
+    echo "将在HTTP模式（80端口）运行"
+    echo "如需启用HTTPS，请将证书文件放置在 ./ssl/ 目录下："
+    echo "  - ./ssl/fullchain.pem (证书文件)"
+    echo "  - ./ssl/privkey.key (私钥文件)"
+    echo "并在config.ini中设置 ssl_enabled=true"
+    
+    # 仅启动HTTP服务
+    exec python3 /app/main.py --host 0.0.0.0 --port 80
+fi

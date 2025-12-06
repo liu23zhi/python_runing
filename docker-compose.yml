@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  python-running-helper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: python-running-helper
+    ports:
+      # HTTP端口映射
+      - "80:80"
+      # HTTPS端口映射
+      - "443:443"
+    volumes:
+      # SSL证书目录挂载（将宿主机的证书挂载到容器内）
+      - ./ssl:/app/ssl:ro
+      # 配置文件挂载
+      - ./config.ini:/app/config.ini
+      # 数据持久化目录
+      - ./data:/app/data
+      - ./cache:/app/cache
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

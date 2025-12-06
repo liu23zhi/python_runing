@@ -1,0 +1,59 @@
+# Git相关
+.git
+.github
+.gitignore
+
+# Python相关
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+dist
+build
+*.egg
+.pytest_cache
+.coverage
+
+# 虚拟环境
+venv
+env
+ENV
+zs_campus_run_helper_venv
+
+# IDE相关
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# 日志和缓存
+logs/
+cache/
+*.log
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 数据文件
+data/
+sessions/
+*.db
+*.sqlite
+
+# Windows相关
+Thumbs.db
+desktop.ini
+*.bat
+
+# MacOS相关
+.DS_Store
+
+# 其他
+README.md
+LICENSE
+*.md
