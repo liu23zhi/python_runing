@@ -18326,6 +18326,13 @@ def start_web_server(args_param):
     # 应用主路由
     # ============================================================================
 
+    # 默认前端配置（集中定义，避免重复）
+    DEFAULT_FRONTEND_CONFIG = {
+        "sms_enabled": False,
+        "reg_verify_enabled": False,
+        "enable_phone_modification": False,
+    }
+
     def get_frontend_config():
         """辅助函数：读取前端需要的功能开关配置"""
         # [修正] 使用 strict=False 允许读取包含重复项的配置文件（保留最后一个值）
@@ -18386,11 +18393,8 @@ def start_web_server(args_param):
             return jsonify(config)
         except Exception as e:
             logging.error(f"获取前端配置失败: {e}")
-            return jsonify({
-                "sms_enabled": False,
-                "reg_verify_enabled": False,
-                "enable_phone_modification": False,
-            }), 500
+            # 使用集中定义的默认配置
+            return jsonify(DEFAULT_FRONTEND_CONFIG), 500
 
     # ========== 新增路由：CDN缓存文件API ==========
     @app.route("/api/cdn/<file_key>")
