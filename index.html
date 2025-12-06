@@ -8689,7 +8689,8 @@
                       修改密码
                     </h5>
                     <div class="space-y-2">
-                      <div>
+                      <!-- 当前密码输入区域（密码验证模式） -->
+                      <div id="mobile-password-verify-section">
                         <label
                           class="block text-xs font-medium text-slate-600 mb-1"
                           >当前密码</label
@@ -8700,6 +8701,36 @@
                           class="input-field !text-xs !py-1.5"
                           placeholder="输入当前密码"
                         />
+                        <!-- 提示用户可以使用短信验证 -->
+                        <p class="text-xs text-slate-500 mt-1">
+                          忘记原密码？<button type="button" onclick="toggleSmsVerifyMode('mobile')" class="text-sky-600 hover:underline" id="mobile-sms-toggle-btn">使用短信验证</button>
+                        </p>
+                      </div>
+                      <!-- 短信验证模式区域（默认隐藏） -->
+                      <div id="mobile-sms-verify-section" class="hidden space-y-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p class="text-xs text-blue-700">📱 验证码将发送到您绑定的手机号</p>
+                        <div>
+                          <label class="block text-xs font-medium text-slate-600 mb-1">短信验证码</label>
+                          <div class="flex gap-2">
+                            <input
+                              type="text"
+                              id="mobile-password-sms-code"
+                              class="input-field !text-xs !py-1.5 flex-1"
+                              placeholder="请输入验证码"
+                              maxlength="6"
+                              inputmode="numeric"
+                            />
+                            <button
+                              type="button"
+                              onclick="sendPasswordResetSmsCode('mobile')"
+                              id="mobile-send-sms-btn"
+                              class="btn btn-primary !py-1 !px-2 text-xs whitespace-nowrap"
+                            >
+                              发送验证码
+                            </button>
+                          </div>
+                        </div>
+                        <button type="button" onclick="toggleSmsVerifyMode('mobile')" class="text-xs text-slate-500 hover:underline">← 返回密码验证</button>
                       </div>
                       <div>
                         <label
@@ -12777,7 +12808,8 @@
               >
                 <h5 class="font-semibold text-slate-700 mb-3">修改密码</h5>
                 <div class="space-y-3">
-                  <div>
+                  <!-- 当前密码输入区域（密码验证模式） -->
+                  <div id="pc-password-verify-section">
                     <label
                       class="block text-sm font-semibold text-slate-700 mb-1"
                       >当前密码</label
@@ -12788,6 +12820,36 @@
                       class="input-field"
                       placeholder="输入当前密码"
                     />
+                    <!-- 提示用户可以使用短信验证 -->
+                    <p class="text-xs text-slate-500 mt-1">
+                      忘记原密码？<button type="button" onclick="toggleSmsVerifyMode('pc')" class="text-sky-600 hover:underline" id="pc-sms-toggle-btn">使用短信验证</button>
+                    </p>
+                  </div>
+                  <!-- 短信验证模式区域（默认隐藏） -->
+                  <div id="pc-sms-verify-section" class="hidden space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p class="text-xs text-blue-700">📱 短信验证模式：验证码将发送到您绑定的手机号</p>
+                    <div>
+                      <label class="block text-sm font-semibold text-slate-700 mb-1">短信验证码</label>
+                      <div class="flex gap-2">
+                        <input
+                          type="text"
+                          id="pc-password-sms-code"
+                          class="input-field flex-1"
+                          placeholder="请输入验证码"
+                          maxlength="6"
+                          inputmode="numeric"
+                        />
+                        <button
+                          type="button"
+                          onclick="sendPasswordResetSmsCode('pc')"
+                          id="pc-send-sms-btn"
+                          class="btn btn-primary whitespace-nowrap"
+                        >
+                          发送验证码
+                        </button>
+                      </div>
+                    </div>
+                    <button type="button" onclick="toggleSmsVerifyMode('pc')" class="text-xs text-slate-500 hover:underline">← 返回密码验证</button>
                   </div>
                   <div>
                     <label
@@ -21422,72 +21484,285 @@
           showModalAlert("网络错误，请稍后重试", "错误");
         }
       }
+      // ========================================
+      // 【密码修改】短信验证模式相关全局状态和函数
+      // ========================================
+
+      // 全局状态：当前验证模式 ('password' 或 'sms')
+      // PC端密码验证模式状态，默认为'password'（使用原密码验证）
+      let pcPasswordVerifyMode = 'password';
+      // 移动端密码验证模式状态，默认为'password'（使用原密码验证）
+      let mobilePasswordVerifyMode = 'password';
+
+      /**
+       * 切换密码验证模式（密码验证 <-> 短信验证）
+       * 该函数用于在修改密码时切换使用原密码验证还是短信验证码验证
+       *
+       * @param {string} platform - 平台标识，'pc' 或 'mobile'
+       */
+      function toggleSmsVerifyMode(platform) {
+        // 根据平台选择对应的DOM元素和状态变量
+        if (platform === 'pc') {
+          // 获取PC端的密码输入区域
+          const passwordSection = document.getElementById('pc-password-verify-section');
+          // 获取PC端的短信验证区域
+          const smsSection = document.getElementById('pc-sms-verify-section');
+          // 获取切换按钮
+          const toggleBtn = document.getElementById('pc-sms-toggle-btn');
+
+          // 判断当前模式并切换
+          if (pcPasswordVerifyMode === 'password') {
+            // 从密码验证模式切换到短信验证模式
+            passwordSection.classList.add('hidden');       // 隐藏密码输入区域
+            smsSection.classList.remove('hidden');         // 显示短信验证区域
+            toggleBtn.textContent = '返回密码验证';         // 更新按钮文字
+            pcPasswordVerifyMode = 'sms';                  // 更新状态为短信验证模式
+            logMessage_Info('[密码修改] PC端切换到短信验证模式');
+          } else {
+            // 从短信验证模式切换回密码验证模式
+            passwordSection.classList.remove('hidden');    // 显示密码输入区域
+            smsSection.classList.add('hidden');            // 隐藏短信验证区域
+            toggleBtn.textContent = '使用短信验证';         // 更新按钮文字
+            pcPasswordVerifyMode = 'password';             // 更新状态为密码验证模式
+            // 清空短信验证码输入框
+            const smsCodeInput = document.getElementById('pc-password-sms-code');
+            if (smsCodeInput) smsCodeInput.value = '';
+            logMessage_Info('[密码修改] PC端切换到密码验证模式');
+          }
+        } else if (platform === 'mobile') {
+          // 获取移动端的密码输入区域
+          const passwordSection = document.getElementById('mobile-password-verify-section');
+          // 获取移动端的短信验证区域
+          const smsSection = document.getElementById('mobile-sms-verify-section');
+          // 获取切换按钮
+          const toggleBtn = document.getElementById('mobile-sms-toggle-btn');
+
+          // 判断当前模式并切换
+          if (mobilePasswordVerifyMode === 'password') {
+            // 从密码验证模式切换到短信验证模式
+            passwordSection.classList.add('hidden');       // 隐藏密码输入区域
+            smsSection.classList.remove('hidden');         // 显示短信验证区域
+            toggleBtn.textContent = '返回密码验证';         // 更新按钮文字
+            mobilePasswordVerifyMode = 'sms';              // 更新状态为短信验证模式
+            logMessage_Info('[密码修改] 移动端切换到短信验证模式');
+          } else {
+            // 从短信验证模式切换回密码验证模式
+            passwordSection.classList.remove('hidden');    // 显示密码输入区域
+            smsSection.classList.add('hidden');            // 隐藏短信验证区域
+            toggleBtn.textContent = '使用短信验证';         // 更新按钮文字
+            mobilePasswordVerifyMode = 'password';         // 更新状态为密码验证模式
+            // 清空短信验证码输入框
+            const smsCodeInput = document.getElementById('mobile-password-sms-code');
+            if (smsCodeInput) smsCodeInput.value = '';
+            logMessage_Info('[密码修改] 移动端切换到密码验证模式');
+          }
+        }
+      }
+
+      /**
+       * 发送密码重置短信验证码
+       * 该函数用于在短信验证模式下发送验证码到用户绑定的手机号
+       *
+       * @param {string} platform - 平台标识，'pc' 或 'mobile'
+       */
+      async function sendPasswordResetSmsCode(platform) {
+        // 根据平台获取对应的发送按钮
+        const btn = document.getElementById(platform === 'pc' ? 'pc-send-sms-btn' : 'mobile-send-sms-btn');
+
+        try {
+          // 首先获取当前用户的绑定手机号
+          // 通过API获取用户资料信息
+          const response = await callPythonAPI_raw('/api/user/profile', 'GET');
+
+          // 检查API响应是否成功
+          if (!response.success) {
+            showModalAlert('获取用户信息失败，请稍后重试', '错误');
+            return;
+          }
+
+          // 检查用户是否已绑定手机号
+          if (!response.phone) {
+            showModalAlert('您尚未绑定手机号，无法使用短信验证。\n请先在"安全设置"中绑定手机号。', '提示');
+            return;
+          }
+
+          // 调用验证码模态框，发送短信验证码到绑定的手机号
+          // openCaptchaModal 会弹出图形验证码窗口，验证通过后发送短信
+          openCaptchaModal({
+            phone: response.phone,          // 用户绑定的手机号
+            button: btn,                    // 触发按钮，用于显示倒计时
+            originalText: '发送验证码',      // 按钮原始文字，倒计时结束后恢复
+            scene: 'password_reset',        // 场景标识，后端可据此做不同处理
+          });
+
+          logMessage_Info(`[密码修改] ${platform}端请求发送短信验证码到手机: ${response.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2')}`);
+
+        } catch (e) {
+          // 捕获网络错误或其他异常
+          logMessage_Error('[密码修改] 获取手机号失败:', e);
+          showModalAlert('获取手机号失败: ' + e.message, '错误');
+        }
+      }
+
+      /**
+       * 重置密码修改面板的验证模式到默认状态
+       * 当面板关闭或需要重置时调用
+       *
+       * @param {string} platform - 平台标识，'pc'、'mobile' 或 'all'
+       */
+      function resetPasswordVerifyMode(platform) {
+        // 重置PC端
+        if (platform === 'pc' || platform === 'all') {
+          pcPasswordVerifyMode = 'password';
+          const pcPasswordSection = document.getElementById('pc-password-verify-section');
+          const pcSmsSection = document.getElementById('pc-sms-verify-section');
+          const pcToggleBtn = document.getElementById('pc-sms-toggle-btn');
+          const pcSmsCodeInput = document.getElementById('pc-password-sms-code');
+
+          if (pcPasswordSection) pcPasswordSection.classList.remove('hidden');
+          if (pcSmsSection) pcSmsSection.classList.add('hidden');
+          if (pcToggleBtn) pcToggleBtn.textContent = '使用短信验证';
+          if (pcSmsCodeInput) pcSmsCodeInput.value = '';
+        }
+
+        // 重置移动端
+        if (platform === 'mobile' || platform === 'all') {
+          mobilePasswordVerifyMode = 'password';
+          const mobilePasswordSection = document.getElementById('mobile-password-verify-section');
+          const mobileSmsSection = document.getElementById('mobile-sms-verify-section');
+          const mobileToggleBtn = document.getElementById('mobile-sms-toggle-btn');
+          const mobileSmsCodeInput = document.getElementById('mobile-password-sms-code');
+
+          if (mobilePasswordSection) mobilePasswordSection.classList.remove('hidden');
+          if (mobileSmsSection) mobileSmsSection.classList.add('hidden');
+          if (mobileToggleBtn) mobileToggleBtn.textContent = '使用短信验证';
+          if (mobileSmsCodeInput) mobileSmsCodeInput.value = '';
+        }
+      }
+
+      /**
+       * PC端修改密码函数
+       * 支持两种验证模式：原密码验证 或 短信验证码验证
+       */
       async function updatePassword() {
+        // 弹出确认对话框，询问用户是否确认修改密码
         const confirmed = await jsShowConfirm(
           "确认修改密码",
           "您确定要修改您的登录密码吗？\n\n修改后需要使用新密码重新登录。"
         );
+        // 如果用户取消操作，则直接返回
         if (!confirmed) {
           logMessage_Info("[修改密码] 用户取消了密码修改操作");
           return;
         }
-        const currentPassword = $("profile-current-password");
-        const newPassword = $("profile-new-password");
-        const confirmPassword = $("profile-confirm-password");
 
-        if (!currentPassword || !newPassword || !confirmPassword) return;
+        // 获取各个密码输入框的DOM元素
+        const currentPassword = $("profile-current-password");    // 当前密码输入框
+        const newPassword = $("profile-new-password");            // 新密码输入框
+        const confirmPassword = $("profile-confirm-password");    // 确认新密码输入框
 
-        if (
-          !currentPassword.value ||
-          !newPassword.value ||
-          !confirmPassword.value
-        ) {
-          showModalAlert("请填写所有密码字段", "提示");
+        // 检查必要的DOM元素是否存在
+        if (!newPassword || !confirmPassword) return;
+
+        // 判断当前是否使用短信验证模式
+        const useSmsVerify = pcPasswordVerifyMode === 'sms';
+        // 如果是短信验证模式，获取短信验证码
+        const smsCode = useSmsVerify ? document.getElementById('pc-password-sms-code')?.value?.trim() : null;
+
+        // 根据验证模式进行不同的校验
+        if (!useSmsVerify) {
+          // 密码验证模式：检查原密码是否填写
+          if (!currentPassword || !currentPassword.value) {
+            showModalAlert("请填写当前密码，或点击"使用短信验证"通过短信验证码修改密码", "提示");
+            return;
+          }
+        } else {
+          // 短信验证模式：检查验证码是否填写
+          if (!smsCode) {
+            showModalAlert("请填写短信验证码", "提示");
+            return;
+          }
+          // 验证码格式校验（6位数字）
+          if (!/^\d{6}$/.test(smsCode)) {
+            showModalAlert("短信验证码格式不正确，请输入6位数字", "提示");
+            return;
+          }
+        }
+
+        // 检查新密码是否填写
+        if (!newPassword.value || !confirmPassword.value) {
+          showModalAlert("请填写新密码和确认新密码", "提示");
           return;
         }
 
+        // 检查两次输入的新密码是否一致
         if (newPassword.value !== confirmPassword.value) {
           showModalAlert("两次输入的密码不一致", "错误");
           return;
         }
 
+        // 检查新密码长度是否符合要求（最少6位）
         if (newPassword.value.length < 6) {
           showModalAlert("密码长度至少为6个字符", "错误");
           return;
         }
 
+        // 检查当前用户信息是否可用
         if (!currentAuthUsername) {
           showModalAlert("无法获取当前用户信息，请重新加载个人信息", "错误");
           return;
         }
 
         try {
+          // 构建API请求体
+          const requestBody = {
+            username: currentAuthUsername,                                    // 当前用户名
+            new_password: newPassword.value,                                  // 新密码
+          };
+
+          // 根据验证模式添加不同的验证字段
+          if (useSmsVerify) {
+            // 短信验证模式：传递短信验证码，原密码设为null
+            requestBody.sms_code = smsCode;
+            requestBody.old_password = null;
+            logMessage_Info('[密码修改] PC端使用短信验证模式提交');
+          } else {
+            // 密码验证模式：传递原密码
+            requestBody.old_password = currentPassword.value;
+            logMessage_Info('[密码修改] PC端使用密码验证模式提交');
+          }
+
+          // 发送密码修改请求到后端API
           const response = await fetch("/auth/admin/reset_password", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Session-ID": sessionUUID,
             },
-            body: JSON.stringify({
-              username: currentAuthUsername,
-              old_password: currentPassword.value,
-              new_password: newPassword.value,
-            }),
+            body: JSON.stringify(requestBody),
           });
+
+          // 解析API响应
           const result = await response.json();
 
           if (result.success) {
+            // 密码修改成功
             showModalAlert("密码修改成功！", "成功");
-            currentPassword.value = "";
+            // 清空所有输入框
+            if (currentPassword) currentPassword.value = "";
             newPassword.value = "";
             confirmPassword.value = "";
+            // 重置验证模式到默认状态（密码验证）
+            resetPasswordVerifyMode('pc');
           } else {
-            showModalAlert(
-              `修改失败: ${result.message || "请检查当前密码是否正确"}`,
-              "错误"
-            );
+            // 密码修改失败，显示错误信息
+            const errorMsg = useSmsVerify 
+              ? (result.message || "请检查短信验证码是否正确") 
+              : (result.message || "请检查当前密码是否正确");
+            showModalAlert(`修改失败: ${errorMsg}`, "错误");
           }
         } catch (e) {
+          // 捕获网络错误或其他异常
           logMessage_Error("修改密码失败:", e);
           showModalAlert(`修改失败: ${e.message}`, "错误");
         }
@@ -42075,74 +42350,125 @@
       }
 
       // 【移动端统一面板】修改密码
+      // 支持两种验证模式：原密码验证 或 短信验证码验证
       async function updateMobileUnifiedPassword() {
+        // 获取当前密码输入框DOM元素
         const currentPasswordInput = document.getElementById(
           "mobile-unified-current-password"
         );
+        // 获取新密码输入框DOM元素
         const newPasswordInput = document.getElementById(
           "mobile-unified-new-password"
         );
+        // 获取确认新密码输入框DOM元素
         const confirmPasswordInput = document.getElementById(
           "mobile-unified-confirm-password"
         );
 
-        const currentPassword = currentPasswordInput.value;
-        const newPassword = newPasswordInput.value;
-        const confirmPassword = confirmPasswordInput.value;
+        // 获取输入框的值
+        const currentPassword = currentPasswordInput ? currentPasswordInput.value : '';
+        const newPassword = newPasswordInput ? newPasswordInput.value : '';
+        const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : '';
 
-        // 校验用户信息
+        // 判断当前是否使用短信验证模式
+        const useSmsVerify = mobilePasswordVerifyMode === 'sms';
+        // 如果是短信验证模式，获取短信验证码
+        const smsCode = useSmsVerify ? document.getElementById('mobile-password-sms-code')?.value?.trim() : null;
+
+        // 校验用户信息是否可用
         if (!currentAuthUsername) {
           showModalAlert("无法获取当前用户信息，请刷新页面", "错误");
           return;
         }
 
-        if (!currentPassword) {
-          showModalAlert("请输入当前密码", "提示");
-          return;
+        // 根据验证模式进行不同的校验
+        if (!useSmsVerify) {
+          // 密码验证模式：检查原密码是否填写
+          if (!currentPassword) {
+            showModalAlert("请输入当前密码，或点击"使用短信验证"通过短信验证码修改密码", "提示");
+            return;
+          }
+        } else {
+          // 短信验证模式：检查验证码是否填写
+          if (!smsCode) {
+            showModalAlert("请填写短信验证码", "提示");
+            return;
+          }
+          // 验证码格式校验（6位数字）
+          if (!/^\d{6}$/.test(smsCode)) {
+            showModalAlert("短信验证码格式不正确，请输入6位数字", "提示");
+            return;
+          }
         }
 
+        // 检查新密码是否填写
         if (!newPassword) {
           showModalAlert("请输入新密码", "提示");
           return;
         }
 
+        // 检查两次输入的新密码是否一致
         if (newPassword !== confirmPassword) {
           showModalAlert("两次输入的新密码不一致", "提示");
           return;
         }
 
+        // 检查新密码长度是否符合要求（最少6位）
         if (newPassword.length < 6) {
           showModalAlert("新密码长度至少为6位", "提示");
           return;
         }
 
         try {
-          // 修正：使用与 updatePassword() 一致的正确API接口
+          // 构建API请求体
+          const requestBody = {
+            username: currentAuthUsername,     // 必填：当前用户名
+            new_password: newPassword,         // 必填：新密码
+          };
+
+          // 根据验证模式添加不同的验证字段
+          if (useSmsVerify) {
+            // 短信验证模式：传递短信验证码，原密码设为null
+            requestBody.sms_code = smsCode;
+            requestBody.old_password = null;
+            console.log('[移动端统一面板-修改密码] 使用短信验证模式提交');
+          } else {
+            // 密码验证模式：传递原密码
+            requestBody.old_password = currentPassword;
+            console.log('[移动端统一面板-修改密码] 使用密码验证模式提交');
+          }
+
+          // 发送密码修改请求到后端API
           const response = await fetch("/auth/admin/reset_password", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-Session-ID": sessionUUID,
             },
-            body: JSON.stringify({
-              username: currentAuthUsername, // 必填：当前用户名
-              old_password: currentPassword, // 必填：旧密码用于验证
-              new_password: newPassword, // 必填：新密码
-            }),
+            body: JSON.stringify(requestBody),
           });
 
+          // 解析API响应
           const result = await response.json();
 
           if (result.success) {
+            // 密码修改成功
             showModalAlert("密码修改成功", "成功");
             // 清空密码输入框
-            currentPasswordInput.value = "";
-            newPasswordInput.value = "";
-            confirmPasswordInput.value = "";
+            if (currentPasswordInput) currentPasswordInput.value = "";
+            if (newPasswordInput) newPasswordInput.value = "";
+            if (confirmPasswordInput) confirmPasswordInput.value = "";
+            // 重置验证模式到默认状态（密码验证）
+            resetPasswordVerifyMode('mobile');
           } else {
-            showModalAlert(result.message || "修改失败", "错误");
+            // 密码修改失败，显示错误信息
+            const errorMsg = useSmsVerify 
+              ? (result.message || "请检查短信验证码是否正确") 
+              : (result.message || "修改失败");
+            showModalAlert(errorMsg, "错误");
           }
         } catch (e) {
+          // 捕获网络错误或其他异常
           console.error("[移动端统一面板-修改密码] 失败:", e);
           showModalAlert("修改失败: " + e.message, "错误");
         }
