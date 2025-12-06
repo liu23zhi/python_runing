@@ -5,7 +5,7 @@ FROM python:3.11-slim
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖
+# 安装系统依赖（包括nginx）
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
@@ -29,6 +29,8 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
+    nginx \
+    supervisor \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制requirements.txt并安装Python依赖
@@ -42,8 +44,11 @@ RUN playwright install-deps chromium
 # 复制应用程序文件
 COPY . .
 
+# 复制nginx配置文件
+COPY nginx.conf /etc/nginx/nginx.conf
+
 # 创建必要的目录
-RUN mkdir -p /app/ssl /app/cache /app/logs
+RUN mkdir -p /app/ssl /app/cache /app/logs /var/log/nginx
 
 # 暴露端口 80 (HTTP) 和 443 (HTTPS)
 EXPOSE 80 443
