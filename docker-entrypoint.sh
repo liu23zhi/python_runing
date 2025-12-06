@@ -49,7 +49,7 @@ if [ -f "/app/ssl/fullchain.pem" ] && [ -f "/app/ssl/privkey.key" ] && [ "$ssl_e
     
     # 修改nginx配置，添加HTTP到HTTPS的重定向
     cat > /etc/nginx/nginx.conf <<'NGINX_EOF'
-user  nginx;
+user  www-data;
 worker_processes  auto;
 error_log  /var/log/nginx/error.log warn;
 pid        /var/run/nginx.pid;
@@ -63,7 +63,7 @@ http {
     default_type  application/octet-stream;
 
     log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
-                      '$status $body_size_bytes "$http_referer" '
+                      '$status $body_bytes_sent "$http_referer" '
                       '"$http_user_agent" "$http_x_forwarded_for"';
 
     access_log  /var/log/nginx/access.log  main;
