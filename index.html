@@ -9063,14 +9063,27 @@
                   </button>
                 </div>
                 <!-- 留言列表容器 -->
+                <!-- 美化后的移动端留言列表：添加背景色、圆角、边框、阴影等视觉效果 -->
+                <!-- 使用 max-h-[50vh] 限制最大高度为视口的50%，确保不会占用过多屏幕空间 -->
+                <!-- scroll-smooth 提供平滑滚动体验，提升用户交互感受 -->
                 <div
                   id="mobile-multi-admin-messages-list"
-                  class="space-y-2 max-h-auto overflow-y-auto"
+                  class="space-y-2 max-h-[50vh] overflow-y-auto bg-slate-50 rounded-lg p-3 border border-slate-200 shadow-sm scroll-smooth"
                 >
                   <!-- 加载占位提示 -->
-                  <p class="text-slate-400 text-center py-10 text-xs">
-                    加载中...
-                  </p>
+                  <!-- 使用 animate-pulse 添加脉冲动画效果，让加载状态更生动 -->
+                  <!-- 添加 flex 布局使加载图标和文字居中对齐 -->
+                  <div class="flex flex-col items-center justify-center py-10 space-y-2">
+                    <!-- 加载动画图标：使用 SVG 旋转动画 -->
+                    <svg class="animate-spin h-6 w-6 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <!-- 加载文字提示 -->
+                    <p class="text-slate-400 text-center text-xs animate-pulse">
+                      加载中...
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -10308,10 +10321,25 @@
                   刷新
                 </button>
               </div>
-              <div id="mobile-multi-admin-messages-list" class="space-y-2">
-                <p class="text-slate-400 text-center py-10 text-xs">
-                  加载中...
-                </p>
+              <!-- 留言列表容器 -->
+              <!-- 美化后的移动端留言列表：添加背景色、圆角、边框、阴影等视觉效果 -->
+              <!-- 使用 max-h-[50vh] 限制最大高度为视口的50%，确保不会占用过多屏幕空间 -->
+              <!-- scroll-smooth 提供平滑滚动体验，提升用户交互感受 -->
+              <div id="mobile-multi-admin-messages-list" class="space-y-2 max-h-[50vh] overflow-y-auto bg-slate-50 rounded-lg p-3 border border-slate-200 shadow-sm scroll-smooth">
+                <!-- 加载占位提示 -->
+                <!-- 使用 animate-pulse 添加脉冲动画效果，让加载状态更生动 -->
+                <!-- 添加 flex 布局使加载图标和文字居中对齐 -->
+                <div class="flex flex-col items-center justify-center py-10 space-y-2">
+                  <!-- 加载动画图标：使用 SVG 旋转动画 -->
+                  <svg class="animate-spin h-6 w-6 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <!-- 加载文字提示 -->
+                  <p class="text-slate-400 text-center text-xs animate-pulse">
+                    加载中...
+                  </p>
+                </div>
               </div>
             </div>
 
