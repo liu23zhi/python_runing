@@ -9168,7 +9168,7 @@
             </div>
 
             <div
-              class="mb-5 p-4 bg-white rounded-xl shadow-md border border-orange-100"
+              class="mb-5 p-4 bg-white rounded-xl shadow-md border border-orange-100" id="mobile-multi-global-status-panel"
             >
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
@@ -9298,7 +9298,7 @@
             </div>
 
             <div
-              class="bg-white rounded-xl shadow-md p-4 mb-5 border border-orange-100"
+              class="bg-white rounded-xl shadow-md p-4 mb-5 border border-orange-100" id="mobile-multi-running-stats-panel-2"
             >
               <div class="flex items-center gap-2 mb-4">
                 <svg
@@ -9345,7 +9345,7 @@
                   <div class="text-xs text-green-700 font-semibold">运行中</div>
                 </div>
                 <div
-                  class="text-center p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm"
+                  class="text-center p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm" style="display: none;"
                 >
                   <div class="flex items-center justify-center mb-2">
                     <svg
@@ -31864,94 +31864,167 @@
       }
 
       let lastAccountListSignature = "";
+      let isMultiAccountAutoRefreshRunning = false; // 新增：运行状态标志
+
       function startMultiAccountAutoRefresh(interval = 500) {
-        if (multiAccountAutoRefreshInterval) {
-          clearInterval(multiAccountAutoRefreshInterval);
-          multiAccountAutoRefreshInterval = null;
-        }
-        multiAccountAutoRefreshInterval = setInterval(async () => {
-          if (
-            typeof isInNetworkErrorState !== "undefined" &&
-            isInNetworkErrorState
-          ) {
-            return;
-          }
+        // 先停止现有的轮询
+        stopMultiAccountAutoRefresh();
+        
+        isMultiAccountAutoRefreshRunning = true;
 
-          try {
-            const pcMultiApp = document.getElementById("multi-account-app");
-            const mobileMultiApp = document.getElementById(
-              "mobile-multi-account-app"
-            );
-            const isVisible =
-              (pcMultiApp && !pcMultiApp.classList.contains("hidden")) ||
-              (mobileMultiApp && !mobileMultiApp.classList.contains("hidden"));
+        const refreshLoop = async () => {
+            // 检查运行标志
+            if (!isMultiAccountAutoRefreshRunning) return;
 
-            if (!isVisible) {
-              return;
-            }
-
-            const response = await callPythonAPI(
-              "multi_get_all_accounts_status"
-            );
-
-            if (response && response.success && response.accounts) {
-              const currentSignature = response.accounts
-                .map((a) => a.username)
-                .join("|");
-              if (currentSignature !== lastAccountListSignature) {
-                console.log("[多账号刷新] 账号列表结构变化，重绘 DOM");
-                renderMultiAccountList(response.accounts);
-                lastAccountListSignature = currentSignature;
-              }
-              response.accounts.forEach((acc) => {
-                if (!acc.username) return;
-
-                const updateData = {
-                  status_text: acc.status_text,
-                  name: acc.name,
-                  summary: acc.summary,
-                  progress_pct: acc.progress_pct,
-                  progress_text: acc.progress_text,
-                  progress_extra: acc.progress_extra,
-                };
-                multi_updateAccountStatus(acc.username, updateData);
-
-                if (
-                  acc.current_position &&
-                  typeof acc.current_position.lon === "number" &&
-                  typeof acc.current_position.lat === "number"
-                ) {
-                  multi_updateRunnerPosition(
-                    acc.username,
-                    acc.current_position.lon,
-                    acc.current_position.lat,
-                    acc.name || acc.username
-                  );
-                }
-              });
-            }
-          } catch (error) {
-            console.error("[多账号自动刷新] 轮询请求失败:", error);
-            // 修正：检测到会话过期错误时，立即停止轮询，防止无限 401 循环
+            // 检查全局网络错误状态
             if (
-              error.message &&
-              (error.message.includes("会话已过期") ||
-                error.message.includes("无效") ||
-                error.message.includes("401"))
+                typeof isInNetworkErrorState !== "undefined" &&
+                isInNetworkErrorState
             ) {
-              console.warn("[多账号自动刷新] 检测到会话失效，自动停止轮询。");
-              stopMultiAccountAutoRefresh();
+                // 如果处于网络错误状态，延长重试时间到 5 秒
+                multiAccountAutoRefreshInterval = setTimeout(refreshLoop, 5000);
+                return;
             }
-          }
-        }, interval);
 
-        console.log(`[多账号自动刷新] 已启动高频轮询 (间隔: ${interval}ms)`);
+            try {
+                // 检查界面可见性
+                const pcMultiApp = document.getElementById("multi-account-app");
+                const mobileMultiApp = document.getElementById("mobile-multi-account-app");
+                const isVisible =
+                    (pcMultiApp && !pcMultiApp.classList.contains("hidden")) ||
+                    (mobileMultiApp && !mobileMultiApp.classList.contains("hidden"));
+
+                if (!isVisible) {
+                    // 如果界面不可见，降频到 2 秒一次
+                    multiAccountAutoRefreshInterval = setTimeout(refreshLoop, 2000);
+                    return;
+                }
+
+                // 执行API请求
+                const response = await callPythonAPI("multi_get_all_accounts_status");
+
+                // 处理成功响应
+                if (response && response.success && response.accounts) {
+                    const currentSignature = response.accounts
+                        .map((a) => a.username)
+                        .join("|");
+                    if (currentSignature !== lastAccountListSignature) {
+                        console.log("[多账号刷新] 账号列表结构变化，重绘 DOM");
+                        renderMultiAccountList(response.accounts);
+                        lastAccountListSignature = currentSignature;
+                    }
+
+                    // --- [新增] 全局统计变量 ---
+                    let runningCount = 0;
+                    let pausedCount = 0;
+                    let stoppedCount = 0;
+                    // -------------------------
+
+                    response.accounts.forEach((acc) => {
+                        if (!acc.username) return;
+
+                        // --- [新增] 统计逻辑 ---
+                        const s = acc.status_text || "";
+                        // 根据状态文本判断归类
+                        if (s.includes("运行") || s.includes("登录") || s.includes("等待") || s.includes("延迟") || s.includes("分析") || s.includes("排队") || s.includes("正在")) {
+                            runningCount++;
+                        } else if (s.includes("暂停")) {
+                            pausedCount++;
+                        } else {
+                            stoppedCount++;
+                        }
+                        // ---------------------
+
+                        const updateData = {
+                            status_text: acc.status_text,
+                            name: acc.name,
+                            summary: acc.summary,
+                            progress_pct: acc.progress_pct,
+                            progress_text: acc.progress_text,
+                            progress_extra: acc.progress_extra,
+                        };
+                        multi_updateAccountStatus(acc.username, updateData);
+
+                        if (
+                            acc.current_position &&
+                            typeof acc.current_position.lon === "number" &&
+                            typeof acc.current_position.lat === "number"
+                        ) {
+                            multi_updateRunnerPosition(
+                                acc.username,
+                                acc.current_position.lon,
+                                acc.current_position.lat,
+                                acc.name || acc.username
+                            );
+                        }
+                    });
+
+                    // --- [新增] 更新移动端全局状态面板 ---
+                    const mobileRunEl = document.getElementById("mobile-multi-running-count");
+                    if (mobileRunEl) mobileRunEl.textContent = runningCount;
+
+                    const mobilePauseEl = document.getElementById("mobile-multi-paused-count");
+                    if (mobilePauseEl) mobilePauseEl.textContent = pausedCount;
+                    // 如果有暂停的任务，显示暂停面板（原本是 display:none）
+                    const mobilePauseContainer = mobilePauseEl ? mobilePauseEl.closest('.text-center') : null;
+                    if (mobilePauseContainer) {
+                        mobilePauseContainer.style.display = pausedCount > 0 ? "block" : "none";
+                    }
+
+                    const mobileStopEl = document.getElementById("mobile-multi-stopped-count");
+                    if (mobileStopEl) mobileStopEl.textContent = stoppedCount;
+
+                    const mobileGlobalStatusEl = document.getElementById("mobile-multi-global-status");
+                    if (mobileGlobalStatusEl) {
+                        if (runningCount > 0) {
+                            mobileGlobalStatusEl.textContent = "运行中";
+                            mobileGlobalStatusEl.className = "text-sm font-bold px-4 py-1.5 rounded-full bg-green-100 text-green-700 shadow-sm";
+                        } else if (pausedCount > 0) {
+                            mobileGlobalStatusEl.textContent = "已暂停";
+                            mobileGlobalStatusEl.className = "text-sm font-bold px-4 py-1.5 rounded-full bg-yellow-100 text-yellow-700 shadow-sm";
+                        } else {
+                            mobileGlobalStatusEl.textContent = "就绪";
+                            mobileGlobalStatusEl.className = "text-sm font-bold px-4 py-1.5 rounded-full bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 shadow-sm";
+                        }
+                    }
+                    // ---------------------------------
+                }
+                
+                // 请求成功，按正常间隔调度下一次
+                multiAccountAutoRefreshInterval = setTimeout(refreshLoop, interval);
+
+            } catch (error) {
+                console.error("[多账号自动刷新] 轮询请求失败:", error);
+                
+                // 严重错误检查：会话失效
+                if (
+                    error.message &&
+                    (error.message.includes("会话已过期") ||
+                        error.message.includes("无效") ||
+                        error.message.includes("401"))
+                ) {
+                    console.warn("[多账号自动刷新] 检测到会话失效，自动停止轮询。");
+                    stopMultiAccountAutoRefresh();
+                    return;
+                }
+
+                // 其他错误（如网络波动、服务器500等）：退避 5 秒后重试
+                // 这里避免了死循环高频请求
+                multiAccountAutoRefreshInterval = setTimeout(refreshLoop, 5000);
+            }
+        };
+
+        // 启动第一次执行
+        refreshLoop();
+        console.log(`[多账号自动刷新] 已启动 (间隔: ${interval}ms, 错误退避: 5000ms)`);
       }
+
       function stopMultiAccountAutoRefresh() {
+        isMultiAccountAutoRefreshRunning = false; // 标记停止
         if (multiAccountAutoRefreshInterval) {
-          clearInterval(multiAccountAutoRefreshInterval);
+          clearTimeout(multiAccountAutoRefreshInterval); // 使用 clearTimeout
           multiAccountAutoRefreshInterval = null;
-          console.log("[多账号自动刷新] 已停止定时自动刷新");
+          console.log("[多账号自动刷新] 已停止自动刷新");
         }
       }
 
@@ -33930,6 +34003,68 @@
         result = relevantPart.trimEnd();
         return result || "未知";
       }
+
+
+    // ==================== 日志批处理逻辑 ====================
+      let logQueue = [];
+      let logFlushTimer = null;
+      const LOG_FLUSH_INTERVAL = 2000; // 2秒间隔
+
+      function flushLogQueue() {
+          if (logQueue.length === 0) {
+              logFlushTimer = null;
+              return;
+          }
+
+          // 取出当前队列所有内容并清空
+          const batchToSend = [...logQueue];
+          logQueue = [];
+
+          if (!isInNetworkErrorState && sessionUUID) {
+              fetch("/api/log_frontend", {
+                  method: "POST",
+                  headers: {
+                      "Content-Type": "application/json",
+                      "X-Session-ID": sessionUUID || null,
+                  },
+                  credentials: "include",
+                  body: JSON.stringify({
+                      batch: batchToSend
+                  }),
+              }).catch((err) => {
+                  if (console._original && console._original.error) {
+                      console._original.error("[日志批量发送失败]", err);
+                  }
+              });
+          }
+
+          // 重置定时器引用，允许下次触发
+          logFlushTimer = null;
+          
+          // 如果在发送过程中又有新日志进入（极端情况），重新启动定时器
+          if (logQueue.length > 0) {
+             scheduleLogFlush();
+          }
+      }
+
+      function scheduleLogFlush() {
+          if (!logFlushTimer) {
+              logFlushTimer = setTimeout(flushLogQueue, LOG_FLUSH_INTERVAL);
+          }
+      }
+
+      // 页面关闭时尝试发送剩余日志
+      window.addEventListener("beforeunload", () => {
+          if (logQueue.length > 0) {
+              // 使用 sendBeacon 保证页面关闭时数据能发出 (如果浏览器支持且数据量不大)
+              // 这里为了兼容性简单调用 flush，但 fetch 在 unload 时可能被取消
+              // 尝试直接调用一次 flush，虽然不能保证成功
+              flushLogQueue();
+          }
+      });
+
+
+
       (function () {
         const originalConsole = {
           log: console.log.bind(console),
@@ -33975,20 +34110,14 @@
                 now.getSeconds()
               ).padStart(2, "0")}`;
 
-              fetch("/api/log_frontend", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-Session-ID": sessionUUID || null,
-                },
-                credentials: "include",
-                body: JSON.stringify({
+              // 使用队列逻辑
+              logQueue.push({
                   level: level.toUpperCase(),
                   message: message,
                   timestamp: timestamp,
                   source: "第三方JS",
-                }),
-              }).catch(() => {});
+              });
+              scheduleLogFlush();
             }
           } finally {
             isIntercepting = false;
@@ -34080,28 +34209,18 @@
         }
         if (!isInNetworkErrorState && source !== "Backend") {
           try {
-            fetch("/api/log_frontend", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Session-ID": sessionUUID || null,
-              },
-              credentials: "include",
-              body: JSON.stringify({
+            // 将单条发送改为推入队列并调度
+            logQueue.push({
                 level: level_new,
                 message: line,
                 timestamp: timestamp2,
                 source: callerInfo,
-              }),
-            }).catch((err) => {
-              if (console._original && console._original.error) {
-                console._original.error("[日志发送失败]", err);
-              } else {
-              }
             });
+            scheduleLogFlush();
+            
           } catch (e) {
             if (console._original && console._original.error) {
-              console._original.error("[日志发送异常]", e);
+              console._original.error("[日志入队异常]", e);
             }
           }
         }

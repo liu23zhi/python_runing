@@ -991,10 +991,8 @@ def _write_config_with_comments(config_obj, filepath):
 
             # 优先写入已知的重要参数
             known_keys = [
-                "LastUser",
                 "theme_base_color",
                 "theme_style",
-                "auto_attendance_enabled",
                 "auto_attendance_refresh_s",
                 "attendance_user_radius_m",
             ]
@@ -2705,7 +2703,27 @@ class AuthSystem:
             "session_ids": user_data.get("session_ids", []),
             "nickname": user_data.get("nickname", user_data["auth_username"]),
             "phone": user_data.get("phone", ""),
+            "last_used_school_account": user_data.get("last_used_school_account", ""), # 新增字段
         }
+
+    def update_user_last_school_account(self, auth_username, school_username):
+        """更新用户最后使用的学校账号"""
+        if not auth_username or auth_username == 'guest':
+            return
+        
+        user_file = self.get_user_file_path(auth_username)
+        if os.path.exists(user_file):
+            with self.lock:
+                try:
+                    with open(user_file, "r", encoding="utf-8") as f:
+                        user_data = json.load(f)
+                    
+                    user_data["last_used_school_account"] = school_username
+                    
+                    with open(user_file, "w", encoding="utf-8") as f:
+                        json.dump(user_data, f, indent=2, ensure_ascii=False)
+                except Exception as e:
+                    logging.error(f"更新用户 {auth_username} 的 last_used_school_account 失败: {e}")
 
     def check_single_session_enforcement(self, auth_username, new_session_id):
         """检查并强制执行会话数量限制"""
@@ -3593,8 +3611,9 @@ class Api:
         self._submission_queue: queue.Queue | None = getattr(
             self, "_submission_queue", None
         )
-        self._submission_worker_thread: threading.Thread | None = getattr(
-            self, "_submission_worker_thread", None
+        # [修改] 将单个线程变量改为线程列表，以支持并发队列消费
+        self._submission_worker_threads: list[threading.Thread] = getattr(
+            self, "_submission_worker_threads", []
         )
         self._submission_worker_stop: threading.Event | None = getattr(
             self, "_submission_worker_stop", None
@@ -3603,15 +3622,24 @@ class Api:
             self._submission_queue = queue.Queue()
         if self._submission_worker_stop is None:
             self._submission_worker_stop = threading.Event()
-        if (self._submission_worker_thread is None) or (
-            not self._submission_worker_thread.is_alive()
-        ):
-            self._submission_worker_thread = threading.Thread(
-                target=self._submission_worker_loop,
-                name="SubmissionWorker",
-                daemon=True,
-            )
-            self._submission_worker_thread.start()
+        
+        # [修改] 清理已死亡的线程
+        self._submission_worker_threads = [t for t in self._submission_worker_threads if t.is_alive()]
+        
+        # [修改] 确保启动 20 个并发工作线程来处理提交队列
+        MAX_SUBMISSION_CONCURRENCY = 20
+        current_threads = len(self._submission_worker_threads)
+        
+        if current_threads < MAX_SUBMISSION_CONCURRENCY:
+            for i in range(MAX_SUBMISSION_CONCURRENCY - current_threads):
+                t = threading.Thread(
+                    target=self._submission_worker_loop,
+                    name=f"SubmissionWorker-{len(self._submission_worker_threads) + 1}",
+                    daemon=True,
+                )
+                t.start()
+                self._submission_worker_threads.append(t)
+            logging.info(f"已启动 {len(self._submission_worker_threads)} 个数据提交工作线程")
 
     def _init_state_variables(self):
         """初始化或重置应用的所有状态变量"""
@@ -3629,7 +3657,7 @@ class Api:
         if not hasattr(self, "user_info"):
             self.user_info = None
         if not hasattr(self, "multi_login_lock") or self.multi_login_lock is None:
-            self.multi_login_lock = threading.Semaphore(1)
+            self.multi_login_lock = threading.Semaphore(20)
 
         self.global_params = {
             "interval_ms": 3000,
@@ -4088,10 +4116,13 @@ class Api:
                     f"读取主配置文件 {self.config_path} 失败: {e}, 将创建新的。"
                 )
 
-        if not main_cfg.has_section("Config"):
-            main_cfg.add_section("Config")
-        main_cfg.set("Config", "LastUser", username)
+        # [修正] 不再将 LastUser 写入 config.ini，而是更新到系统账号文件
+        if hasattr(self, "auth_username") and self.auth_username and self.auth_username != "guest":
+            if 'auth_system' in globals():
+                auth_system.update_user_last_school_account(self.auth_username, username)
+                logging.debug(f"已更新用户 {self.auth_username} 的最后使用学校账号为: {username}")
 
+        # 下面仅保留必要的全局配置写入（如 Map Key）
         if not main_cfg.has_section("Map"):
             main_cfg.add_section("Map")
 
@@ -4105,9 +4136,11 @@ class Api:
         else:
             main_cfg.set("Map", "amap_js_key", "")
 
+        # 只有当确实有内容变更需要写入 config.ini 时才写入 (这里主要是 Map Key)
+        # 如果只是更新了用户配置，没必要每次都覆写 config.ini
         try:
             _write_config_with_comments(main_cfg, self.config_path)
-            logging.debug(f"更新主配置文件 {self.config_path} 成功")
+            logging.debug(f"更新主配置文件 {self.config_path} 成功 (Map Key)")
         except Exception as e:
             logging.error(f"写入主配置文件 {self.config_path} 失败: {e}", exc_info=True)
 
@@ -4143,11 +4176,10 @@ class Api:
             if cfg.has_option("Config", "theme_style"):
                 self.global_params["theme_style"] = cfg.get("Config", "theme_style")
 
-            if cfg.has_option("Config", "auto_attendance_enabled"):
-                self.global_params["auto_attendance_enabled"] = cfg.getboolean(
-                    "Config", "auto_attendance_enabled"
-                )
-
+            # [修正] auto_attendance_enabled 不再从全局配置文件读取，而是依赖会话持久化或默认值
+            # 仅保留刷新间隔和半径作为全局默认值（如果需要的话），或者也完全移除
+            # 这里根据指示移除 enabled 的读取
+            
             if cfg.has_option("Config", "auto_attendance_refresh_s"):
                 self.global_params["auto_attendance_refresh_s"] = cfg.getint(
                     "Config", "auto_attendance_refresh_s"
@@ -4385,14 +4417,25 @@ class Api:
             cfg.optionxform = str
             cfg.read(self.config_path, encoding="utf-8")
 
-            if not cfg.has_section("Config"):
-                cfg.add_section("Config")
+            # [修正] LastUser 不再从 config.ini 读取，而是从当前登录用户的系统账号信息中获取
+            last_user = ""
+            
+            # 尝试获取当前认证用户的 last_used_school_account
+            auth_username = getattr(self, "auth_username", None)
+            is_guest = getattr(self, "is_guest", False)
+            
+            if auth_username and not is_guest and 'auth_system' in globals():
+                try:
+                    details = auth_system.get_user_details(auth_username)
+                    if details:
+                        last_user = details.get("last_used_school_account", "")
+                except Exception as e:
+                    logging.warning(f"获取用户 {auth_username} 的 LastUser 失败: {e}")
 
-            last_user = cfg.get("Config", "LastUser", fallback="").strip()
-
+            # 验证 last_user 是否有效
             if last_user and last_user not in all_users:
-                logging.warning(f"LastUser '{last_user}' 不存在对应的 .ini，自动清空。")
-                cfg.set("Config", "LastUser", "")
+                logging.debug(f"LastUser '{last_user}' 不在可用列表中，已忽略。")
+                last_user = ""
                 try:
                     with open(self.config_path, "w", encoding="utf-8") as f:
                         cfg.write(f)
@@ -6353,10 +6396,10 @@ class Api:
                     target_params[key] = original_type(value)
 
                 # [修正] 如果是全局配置项，立即保存到 config.ini
+                # auto_attendance_enabled 已移除，它将仅保存在会话中
                 global_keys = [
                     "theme_base_color",
                     "theme_style",
-                    "auto_attendance_enabled",
                     "auto_attendance_refresh_s",
                     "attendance_user_radius_m",
                 ]
@@ -8793,6 +8836,7 @@ class Api:
         finally:
             try:
                 acc.worker_thread = None
+                acc.current_position = None
                 if acc.stop_event.is_set():
                     self._update_account_status_js(acc, status_text="已停止")
                 else:
@@ -13205,7 +13249,9 @@ def start_web_server(args_param):
         用户注册API端点（已升级支持手机号、昵称、头像）。
         """
         try:
-            config = configparser.ConfigParser()
+            # [修正] 使用 strict=False 允许重复项，optionxform=str 保持大小写敏感
+            config = configparser.ConfigParser(strict=False)
+            config.optionxform = str
             if os.path.exists(CONFIG_FILE):
                 config.read(CONFIG_FILE, encoding="utf-8")
             content_type = request.headers.get("Content-Type", "").lower()
@@ -13399,7 +13445,9 @@ def start_web_server(args_param):
         用户登录认证API端点。
         """
         global config
-        config = configparser.ConfigParser()
+        # [修正] 使用 strict=False 允许重复项，optionxform=str 保持大小写敏感
+        config = configparser.ConfigParser(strict=False)
+        config.optionxform = str
         config.read(CONFIG_FILE, encoding="utf-8")
 
         data = request.get_json() or {}
@@ -16416,7 +16464,9 @@ def start_web_server(args_param):
         发送短信验证码API
         """
         try:
-            config = configparser.ConfigParser()
+            # [修正] 使用 strict=False 允许重复项，optionxform=str 保持大小写敏感
+            config = configparser.ConfigParser(strict=False)
+            config.optionxform = str
             config.read("config.ini", encoding="utf-8")
             if (
                 config.get("Features", "enable_sms_service", fallback="false").lower()
@@ -16698,7 +16748,9 @@ def start_web_server(args_param):
                     ),
                     403,
                 )
-            config = configparser.ConfigParser()
+            # [修正] 使用 strict=False 允许重复项，optionxform=str 保持大小写敏感
+            config = configparser.ConfigParser(strict=False)
+            config.optionxform = str
             config.read("config.ini", encoding="utf-8")
             if (
                 config.get("Features", "enable_sms_service", fallback="false").lower()
@@ -17190,47 +17242,62 @@ def start_web_server(args_param):
 
     @app.route("/api/log_frontend", methods=["POST"])
     def log_frontend():
-        """接收前端日志并保存到后端日志文件"""
+        """接收前端日志并保存到后端日志文件（支持批量）"""
         try:
-            data = request.get_json() or {}
-            level = data.get("level", "INFO").upper()
-            message = data.get("message", "")
-            timestamp = data.get("timestamp", "")
-            source = data.get("source", "unknown")
-
-            if (data == None) or (not message):
-                return (jsonify({"success": False, "message": "无效的日志数据"}),)
+            req_data = request.get_json() or {}
+            
+            # 获取公共信息
             session_id = request.headers.get("X-Session-ID", "UnknownSession")
             ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
             username = "Guest/Unknown"
+            
+            # 查找用户信息（只查一次锁）
             with web_sessions_lock:
                 if session_id in web_sessions:
                     api_instance = web_sessions[session_id]
                     username_attr = getattr(api_instance, "auth_username", None)
                     if not username_attr and hasattr(api_instance, "user_data"):
-                        username_attr = getattr(
-                            api_instance.user_data, "username", None
-                        )
+                        username_attr = getattr(api_instance.user_data, "username", None)
 
                     if username_attr:
                         username = username_attr
                     elif getattr(api_instance, "is_guest", False):
                         username = "Guest"
-            log_message = f"[前端日志][IP:{ip_address}][前端时间:{timestamp}][用户:{username}][Session Id:{session_id}][{source}] {message}"
-            if level == "DEBUG":
-                logging.debug(log_message)
-            elif level == "INFO":
-                logging.info(log_message)
-            elif level == "WARNING" or level == "WARN":
-                logging.warning(log_message)
-            elif level == "ERROR":
-                logging.error(log_message)
-            elif level == "CRITICAL":
-                logging.critical(log_message)
+
+            # 定义单条日志处理内部函数
+            def process_single_log(data_item):
+                level = data_item.get("level", "INFO").upper()
+                message = data_item.get("message", "")
+                timestamp = data_item.get("timestamp", "")
+                source = data_item.get("source", "unknown")
+
+                if not message:
+                    return
+
+                log_message = f"[前端日志][IP:{ip_address}][前端时间:{timestamp}][用户:{username}][Session Id:{session_id}][{source}] {message}"
+                
+                if level == "DEBUG":
+                    logging.debug(log_message)
+                elif level == "INFO":
+                    logging.info(log_message)
+                elif level == "WARNING" or level == "WARN":
+                    logging.warning(log_message)
+                elif level == "ERROR":
+                    logging.error(log_message)
+                elif level == "CRITICAL":
+                    logging.critical(log_message)
+                else:
+                    logging.info(log_message)
+
+            # 判断是批量模式还是单条模式
+            if "batch" in req_data and isinstance(req_data["batch"], list):
+                for item in req_data["batch"]:
+                    process_single_log(item)
             else:
-                logging.info(log_message)
+                process_single_log(req_data)
 
             return jsonify({"success": True})
+            
         except Exception as e:
             session_id_err = request.headers.get("X-Session-ID", "UnknownSession")
             ip_address_err = request.headers.get("X-Forwarded-For", request.remote_addr)
@@ -17746,7 +17813,9 @@ def start_web_server(args_param):
 
                     logging.debug(f"[短信配置] 查询余额命中速率限制，返回缓存数据。")
                     return jsonify(response_data)
-            config = configparser.ConfigParser()
+            # [修正] 使用 strict=False 允许重复项，optionxform=str 保持大小写敏感
+            config = configparser.ConfigParser(strict=False)
+            config.optionxform = str
             config.read("config.ini", encoding="utf-8")
 
             username = config.get("SMS_Service_SMSBao", "username", fallback="")
