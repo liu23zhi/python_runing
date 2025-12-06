@@ -6927,882 +6927,6 @@
               </button>
             </div>
           </div>
-        </div>
-
-        <!-- ========================================
-           移动端多账号模式界面
-           ======================================== -->
-        <div id="mobile-multi-account-app" class="space-y-4 hidden">
-          <div class="mobile-card py-3" style="display: none">
-            <button
-              class="flex items-center gap-2 text-sky-600 font-medium"
-              onclick="exitMobileMultiAccount()"
-              id="multi_exit_account"
-            >
-              <svg
-                class="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
-              </svg>
-              返回首页
-            </button>
-          </div>
-
-          <div class="mobile-card" id="mobile-multi-account-panel">
-            <div
-              class="flex items-center justify-between mb-5 pb-4 border-b-2 border-purple-200"
-            >
-              <div class="flex items-center gap-3">
-                <div
-                  class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="w-6 h-6 text-white"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path
-                      d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
-                    />
-                  </svg>
-                </div>
-                <h3 class="text-2xl font-bold text-purple-700 tracking-tight">
-                  账号管理
-                </h3>
-              </div>
-              <div
-                class="text-sm font-bold text-white bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-1.5 rounded-full shadow-md"
-                id="mobile-multi-account-count"
-              >
-                0 个账号
-              </div>
-            </div>
-
-            <div
-              class="bg-white rounded-xl shadow-md p-4 mb-5 border border-purple-100"
-            >
-              <div class="flex items-center gap-2 mb-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-5 h-5 text-purple-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
-                  />
-                </svg>
-                <h4 class="text-base font-bold text-slate-800">➕ 添加账号</h4>
-              </div>
-
-              <select
-                id="multi-config-user-select"
-                class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all mb-3 shadow-sm"
-              >
-                <option value="">-- 请选择配置文件 --</option>
-              </select>
-
-              <div class="grid grid-cols-3 gap-2">
-                <button
-                  class="py-2.5 px-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg text-sm font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
-                  onclick="addMobileSelectedConfig()"
-                >
-                  <svg
-                    class="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    stroke-width="2.5"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                  添加选中
-                </button>
-                <button
-                  class="py-2.5 px-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg text-sm font-bold hover:from-purple-700 hover:to-purple-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
-                  onclick="addMobileAllConfigs()"
-                >
-                  <svg
-                    class="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    stroke-width="2.5"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  添加全部
-                </button>
-                <button
-                  class="py-2.5 px-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg text-sm font-bold hover:from-teal-600 hover:to-teal-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
-                  id="mobile_multi_account_manual_input_button"
-                  onclick="openManualAccountModal()"
-                >
-                  <svg
-                    class="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    stroke-width="2.5"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  </svg>
-                  手动添加
-                </button>
-              </div>
-            </div>
-
-            <div
-              class="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 mb-5 border-2 border-purple-200 shadow-sm"
-            >
-              <div class="flex items-center justify-between">
-                <label class="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="mobile-select-all-accounts"
-                    class="w-6 h-6 text-purple-600 rounded-md shadow-sm cursor-pointer"
-                    onchange="mobileToggleSelectAllAccounts()"
-                  />
-                  <span class="text-sm font-bold text-slate-800"
-                    >✅ 全选账号</span
-                  >
-                </label>
-                <div class="flex gap-2">
-                  <button
-                    class="py-2 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-sm font-bold hover:from-green-600 hover:to-green-700 transition-all shadow-md hover:shadow-lg"
-                    onclick="mobileStartSelectedAccounts()"
-                  >
-                    ▶️ 启动
-                  </button>
-                  <button
-                    class="py-2 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg text-sm font-bold hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg"
-                    onclick="mobileStopSelectedAccounts()"
-                  >
-                    ⏹️ 停止
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div
-              id="mobile-multi-account-list"
-              class="space-y-3 max-h-[50vh] overflow-y-auto pr-2 mb-5"
-            >
-              <div class="text-center py-12">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-20 h-20 mx-auto text-slate-300 mb-4"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
-                  />
-                </svg>
-                <p class="text-slate-400 text-sm font-medium">
-                  暂无账号，请先添加
-                </p>
-                <p class="text-slate-300 text-xs mt-1">
-                  从上方选择配置文件或手动添加
-                </p>
-              </div>
-            </div>
-
-            <div
-              class="bg-white rounded-xl shadow-md p-4 border border-purple-100"
-            >
-              <div class="flex items-center gap-2 mb-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-5 h-5 text-purple-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                  />
-                </svg>
-                <h4 class="text-base font-bold text-slate-800">🔧 批量操作</h4>
-              </div>
-
-              <div class="space-y-2">
-                <div class="grid grid-cols-4 gap-2">
-                  <button
-                    class="py-2.5 px-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition flex flex-col items-center justify-center gap-1 border-2 border-blue-200"
-                    onclick="importMobileAccountList()"
-                  >
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      stroke-width="2"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
-                      />
-                    </svg>
-                    <span>导入</span>
-                  </button>
-                  <button
-                    class="py-2.5 px-2 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-100 transition flex flex-col items-center justify-center gap-1 border-2 border-green-200"
-                    onclick="exportMobileAccountList()"
-                  >
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      stroke-width="2"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                      />
-                    </svg>
-                    <span>导出</span>
-                  </button>
-                  <button
-                    class="py-2.5 px-2 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold hover:bg-amber-100 transition flex flex-col items-center justify-center gap-1 border-2 border-amber-200"
-                    onclick="downloadMobileAccountTemplate()"
-                  >
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      stroke-width="2"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    <span>模板</span>
-                  </button>
-                  <button
-                    class="py-2.5 px-2 bg-slate-50 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition flex flex-col items-center justify-center gap-1 border-2 border-slate-200"
-                    onclick="mobileRefreshSelectedAccounts()"
-                  >
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      stroke-width="2"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                    <span>刷新</span>
-                  </button>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <button
-                    class="py-3 px-4 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition flex items-center justify-center gap-2 border-2 border-red-200"
-                    onclick="deleteMobileSelectedAccounts()"
-                  >
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      stroke-width="2"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                    删除选中
-                  </button>
-                  <button
-                    class="py-3 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg text-sm font-bold hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                    onclick="deleteMobileAllAccounts()"
-                  >
-                    <svg
-                      class="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      stroke-width="2.5"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                    删除全部
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="mobile-card" id="mobile-multi-control-panel">
-            <div
-              class="flex items-center gap-3 mb-5 pb-4 border-b-2 border-orange-200"
-            >
-              <div
-                class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-6 h-6 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-              </div>
-              <h3 class="text-2xl font-bold text-orange-700 tracking-tight">
-                批量控制
-              </h3>
-            </div>
-
-            <div
-              class="mb-5 p-4 bg-white rounded-xl shadow-md border border-orange-100"
-            >
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="w-5 h-5 text-orange-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span class="text-sm font-bold text-slate-700"
-                    >🎯 全局状态</span
-                  >
-                </div>
-                <span
-                  id="mobile-multi-global-status"
-                  class="text-sm font-bold px-4 py-1.5 rounded-full bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 shadow-sm"
-                >
-                  就绪
-                </span>
-              </div>
-            </div>
-
-            <div
-              class="bg-white rounded-xl shadow-md p-4 mb-5 border border-orange-100"
-            >
-              <div class="flex items-center gap-2 mb-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-5 h-5 text-orange-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                  />
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <h4 class="text-base font-bold text-slate-800">快速操作</h4>
-              </div>
-
-              <div class="grid grid-cols-3 gap-3">
-                <button
-                  class="py-4 px-3 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 flex flex-col items-center justify-center gap-2"
-                  onclick="mobileStartAllAccounts()"
-                >
-                  <div
-                    class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
-                  >
-                    <svg
-                      class="w-6 h-6"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <span>▶️ 全部启动</span>
-                </button>
-
-                <button
-                  class="py-4 px-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 flex flex-col items-center justify-center gap-2"
-                  onclick="mobileStopAllAccounts()"
-                >
-                  <div
-                    class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
-                  >
-                    <svg
-                      class="w-6 h-6"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <span>⏹️ 全部停止</span>
-                </button>
-
-                <button
-                  class="py-4 px-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex flex-col items-center justify-center gap-2"
-                  onclick="mobileRefreshAllAccounts()"
-                >
-                  <div
-                    class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
-                  >
-                    <svg
-                      class="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      stroke-width="2.5"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                  </div>
-                  <span>🔄 全部刷新</span>
-                </button>
-              </div>
-            </div>
-
-            <div
-              class="bg-white rounded-xl shadow-md p-4 mb-5 border border-orange-100"
-            >
-              <div class="flex items-center gap-2 mb-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-5 h-5 text-orange-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                  />
-                </svg>
-                <h4 class="text-base font-bold text-slate-800">📊 运行统计</h4>
-              </div>
-
-              <div class="grid grid-cols-3 gap-3">
-                <div
-                  class="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm"
-                >
-                  <div class="flex items-center justify-center mb-2">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="w-6 h-6 text-green-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <div
-                    id="mobile-multi-running-count"
-                    class="text-2xl font-bold text-green-600 mb-1"
-                  >
-                    0
-                  </div>
-                  <div class="text-xs text-green-700 font-semibold">运行中</div>
-                </div>
-                <div
-                  class="text-center p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm"
-                >
-                  <div class="flex items-center justify-center mb-2">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="w-6 h-6 text-yellow-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <div
-                    id="mobile-multi-paused-count"
-                    class="text-2xl font-bold text-yellow-600 mb-1"
-                  >
-                    0
-                  </div>
-                  <div class="text-xs text-yellow-700 font-semibold">
-                    已暂停
-                  </div>
-                </div>
-                <div
-                  class="text-center p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border-2 border-slate-200 shadow-sm"
-                >
-                  <div class="flex items-center justify-center mb-2">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      class="w-6 h-6 text-slate-600"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fill-rule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  <div
-                    id="mobile-multi-stopped-count"
-                    class="text-2xl font-bold text-slate-600 mb-1"
-                  >
-                    0
-                  </div>
-                  <div class="text-xs text-slate-700 font-semibold">已停止</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- ========== 批量执行选项 ========== -->
-            <div class="mt-4 pt-3 border-t border-slate-100 space-y-3">
-              <!-- ========== 【问题16修复】随机启动延迟配置 ========== -->
-              <div class="p-3 bg-blue-50 rounded-lg space-y-2">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    id="mobile-multi-random-delay-check"
-                    checked
-                    class="w-4 h-4 accent-orange-600 rounded flex-shrink-0"
-                  />
-                  <span class="text-sm text-slate-700 font-semibold"
-                    >启用随机启动延迟</span
-                  >
-                </label>
-
-                <div class="flex items-center gap-2 ml-6">
-                  <label class="text-xs text-slate-600 whitespace-nowrap"
-                    >延迟范围：</label
-                  >
-                  <div class="flex items-center gap-1 flex-1">
-                    <input
-                      type="number"
-                      id="mobile-multi-random-delay-min"
-                      class="input-field !py-1 !text-sm flex-1 min-w-0"
-                      placeholder="最小"
-                      value="0"
-                      min="0"
-                      max="300"
-                      style="width: 70px"
-                    />
-                    <span class="text-xs text-slate-500">~</span>
-                    <input
-                      type="number"
-                      id="mobile-multi-random-delay-max"
-                      class="input-field !py-1 !text-sm flex-1 min-w-0"
-                      placeholder="最大"
-                      value="300"
-                      min="0"
-                      max="600"
-                      style="width: 70px"
-                    />
-                    <span class="text-xs text-slate-500">秒</span>
-                  </div>
-                </div>
-              </div>
-
-              <label
-                class="flex items-center gap-2 cursor-pointer p-2 bg-amber-50 rounded-lg hover:bg-amber-100 transition"
-              >
-                <input
-                  type="checkbox"
-                  id="mobile-multi-only-incomplete-check"
-                  checked
-                  class="w-4 h-4 accent-orange-600 rounded flex-shrink-0"
-                />
-                <span class="text-sm text-slate-700 font-semibold"
-                  >仅启动未完成任务</span
-                >
-              </label>
-            </div>
-          </div>
-
-          <!-- ========================================
-             【地图面板】
-             ======================================== -->
-          <div
-            class="mobile-card p-0 overflow-hidden h-screen flex flex-col"
-            id="mobile-multi-map-panel"
-          >
-            <div
-              id="mobile-multi-map-container"
-              class="w-full flex-1 relative bg-slate-100"
-              style="height: calc(100vh - 60px)"
-            >
-              <div
-                class="absolute inset-0 flex items-center justify-center text-slate-400"
-              >
-                <div class="text-center">
-                  <svg
-                    class="w-12 h-12 mx-auto mb-2 text-slate-300"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-                    />
-                  </svg>
-                  <p class="text-sm">地图加载中...</p>
-                </div>
-              </div>
-
-              <button
-                id="mobile-multi-map-reset-btn"
-                class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10"
-                style="display: none"
-                onclick="resetMultiMapView()"
-                title="复位视角"
-              >
-                <svg
-                  class="w-5 h-5 text-slate-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div class="flex gap-2 p-3 bg-slate-50 flex-shrink-0">
-              <button
-                class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
-                onclick="mobileMultiZoomIn()"
-              >
-                放大 +
-              </button>
-              <button
-                class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
-                onclick="mobileMultiZoomOut()"
-              >
-                缩小 -
-              </button>
-              <button
-                class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
-                onclick="mobileMultiFitView()"
-              >
-                适应 ⊡
-              </button>
-              <button
-                class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
-                onclick="resetMultiMapView()"
-              >
-                复位 ⊙
-              </button>
-            </div>
-          </div>
-
-          <!-- ========================================
-             【全局参数面板】
-             ======================================== -->
-          <div
-            class="mobile-card mobile-card-fullscreen hidden"
-            id="mobile-multi-settings-panel"
-          >
-            <div
-              class="flex items-center gap-2 mb-4 pb-3 border-b border-teal-100"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="w-6 h-6 text-teal-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                />
-              </svg>
-              <h3 class="text-xl font-bold text-teal-700">全局参数</h3>
-            </div>
-
-            <!-- ========================================
-               【自动签到设置区域】
-               用于配置多账号模式下的自动签到相关参数
-               包含：开启开关、刷新间隔、随机半径
-               ======================================== -->
-            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 space-y-3">
-              <!-- 标题区域：图标 + 标题文字 -->
-              <div class="flex items-center gap-2">
-                <!-- 时钟图标：代表自动签到的定时特性 -->
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <h4 class="font-semibold text-amber-800 text-sm">自动签到设置</h4>
-              </div>
-              
-              <!-- 开启自动签到开关：使用滑动开关样式 -->
-              <div class="flex items-center justify-between">
-                <label class="text-sm text-slate-700">开启自动签到</label>
-                <!-- 滑动开关容器 -->
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <!-- 隐藏的checkbox，用于存储实际值 -->
-                  <input 
-                    type="checkbox" 
-                    id="mobile-multi-auto_attendance_enabled"
-                    data-key="auto_attendance_enabled"
-                    class="sr-only peer"
-                  />
-                  <!-- 滑动开关的视觉样式，使用Tailwind的peer修饰符实现状态切换效果 -->
-                  <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                </label>
-              </div>
-              
-              <!-- 刷新间隔设置：控制自动刷新通知的时间间隔 -->
-              <div>
-                <label class="block text-xs text-slate-600 mb-1">刷新间隔（秒）</label>
-                <input
-                  type="number"
-                  id="mobile-multi-auto_attendance_refresh_s"
-                  data-key="auto_attendance_refresh_s"
-                  class="input-field !text-xs !py-1.5 w-full"
-                  placeholder="推荐值：60秒以上"
-                  min="30"
-                  step="30"
-                />
-                <!-- 说明文字：帮助用户理解参数含义 -->
-                <p class="text-[10px] text-slate-400 mt-1">自动刷新通知的间隔时间，建议不低于60秒</p>
-              </div>
-              
-              <!-- 随机半径设置：控制签到位置的随机偏移范围 -->
-              <div>
-                <label class="block text-xs text-slate-600 mb-1">随机半径（米）</label>
-                <input
-                  type="number"
-                  id="mobile-multi-attendance_user_radius_m"
-                  data-key="attendance_user_radius_m"
-                  class="input-field !text-xs !py-1.5 w-full"
-                  placeholder="0表示精确签到"
-                  min="0"
-                  step="1"
-                />
-                <!-- 说明文字：解释随机半径的用途 -->
-                <p class="text-[10px] text-slate-400 mt-1">签到位置的随机偏移半径，0为精确签到</p>
-              </div>
-            </div>
-
-            <div
-              id="mobile-multi-global-params-container"
-              class="space-y-3 max-h-[60vh] overflow-y-auto"
-            ></div>
-
-            <div class="pt-3 border-t border-teal-100">
-              <button
-                class="w-full py-2.5 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition flex items-center justify-center gap-2"
-                onclick="saveMobileMultiGlobalSettings()"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-                保存全局设置
-              </button>
-            </div>
-          </div>
 
           <!-- ========================================
                【统一移动端管理面板卡片】
@@ -7812,7 +6936,7 @@
                应用类: mobile-card relative overflow-hidden !p-5
                ======================================== -->
           <div
-            class="mobile-card relative overflow-hidden !p-5"
+            class="mobile-card relative overflow-hidden !p-5 hidden"
             id="mobile-admin-panel-unified"
             style="min-height: 400px"
           >
@@ -9089,6 +8213,883 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- ========================================
+           移动端多账号模式界面
+           ======================================== -->
+        <div id="mobile-multi-account-app" class="space-y-4 hidden">
+          <div class="mobile-card py-3" style="display: none">
+            <button
+              class="flex items-center gap-2 text-sky-600 font-medium"
+              onclick="exitMobileMultiAccount()"
+              id="multi_exit_account"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              返回首页
+            </button>
+          </div>
+
+          <div class="mobile-card" id="mobile-multi-account-panel">
+            <div
+              class="flex items-center justify-between mb-5 pb-4 border-b-2 border-purple-200"
+            >
+              <div class="flex items-center gap-3">
+                <div
+                  class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="w-6 h-6 text-white"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                    />
+                  </svg>
+                </div>
+                <h3 class="text-2xl font-bold text-purple-700 tracking-tight">
+                  账号管理
+                </h3>
+              </div>
+              <div
+                class="text-sm font-bold text-white bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-1.5 rounded-full shadow-md"
+                id="mobile-multi-account-count"
+              >
+                0 个账号
+              </div>
+            </div>
+
+            <div
+              class="bg-white rounded-xl shadow-md p-4 mb-5 border border-purple-100"
+            >
+              <div class="flex items-center gap-2 mb-4">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5 text-purple-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                  />
+                </svg>
+                <h4 class="text-base font-bold text-slate-800">➕ 添加账号</h4>
+              </div>
+
+              <select
+                id="multi-config-user-select"
+                class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all mb-3 shadow-sm"
+              >
+                <option value="">-- 请选择配置文件 --</option>
+              </select>
+
+              <div class="grid grid-cols-3 gap-2">
+                <button
+                  class="py-2.5 px-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg text-sm font-bold hover:from-purple-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                  onclick="addMobileSelectedConfig()"
+                >
+                  <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    stroke-width="2.5"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  添加选中
+                </button>
+                <button
+                  class="py-2.5 px-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg text-sm font-bold hover:from-purple-700 hover:to-purple-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                  onclick="addMobileAllConfigs()"
+                >
+                  <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    stroke-width="2.5"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  添加全部
+                </button>
+                <button
+                  class="py-2.5 px-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg text-sm font-bold hover:from-teal-600 hover:to-teal-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1"
+                  id="mobile_multi_account_manual_input_button"
+                  onclick="openManualAccountModal()"
+                >
+                  <svg
+                    class="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    stroke-width="2.5"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
+                  </svg>
+                  手动添加
+                </button>
+              </div>
+            </div>
+
+            <div
+              class="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-4 mb-5 border-2 border-purple-200 shadow-sm"
+            >
+              <div class="flex items-center justify-between">
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="mobile-select-all-accounts"
+                    class="w-6 h-6 text-purple-600 rounded-md shadow-sm cursor-pointer"
+                    onchange="mobileToggleSelectAllAccounts()"
+                  />
+                  <span class="text-sm font-bold text-slate-800"
+                    >✅ 全选账号</span
+                  >
+                </label>
+                <div class="flex gap-2">
+                  <button
+                    class="py-2 px-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg text-sm font-bold hover:from-green-600 hover:to-green-700 transition-all shadow-md hover:shadow-lg"
+                    onclick="mobileStartSelectedAccounts()"
+                  >
+                    ▶️ 启动
+                  </button>
+                  <button
+                    class="py-2 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg text-sm font-bold hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg"
+                    onclick="mobileStopSelectedAccounts()"
+                  >
+                    ⏹️ 停止
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              id="mobile-multi-account-list"
+              class="space-y-3 max-h-[50vh] overflow-y-auto pr-2 mb-5"
+            >
+              <div class="text-center py-12">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-20 h-20 mx-auto text-slate-300 mb-4"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05c1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"
+                  />
+                </svg>
+                <p class="text-slate-400 text-sm font-medium">
+                  暂无账号，请先添加
+                </p>
+                <p class="text-slate-300 text-xs mt-1">
+                  从上方选择配置文件或手动添加
+                </p>
+              </div>
+            </div>
+
+            <div
+              class="bg-white rounded-xl shadow-md p-4 border border-purple-100"
+            >
+              <div class="flex items-center gap-2 mb-4">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5 text-purple-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                  />
+                </svg>
+                <h4 class="text-base font-bold text-slate-800">🔧 批量操作</h4>
+              </div>
+
+              <div class="space-y-2">
+                <div class="grid grid-cols-4 gap-2">
+                  <button
+                    class="py-2.5 px-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition flex flex-col items-center justify-center gap-1 border-2 border-blue-200"
+                    onclick="importMobileAccountList()"
+                  >
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      stroke-width="2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
+                      />
+                    </svg>
+                    <span>导入</span>
+                  </button>
+                  <button
+                    class="py-2.5 px-2 bg-green-50 text-green-600 rounded-lg text-xs font-bold hover:bg-green-100 transition flex flex-col items-center justify-center gap-1 border-2 border-green-200"
+                    onclick="exportMobileAccountList()"
+                  >
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      stroke-width="2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    <span>导出</span>
+                  </button>
+                  <button
+                    class="py-2.5 px-2 bg-amber-50 text-amber-600 rounded-lg text-xs font-bold hover:bg-amber-100 transition flex flex-col items-center justify-center gap-1 border-2 border-amber-200"
+                    onclick="downloadMobileAccountTemplate()"
+                  >
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      stroke-width="2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <span>模板</span>
+                  </button>
+                  <button
+                    class="py-2.5 px-2 bg-slate-50 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition flex flex-col items-center justify-center gap-1 border-2 border-slate-200"
+                    onclick="mobileRefreshSelectedAccounts()"
+                  >
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      stroke-width="2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    <span>刷新</span>
+                  </button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    class="py-3 px-4 bg-red-50 text-red-600 rounded-lg text-sm font-bold hover:bg-red-100 transition flex items-center justify-center gap-2 border-2 border-red-200"
+                    onclick="deleteMobileSelectedAccounts()"
+                  >
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      stroke-width="2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    删除选中
+                  </button>
+                  <button
+                    class="py-3 px-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg text-sm font-bold hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                    onclick="deleteMobileAllAccounts()"
+                  >
+                    <svg
+                      class="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      stroke-width="2.5"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    删除全部
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mobile-card" id="mobile-multi-control-panel">
+            <div
+              class="flex items-center gap-3 mb-5 pb-4 border-b-2 border-orange-200"
+            >
+              <div
+                class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-6 h-6 text-white"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+              </div>
+              <h3 class="text-2xl font-bold text-orange-700 tracking-tight">
+                批量控制
+              </h3>
+            </div>
+
+            <div
+              class="mb-5 p-4 bg-white rounded-xl shadow-md border border-orange-100"
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="w-5 h-5 text-orange-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <span class="text-sm font-bold text-slate-700"
+                    >🎯 全局状态</span
+                  >
+                </div>
+                <span
+                  id="mobile-multi-global-status"
+                  class="text-sm font-bold px-4 py-1.5 rounded-full bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 shadow-sm"
+                >
+                  就绪
+                </span>
+              </div>
+            </div>
+
+            <div
+              class="bg-white rounded-xl shadow-md p-4 mb-5 border border-orange-100"
+            >
+              <div class="flex items-center gap-2 mb-4">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5 text-orange-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                  />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <h4 class="text-base font-bold text-slate-800">快速操作</h4>
+              </div>
+
+              <div class="grid grid-cols-3 gap-3">
+                <button
+                  class="py-4 px-3 bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-green-600 hover:to-green-700 transition-all duration-200 flex flex-col items-center justify-center gap-2"
+                  onclick="mobileStartAllAccounts()"
+                >
+                  <div
+                    class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
+                  >
+                    <svg
+                      class="w-6 h-6"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <span>▶️ 全部启动</span>
+                </button>
+
+                <button
+                  class="py-4 px-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-red-600 hover:to-red-700 transition-all duration-200 flex flex-col items-center justify-center gap-2"
+                  onclick="mobileStopAllAccounts()"
+                >
+                  <div
+                    class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
+                  >
+                    <svg
+                      class="w-6 h-6"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <span>⏹️ 全部停止</span>
+                </button>
+
+                <button
+                  class="py-4 px-3 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl text-sm font-bold shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex flex-col items-center justify-center gap-2"
+                  onclick="mobileRefreshAllAccounts()"
+                >
+                  <div
+                    class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
+                  >
+                    <svg
+                      class="w-6 h-6"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      stroke-width="2.5"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                  </div>
+                  <span>🔄 全部刷新</span>
+                </button>
+              </div>
+            </div>
+
+            <div
+              class="bg-white rounded-xl shadow-md p-4 mb-5 border border-orange-100"
+            >
+              <div class="flex items-center gap-2 mb-4">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5 text-orange-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  />
+                </svg>
+                <h4 class="text-base font-bold text-slate-800">📊 运行统计</h4>
+              </div>
+
+              <div class="grid grid-cols-3 gap-3">
+                <div
+                  class="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border-2 border-green-200 shadow-sm"
+                >
+                  <div class="flex items-center justify-center mb-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="w-6 h-6 text-green-600"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    id="mobile-multi-running-count"
+                    class="text-2xl font-bold text-green-600 mb-1"
+                  >
+                    0
+                  </div>
+                  <div class="text-xs text-green-700 font-semibold">运行中</div>
+                </div>
+                <div
+                  class="text-center p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl border-2 border-yellow-200 shadow-sm"
+                >
+                  <div class="flex items-center justify-center mb-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="w-6 h-6 text-yellow-600"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    id="mobile-multi-paused-count"
+                    class="text-2xl font-bold text-yellow-600 mb-1"
+                  >
+                    0
+                  </div>
+                  <div class="text-xs text-yellow-700 font-semibold">
+                    已暂停
+                  </div>
+                </div>
+                <div
+                  class="text-center p-4 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border-2 border-slate-200 shadow-sm"
+                >
+                  <div class="flex items-center justify-center mb-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="w-6 h-6 text-slate-600"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fill-rule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
+                        clip-rule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    id="mobile-multi-stopped-count"
+                    class="text-2xl font-bold text-slate-600 mb-1"
+                  >
+                    0
+                  </div>
+                  <div class="text-xs text-slate-700 font-semibold">已停止</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ========== 批量执行选项 ========== -->
+            <div class="mt-4 pt-3 border-t border-slate-100 space-y-3">
+              <!-- ========== 【问题16修复】随机启动延迟配置 ========== -->
+              <div class="p-3 bg-blue-50 rounded-lg space-y-2">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    id="mobile-multi-random-delay-check"
+                    checked
+                    class="w-4 h-4 accent-orange-600 rounded flex-shrink-0"
+                  />
+                  <span class="text-sm text-slate-700 font-semibold"
+                    >启用随机启动延迟</span
+                  >
+                </label>
+
+                <div class="flex items-center gap-2 ml-6">
+                  <label class="text-xs text-slate-600 whitespace-nowrap"
+                    >延迟范围：</label
+                  >
+                  <div class="flex items-center gap-1 flex-1">
+                    <input
+                      type="number"
+                      id="mobile-multi-random-delay-min"
+                      class="input-field !py-1 !text-sm flex-1 min-w-0"
+                      placeholder="最小"
+                      value="0"
+                      min="0"
+                      max="300"
+                      style="width: 70px"
+                    />
+                    <span class="text-xs text-slate-500">~</span>
+                    <input
+                      type="number"
+                      id="mobile-multi-random-delay-max"
+                      class="input-field !py-1 !text-sm flex-1 min-w-0"
+                      placeholder="最大"
+                      value="300"
+                      min="0"
+                      max="600"
+                      style="width: 70px"
+                    />
+                    <span class="text-xs text-slate-500">秒</span>
+                  </div>
+                </div>
+              </div>
+
+              <label
+                class="flex items-center gap-2 cursor-pointer p-2 bg-amber-50 rounded-lg hover:bg-amber-100 transition"
+              >
+                <input
+                  type="checkbox"
+                  id="mobile-multi-only-incomplete-check"
+                  checked
+                  class="w-4 h-4 accent-orange-600 rounded flex-shrink-0"
+                />
+                <span class="text-sm text-slate-700 font-semibold"
+                  >仅启动未完成任务</span
+                >
+              </label>
+            </div>
+          </div>
+
+          <!-- ========================================
+             【地图面板】
+             ======================================== -->
+          <div
+            class="mobile-card p-0 overflow-hidden h-screen flex flex-col"
+            id="mobile-multi-map-panel"
+          >
+            <div
+              id="mobile-multi-map-container"
+              class="w-full flex-1 relative bg-slate-100"
+              style="height: calc(100vh - 60px)"
+            >
+              <div
+                class="absolute inset-0 flex items-center justify-center text-slate-400"
+              >
+                <div class="text-center">
+                  <svg
+                    class="w-12 h-12 mx-auto mb-2 text-slate-300"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+                    />
+                  </svg>
+                  <p class="text-sm">地图加载中...</p>
+                </div>
+              </div>
+
+              <button
+                id="mobile-multi-map-reset-btn"
+                class="absolute top-4 right-4 p-2 bg-white rounded-lg shadow-lg border border-slate-200 hover:bg-slate-50 transition z-10"
+                style="display: none"
+                onclick="resetMultiMapView()"
+                title="复位视角"
+              >
+                <svg
+                  class="w-5 h-5 text-slate-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div class="flex gap-2 p-3 bg-slate-50 flex-shrink-0">
+              <button
+                class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+                onclick="mobileMultiZoomIn()"
+              >
+                放大 +
+              </button>
+              <button
+                class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+                onclick="mobileMultiZoomOut()"
+              >
+                缩小 -
+              </button>
+              <button
+                class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+                onclick="mobileMultiFitView()"
+              >
+                适应 ⊡
+              </button>
+              <button
+                class="flex-1 py-2 px-3 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 transition"
+                onclick="resetMultiMapView()"
+              >
+                复位 ⊙
+              </button>
+            </div>
+          </div>
+
+          <!-- ========================================
+             【全局参数面板】
+             ======================================== -->
+          <div
+            class="mobile-card mobile-card-fullscreen hidden"
+            id="mobile-multi-settings-panel"
+          >
+            <div
+              class="flex items-center gap-2 mb-4 pb-3 border-b border-teal-100"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-6 h-6 text-teal-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                />
+              </svg>
+              <h3 class="text-xl font-bold text-teal-700">全局参数</h3>
+            </div>
+
+            <!-- ========================================
+               【自动签到设置区域】
+               用于配置多账号模式下的自动签到相关参数
+               包含：开启开关、刷新间隔、随机半径
+               ======================================== -->
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 space-y-3">
+              <!-- 标题区域：图标 + 标题文字 -->
+              <div class="flex items-center gap-2">
+                <!-- 时钟图标：代表自动签到的定时特性 -->
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <h4 class="font-semibold text-amber-800 text-sm">自动签到设置</h4>
+              </div>
+              
+              <!-- 开启自动签到开关：使用滑动开关样式 -->
+              <div class="flex items-center justify-between">
+                <label class="text-sm text-slate-700">开启自动签到</label>
+                <!-- 滑动开关容器 -->
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <!-- 隐藏的checkbox，用于存储实际值 -->
+                  <input 
+                    type="checkbox" 
+                    id="mobile-multi-auto_attendance_enabled"
+                    data-key="auto_attendance_enabled"
+                    class="sr-only peer"
+                  />
+                  <!-- 滑动开关的视觉样式，使用Tailwind的peer修饰符实现状态切换效果 -->
+                  <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+              </div>
+              
+              <!-- 刷新间隔设置：控制自动刷新通知的时间间隔 -->
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">刷新间隔（秒）</label>
+                <input
+                  type="number"
+                  id="mobile-multi-auto_attendance_refresh_s"
+                  data-key="auto_attendance_refresh_s"
+                  class="input-field !text-xs !py-1.5 w-full"
+                  placeholder="推荐值：60秒以上"
+                  min="30"
+                  step="30"
+                />
+                <!-- 说明文字：帮助用户理解参数含义 -->
+                <p class="text-[10px] text-slate-400 mt-1">自动刷新通知的间隔时间，建议不低于60秒</p>
+              </div>
+              
+              <!-- 随机半径设置：控制签到位置的随机偏移范围 -->
+              <div>
+                <label class="block text-xs text-slate-600 mb-1">随机半径（米）</label>
+                <input
+                  type="number"
+                  id="mobile-multi-attendance_user_radius_m"
+                  data-key="attendance_user_radius_m"
+                  class="input-field !text-xs !py-1.5 w-full"
+                  placeholder="0表示精确签到"
+                  min="0"
+                  step="1"
+                />
+                <!-- 说明文字：解释随机半径的用途 -->
+                <p class="text-[10px] text-slate-400 mt-1">签到位置的随机偏移半径，0为精确签到</p>
+              </div>
+            </div>
+
+            <div
+              id="mobile-multi-global-params-container"
+              class="space-y-3 max-h-[60vh] overflow-y-auto"
+            ></div>
+
+            <div class="pt-3 border-t border-teal-100">
+              <button
+                class="w-full py-2.5 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition flex items-center justify-center gap-2"
+                onclick="saveMobileMultiGlobalSettings()"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                保存全局设置
+              </button>
+            </div>
+          </div>
+
 
           <div
             class="mobile-card mobile-card-fullscreen hidden"
