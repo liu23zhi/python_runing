@@ -133,6 +133,17 @@ class TestMapProviderBackendContract(unittest.TestCase):
         self.assertIn('"map_provider": login_map_config["map_provider"]', login_source)
         self.assertIn('"map_providers": login_map_config["map_providers"]', login_source)
 
+    def test_initial_data_returns_running_background_task_status_for_provider_lock(self):
+        source = MAIN_PATH.read_text(encoding="utf-8")
+        get_initial_data_source = source[
+            source.index("    def get_initial_data("):
+            source.index("    def save_amap_key(", source.index("    def get_initial_data("))
+        ]
+
+        self.assertIn("background_task_manager.get_task_status(session_uuid)", get_initial_data_source)
+        self.assertIn('"task_status"', get_initial_data_source)
+        self.assertIn('task_status.get("status") in ("running", "paused")', get_initial_data_source)
+
     def test_provider_runtime_dispatches_each_configured_provider(self):
         runtime_config = self._runtime_config_with_map("amap", {
             "amap": {"js_key": "amap-key"},

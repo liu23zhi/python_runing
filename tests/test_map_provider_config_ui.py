@@ -83,6 +83,26 @@ class TestMapProviderConfigUi(unittest.TestCase):
         self.assertIn('tianditu: { token: $("config-Map.providers.tianditu-token").value }', save_system_config_source)
         self.assertIn('baidu: { ak: $("config-Map.providers.baidu-ak").value }', save_system_config_source)
 
+    def test_save_system_config_defers_map_provider_runtime_switch(self):
+        source = SCRIPT_PATH.read_text(encoding="utf-8")
+        save_system_config_source = _extract_js_section(
+            source,
+            "async function saveSystemConfig() {",
+            "\nfunction showTempMessage",
+        )
+        provider_changed_start = save_system_config_source.index("const providerChanged")
+        provider_changed_end = save_system_config_source.index("showModalAlert(", provider_changed_start)
+        provider_changed_block = save_system_config_source[
+            provider_changed_start:provider_changed_end
+        ]
+
+        self.assertIn("queuePendingMapProviderConfig(", save_system_config_source)
+        self.assertIn("下次加载地图时", save_system_config_source)
+        self.assertNotIn("destroySingleMap();", provider_changed_block)
+        self.assertNotIn('ensureActiveMapProviderRuntimeIfNeeded("切换地图提供方")', provider_changed_block)
+        self.assertNotIn('initProviderMap("map-container", false)', provider_changed_block)
+        self.assertNotIn("initMap(AMapInstance)", provider_changed_block)
+
     def test_backend_config_load_returns_nested_map_provider_values(self):
         source = MAIN_PATH.read_text(encoding="utf-8")
         config_load_source = _extract_js_section(

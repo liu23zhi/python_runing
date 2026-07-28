@@ -357,6 +357,7 @@ function createTianDiTuSdk() {
     constructor(containerId) {
       this.containerId = containerId;
       this.overlays = [];
+      this.events = [];
       this.setViewportCalls = [];
       this.centerAndZoomCalls = [];
       this.zoomInCalls = 0;
@@ -371,6 +372,16 @@ function createTianDiTuSdk() {
     addEventListener(eventName, handler) {
       this.eventName = eventName;
       this.handler = handler;
+      this.events.push({ eventName, handler });
+    }
+    on(eventName, handler) {
+      this.addEventListener(eventName, handler);
+    }
+    getZoom() {
+      return this.zoom;
+    }
+    setZoom(zoom) {
+      this.zoom = zoom;
     }
     addOverLay(overlay) {
       this.overlays.push(overlay);
@@ -386,9 +397,11 @@ function createTianDiTuSdk() {
     }
     zoomIn() {
       this.zoomInCalls += 1;
+      this.zoom = Number(this.zoom || 0) + 1;
     }
     zoomOut() {
       this.zoomOutCalls += 1;
+      this.zoom = Number(this.zoom || 0) - 1;
     }
     panBy(x, y) {
       this.panByCalls.push({ x, y });
@@ -437,6 +450,7 @@ function createBaiduSdk() {
       this.options = options;
       this.overlays = [];
       this.controls = [];
+      this.events = [];
       this.setViewportCalls = [];
       this.centerAndZoomCalls = [];
       this.zoomInCalls = 0;
@@ -480,6 +494,16 @@ function createBaiduSdk() {
     addEventListener(eventName, handler) {
       this.eventName = eventName;
       this.handler = handler;
+      this.events.push({ eventName, handler });
+    }
+    on(eventName, handler) {
+      this.addEventListener(eventName, handler);
+    }
+    getZoom() {
+      return this.zoom;
+    }
+    setZoom(zoom) {
+      this.zoom = zoom;
     }
     addOverlay(overlay) {
       this.overlays.push(overlay);
@@ -492,9 +516,11 @@ function createBaiduSdk() {
     }
     zoomIn() {
       this.zoomInCalls += 1;
+      this.zoom = Number(this.zoom || 0) + 1;
     }
     zoomOut() {
       this.zoomOutCalls += 1;
+      this.zoom = Number(this.zoom || 0) - 1;
     }
     clearOverlays() {
       this.overlays = [];
@@ -605,11 +631,19 @@ function createAmapSdk() {
 function createRuntime(provider, options = {}) {
   const source = readFileSync(resolve('scripts/main.new.js'), 'utf8');
   const functionNames = [
+    'normalizeSupportedMapProvider',
     'getActiveMapProvider',
     'getMapProviderDisplayName',
     'getMapProviderConfig',
     'getMapProviderKeyRequirement',
     'showMissingMapProviderKeyModal',
+    'createMapProviderRuntimeConfigSnapshot',
+    'queuePendingMapProviderConfig',
+    'getRunningTaskMapProvider',
+    'isCurrentPageMapTaskActive',
+    'isMapProviderRuntimeSwitchLocked',
+    'applyPendingMapProviderConfigIfAny',
+    'syncMapProviderConfigFromInitialData',
     'ensureActiveMapProviderRuntimeIfNeeded',
     'loadScriptOnce',
     'loadTencentMapOnce',
@@ -649,6 +683,7 @@ function createRuntime(provider, options = {}) {
     'getProviderMapZoomLevelElementId',
     'formatProviderMapZoomLevel',
     'updateProviderMapZoomLabel',
+    'bindProviderMapZoomEvent',
     'bindProviderMapZoomSync',
     'enableTianDiTuRightDragPan',
     'configureTencentNativeViewControls',
@@ -762,6 +797,8 @@ function createRuntime(provider, options = {}) {
     let providerMapOverlays = {};
     let providerMapLastFitCoords = {};
     let providerRunnerMarkers = {};
+    let pendingMapProviderRuntimeConfig = null;
+    let activeTaskMapProviderLock = null;
     let currentRunData = null;
     let runAccumulatedMs = 0;
     let singleProcessedPoints = 0;
@@ -801,6 +838,9 @@ function createRuntime(provider, options = {}) {
       updateRunnerPosition,
       clearSingleExecutionVisuals,
       onRunStopped,
+      syncMapProviderConfigFromInitialData,
+      queuePendingMapProviderConfig,
+      applyPendingMapProviderConfigIfAny,
       getProviderMapInstance,
       wgs84ToGcj02,
       gcj02ToWgs84,
@@ -808,6 +848,7 @@ function createRuntime(provider, options = {}) {
         currentRunData = data;
       },
       getCurrentRunData: () => currentRunData,
+      getPendingMapProviderRuntimeConfig: () => pendingMapProviderRuntimeConfig,
       getState: () => ({
         providerMapInstances,
         providerMapOverlays,
@@ -1042,6 +1083,71 @@ test('tencent provider zoom label follows sdk zoom changes', () => {
   instance.setZoom(18);
   zoomEvent.handler();
   assert.equal(zoomLabel.textContent, '18');
+});
+
+test('baidu and tianditu provider zoom labels follow sdk zoom changes', () => {
+  const cases = [
+    ['baidu', { baiduGlOnly: true }, 18.5, 'zoomend'],
+    ['tianditu', {}, 17.5, 'zoomend'],
+  ];
+
+  for (const [provider, options, nextZoom, eventName] of cases) {
+    const runtime = createRuntime(provider, { ...options, strictDocumentIds: true });
+    const doc = runtime.getDocument();
+
+    assert.equal(runtime.initProviderMap('map-container', false), true, provider);
+
+    const instance = runtime.getProviderMapInstance('map-container');
+    const zoomLabel = doc.getElementById('zoom-level');
+    assert.notEqual(zoomLabel.textContent, String(nextZoom), provider);
+
+    const zoomEvent = instance.events.find((event) => event.eventName === eventName);
+    assert.ok(zoomEvent, `${provider} maps should bind sdk ${eventName} events`);
+    instance.setZoom(nextZoom);
+    zoomEvent.handler();
+    assert.equal(zoomLabel.textContent, String(nextZoom), provider);
+  }
+});
+
+test('running background tasks lock map provider and defer newer provider config', () => {
+  const runtime = createRuntime('tencent', { strictDocumentIds: true });
+  const getAppConfig = () => runtime.getWindow().APP_CONFIG;
+
+  assert.equal(getAppConfig().map_provider, 'tencent');
+
+  runtime.syncMapProviderConfigFromInitialData({
+    map_provider: 'baidu',
+    map_providers: {
+      baidu: { provider: 'baidu', display_name: '百度地图', ak: 'new-baidu-ak' },
+    },
+    task_status: { status: 'running', map_provider: 'tencent' },
+  });
+
+  assert.equal(getAppConfig().map_provider, 'tencent');
+  assert.equal(getAppConfig().map_providers.baidu.ak, 'new-baidu-ak');
+  assert.equal(runtime.getPendingMapProviderRuntimeConfig().map_provider, 'baidu');
+
+  assert.equal(runtime.applyPendingMapProviderConfigIfAny(), false);
+  assert.equal(getAppConfig().map_provider, 'tencent');
+
+  runtime.syncMapProviderConfigFromInitialData({
+    task_status: { status: 'stopped' },
+  });
+  assert.equal(runtime.applyPendingMapProviderConfigIfAny(), true);
+  assert.equal(getAppConfig().map_provider, 'baidu');
+});
+
+test('running background tasks without recorded provider preserve current provider', () => {
+  const runtime = createRuntime('amap', { strictDocumentIds: true });
+  const getAppConfig = () => runtime.getWindow().APP_CONFIG;
+
+  runtime.syncMapProviderConfigFromInitialData({
+    map_provider: 'tianditu',
+    task_status: { status: 'running' },
+  });
+
+  assert.equal(getAppConfig().map_provider, 'amap');
+  assert.equal(runtime.getPendingMapProviderRuntimeConfig().map_provider, 'tianditu');
 });
 
 test('provider maps initialize SDKs on an isolated surface below app controls', () => {

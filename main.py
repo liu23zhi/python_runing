@@ -14155,6 +14155,17 @@ class Api:
                 logging.warning(f"[get_initial_data] 获取CDN缓存状态失败: {e}")
 
             map_config = _get_map_provider_frontend_config(cfg)
+            task_status = None
+            try:
+                if (
+                    session_uuid
+                    and "background_task_manager" in globals()
+                    and background_task_manager
+                ):
+                    task_status = background_task_manager.get_task_status(session_uuid)
+            except Exception as e:
+                logging.warning(f"[get_initial_data] 获取后台任务状态失败: {e}")
+
             response_data = {
                 "success": True,
                 "users": users,
@@ -14178,6 +14189,12 @@ class Api:
                 "is_multi_account_mode": getattr(self, "is_multi_account_mode", False),
                 "captcha_settings": captcha_settings,
             }
+
+            if (
+                isinstance(task_status, dict)
+                and task_status.get("status") in ("running", "paused")
+            ):
+                response_data["task_status"] = task_status
 
             # 如果是超级管理员，在初始化数据中包含密码恢复任务列表
             if auth_group == "super_admin":
@@ -22799,6 +22816,7 @@ class BackgroundTaskManager:
                 "task_indices": task_indices,
                 "auto_generate": auto_generate,
                 "status": "running",
+                "map_provider": _get_active_map_provider(config),
                 "start_time": time.time(),
                 "last_update": time.time(),
                 "progress_percent": 0,

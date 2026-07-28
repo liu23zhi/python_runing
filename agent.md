@@ -45,8 +45,16 @@
 
 - 百度地图必须使用 BMapGL/WebGL 版本，加载 URL 要带 WebGL 类型，初始化时保留 3D 能力。
 - 百度左上角视角控件优先使用 BMapGL 原生 `NavigationControl3D`，不要默认叠加 `provider-3d-view-btn` 自绘控件；初始化时如果发现旧自绘 overlay，要清理掉。
+- 百度和天地图的左上角/右上角缩放数字不会自动跟随 SDK 原生缩放，必须绑定 SDK 缩放事件后再调用 `updateProviderMapZoomLabel()`；百度监听 `zoomend` / `zoom_changed`，天地图监听 `zoomend` / `zoom`。
 - 天地图缺少右键拖动时，需要在 SDK surface 上自定义右键拖动并调用 `panBy()`，同时阻止浏览器默认右键菜单。
 - 天地图标记点必须显式显示点名称，不能只画图标，否则会和百度、高德表现不一致。
+
+## 地图配置生效规则
+
+- 系统配置里修改地图提供方或地图 Key 后，不要立刻 `syncMapProviderConfigFromInitialData()`、`destroySingleMap()` 或重新 `initProviderMap()`；当前页面只应 `queuePendingMapProviderConfig()`，等下一次地图初始化再应用。
+- 任务执行中必须避免突然切换地图。后台任务启动时要把当时的 `map_provider` 写入任务状态；`get_initial_data` 只在任务 `running` / `paused` 时返回 `task_status`，前端据此锁定当前地图提供方。
+- 浏览器关闭后再打开仍要考虑运行中任务：不能依赖页面内存里的 pending 状态。前端初始化如果看到运行中的 `task_status.map_provider`，应优先使用任务绑定的地图提供方，把最新配置继续留到任务结束后的下一次地图加载。
+- `applyPendingMapProviderConfigIfAny()` 应先检查后台轮询、执行视觉态和任务 provider 锁；只有确认没有执行中的地图任务，才允许应用 pending 配置。
 
 ## 坐标转换踩坑
 

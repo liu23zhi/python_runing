@@ -15498,6 +15498,7 @@ function initializeMobileUI() {
         await callPythonAPI_raw("/api/background_task/stop", "POST", null);
       } catch (_) {}
       onRunStopped();
+      applyPendingMapProviderConfigIfAny();
 
       const result = await callPythonAPI("enter_multi_account_mode");
       if (!result.success) {
@@ -35104,13 +35105,16 @@ function enhanceMapInteraction(mapInstance) {
     });
   };
 }
+function normalizeSupportedMapProvider(provider) {
+  const normalized = String(provider || "").trim().toLowerCase();
+  return ["amap", "tencent", "tianditu", "baidu"].includes(normalized)
+    ? normalized
+    : "";
+}
+
 function getActiveMapProvider() {
   const config = window.APP_CONFIG || {};
-  const provider = String(config.map_provider || "amap").trim().toLowerCase();
-  if (["amap", "tencent", "tianditu", "baidu"].includes(provider)) {
-    return provider;
-  }
-  return "amap";
+  return normalizeSupportedMapProvider(config.map_provider) || "amap";
 }
 
 function getMapProviderDisplayName(provider) {
@@ -35189,9 +35193,98 @@ function getActiveMapProviderApiKey() {
   return getMapProviderKeyRequirement(getActiveMapProvider()).value;
 }
 
+let pendingMapProviderRuntimeConfig = null;
+let activeTaskMapProviderLock = null;
+
+function createMapProviderRuntimeConfigSnapshot(data) {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+  const snapshot = {};
+  const provider = normalizeSupportedMapProvider(data.map_provider);
+  if (provider) {
+    snapshot.map_provider = provider;
+  }
+  if (data.map_providers && typeof data.map_providers === "object") {
+    snapshot.map_providers = { ...data.map_providers };
+  }
+  if (data.amap_key) {
+    snapshot.amap_key = data.amap_key;
+  }
+  return Object.keys(snapshot).length ? snapshot : null;
+}
+
+function queuePendingMapProviderConfig(data) {
+  const snapshot = createMapProviderRuntimeConfigSnapshot(data);
+  if (!snapshot) {
+    return false;
+  }
+  pendingMapProviderRuntimeConfig = snapshot;
+  return true;
+}
+
+function getRunningTaskMapProvider(data) {
+  const taskStatus =
+    data && typeof data === "object" && data.task_status && typeof data.task_status === "object"
+      ? data.task_status
+      : null;
+  if (!taskStatus) {
+    return "";
+  }
+  const status = String(taskStatus.status || "").trim().toLowerCase();
+  if (status !== "running" && status !== "paused") {
+    return "";
+  }
+  return (
+    normalizeSupportedMapProvider(
+      taskStatus.map_provider || taskStatus.mapProvider || taskStatus.provider,
+    ) || getActiveMapProvider()
+  );
+}
+
+function isCurrentPageMapTaskActive() {
+  if (backgroundTaskPollInterval) {
+    return true;
+  }
+  if (singleRunProgressVisualActive) {
+    return true;
+  }
+  const data = currentRunData || {};
+  const status = String(data.status || data.run_status || data.task_status || "").trim().toLowerCase();
+  return status === "running" || status === "paused";
+}
+
+function isMapProviderRuntimeSwitchLocked(data) {
+  return !!getRunningTaskMapProvider(data) || !!activeTaskMapProviderLock || isCurrentPageMapTaskActive();
+}
+
+function applyPendingMapProviderConfigIfAny() {
+  if (!pendingMapProviderRuntimeConfig || isMapProviderRuntimeSwitchLocked()) {
+    return false;
+  }
+  const pendingConfig = pendingMapProviderRuntimeConfig;
+  pendingMapProviderRuntimeConfig = null;
+  syncMapProviderConfigFromInitialData(pendingConfig);
+  return true;
+}
+
 function syncMapProviderConfigFromInitialData(data) {
   if (!data || typeof data !== "object") {
     return;
+  }
+
+  const runningTaskProvider = getRunningTaskMapProvider(data);
+  if (runningTaskProvider) {
+    activeTaskMapProviderLock = runningTaskProvider;
+  } else if (data.task_status) {
+    activeTaskMapProviderLock = null;
+  }
+
+  const incomingProvider = normalizeSupportedMapProvider(data.map_provider);
+  if (runningTaskProvider && incomingProvider && incomingProvider !== runningTaskProvider) {
+    queuePendingMapProviderConfig(data);
+  } else if (!runningTaskProvider && incomingProvider) {
+    pendingMapProviderRuntimeConfig = null;
   }
 
   const currentConfig = window.APP_CONFIG || {};
@@ -35202,8 +35295,10 @@ function syncMapProviderConfigFromInitialData(data) {
     },
   };
 
-  if (data.map_provider) {
-    nextConfig.map_provider = String(data.map_provider).trim().toLowerCase();
+  if (runningTaskProvider) {
+    nextConfig.map_provider = runningTaskProvider;
+  } else if (incomingProvider) {
+    nextConfig.map_provider = incomingProvider;
   }
   if (data.map_providers && typeof data.map_providers === "object") {
     nextConfig.map_providers = {
@@ -35888,13 +35983,40 @@ function updateProviderMapZoomLabel(containerId) {
   return true;
 }
 
+function bindProviderMapZoomEvent(instance, eventName, handler) {
+  if (!instance || !eventName || typeof handler !== "function") {
+    return false;
+  }
+  if (typeof instance.on === "function") {
+    instance.on(eventName, handler);
+    return true;
+  }
+  if (typeof instance.addEventListener === "function") {
+    instance.addEventListener(eventName, handler);
+    return true;
+  }
+  return false;
+}
+
 function bindProviderMapZoomSync(containerId, provider, instance) {
   if (!instance) return false;
-  if (provider === "tencent" && typeof instance.on === "function" && !instance.__providerZoomSyncBound) {
-    instance.on("zoom", () => {
+  if (!instance.__providerZoomSyncBound) {
+    const eventNames =
+      provider === "tencent"
+        ? ["zoom", "zoomend"]
+        : provider === "baidu"
+          ? ["zoomend", "zoom_changed"]
+          : provider === "tianditu"
+            ? ["zoomend", "zoom"]
+            : [];
+    const syncZoom = () => {
       updateProviderMapZoomLabel(containerId);
+    };
+    let hasBoundEvent = false;
+    eventNames.forEach((eventName) => {
+      hasBoundEvent = bindProviderMapZoomEvent(instance, eventName, syncZoom) || hasBoundEvent;
     });
-    instance.__providerZoomSyncBound = true;
+    instance.__providerZoomSyncBound = hasBoundEvent;
   }
   updateProviderMapZoomLabel(containerId);
   return true;
@@ -36065,6 +36187,7 @@ function applyTianDiTuDefaultMapType(instance) {
 }
 
 function initProviderMap(containerId, isMultiAccount = false) {
+  applyPendingMapProviderConfigIfAny();
   const provider = getActiveMapProvider();
   if (provider === "amap") {
     return false;
@@ -37362,6 +37485,7 @@ function loadAMapOnce() {
   return amapLoadingPromise;
 }
 async function ensureSingleMap() {
+  applyPendingMapProviderConfigIfAny();
   if (getActiveMapProvider() !== "amap") {
     try {
       const isReady = await ensureActiveMapProviderRuntimeIfNeeded("单账号地图初始化");
@@ -37855,6 +37979,7 @@ function removeSingleMapOverlay(overlay) {
 }
 
 function showMainApp() {
+  applyPendingMapProviderConfigIfAny();
   mapReadyPromise = new Promise((resolve) => {
     resolveMapReady = resolve;
   });
@@ -39149,6 +39274,7 @@ async function switchToMultiMode() {
     await callPythonAPI_raw("/api/background_task/stop", "POST", null);
   } catch (_) {}
   onRunStopped();
+  applyPendingMapProviderConfigIfAny();
 
   const result = await callPythonAPI("enter_multi_account_mode");
   if (!result.success) return;
@@ -42390,6 +42516,7 @@ async function toggleRun() {
     }
 
     if (result.success) {
+      activeTaskMapProviderLock = getActiveMapProvider();
       btn.textContent = "停止";
       btn.classList.remove("btn-primary");
       btn.classList.add("btn-danger");
@@ -42482,6 +42609,7 @@ async function toggleAllRuns() {
       return;
     }
     if (result.success) {
+      activeTaskMapProviderLock = getActiveMapProvider();
       btn.textContent = "全部停止";
       btn.classList.remove("btn-secondary");
       btn.classList.add("btn-danger");
@@ -42528,10 +42656,15 @@ async function pollBackgroundTaskStatus() {
     if (result.success && result.task_status) {
       const status = result.task_status;
       if (status.status === "stopped") {
+        activeTaskMapProviderLock = null;
         clearSingleExecutionVisuals();
         return;
       }
       if (status.status === "running") {
+        activeTaskMapProviderLock =
+          normalizeSupportedMapProvider(status.map_provider) ||
+          activeTaskMapProviderLock ||
+          getActiveMapProvider();
         singleRunProgressVisualActive = true;
       }
       if (status.run_coords && status.run_coords.length > 0) {
@@ -42653,6 +42786,7 @@ async function pollBackgroundTaskStatus() {
           showModalAlert("后台任务全部完成！");
         }
         stopBackgroundTaskPolling();
+        activeTaskMapProviderLock = null;
         $("start-run-button").textContent = "开始执行";
         $("start-run-button").classList.remove("btn-danger");
         $("start-run-button").classList.add("btn-primary");
@@ -42670,6 +42804,7 @@ async function pollBackgroundTaskStatus() {
           showModalAlert("后台任务执行出错: " + errorMsg);
         }
         stopBackgroundTaskPolling();
+        activeTaskMapProviderLock = null;
         $("start-run-button").textContent = "开始执行";
         $("start-run-button").classList.remove("btn-danger");
         $("start-run-button").classList.add("btn-primary");
@@ -42694,6 +42829,10 @@ async function checkBackgroundTaskOnLoad() {
     if (result.success && result.task_status) {
       const status = result.task_status;
       if (status.status === "running") {
+        activeTaskMapProviderLock =
+          normalizeSupportedMapProvider(status.map_provider) ||
+          activeTaskMapProviderLock ||
+          getActiveMapProvider();
         singleRunProgressVisualActive = true;
         logMessage_Info("检测到后台任务正在运行，已恢复状态显示");
         const totalTasks = status.total_tasks || 0;
@@ -43001,6 +43140,7 @@ function onTaskCompleted(taskIndex) {
 }
 function onRunStopped() {
   logMessage_Info("后台任务已停止（来自服务器推送）。");
+  activeTaskMapProviderLock = null;
   stopBackgroundTaskPolling();
   clearSingleExecutionVisuals();
   const startBtn = $("start-run-button");
@@ -51911,11 +52051,14 @@ async function saveSystemConfig() {
     const result = await response.json();
     if (result.success) {
       const previousProvider = getActiveMapProvider();
-      const newProvider = (configData.Map && configData.Map.provider) || previousProvider;
+      const newProvider =
+        normalizeSupportedMapProvider(configData.Map && configData.Map.provider) ||
+        previousProvider;
       const providerChanged = previousProvider !== newProvider;
+      let queuedMapProviderConfig = false;
       try {
         const freshConfig = await fetch("/api/frontend-config", { cache: "no-cache" }).then((r) => r.json());
-        syncMapProviderConfigFromInitialData(freshConfig);
+        queuedMapProviderConfig = queuePendingMapProviderConfig(freshConfig);
       } catch (_syncErr) {
         const directUpdate = { map_provider: newProvider, map_providers: {} };
         if (configData.Map && configData.Map.providers) {
@@ -51928,27 +52071,14 @@ async function saveSystemConfig() {
             };
           }
         }
-        syncMapProviderConfigFromInitialData(directUpdate);
-      }
-      if (providerChanged) {
-        try {
-          destroySingleMap();
-          const isReady = await ensureActiveMapProviderRuntimeIfNeeded("切换地图提供方");
-          if (isReady) {
-            if (getActiveMapProvider() === "amap" && AMapInstance) {
-              initMap(AMapInstance);
-            } else {
-              initProviderMap("map-container", false);
-            }
-          }
-        } catch (mapErr) {
-          logMessage_Error("切换地图提供方后重新初始化失败:", mapErr);
-        }
+        queuedMapProviderConfig = queuePendingMapProviderConfig(directUpdate);
       }
       showModalAlert(
         providerChanged
-          ? `配置已保存，地图提供方已切换为${getMapProviderDisplayName()}。部分配置需要重启程序才能生效。`
-          : "配置已保存。请注意，部分配置（如路径）需要重启程序才能生效。",
+          ? `配置已保存，地图提供方将在下次加载地图时切换为${getMapProviderDisplayName(newProvider)}，当前地图和执行中的任务不会被打断。部分配置需要重启程序才能生效。`
+          : queuedMapProviderConfig
+            ? "配置已保存。地图相关配置将在下次加载地图时生效；部分配置（如路径）需要重启程序才能生效。"
+            : "配置已保存。请注意，部分配置（如路径）需要重启程序才能生效。",
         "保存成功",
       );
       showButtonSuccess(btn, "保存成功", 2000);

@@ -43,6 +43,14 @@ class TestMapProviderBusinessExecutionContract(unittest.TestCase):
         self.assertNotIn("https://webapi.amap.com/loader.js", background_block)
         self.assertNotIn("正在向Chrome页面加载高德地图SDK", background_block)
 
+    def test_background_task_state_records_active_map_provider(self):
+        source = MAIN_PATH.read_text(encoding="utf-8")
+        start_block = source.split("def start_background_task(", 1)[1].split(
+            "def _execute_tasks_background(", 1
+        )[0]
+
+        self.assertIn('"map_provider": _get_active_map_provider(config)', start_block)
+
     def test_single_account_manual_auto_generation_uses_provider_runtime_helper(self):
         source = MAIN_PATH.read_text(encoding="utf-8")
         self.assertIn("def auto_generate_path_with_provider(", source)
