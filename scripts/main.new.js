@@ -35687,7 +35687,7 @@ function ensureProvider3DViewControl(containerId) {
   const buttonId = getProvider3DViewButtonId(containerId);
   const existingButton = document.getElementById(buttonId);
 
-  if (provider !== "baidu") {
+  if (provider !== "baidu" && provider !== "tencent") {
     removeProvider3DViewControl(containerId);
     return;
   }
@@ -35707,6 +35707,49 @@ function ensureProvider3DViewControl(containerId) {
   `;
   container.appendChild(overlay);
   attachProvider3DViewControlHandler(containerId);
+}
+
+function getProviderMapZoomLevelElementId(containerId) {
+  return containerId === "multi-map-container" ? "multi-zoom-level" : "zoom-level";
+}
+
+function formatProviderMapZoomLevel(zoom) {
+  const value = Number(zoom);
+  if (!Number.isFinite(value)) return "";
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function updateProviderMapZoomLabel(containerId) {
+  const label = document.getElementById(getProviderMapZoomLevelElementId(containerId));
+  const instance = getProviderMapInstance(containerId);
+  if (!label || !instance) return false;
+  let zoom;
+  try {
+    if (typeof instance.getZoom === "function") {
+      zoom = instance.getZoom();
+    } else if (Number.isFinite(Number(instance.zoom))) {
+      zoom = instance.zoom;
+    }
+  } catch (e) {
+    logMessage_Warning(`[地图] 读取${containerId}缩放等级失败:`, e);
+    return false;
+  }
+  const text = formatProviderMapZoomLevel(zoom);
+  if (!text) return false;
+  label.textContent = text;
+  return true;
+}
+
+function bindProviderMapZoomSync(containerId, provider, instance) {
+  if (!instance) return false;
+  if (provider === "tencent" && typeof instance.on === "function" && !instance.__providerZoomSyncBound) {
+    instance.on("zoom", () => {
+      updateProviderMapZoomLabel(containerId);
+    });
+    instance.__providerZoomSyncBound = true;
+  }
+  updateProviderMapZoomLabel(containerId);
+  return true;
 }
 
 function enableTianDiTuRightDragPan(containerId, instance) {
@@ -35752,6 +35795,37 @@ function enableTianDiTuRightDragPan(containerId, instance) {
   surface._providerTianDiTuRightDragBound = true;
 }
 
+function removeTencentDefaultControls(instance) {
+  if (!instance || typeof instance.removeControl !== "function") {
+    return false;
+  }
+  const defaults =
+    window.TMap &&
+    window.TMap.constants &&
+    window.TMap.constants.DEFAULT_CONTROL_ID
+      ? window.TMap.constants.DEFAULT_CONTROL_ID
+      : {};
+  const controlIds = [
+    defaults.SCALE || "scale",
+    defaults.ZOOM || "zoom",
+    defaults.ROTATION || "rotation",
+  ].filter((id) => id !== undefined && id !== null && id !== "");
+  let removed = false;
+
+  controlIds.forEach((id) => {
+    try {
+      if (typeof instance.getControl === "function" && !instance.getControl(id)) {
+        return;
+      }
+      instance.removeControl(id);
+      removed = true;
+    } catch (e) {
+      logMessage_Warning(`[地图] 移除腾讯地图默认控件失败(${id}):`, e);
+    }
+  });
+  return removed;
+}
+
 function enableProviderMapInteractions(containerId, provider, instance) {
   if (!instance) return;
   try {
@@ -35760,6 +35834,7 @@ function enableProviderMapInteractions(containerId, provider, instance) {
       if (typeof instance.setScrollable === "function") instance.setScrollable(true);
       if (typeof instance.setPitchable === "function") instance.setPitchable(true);
       if (typeof instance.setRotatable === "function") instance.setRotatable(true);
+      removeTencentDefaultControls(instance);
     } else if (provider === "baidu") {
       if (typeof instance.enableScrollWheelZoom === "function") instance.enableScrollWheelZoom(true);
       if (typeof instance.enableRotate === "function") instance.enableRotate();
@@ -35948,6 +36023,7 @@ function initProviderMap(containerId, isMultiAccount = false) {
     } else if (containerId === "multi-map-container") {
       ensureMultiControls();
     }
+    bindProviderMapZoomSync(containerId, provider, instance);
     logMessage_Info(`[地图] ${getMapProviderDisplayName(provider)}前端地图已加载: ${containerId}`);
     return true;
   } catch (error) {
@@ -36218,21 +36294,31 @@ function fitProviderMapToCoordinates(containerId, coords, overlay = null) {
 function zoomProviderMap(containerId, delta) {
   const instance = getProviderMapInstance(containerId);
   if (!instance) return false;
+  const provider = providerMapInstanceProviders[containerId] || getActiveMapProvider();
   try {
+    if (provider === "tencent" && typeof instance.getZoom === "function" && typeof instance.setZoom === "function") {
+      instance.setZoom(instance.getZoom() + delta);
+      updateProviderMapZoomLabel(containerId);
+      return true;
+    }
     if (typeof instance.zoomBy === "function") {
       instance.zoomBy(delta);
+      updateProviderMapZoomLabel(containerId);
       return true;
     }
     if (delta > 0 && typeof instance.zoomIn === "function") {
       instance.zoomIn();
+      updateProviderMapZoomLabel(containerId);
       return true;
     }
     if (delta < 0 && typeof instance.zoomOut === "function") {
       instance.zoomOut();
+      updateProviderMapZoomLabel(containerId);
       return true;
     }
     if (typeof instance.getZoom === "function" && typeof instance.setZoom === "function") {
       instance.setZoom(instance.getZoom() + delta);
+      updateProviderMapZoomLabel(containerId);
       return true;
     }
   } catch (e) {
