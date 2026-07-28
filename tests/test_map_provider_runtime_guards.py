@@ -395,6 +395,10 @@ class TestMapProviderRuntimeGuards(unittest.TestCase):
             source.index("function getProviderMapInstance("):
             source.index("function fitProviderMapToCoordinates(", source.index("function getProviderMapInstance("))
         ]
+        reset_task_view_source = source[
+            source.index("function resetTaskMapView("):
+            source.index("function clearTaskMapAutoResetTimer(", source.index("function resetTaskMapView("))
+        ]
         single_control_source = source[
             source.index("function attachSingleControlHandlers("):
             source.index("function ensureMultiControls(", source.index("function attachSingleControlHandlers("))
@@ -418,10 +422,13 @@ class TestMapProviderRuntimeGuards(unittest.TestCase):
 
         self.assertIn('zoomProviderMap("map-container", 1)', single_control_source)
         self.assertIn('zoomProviderMap("map-container", -1)', single_control_source)
-        self.assertIn("fitProviderMapToLastRoute(\"map-container\")", single_control_source)
+        self.assertIn('resetTaskMapView("map-container")', single_control_source)
         self.assertIn('zoomProviderMap("multi-map-container", 1)', multi_control_source)
         self.assertIn('zoomProviderMap("multi-map-container", -1)', multi_control_source)
-        self.assertIn("fitProviderMapToLastRoute(\"multi-map-container\")", multi_control_source)
+        self.assertIn('resetTaskMapView("multi-map-container")', multi_control_source)
+        self.assertIn('fitProviderMapToLastRoute(containerId)', reset_task_view_source)
+        self.assertIn("multi_resetMapView();", reset_task_view_source)
+        self.assertIn("resetMapView();", reset_task_view_source)
         self.assertIn('if (containerId === "multi-map-container")', provider_instance_source)
         self.assertIn("return multiAccountMap;", provider_instance_source)
         self.assertIn("ensureSingleControls();", show_main_source)

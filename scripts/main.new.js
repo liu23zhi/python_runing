@@ -34465,6 +34465,15 @@ async function initializeApp() {
             const zoomLevelEl = $("multi-zoom-level");
             if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
           });
+          bindTaskMapSdkInteractionTracking("multi-map-container", multiAccountMap);
+          bindTaskMapUserInteractionTracking(
+            "multi-map-container",
+            multiAccountMap.getContainer && multiAccountMap.getContainer(),
+          );
+          bindTaskMapUserInteractionTracking(
+            "multi-map-container",
+            document.getElementById("multi-map-container"),
+          );
           if (window.multiMapCleanup) window.multiMapCleanup();
           window.multiMapCleanup = enhanceMapInteraction(multiAccountMap);
 
@@ -35006,6 +35015,8 @@ function enhanceMapInteraction(mapInstance) {
     if (!mapInstance) return;
     if (e.deltaY < 0) mapInstance.zoomIn();
     else mapInstance.zoomOut();
+    const containerId = container.id || "map-container";
+    scheduleTaskMapAutoResetAfterUserInteraction(containerId);
   };
   addManagedListener(container, "wheel", wheelHandler, {
     passive: false,
@@ -35030,6 +35041,8 @@ function enhanceMapInteraction(mapInstance) {
       const panDx = DRAG_SAME_DIRECTION ? dx : -dx;
       const panDy = DRAG_SAME_DIRECTION ? dy : -dy;
       mapInstance.panBy(panDx, panDy);
+      const containerId = container.id || "map-container";
+      scheduleTaskMapAutoResetAfterUserInteraction(containerId);
       lastClientX = mouseX;
       lastClientY = mouseY;
     }
@@ -35195,6 +35208,9 @@ function getActiveMapProviderApiKey() {
 
 let pendingMapProviderRuntimeConfig = null;
 let activeTaskMapProviderLock = null;
+const TASK_MAP_AUTO_RESET_IDLE_MS = 120000;
+let taskMapAutoResetTimer = null;
+let taskMapAutoResetContainerId = "";
 
 function createMapProviderRuntimeConfigSnapshot(data) {
   if (!data || typeof data !== "object") {
@@ -35265,6 +35281,64 @@ function applyPendingMapProviderConfigIfAny() {
   const pendingConfig = pendingMapProviderRuntimeConfig;
   pendingMapProviderRuntimeConfig = null;
   syncMapProviderConfigFromInitialData(pendingConfig);
+  return true;
+}
+
+function isTaskMapAutoResetExecutionActive() {
+  return !!activeTaskMapProviderLock || isCurrentPageMapTaskActive();
+}
+
+function resetTaskMapView(containerId = "map-container") {
+  if (containerId === "multi-map-container") {
+    if (getActiveMapProvider() !== "amap") {
+      return fitProviderMapToLastRoute(containerId);
+    }
+    if (typeof multi_resetMapView === "function") {
+      multi_resetMapView();
+      return true;
+    }
+    return false;
+  }
+  if (getActiveMapProvider() !== "amap") {
+    return fitProviderMapToLastRoute(containerId);
+  }
+  resetMapView();
+  return true;
+}
+
+function clearTaskMapAutoResetTimer() {
+  if (taskMapAutoResetTimer !== null && taskMapAutoResetTimer !== undefined) {
+    const timerHost = typeof window !== "undefined" ? window : globalThis;
+    const clearTimer =
+      timerHost && typeof timerHost.clearTimeout === "function"
+        ? timerHost.clearTimeout.bind(timerHost)
+        : clearTimeout;
+    clearTimer(taskMapAutoResetTimer);
+  }
+  taskMapAutoResetTimer = null;
+  taskMapAutoResetContainerId = "";
+}
+
+function scheduleTaskMapAutoResetAfterUserInteraction(containerId = "map-container") {
+  if (!isTaskMapAutoResetExecutionActive()) {
+    clearTaskMapAutoResetTimer();
+    return false;
+  }
+  clearTaskMapAutoResetTimer();
+  const timerHost = typeof window !== "undefined" ? window : globalThis;
+  const setTimer =
+    timerHost && typeof timerHost.setTimeout === "function"
+      ? timerHost.setTimeout.bind(timerHost)
+      : setTimeout;
+  taskMapAutoResetContainerId = containerId || "map-container";
+  taskMapAutoResetTimer = setTimer(() => {
+    const resetContainerId = taskMapAutoResetContainerId || containerId || "map-container";
+    taskMapAutoResetTimer = null;
+    taskMapAutoResetContainerId = "";
+    if (isTaskMapAutoResetExecutionActive()) {
+      resetTaskMapView(resetContainerId);
+    }
+  }, TASK_MAP_AUTO_RESET_IDLE_MS);
   return true;
 }
 
@@ -35675,7 +35749,9 @@ function removeProviderOverlayFromMap(containerId, overlay) {
 }
 
 function getProviderMapDefaultZoom(provider) {
-  return provider === "tianditu" ? 16 : 17;
+  if (provider === "baidu") return 18;
+  if (provider === "tianditu") return 17;
+  return 17;
 }
 
 function getProviderMapDefaultCenter() {
@@ -35751,7 +35827,7 @@ function addBaiduProvider3DControl(instance) {
     options.anchor = BMAP_ANCHOR_TOP_LEFT;
   }
   if (typeof BMapGL.Size === "function") {
-    options.offset = new BMapGL.Size(12, 68);
+    options.offset = new BMapGL.Size(12, 12);
   }
   try {
     instance.addControl(new BMapGL.NavigationControl3D(options));
@@ -36022,6 +36098,40 @@ function bindProviderMapZoomSync(containerId, provider, instance) {
   return true;
 }
 
+function bindTaskMapSdkInteractionTracking(containerId, instance) {
+  if (!instance || instance.__taskMapAutoResetSdkBound) {
+    return !!(instance && instance.__taskMapAutoResetSdkBound);
+  }
+  const handler = () => {
+    scheduleTaskMapAutoResetAfterUserInteraction(containerId);
+  };
+  const eventNames = [
+    "dragstart",
+    "dragend",
+  ];
+  let hasBoundEvent = false;
+  eventNames.forEach((eventName) => {
+    hasBoundEvent = bindProviderMapZoomEvent(instance, eventName, handler) || hasBoundEvent;
+  });
+  instance.__taskMapAutoResetSdkBound = hasBoundEvent;
+  return hasBoundEvent;
+}
+
+function bindTaskMapUserInteractionTracking(containerId, target) {
+  if (!target || target.__taskMapAutoResetDomBound || typeof target.addEventListener !== "function") {
+    return false;
+  }
+  const handler = () => {
+    scheduleTaskMapAutoResetAfterUserInteraction(containerId);
+  };
+  ["mousedown", "pointerdown", "touchstart", "wheel"].forEach((eventName) => {
+    const options = eventName === "wheel" ? { passive: true } : true;
+    target.addEventListener(eventName, handler, options);
+  });
+  target.__taskMapAutoResetDomBound = true;
+  return true;
+}
+
 function enableTianDiTuRightDragPan(containerId, instance) {
   const surface = getProviderMapSurface(containerId);
   if (!surface || surface._providerTianDiTuRightDragBound || !instance) return;
@@ -36050,6 +36160,7 @@ function enableTianDiTuRightDragPan(containerId, instance) {
     const activeInstance = getProviderMapInstance(containerId);
     if (activeInstance && typeof activeInstance.panBy === "function" && (dx || dy)) {
       activeInstance.panBy(dx, dy);
+      scheduleTaskMapAutoResetAfterUserInteraction(containerId);
     }
     if (typeof event.preventDefault === "function") event.preventDefault();
     if (typeof event.stopPropagation === "function") event.stopPropagation();
@@ -36313,6 +36424,9 @@ function initProviderMap(containerId, isMultiAccount = false) {
       ensureMultiControls();
     }
     bindProviderMapZoomSync(containerId, provider, instance);
+    bindTaskMapSdkInteractionTracking(containerId, instance);
+    bindTaskMapUserInteractionTracking(containerId, getProviderMapSurface(containerId));
+    bindTaskMapUserInteractionTracking(containerId, document.getElementById(containerId));
     logMessage_Info(`[地图] ${getMapProviderDisplayName(provider)}前端地图已加载: ${containerId}`);
     return true;
   } catch (error) {
@@ -36588,26 +36702,31 @@ function zoomProviderMap(containerId, delta) {
     if (provider === "tencent" && typeof instance.getZoom === "function" && typeof instance.setZoom === "function") {
       instance.setZoom(instance.getZoom() + delta);
       updateProviderMapZoomLabel(containerId);
+      scheduleTaskMapAutoResetAfterUserInteraction(containerId);
       return true;
     }
     if (typeof instance.zoomBy === "function") {
       instance.zoomBy(delta);
       updateProviderMapZoomLabel(containerId);
+      scheduleTaskMapAutoResetAfterUserInteraction(containerId);
       return true;
     }
     if (delta > 0 && typeof instance.zoomIn === "function") {
       instance.zoomIn();
       updateProviderMapZoomLabel(containerId);
+      scheduleTaskMapAutoResetAfterUserInteraction(containerId);
       return true;
     }
     if (delta < 0 && typeof instance.zoomOut === "function") {
       instance.zoomOut();
       updateProviderMapZoomLabel(containerId);
+      scheduleTaskMapAutoResetAfterUserInteraction(containerId);
       return true;
     }
     if (typeof instance.getZoom === "function" && typeof instance.setZoom === "function") {
       instance.setZoom(instance.getZoom() + delta);
       updateProviderMapZoomLabel(containerId);
+      scheduleTaskMapAutoResetAfterUserInteraction(containerId);
       return true;
     }
   } catch (e) {
@@ -37765,11 +37884,8 @@ function attachSingleControlHandlers() {
   }
   if (rv && !rv._bound) {
     rv.addEventListener("click", () => {
-      if (getActiveMapProvider() !== "amap") {
-        fitProviderMapToLastRoute("map-container");
-        return;
-      }
-      resetMapView();
+      clearTaskMapAutoResetTimer();
+      resetTaskMapView("map-container");
     });
     rv._bound = true;
   }
@@ -37830,11 +37946,8 @@ function attachMultiControlHandlers() {
   }
   if (rv && !rv._bound) {
     rv.addEventListener("click", () => {
-      if (getActiveMapProvider() !== "amap") {
-        fitProviderMapToLastRoute("multi-map-container");
-        return;
-      }
-      multi_resetMapView();
+      clearTaskMapAutoResetTimer();
+      resetTaskMapView("multi-map-container");
     });
     rv._bound = true;
   }
@@ -37929,6 +38042,9 @@ async function initMap(AMap) {
     const zoomLevelEl = $("zoom-level");
     if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
   });
+  bindTaskMapSdkInteractionTracking("map-container", map);
+  bindTaskMapUserInteractionTracking("map-container", map.getContainer && map.getContainer());
+  bindTaskMapUserInteractionTracking("map-container", document.getElementById("map-container"));
 
   if (window.mapCleanup) window.mapCleanup();
   window.mapCleanup = enhanceMapInteraction(map);
@@ -39350,6 +39466,15 @@ async function switchToMultiMode() {
       const zoomLevelEl = $("multi-zoom-level");
       if (zoomLevelEl) zoomLevelEl.textContent = String(z.toFixed(1));
     });
+    bindTaskMapSdkInteractionTracking("multi-map-container", multiAccountMap);
+    bindTaskMapUserInteractionTracking(
+      "multi-map-container",
+      multiAccountMap.getContainer && multiAccountMap.getContainer(),
+    );
+    bindTaskMapUserInteractionTracking(
+      "multi-map-container",
+      document.getElementById("multi-map-container"),
+    );
     if (window.multiMapCleanup) window.multiMapCleanup();
     window.multiMapCleanup = enhanceMapInteraction(multiAccountMap);
 
@@ -42531,6 +42656,7 @@ async function toggleRun() {
     btn.textContent = "开始执行";
     btn.classList.remove("btn-danger");
     btn.classList.add("btn-primary");
+    clearTaskMapAutoResetTimer();
     stopBackgroundTaskPolling();
     clearSingleExecutionVisuals();
   }
@@ -42623,6 +42749,7 @@ async function toggleAllRuns() {
     btn.textContent = "执行所有";
     btn.classList.remove("btn-danger");
     btn.classList.add("btn-secondary");
+    clearTaskMapAutoResetTimer();
     stopBackgroundTaskPolling();
     clearSingleExecutionVisuals();
   }
@@ -42657,6 +42784,7 @@ async function pollBackgroundTaskStatus() {
       const status = result.task_status;
       if (status.status === "stopped") {
         activeTaskMapProviderLock = null;
+        clearTaskMapAutoResetTimer();
         clearSingleExecutionVisuals();
         return;
       }
@@ -42787,6 +42915,7 @@ async function pollBackgroundTaskStatus() {
         }
         stopBackgroundTaskPolling();
         activeTaskMapProviderLock = null;
+        clearTaskMapAutoResetTimer();
         $("start-run-button").textContent = "开始执行";
         $("start-run-button").classList.remove("btn-danger");
         $("start-run-button").classList.add("btn-primary");
@@ -42805,6 +42934,7 @@ async function pollBackgroundTaskStatus() {
         }
         stopBackgroundTaskPolling();
         activeTaskMapProviderLock = null;
+        clearTaskMapAutoResetTimer();
         $("start-run-button").textContent = "开始执行";
         $("start-run-button").classList.remove("btn-danger");
         $("start-run-button").classList.add("btn-primary");
@@ -43141,6 +43271,7 @@ function onTaskCompleted(taskIndex) {
 function onRunStopped() {
   logMessage_Info("后台任务已停止（来自服务器推送）。");
   activeTaskMapProviderLock = null;
+  clearTaskMapAutoResetTimer();
   stopBackgroundTaskPolling();
   clearSingleExecutionVisuals();
   const startBtn = $("start-run-button");
@@ -47710,6 +47841,7 @@ function mobileZoomOut() {
 //   }
 // }
 function resetMobileMapView() {
+  clearTaskMapAutoResetTimer();
   if (getActiveMapProvider() !== "amap") {
     fitProviderMapToLastRoute("map-container");
     return;
@@ -47736,6 +47868,7 @@ function mobileMultiZoomOut() {
   zoomProviderMap("multi-map-container", -1);
 }
 function mobileMultiFitView() {
+  clearTaskMapAutoResetTimer();
   if (getActiveMapProvider() !== "amap") {
     fitProviderMapToLastRoute("multi-map-container");
     return;
@@ -47748,6 +47881,7 @@ function mobileMultiFitView() {
   }
 }
 function resetMultiMapView() {
+  clearTaskMapAutoResetTimer();
   if (getActiveMapProvider() !== "amap") {
     fitProviderMapToLastRoute("multi-map-container");
     return;

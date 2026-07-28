@@ -644,6 +644,12 @@ function createRuntime(provider, options = {}) {
     'isMapProviderRuntimeSwitchLocked',
     'applyPendingMapProviderConfigIfAny',
     'syncMapProviderConfigFromInitialData',
+    'isTaskMapAutoResetExecutionActive',
+    'resetTaskMapView',
+    'clearTaskMapAutoResetTimer',
+    'scheduleTaskMapAutoResetAfterUserInteraction',
+    'bindTaskMapSdkInteractionTracking',
+    'bindTaskMapUserInteractionTracking',
     'ensureActiveMapProviderRuntimeIfNeeded',
     'loadScriptOnce',
     'loadTencentMapOnce',
@@ -762,6 +768,16 @@ function createRuntime(provider, options = {}) {
     },
     BMAP_ANCHOR_TOP_LEFT: 'top-left',
   };
+  window.__scheduledTimeouts = [];
+  window.setTimeout = (handler, delay) => {
+    const id = window.__scheduledTimeouts.length + 1;
+    window.__scheduledTimeouts.push({ id, handler, delay, cleared: false });
+    return id;
+  };
+  window.clearTimeout = (id) => {
+    const timer = window.__scheduledTimeouts.find((item) => item.id === id);
+    if (timer) timer.cleared = true;
+  };
   if (options.preloadSdks !== false) {
     window.TMap = createTencentSdk(options.tencentSdkOptions || {});
     window.T = createTianDiTuSdk();
@@ -799,6 +815,9 @@ function createRuntime(provider, options = {}) {
     let providerRunnerMarkers = {};
     let pendingMapProviderRuntimeConfig = null;
     let activeTaskMapProviderLock = null;
+    const TASK_MAP_AUTO_RESET_IDLE_MS = 120000;
+    let taskMapAutoResetTimer = null;
+    let taskMapAutoResetContainerId = "";
     let currentRunData = null;
     let runAccumulatedMs = 0;
     let singleProcessedPoints = 0;
@@ -849,6 +868,11 @@ function createRuntime(provider, options = {}) {
       },
       getCurrentRunData: () => currentRunData,
       getPendingMapProviderRuntimeConfig: () => pendingMapProviderRuntimeConfig,
+      getScheduledTimeouts: () => window.__scheduledTimeouts,
+      runLastScheduledTimeout: () => {
+        const timer = window.__scheduledTimeouts[window.__scheduledTimeouts.length - 1];
+        if (timer && !timer.cleared) timer.handler();
+      },
       getState: () => ({
         providerMapInstances,
         providerMapOverlays,
@@ -997,13 +1021,16 @@ test('baidu provider initializes BMapGL with 3d view controls', () => {
   assert.equal(instance.tiltGesturesEnabled, true);
   assert.equal(instance.rotateEnabled, true);
   assert.equal(instance.tiltEnabled, true);
+  assert.equal(instance.zoom, 18);
   assert.equal(instance.tilt, 55);
   assert.equal(instance.heading, 0);
-  assert.ok(
-    instance.controls.some(
-      (control) => control instanceof runtime.getWindow().BMapGL.NavigationControl3D,
-    ),
+  const viewControl = instance.controls.find(
+    (control) => control instanceof runtime.getWindow().BMapGL.NavigationControl3D,
   );
+  assert.ok(viewControl);
+  assert.equal(viewControl.options.anchor, 'top-left');
+  assert.equal(viewControl.options.offset.width, 12);
+  assert.equal(viewControl.options.offset.height, 12);
 });
 
 test('provider maps keep app zoom controls at the amap position', () => {
@@ -1220,11 +1247,12 @@ test('baidu provider uses the sdk native 3d navigation control without app-level
   assert.equal(runtime.initProviderMap('map-container', false), true);
 
   const instance = runtime.getProviderMapInstance('map-container');
-  assert.ok(
-    instance.controls.some(
-      (control) => control instanceof runtime.getWindow().BMapGL.NavigationControl3D,
-    ),
+  const viewControl = instance.controls.find(
+    (control) => control instanceof runtime.getWindow().BMapGL.NavigationControl3D,
   );
+  assert.ok(viewControl);
+  assert.equal(viewControl.options.offset.width, 12);
+  assert.equal(viewControl.options.offset.height, 12);
   assert.equal(doc.getElementById('provider-3d-view-btn'), null);
   assert.equal(
     container.children.some((child) => String(child.innerHTML).includes('provider-3d-view-btn')),
@@ -1310,15 +1338,85 @@ test('fitProviderMapToLastRoute resets provider maps to the default view without
       assert.equal(instance.center.lat, 22.527403);
     } else if (provider === 'tianditu') {
       assert.equal(instance.centerAndZoomCalls.length, 2);
-      assert.equal(instance.zoom, 16);
+      assert.equal(instance.zoom, 17);
       assert.ok(Math.abs(instance.center.lng - 113.390342) > 0.0001);
       assert.ok(Math.abs(instance.center.lat - 22.527403) > 0.0001);
     } else {
       assert.equal(instance.centerAndZoomCalls.length, 2);
-      assert.equal(instance.zoom, 17);
+      assert.equal(instance.zoom, 18);
       assert.equal(instance.tilt, 55);
       assert.equal(instance.heading, 0);
     }
+  }
+});
+
+test('provider maps reset the active task view after two idle minutes following user interaction', () => {
+  const cases = [
+    ['tencent', 'dragstart', 17],
+    ['tianditu', 'dragstart', 17],
+    ['baidu', 'dragstart', 18],
+  ];
+
+  for (const [provider, eventName, expectedZoom] of cases) {
+    const runtime = createRuntime(provider, {
+      baiduGlOnly: provider === 'baidu',
+      strictDocumentIds: true,
+    });
+
+    assert.equal(runtime.initProviderMap('map-container', false), true, provider);
+    runtime.syncMapProviderConfigFromInitialData({
+      task_status: { status: 'running', map_provider: provider },
+    });
+
+    const instance = runtime.getProviderMapInstance('map-container');
+    instance.setZoom(11);
+
+    const interactionEvent = instance.events.find((event) => event.eventName === eventName);
+    assert.ok(interactionEvent, `${provider} should bind sdk interaction events`);
+    interactionEvent.handler();
+
+    const timers = runtime.getScheduledTimeouts();
+    const timer = timers[timers.length - 1];
+    assert.equal(timer.delay, 120000, provider);
+    assert.equal(instance.zoom, 11, provider);
+
+    runtime.runLastScheduledTimeout();
+    assert.equal(instance.zoom, expectedZoom, provider);
+  }
+});
+
+test('provider map dom interactions schedule the idle reset during active tasks', () => {
+  const cases = [
+    ['tencent', 17],
+    ['tianditu', 17],
+    ['baidu', 18],
+  ];
+
+  for (const [provider, expectedZoom] of cases) {
+    const runtime = createRuntime(provider, {
+      baiduGlOnly: provider === 'baidu',
+      strictDocumentIds: true,
+    });
+
+    assert.equal(runtime.initProviderMap('map-container', false), true, provider);
+    runtime.syncMapProviderConfigFromInitialData({
+      task_status: { status: 'running', map_provider: provider },
+    });
+
+    const instance = runtime.getProviderMapInstance('map-container');
+    const container = runtime.getDocument().getElementById('map-container');
+    instance.setZoom(11);
+
+    const wheelEvent = container.events.find((event) => event.eventName === 'wheel');
+    assert.ok(wheelEvent, `${provider} should bind dom wheel interactions`);
+    wheelEvent.handler();
+
+    const timers = runtime.getScheduledTimeouts();
+    const timer = timers[timers.length - 1];
+    assert.equal(timer.delay, 120000, provider);
+
+    runtime.runLastScheduledTimeout();
+    assert.equal(instance.zoom, expectedZoom, provider);
   }
 });
 
