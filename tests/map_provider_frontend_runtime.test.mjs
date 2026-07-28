@@ -186,6 +186,11 @@ function createTencentSdk(sdkOptions = {}) {
     ZOOM: 'zoom',
     ROTATION: 'rotation',
   };
+  const CONTROL_POSITION = {
+    TOP_LEFT: 'top-left',
+    TOP_RIGHT: 'top-right',
+    BOTTOM_RIGHT: 'bottom-right',
+  };
   const createNativeControlElement = (id) => ({
     id: `tencent-native-${id}`,
     dataset: { tencentNativeControl: id },
@@ -195,6 +200,20 @@ function createTencentSdk(sdkOptions = {}) {
       if (this.parentNode && typeof this.parentNode.removeChild === 'function') {
         this.parentNode.removeChild(this);
       }
+    },
+  });
+  const createNativeControl = (id) => ({
+    id,
+    element: createNativeControlElement(id),
+    position: null,
+    className: '',
+    setPosition(position) {
+      this.position = position;
+      return this;
+    },
+    setClassName(className) {
+      this.className = className;
+      return this;
     },
   });
   class LatLng {
@@ -224,12 +243,11 @@ function createTencentSdk(sdkOptions = {}) {
       this.removedControlIds = [];
       if (sdkOptions.injectDefaultControls) {
         Object.values(DEFAULT_CONTROL_ID).forEach((id) => {
-          const element = createNativeControlElement(id);
-          const control = { id, element };
+          const control = createNativeControl(id);
           this.controls.push(control);
           this.controlMap.set(id, control);
           if (container && typeof container.appendChild === 'function') {
-            container.appendChild(element);
+            container.appendChild(control.element);
           }
         });
       }
@@ -246,8 +264,14 @@ function createTencentSdk(sdkOptions = {}) {
     setPitch(pitch) {
       this.pitch = pitch;
     }
+    getPitch() {
+      return this.pitch;
+    }
     setRotation(rotation) {
       this.rotation = rotation;
+    }
+    getRotation() {
+      return this.rotation;
     }
     setViewMode(viewMode) {
       this.viewMode = viewMode;
@@ -318,7 +342,7 @@ function createTencentSdk(sdkOptions = {}) {
     MultiPolyline,
     MarkerStyle,
     PolylineStyle,
-    constants: { DEFAULT_CONTROL_ID },
+    constants: { DEFAULT_CONTROL_ID, CONTROL_POSITION },
   };
 }
 
@@ -444,8 +468,14 @@ function createBaiduSdk() {
     setTilt(tilt) {
       this.tilt = tilt;
     }
+    getTilt() {
+      return this.tilt;
+    }
     setHeading(heading) {
       this.heading = heading;
+    }
+    getHeading() {
+      return this.heading;
     }
     addEventListener(eventName, handler) {
       this.eventName = eventName;
@@ -591,6 +621,7 @@ function createRuntime(provider, options = {}) {
     'clearProviderMapContainerChildren',
     'ensureProviderMapSurface',
     'isElementInsideContainer',
+    'findProviderControlOverlayElement',
     'removeElementOrParentOverlay',
     'getTianDiTuToken',
     'createTianDiTuTileLayer',
@@ -604,16 +635,23 @@ function createRuntime(provider, options = {}) {
     'applyProviderMapDefaultOrientation',
     'applyProviderMapDefaultView',
     'addBaiduProvider3DControl',
+    'getProvider3DViewControlButtonId',
     'getProvider3DViewButtonId',
     'removeProvider3DViewControl',
+    'getProvider3DViewNumber',
+    'normalizeProvider3DViewRotation',
+    'clampProvider3DViewPitch',
+    'adjustProvider3DViewOrientation',
     'attachProvider3DViewControlHandler',
+    'getProvider3DViewControlMarkup',
+    'renderProvider3DViewControlOverlay',
     'ensureProvider3DViewControl',
     'getProviderMapZoomLevelElementId',
     'formatProviderMapZoomLevel',
     'updateProviderMapZoomLabel',
     'bindProviderMapZoomSync',
     'enableTianDiTuRightDragPan',
-    'removeTencentDefaultControls',
+    'configureTencentNativeViewControls',
     'enableProviderMapInteractions',
     'ensureProviderMapContextMenuGuard',
     'initProviderMap',
@@ -927,9 +965,8 @@ test('baidu provider initializes BMapGL with 3d view controls', () => {
   );
 });
 
-test('provider maps hide native controls and keep app controls at the amap position', () => {
+test('provider maps keep app zoom controls at the amap position', () => {
   const cases = [
-    ['tencent', 'showControl'],
     ['baidu', 'showControls'],
   ];
 
@@ -949,9 +986,21 @@ test('provider maps hide native controls and keep app controls at the amap posit
     assert.match(controlOverlay.className, /top-4 right-3/, provider);
     assert.match(controlOverlay.className, /z-\[1000\]/, provider);
   }
+
+  const tencentRuntime = createRuntime('tencent', { strictDocumentIds: true });
+  const tencentDoc = tencentRuntime.getDocument();
+  assert.equal(tencentRuntime.initProviderMap('map-container', false), true, 'tencent');
+  const tencentInstance = tencentRuntime.getProviderMapInstance('map-container');
+  assert.equal(tencentInstance.options.showControl, true, 'tencent keeps sdk native view control enabled');
+  const tencentControlOverlay = tencentDoc
+    .getElementById('map-container')
+    .children.find((child) => String(child.innerHTML).includes('reset-view-btn'));
+  assert.ok(tencentControlOverlay, 'tencent');
+  assert.match(tencentControlOverlay.className, /top-4 right-3/, 'tencent');
+  assert.match(tencentControlOverlay.className, /z-\[1000\]/, 'tencent');
 });
 
-test('tencent provider removes sdk default controls from the map surface', () => {
+test('tencent provider removes sdk zoom and scale controls while keeping native rotation', () => {
   const runtime = createRuntime('tencent', {
     strictDocumentIds: true,
     tencentSdkOptions: { injectDefaultControls: true },
@@ -961,14 +1010,20 @@ test('tencent provider removes sdk default controls from the map surface', () =>
   assert.equal(runtime.initProviderMap('map-container', false), true);
 
   const instance = runtime.getProviderMapInstance('map-container');
-  const defaultControlIds = Object.values(runtime.getWindow().TMap.constants.DEFAULT_CONTROL_ID);
-  assert.deepEqual(instance.removedControlIds, defaultControlIds);
-  assert.deepEqual(instance.controls, []);
+  const defaults = runtime.getWindow().TMap.constants.DEFAULT_CONTROL_ID;
+  assert.deepEqual(instance.removedControlIds, [defaults.SCALE, defaults.ZOOM]);
+  assert.deepEqual(instance.controls.map((control) => control.id), [defaults.ROTATION]);
+  assert.equal(
+    instance.getControl(defaults.ROTATION).position,
+    runtime.getWindow().TMap.constants.CONTROL_POSITION.TOP_LEFT,
+  );
 
   const surface = doc.getElementById('map-container-provider-surface');
-  assert.equal(
-    surface.children.some((child) => child.dataset?.tencentNativeControl),
-    false,
+  assert.deepEqual(
+    surface.children
+      .filter((child) => child.dataset?.tencentNativeControl)
+      .map((child) => child.dataset.tencentNativeControl),
+    [defaults.ROTATION],
   );
 });
 
@@ -1024,9 +1079,56 @@ test('provider maps initialize SDKs on an isolated surface below app controls', 
   }
 });
 
-test('tencent and baidu providers expose an app-level 3d view button at the top left', () => {
+test('tencent provider keeps the sdk native rotation control at the top left', () => {
+  const runtime = createRuntime('tencent', {
+    strictDocumentIds: true,
+    tencentSdkOptions: { injectDefaultControls: true },
+  });
+  const doc = runtime.getDocument();
+
+  assert.equal(runtime.initProviderMap('map-container', false), true);
+
+  const instance = runtime.getProviderMapInstance('map-container');
+  const defaults = runtime.getWindow().TMap.constants.DEFAULT_CONTROL_ID;
+  const rotation = instance.getControl(defaults.ROTATION);
+  assert.ok(rotation, 'tencent native rotation control should remain mounted');
+  assert.equal(rotation.position, runtime.getWindow().TMap.constants.CONTROL_POSITION.TOP_LEFT);
+  assert.deepEqual(instance.removedControlIds, [defaults.SCALE, defaults.ZOOM]);
+  assert.equal(instance.options.showControl, true);
+  assert.equal(doc.getElementById('provider-3d-view-btn'), null);
+
+  const surface = doc.getElementById('map-container-provider-surface');
+  assert.deepEqual(
+    surface.children
+      .filter((child) => child.dataset?.tencentNativeControl)
+      .map((child) => child.dataset.tencentNativeControl),
+    [defaults.ROTATION],
+  );
+});
+
+test('baidu provider uses the sdk native 3d navigation control without app-level custom overlay', () => {
+  const runtime = createRuntime('baidu', { baiduGlOnly: true, strictDocumentIds: true });
+  const doc = runtime.getDocument();
+  const container = doc.getElementById('map-container');
+
+  assert.equal(runtime.initProviderMap('map-container', false), true);
+
+  const instance = runtime.getProviderMapInstance('map-container');
+  assert.ok(
+    instance.controls.some(
+      (control) => control instanceof runtime.getWindow().BMapGL.NavigationControl3D,
+    ),
+  );
+  assert.equal(doc.getElementById('provider-3d-view-btn'), null);
+  assert.equal(
+    container.children.some((child) => String(child.innerHTML).includes('provider-3d-view-btn')),
+    false,
+  );
+});
+
+test('native 3d providers remove stale app-level custom 3d overlays during init', () => {
   const cases = [
-    ['tencent', {}],
+    ['tencent', { tencentSdkOptions: { injectDefaultControls: true } }],
     ['baidu', { baiduGlOnly: true }],
   ];
 
@@ -1034,34 +1136,22 @@ test('tencent and baidu providers expose an app-level 3d view button at the top 
     const runtime = createRuntime(provider, { ...options, strictDocumentIds: true });
     const doc = runtime.getDocument();
     const container = doc.getElementById('map-container');
+    const staleOverlay = doc.createElement('div');
+    staleOverlay.dataset.providerMapViewControl = 'true';
+    staleOverlay.className = 'absolute top-4 left-3';
+    staleOverlay.innerHTML = `
+      <button id="provider-3d-view-btn" title="3D视角">3D</button>
+    `;
+    container.appendChild(staleOverlay);
 
     assert.equal(runtime.initProviderMap('map-container', false), true, provider);
 
-    const button = doc.getElementById('provider-3d-view-btn');
-    assert.ok(button, `${provider} should expose a stable app-level 3D view button`);
-    const overlay = container.children.find(
-      (child) => String(child.innerHTML).includes('provider-3d-view-btn'),
+    assert.equal(staleOverlay.parentNode, null, provider);
+    assert.equal(
+      container.children.some((child) => String(child.innerHTML).includes('provider-3d-view-btn')),
+      false,
+      provider,
     );
-    assert.ok(overlay, provider);
-    assert.match(overlay.className, /top-4 left-3/, provider);
-    assert.match(overlay.className, /z-\[1000\]/, provider);
-
-    const instance = runtime.getProviderMapInstance('map-container');
-    const click = button.events.find((event) => event.eventName === 'click');
-    assert.ok(click, `${provider} 3D view button should be clickable`);
-    if (provider === 'tencent') {
-      instance.setPitch(0);
-      instance.setRotation(123);
-      click.handler();
-      assert.equal(instance.pitch, 55);
-      assert.equal(instance.rotation, 0);
-    } else {
-      instance.setTilt(0);
-      instance.setHeading(123);
-      click.handler();
-      assert.equal(instance.tilt, 55);
-      assert.equal(instance.heading, 0);
-    }
   }
 });
 

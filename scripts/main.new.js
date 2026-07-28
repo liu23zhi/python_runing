@@ -35475,16 +35475,24 @@ function isElementInsideContainer(container, element) {
   return false;
 }
 
+function findProviderControlOverlayElement(element) {
+  let current = element;
+  while (current) {
+    if (
+      current.dataset &&
+      (current.dataset.providerMapViewControl === "true" ||
+        current.dataset.providerMapControlOverlay === "true")
+    ) {
+      return current;
+    }
+    current = current.parentNode;
+  }
+  return null;
+}
+
 function removeElementOrParentOverlay(element) {
   if (!element) return;
-  const parent = element.parentNode;
-  const target =
-    parent &&
-    parent.dataset &&
-    (parent.dataset.providerMapViewControl === "true" ||
-      parent.dataset.providerMapControlOverlay === "true")
-      ? parent
-      : element;
+  const target = findProviderControlOverlayElement(element) || element;
   if (target && typeof target.remove === "function") {
     target.remove();
   } else if (target && target.parentNode && typeof target.parentNode.removeChild === "function") {
@@ -35661,9 +35669,14 @@ function addBaiduProvider3DControl(instance) {
 }
 
 function getProvider3DViewButtonId(containerId) {
-  return containerId === "multi-map-container"
-    ? "multi-provider-3d-view-btn"
-    : "provider-3d-view-btn";
+  return getProvider3DViewControlButtonId(containerId, "reset");
+}
+
+function getProvider3DViewControlButtonId(containerId, action) {
+  const prefix =
+    containerId === "multi-map-container" ? "multi-provider-3d-view" : "provider-3d-view";
+  if (action === "reset") return `${prefix}-btn`;
+  return `${prefix}-${action}-btn`;
 }
 
 function removeProvider3DViewControl(containerId) {
@@ -35671,17 +35684,149 @@ function removeProvider3DViewControl(containerId) {
   removeElementOrParentOverlay(button);
 }
 
+function getProvider3DViewNumber(instance, getterName, propertyName, fallback) {
+  try {
+    if (instance && typeof instance[getterName] === "function") {
+      const value = Number(instance[getterName]());
+      if (Number.isFinite(value)) return value;
+    }
+    if (instance && Number.isFinite(Number(instance[propertyName]))) {
+      return Number(instance[propertyName]);
+    }
+  } catch (e) {
+    logMessage_Warning(`[地图] 读取3D视角参数失败: ${getterName}`, e);
+  }
+  return fallback;
+}
+
+function normalizeProvider3DViewRotation(rotation) {
+  const value = Number(rotation);
+  if (!Number.isFinite(value)) return 0;
+  return ((value % 360) + 360) % 360;
+}
+
+function clampProvider3DViewPitch(pitch, maxPitch) {
+  const value = Number(pitch);
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(maxPitch, Math.max(0, value));
+}
+
+function adjustProvider3DViewOrientation(containerId, action) {
+  if (action === "reset") {
+    return applyProviderMapDefaultOrientation(containerId);
+  }
+  const provider = providerMapInstanceProviders[containerId] || getActiveMapProvider();
+  const instance = getProviderMapInstance(containerId);
+  if (!instance) return false;
+
+  try {
+    if (provider === "tencent") {
+      if (typeof instance.setViewMode === "function") instance.setViewMode("3D");
+      if (action === "pitch-up" || action === "pitch-down") {
+        const pitch = getProvider3DViewNumber(instance, "getPitch", "pitch", 55);
+        const delta = action === "pitch-up" ? 10 : -10;
+        const nextPitch = clampProvider3DViewPitch(pitch + delta, 80);
+        if (typeof instance.pitchTo === "function") {
+          instance.pitchTo(nextPitch, { duration: 180 });
+        } else if (typeof instance.setPitch === "function") {
+          instance.setPitch(nextPitch);
+        }
+        return true;
+      }
+      if (action === "rotate-left" || action === "rotate-right") {
+        const rotation = getProvider3DViewNumber(instance, "getRotation", "rotation", 0);
+        const delta = action === "rotate-left" ? -30 : 30;
+        const nextRotation = normalizeProvider3DViewRotation(rotation + delta);
+        if (typeof instance.rotateTo === "function") {
+          instance.rotateTo(nextRotation, { duration: 180 });
+        } else if (typeof instance.setRotation === "function") {
+          instance.setRotation(nextRotation);
+        }
+        return true;
+      }
+    }
+    if (provider === "baidu") {
+      if (action === "pitch-up" || action === "pitch-down") {
+        const tilt = getProvider3DViewNumber(instance, "getTilt", "tilt", 55);
+        const delta = action === "pitch-up" ? 10 : -10;
+        const nextTilt = clampProvider3DViewPitch(tilt + delta, 87);
+        if (typeof instance.setTilt === "function") instance.setTilt(nextTilt, { duration: 180 });
+        return true;
+      }
+      if (action === "rotate-left" || action === "rotate-right") {
+        const heading = getProvider3DViewNumber(instance, "getHeading", "heading", 0);
+        const delta = action === "rotate-left" ? -30 : 30;
+        const nextHeading = normalizeProvider3DViewRotation(heading + delta);
+        if (typeof instance.setHeading === "function") {
+          instance.setHeading(nextHeading, { duration: 180 });
+        }
+        return true;
+      }
+    }
+  } catch (e) {
+    logMessage_Warning(`[地图] 调整${containerId} 3D视角失败:`, e);
+  }
+  return false;
+}
+
 function attachProvider3DViewControlHandler(containerId) {
-  const button = document.getElementById(getProvider3DViewButtonId(containerId));
-  if (!button || button._provider3DViewBound) return;
-  button.addEventListener("click", () => {
-    applyProviderMapDefaultOrientation(containerId);
+  ["reset", "pitch-up", "pitch-down", "rotate-left", "rotate-right"].forEach((action) => {
+    const button = document.getElementById(getProvider3DViewControlButtonId(containerId, action));
+    if (!button || button._provider3DViewBound) return;
+    button.addEventListener("click", () => {
+      adjustProvider3DViewOrientation(containerId, action);
+    });
+    button._provider3DViewBound = true;
   });
-  button._provider3DViewBound = true;
+}
+
+function getProvider3DViewControlMarkup(buttonId) {
+  const baseId = buttonId.replace(/-btn$/, "");
+  const pitchUpId = `${baseId}-pitch-up-btn`;
+  const pitchDownId = `${baseId}-pitch-down-btn`;
+  const rotateLeftId = `${baseId}-rotate-left-btn`;
+  const rotateRightId = `${baseId}-rotate-right-btn`;
+  return `
+    <div class="provider-3d-view-controlbar relative w-[78px] h-[78px] rounded-full bg-white/90 shadow-lg border border-slate-200 text-slate-500 select-none">
+      <button id="${pitchUpId}" type="button" class="absolute top-1 left-1/2 -translate-x-1/2 w-5 h-5 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors" title="增大俯仰角" aria-label="增大俯仰角">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 4l4 5H4l4-5z" fill="#94a3b8"></path></svg>
+      </button>
+      <button id="${rotateLeftId}" type="button" class="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors" title="向左旋转" aria-label="向左旋转">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.8 7.2A7 7 0 0 1 19 13.4" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round"></path><path d="M8 3.8v4.8h4.8" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </button>
+      <button id="${buttonId}" type="button" class="provider-3d-view-btn absolute left-1/2 top-1/2 w-11 h-11 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center rounded-full bg-white/95 shadow-inner hover:bg-slate-50 transition-colors" title="复位3D视角" aria-label="复位3D视角">
+        <svg class="provider-3d-view-icon w-9 h-9" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <circle cx="24" cy="24" r="18" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"></circle>
+          <path d="M24 8l6.5 18.5L24 23.5l-6.5 3L24 8z" fill="#ef4444"></path>
+          <path d="M24 40l-5.5-14.5L24 28l5.5-2.5L24 40z" fill="#94a3b8"></path>
+          <path d="M24 4v5M24 39v5M4 24h5M39 24h5" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"></path>
+          <circle cx="24" cy="24" r="4" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"></circle>
+        </svg>
+      </button>
+      <button id="${rotateRightId}" type="button" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors" title="向右旋转" aria-label="向右旋转">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15.2 7.2A7 7 0 0 0 5 13.4" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round"></path><path d="M16 3.8v4.8h-4.8" fill="none" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      </button>
+      <button id="${pitchDownId}" type="button" class="absolute bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors" title="减小俯仰角" aria-label="减小俯仰角">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 12L4 7h8l-4 5z" fill="#94a3b8"></path></svg>
+      </button>
+    </div>
+  `;
+}
+
+function renderProvider3DViewControlOverlay(overlay, buttonId) {
+  overlay.dataset.providerMapViewControl = "true";
+  overlay.dataset.providerMapViewControlVersion = "compass-v1";
+  overlay.className =
+    "absolute top-4 left-3 z-[1000] bg-white/85 backdrop-blur-sm rounded-full shadow-md flex items-center p-1 border border-slate-200";
+  overlay.innerHTML = getProvider3DViewControlMarkup(buttonId);
 }
 
 function ensureProvider3DViewControl(containerId) {
   const provider = providerMapInstanceProviders[containerId] || getActiveMapProvider();
+  if (provider === "baidu" || provider === "tencent") {
+    removeProvider3DViewControl(containerId);
+    return;
+  }
   const container = document.getElementById(containerId);
   if (!container) return;
   const buttonId = getProvider3DViewButtonId(containerId);
@@ -35693,18 +35838,21 @@ function ensureProvider3DViewControl(containerId) {
   }
 
   if (existingButton && isElementInsideContainer(container, existingButton)) {
+    const existingOverlay = existingButton.parentNode;
+    if (
+      existingOverlay &&
+      existingOverlay.dataset &&
+      existingOverlay.dataset.providerMapViewControl === "true"
+    ) {
+      renderProvider3DViewControlOverlay(existingOverlay, buttonId);
+    }
     attachProvider3DViewControlHandler(containerId);
     return;
   }
   removeElementOrParentOverlay(existingButton);
 
   const overlay = document.createElement("div");
-  overlay.dataset.providerMapViewControl = "true";
-  overlay.className =
-    "absolute top-4 left-3 z-[1000] bg-white/85 backdrop-blur-sm rounded-full shadow-md flex items-center p-1 border border-slate-200";
-  overlay.innerHTML = `
-    <button id="${buttonId}" class="w-10 h-10 font-bold text-sm flex items-center justify-center hover:bg-slate-100 rounded-full text-slate-700" title="3D视角">3D</button>
-  `;
+  renderProvider3DViewControlOverlay(overlay, buttonId);
   container.appendChild(overlay);
   attachProvider3DViewControlHandler(containerId);
 }
@@ -35795,7 +35943,7 @@ function enableTianDiTuRightDragPan(containerId, instance) {
   surface._providerTianDiTuRightDragBound = true;
 }
 
-function removeTencentDefaultControls(instance) {
+function configureTencentNativeViewControls(instance) {
   if (!instance || typeof instance.removeControl !== "function") {
     return false;
   }
@@ -35808,9 +35956,8 @@ function removeTencentDefaultControls(instance) {
   const controlIds = [
     defaults.SCALE || "scale",
     defaults.ZOOM || "zoom",
-    defaults.ROTATION || "rotation",
   ].filter((id) => id !== undefined && id !== null && id !== "");
-  let removed = false;
+  let changed = false;
 
   controlIds.forEach((id) => {
     try {
@@ -35818,12 +35965,31 @@ function removeTencentDefaultControls(instance) {
         return;
       }
       instance.removeControl(id);
-      removed = true;
+      changed = true;
     } catch (e) {
       logMessage_Warning(`[地图] 移除腾讯地图默认控件失败(${id}):`, e);
     }
   });
-  return removed;
+
+  const rotationId = defaults.ROTATION || "rotation";
+  try {
+    const rotationControl =
+      typeof instance.getControl === "function" ? instance.getControl(rotationId) : null;
+    const positions =
+      window.TMap && window.TMap.constants && window.TMap.constants.CONTROL_POSITION
+        ? window.TMap.constants.CONTROL_POSITION
+        : {};
+    if (rotationControl && typeof rotationControl.setPosition === "function") {
+      rotationControl.setPosition(positions.TOP_LEFT || "top-left");
+      changed = true;
+    }
+    if (rotationControl && typeof rotationControl.setClassName === "function") {
+      rotationControl.setClassName("provider-tencent-native-rotation-control");
+    }
+  } catch (e) {
+    logMessage_Warning("[地图] 设置腾讯地图原生视角控件位置失败:", e);
+  }
+  return changed;
 }
 
 function enableProviderMapInteractions(containerId, provider, instance) {
@@ -35834,7 +36000,7 @@ function enableProviderMapInteractions(containerId, provider, instance) {
       if (typeof instance.setScrollable === "function") instance.setScrollable(true);
       if (typeof instance.setPitchable === "function") instance.setPitchable(true);
       if (typeof instance.setRotatable === "function") instance.setRotatable(true);
-      removeTencentDefaultControls(instance);
+      configureTencentNativeViewControls(instance);
     } else if (provider === "baidu") {
       if (typeof instance.enableScrollWheelZoom === "function") instance.enableScrollWheelZoom(true);
       if (typeof instance.enableRotate === "function") instance.enableRotate();
@@ -35943,7 +36109,7 @@ function initProviderMap(containerId, isMultiAccount = false) {
           scrollable: true,
           pitchable: true,
           rotatable: true,
-          showControl: false,
+          showControl: true,
         });
         providerMapInstances[containerId] = instance;
       } else {
