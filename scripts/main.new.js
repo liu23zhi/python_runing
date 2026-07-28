@@ -36575,30 +36575,35 @@ function renderMapProviderFrontendPlaceholder(containerId, isMultiAccount = fals
   return true;
 }
 
+function cloneMapCoordinate(coord) {
+  const normalized = normalizeRouteCoord(coord);
+  return { lng: normalized.lng, lat: normalized.lat };
+}
+
 function convertMapCoordinatesToGcj02(provider, coord) {
+  if (!coord) return coord;
   const normalizedProvider = String(provider || getActiveMapProvider()).trim().toLowerCase();
-  if (normalizedProvider === "tianditu" && coord) {
-    return wgs84ToGcj02(coord.lng, coord.lat);
+  const normalizedCoord = cloneMapCoordinate(coord);
+  if (normalizedProvider === "tianditu") {
+    return wgs84ToGcj02(normalizedCoord.lng, normalizedCoord.lat);
   }
   if (normalizedProvider === "baidu") {
-    if (coord) {
-      return bd09ToGcj02(coord.lng, coord.lat);
-    }
+    return bd09ToGcj02(normalizedCoord.lng, normalizedCoord.lat);
   }
-  return coord;
+  return normalizedCoord;
 }
 
 function convertGcj02ToProviderCoordinates(provider, coord) {
+  if (!coord) return coord;
   const normalizedProvider = String(provider || getActiveMapProvider()).trim().toLowerCase();
-  if (normalizedProvider === "tianditu" && coord) {
-    return gcj02ToWgs84(coord.lng, coord.lat);
+  const normalizedCoord = cloneMapCoordinate(coord);
+  if (normalizedProvider === "tianditu") {
+    return gcj02ToWgs84(normalizedCoord.lng, normalizedCoord.lat);
   }
   if (normalizedProvider === "baidu") {
-    if (coord) {
-      return gcj02ToBd09(coord.lng, coord.lat);
-    }
+    return gcj02ToBd09(normalizedCoord.lng, normalizedCoord.lat);
   }
-  return coord;
+  return normalizedCoord;
 }
 
 function normalizeRouteCoord(coord) {

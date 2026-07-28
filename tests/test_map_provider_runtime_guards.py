@@ -326,6 +326,20 @@ class TestMapProviderRuntimeGuards(unittest.TestCase):
         self.assertIn('tianditu: { provider: "tianditu", display_name: "天地图", token: "", coordinate_system: "wgs84", business_coordinate_system: "gcj02" }', default_config_source)
         self.assertIn('baidu: { provider: "baidu", display_name: "百度地图", ak: "", coordinate_system: "bd09", business_coordinate_system: "gcj02" }', default_config_source)
 
+    def test_frontend_tencent_coordinate_conversion_is_gcj02_copy_not_datum_shift(self):
+        source = SCRIPT_PATH.read_text(encoding="utf-8")
+        convert_source = source[
+            source.index("function cloneMapCoordinate("):
+            source.index("function normalizeRouteCoord(", source.index("function cloneMapCoordinate("))
+        ]
+
+        self.assertIn("function cloneMapCoordinate(", convert_source)
+        self.assertIn("return { lng: normalized.lng, lat: normalized.lat };", convert_source)
+        self.assertIn('if (normalizedProvider === "tianditu")', convert_source)
+        self.assertIn('if (normalizedProvider === "baidu")', convert_source)
+        self.assertIn("return normalizedCoord;", convert_source)
+        self.assertNotIn('normalizedProvider === "tencent"', convert_source)
+
     def test_provider_route_drawing_splits_separator_points_before_rendering(self):
         source = SCRIPT_PATH.read_text(encoding="utf-8")
         draw_source = source[

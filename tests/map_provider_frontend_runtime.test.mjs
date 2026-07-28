@@ -708,6 +708,8 @@ function createRuntime(provider, options = {}) {
     'gcj02ToWgs84',
     'gcj02ToBd09',
     'bd09ToGcj02',
+    'cloneMapCoordinate',
+    'convertMapCoordinatesToGcj02',
     'convertGcj02ToProviderCoordinates',
     'normalizeRouteCoord',
     'isRouteSegmentSeparator',
@@ -863,6 +865,8 @@ function createRuntime(provider, options = {}) {
       getProviderMapInstance,
       wgs84ToGcj02,
       gcj02ToWgs84,
+      convertMapCoordinatesToGcj02,
+      convertGcj02ToProviderCoordinates,
       setCurrentRunData: (data) => {
         currentRunData = data;
       },
@@ -976,6 +980,49 @@ test('gcj02 to wgs84 conversion round-trips provider coordinates within centimet
       distanceMeters(gcj, roundTrip) < 0.02,
       `${JSON.stringify(gcj)} should round-trip within 2cm`,
     );
+  }
+});
+
+test('tencent provider preserves amap gcj02 coordinates without applying datum offset', () => {
+  const runtime = createRuntime('tencent');
+  const samples = [
+    { lng: 113.390342, lat: 22.527403 },
+    { lng: 116.397128, lat: 39.916527 },
+    { lng: 121.4737, lat: 31.2304 },
+  ];
+
+  assert.equal(runtime.initProviderMap('map-container', false), true);
+
+  for (const gcj of samples) {
+    const originalLng = gcj.lng;
+    const converted = runtime.convertGcj02ToProviderCoordinates('tencent', gcj);
+    assert.notStrictEqual(converted, gcj);
+    assert.ok(
+      distanceMeters(gcj, converted) < 0.02,
+      `Tencent should not offset GCJ-02 input: ${JSON.stringify(gcj)}`,
+    );
+    const roundTrip = runtime.convertMapCoordinatesToGcj02('tencent', converted);
+    assert.notStrictEqual(roundTrip, converted);
+    assert.ok(
+      distanceMeters(gcj, roundTrip) < 0.02,
+      `Tencent GCJ-02 round-trip should remain unchanged: ${JSON.stringify(gcj)}`,
+    );
+
+    const convertedFromArray = runtime.convertGcj02ToProviderCoordinates('tencent', [
+      gcj.lng,
+      gcj.lat,
+    ]);
+    assert.deepEqual(convertedFromArray, gcj);
+    convertedFromArray.lng += 1;
+    assert.equal(gcj.lng, originalLng);
+
+    const marker = runtime.addProviderMarker('map-container', gcj, {
+      title: `marker-${gcj.lng}`,
+      label: `marker-${gcj.lng}`,
+    });
+    const position = marker.options.geometries[0].position;
+    assert.equal(position.lng, gcj.lng);
+    assert.equal(position.lat, gcj.lat);
   }
 });
 
