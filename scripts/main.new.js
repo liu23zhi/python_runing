@@ -36005,8 +36005,33 @@ function gcj02ToWgs84(lng, lat) {
   if (!Number.isFinite(lng) || !Number.isFinite(lat) || isCoordinateOutOfChina(lng, lat)) {
     return { lng, lat };
   }
-  const gcj = wgs84ToGcj02(lng, lat);
-  return { lng: lng * 2 - gcj.lng, lat: lat * 2 - gcj.lat };
+  let minLng = lng - 0.02;
+  let maxLng = lng + 0.02;
+  let minLat = lat - 0.02;
+  let maxLat = lat + 0.02;
+  let resultLng = lng;
+  let resultLat = lat;
+  for (let i = 0; i < 32; i += 1) {
+    resultLng = (minLng + maxLng) / 2;
+    resultLat = (minLat + maxLat) / 2;
+    const converted = wgs84ToGcj02(resultLng, resultLat);
+    const diffLng = converted.lng - lng;
+    const diffLat = converted.lat - lat;
+    if (Math.abs(diffLng) < 1e-10 && Math.abs(diffLat) < 1e-10) {
+      break;
+    }
+    if (diffLng > 0) {
+      maxLng = resultLng;
+    } else {
+      minLng = resultLng;
+    }
+    if (diffLat > 0) {
+      maxLat = resultLat;
+    } else {
+      minLat = resultLat;
+    }
+  }
+  return { lng: resultLng, lat: resultLat };
 }
 
 function gcj02ToBd09(lng, lat) {

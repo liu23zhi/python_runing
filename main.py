@@ -827,6 +827,44 @@ def _plan_route_path_with_tianditu_runtime(session_id, page, waypoints, provider
                 return { lng: lng + dLng, lat: lat + dLat };
             }
 
+            function gcj02ToWgs84Exact(lng, lat) {
+                lng = Number(lng);
+                lat = Number(lat);
+                if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+                    throw new Error('高德坐标无效，无法转换为地图工作坐标。');
+                }
+                if (isOutOfChina(lng, lat)) {
+                    return { lng, lat };
+                }
+                let minLng = lng - 0.02;
+                let maxLng = lng + 0.02;
+                let minLat = lat - 0.02;
+                let maxLat = lat + 0.02;
+                let resultLng = lng;
+                let resultLat = lat;
+                for (let i = 0; i < 32; i += 1) {
+                    resultLng = (minLng + maxLng) / 2;
+                    resultLat = (minLat + maxLat) / 2;
+                    const converted = tdtCoordinateToGcj02({ lng: resultLng, lat: resultLat });
+                    const diffLng = converted.lng - lng;
+                    const diffLat = converted.lat - lat;
+                    if (Math.abs(diffLng) < 1e-10 && Math.abs(diffLat) < 1e-10) {
+                        break;
+                    }
+                    if (diffLng > 0) {
+                        maxLng = resultLng;
+                    } else {
+                        minLng = resultLng;
+                    }
+                    if (diffLat > 0) {
+                        maxLat = resultLat;
+                    } else {
+                        minLat = resultLat;
+                    }
+                }
+                return { lng: resultLng, lat: resultLat };
+            }
+
             function gcj02ToTdtCoordinate(coord) {
                 const lng = Number(coord && coord.lng);
                 const lat = Number(coord && coord.lat);
@@ -836,8 +874,7 @@ def _plan_route_path_with_tianditu_runtime(session_id, page, waypoints, provider
                 if (isOutOfChina(lng, lat)) {
                     return { lng, lat };
                 }
-                const guessed = tdtCoordinateToGcj02({ lng, lat });
-                return { lng: lng * 2 - guessed.lng, lat: lat * 2 - guessed.lat };
+                return gcj02ToWgs84Exact(lng, lat);
             }
 
             function buildDrivingRouteUrl(startCoord, endCoord) {

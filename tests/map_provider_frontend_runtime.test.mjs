@@ -704,6 +704,8 @@ function createRuntime(provider, options = {}) {
       clearSingleExecutionVisuals,
       onRunStopped,
       getProviderMapInstance,
+      wgs84ToGcj02,
+      gcj02ToWgs84,
       setCurrentRunData: (data) => {
         currentRunData = data;
       },
@@ -750,6 +752,19 @@ function findTencentMarkerByTitle(runtime, containerId, title) {
     .find((overlay) => overlay?.options?.geometries?.[0]?.properties?.title === title);
 }
 
+function distanceMeters(a, b) {
+  const earthRadius = 6378137;
+  const toRad = (value) => Number(value) * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+  return 2 * earthRadius * Math.asin(Math.sqrt(h));
+}
+
 test('provider maps initialize and expose marker-only viewport controls without network SDKs', () => {
   const providers = ['tencent', 'tianditu', 'baidu'];
 
@@ -779,6 +794,24 @@ test('provider maps initialize and expose marker-only viewport controls without 
       assert.equal(instance.setViewportCalls.length, 1);
       assert.equal(instance.setViewportCalls[0].length, 1);
     }
+  }
+});
+
+test('gcj02 to wgs84 conversion round-trips provider coordinates within centimeters', () => {
+  const runtime = createRuntime('tianditu');
+  const samples = [
+    { lng: 113.390342, lat: 22.527403 },
+    { lng: 116.397128, lat: 39.916527 },
+    { lng: 121.4737, lat: 31.2304 },
+  ];
+
+  for (const gcj of samples) {
+    const wgs = runtime.gcj02ToWgs84(gcj.lng, gcj.lat);
+    const roundTrip = runtime.wgs84ToGcj02(wgs.lng, wgs.lat);
+    assert.ok(
+      distanceMeters(gcj, roundTrip) < 0.02,
+      `${JSON.stringify(gcj)} should round-trip within 2cm`,
+    );
   }
 });
 

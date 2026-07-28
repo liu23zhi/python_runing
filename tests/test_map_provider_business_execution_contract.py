@@ -138,7 +138,9 @@ class TestMapProviderBusinessExecutionContract(unittest.TestCase):
 
         self.assertIn("function gcj02ToTdtCoordinate(", tianditu_block)
         self.assertIn("function tdtCoordinateToGcj02(", tianditu_block)
-        self.assertIn("return tdtCoordinateToGcj02({ lng, lat });", tianditu_block)
+        self.assertIn("function gcj02ToWgs84Exact(", tianditu_block)
+        self.assertIn("return gcj02ToWgs84Exact(lng, lat);", tianditu_block)
+        self.assertNotIn("return { lng: lng * 2 - guessed.lng, lat: lat * 2 - guessed.lat };", tianditu_block)
         self.assertIn("function gcj02ToBd09(", baidu_block)
         self.assertIn("function bd09ToGcj02(", baidu_block)
         self.assertIn("const converted = bd09ToGcj02(Number(point.lng), Number(point.lat));", baidu_block)
