@@ -109,10 +109,11 @@ class TestMapProviderBackendContract(unittest.TestCase):
         self.assertIn('provider = _get_active_map_provider(', source)
         self.assertIn('plugins = _get_map_provider_plugins(', source)
 
-    def test_initial_data_uses_resolved_amap_key(self):
+    def test_initial_data_uses_encrypted_map_provider_bundle(self):
         source = MAIN_PATH.read_text(encoding="utf-8")
 
-        self.assertIn('"amap_key": _resolve_amap_js_key(self.config_path),', source)
+        self.assertIn("def _build_public_map_provider_frontend_payload(", source)
+        self.assertIn('"map_provider_key_bundle": map_public_payload["map_provider_key_bundle"]', source)
 
     def test_initial_data_and_login_return_map_provider_contract(self):
         source = MAIN_PATH.read_text(encoding="utf-8")
@@ -126,12 +127,14 @@ class TestMapProviderBackendContract(unittest.TestCase):
             source.index("    def logout(")
         ]
 
-        self.assertIn('map_config = _get_map_provider_frontend_config(cfg)', get_initial_data_source)
-        self.assertIn('"map_provider": map_config["map_provider"]', get_initial_data_source)
-        self.assertIn('"map_providers": map_config["map_providers"]', get_initial_data_source)
-        self.assertIn('login_map_config = _get_map_provider_frontend_config(', login_source)
-        self.assertIn('"map_provider": login_map_config["map_provider"]', login_source)
-        self.assertIn('"map_providers": login_map_config["map_providers"]', login_source)
+        self.assertIn('map_public_payload = _build_public_map_provider_frontend_payload(cfg)', get_initial_data_source)
+        self.assertIn('"map_provider": map_public_payload["map_provider"]', get_initial_data_source)
+        self.assertIn('"map_providers": map_public_payload["map_providers"]', get_initial_data_source)
+        self.assertIn('"map_provider_key_bundle": map_public_payload["map_provider_key_bundle"]', get_initial_data_source)
+        self.assertIn('login_map_payload = _build_public_map_provider_frontend_payload(', login_source)
+        self.assertIn('"map_provider": login_map_payload["map_provider"]', login_source)
+        self.assertIn('"map_providers": login_map_payload["map_providers"]', login_source)
+        self.assertIn('"map_provider_key_bundle": login_map_payload["map_provider_key_bundle"]', login_source)
 
     def test_initial_data_returns_running_background_task_status_for_provider_lock(self):
         source = MAIN_PATH.read_text(encoding="utf-8")
@@ -195,6 +198,34 @@ class TestMapProviderBackendContract(unittest.TestCase):
         self.assertEqual(results["tencent"]["provider"], "tencent")
         self.assertEqual(results["tianditu"]["provider"], "tianditu")
         self.assertEqual(results["baidu"]["provider"], "baidu")
+
+    def test_strip_map_provider_secret_fields_removes_raw_keys(self):
+        sanitized = main_module._strip_map_provider_secret_fields(
+            {
+                "amap": {"provider": "amap", "js_key": "a"},
+                "tencent": {"provider": "tencent", "map_key": "b"},
+                "tianditu": {"provider": "tianditu", "token": "c"},
+                "baidu": {"provider": "baidu", "ak": "d"},
+            }
+        )
+        self.assertNotIn("js_key", sanitized["amap"])
+        self.assertNotIn("map_key", sanitized["tencent"])
+        self.assertNotIn("token", sanitized["tianditu"])
+        self.assertNotIn("ak", sanitized["baidu"])
+
+    def test_build_map_provider_key_bundle_encrypts_secrets(self):
+        bundle = main_module._build_map_provider_key_bundle(
+            {
+                "amap": {"js_key": "amap-key"},
+                "tencent": {"map_key": "tencent-key"},
+                "tianditu": {"token": "tianditu-key"},
+                "baidu": {"ak": "baidu-key"},
+            }
+        )
+        self.assertEqual(bundle["algorithm"], "RSA-OAEP-256")
+        self.assertEqual(bundle["runtime_script"], "/scripts/map_key_runtime.js")
+        self.assertNotEqual(bundle["providers"]["amap"]["ciphertext"], "")
+        self.assertNotEqual(bundle["providers"]["amap"]["ciphertext"], "amap-key")
 
     def test_provider_runtime_navigates_to_session_page_before_backend_js_execution(self):
         runtime_config = self._runtime_config_with_map("amap", {
