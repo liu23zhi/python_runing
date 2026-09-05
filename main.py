@@ -193,6 +193,18 @@ MAP_PROVIDER_KEY_FIELDS = {
     "baidu": "ak",
 }
 
+MAP_KEY_RUNTIME_SCRIPT_NAME = "map_key_runtime.js"
+MAP_KEY_RUNTIME_NAMESPACE = "__MAP_KEY_RUNTIME__"
+map_key_runtime_lock = None
+map_key_runtime_cache = {}
+
+
+
+def _get_map_key_runtime_lock():
+    global map_key_runtime_lock
+    if map_key_runtime_lock is None:
+        map_key_runtime_lock = threading.Lock()
+    return map_key_runtime_lock
 
 
 def _normalize_map_provider(provider):
@@ -281,6 +293,147 @@ def _get_map_provider_frontend_config(config=None):
     return {
         "map_provider": map_provider,
         "map_providers": map_providers,
+    }
+
+
+def _strip_map_provider_secret_fields(map_providers):
+    sanitized = {}
+    providers = map_providers if isinstance(map_providers, dict) else {}
+    for provider, value in providers.items():
+        entry = dict(value) if isinstance(value, dict) else {}
+        secret_field = MAP_PROVIDER_KEY_FIELDS.get(provider)
+        if secret_field:
+            entry.pop(secret_field, None)
+        sanitized[provider] = entry
+    return sanitized
+
+
+def _load_map_key_runtime_template():
+    base_dir = os.path.dirname(__file__)
+    runtime_js_path = os.path.join(base_dir, "scripts", MAP_KEY_RUNTIME_SCRIPT_NAME)
+    with open(runtime_js_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def _get_crypto_primitives():
+    from cryptography.hazmat.primitives.asymmetric import rsa, padding
+    from cryptography.hazmat.primitives import serialization, hashes
+
+    return rsa, padding, serialization, hashes
+
+
+def _obfuscate_runtime_javascript(source):
+    source = re.sub(r"/\*[\s\S]*?\*/", "", str(source or ""))
+    compact_lines = []
+    for line in source.splitlines():
+        line = re.sub(r"^\s*//.*$", "", line)
+        line = line.strip()
+        if not line:
+            continue
+        compact_lines.append(line)
+    return "".join(compact_lines)
+
+
+def _build_obfuscated_map_key_runtime_script(private_key_pem, runtime_version):
+    runtime_template = _load_map_key_runtime_template()
+    rendered = (
+        runtime_template
+        .replace("__MAP_KEY_RUNTIME_PRIVATE_KEY_PEM__", json.dumps(str(private_key_pem or "")))
+        .replace("__MAP_KEY_RUNTIME_NAMESPACE__", MAP_KEY_RUNTIME_NAMESPACE)
+        .replace("__MAP_KEY_RUNTIME_VERSION__", json.dumps(str(runtime_version or "")))
+    )
+    return _obfuscate_runtime_javascript(rendered)
+
+
+def _ensure_map_key_runtime_cache():
+    with _get_map_key_runtime_lock():
+        if map_key_runtime_cache:
+            return map_key_runtime_cache
+        rsa, _, serialization, _ = _get_crypto_primitives()
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+        )
+        private_key_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ).decode("utf-8")
+        runtime_version = secrets.token_hex(8)
+        map_key_runtime_cache.update(
+            {
+                "private_key": private_key,
+                "public_key": private_key.public_key(),
+                "runtime_version": runtime_version,
+                "runtime_script": _build_obfuscated_map_key_runtime_script(
+                    private_key_pem=private_key_pem,
+                    runtime_version=runtime_version,
+                ),
+            }
+        )
+        return map_key_runtime_cache
+
+
+def _encrypt_map_provider_secret(secret_value):
+    raw_value = str(secret_value or "").strip()
+    if not raw_value:
+        return ""
+    _, padding, _, hashes = _get_crypto_primitives()
+    runtime_context = _ensure_map_key_runtime_cache()
+    ciphertext = runtime_context["public_key"].encrypt(
+        raw_value.encode("utf-8"),
+        padding.OAEP(
+            mgf=padding.MGF1(
+                algorithm=hashes.SHA256()
+            ),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
+    import base64 as _base64
+
+    return _base64.b64encode(ciphertext).decode("utf-8")
+
+
+def _build_map_provider_key_bundle(map_providers):
+    encrypted_providers = {}
+    providers = map_providers if isinstance(map_providers, dict) else {}
+    try:
+        for provider, key_field in MAP_PROVIDER_KEY_FIELDS.items():
+            provider_config = providers.get(provider) if isinstance(providers.get(provider), dict) else {}
+            encrypted_secret = _encrypt_map_provider_secret(provider_config.get(key_field, ""))
+            encrypted_providers[provider] = {
+                "field": key_field,
+                "ciphertext": encrypted_secret,
+            }
+        runtime_context = _ensure_map_key_runtime_cache()
+        return {
+            "algorithm": "RSA-OAEP-256",
+            "runtime_version": runtime_context.get("runtime_version", ""),
+            "runtime_script": f"/scripts/{MAP_KEY_RUNTIME_SCRIPT_NAME}",
+            "providers": encrypted_providers,
+            "available": True,
+        }
+    except Exception as e:
+        logging.error(f"[MapKeyRuntime] 生成地图密钥密文失败: {e}")
+        for provider, key_field in MAP_PROVIDER_KEY_FIELDS.items():
+            encrypted_providers.setdefault(provider, {"field": key_field, "ciphertext": ""})
+        return {
+            "algorithm": "RSA-OAEP-256",
+            "runtime_version": "",
+            "runtime_script": f"/scripts/{MAP_KEY_RUNTIME_SCRIPT_NAME}",
+            "providers": encrypted_providers,
+            "available": False,
+        }
+
+
+def _build_public_map_provider_frontend_payload(config=None):
+    frontend_config = _get_map_provider_frontend_config(config)
+    map_providers = frontend_config.get("map_providers", {})
+    return {
+        "map_provider": frontend_config.get("map_provider", "amap"),
+        "map_providers": _strip_map_provider_secret_fields(map_providers),
+        "map_provider_key_bundle": _build_map_provider_key_bundle(map_providers),
     }
 
 
@@ -14154,7 +14307,7 @@ class Api:
             except Exception as e:
                 logging.warning(f"[get_initial_data] 获取CDN缓存状态失败: {e}")
 
-            map_config = _get_map_provider_frontend_config(cfg)
+            map_public_payload = _build_public_map_provider_frontend_payload(cfg)
             task_status = None
             try:
                 if (
@@ -14170,9 +14323,9 @@ class Api:
                 "success": True,
                 "users": users,
                 "lastUser": last_user,
-                "amap_key": _resolve_amap_js_key(self.config_path),
-                "map_provider": map_config["map_provider"],
-                "map_providers": map_config["map_providers"],
+                "map_provider": map_public_payload["map_provider"],
+                "map_providers": map_public_payload["map_providers"],
+                "map_provider_key_bundle": map_public_payload["map_provider_key_bundle"],
                 "isLoggedIn": is_logged_in,
                 "userInfo": user_info,
                 "is_authenticated": is_authenticated,
@@ -14378,12 +14531,12 @@ class Api:
             display_name = MAP_PROVIDER_DISPLAY_NAMES[provider]
             self.log(f"{display_name} API Key已保存。")
             logging.info(f"已成功保存新的{display_name} API Key")
-            map_config = _get_map_provider_frontend_config(cfg)
+            map_public_payload = _build_public_map_provider_frontend_payload(cfg)
             return {
                 "success": True,
-                "map_provider": map_config["map_provider"],
-                "map_providers": map_config["map_providers"],
-                "amap_key": _resolve_amap_js_key(cfg),
+                "map_provider": map_public_payload["map_provider"],
+                "map_providers": map_public_payload["map_providers"],
+                "map_provider_key_bundle": map_public_payload["map_provider_key_bundle"],
             }
         except Exception as e:
             self.log(f"保存地图API Key失败: {e}")
@@ -14677,16 +14830,16 @@ class Api:
         # auth_group = getattr(self, "auth_group", "guest")
         # auth_group = auth_system.get_user_group( )
 
-        login_map_config = _get_map_provider_frontend_config(
+        login_map_payload = _build_public_map_provider_frontend_payload(
             _read_config_ini(self.config_path) or _get_default_config()
         )
         return {
             "success": True,
             "userInfo": user_info_dict,
             "ua": self.device_ua,
-            "amap_key": _resolve_amap_js_key(self.config_path),
-            "map_provider": login_map_config["map_provider"],
-            "map_providers": login_map_config["map_providers"],
+            "map_provider": login_map_payload["map_provider"],
+            "map_providers": login_map_payload["map_providers"],
+            "map_provider_key_bundle": login_map_payload["map_provider_key_bundle"],
             # "auth_group": auth_group,
             "cached_notifications": cached_notifications,
         }
@@ -36016,7 +36169,7 @@ def start_web_server(args_param):
         except Exception:
             newbie_help_url = ""
 
-        map_config = _get_map_provider_frontend_config(config)
+        map_public_payload = _build_public_map_provider_frontend_payload(config)
 
         return {
             "sms_enabled": sms_enabled,
@@ -36025,8 +36178,9 @@ def start_web_server(args_param):
             "enable_phone_login": phone_login_enabled,
             "show_newbie_help": show_newbie_help,
             "newbie_help_url": newbie_help_url,
-            "map_provider": map_config["map_provider"],
-            "map_providers": map_config["map_providers"],
+            "map_provider": map_public_payload["map_provider"],
+            "map_providers": map_public_payload["map_providers"],
+            "map_provider_key_bundle": map_public_payload["map_provider_key_bundle"],
         }
 
     @app.route("/api/payment/yipay_notify", methods=["GET", "POST"])
@@ -37139,6 +37293,14 @@ def start_web_server(args_param):
         服务 ./scripts 目录下的静态文件
         """
         try:
+            if filename == MAP_KEY_RUNTIME_SCRIPT_NAME:
+                runtime_js = _ensure_map_key_runtime_cache().get("runtime_script", "")
+                if not runtime_js:
+                    return jsonify({"success": False, "message": "Runtime script not ready"}), 503
+                response = make_response(runtime_js)
+                response.mimetype = "application/javascript"
+                return _apply_no_cache_headers(response)
+
             # 获取 main.py 所在目录
             base_dir = os.path.dirname(__file__)
             script_dir = os.path.join(base_dir, "scripts")
